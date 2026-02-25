@@ -21,7 +21,7 @@ gather_logprobs:
 
 import pytest
 import torch
-from vllm_tt.sampler import Sampler
+from vllm_tt.sampler import Sampler, count_tokens_ge
 
 # Tests do not need silicon runner, but CI only runs on silicon runners.
 pytestmark = pytest.mark.single_device
@@ -240,3 +240,95 @@ def test_gather_logprobs_large_vocab(vocab_size):
     assert (result.logprob_token_ids >= 0).all()
     assert (result.logprob_token_ids < vocab_size).all()
     assert (result.selected_token_ranks >= 1).all()
+
+
+# ---------------------------------------------------------------------------
+# rank=0 precision artifact regression test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.push
+def test_gather_logprobs_rank_clamp_guards_precision_artifact():
+    """count_tokens_ge must clamp to >= 1 when threshold exceeds stored max
+    (TT bfloat16 precision artifact).
+
+    Root cause
+    ----------
+    On TT hardware gather_logprobs runs as separate uncompiled XLA ops (unlike
+    the GPU sampler's @torch.compile-fused batched_count_greater_than).  The
+    gathered logprob can end up fractionally above the stored value at that
+    position, making (logprobs >= gathered).sum(-1) == 0 (rank=0), which is
+    mathematically impossible but was observed in CI (Llama-3.2-3B n300,
+    Qwen3-0.6B n300_llmbox).
+
+    How this test works
+    -------------------
+    count_tokens_ge encapsulates the rank formula + clamp used by
+    gather_logprobs.  We call it directly with a threshold one float32 ULP
+    above the true maximum (torch.nextafter) — the exact artifact condition.
+    Nothing in logprobs satisfies (logprob >= threshold), so the raw count
+    is 0.  count_tokens_ge returns >= 1 (rank is 1-based).
+    """
+    torch.manual_seed(0)
+    batch, vocab = 4, 32000
+    logprobs = torch.randn(batch, vocab)
+
+    # One float32 ULP above the true max: nothing in logprobs satisfies >=.
+    true_max = logprobs.max(dim=-1, keepdim=True).values
+    artifact = torch.nextafter(true_max, torch.full_like(true_max, float("inf")))
+    assert (
+        (logprobs >= artifact).sum(-1) == 0
+    ).all(), "Prerequisite: artifact threshold exceeds all logprobs → raw rank=0"
+
+    # count_tokens_ge (used by gather_logprobs) must clamp 0 → 1.
+    ranks = count_tokens_ge(logprobs, artifact)
+    assert (ranks >= 1).all(), "count_tokens_ge must return >= 1 (rank is 1-based)."
+
+
+# ---------------------------------------------------------------------------
+# topk index rounding regression test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.push
+def test_gather_logprobs_topk_indices_are_exact():
+    """logprob_token_ids must contain the exact top-k token IDs, not
+    bfloat16-rounded approximations.
+
+    On TT hardware the .to(torch.int32) cast for topk_indices inside a
+    compiled XLA graph routes through bfloat16, rounding large token IDs.
+    For example, token 19585 rounds to 19584 (bfloat16 precision at that
+    magnitude is 64 units).  When two top-k tokens round to the same ID
+    their logprob dict entries collide and one disappears, causing
+    'expected >= N logprob entries, got N-1' failures in test_logprobs.
+
+    This CPU test verifies the contract: gather_logprobs must return the
+    exact integer positions from torch.topk.  On CPU the conversion is
+    always exact.  A fix for TT is to convert topk_indices via CPU before
+    building the indices tensor.
+    """
+    torch.manual_seed(0)
+    batch, vocab = 2, 128256
+    num_logprobs = 5
+
+    logits = torch.randn(batch, vocab)
+    # Identify the actual top-k positions on CPU (exact, no rounding).
+    _, expected_topk = torch.topk(logits.log_softmax(-1), num_logprobs, dim=-1)
+
+    token_ids = expected_topk[:, 0].to(torch.int32)  # sample the top-1 token
+    result = Sampler().gather_logprobs(
+        Sampler().compute_logprobs(logits), num_logprobs, token_ids
+    )
+
+    returned_topk = result.logprob_token_ids[:, 1:]  # columns 1..k are top-k
+
+    assert returned_topk.dtype == torch.int32
+    for b in range(batch):
+        for k in range(num_logprobs):
+            expected = expected_topk[b, k].item()
+            actual = returned_topk[b, k].item()
+            assert actual == expected, (
+                f"batch={b} rank={k+1}: expected token {expected}, "
+                f"got {actual} (bfloat16 rounding: "
+                f"{expected} → {int(torch.tensor(expected, dtype=torch.bfloat16).item())})"
+            )
