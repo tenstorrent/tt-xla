@@ -517,24 +517,33 @@ def test_concurrent_buffer_instance_transfer():
         def forward(self, A):
             return A + 1
 
-    input_a_cpu = torch.randn(32, 32, dtype=torch.float32)
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+
+    mesh = create_device_mesh((2, 1,))
+
+    input_a_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
+    xs.mark_sharding(input_a_cpu, mesh, (None, "model"))
 
     program_a = ProgramA()
 
     result = run_model_on_device(program_a, [input_a_cpu])
 
-    # Create multiple threads that all print the same result concurrently
-    def print_result(thread_id):
-        print(f"Thread {thread_id}: {result}")
-        # time.sleep(0.1)  # Small delay to increase chance of concurrent access
-        print(f"Thread {thread_id}: Shape = {result.shape}")
+    # Create multiple threads that all copies result object
+    def copy_to_host():
+        import copy
+
+        for i in range(1024):
+            # cpy = copy.copy(result)  # calls PJRT_Buffer_ToHostBuffer
+            print(result.shape)
 
     threads = []
     num_threads = 10
 
     # Start multiple threads
     for i in range(num_threads):
-        thread = threading.Thread(target=print_result, args=(i,))
+        thread = threading.Thread(target=copy_to_host)
         threads.append(thread)
         thread.start()
 
@@ -559,21 +568,33 @@ def test_concurrent_multi_buffer_instance_transfer():
         def forward(self, A, B):
             return A + 1, B + 1
 
-    input_a_cpu = torch.randn(32, 32, dtype=torch.float32)
-    input_b_cpu = torch.randn(32, 32, dtype=torch.float32)
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+
+    mesh = create_device_mesh((2, 1,))
+
+    input_a_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
+    input_b_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
+    xs.mark_sharding(input_a_cpu, mesh, (None, "model"))
+    xs.mark_sharding(input_b_cpu, mesh, (None, "model"))
 
     program_ab = ProgramAB()
 
     res_a, res_b = run_model_on_device(program_ab, [input_a_cpu, input_b_cpu])
 
-    def print_result(thread_id, _result):
-        print(f"Result from thread_id {thread_id} = {_result}")
+    def copy_to_host(_result):
+        import copy
+
+        for i in range(1024):
+            # cpy = copy.copy(_result)  # calls PJRT_Buffer_ToHostBuffer
+            print(_result.shape)
 
     threads = []
     num_threads = 10
     for i in range(num_threads):
-        thread_a = threading.Thread(target=print_result, args=(i, res_a))
-        thread_b = threading.Thread(target=print_result, args=(i, res_b))
+        thread_a = threading.Thread(target=copy_to_host, args=(res_a,))
+        thread_b = threading.Thread(target=copy_to_host, args=(res_b,))
 
         threads.append(thread_a)
         threads.append(thread_b)

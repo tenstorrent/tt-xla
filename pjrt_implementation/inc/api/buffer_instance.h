@@ -158,10 +158,10 @@ public:
   PjrtTensorRef &getPjrtTensor() { return m_pjrt_tensor; };
   const PjrtTensorRef &getPjrtTensor() const { return m_pjrt_tensor; };
 
-  const tt::runtime::Tensor &runtimeTensor() const {
+  const tt::runtime::Tensor runtimeTensor() const {
     return m_pjrt_tensor->runtime_tensor();
   }
-  tt::runtime::Tensor &runtimeTensor() {
+  tt::runtime::Tensor runtimeTensor() {
     return m_pjrt_tensor->runtime_tensor();
   }
 
@@ -196,15 +196,6 @@ private:
   static uint64_t nextUID() {
     static std::atomic<uint64_t> uid{0};
     return uid.fetch_add(1, std::memory_order_relaxed);
-  }
-
-  // Waits on a current copy to host thread to finish.
-  void joinCopyThread() {
-    const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
-    if (m_copy_to_host_thread) {
-      m_copy_to_host_thread->join();
-      m_copy_to_host_thread.reset();
-    }
   }
 
   // Unique identifier for this buffer instance.
@@ -252,7 +243,7 @@ private:
   std::mutex m_data_deleted_mutex;
 
   // Thread for copying data to host.
-  std::unique_ptr<std::thread> m_copy_to_host_thread;
+  std::thread m_copy_to_host_thread;
 
   // Mutex guarding thread spawning for copying data to host.
   // Prevents multiple threads from concurrently copying into the same
