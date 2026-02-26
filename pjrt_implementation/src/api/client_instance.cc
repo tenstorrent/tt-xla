@@ -331,7 +331,6 @@ tt_pjrt_status ClientInstance::populateDevices() {
   }
 
   size_t devices_count = m_system_descriptor->chip_desc_indices()->size();
-
   m_devices.reserve(devices_count);
   m_devices_raw.reserve(devices_count);
   m_addressable_devices_raw.reserve(devices_count);
