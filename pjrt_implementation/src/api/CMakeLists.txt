@@ -60,6 +60,7 @@ PRIVATE
     protobuf::libprotobuf
     TTMLIRCompiler
     TTMLIRRuntime
+    tt-alchemist-python-runner
 PUBLIC
     TTPJRTUtils
 )
