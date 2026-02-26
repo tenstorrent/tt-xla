@@ -37,7 +37,10 @@ timm
 # torchvision 0.23.0 causes torch v2.8.0 to be installed, which isn't supported by our torch_xla whl
 torchvision==0.24.1+cpu
 torchxrayvision
-transformers==4.57.1
+transformers==5.2.0
+
+# vgg model
+vgg_pytorch
 
 wheel
 matplotlib
@@ -47,8 +50,7 @@ diffusers
 scikit-image>=0.24
 pycocotools
 
-surya-ocr==0.17.0
-
+surya-ocr
 peft
 bi-lstm-crf==0.2.1
 yolov5
