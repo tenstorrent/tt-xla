@@ -319,14 +319,18 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // with performance loss. We must measure.
   // Also, std::thread (as all objects from std::) has a value semantic, so it
   // does not make any sense to create std::thread as a unique_ptr.
-  joinCopyThread();
+  const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
+  if (m_copy_to_host_thread) {
+    m_copy_to_host_thread->join();
+    m_copy_to_host_thread.reset();
+  }
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
   m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
     try {
       ZoneScopedN("CopyToHostThread");
-      const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
+      // const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
 
       m_pjrt_tensor->move_to_host();
 

@@ -158,10 +158,10 @@ public:
   PjrtTensorRef &getPjrtTensor() { return m_pjrt_tensor; };
   const PjrtTensorRef &getPjrtTensor() const { return m_pjrt_tensor; };
 
-  const tt::runtime::Tensor &runtimeTensor() const {
+  const tt::runtime::Tensor runtimeTensor() const {
     return m_pjrt_tensor->runtime_tensor();
   }
-  tt::runtime::Tensor &runtimeTensor() {
+  tt::runtime::Tensor runtimeTensor() {
     return m_pjrt_tensor->runtime_tensor();
   }
 

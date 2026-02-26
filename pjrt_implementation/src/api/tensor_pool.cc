@@ -12,6 +12,7 @@
 #include "api/tensor.h"
 
 // c++ standard library includes
+#include <iostream>
 #include <mutex>
 #include <vector>
 
@@ -61,6 +62,7 @@ void PjrtTensorPool::insert(PjrtTensor *tensor) {
   assert(!contains(tensor));
 
   const std::scoped_lock lock{m_mtx};
+  std::cout << "Inserting tensor " << tensor->uid() << "\n";
   m_tensors.insert(tensor);
 }
 
@@ -70,6 +72,7 @@ void PjrtTensorPool::erase(PjrtTensor *tensor) {
   assert(contains(tensor));
 
   const std::scoped_lock lock{m_mtx};
+  std::cout << "Deleting tensor " << tensor->uid() << "\n";
   m_tensors.erase(tensor);
 }
 
@@ -77,6 +80,7 @@ void PjrtTensorPool::erase(PjrtTensor *tensor) {
 void PjrtTensorPool::clear() {
 
   const std::scoped_lock lock{m_mtx};
+  std::cout << "Clearing tensor pool.\n";
   m_tensors.clear();
 }
 
@@ -90,6 +94,8 @@ void PjrtTensorPool::clear() {
 void PjrtTensorPool::move_tensors_to_host() {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "Moving tensors to host.");
+
+  std::cout << "Moving tensors to host.\n";
 
   std::vector<PjrtTensor *> tensors{m_tensors.begin(), m_tensors.end()};
   for (PjrtTensor *tensor : tensors) {

@@ -12,7 +12,9 @@
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_H_
 
 // c++ standard library includes
+#include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -77,8 +79,9 @@ public: // Constructors needs to be public for std::shared_ptr.
   std::vector<BufferInstance *> &shards() { return m_shards; };
   const std::vector<BufferInstance *> &shards() const { return m_shards; };
 
-  tt::runtime::Tensor &runtime_tensor() { return m_runtime_tensor; }
-  const tt::runtime::Tensor &runtime_tensor() const { return m_runtime_tensor; }
+  // Returns runtime tensor copy.
+  tt::runtime::Tensor runtime_tensor() { return m_runtime_tensor; }
+  const tt::runtime::Tensor runtime_tensor() const { return m_runtime_tensor; }
 
   uint64_t uid() const noexcept { return m_uid; }
 
@@ -119,27 +122,36 @@ private:
 
   // Underlying runtime tensor.
   tt::runtime::Tensor m_runtime_tensor;
+
+  // Mutex protecting concurent access.
+  // It needs to be recursive in order to enable PjrtTensorRef to lock it 2nd
+  // time on reset() -> remove_shard().
+  mutable std::recursive_mutex m_mutex;
+
+  // Flag signaling whether tensor is already moved to host.
+  bool m_moved_to_host;
 };
 
 // Shared pointer to pjrt tensor used by all shards that holds tensor.
 //
-// NOTE: Always use get() to call pjrt tensor methods from this class
+// NOTE: Always use load_tensor() to call pjrt tensor methods from this class
 // internally if you are adding new methods, because std::shared_ptr does not
-// preserve constness of returned pointer with operator->().
-// We have also exposed const and non-const APIs for accessing pjrt tensor,
-// which ensures that non-const methods from pjrt tensor (which might modify
-// this object) are only called on non-const this object.
-// This is needed because if we are calling non-const pjrt tensor method, it
-// could modify us, which we don't want.
+// preserve constness of returned pointer with operator->() and it is not thread
+// safe.
+// We have exposed const and non-const operator->() APIs for accessing pjrt
+// tensor, which ensures that non-const methods from pjrt tensor (which might
+// modify this object) are only called on non-const this object. This is needed
+// because if we are calling non-const pjrt tensor method, it could modify us,
+// which we don't want.
 //
 // Example:
 // void test_function(const BufferInstance* buf) {
-//     // This will be allowed if we store std::shared_ptr<PjrtTensor> in
-//     // BufferInstance.
+//     // This will be allowed if we store plain std::shared_ptr<PjrtTensor> in
+//     // BufferInstance, instead of PjrtTensorRef.
 //     buf->pjrtTensor()->move_to_host();
 // }
 //
-// With this simple wrapper, we have tied 'const'ness of BufferInstance and
+// With this simple approach, we have tied 'const'ness of BufferInstance and
 // PjrtTensor.
 class PjrtTensorRef {
 public:
@@ -152,53 +164,75 @@ public:
 
   ~PjrtTensorRef() { reset(); }
 
-  const PjrtTensor *get() const noexcept { return m_tensor.get(); }
-  PjrtTensor *get() noexcept { return m_tensor.get(); }
-
   void reset(std::shared_ptr<PjrtTensor> tensor = nullptr,
              BufferInstance *shard = nullptr) noexcept {
 
     assert(!!tensor == !!shard && "Both must be nullptr or have a value.");
     assert(!tensor || tensor->has_shard(shard));
 
-    if (m_shard != nullptr)
-      get()->remove_shard(m_shard);
+    if (m_shard.load() != nullptr)
+      load_tensor()->remove_shard(m_shard.load());
 
-    m_tensor = std::move(tensor);
-    m_shard = shard;
+    std::atomic_store(&m_tensor, std::move(tensor));
+    m_shard.store(shard);
   }
 
   explicit operator bool() const noexcept {
-    return static_cast<bool>(m_tensor);
+    return static_cast<bool>(load_tensor());
   }
 
   bool operator==(const PjrtTensorRef &other) const noexcept {
-    return get() == other.get();
+    return load_tensor().get() == other.load_tensor().get();
   }
 
-  const PjrtTensor *operator->() const noexcept {
-    assert(m_tensor && "Accessing non-existing PJRT tensor");
-    return m_tensor.operator->();
-  }
+  // const PjrtTensor *operator->() const noexcept {
+  //   assert(load_tensor() && "Accessing non-existing PJRT tensor");
+  //   return load_tensor().operator->();
+  // }
 
-  PjrtTensor *operator->() noexcept {
-    assert(m_tensor && "Accessing non-existing PJRT tensor");
-    return m_tensor.operator->();
+  // PjrtTensor *operator->() noexcept {
+  //   assert(load_tensor() && "Accessing non-existing PJRT tensor");
+  //   return load_tensor().operator->();
+  // }
+
+  std::shared_ptr<PjrtTensor> operator->() noexcept {
+    assert(load_tensor() && "Accessing non-existing PJRT tensor");
+    return load_tensor();
+  }
+  std::shared_ptr<const PjrtTensor> operator->() const noexcept {
+    assert(load_tensor() && "Accessing non-existing PJRT tensor");
+    return load_tensor();
   }
 
   const PjrtTensor &operator*() const noexcept {
-    assert(m_tensor && "Accessing non-existing PJRT tensor");
-    return *m_tensor;
+    assert(load_tensor() && "Accessing non-existing PJRT tensor");
+    return *load_tensor();
   };
 
   PjrtTensor &operator*() noexcept {
-    assert(m_tensor && "Accessing non-existing PJRT tensor");
-    return *m_tensor;
+    assert(load_tensor() && "Accessing non-existing PJRT tensor");
+    return *load_tensor();
   };
 
 private:
+  std::shared_ptr<const PjrtTensor> load_tensor() const noexcept {
+    return std::atomic_load(&m_tensor);
+  }
+
+  std::shared_ptr<PjrtTensor> load_tensor() noexcept {
+    return std::atomic_load(&m_tensor);
+  }
+
+private: // members
+  // Shared pointer to pjrt tensor.
+  // Since c++17 does not have std::atomic<std::shared_ptr>>, we will use manual
+  // std::atomic_load and std::atomic_store functions.
+  // TODO(acolic): Change to std::atomic<std::shared_ptr>> once we migrate to
+  // c++20.
   std::shared_ptr<PjrtTensor> m_tensor;
-  BufferInstance *m_shard{nullptr};
+
+  // Buffer instance pointer that holds this tensor reference.
+  std::atomic<BufferInstance *> m_shard{nullptr};
 };
 
 } // namespace tt::pjrt
