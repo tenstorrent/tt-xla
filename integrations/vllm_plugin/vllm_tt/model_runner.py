@@ -53,6 +53,7 @@ from vllm.multimodal.inputs import (
     PlaceholderRange,
 )
 from vllm.multimodal.utils import group_mm_kwargs_by_modality
+from vllm.sampling_params import SamplingType
 from vllm.sequence import IntermediateTensors
 from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
 from vllm.utils.math_utils import cdiv, prev_power_of_2
@@ -541,6 +542,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             req_id = new_req_data.req_id
             sampling_params = new_req_data.sampling_params
 
+            if (
+                sampling_params
+                and sampling_params.sampling_type == SamplingType.RANDOM_SEED
+            ):
+                generator = torch.Generator(device="cpu")
+                generator.manual_seed(sampling_params.seed)
+            else:
+                generator = None
+
             self.requests[req_id] = CachedRequestState(
                 req_id=req_id,
                 prompt_token_ids=new_req_data.prompt_token_ids,
@@ -548,7 +558,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 mm_features=new_req_data.mm_features,
                 sampling_params=sampling_params,
                 pooling_params=None,
-                generator=None,
+                generator=generator,
                 block_ids=new_req_data.block_ids,
                 num_computed_tokens=new_req_data.num_computed_tokens,
                 output_token_ids=[],
@@ -1313,11 +1323,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 request_seq_lens.append((i, req_state, seq_len))
             else:
                 # Ignore the sampled token from the partial request.
-                # Rewind the generator state as if the token was not sampled.
-                generator = self.input_batch.generators.get(i)
-                if generator is not None:
-                    # This relies on cuda-specific torch-internal impl details
-                    generator.set_offset(generator.get_offset() - 4)
+                # NOTE: on GPU, generator state is rewound here. On TT,
+                # per-request generators (CPU-based) are consumed during
+                # q_samples construction in from_input_batch(), not during
+                # random_sample(), so no rewind is needed or possible
+                # (CPU generators don't support get_offset/set_offset).
 
                 # Record the index of the request that should not be sampled,
                 # so that we could clear the sampled tokens before returning.
@@ -1714,6 +1724,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ):
                 self.sample_from_logits_func(dummy_logits, sampling_metadata)
 
+        # NOTE: the seeded sampling path (no_generators=False, q_samples
+        # present) compiles a separate graph variant due to the q_samples
+        # branch in random_sample(). It is currently compiled lazily on the
+        # first seed=N request. A third precompile pass could be added here
+        # if the first-request latency spike becomes a problem.
+
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -2001,6 +2017,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_penalties
             and sampling_metadata.no_logit_bias
             and sampling_metadata.no_bad_words
+            and sampling_metadata.no_generators
         ):
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:

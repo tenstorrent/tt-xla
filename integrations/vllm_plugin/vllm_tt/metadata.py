@@ -61,12 +61,23 @@ class XLASupportedSamplingMetadata:
 
     allowed_token_ids_mask = None
 
-    # Generator not supported by xla
+    # Per-request generators live in InputBatch, not here. from_input_batch()
+    # drains them to build q_samples; this field is always constructed empty.
     _generators: dict[int, torch.Generator] = field(default_factory=lambda: dict())
+
+    # True (default) when no per-request seeds are present.
+    # False when seeds exist: prevents the greedy fast-path so that
+    # the seeded q_samples tensor flows through the compiled sampling graph.
+    no_generators: bool = True
+    # Pre-computed exponential noise [padded_num_reqs, vocab_size] on device
+    # for the Gumbel-max trick, or None when no seeds are present (common
+    # case — noise is generated on device inside the compiled graph).
+    q_samples: torch.Tensor | None = None
 
     @property
     def generators(self) -> dict[int, torch.Generator]:
-        # Generator not supported by torch/xla. This field must be immutable.
+        # Generators are consumed in from_input_batch() to build q_samples.
+        # After construction this dict is always empty.
         return self._generators
 
     @staticmethod
@@ -182,15 +193,7 @@ class XLASupportedSamplingMetadata:
         needs_logprobs = (
             input_batch.max_num_logprobs > 0 if input_batch.max_num_logprobs else False
         )
-        # Guards for parameters that are tracked by InputBatch but not yet
-        # forwarded through this function into the compiled sampler graph.
-        # Each raise should be removed once the feature is fully plumbed here.
-        if input_batch.generators:
-            raise NotImplementedError(
-                "seed is not yet supported in the TT sampler. "
-                "Per-request generators are not available on TT devices. "
-                "https://github.com/tenstorrent/tt-xla/issues/3365"
-            )
+        has_generators = bool(input_batch.generators)
         num_reqs = input_batch.num_reqs
 
         # Build logit_bias tensor before early return (needed even for greedy).
@@ -228,16 +231,29 @@ class XLASupportedSamplingMetadata:
             bad_words_mask = None
             no_bad_words = True
 
+        # Build q_samples on CPU when per-request seeds are present.
+        # Each seeded row uses its own generator; un-seeded rows use the global
+        # RNG. The tensor is transferred to the XLA device so the compiled
+        # graph receives it as a regular input (no on-device RNG needed).
+        q_samples = None
+        if has_generators and vocab_size is not None:
+            q_cpu = torch.empty(padded_num_reqs, vocab_size, dtype=torch.float32)
+            q_cpu.exponential_()
+            for req_idx, generator in input_batch.generators.items():
+                q_cpu[req_idx].exponential_(generator=generator)
+            q_samples = q_cpu.to(xla_device)
+
         # Early return to avoid unnecessary cpu to tpu copy.
         # Must NOT skip when any logit-modifying feature is active: penalties,
-        # logit_bias, and bad_words all require the full sampler path with a
-        # valid temperature tensor.
+        # logit_bias, bad_words, and seeded requests all require the full
+        # sampler path with a valid temperature tensor.
         if (
             input_batch.all_greedy is True
             and generate_params_if_all_greedy is False
             and input_batch.no_penalties
             and no_logit_bias
             and no_bad_words
+            and not has_generators
         ):
             return cls(
                 all_greedy=True,
@@ -320,4 +336,6 @@ class XLASupportedSamplingMetadata:
             logit_bias_tensor=logit_bias_tensor,
             no_bad_words=no_bad_words,
             bad_words_mask=bad_words_mask,
+            no_generators=not has_generators,
+            q_samples=q_samples,
         )
