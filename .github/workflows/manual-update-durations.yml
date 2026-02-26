@@ -129,25 +129,54 @@ jobs:
           echo "Containers started on all hosts"
           echo ""
 
-      - name: Make remote_docker.sh executable
+      - name: Make remote_docker.sh executable in all containers
         run: |
-          chmod +x tests/torch/multi_host/experimental/remote_docker.sh
+          echo "Making remote_docker.sh executable in all containers..."
 
-      - name: Container-to-container SSH smokecheck
-        run: |
-          echo "=== Container-to-container SSH smokecheck ==="
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'docker exec multihost-poc chmod +x /workspace/tests/torch/multi_host/experimental/remote_docker.sh'
+
           echo ""
-          echo "Using mpirun with remote_docker.sh as plm_rsh_agent to test container-to-container connectivity"
+          echo "Verifying script is executable in containers..."
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'docker exec multihost-poc ls -la /workspace/tests/torch/multi_host/experimental/remote_docker.sh'
+
+      - name: Verify SSH agent forwarding in containers
+        run: |
+          echo "=== Verifying SSH agent forwarding in containers ==="
           echo ""
 
           mpirun --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
-            --mca plm_rsh_agent ${{ github.workspace }}/tests/torch/multi_host/experimental/remote_docker.sh \
             --tag-output \
-            bash -c 'echo "Hostname: $(hostname)"; if [ -f /.dockerenv ]; then echo "Running in container: YES"; else echo "Running in container: NO"; fi'
+            bash -c 'docker exec multihost-poc ssh-add -l'
 
           echo ""
-          echo "Container-to-container SSH smokecheck complete"
+          echo "SSH agent verification complete"
+          echo ""
+
+      - name: Container-to-container SSH smoketest
+        run: |
+          echo "=== Container-to-container SSH smoketest ==="
+          echo ""
+          echo "Running mpirun from inside containers with remote_docker.sh as plm_rsh_agent"
+          echo ""
+
+          # Run mpirun from inside one of the containers (controller)
+          docker exec multihost-poc bash -c '
+            mpirun --hostfile /etc/mpirun/hostfile \
+              --mca btl_tcp_if_exclude docker0,lo \
+              --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh \
+              --tag-output \
+              bash -c "echo \"Hostname: \$(hostname)\"; if [ -f /.dockerenv ]; then echo \"Running in container: YES\"; else echo \"Running in container: NO\"; fi"
+          '
+
+          echo ""
+          echo "Container-to-container SSH smoketest complete"
           echo ""
 
       - name: Verify containers via mpirun
