@@ -29,6 +29,29 @@ jobs:
         id: capture-home
         run: echo "home=${HOME}" >> $GITHUB_OUTPUT
 
+      - name: Pre-check for existing containers
+        run: |
+          echo "=== Checking for existing multihost-poc containers ==="
+          echo ""
+
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c '
+            if docker ps -a --filter name=multihost-poc --format "{{.Names}}" | grep -q multihost-poc; then
+              echo "$(hostname): Found existing multihost-poc container, stopping it..."
+              docker stop multihost-poc || true
+              docker rm multihost-poc || true
+              echo "$(hostname): Cleaned up existing container"
+            else
+              echo "$(hostname): No existing containers found"
+            fi
+            '
+
+          echo ""
+          echo "Pre-check complete"
+          echo ""
+
       - name: Validate host-to-host mpirun (bare metal)
         run: |
           echo "=== Bare Metal MPI Validation ==="
@@ -83,7 +106,7 @@ jobs:
             --tag-output \
             bash -c '
             source /tmp/ssh_agent_env
-            docker run --rm -d \
+            CONTAINER_ID=$(docker run --rm -d \
               --name multihost-poc \
               --privileged \
               --pid=host \
@@ -94,8 +117,12 @@ jobs:
               -v ${{ github.workspace }}:/workspace \
               -w /workspace \
               ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
-              sleep infinity
-            echo "$(hostname): Container started with SSH agent"
+              sleep infinity)
+            if [ -z "$CONTAINER_ID" ]; then
+              echo "$(hostname): ERROR - Failed to start container!"
+              exit 1
+            fi
+            echo "$(hostname): Container started with ID: $CONTAINER_ID"
             '
 
           echo ""
@@ -136,6 +163,8 @@ jobs:
         if: always()
         run: |
           echo "=== Cleaning up containers and SSH agents on all hosts ==="
+          # Note: Containers are created with --rm flag, which automatically removes them when stopped.
+          # The 'docker rm' command will fail with "No such container" error - this is expected and harmless.
           mpirun --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --tag-output \
