@@ -216,6 +216,41 @@ def test_penalties(device, vocab_size):
     assert_valid_tokens(actual, vocab_size, context="with penalties")
 
 
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_bad_words(device, vocab_size):
+    """Bad words mask compiles and suppresses banned tokens on TT at production vocab sizes."""
+    torch.manual_seed(42)
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    # Make token 0 the clear argmax so greedy would pick it.
+    logits_cpu[0, 0] = 100.0
+
+    # Ban token 0 via bad_words_mask.
+    bad_words_mask = torch.zeros(1, vocab_size, dtype=torch.bool)
+    bad_words_mask[0, 0] = True
+
+    metadata = XLASupportedSamplingMetadata(
+        temperature=torch.full((1,), 0.8, device=device),
+        top_k=torch.full((1,), 50, dtype=torch.int32, device=device),
+        top_p=torch.full((1,), 0.9, device=device),
+        min_p=torch.full((1,), 0.0, device=device),
+        all_greedy=False,
+        no_bad_words=False,
+        bad_words_mask=bad_words_mask.to(device),
+    )
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size, context="with bad_words")
+    assert (
+        actual[0].item() != 0
+    ), "Banned token 0 should not be sampled despite having highest logit"
+
+
 def run_logprobs_pipeline(logits, token_ids):
     sampler = Sampler()
     logprobs = sampler.compute_logprobs(logits)
