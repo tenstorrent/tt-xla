@@ -1,4 +1,4 @@
-name: Multi-Host POC - Hostname Check
+name: Update Test Durations
 
 # Minimal POC workflow to validate multi-host setup using mpirun
 # Goal: Run hostname checks across all nodes from a single controller
