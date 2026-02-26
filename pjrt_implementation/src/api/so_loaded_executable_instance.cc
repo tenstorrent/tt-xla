@@ -29,6 +29,8 @@
 #include "utils/logging.h"
 #include "utils/status.h"
 
+#include <tools/tt-alchemist/python_runner/python_runner.hpp>
+
 namespace tt::pjrt {
 
 std::unique_ptr<SOLoadedExecutableInstance>
@@ -125,9 +127,30 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
   std::cout << lang << " codegen successful. Check "
             << options.export_path.value() << " for the results." << std::endl;
-  // TODO: Implement SO execution. For now, we create default output buffers.
-  // https://github.com/tenstorrent/tt-xla/issues/2038
-  createDefaultOutputBuffers(args->output_lists, args->num_devices);
+
+  if (!options.dry_run && options.backend == BackendRuntime::TTNNCodegenPy) {
+    // Execute the generated Python code via PythonModelRunner.
+    tt::alchemist::PythonModelRunner runner;
+    runner.addToSysPath(options.export_path.value());
+    runner.loadModule("main", "main_for_test");
+
+    std::vector<tt::runtime::Tensor> output_tensors =
+        runner.forward(input_tensors, *runtime_device);
+
+    if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+      LOG_F(ERROR,
+            "PythonModelRunner produced different number of output tensors "
+            "(%zu) than the compiler estimated number of outputs (%zu)",
+            output_tensors.size(), m_executable_image->getNumOutputs());
+      return tt_pjrt_status::kInternal;
+    }
+
+    fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
+                        m_executable_image->getOutputTypes());
+  } else {
+    // dry_run mode or non-Python codegen: return zero-filled output buffers.
+    createDefaultOutputBuffers(args->output_lists, args->num_devices);
+  }
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
@@ -185,6 +208,43 @@ void SOLoadedExecutableInstance::createDefaultOutputBuffers(
       // Release ownership to the PJRT API caller
       output_lists[device_index][output_index] = *output_buffer.release();
     }
+  }
+}
+
+void SOLoadedExecutableInstance::fillPJRTOutputLists(
+    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
+    PJRT_Buffer **const *output_lists,
+    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
+  ZoneScoped;
+  size_t n_prog_output_tensors = output_tensors.size();
+
+  for (size_t output_index = 0; output_index < n_prog_output_tensors;
+       output_index++) {
+    tt::runtime::Tensor outputTensor = output_tensors[output_index];
+
+    std::vector<BufferInstance *> shards;
+    shards.reserve(num_devices);
+
+    for (int device_index = 0; device_index < num_devices; ++device_index) {
+      std::vector<std::uint32_t> output_shape =
+          m_executable_image->getOutputShape(output_index);
+
+      std::unique_ptr<BufferInstance> output_buffer =
+          BufferInstance::createOutputBufferInstance(
+              std::move(output_shape), m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              expected_output_data_types[output_index], device_index);
+
+      output_buffer->markAsDataReady();
+
+      shards.emplace_back(output_buffer.get());
+
+      // Releasing the ownership to the PJRT API caller since the caller is
+      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
+      output_lists[device_index][output_index] = *output_buffer.release();
+    }
+
+    PjrtTensor::from_runtime_tensor(shards, std::move(outputTensor));
   }
 }
 
