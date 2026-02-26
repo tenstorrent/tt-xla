@@ -42,7 +42,7 @@ _tt_xla_str = str(_tt_xla_dir)
 if _tt_xla_str not in sys.path:
     sys.path.insert(0, _tt_xla_str)
 
-from decode_utils import generate_reference_topk, init_static_cache
+from decode_utils import extract_topk, generate_and_benchmark, init_static_cache
 
 
 def generate_reference_outputs(total_length, output_file, model_name):
@@ -83,21 +83,6 @@ def generate_reference_outputs(total_length, output_file, model_name):
     model.to(device)
     model.eval()
 
-    # Verify model is in eval mode (no dropout, no batch norm updates)
-    assert model.training is False, "Model must be in eval mode"
-    print(f"✓ Model training mode: {model.training} (should be False)")
-
-    # Check for dropout modules
-    dropout_count = sum(isinstance(m, torch.nn.Dropout) for m in model.modules())
-    dropout_active = any(
-        m.training for m in model.modules() if isinstance(m, torch.nn.Dropout)
-    )
-    print(f"✓ Dropout modules found: {dropout_count}, any active: {dropout_active}")
-    assert not dropout_active, "No dropout modules should be in training mode"
-
-    # Verify we're using greedy decoding (argmax), not sampling
-    print("✓ Decoding strategy: greedy (argmax), do_sample=False")
-
     # Load the book text - look in ../reference_outputs relative to script location
     current_file_path = os.path.abspath(__file__)
     current_file_dir = os.path.dirname(current_file_path)
@@ -119,9 +104,7 @@ def generate_reference_outputs(total_length, output_file, model_name):
 
     # Encode text to tokens
     encoded_tokens = tokenizer.encode(text, add_special_tokens=True)[:total_length]
-    encoded_tokens_tensor = torch.tensor(encoded_tokens, device=device).unsqueeze(
-        0
-    )  # Shape [1, seq_len] on device
+    tokens_1d = torch.tensor(encoded_tokens, device=device)  # [total_length]
 
     logger.info(f"Processing {len(encoded_tokens)} tokens")
     logger.info(f"Model: {model_name}")
@@ -140,22 +123,53 @@ def generate_reference_outputs(total_length, output_file, model_name):
         dtype=torch.bfloat16,
     )
 
+    # Construct input_args dict matching the format used by device benchmarks
+    input_args = {
+        "input_ids": tokens_1d[:split_point].unsqueeze(0),  # [1, split_point]
+        "past_key_values": static_cache,
+        "cache_position": torch.arange(0, split_point),
+        "use_cache": True,
+    }
+    ground_truth_tokens = tokens_1d[split_point:]  # [decode_len]
+    # decode_len steps: step 0 (prefill) produces split_point predictions,
+    # steps 1..(decode_len-1) each produce 1 → total = total_length - 1
+    decode_len = len(ground_truth_tokens)
+
     logger.info(
         f"Generating reference topk with shared decode logic (split_point={split_point})"
     )
-    ref = generate_reference_topk(
+    output_logits, _ = generate_and_benchmark(
         model=model,
-        tokens_1d=encoded_tokens_tensor.squeeze(0),
-        split_point=split_point,
-        static_cache=static_cache,
+        input_args=input_args,
         device=device,
+        max_tokens_to_generate=decode_len,
+        ground_truth_tokens=ground_truth_tokens,
         verbose=True,
     )
 
+    # Post-processing: extract top-k predictions from raw logits
+    all_top1 = []
+    all_top5 = []
+    for logits in output_logits:
+        top1, top5 = extract_topk(logits, k=5)
+        all_top1.append(top1.squeeze(0).cpu())
+        all_top5.append(top5.squeeze(0).cpu())
+
+    top1_tokens = torch.cat(all_top1, dim=0)  # [total_length - 1]
+    top5_tokens = torch.cat(all_top5, dim=0)  # [total_length - 1, 5]
+    reference_tokens = tokens_1d.view(1, -1)  # [1, total_length]
+
+    # Sanity check: predictions cover positions 0..total_length-2
+    expected_predictions = total_length - 1
+    if top1_tokens.shape[0] != expected_predictions:
+        raise RuntimeError(
+            f"Expected {expected_predictions} predictions, got {top1_tokens.shape[0]}"
+        )
+
     data = {
-        "top1_tokens": ref.top1_tokens,
-        "top5_tokens": ref.top5_tokens,
-        "reference_tokens": ref.reference_tokens,
+        "top1_tokens": top1_tokens,
+        "top5_tokens": top5_tokens,
+        "reference_tokens": reference_tokens,
         "library_versions": {
             "torch": torch.__version__,
             "transformers": transformers.__version__,
@@ -167,10 +181,6 @@ def generate_reference_outputs(total_length, output_file, model_name):
     logger.info(
         f"Library versions: torch={torch.__version__}, transformers={transformers.__version__}"
     )
-
-    # Note: This script used to print an in-loop correctness table and segment summaries.
-    # The shared decode core keeps generation deterministic; downstream accuracy reporting
-    # is performed in the benchmark harness.
 
 
 def main():

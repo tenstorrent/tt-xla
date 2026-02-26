@@ -2,20 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Decode utilities for LLM benchmarking and reference generation.
+"""Decode utilities for LLM benchmarking, accuracy testing, and reference generation.
 
-This module centralizes decode logic used by:
-- scripts/generate_reference_outputs.py (reference .refpt generation)
-- llm_benchmark.py (teacher-forced accuracy generation)
+This module centralizes the core decode loop into generate_and_benchmark(),
+which returns only raw logits and timing data. All post-processing (topk
+extraction, predicted token collection, text decoding) is done by callers.
 
-The goal is to avoid subtle drift between codepaths (tokenization, cache init,
-cache_position semantics, and teacher-forced decode loop).
+Used by:
+- benchmarks/llm_benchmark.py (device benchmarks + accuracy testing)
+- scripts/generate_reference_outputs.py (offline CPU reference .refpt generation)
+
+Sharing the decode loop prevents drift between codepaths (argmax dtype, cache
+semantics, teacher-forcing logic) which can cause accuracy mismatches.
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 from typing import Callable, Optional
 
 import torch
@@ -29,9 +32,6 @@ def default_read_logits_fn(output: object) -> torch.Tensor:
     # Common case: ModelingOutputs with .logits
     if hasattr(output, "logits"):
         return output.logits
-    # Some model wrappers return tuple-like outputs (logits, past_key_values, ...)
-    if isinstance(output, (tuple, list)) and len(output) > 0:
-        return output[0]
     raise TypeError(
         f"Unsupported model output type for logits extraction: {type(output)}"
     )
@@ -43,90 +43,11 @@ def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> 
     dropout_active = any(
         m.training for m in model.modules() if isinstance(m, torch.nn.Dropout)
     )
-    assert not dropout_active, "No dropout modules should be in training mode"
+    assert not dropout_active, "No dropout modules should be in inference mode"
     if verbose:
         dropout_count = sum(isinstance(m, torch.nn.Dropout) for m in model.modules())
         print(f"Model training mode: {model.training} (should be False)")
         print(f"Dropout modules found: {dropout_count}, any active: {dropout_active}")
-        print("Decoding strategy: greedy (argmax), do_sample=False")
-
-
-def teacher_forced_generate(
-    *,
-    model: torch.nn.Module,
-    input_args: dict,
-    device: torch.device,
-    max_tokens_to_generate: int,
-    ground_truth_tokens: torch.Tensor,
-    read_logits_fn: Optional[ReadLogitsFn] = None,
-    tokenizer: Optional[object] = None,
-    verbose: bool = True,
-) -> tuple[list[torch.Tensor], list[int], list[int]]:
-    """Teacher-forced generation loop that matches llm_benchmark.py semantics.
-
-    This intentionally takes already-constructed `input_args` (prompt input_ids,
-    StaticCache, and cache_position) so it can be used for both CPU models and
-    device-compiled models without reconstructing inputs.
-
-    Returns:
-        (output_logits, predicted_tokens, iteration_times_ns)
-    """
-    if read_logits_fn is None:
-        read_logits_fn = default_read_logits_fn
-
-    assert (
-        ground_truth_tokens.ndim == 1
-    ), f"ground_truth_tokens must be 1D token IDs, got shape {tuple(ground_truth_tokens.shape)}"
-
-    assert_eval_no_dropout(model, verbose=verbose)
-
-    batch_size = input_args["input_ids"].shape[0]
-
-    output_tokens: list[list[str]] = []
-    output_logits: list[torch.Tensor] = []
-    predicted_tokens: list[int] = []
-    iteration_times_ns: list[int] = []
-
-    with torch.no_grad():
-        for step in range(max_tokens_to_generate):
-            start = time.perf_counter_ns()
-
-            output = model(**input_args)
-            logits = read_logits_fn(output).to("cpu")
-            output_logits.append(logits)
-
-            next_token_ids = logits[:, -1].argmax(dim=-1)
-            predicted_tokens.append(next_token_ids[0].item())
-
-            if tokenizer is not None:
-                output_text = [
-                    tokenizer.decode(token_id) for token_id in next_token_ids
-                ]
-                output_tokens.append(output_text)
-
-            # Teacher forcing: keep token as runtime data (stable shape) to avoid scalar-constant specialization.
-            next_tok_host = ground_truth_tokens[step : step + 1].view(1, 1)  # CPU [1,1]
-            input_args["input_ids"] = (
-                next_tok_host.expand(batch_size, 1).contiguous().to(device)
-            )
-
-            # cache_position: host normalize/update to keep a stable [1] shape.
-            host_cache_pos = (
-                input_args["cache_position"].to("cpu").reshape(-1)[-1:]
-            )  # CPU [1]
-            input_args["cache_position"] = (host_cache_pos + 1).to(device)
-
-            iteration_times_ns.append(time.perf_counter_ns() - start)
-
-            if verbose:
-                print(
-                    f"Iteration\t{step}/{max_tokens_to_generate}\ttook {iteration_times_ns[-1] / 1e6:.04} ms"
-                )
-
-    if verbose and tokenizer is not None:
-        print("Output tokens:", output_tokens)
-
-    return output_logits, predicted_tokens, iteration_times_ns
 
 
 def init_static_cache(
@@ -168,9 +89,11 @@ def extract_topk(
     logits: torch.Tensor,
     *,
     k: int = 5,
-    rank_dtype: torch.dtype = torch.float32,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Return (top1, topk) token IDs from logits.
+
+    Argmax and topk operate on the native logit dtype (no upcast) so that
+    ranking is consistent with the argmax used in the decode loop.
 
     Args:
         logits: Tensor shaped [..., vocab]
@@ -178,9 +101,8 @@ def extract_topk(
         top1_ids: Tensor shaped [...]
         topk_ids: Tensor shaped [..., k]
     """
-    logits_rank = logits.to(dtype=rank_dtype)
-    top1 = logits_rank.argmax(dim=-1)
-    topk = torch.topk(logits_rank, k=k, dim=-1).indices
+    top1 = logits.argmax(dim=-1)
+    topk = torch.topk(logits, k=k, dim=-1).indices
 
     # Ensure argmax token is in slot 0 of the topk list (swap if needed).
     # This prevents "topk" tie ordering from changing the meaning of "topk[:, 0]".
@@ -198,105 +120,119 @@ def extract_topk(
     return top1, topk
 
 
-@dataclass(frozen=True)
-class ReferenceDecodeResult:
-    """Outputs suitable for saving into a .refpt file."""
-
-    reference_tokens: torch.Tensor  # [1, total_length]
-    top1_tokens: torch.Tensor  # [total_length-1]
-    top5_tokens: torch.Tensor  # [total_length-1, 5]
-
-
-def generate_reference_topk(
-    *,
+def generate_and_benchmark(
     model: torch.nn.Module,
-    tokens_1d: torch.Tensor,
-    split_point: int,
-    static_cache: StaticCache,
+    input_args: dict,
     device: torch.device,
+    max_tokens_to_generate: int,
     read_logits_fn: Optional[ReadLogitsFn] = None,
-    rank_dtype: torch.dtype = torch.float32,
-    verbose: bool = False,
-) -> ReferenceDecodeResult:
-    """Compute reference top1/top5 for every position in a fixed token stream.
+    tokenizer: Optional[object] = None,
+    verbose: bool = True,
+    ground_truth_tokens: Optional[torch.Tensor] = None,
+) -> tuple[list[torch.Tensor], list[int]]:
+    """Unified decode loop for benchmarks, accuracy testing, and reference generation.
 
-    This matches the semantics expected by TokenAccuracy:
-    - top* at position i predicts token at position i+1
+    Returns raw logits and timing data only. All post-processing (topk
+    extraction, predicted token collection, text decoding) is the caller's
+    responsibility.
+
+    Supports two modes:
+    - Autoregressive (ground_truth_tokens=None): feeds model predictions back.
+      Used for device benchmarks and CPU PCC baseline.
+    - Teacher forcing (ground_truth_tokens provided): feeds ground truth tokens,
+      no EOS check. Used for device accuracy testing and reference generation.
 
     Args:
-        tokens_1d: shape [total_length]
-        split_point: prefill length; decode begins at this position
+        model: Model instance (eval mode, no dropout)
+        input_args: Dict with input_ids, past_key_values, cache_position, use_cache
+        device: Target device (CPU or TT)
+        max_tokens_to_generate: Number of decode steps to run
+        read_logits_fn: Function to extract logits from model output
+        tokenizer: Tokenizer for EOS detection and text decoding (autoregressive mode)
+        verbose: Print per-iteration timing and decoded tokens
+        ground_truth_tokens: 1D tensor of ground truth token IDs for teacher forcing.
+                           None = autoregressive mode.
 
     Returns:
-        ReferenceDecodeResult with top1/top5 for positions [0..total_length-2].
+        (output_logits, iteration_times)
+        - output_logits: List of logit tensors per step
+        - iteration_times: List of iteration times in nanoseconds
     """
     if read_logits_fn is None:
         read_logits_fn = default_read_logits_fn
 
-    assert (
-        tokens_1d.ndim == 1
-    ), f"tokens_1d must be 1D, got shape {tuple(tokens_1d.shape)}"
-    total_length = tokens_1d.shape[0]
-    if split_point <= 0 or split_point >= total_length:
-        raise ValueError(
-            f"split_point must be in (0, total_length), got {split_point} / {total_length}"
-        )
+    if ground_truth_tokens is not None:
+        assert (
+            ground_truth_tokens.ndim == 1
+        ), f"ground_truth_tokens must be 1D token IDs, got shape {tuple(ground_truth_tokens.shape)}"
 
     assert_eval_no_dropout(model, verbose=verbose)
 
-    all_top1: list[torch.Tensor] = []
-    all_top5: list[torch.Tensor] = []
+    batch_size = input_args["input_ids"].shape[0]
+
+    output_tokens: list[list[str]] = []
+    output_logits: list[torch.Tensor] = []
+    iteration_times: list[int] = []
 
     with torch.no_grad():
-        # Prefill: process first split_point tokens in one pass.
-        prefill_tokens = tokens_1d[:split_point].unsqueeze(0).to(device)
-        cache_position = torch.arange(0, split_point, device=device)
+        for step in range(max_tokens_to_generate):
+            start = time.perf_counter_ns()
 
-        out = model(
-            input_ids=prefill_tokens,
-            past_key_values=static_cache,
-            cache_position=cache_position,
-            use_cache=True,
-        )
-        logits = read_logits_fn(out)  # [1, split_point, vocab]
+            output = model(**input_args)
+            logits = read_logits_fn(output).to("cpu")
+            output_logits.append(logits)
 
-        top1, top5 = extract_topk(logits, k=5, rank_dtype=rank_dtype)
-        all_top1.append(top1.squeeze(0).cpu())  # [split_point]
-        all_top5.append(top5.squeeze(0).cpu())  # [split_point, 5]
+            # Greedy decoding: argmax on last position (no sampling/temperature/top_p)
+            next_token_ids = logits[:, -1].argmax(dim=-1)
 
-        # Decode: teacher forcing over tokens[split_point:]
-        decode_tokens = tokens_1d[split_point:]
-        for step in range(decode_tokens.shape[0] - 1):
-            gt_token = decode_tokens[step]
-            input_ids = gt_token.view(1, 1).to(device)
-            cache_position = torch.tensor([split_point + step], device=device)
+            # Autoregressive path: decode tokens, check EOS
+            if ground_truth_tokens is None:
+                output_text = [
+                    tokenizer.decode(token_id) for token_id in next_token_ids
+                ]
+                output_tokens.append(output_text)
 
-            out = model(
-                input_ids=input_ids,
-                past_key_values=static_cache,
-                cache_position=cache_position,
-                use_cache=True,
-            )
-            logits = read_logits_fn(out)  # [1, 1, vocab]
+                # Check for EOS token and early exit
+                if torch.all(next_token_ids == tokenizer.eos_token_id):
+                    if verbose:
+                        print()
+                    end = time.perf_counter_ns()
+                    iteration_times.append(end - start)
+                    if verbose:
+                        print(
+                            f"Iteration\t{step}/{max_tokens_to_generate}\t"
+                            f"took {iteration_times[-1] / 1e6:.04} ms"
+                        )
+                    break
 
-            top1, top5 = extract_topk(logits, k=5, rank_dtype=rank_dtype)
-            all_top1.append(top1.squeeze(0).squeeze(0).view(1).cpu())  # [1]
-            all_top5.append(top5.squeeze(0).squeeze(0).view(1, 5).cpu())  # [1, 5]
+            # Next token: ground truth (teacher forcing) or predicted (autoregressive)
+            if ground_truth_tokens is not None:
+                next_tok_host = ground_truth_tokens[step : step + 1].view(
+                    1, 1
+                )  # CPU [1,1]
+                input_args["input_ids"] = (
+                    next_tok_host.expand(batch_size, 1).contiguous().to(device)
+                )
+            else:
+                input_args["input_ids"] = next_token_ids.unsqueeze(-1).to(device)
 
-    top1_tokens = torch.cat(all_top1, dim=0)  # [total_length-1]
-    top5_tokens = torch.cat(all_top5, dim=0)  # [total_length-1, 5]
+            # Advance cache_position: take last position, add 1.
+            # reshape(-1)[-1:] normalizes from [prefill_len] to [1] on step 0.
+            host_cache_pos = input_args["cache_position"].to("cpu").reshape(-1)[-1:]
+            input_args["cache_position"] = (host_cache_pos + 1).to(device)
 
-    # Sanity: number of predictions is total_length-1
-    if top1_tokens.shape[0] != total_length - 1:
-        raise RuntimeError(
-            f"Internal error: expected top1 length {total_length-1}, got {top1_tokens.shape[0]}"
-        )
+            end = time.perf_counter_ns()
+            iteration_times.append(end - start)
+            if verbose:
+                print(
+                    f"Iteration\t{step}/{max_tokens_to_generate}\t"
+                    f"took {iteration_times[-1] / 1e6:.04} ms"
+                )
 
-    return ReferenceDecodeResult(
-        reference_tokens=tokens_1d.view(1, -1).cpu(),
-        top1_tokens=top1_tokens,
-        top5_tokens=top5_tokens,
-    )
+    if verbose:
+        print("Output tokens:", output_tokens)
+
+    return output_logits, iteration_times
 
 
 def init_accuracy_testing(model_name_for_accuracy: str, max_cache_len: int, tokenizer):
