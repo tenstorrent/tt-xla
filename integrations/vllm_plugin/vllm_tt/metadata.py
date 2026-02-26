@@ -110,6 +110,50 @@ class XLASupportedSamplingMetadata:
                     mask[i].scatter_(0, valid_ids, True)
         return mask
 
+    @staticmethod
+    def _compute_bad_words_mask(
+        bad_words_token_ids: dict[int, list[list[int]]],
+        req_output_token_ids: list[Optional[list[int]]],
+        padded_num_reqs: int,
+        vocab_size: int,
+    ) -> torch.Tensor:
+        """Build a [padded_num_reqs, vocab_size] float32 mask for banned tokens.
+
+        Entries are ``-inf`` for tokens that must be suppressed this step and
+        ``0.0`` elsewhere, so the mask can be added to logits directly.
+
+        Single-token bad word ``[T]``: always banned.
+        Multi-token bad word ``[t0, t1, ..., tN]``: bans ``tN`` only when the
+        most recent N output tokens equal ``[t0, ..., tN-1]``.
+        Padding rows are all zeros.
+        """
+        mask = torch.zeros(padded_num_reqs, vocab_size, dtype=torch.float32)
+        for req_idx, bad_words_list in bad_words_token_ids.items():
+            if req_idx >= padded_num_reqs:
+                continue
+            past = (
+                req_output_token_ids[req_idx]
+                if req_idx < len(req_output_token_ids)
+                else None
+            )
+            past = past or []
+            for bad_word_ids in bad_words_list:
+                if len(bad_word_ids) == 0:
+                    continue
+                if len(bad_word_ids) > len(past) + 1:
+                    continue  # not enough history to match prefix yet
+                last_token_id = bad_word_ids[-1]
+                if last_token_id >= vocab_size:
+                    continue
+                prefix_length = len(bad_word_ids) - 1
+                if prefix_length == 0:
+                    # Single-token bad word: always banned.
+                    mask[req_idx, last_token_id] = float("-inf")
+                else:
+                    if past[-prefix_length:] == bad_word_ids[:prefix_length]:
+                        mask[req_idx, last_token_id] = float("-inf")
+        return mask
+
     @classmethod
     def from_input_batch(
         cls,
@@ -170,23 +214,19 @@ class XLASupportedSamplingMetadata:
             logit_bias_tensor = None
             no_logit_bias = True
 
-        # Build bad_words_mask tensor (single-token bad words only).
+        # Build bad_words_mask tensor (single-token AND multi-token).
+        # Single-token bad words are always banned.  Multi-token bad words
+        # use prefix matching against output token history: a sequence
+        # [t0, t1, ..., tN] bans tN only when the most recent N output
+        # tokens equal [t0, ..., tN-1].
         has_bad_words = bool(input_batch.bad_words_token_ids)
         if has_bad_words:
-            bad_words_cpu = torch.zeros(
-                padded_num_reqs, input_batch.vocab_size, dtype=torch.float32
+            bad_words_cpu = cls._compute_bad_words_mask(
+                input_batch.bad_words_token_ids,
+                input_batch.req_output_token_ids,
+                padded_num_reqs,
+                input_batch.vocab_size,
             )
-            for req_idx, token_seqs in input_batch.bad_words_token_ids.items():
-                for token_seq in token_seqs:
-                    if len(token_seq) > 1:
-                        raise NotImplementedError(
-                            "Multi-token bad_words sequences are not yet supported "
-                            "in the TT sampler. Only single-token bad words can be "
-                            "enforced on device. "
-                            "https://github.com/tenstorrent/tt-xla/issues/3363"
-                        )
-                    if len(token_seq) == 1:
-                        bad_words_cpu[req_idx, token_seq[0]] = float("-inf")
             bad_words_mask = bad_words_cpu.to(xla_device)
             no_bad_words = False
         else:
