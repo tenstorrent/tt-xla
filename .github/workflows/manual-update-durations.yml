@@ -35,84 +35,118 @@ jobs:
           echo ""
 
           # Check if hostfile exists
-          echo "Checking for MPI hostfile on host..."
-          if [ -f /etc/mpirun/hostfile ]; then
-            echo "Hostfile found at /etc/mpirun/hostfile"
-            SALT="mh-poc-$(date +%Y%m%d)"
-            echo "Hostfile contents:"
-            (echo "$SALT"; cat /etc/mpirun/hostfile) | base64 -w 0
-            echo ""
-            echo ""
-          else
+          if [ ! -f /etc/mpirun/hostfile ]; then
             echo "ERROR: /etc/mpirun/hostfile not found!"
             exit 1
           fi
+
+          echo "Hostfile found at /etc/mpirun/hostfile"
 
           # Test host-to-host mpirun
           echo "Testing mpirun hostname on bare metal hosts..."
           mpirun --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
             hostname
           echo ""
 
           echo "Bare metal MPI validation complete!"
           echo ""
 
-      # - name: Start container with mpirun capability
-      #   run: |
-      #     docker run -d \
-      #       --name multihost-poc \
-      #       --privileged \
-      #       --pid=host \
-      #       --network=host \
-      #       --hostname=mpirun-controller \
-      #       -v /etc/mpirun:/etc/mpirun:ro \
-      #       -v ${{ steps.capture-home.outputs.home }}/.ssh:${{ steps.capture-home.outputs.home }}/.ssh:ro \
-      #       -v ${{ github.workspace }}:/workspace \
-      #       -w /workspace \
-      #       ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
-      #       sleep infinity
+      - name: Start SSH agents on all hosts via mpirun
+        run: |
+          echo "=== Starting SSH agents on all hosts ==="
+          echo ""
 
-      # - name: Run hostname check via mpirun
-      #   run: |
-      #     docker exec multihost-poc bash -c '
-      #     echo "=== Multi-Host POC: Hostname Check ==="
-      #     echo ""
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c '
+            eval $(ssh-agent -s)
+            ssh-add ~/.ssh/id_rsa 2>/dev/null || ssh-add ~/.ssh/id_ed25519 2>/dev/null || ssh-add
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" > /tmp/ssh_agent_env
+            echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> /tmp/ssh_agent_env
+            echo "$(hostname): SSH agent started with PID $SSH_AGENT_PID"
+            '
 
-      #     # Check if hostfile exists
-      #     echo "Checking for MPI hostfile..."
-      #     if [ -f /etc/mpirun/hostfile ]; then
-      #       echo "Hostfile found at /etc/mpirun/hostfile"
-      #       # Light encryption: prepend salt and base64 encode
-      #       SALT="mh-poc-$(date +%Y%m%d)"
-      #       echo "Hostfile contents"
-      #       (echo "$SALT"; cat /etc/mpirun/hostfile) | base64 -w 0
-      #       echo ""
-      #       echo ""
-      #     else
-      #       echo "ERROR: /etc/mpirun/hostfile not found!"
-      #       exit 1
-      #     fi
+          echo ""
+          echo "SSH agents started on all hosts"
+          echo ""
 
-      #     # Run hostname across all hosts via mpirun
-      #     echo "Running hostname via mpirun across all hosts..."
-      #     mpirun --hostfile /etc/mpirun/hostfile \
-      #       --mca btl_tcp_if_exclude docker0,lo \
-      #       hostname
-      #     echo ""
+      - name: Start containers on all hosts via mpirun
+        run: |
+          echo "=== Starting containers on all hosts ==="
+          echo ""
 
-      #     # Check if we are in a container
-      #     echo "Checking for container environment (.dockerenv)..."
-      #     mpirun --hostfile /etc/mpirun/hostfile \
-      #       --mca btl_tcp_if_exclude docker0,lo \
-      #       bash -c "if [ -f /.dockerenv ]; then echo \"\$(hostname): Running in Docker container\"; else echo \"\$(hostname): NOT in container\"; fi"
-      #     echo ""
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c '
+            source /tmp/ssh_agent_env
+            docker run --rm -d \
+              --name multihost-poc \
+              --privileged \
+              --pid=host \
+              --network=host \
+              -v /etc/mpirun:/etc/mpirun:ro \
+              -v $SSH_AUTH_SOCK:/ssh-agent \
+              -e SSH_AUTH_SOCK=/ssh-agent \
+              -v ${{ github.workspace }}:/workspace \
+              -w /workspace \
+              ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
+              sleep infinity
+            echo "$(hostname): Container started with SSH agent"
+            '
 
-      #     echo "=== POC Complete ==="
-      #     '
+          echo ""
+          echo "Containers started on all hosts"
+          echo ""
+
+      - name: Check /workspace contents in containers
+        run: |
+          echo "=== Checking /workspace directory in containers ==="
+          echo ""
+
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'docker exec multihost-poc ls -la /workspace'
+
+          echo ""
+          echo "/workspace check complete"
+          echo ""
+
+      - name: Verify containers via mpirun
+        run: |
+          echo "=== Checking docker ps on all hosts ==="
+          echo ""
+
+          echo "Docker ps output (base64 encoded):"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'echo "=== $(hostname) ==="; docker ps --filter name=multihost-poc' | base64 -w 0
+          echo ""
+          echo ""
+
+          echo "Verification complete!"
+          echo ""
 
       - name: Cleanup
         if: always()
         run: |
-          docker stop multihost-poc || true
-          docker rm multihost-poc || true
+          echo "=== Cleaning up containers and SSH agents on all hosts ==="
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c '
+            docker stop multihost-poc || true
+            docker rm multihost-poc || true
+            if [ -f /tmp/ssh_agent_env ]; then
+              source /tmp/ssh_agent_env
+              kill $SSH_AGENT_PID || true
+              rm /tmp/ssh_agent_env
+            fi
+            echo "$(hostname): Cleanup complete"
+            '
+          echo "Cleanup complete"
