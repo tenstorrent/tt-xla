@@ -174,11 +174,20 @@ def test_llm(
             json.dump(results, file, indent=2)
 
 
+# Need to define arch since get_xla_device_arch() only returns the architecture and not the size of the devce (n300, llmbox, etc.)
 def test_llm_tp(
-    ModelLoaderModule, variant, output_file, num_layers=None, request=None, **kwargs
+    ModelLoaderModule,
+    variant,
+    output_file,
+    num_layers=None,
+    request=None,
+    arch="wormhole_llmbox",
+    mesh_config_fn=None,
+    shard_spec_fn=None,
+    **kwargs,
 ):
-    # Need to define arch since get_xla_device_arch() doesn't work when spmd is enabled
-    arch = "wormhole_llmbox"
+    if arch is None:
+        arch = "wormhole_llmbox"
     mesh_config_fn = kwargs.pop(
         "mesh_config_fn", getattr(ModelLoaderModule, "get_mesh_config", None)
     )
@@ -910,4 +919,27 @@ def test_gpt_oss_20b_tp_batch_size_1(output_file, num_layers, request):
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=1,
         optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
+    )
+
+
+def test_llama_3_1_70b_tp_galaxy(output_file, num_layers, request):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (4, num_devices // 4)
+        return mesh_shape, ("batch", "model")
+
+    variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+
+    test_llm_tp(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        mesh_config_fn=get_mesh_config,
+        arch="wormhole_galaxy",
+        num_layers=num_layers,
+        request=request,
     )
