@@ -6,21 +6,19 @@
 import os
 import socket
 import sys
-import time
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import transformers
 from decode_utils import (
+    generate_and_benchmark,
     init_accuracy_testing,
     init_static_cache,
-    teacher_forced_generate,
 )
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
@@ -174,132 +172,6 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     return input_args
 
 
-def generate_and_benchmark(
-    model: torch.nn.Module,
-    input_args: dict,
-    tokenizer: PreTrainedTokenizer,
-    device: torch.device,
-    max_tokens_to_generate: int,
-    read_logits_fn: callable,
-    verbose: bool = True,
-    ground_truth_tokens: torch.Tensor = None,
-):
-    """
-    Run the generation loop with optional teacher forcing.
-
-    This function performs token generation and implements teacher forcing when
-    ground_truth_tokens are provided. It only handles generation - no accuracy
-    computation is done here.
-
-    Teacher Forcing:
-        When ground_truth_tokens is provided, the GROUND TRUTH token at each
-        step is used as input for the next iteration (not the prediction).
-        This prevents error accumulation and allows independent accuracy
-        measurement at each position.
-
-    Args:
-        model: Model instance
-        input_args: Input arguments dictionary
-        tokenizer: Tokenizer instance
-        device: Device
-        max_tokens_to_generate: Maximum number of tokens to generate
-        read_logits_fn: Function to extract logits from model output
-        verbose: Whether to print generation output
-        ground_truth_tokens: Ground truth tokens for teacher forcing (optional)
-                           Shape: [sequence_length] containing token IDs
-
-    Returns:
-        Tuple of (output_logits, predicted_tokens, iteration_times)
-            - output_logits: List of logit tensors for each generation step
-            - predicted_tokens: List of predicted token IDs (integers) when using teacher forcing,
-                              empty list otherwise (only populated in accuracy testing mode)
-            - iteration_times: List of iteration times in nanoseconds
-    """
-    output_tokens: List[str] = []
-    output_logits: List[torch.Tensor] = []
-    iteration_times: List[float] = []
-
-    # Verify model is in eval mode (no dropout, no batch norm updates)
-    assert model.training is False, "Model must be in eval mode"
-    if verbose:
-        print(f"Model training mode: {model.training} (should be False)")
-
-    # Check for dropout modules
-    dropout_count = sum(isinstance(m, torch.nn.Dropout) for m in model.modules())
-    dropout_active = any(
-        m.training for m in model.modules() if isinstance(m, torch.nn.Dropout)
-    )
-    if verbose:
-        print(f"Dropout modules found: {dropout_count}, any active: {dropout_active}")
-    assert not dropout_active, "No dropout modules should be in training mode"
-
-    # Verify we're using greedy decoding (argmax), not sampling
-    if verbose:
-        print("Decoding strategy: greedy (argmax), do_sample=False")
-
-    with torch.no_grad():
-        # In accuracy-testing mode we use teacher forcing; route through the shared
-        # helper so CPU and device paths don't drift.
-        if ground_truth_tokens is not None:
-            return teacher_forced_generate(
-                model=model,
-                input_args=input_args,
-                tokenizer=tokenizer,
-                device=device,
-                max_tokens_to_generate=max_tokens_to_generate,
-                ground_truth_tokens=ground_truth_tokens,
-                read_logits_fn=read_logits_fn,
-                verbose=verbose,
-            )
-
-        # Regular generation loop (no accuracy testing)
-        for step in range(max_tokens_to_generate):
-            start = time.perf_counter_ns()
-
-            # Run forward pass
-            output = model(**input_args)
-
-            logits = read_logits_fn(output).to("cpu")
-            output_logits.append(logits)
-            # Greedy decoding: use argmax (no sampling, no temperature, no top_k/top_p)
-            next_token_ids = logits[:, -1].argmax(dim=-1)
-
-            output_text = [tokenizer.decode(token_id) for token_id in next_token_ids]
-            output_tokens.append(output_text)
-
-            # Check for EOS token and early exit (standard generation only)
-            if torch.all(next_token_ids == tokenizer.eos_token_id):
-                if verbose:
-                    print()  # Add newline after generation completes
-                end = time.perf_counter_ns()
-                iteration_times.append(end - start)
-                if verbose:
-                    print(
-                        f"Iteration\t{step}/{max_tokens_to_generate}\ttook {iteration_times[-1] / 1e6:.04} ms"
-                    )
-                break
-
-            # Update inputs for next iteration
-            input_args["input_ids"] = next_token_ids.unsqueeze(-1).to(device)
-
-            host_cache_pos = input_args["cache_position"].to("cpu")
-            host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
-            input_args["cache_position"] = host_cache_pos.to(device)
-
-            end = time.perf_counter_ns()
-            iteration_times.append(end - start)
-            if verbose:
-                print(
-                    f"Iteration\t{step}/{max_tokens_to_generate}\ttook {iteration_times[-1] / 1e6:.04} ms"
-                )
-
-    if verbose:
-        print("Output tokens:", output_tokens)
-
-    # Return empty list for predicted_tokens - only populated in accuracy testing mode (teacher forcing path)
-    return output_logits, [], iteration_times
-
-
 def check_transformers_version():
     """
     Check that transformers version is <= 4.57.1.
@@ -450,13 +322,13 @@ def benchmark_llm_torch_xla(
 
     # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
     if not accuracy_testing:
-        cpu_logits, _, _ = generate_and_benchmark(
+        cpu_logits, _ = generate_and_benchmark(
             model,
             input_args,
-            tokenizer,
             torch.device("cpu"),
             1,
             read_logits_fn=read_logits_fn,
+            tokenizer=tokenizer,
             verbose=False,
         )
         # Only one output makes sense to compare.
@@ -522,13 +394,13 @@ def benchmark_llm_torch_xla(
     # Warmup run
     print("Warming up...")
     warmup_tokens = min(MIN_STEPS, max_tokens_to_generate)
-    _, _, _ = generate_and_benchmark(
+    _, _ = generate_and_benchmark(
         compiled_model,
         input_args,
-        tokenizer,
         device,
         warmup_tokens,
         read_logits_fn=read_logits_fn,
+        tokenizer=tokenizer,
         verbose=False,
     )
 
@@ -549,16 +421,22 @@ def benchmark_llm_torch_xla(
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
-    output_logits, predicted_tokens, iteration_times = generate_and_benchmark(
+    output_logits, iteration_times = generate_and_benchmark(
         compiled_model,
         input_args,
-        tokenizer,
         device,
         max_tokens_to_generate,
         read_logits_fn=read_logits_fn,
+        tokenizer=tokenizer,
         verbose=True,
         ground_truth_tokens=ground_truth_for_benchmark,
     )
+
+    # Post-processing: derive predicted tokens for accuracy testing
+    if accuracy_testing:
+        predicted_tokens = [
+            logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits
+        ]
 
     if len(iteration_times) < 10:
         raise RuntimeError(
