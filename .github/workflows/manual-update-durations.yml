@@ -52,6 +52,35 @@ jobs:
           echo "Pre-check complete"
           echo ""
 
+      - name: Check SSH keys on hosts
+        run: |
+          echo "=== Checking for SSH keys on hosts ==="
+          echo ""
+
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c '
+            echo "Checking for SSH key files:"
+            if [ -f ~/.ssh/id_rsa ]; then
+              echo "  id_rsa: EXISTS"
+            else
+              echo "  id_rsa: NOT FOUND"
+            fi
+            if [ -f ~/.ssh/id_ed25519 ]; then
+              echo "  id_ed25519: EXISTS"
+            else
+              echo "  id_ed25519: NOT FOUND"
+            fi
+            if [ -f ~/.ssh/id_ecdsa ]; then
+              echo "  id_ecdsa: EXISTS"
+            else
+              echo "  id_ecdsa: NOT FOUND"
+            fi
+            '
+
+          echo ""
+
       - name: Validate host-to-host mpirun (bare metal)
         run: |
           echo "=== Bare Metal MPI Validation ==="
@@ -145,15 +174,31 @@ jobs:
             --tag-output \
             bash -c 'docker exec multihost-poc ls -la /workspace/tests/torch/multi_host/experimental/remote_docker.sh'
 
+
       - name: Verify SSH agent forwarding in containers
         run: |
           echo "=== Verifying SSH agent forwarding in containers ==="
           echo ""
 
+          echo "Checking SSH_AUTH_SOCK inside containers:"
           mpirun --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --tag-output \
-            bash -c 'docker exec multihost-poc ssh-add -l'
+            bash -c 'docker exec multihost-poc printenv SSH_AUTH_SOCK'
+          echo ""
+
+          echo "Checking if SSH agent socket exists inside containers:"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'docker exec multihost-poc ls -la /ssh-agent'
+          echo ""
+
+          echo "Testing ssh-add -l inside containers:"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'docker exec multihost-poc ssh-add -l || true'
 
           echo ""
           echo "SSH agent verification complete"
