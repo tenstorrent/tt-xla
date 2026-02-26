@@ -97,6 +97,7 @@ from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
+from .quantization import override_quantization_for_tt
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
 from .vllm_utils import determine_mesh_shape
@@ -1500,6 +1501,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
+                logger.info(f"quant_config: {self.vllm_config.quant_config}")
+                # Override quantization config to use TT-compatible implementations
+                override_quantization_for_tt(self.vllm_config)
+                logger.info(
+                    f"TT-compatible quant_config: {self.vllm_config.quant_config}"
+                )
                 model_loader = get_model_loader(self.load_config)
 
                 # If layer override is active, patch the weight loading process
