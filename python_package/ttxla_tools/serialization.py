@@ -158,3 +158,27 @@ def save_system_descriptor_to_disk(output_prefix: str, as_json: bool = False):
     else:
         system_desc_path = f"{output_prefix}_system_desc.ttsys"
         shutil.copy(system_desc_temp_path, system_desc_path)
+
+
+def enable_compile_only(system_desc_path: str):
+    """
+    Enable compile-only mode using a system descriptor from disk.
+
+    In compile-only mode the PJRT client initializes from the provided
+    descriptor instead of querying connected hardware, allowing compilation
+    for a different system. Execution is disabled.
+
+    Note that this must be called before any JAX or PyTorch TT device operations
+    (i.e. before the PJRT client is initialized).
+
+    Args:
+        system_desc_path (str): Path to a .ttsys binary system descriptor file
+
+    Raises:
+        FileNotFoundError: If the specified file doesn't exist
+    """
+    if not os.path.exists(system_desc_path):
+        raise FileNotFoundError(
+            f"System descriptor file not found at {system_desc_path}."
+        )
+    os.environ["TT_COMPILE_ONLY_SYSTEM_DESC"] = system_desc_path

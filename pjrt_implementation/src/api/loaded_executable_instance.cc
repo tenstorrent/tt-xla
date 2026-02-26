@@ -62,6 +62,10 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Execute = internal::onLoadedExecutableExecute;
 }
 
+bool LoadedExecutableInstance::isCompileOnly() const {
+  return m_client_instance->isCompileOnly();
+}
+
 bool LoadedExecutableInstance::isDeleted() {
   std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
   return m_deleted;
@@ -319,9 +323,16 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
 
-  tt_pjrt_status status =
-      LoadedExecutableInstance::unwrap(args->executable)->execute(args);
+  LoadedExecutableInstance *instance =
+      LoadedExecutableInstance::unwrap(args->executable);
 
+  if (instance->isCompileOnly()) {
+    LOG_F(ERROR, "Execution is not supported in compile-only mode "
+                 "(TT_COMPILE_ONLY_SYSTEM_DESC is set).");
+    return *ErrorInstance::makeError(tt_pjrt_status::kInternal).release();
+  }
+
+  tt_pjrt_status status = instance->execute(args);
   return *ErrorInstance::makeError(status).release();
 }
 

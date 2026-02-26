@@ -103,6 +103,14 @@ public:
     return m_addressable_memories_raw;
   }
 
+  // Returns true if the client was initialized in compile-only mode ()
+  //
+  // Compile-only mode is activated by setting TT_COMPILE_ONLY_SYSTEM_DESC to a
+  // path of a .ttsys file. The system descriptor is loaded from disk instead of
+  // querying  hardware, allowing compilation targeting a different system.
+  // The mesh device is never opened and execution is not supported.
+  bool isCompileOnly() const { return m_compile_only; }
+
   // Returns the mesh device of the provided shape. If there is already opened
   // mesh device within this client instance and its shape matches the provided
   // shape, it is returned. Otherwise, we close any previously opened mesh
@@ -193,6 +201,9 @@ private:
   // TODO: Remove once tt-mlir supports passing the system descriptor object to
   // TTIR to TTNN backend pipeline.
   std::string m_cached_system_descriptor_path;
+
+  // True when TT_COMPILE_ONLY_SYSTEM_DESC was set
+  bool m_compile_only = false;
 
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
