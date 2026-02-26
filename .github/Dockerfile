@@ -16,6 +16,13 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG OMPI_TAG=v5.0.7
+ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
+ENV PATH=${OMPI_PREFIX}/bin:$PATH
+ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
+ENV CPATH=${OMPI_PREFIX}/include
+ENV PKG_CONFIG_PATH=${OMPI_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH
+
 # Install requirements.txt as global Python 3.11 packages
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
