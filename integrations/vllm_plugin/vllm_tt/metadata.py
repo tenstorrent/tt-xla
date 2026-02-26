@@ -55,7 +55,12 @@ class XLASupportedSamplingMetadata:
     logit_bias: list[dict[int, float] | None] = field(default_factory=lambda: list())
 
     allowed_token_ids_mask = None
-    bad_words_token_ids = None
+
+    # Bool mask [batch, vocab]: True for tokens that should be banned this step.
+    # Pre-computed on CPU via prefix-matching against output_token_ids,
+    # then transferred to device for a single masked_fill_ in the sampler.
+    no_bad_words: bool = True
+    bad_words_mask: torch.Tensor | None = None
 
     # Generator not supported by xla
     _generators: dict[int, torch.Generator] = field(default_factory=lambda: dict())
@@ -106,6 +111,54 @@ class XLASupportedSamplingMetadata:
                     mask[i].scatter_(0, valid_ids, True)
         return mask
 
+    @staticmethod
+    def _compute_bad_words_mask(
+        bad_words_token_ids: dict[int, list[list[int]]],
+        req_output_token_ids: list[list[int] | None],
+        padded_num_reqs: int,
+        vocab_size: int,
+    ) -> torch.Tensor:
+        """Build a [padded_num_reqs, vocab_size] bool mask for banned tokens.
+
+        For each request that has bad_words, perform prefix matching against
+        its output token history.  A multi-token bad word ``[t0, t1, ..., tN]``
+        bans ``tN`` only when the most recent N output tokens equal
+        ``[t0, ..., tN-1]``.  Single-token bad words are always banned.
+        Padding rows are all False.
+
+        This mirrors ``vllm.v1.sample.ops.bad_words._apply_bad_words_single_batch``
+        but materialises the result as a fixed-shape mask that can be applied
+        on-device with a single ``masked_fill_``.
+        """
+        mask = torch.zeros(padded_num_reqs, vocab_size, dtype=torch.bool)
+        for req_idx, bad_words_list in bad_words_token_ids.items():
+            if req_idx >= padded_num_reqs:
+                continue
+            past = (
+                req_output_token_ids[req_idx]
+                if req_idx < len(req_output_token_ids)
+                else None
+            )
+            past = past or []
+            for bad_word_ids in bad_words_list:
+                if len(bad_word_ids) == 0:
+                    continue
+                if len(bad_word_ids) > len(past) + 1:
+                    continue  # not enough history to match prefix yet
+                prefix_length = len(bad_word_ids) - 1
+                last_token_id = bad_word_ids[-1]
+                if last_token_id >= vocab_size:
+                    continue
+                if prefix_length == 0:
+                    # Single-token bad word: always banned.
+                    mask[req_idx, last_token_id] = True
+                else:
+                    actual_prefix = past[-prefix_length:]
+                    expected_prefix = bad_word_ids[:prefix_length]
+                    if actual_prefix == expected_prefix:
+                        mask[req_idx, last_token_id] = True
+        return mask
+
     @classmethod
     def from_input_batch(
         cls,
@@ -151,20 +204,16 @@ class XLASupportedSamplingMetadata:
                 "logit_bias is not yet supported in the TT sampler. "
                 "https://github.com/tenstorrent/tt-xla/issues/3364"
             )
-        if input_batch.bad_words_token_ids:
-            raise NotImplementedError(
-                "bad_words is not yet supported in the TT sampler. "
-                "https://github.com/tenstorrent/tt-xla/issues/3363"
-            )
+        has_bad_words = bool(input_batch.bad_words_token_ids)
 
         # Early return to avoid unnecessary cpu to tpu copy.
-        # Must NOT skip when penalties are active: greedy decoding with
-        # repetition/frequency/presence penalties still needs the full penalty
-        # path (prompt_token_mask, output_token_counts, etc.).
+        # Must NOT skip when penalties or bad_words are active: greedy
+        # decoding with these still needs the full path.
         if (
             input_batch.all_greedy is True
             and generate_params_if_all_greedy is False
             and input_batch.no_penalties
+            and not has_bad_words
         ):
             return cls(all_greedy=True, logprobs=needs_logprobs)
 
@@ -221,6 +270,15 @@ class XLASupportedSamplingMetadata:
                 vocab_size,
             ).to(xla_device)
 
+        bad_words_mask_t = None
+        if has_bad_words and vocab_size is not None:
+            bad_words_mask_t = cls._compute_bad_words_mask(
+                input_batch.bad_words_token_ids,
+                input_batch.req_output_token_ids,
+                padded_num_reqs,
+                vocab_size,
+            ).to(xla_device)
+
         # Slice persistent device tensors to a fixed pre-compiled padded shape.
         return cls(
             temperature=input_batch.temperature_cpu_tensor[:padded_num_reqs].to(
@@ -238,4 +296,6 @@ class XLASupportedSamplingMetadata:
             presence_penalties=presence_penalties_t,
             frequency_penalties=frequency_penalties_t,
             repetition_penalties=repetition_penalties_t,
+            no_bad_words=not has_bad_words,
+            bad_words_mask=bad_words_mask_t,
         )

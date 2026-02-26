@@ -360,9 +360,6 @@ def test_seed(llm, prompt):
     ), "Different seeds should produce different output"
 
 
-@pytest.mark.skip(
-    reason="bad_words not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3363"
-)
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_bad_words(llm, prompt):
     """Test that bad_words prevents specified words from appearing."""

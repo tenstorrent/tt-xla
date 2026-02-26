@@ -109,6 +109,11 @@ class Sampler(nn.Module):
     ) -> torch.Tensor:
         assert sampling_metadata.temperature is not None
 
+        # Apply bad words mask before penalties and temperature so banned
+        # tokens are suppressed for both greedy and random paths.
+        if not sampling_metadata.no_bad_words:
+            logits = logits.masked_fill(sampling_metadata.bad_words_mask, -float("inf"))
+
         # Apply penalties before temperature so both greedy and random paths
         # see penalized logits.
         if not sampling_metadata.no_penalties:
