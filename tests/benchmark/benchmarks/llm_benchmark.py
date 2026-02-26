@@ -245,18 +245,18 @@ def generate_and_benchmark(
 
 def check_transformers_version():
     """
-    Check that transformers version is <= 4.57.1.
+    Check that transformers version is = 5.2.0.
     Raises RuntimeError if version is incompatible.
     """
     import packaging.version
 
     current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("4.57.1")
+    max_version = packaging.version.parse("5.2.0")
 
-    if current_version > max_version:
+    if current_version != max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version <= 4.57.1"
+            f"Please use version 5.2.0"
         )
 
 
