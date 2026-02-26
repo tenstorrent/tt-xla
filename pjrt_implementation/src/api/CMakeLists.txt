@@ -60,6 +60,7 @@ PRIVATE
     protobuf::libprotobuf
     TTMLIRCompiler
     TTMLIRRuntime
+    MPI::MPI_CXX
 PUBLIC
     TTPJRTUtils
 )

@@ -63,6 +63,7 @@ target_link_libraries(TTPJRTTests
         GTest::gtest
         GTest::gtest_main
         GTest::gmock
+        MPI::MPI_CXX
     PUBLIC
         TTPJRTApi
         TTPJRTUtils
