@@ -69,6 +69,8 @@ CompileOptions CompileOptions::parse(
       internal::parseStringOption(compile_options,
                                   "ttnn_perf_metrics_output_file")
           .value_or("");
+  options.dry_run = internal::parseBoolOption(compile_options, "dry_run")
+                        .value_or(options.dry_run);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   options.export_model_name =
