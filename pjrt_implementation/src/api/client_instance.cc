@@ -310,8 +310,17 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
+  const char *system_desc_override = std::getenv("TT_COMPILE_ONLY_SYSTEM_DESC");
 
-  m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+  if (system_desc_override != nullptr) {
+    LOG_F(INFO, "Loading system descriptor from path: %s",
+          system_desc_override);
+    m_system_descriptor =
+        tt::runtime::SystemDesc::loadFromPath(system_desc_override);
+    m_compile_only = true;
+  } else {
+    m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+  }
 
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
@@ -321,7 +330,8 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  size_t devices_count = tt::runtime::getNumAvailableDevices();
+  size_t devices_count = m_system_descriptor->chip_desc_indices()->size();
+
   m_devices.reserve(devices_count);
   m_devices_raw.reserve(devices_count);
   m_addressable_devices_raw.reserve(devices_count);
@@ -352,8 +362,11 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  m_parent_mesh =
-      getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+  // Mesh device requires physical hardware; skip in compile-only mode.
+  if (!m_compile_only) {
+    m_parent_mesh =
+        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+  }
 
   return tt_pjrt_status::kSuccess;
 }
