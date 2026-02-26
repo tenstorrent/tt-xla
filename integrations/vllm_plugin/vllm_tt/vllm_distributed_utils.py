@@ -5,13 +5,14 @@
 from collections import OrderedDict
 from typing import List, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from torch.nn.parameter import Parameter
-from tt_torch.sharding import sharding_constraint_hook
-from vllm.model_executor.layers.layernorm import RMSNorm
+from tt_torch.sharding import sharding_constraint_hook, sharding_constraint_tensor
+from tt_torch.sparse_mlp import A2aSparseMLP
 from vllm.model_executor.layers.linear import (
     ColumnParallelLinear,
     MergedColumnParallelLinear,
@@ -23,9 +24,157 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
     VocabParallelEmbedding,
 )
 
+from .attention import TTAttentionBackendImpl
 from .logger import tt_init_logger
+from .moe_integration import VllmA2aSparseMLP
+from .overrides import TTRMSNorm
 
 logger = tt_init_logger(__name__)
+
+
+def create_default_mesh() -> "xs.Mesh":
+    """Create the default mesh configuration for TT sharding.
+
+    Returns:
+        xs.Mesh: Default mesh with shape (2, 4) and axes ("batch", "model")
+    """
+    mesh_shape = (2, 4)
+    device_ids = np.array(range(8))
+    mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+    return mesh
+
+
+def create_custom_mesh(mesh_shape: tuple, axes: tuple) -> "xs.Mesh":
+    """Create a custom mesh configuration for specialized sharding needs.
+
+    Args:
+        mesh_shape: Shape of the mesh (e.g., (2, 4) or (1, 8))
+        axes: Axis names (e.g., ("batch", "model") or ("data", "fsdp"))
+
+    Returns:
+        xs.Mesh: Custom mesh configuration
+    """
+    num_devices = np.prod(mesh_shape)
+    device_ids = np.array(range(num_devices))
+    mesh = xs.Mesh(device_ids, mesh_shape, axes)
+    return mesh
+
+
+def partition_with_config(
+    layer: torch.nn.Module, mesh: xs.Mesh, sharding_config: dict
+) -> torch.nn.Module:
+    """Apply sharding based on a configuration dictionary.
+
+    Args:
+        layer: Layer to shard
+        mesh: Mesh for sharding
+        sharding_config: Dictionary mapping attribute names to sharding specs
+
+    Example:
+        config = {
+            "weight": ("batch", "model"),
+            "bias": ("batch",),
+            "experts.gate_proj": (("batch", "model"), None, None)
+        }
+    """
+    logger.debug("Applied configurable sharding to %s", layer)
+
+    for attr_path, sharding_spec in sharding_config.items():
+        # Navigate nested attributes (e.g., "experts.gate_proj")
+        obj = layer
+        for attr in attr_path.split("."):
+            if hasattr(obj, attr):
+                obj = getattr(obj, attr)
+            else:
+                logger.warning(f"Attribute {attr_path} not found in layer")
+                break
+        else:
+            # Only shard if we successfully navigated to the attribute
+            if hasattr(obj, "to"):  # Check if it's a tensor
+                if not obj.device.type == "xla":
+                    obj = obj.to("xla")
+                xs.mark_sharding(obj, mesh, sharding_spec)
+
+    return layer
+
+
+def shard_sinks_tensor(
+    sinks: torch.Tensor, mesh: Optional["xs.Mesh"] = None
+) -> torch.Tensor:
+    """Apply sharding to sinks tensor.
+
+    Args:
+        sinks: Tensor to shard
+        mesh: Optional mesh, creates default if None
+
+    Returns:
+        Sharded tensor
+    """
+    if mesh is None:
+        mesh = create_default_mesh()
+
+    if not sinks.device.type == "xla":
+        sinks = sinks.to("xla")
+    xs.mark_sharding(sinks, mesh, ("batch",))
+    return sinks
+
+
+def shard_weight_tensor(
+    weight: torch.Tensor,
+    mesh: Optional["xs.Mesh"] = None,
+    sharding_spec: tuple = ("batch", "model"),
+) -> torch.Tensor:
+    """Apply sharding to weight tensors with flexible sharding specification.
+
+    Args:
+        weight: Weight tensor to shard
+        mesh: Optional mesh, creates default if None
+        sharding_spec: Sharding specification tuple
+
+    Returns:
+        Sharded tensor
+    """
+    if mesh is None:
+        mesh = create_default_mesh()
+
+    if not weight.device.type == "xla":
+        weight = weight.to("xla")
+    xs.mark_sharding(weight, mesh, sharding_spec)
+    return weight
+
+
+def shard_expert_tensors(
+    layer: torch.nn.Module, mesh: Optional["xs.Mesh"] = None
+) -> torch.nn.Module:
+    """Apply expert-specific sharding to MoE-style layers.
+
+    Args:
+        layer: Layer containing expert tensors
+        mesh: Optional mesh, creates default if None
+
+    Returns:
+        Layer with sharded expert tensors
+    """
+    if mesh is None:
+        mesh = create_default_mesh()
+
+    # Check if layer has experts attribute and apply sharding
+    if hasattr(layer, "experts"):
+        experts = layer.experts
+        if hasattr(experts, "gate_up_proj"):
+            xs.mark_sharding(
+                experts.gate_up_proj, mesh, (("batch", "model"), None, None)
+            )
+        if hasattr(experts, "gate_up_proj_bias"):
+            xs.mark_sharding(
+                experts.gate_up_proj_bias, mesh, (("batch", "model"), None)
+            )
+        if hasattr(experts, "down_proj"):
+            xs.mark_sharding(experts.down_proj, mesh, (("batch", "model"), None, None))
+        if hasattr(experts, "down_proj_bias"):
+            xs.mark_sharding(experts.down_proj_bias, mesh, (("batch", "model"), None))
+
+    return layer
 
 
 class XlaMergedColumnParallelLinear(nn.Module):
@@ -264,6 +413,103 @@ def partition_vocab_parallel_embedding(
     return layer
 
 
+def partition_vllm_a2a_sparse_mlp(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    assert isinstance(layer, A2aSparseMLP)
+    logger.debug("Applied parallel sharding to %s", layer)
+    # logger.info(f"layer: {layer}")
+    # logger.info(f"layer.experts: {layer.experts}")
+    # logger.info(f"layer.experts.weights: {layer.experts.weights}")
+    # logger.info(f"Sharding expert dimensions across mesh {mesh}")
+    # Shard expert dimension (first dim) across 'model' axis
+    xs.mark_sharding(layer.experts.gate_up_proj, mesh, (("batch", "model"), None, None))
+    xs.mark_sharding(layer.experts.gate_up_proj_bias, mesh, (("batch", "model"), None))
+    xs.mark_sharding(layer.experts.down_proj, mesh, (("batch", "model"), None, None))
+    xs.mark_sharding(layer.experts.down_proj_bias, mesh, (("batch", "model"), None))
+
+    return layer
+
+
+def partition_rmsnorm_layer(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+    assert isinstance(layer, TTRMSNorm)
+    logger.debug("Applied parallel sharding to %s", layer)
+    logger.info(f"layer.weight.shape={layer.weight.shape}")
+    xs.mark_sharding(layer.weight, mesh, ("model",))
+    # Apply sharding constraint to the output of the layer.
+    # hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
+    # layer.register_forward_hook(hook_forward)
+    return layer
+
+
+def partition_attention_backend_impl(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    # assert isinstance(layer, TTAttentionBackendImpl)
+    logger.debug("Applied parallel sharding to %s", layer)
+    logger.info(f"hasattr(layer, 'sinks')={hasattr(layer, 'sinks')}")
+    if not hasattr(layer, "sinks"):
+        return layer
+    logger.info(f"layer.attn: {layer.attn if hasattr(layer, 'attn') else 'N/A'}")
+    logger.info(
+        f"layer.sinks: {layer.attn.sinks if hasattr(layer, 'attn') and hasattr(layer.attn, 'sinks') else 'N/A'}"
+    )
+    sinks = getattr(layer, "sinks")
+    logger.info(
+        f"Attention backend impl sinks shape: {sinks.shape if sinks is not None else 'None'}"
+    )
+    if sinks is None:
+        return layer
+    logger.info(
+        f"Sharding attention backend impl sinks across mesh {mesh} -- {sinks.device}"
+    )
+    if not sinks.device.type == "xla":
+        sinks = sinks.to("xla")
+    # Apply the same sharding constraints that were working in attention.py
+    # Use sharding_constraint_tensor to apply proper batch sharding
+    # sharded_sinks = sharding_constraint_tensor(sinks, mesh, ("batch",))
+    # layer.sinks = sharded_sinks
+    xs.mark_sharding(sinks, mesh, ("batch",))
+    if "sinks" in dict(layer.named_buffers()):
+        logger.info(f"Asif::0")
+        layer.register_buffer("sinks", sinks)
+    else:
+        logger.info(f"Asif::1")
+        setattr(layer, "sinks", sinks)
+    return layer
+
+
+def partition_custom_attention_layer(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    """Custom sharding for attention layers with specific requirements."""
+    logger.debug("Applied parallel sharding to %s", layer)
+
+    # Example: Shard attention weights
+    if hasattr(layer, "attention_weights"):
+        xs.mark_sharding(layer.attention_weights, mesh, ("batch", "model"))
+
+    # Example: Shard bias terms
+    if hasattr(layer, "attention_bias"):
+        xs.mark_sharding(layer.attention_bias, mesh, ("batch",))
+
+    return layer
+
+
+def partition_custom_mlp_layer(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    """Custom sharding for MLP layers."""
+    logger.debug("Applied parallel sharding to %s", layer)
+
+    # Shard common MLP components
+    if hasattr(layer, "fc1"):
+        xs.mark_sharding(layer.fc1.weight, mesh, ("batch", "model"))
+    if hasattr(layer, "fc2"):
+        xs.mark_sharding(layer.fc2.weight, mesh, ("model", "batch"))
+    return layer
+
+
 MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
     [
         ("MergedColumnParallelLinear", partition_merged_column_parallel_linear),
@@ -272,6 +518,12 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
+        ("A2aSparseMLP", partition_vllm_a2a_sparse_mlp),
+        ("TTRMSNorm", partition_rmsnorm_layer),
+        # Add your custom layer types here:
+        # ("CustomAttentionLayer", partition_custom_attention_layer),
+        # ("CustomMLPLayer", partition_custom_mlp_layer),
+        # ("attn", partition_attention_backend_impl),
     ]
 )
 
@@ -293,8 +545,27 @@ def shard_model(model: torch.nn.Module, mesh: "xs.Mesh") -> None:
     logger.info("Applying parallel sharding to the model...")
 
     def _process_module(module, name=None, parent=None):
+        # logger.info(f"Processing module: {module} (name: {name})")
         for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
             if get_fqn(module) == module_type:
+                wrapped_module = wrapping_func(module, mesh)
+
+                assert (
+                    parent is not None and name is not None
+                ), "Top Level module is not expected to be wrapped."
+                if wrapped_module is not module:
+                    # Wrapped module and module are different py object.
+                    # The original module should be replaced by the
+                    # wrapped_module.
+                    logger.debug("replace %s with %s", module, wrapped_module)
+                    setattr(parent, name, wrapped_module)
+
+                module = wrapped_module
+                break
+
+        for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
+            logger.info(f"Checking module type: {name} against {module_type}")
+            if name == module_type:
                 wrapped_module = wrapping_func(module, mesh)
 
                 assert (

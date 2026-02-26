@@ -50,19 +50,30 @@ template <class Fn, class... Args,
 std::optional<std::conditional_t<std::is_same_v<ReturnType, void>,
                                  std::monostate, ReturnType>>
 invoke_noexcept(Fn &&fn, Args &&...args) noexcept {
+  DLOG_F(LOG_DEBUG, "Asif:: utils_0 ");
   try {
+    DLOG_F(LOG_DEBUG, "Asif:: utils_1 ");
     if constexpr (std::is_same_v<ReturnType, void>) {
+      DLOG_F(LOG_DEBUG, "Asif:: utils_2 ");
       std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...);
+      DLOG_F(LOG_DEBUG, "Asif:: utils_3 ");
       return std::optional{std::monostate{}};
     } else {
-      return std::optional{
+      DLOG_F(LOG_DEBUG, "Asif:: utils_4 ");
+      auto temp = std::optional{
           std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...)};
+      DLOG_F(LOG_DEBUG, "Asif:: utils_4_a ");
+      return temp;
     }
+    DLOG_F(LOG_DEBUG, "Asif:: utils_5_x ");
   } catch (const std::exception &ex) {
+    DLOG_F(LOG_DEBUG, "Asif:: utils_7 ");
     LOG_F(ERROR, "Exception:\n{%s}\n", ex.what());
   } catch (...) {
+    DLOG_F(LOG_DEBUG, "Asif:: utils_8 ");
     LOG_F(ERROR, "Unknown exception.");
   }
+  DLOG_F(LOG_DEBUG, "Asif:: utils_6_x ");
 
   return std::nullopt;
 }

@@ -2,11 +2,14 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
+import os
 from dataclasses import dataclass
 from typing import List, Optional
 
+import numpy as np
 import torch
 import torch_xla.core.xla_builder as xb
+import torch_xla.distributed.spmd as xs
 import torch_xla.experimental.custom_kernel  # noqa: F401
 
 # Required to register custom ops.
@@ -14,6 +17,7 @@ from torch.library import impl
 
 # from torch_xla._internal.jax_workarounds import requires_jax
 from torch_xla.experimental.custom_kernel import XLA_LIB
+from tt_torch.sharding import sharding_constraint_tensor
 from vllm.config import VllmConfig
 from vllm.utils.math_utils import cdiv, next_power_of_2
 from vllm.v1.attention.backend import (
@@ -46,6 +50,38 @@ TPU_STR_DTYPE_TO_TORCH_DTYPE = {
 torch._dynamo.config.reorderable_logging_functions.add(print)
 
 
+@torch.compiler.disable
+def _dump_tensors_to_file(query_tensor, key_tensor, value_tensor, sink_tensor, logger):
+    """Dump tensors to files - excluded from torch.compile"""
+    try:
+        import os
+
+        dump_dir = "/localdev/mmanzoor/compiler/tt-xla/tensor_dumps"
+        os.makedirs(dump_dir, exist_ok=True)
+
+        # Move to CPU and save
+        query_cpu = query_tensor.detach().cpu()
+        key_cpu = key_tensor.detach().cpu()
+        value_cpu = value_tensor.detach().cpu()
+        sink_cpu = sink_tensor.detach().cpu() if sink_tensor is not None else None
+
+        torch.save(query_cpu, os.path.join(dump_dir, "query_tensor.pt"))
+        torch.save(key_cpu, os.path.join(dump_dir, "key_tensor.pt"))
+        torch.save(value_cpu, os.path.join(dump_dir, "value_tensor.pt"))
+        if sink_cpu is not None:
+            torch.save(sink_cpu, os.path.join(dump_dir, "sink_tensor.pt"))
+
+        logger.info(f"Tensors saved to {dump_dir}")
+        logger.info(
+            f"query: {query_cpu.shape}, key: {key_cpu.shape}, value: {value_cpu.shape}"
+        )
+        if sink_cpu is not None:
+            logger.info(f"sink: {sink_cpu.shape}")
+
+    except Exception as e:
+        logger.error(f"Failed to dump tensors: {e}")
+
+
 class TTAttentionMetadataBuilder:
     """
     Builder class for TT attention metadata.
@@ -76,6 +112,7 @@ class TTAttentionMetadataBuilder:
             attn_mask=None,
             page_table=None,
             is_causal=getattr(common_attn_metadata, "causal", True),
+            mesh=None,
         )
 
 
@@ -177,6 +214,7 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    mesh: Optional["xs.Mesh"]
 
     def __init__(
         self,
@@ -185,6 +223,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        mesh: Optional["xs.Mesh"] = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -193,6 +232,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.mesh = mesh
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -217,6 +257,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         self.sliding_window = sliding_window
         self.logits_soft_cap = logits_soft_cap
         self.kv_sharing_target_layer_name = kv_sharing_target_layer_name
+        # logger.info(f"TTAttn: sliding_window={sliding_window}, self.sliding_window={self.sliding_window}")
 
         self.num_queries_per_kv = self.num_heads // self.num_kv_heads
         if alibi_slopes is not None:
@@ -239,12 +280,49 @@ class TTAttentionBackendImpl(AttentionImpl):
                 kv_cache_dtype.lower().strip()
             )
 
+        # Store raw sinks - will be prepared with mesh from metadata during forward pass
         self.sinks = sinks
         if self.sinks is not None:
+            self.sinks = (
+                self.sinks / self.scale
+            )  # Pre-scale the sinks to avoid doing it every forward pass
             assert self.sinks.shape[0] == num_heads, (
                 "Sinks must have the same number of heads as the number of "
                 "heads in the layer"
             )
+            if not self.sinks.device.type == "xla":
+                self.sinks = self.sinks.to("xla")
+
+            mesh_shape = (2, 4)
+            device_ids = np.array(range(8))
+            mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            xs.mark_sharding(self.sinks, mesh, ("batch",))
+
+    def _prepare_sinks(
+        self, sinks: Optional[torch.Tensor], mesh: Optional["xs.Mesh"]
+    ) -> Optional[torch.Tensor]:
+        """Prepare and optionally shard the sinks tensor if mesh is available."""
+        if sinks is None:
+            return None
+
+        if not sinks.device.type == "xla":
+            sinks = sinks.to("xla")
+        xs.mark_sharding(sinks, mesh, ("batch",))
+        sinks = (
+            sinks / self.scale
+        )  # Scale the sinks by the same factor as attention scores
+
+        # Handle sinks: if sinks is 1D then convert it to [1, num_heads, 1, 1]
+        # if sinks.dim() == 1:
+        #  sinks = sinks.view(1, -1, 1, 1)  # [1, num_heads, 1, 1]
+
+        # Shard the sinks if mesh is available
+        # if False and mesh is not None:
+        # Move to XLA device and mark for sharding
+        #  sinks = sharding_constraint_tensor(sinks, mesh, (None, "batch", None, None))
+        # xs.mark_sharding(sinks, mesh, (None, "batch", None, None))
+
+        return sinks
 
     # @torch.compiler.disable
     def forward(
@@ -278,6 +356,12 @@ class TTAttentionBackendImpl(AttentionImpl):
             value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
             output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
+        # query_cpu = sharding_constraint_tensor(query, attn_metadata.mesh, (None, None, None))
+        # key_cpu = key.to("cpu")
+        # value_cpu = value.to("cpu")
+        # logger.info(f"query: {query.shape} -- {query}")
+        # logger.info(f"key: {key.shape} -- {key}")
+        # logger.info(f"value: {value.shape} -- {value}")
 
         # Prepare inputs and metadata
         inputs = self._prepare_inputs(query, key, value, attn_metadata)
@@ -291,14 +375,17 @@ class TTAttentionBackendImpl(AttentionImpl):
         # - is_prefill=True: Full attention (prefill phase for generative models,
         #                    or single-pass attention for pooling models)
         # - is_prefill=False: Paged decode attention (generative models only)
+        # logger.info(f"TTattn: sliding_window in forward={self.sliding_window}")
         if inputs.is_prefill:
-            assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
+            # assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
             output = self._compute_full_attention(inputs, attn_metadata)
         else:
             output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
 
         # Finalize output shape to match original input
-        return self._finalize_output(output, inputs)
+        result = self._finalize_output(output, inputs)
+        # logger.info(f"output: {result.to('cpu')}")
+        return result
 
     def _prepare_inputs(
         self,
@@ -516,13 +603,31 @@ class TTAttentionBackendImpl(AttentionImpl):
         query_for_sdpa = inputs.query.transpose(-3, -2)
         key_for_sdpa = inputs.key.transpose(-3, -2)
         value_for_sdpa = inputs.value.transpose(-3, -2)
+        # sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
+        sink = self.sinks
+        sink = sink.view(1, -1, 1, 1)
+
+        # Dump tensors to files (excluded from compilation)
+        # _dump_tensors_to_file(query_for_sdpa, key_for_sdpa, value_for_sdpa, sink, logger)
+        sdpa_kwargs = {
+            "is_causal": attn_metadata.is_causal,
+            # "attn_mask": attn_metadata.attn_mask,
+            # "attention_sink": sink,
+            "scale": self.scale,
+        }
+        if self.sliding_window is not None:
+            sdpa_kwargs["sliding_window_size"] = self.sliding_window
 
         output = torch.ops.tt.scaled_dot_product_attention(
             query_for_sdpa,
             key_for_sdpa,
             value_for_sdpa,
-            is_causal=attn_metadata.is_causal,
+            # is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
+            attention_sink=sink,
+            # scale=self.scale,
+            # sliding_window_size=self.sliding_window,
+            **sdpa_kwargs,
         ).transpose(
             -3, -2
         )  # Back to [users, tokens, num_heads, head_size]
@@ -541,6 +646,20 @@ class TTAttentionBackendImpl(AttentionImpl):
         # In decode, query_num_tokens == 1 is normal
         query_for_decode = inputs.query.transpose(0, 1)
 
+        # Use sink from self.sinks, prepared with mesh from metadata
+        sink = self.sinks
+        sink = sink.unsqueeze(-1)
+
+        # sdpa_kwargs = {
+        #   "is_causal": attn_metadata.is_causal,
+        # "attn_mask": attn_metadata.attn_mask,
+        # "attention_sink": sink,
+        #  "scale": self.scale,
+        # "cur_pos_tensor": attn_metadata.cache_position,
+        # }
+        # if self.sliding_window is not None:
+        #   sdpa_kwargs["sliding_window_size"] = self.sliding_window
+
         out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
             query_for_decode,
             k_cache,
@@ -549,7 +668,9 @@ class TTAttentionBackendImpl(AttentionImpl):
             cur_pos_tensor=attn_metadata.cache_position,
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
-            attention_sink=self.sinks,
+            attention_sink=sink,
+            sliding_window_size=self.sliding_window,
+            # **sdpa_kwargs,
         )
         # out: [query_num_tokens, users, num_heads, head_size]
         out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]

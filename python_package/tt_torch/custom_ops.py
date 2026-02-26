@@ -211,9 +211,10 @@ def scaled_dot_product_attention(
     key: torch.Tensor,
     value: torch.Tensor,
     attn_mask: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
-    sliding_window_size: int = None,
+    scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
 ) -> torch.Tensor:
 
     assert (
@@ -267,7 +268,14 @@ def scaled_dot_product_attention(
         if attn_mask is not None:
             inputs.append(attn_mask)
 
-        frontend_attributes = {"is_causal": str(is_causal)}
+        if attention_sink is not None:
+            inputs.append(attention_sink)
+
+        frontend_attributes = {
+            "is_causal": str(is_causal),
+            "has_attention_mask": str(attn_mask is not None),
+            "has_attention_sink": str(attention_sink is not None),
+        }
         if scale is not None:
             frontend_attributes["scale"] = str(scale)
 
@@ -276,6 +284,7 @@ def scaled_dot_product_attention(
                 sliding_window_size > 0
             ), f"sliding_window_size must be a positive integer, but is {sliding_window_size}"
             frontend_attributes["sliding_window_size"] = str(sliding_window_size)
+        # print(f"custom_ops::sdpa::attrs: {frontend_attributes}")
 
         return stablehlo_custom_call.stablehlo_custom_call(
             inputs,
@@ -306,9 +315,10 @@ def scaled_dot_product_attention(
     key: torch.Tensor,
     value: torch.Tensor,
     attn_mask: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
-    sliding_window_size: int = None,
+    scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -326,7 +336,7 @@ def scaled_dot_product_attention_decode(
     attn_mask: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
 
     assert (
@@ -423,7 +433,7 @@ def scaled_dot_product_attention_decode_fake(
     attn_mask: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -780,7 +790,8 @@ def paged_scaled_dot_product_attention_decode(
     attn_mask: torch.Tensor = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
-    scale: float = None,
+    scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
 ) -> torch.Tensor:
     device = query.device
 
@@ -802,6 +813,14 @@ def paged_scaled_dot_product_attention_decode(
 
         if scale is not None:
             attrs["scale"] = str(scale)
+        # print(f"custom_ops::sliding_window_size: {sliding_window_size}")
+
+        if sliding_window_size is not None:
+            assert (
+                sliding_window_size > 0
+            ), f"sliding_window_size must be a positive integer, but is {sliding_window_size}"
+            # attrs["sliding_window_size"] = str(sliding_window_size)
+        # print(f"custom_ops::paged_sdpa_decode::attrs: {attrs}")
 
         inputs = [query, key, value, page_table]
         if attn_mask is not None:
@@ -893,7 +912,8 @@ def paged_scaled_dot_product_attention_decode_fake(
     attention_mask: torch.Tensor = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
-    scale: float = None,
+    scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -953,7 +973,6 @@ def sparse_matmul(
         if input_tensor_a.dim() == 4 and input_tensor_a.shape[1] != E_experts:
             BD, S, _, _ = input_tensor_a.shape
             _moe_shape = (BD, S)
-
     if device.type == "xla":
         # Pre-tile MoE tensors so the M (tile) dimension is already 32-aligned.
         # This avoids MLIR workaround reshape/permute overhead entirely.
@@ -969,7 +988,6 @@ def sparse_matmul(
             BD, S = _moe_shape
             reduced = sparsity.shape[2]
             M = (BD * S) // reduced
-
             if not is_input_a_sparse and is_input_b_sparse:
                 H = input_tensor_a.shape[-1]
                 split_seq = S % M == 0 and S >= M

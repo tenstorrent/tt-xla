@@ -99,6 +99,7 @@ from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
+from .quantization import override_quantization_for_tt
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
 from .vllm_utils import determine_mesh_shape, prev_power_of_2
@@ -215,6 +216,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ):
         self.tt_config = TTConfig(**vllm_config.additional_config)
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
+        self.counter = 0
 
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
@@ -629,6 +631,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 generator.manual_seed(sampling_params.seed)
             else:
                 generator = None
+            logger.info(f"request_size: {len(new_req_data.prompt_token_ids)}")
 
             self.requests[req_id] = CachedRequestState(
                 req_id=req_id,
@@ -1079,6 +1082,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=fill_page_table,
+            mesh=self.mesh if self.use_2d_mesh else None,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1312,6 +1316,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.scheduler_output is None:
             # Nothing to do (PP non-final rank case), output isn't used.
             return None  # type: ignore[return-value]
+        logger.info(f"sample_tokens: {self.counter}")
+        self.counter += 1
         scheduler_output = self.scheduler_output
         mm_embed_inputs = self.mm_embed_inputs
         self.scheduler_output = None
@@ -1353,20 +1359,46 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+            logger.info(
+                f"input_ids_run: {input_ids.shape} -- {input_ids[0, :].to('cpu')}"
+            )
+            logger.info(
+                f"positions: {self.position_ids.shape} -- {self.position_ids[0, :].to('cpu')}"
+            )
+            logger.info(f"hidden_states shape: {hidden_states.shape}")
+            logger.info(f"hidden_states: {hidden_states.to('cpu')[0, :, :]}")
+            # sys.exit(0)
+            hidden_states = sharding_constraint_tensor(
+                hidden_states, self.mesh, (None, None, None)
+            )
+            logger.info(
+                f"hidden_states after sharding_constraint_tensor: {hidden_states.shape} -- {hidden_states.to('cpu')[0, :, :]}"
+            )
+            logger.info(
+                f"logits_indices: {logits_indices.shape} -- {logits_indices.to('cpu')}"
+            )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
             # [max_num_reqs, padded_seq_len, H] tensor to CPU.
             if self.num_prompt_logprobs:
+                logger.info(
+                    f"Extracting hidden states for prompt logprobs for requests "
+                )
                 for i in range(start_index, end_index):
                     req_id = self.input_batch.req_ids[i]
                     if req_id in self.num_prompt_logprobs:
                         local_idx = i - start_index
                         prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
+            logger.info("Selecting hidden states for logits computation")
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
+            logger.info(
+                f"selected hidden_states shape: {hidden_states.shape} -- {hidden_states.to('cpu')[0, :]}"
+            )
             logits = self.compute_logits(hidden_states)
+            logger.info(f"logits shape: {logits.shape} -- {logits.to('cpu')[0, :]}")
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
@@ -1378,9 +1410,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
+                # self.device,
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
+            logger.info(f"grammer_output: {grammar_output}")
             if grammar_output is not None:
                 (
                     require_struct_decoding,
@@ -1390,8 +1424,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits = self.structured_decode(
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
+            logger.info(
+                f"post-processed logits shape: {logits.shape} -- {logits.to('cpu')[0, :]}"
+            )
+            logger.info(f"tpu_sampling_metadata: {tpu_sampling_metadata}")
 
             selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
+            logger.info(
+                f"selected_token_ids shape: {selected_token_ids.shape} -- {selected_token_ids.to('cpu')}"
+            )
+            # sys.exit(0)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -1416,6 +1458,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
+            logger.info(f"final_selected_token_ids: {selected_token_ids}")
 
             combined_selected_tokens.append(selected_token_ids)
             if sampling_metadata.logprobs:
@@ -1516,6 +1559,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Check there are no new graphs compiled - all the graphs should be
         # captured and compiled during warm up.
         self._verify_num_xla_graphs("execute_model")
+        # if self.counter == 3:
+        #    sys.exit(0)
 
         return model_runner_output
 
@@ -1552,6 +1597,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return_value=xm_tp_rank,
         ):
             try:
+                logger.info(f"quant_config: {self.vllm_config.quant_config}")
+                # Override quantization config to use TT-compatible implementations
+                override_quantization_for_tt(self.vllm_config)
+                logger.info(
+                    f"TT-compatible quant_config: {self.vllm_config.quant_config}"
+                )
                 model_loader = get_model_loader(self.load_config)
 
                 # If layer override is active, patch the weight loading process
@@ -1576,6 +1627,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         vllm_config=self.vllm_config, model_config=self.model_config
                     ).eval()
                 replace_modules(model)
+                from .moe_integration import count_moe_layers, override_moe_for_tt
+
+                # Count MLPBlock layers before override
+                mlpblock_before = count_moe_layers(model)
+                logger.info(f"Before MLP override: MLPBlock={mlpblock_before}")
+                logger.info(f"Compiled model: \n{model}")
+
+                # Replace vLLM FusedMoE with TT A2aSparseMLP
+                if self.enable_tensor_parallel and hasattr(self, "mesh"):
+                    # Get mesh shape for MLP override
+                    mesh_shape_dict = (
+                        self.mesh.shape()
+                    )  # Call the method to get actual shape dict
+                    # Convert OrderedDict {'batch': 2, 'model': 4} to tuple (2, 4)
+                    mesh_shape = tuple(mesh_shape_dict.values())
+                    cluster_axis = 0  # Use rows for dispatch (can be configured)
+
+                    logger.info(
+                        f"Applying MoE override with mesh_shape={mesh_shape}, cluster_axis={cluster_axis}"
+                    )
+                    try:
+                        model = override_moe_for_tt(
+                            model=model,
+                            mesh=mesh_shape,
+                            cluster_axis=cluster_axis,
+                            config=self.model_config,
+                        )
+
+                        # Count MLPBlock layers after override
+                        mlpblock_after = count_moe_layers(model)
+                        logger.info(f"After MLP override: MLPBlock={mlpblock_after}")
+                    except Exception as e:
+                        logger.warning(f"MoE override failed with error: {e}")
+                        logger.warning(
+                            "Continuing with TT-compatible MXFP4 implementation"
+                        )
+                else:
+                    logger.info(
+                        "Tensor parallel not enabled or mesh not available, using TT-compatible MXFP4"
+                    )
+
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
@@ -1645,6 +1737,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            mesh=self.mesh if self.use_2d_mesh else None,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
@@ -1658,11 +1751,32 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ),
             set_forward_context(per_layer_attn_metadata, self.vllm_config, 0),
         ):
+            logger.info(
+                f"Asif:: Running dummy forward pass with num_tokens={num_tokens}, num_reqs={num_reqs}, num_blocks={num_blocks}."
+            )
+            print(
+                f"Asif:: Running dummy forward pass with num_tokens={num_tokens}, num_reqs={num_reqs}, num_blocks={num_blocks}.",
+                flush=True,
+            )
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
+            logger.info(
+                f"Asif:: Finished dummy forward pass for num_tokens={num_tokens}."
+            )
+            print(
+                f"Asif:: Finished dummy forward pass for num_tokens={num_tokens}.",
+                flush=True,
+            )
 
         self._hidden_states_dtype = out.dtype
+        logger.info(
+            f"Asif:: Set hidden states dtype to {self._hidden_states_dtype} based on dummy run output."
+        )
+        print(
+            f"Asif:: Set hidden states dtype to {self._hidden_states_dtype} based on dummy run output.",
+            flush=True,
+        )
 
     def _set_active_loras(
         self, prompt_lora_mapping, token_lora_mapping, lora_requests
@@ -1761,17 +1875,36 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
+            # num_tokens = 32
             logger.info("  -- num_tokens: %d", num_tokens)
+            logger.info(f"Asif:: self.most_model_len: {self.most_model_len}")
             self._dummy_run(
                 num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
             )
             if self.most_model_len is not None:
+                logger.info(f"self.most_model_len")
                 self._dummy_run(
                     num_tokens,
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
+            break
+        logger.info(
+            f"Asif:: Finished dummy runs for backbone with num_tokens={num_tokens}."
+        )
+        print(
+            f"Asif:: Finished dummy runs for backbone with num_tokens={num_tokens}.",
+            flush=True,
+        )
         xm.wait_device_ops()
+        torch_xla.sync(wait=False)
+        logger.info(
+            f"Asif:: Starting compilation for backbone with num_tokens={num_tokens}."
+        )
+        print(
+            f"Asif:: Starting compilation for backbone with num_tokens={num_tokens}.",
+            flush=True,
+        )
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("model backbone")
@@ -1934,6 +2067,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        return
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             self._precompile_backbone()
@@ -1962,6 +2096,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.tt_config.decode_only:
             return
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
+        return
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
@@ -2232,6 +2367,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Supports greedy, temperature, top-k/top-p, and penalty-based sampling.
         All operations run on CPU to avoid compiling a device sampling graph.
         """
+        logger.info(
+            f"Asif:: Sampling on CPU with logits shape {logits.shape} and metadata {sampling_metadata}."
+        )
+        logger.info(f"Asif:: Sampling on CPU with logits dtype {logits.dtype}.")
+        # logits_device = logits.device
         logits = logits.cpu()
 
         if not sampling_metadata.no_penalties:
