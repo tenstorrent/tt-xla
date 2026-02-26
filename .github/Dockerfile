@@ -19,6 +19,10 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG OMPI_TAG=v5.0.7
+ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
+ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
+
 # Install requirements.txt as global Python 3.11 packages
 COPY python_package/requirements.txt /tmp/requirements.txt
 COPY venv/requirements-dev.txt /tmp/requirements-dev.txt
