@@ -2319,7 +2319,7 @@ def test_eager_batched_attention():
     output = model(hidden_states).to("cpu")
 
 
-@pytest.mark.push
+@pytest.mark.nighly
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
@@ -2377,7 +2377,7 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     )
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
