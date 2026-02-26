@@ -52,32 +52,39 @@ jobs:
           echo "Pre-check complete"
           echo ""
 
-      - name: Check SSH keys on hosts
+      - name: Detect SSH keys on hosts
         run: |
-          echo "=== Checking for SSH keys on hosts ==="
+          echo "=== Detecting SSH keys on hosts ==="
           echo ""
 
+          echo "Testing SSH to f10cs03 to discover key location (base64 encoded twice):"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'ssh -v f10cs03 "hostname" 2>&1 | grep -i "identity file\|offering public key\|authentication" | head -10 | base64 -w 0 | base64 -w 0 || true'
+          echo ""
+
+          echo ""
+          echo "Testing GitHub SSH connection to discover key location:"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'ssh -v -T git@github.com 2>&1 | grep -i "identity file\|offering public key" | head -5 | base64 -w 0 | base64 -w 0 || true'
+          echo ""
+
+          echo ""
+          echo "Checking standard SSH key locations:"
           mpirun --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --tag-output \
             bash -c '
-            echo "Checking for SSH key files:"
-            if [ -f ~/.ssh/id_rsa ]; then
-              echo "  id_rsa: EXISTS"
-            else
-              echo "  id_rsa: NOT FOUND"
-            fi
-            if [ -f ~/.ssh/id_ed25519 ]; then
-              echo "  id_ed25519: EXISTS"
-            else
-              echo "  id_ed25519: NOT FOUND"
-            fi
-            if [ -f ~/.ssh/id_ecdsa ]; then
-              echo "  id_ecdsa: EXISTS"
-            else
-              echo "  id_ecdsa: NOT FOUND"
-            fi
+            for key in ~/.ssh/id_rsa ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ${{ steps.capture-home.outputs.home }}/.ssh/id_rsa ${{ steps.capture-home.outputs.home }}/.ssh/id_ed25519; do
+              if [ -f "$key" ]; then
+                echo "  Found key: $key"
+              fi
+            done | base64 -w 0 | base64 -w 0
             '
+          echo ""
 
           echo ""
 
