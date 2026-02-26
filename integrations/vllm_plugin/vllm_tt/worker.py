@@ -207,41 +207,16 @@ class TTWorker:
             runner_kv_caches,
         )
 
-        # `max_num_tokens >= max_num_batched_tokens` due to padding.
-        with self.model_runner.maybe_setup_dummy_loras(self.lora_config):
-            self.model_runner.profile_run(self.model_runner.max_num_tokens)
-
-        # Synchronize before measuring the memory usage.
-        xm.wait_device_ops()
-
-        # During the profiling run, the model runs without KV cache. After
-        # the profiling run, the model always runs with KV cache. Here we clear
-        # the dynamo cache and cached bytecode to ensure the model always has
-        # one compiled bytecode. Having one FX graph/cached bytecode per
-        # compiled model is required for `support_torch_compile` decorator to
-        # skip dynamo guard.
-        with set_current_vllm_config(self.vllm_config):
-            self.model_runner.reset_dynamo_cache()
-
-        # Get the maximum amount of memory used by the model weights and
-        # intermediate activations.
-        # TODO @LPanosTT: https://github.com/tenstorrent/tt-xla/issues/1414: we should find out if/how we
-        # can implement the PJRT API function(s) necessary to execute xm.get_memory_info,
-        # and implement them. I believe we must implement PJRT_Device_MemoryStats.
-
-        # m = xm.get_memory_info(self.device)
-        # total_memory_size = m["bytes_limit"]
-        # current_mem = m["bytes_used"]
-        # @LPanosTT: For now we will always report that no memory has been used.
-        total_memory_size = 12 * 1024**3  # m["bytes_limit"]
-        current_mem = 0  # m["bytes_used"]
-
-        # Ideally we would use profiled = m["peak_bytes_used"] to
-        # get weights + activations. But there is memory used during
-        # compilation / weight loading that impacts the peak and
-        # there is no way to reset peak memory in XLA, So we
-        # use the heuristic of 2% of weights.
-        profiled = current_mem * 1.02
+        # Skip profile_run: TT devices report hardcoded memory values (we
+        # don't yet implement PJRT_Device_MemoryStats — see issue #1414), so
+        # the profile run only wastes ~8-10 s compiling a backbone graph that
+        # is immediately discarded by reset_dynamo_cache.
+        #
+        # TODO @LPanosTT: https://github.com/tenstorrent/tt-xla/issues/1414:
+        # once xm.get_memory_info works on TT, re-enable the profile run and
+        # use real values below.
+        total_memory_size = 12 * 1024**3
+        profiled = 0
 
         # Calculate the TPU KV cache size based on profiling.
         usable_memory_size = int(
