@@ -13,8 +13,8 @@ pkg_install \
     patchelf \
     protobuf-compiler \
     libprotobuf-dev \
-    ffmpeg
-#   g++-12 \
+    ffmpeg \
+    g++-12
 
 # Install uv tool for managing Python packages
 curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
