@@ -355,7 +355,6 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   m_copy_to_host_thread = std::thread([=, this, e = event.get()] {
     try {
       ZoneScopedN("CopyToHostThread");
-      const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
 
       m_pjrt_tensor->move_to_host();
 

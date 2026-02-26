@@ -11,6 +11,7 @@
 #include "api/tensor.h"
 
 // c++ standard library includes
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -69,7 +70,7 @@ PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
 PjrtTensor::PjrtTensor(Private, std::vector<BufferInstance *> shards,
                        tt::runtime::Tensor rt_tensor)
     : m_uid{next_uid()}, m_shards{std::move(shards)},
-      m_runtime_tensor{std::move(rt_tensor)} {
+      m_runtime_tensor{std::move(rt_tensor)}, m_moved_to_host{false} {
 
   TensorPool::insert(this);
 }
@@ -113,6 +114,22 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
 // remove_shard().
 void PjrtTensor::move_to_host() noexcept {
   ZoneScoped;
+
+  if (!m_mutex.try_lock()) {
+    std::cout << "***************************************************\n";
+    std::cout << "**************Failed to acquire lock!***************\n";
+    std::cout << "***************************************************\n";
+    assert(false);
+  } else
+    m_mutex.unlock();
+
+  const std::scoped_lock lock{m_mutex};
+
+  if (m_moved_to_host)
+    return;
+
+  m_moved_to_host = true;
+
   std::vector<tt::runtime::Tensor> tensors =
       tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
 
@@ -120,23 +137,26 @@ void PjrtTensor::move_to_host() noexcept {
            "Unexpected number of tensors after move to host: "
            "tensors.size()={}, m_shards.size()={}",
            tensors.size(), m_shards.size());
-  m_runtime_tensor = std::move(tensors[0]);
+  // m_runtime_tensor = std::move(tensors[0]);
 
-  for (std::size_t i = 1; i < m_shards.size(); ++i) {
+  // for (std::size_t i = 1; i < m_shards.size(); ++i) {
+  for (std::size_t i = 0; i < m_shards.size(); ++i) {
     if (m_shards[i] == nullptr) {
       DLOG_F(LOG_DEBUG, "Deleted tensor shard. Skipping PjrtTensor creation.");
       continue;
     }
 
+    // tt::runtime::Tensor rt_tensor =
+    //     tensors.size() == 1 ? m_runtime_tensor : std::move(tensors[i]);
     tt::runtime::Tensor rt_tensor =
-        tensors.size() == 1 ? m_runtime_tensor : std::move(tensors[i]);
+        tensors.size() == 1 ? tensors[0] : std::move(tensors[i]);
     PjrtTensor::from_runtime_tensor({m_shards[i]}, std::move(rt_tensor));
   }
 
-  m_shards.resize(1);
+  // m_shards.resize(1);
 }
 
-// Returns whether all shards share the same runtime tensor.
+// Returns whether all shards share the same pjrt tensor.
 bool PjrtTensor::have_same_tensor(const std::vector<BufferInstance *> &shards) {
 
   return std::all_of(
@@ -169,10 +189,14 @@ uint64_t PjrtTensor::next_uid() {
 // https://github.com/tenstorrent/tt-xla/issues/3034.
 void PjrtTensor::remove_shard(const BufferInstance *shard) noexcept {
 
+  if (shard == nullptr)
+    return;
+
+  const std::scoped_lock lock{m_mutex};
+
   auto it = std::find(m_shards.begin(), m_shards.end(), shard);
-  TT_FATAL(it != m_shards.end() && *it != nullptr,
-           "Shard not found or already removed");
-  *it = nullptr;
+  if (it != m_shards.end())
+    *it = nullptr;
 }
 
 // Either returns single or multi-device runtime tensor from shards, depending
