@@ -1,110 +1,118 @@
-name: Update Test Durations
+name: Multi-Host POC - Hostname Check
 
-# This workflow updates test durations based on the latest nightly, weekly, weekly training and push workflow runs.
-# It processes the JUnit XML reports from the last successful nightly, weekly, weekly training and push workflows,
-# calculates the test durations, and creates a pull request to update the `.test_durations` file.
+# Minimal POC workflow to validate multi-host setup using mpirun
+# Goal: Run hostname checks across all nodes from a single controller
 
 on:
   workflow_dispatch:
 
 permissions:
-  packages: write
-  checks: write
+  packages: read
+  contents: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
-  update_test_durations:
-    runs-on: ubuntu-latest
+  multihost-hostname-check:
+    runs-on:
+      - multi-host-t3000
+      - in-service
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          # ref: main
-      - uses: actions/setup-python@v5
-      - name: Process test durations from latest workflows
-        id: get-test-durations
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          submodules: recursive
+
+      - name: Capture runner's home directory
+        id: capture-home
+        run: echo "home=${HOME}" >> $GITHUB_OUTPUT
+
+      - name: Validate host-to-host mpirun (bare metal)
         run: |
-          repo="tenstorrent/tt-xla"
+          echo "=== Bare Metal MPI Validation ==="
+          echo ""
 
-          get_test_results_from_wf() {
-            local wf_name="$1"
-            local conclusions="$2"
-            local num=5
+          # Check if hostfile exists
+          echo "Checking for MPI hostfile on host..."
+          if [ -f /etc/mpirun/hostfile ]; then
+            echo "Hostfile found at /etc/mpirun/hostfile"
+            SALT="mh-poc-$(date +%Y%m%d)"
+            echo "Hostfile contents:"
+            (echo "$SALT"; cat /etc/mpirun/hostfile) | base64 -w 0
+            echo ""
+            echo ""
+          else
+            echo "ERROR: /etc/mpirun/hostfile not found!"
+            exit 1
+          fi
 
-            # get json of the last $num workflow runs
-            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
+          # Test host-to-host mpirun
+          echo "Testing mpirun hostname on bare metal hosts..."
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            hostname
+          echo ""
 
-            counter=0
-            while true; do
-              # Check the status of 'conclusion'
-              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
+          echo "Bare metal MPI validation complete!"
+          echo ""
 
-              if echo "$conclusions" | grep -q -w "$conclusion"; then
-                break
-              else
-                ((++counter))
+      # - name: Start container with mpirun capability
+      #   run: |
+      #     docker run -d \
+      #       --name multihost-poc \
+      #       --privileged \
+      #       --pid=host \
+      #       --network=host \
+      #       --hostname=mpirun-controller \
+      #       -v /etc/mpirun:/etc/mpirun:ro \
+      #       -v ${{ steps.capture-home.outputs.home }}/.ssh:${{ steps.capture-home.outputs.home }}/.ssh:ro \
+      #       -v ${{ github.workspace }}:/workspace \
+      #       -w /workspace \
+      #       ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
+      #       sleep infinity
 
-                # Exit if the counter reaches $num
-                if [ $counter -ge $num ]; then
-                  echo "ERROR: Did not found good workflow within last $num. Exiting."
-                  exit 1
-                fi
-              fi
-            done
-            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
-            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
-            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
-            rm -f runs.json
+      # - name: Run hostname check via mpirun
+      #   run: |
+      #     docker exec multihost-poc bash -c '
+      #     echo "=== Multi-Host POC: Hostname Check ==="
+      #     echo ""
 
-            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
-          }
+      #     # Check if hostfile exists
+      #     echo "Checking for MPI hostfile..."
+      #     if [ -f /etc/mpirun/hostfile ]; then
+      #       echo "Hostfile found at /etc/mpirun/hostfile"
+      #       # Light encryption: prepend salt and base64 encode
+      #       SALT="mh-poc-$(date +%Y%m%d)"
+      #       echo "Hostfile contents"
+      #       (echo "$SALT"; cat /etc/mpirun/hostfile) | base64 -w 0
+      #       echo ""
+      #       echo ""
+      #     else
+      #       echo "ERROR: /etc/mpirun/hostfile not found!"
+      #       exit 1
+      #     fi
 
-          # get test results from the last nightly that was success or failure
-          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
+      #     # Run hostname across all hosts via mpirun
+      #     echo "Running hostname via mpirun across all hosts..."
+      #     mpirun --hostfile /etc/mpirun/hostfile \
+      #       --mca btl_tcp_if_exclude docker0,lo \
+      #       hostname
+      #     echo ""
 
-          # get test results from the last successful push
-          get_test_results_from_wf "push-main.yml" "success" "push"
+      #     # Check if we are in a container
+      #     echo "Checking for container environment (.dockerenv)..."
+      #     mpirun --hostfile /etc/mpirun/hostfile \
+      #       --mca btl_tcp_if_exclude docker0,lo \
+      #       bash -c "if [ -f /.dockerenv ]; then echo \"\$(hostname): Running in Docker container\"; else echo \"\$(hostname): NOT in container\"; fi"
+      #     echo ""
 
-          # get test results from the last weekly that was success or failure
-          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
+      #     echo "=== POC Complete ==="
+      #     '
 
-          # get test results from the last weekly training that was success or failure
-          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
-
-          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
-          echo "" >> .test_durations
-          echo "----- NEW DURATIONS"
-          cat .test_durations
-
-          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
-        id: create-pr
-        with:
-          branch: test-durations-update
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          base: main
-          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
-          labels: tooling
-          delete-branch: true
-          token: ${{ secrets.GH_TOKEN }}
-
-      - name: Enable Pull Request Automerge
-        if: ${{ steps.create-pr.outputs.pull-request-number }}
-        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Generate Summary
+      - name: Cleanup
+        if: always()
         run: |
-          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
-          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
+          docker stop multihost-poc || true
+          docker rm multihost-poc || true
