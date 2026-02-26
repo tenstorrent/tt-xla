@@ -31,7 +31,13 @@ _TARGET_MARKS = {
     "n300": ("vllm_n300", [pytest.mark.tensor_parallel, pytest.mark.dual_chip]),
     "n300_llmbox": (
         "vllm_n300_llmbox",
-        [pytest.mark.tensor_parallel, pytest.mark.llmbox],
+        [
+            pytest.mark.tensor_parallel,
+            pytest.mark.llmbox,
+            pytest.mark.skip(
+                reason="Skipping due to bug in tt-metal SDPA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
+            ),
+        ],
     ),
 }
 
@@ -183,9 +189,6 @@ def test_sampling_param_sweep(llm, prompt, param_name, values):
 
 
 @for_targets(single_device="push", n300="push", n300_llmbox="push")
-@pytest.mark.skip(
-    reason="Skipping due to bug in tt-metal SPDA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
-)
 def test_sampling_has_diversity_when_temp_positive(llm, prompt):
     """Test that n>1 with temperature>0 produces diverse outputs in a single call."""
     params = vllm.SamplingParams(
@@ -204,9 +207,6 @@ def test_sampling_has_diversity_when_temp_positive(llm, prompt):
 
 
 @for_targets(single_device="push", n300="push", n300_llmbox="push")
-@pytest.mark.skip(
-    reason="Skipping due to bug in tt-metal SPDA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
-)
 def test_greedy_determinism(llm, prompt):
     """Verify greedy sampling (temperature=0) is deterministic."""
     params = vllm.SamplingParams(temperature=0.0, max_tokens=20)
