@@ -1952,9 +1952,9 @@ test_config:
     status: EXPECTED_PASSING
 
   centernet/pytorch-Hourglass_Coco-single_device-inference:
-    assert_pcc: false
+    # assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
+    # reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.04067724570631981. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1505"
 
   centernet/pytorch-ResNet18_Backbone_COCO-single_device-inference:
     status: EXPECTED_PASSING
