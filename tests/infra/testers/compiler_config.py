@@ -25,7 +25,7 @@ class CompilerConfig:
     # Level 2: Advanced optimizations
     #     * All level 1 optimizations
     #     * Memory layout optimizations (sharding)
-    optimization_level: int = 0
+    optimization_level: int = 1
 
     # Enables automatic MLIR graph conversion into block fp8 format. This is
     # supported only when the graph is in bfloat16 format, to avoid loss in precision.
@@ -55,7 +55,7 @@ class CompilerConfig:
     # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
     # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
     # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
-    experimental_enable_fusing_conv2d_with_multiply_pattern: bool = False
+    experimental_enable_fusing_conv2d_with_multiply_pattern: bool = True
 
     # Enables transpose + matmul and transpose + linear ops fusion.
     # When disabled, transpose is kept as a separate op which can be constevaled,

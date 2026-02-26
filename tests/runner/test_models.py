@@ -93,7 +93,10 @@ def _run_model_test_impl(
             ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
 
         if compiler_config is None:
+            from loguru import logger
+            logger.info(f"Using default compiler config because compiler_config is None")
             compiler_config = CompilerConfig()
+            logger.info(f"Compiler config: {compiler_config}")
 
         if test_metadata.enable_weight_bfp8_conversion:
             compiler_config.experimental_enable_weight_bfp8_conversion = True
