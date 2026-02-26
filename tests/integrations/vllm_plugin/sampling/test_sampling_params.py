@@ -31,7 +31,13 @@ _TARGET_MARKS = {
     "n300": ("vllm_n300", [pytest.mark.tensor_parallel, pytest.mark.dual_chip]),
     "n300_llmbox": (
         "vllm_n300_llmbox",
-        [pytest.mark.tensor_parallel, pytest.mark.llmbox],
+        [
+            pytest.mark.tensor_parallel,
+            pytest.mark.llmbox,
+            pytest.mark.skip(
+                reason="Skipping due to bug in tt-metal SDPA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
+            ),
+        ],
     ),
 }
 
