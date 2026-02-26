@@ -289,6 +289,102 @@ def boolean_bitwise_or(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor
     return NotImplemented
 
 
+def histc(
+    input: torch.Tensor,
+    bins: int = 100,
+    min: float = 0.0,
+    max: float = 0.0,
+) -> torch.Tensor:
+    """Decompose aten.histc using one_hot + sum to avoid the XLA sort-based path.
+
+    The XLA/TTNN histc decomposition for integer inputs uses sort internally, which
+    crashes on TTNN with 1D tensors:
+        TT_FATAL: Index is out of bounds for the rank (negative dim index on rank-1 tensor)
+
+    This replacement computes bin counts via:
+        bin_idx = clamp(floor((x - min) / bin_width), 0, bins-1)
+        counts  = one_hot(bin_idx, bins).sum(dim=0).float()
+
+    Model usage (transformers 5.x GPT-OSS grouped_mm_experts_forward):
+        expert_ids_g.int()  # shape (num_tokens * top_k,), values in [0, num_experts)
+        torch.histc(histc_input, bins=num_experts, min=0, max=num_experts - 1)
+    """
+    min_val = float(min)
+    max_val = float(max)
+
+    if min_val == max_val:
+        # Degenerate range: all elements map to bin 0 (matches PyTorch behavior).
+        bin_idx = torch.zeros(input.shape, dtype=torch.long, device=input.device)
+        return torch.nn.functional.one_hot(bin_idx, num_classes=bins).sum(dim=0).float()
+
+    input_f = input.float()
+    bin_width = (max_val - min_val) / bins
+    bin_idx = ((input_f - min_val) / bin_width).long().clamp(0, bins - 1)
+
+    # Exclude out-of-range values — matches PyTorch: "elements outside [min, max] are not counted".
+    in_range = (input_f >= min_val) & (input_f <= max_val)
+
+    return (
+        torch.nn.functional.one_hot(bin_idx, num_classes=bins).float()
+        * in_range.float().unsqueeze(-1)
+    ).sum(dim=0)
+
+
+def grouped_mm(
+    input: torch.Tensor,
+    mat2: torch.Tensor,
+    offs: Optional[torch.Tensor] = None,
+    bias: Optional[torch.Tensor] = None,
+    out_dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
+    """Decompose aten._grouped_mm into einsum for TTNN compatibility.
+
+    aten._grouped_mm(input, weight, offs=offs) multiplies each contiguous group of
+    tokens by the corresponding expert weight:
+        for expert e: output[offs[e-1]:offs[e]] = input[offs[e-1]:offs[e]] @ weight[e]
+
+    This decomposes to routing via one_hot + einsum, avoiding the CUDA-only _grouped_mm
+    kernel which segfaults with XLA tensors.
+
+    GPT-OSS 20B shapes (transformers 5.x grouped_mm_experts_forward):
+        gate_up: input=(512, 2880), weight=(32, 2880, 5760), offs=(32,) → output=(512, 5760)
+        down:    input=(512, 5760), weight=(32, 5760, 2880), offs=(32,) → output=(512, 2880)
+
+    Intermediate (512, 32, out_dim) tensors are ~188 MB — feasible on 20B hardware.
+    """
+    if offs is None:
+        # No offsets: standard batched matmul.
+        result = torch.einsum("bik,bkj->bij", input, mat2)
+        if bias is not None:
+            result = result + bias
+        return result.to(out_dtype) if out_dtype is not None else result
+
+    S = input.shape[0]
+    num_experts = mat2.shape[0]
+
+    # Reconstruct expert_ids from cumulative offsets.
+    # offs[e] = cumulative token count for experts 0..e.
+    # expert_ids[s] = number of experts whose prefix sum is <= s = which expert owns token s.
+    token_idx = torch.arange(S, dtype=offs.dtype, device=offs.device)
+    expert_ids = (offs.unsqueeze(1) <= token_idx.unsqueeze(0)).long().sum(0)
+
+    # Build one-hot routing matrix: (S, num_experts).
+    routing = torch.nn.functional.one_hot(expert_ids, num_classes=num_experts).to(
+        input.dtype
+    )
+
+    # Compute all expert outputs: (S, num_experts, out_dim).
+    all_out = torch.einsum("sk,ekd->sed", input, mat2)
+
+    # Select correct expert output for each token: (S, out_dim).
+    result = torch.einsum("se,sed->sd", routing, all_out)
+
+    if bias is not None:
+        result = result + bias
+
+    return result.to(out_dtype) if out_dtype is not None else result
+
+
 def copy_default(
     dst: torch.Tensor, src: torch.Tensor, non_blocking: bool = False
 ) -> torch.Tensor:
@@ -376,6 +472,12 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.prims.squeeze.default: squeeze,
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
+        # Replace histc with one_hot+sum to avoid the XLA sort-based decomposition
+        # that crashes TTNN on 1D tensors (rank-1 negative-index bug).
+        aten.histc.default: histc,
+        # Replace _grouped_mm (CUDA-only kernel, segfaults with XLA tensors) with
+        # an einsum-based decomposition that works on TTNN.
+        torch.ops.aten._grouped_mm.default: grouped_mm,
     }
 
 
