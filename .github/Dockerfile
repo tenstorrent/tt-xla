@@ -12,7 +12,10 @@ RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pk
 
 ARG OMPI_TAG=v5.0.7
 ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
+ENV PATH=${OMPI_PREFIX}/bin:$PATH
 ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
+ENV CPATH=${OMPI_PREFIX}/include
+ENV PKG_CONFIG_PATH=${OMPI_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} as ci
 SHELL ["/bin/bash", "-c"]
@@ -27,7 +30,10 @@ RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pk
 
 ARG OMPI_TAG=v5.0.7
 ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
+ENV PATH=${OMPI_PREFIX}/bin:$PATH
 ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
+ENV CPATH=${OMPI_PREFIX}/include
+ENV PKG_CONFIG_PATH=${OMPI_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-manylinux-2-34:${MLIR_TAG} AS cibw
 SHELL ["/bin/bash", "-c"]
