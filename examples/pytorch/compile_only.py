@@ -10,8 +10,6 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
-
-# enable_compile_only must be called before any TT device access.
 from ttxla_tools import enable_compile_only
 
 
@@ -39,7 +37,7 @@ def main(system_desc_path: str):
     try:
         output.to("cpu")
     except RuntimeError:
-        pass  # Expected: in compile-only mode compilation is cached but execution is disabled.
+        pass
 
     parse_compiled_artifacts_from_cache_to_disk(cache_dir, "output/model")
 

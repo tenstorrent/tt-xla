@@ -12,7 +12,6 @@ def add(x, y):
 
 
 def main(system_desc_path: str):
-    # enable_compile_only must be called before any TT device access.
     enable_compile_only(system_desc_path)
 
     # Use numpy arrays, not jnp.array: jnp.array would eagerly dispatch to the
