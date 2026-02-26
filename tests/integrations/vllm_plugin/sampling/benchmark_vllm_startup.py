@@ -196,21 +196,27 @@ def write_json_report(results_list, path):
 
 
 def _run_preset_in_subprocess(preset_name):
-    """Re-invoke this script for a single preset, capturing JSON from stdout."""
-    result = subprocess.run(
+    """Re-invoke this script for a single preset, capturing JSON from stdout.
+
+    Stderr (vLLM logs, progress bars) streams through to the terminal in
+    real time so the user can see progress during long runs.
+    """
+    proc = subprocess.Popen(
         [sys.executable, __file__, "--preset", preset_name, "--_json_stdout"],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=None,  # inherit — streams to terminal in real time
         text=True,
     )
-    if result.returncode != 0:
+    stdout, _ = proc.communicate()
+
+    if proc.returncode != 0:
         print(f"  FAILED: {preset_name}", file=sys.stderr)
-        if result.stderr:
-            print(result.stderr, file=sys.stderr)
         return None
 
     # The child prints JSON as the last line of stdout.  Any vLLM logging
-    # goes to stderr, but some may leak to stdout — find the JSON line.
-    for line in reversed(result.stdout.splitlines()):
+    # goes to stderr (streamed above), but some may leak to stdout — find
+    # the JSON line.
+    for line in reversed(stdout.splitlines()):
         line = line.strip()
         if line.startswith("{"):
             try:
@@ -218,8 +224,8 @@ def _run_preset_in_subprocess(preset_name):
             except json.JSONDecodeError:
                 continue
     print(f"  FAILED: {preset_name} — no JSON in stdout", file=sys.stderr)
-    if result.stdout:
-        print(result.stdout, file=sys.stderr)
+    if stdout:
+        print(stdout, file=sys.stderr)
     return None
 
 
