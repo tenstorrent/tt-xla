@@ -4,7 +4,7 @@
 
 import os
 
-from vllm.attention.backends.registry import AttentionBackendEnum, register_backend
+from vllm.v1.attention.backends.registry import AttentionBackendEnum, register_backend
 
 # Register TT attention backend at module import time
 register_backend(

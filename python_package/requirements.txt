@@ -2,7 +2,7 @@
 jax==0.7.1
 jaxlib==0.7.1
 requests
-torch@https://download.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
+torch@https://download.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
 loguru
 torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit8ee513e-cp312-cp312-linux_x86_64.whl
 
@@ -10,6 +10,6 @@ torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit8e
 networkx==3.6.1
 graphviz==0.21
 seaborn==0.13.2
-pyyaml==6.0.1
+pyyaml==6.0.3
 click==8.3.1
 pandas==3.0.0

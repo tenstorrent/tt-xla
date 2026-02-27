@@ -18,9 +18,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
-from vllm.attention.backends.abstract import AttentionType
 from vllm.attention.layer import Attention, MLAAttention
-from vllm.attention.layers.chunked_local_attention import ChunkedLocalAttention
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -32,6 +30,9 @@ from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_
 from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
 from vllm.forward_context import set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
+from vllm.model_executor.layers.attention.chunked_local_attention import (
+    ChunkedLocalAttention,
+)
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.models.interfaces import (
@@ -53,6 +54,7 @@ from vllm.sequence import IntermediateTensors
 from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
 from vllm.utils.math_utils import cdiv, prev_power_of_2
 from vllm.utils.platform_utils import is_pin_memory_available
+from vllm.v1.attention.backend import AttentionType
 from vllm.v1.kv_cache_interface import (
     AttentionSpec,
     FullAttentionSpec,
@@ -1226,9 +1228,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_scheduled_tokens = scheduler_output.total_num_scheduled_tokens
         combined_pooler_outputs: list[torch.Tensor] = []
 
-        with set_forward_context(None, self.vllm_config):
-            self.maybe_setup_kv_connector(scheduler_output)
-
         while start_index < self.input_batch.num_reqs:
             (
                 attn_metadata,
@@ -1292,7 +1291,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ]
                 seq_lens_cpu = self.seq_lens_cpu[start_index:end_index]
                 pooling_metadata.build_pooling_cursor(
-                    num_scheduled_tokens_per_req.tolist(),
+                    num_scheduled_tokens_per_req,
                     seq_lens_cpu,
                     device=hidden_states.device,
                 )

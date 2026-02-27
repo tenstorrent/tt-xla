@@ -31,7 +31,13 @@ _TARGET_MARKS = {
     "n300": ("vllm_n300", [pytest.mark.tensor_parallel, pytest.mark.dual_chip]),
     "n300_llmbox": (
         "vllm_n300_llmbox",
-        [pytest.mark.tensor_parallel, pytest.mark.llmbox],
+        [
+            pytest.mark.tensor_parallel,
+            pytest.mark.llmbox,
+            pytest.mark.skip(
+                reason="Skipping due to bug in tt-metal SDPA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
+            ),
+        ],
     ),
 }
 
@@ -341,42 +347,61 @@ def test_seed(llm, prompt):
     ), "Different seeds should produce different output"
 
 
-@pytest.mark.skip(
-    reason="bad_words not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3363"
-)
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_bad_words(llm, prompt):
-    """Test that bad_words prevents specified words from appearing."""
-    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
-    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0].text
-    print(f"[TESTOUT test_bad_words] baseline: {baseline[:50]}...")
+    """Test that the banned token ID is absent from every output token."""
     banned = "the"
+
+    # Check tokenization before running the model: multi-token words cannot be
+    # enforced on device and will now raise NotImplementedError in from_input_batch.
+    # Skip early rather than let the generate call fail unexpectedly.
+    tokenizer = llm.get_tokenizer()
+    banned_ids = tokenizer.encode(" " + banned, add_special_tokens=False)
+    print(f"[TESTOUT test_bad_words] {banned!r} -> token IDs {banned_ids}")
+    if len(banned_ids) != 1:
+        pytest.skip(
+            f"{banned!r} tokenizes to {len(banned_ids)} tokens in this model; "
+            "on-device bad_words only enforces single-token sequences"
+        )
+
+    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0]
+    print(f"[TESTOUT test_bad_words] baseline: {baseline.text[:50]}...")
+
     params = vllm.SamplingParams(temperature=0.0, max_tokens=16, bad_words=[banned])
-    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
-    print(f"[TESTOUT test_bad_words] bad_words=[{banned!r}]: {output[:50]}...")
-    assert len(output) > 0, "Should produce output with bad_words"
-    assert (
-        f" {banned} " not in f" {output.lower()} "
-    ), f"Output should not contain banned word {banned!r}: {output!r}"
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    print(f"[TESTOUT test_bad_words] bad_words=[{banned!r}]: {output.text[:50]}...")
+
+    assert len(output.text) > 0, "Should produce output with bad_words"
+    # Assert at the token-ID level: the banned token ID must not appear anywhere.
+    assert banned_ids[0] not in list(output.token_ids), (
+        f"banned token ID {banned_ids[0]} ({banned!r}) must not appear in output "
+        f"token_ids: {list(output.token_ids)}"
+    )
 
 
-@pytest.mark.skip(
-    reason="logit_bias not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3364"
-)
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_logit_bias(llm, prompt):
-    """Test that logit_bias steers generation away from biased tokens."""
+    """Test that no output token has a biased-away ID."""
     baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
-    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0].text
-    print(f"[TESTOUT test_logit_bias] baseline: {baseline[:50]}...")
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0]
+    print(f"[TESTOUT test_logit_bias] baseline: {baseline.text[:50]}...")
+
     bias = {i: -100.0 for i in range(10)}
     params = vllm.SamplingParams(temperature=0.0, max_tokens=16, logit_bias=bias)
-    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
-    print(f"[TESTOUT test_logit_bias] with bias: {output[:50]}...")
-    assert len(output) > 0, "Should produce output with logit_bias"
-    assert (
-        output != baseline
-    ), "logit_bias=-100 on token IDs 0-9 should change greedy output"
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_logit_bias] with bias: {output.text[:50]}... "
+        f"token_ids: {list(output.token_ids[:8])}"
+    )
+
+    assert len(output.text) > 0, "Should produce output with logit_bias"
+    # Token IDs 0-9 have bias=-100: none of them should appear in any output token.
+    # This is the same contract verified by the synthetic test, but end-to-end.
+    assert all(tid >= 10 for tid in output.token_ids), (
+        f"token IDs 0-9 have bias=-100 and must not appear in output, "
+        f"got token_ids: {list(output.token_ids)}"
+    )
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
