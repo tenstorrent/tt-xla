@@ -43,6 +43,8 @@ static std::string getRankBindingPath(const std::string &metal_home) {
        "tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml"},
       {"dual_bh_quietbox",
        "tests/scale_out/4x_bh_quietbox/rank_bindings/2x4.yaml"},
+       {"dual_t3k",
+      "tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml"},
       {"dual_galaxy",
        "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
       {"quad_galaxy",
