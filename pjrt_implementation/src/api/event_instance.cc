@@ -102,6 +102,11 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
   // For now, to keep things simple, we will execute the callbacks on the same
   // thread which is marking the event as ready. Or in this thread, if the
   // event is already ready.
+  //
+  // TODO: In the future we might consider having one dedicated thread per
+  // client for executing all event callbacks. However, executing all callbacks
+  // on a single thread could lead to congestion if callbacks are slow or
+  // numerous, so a smarter solution (e.g. a thread pool) might be needed.
 
   {
     std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
