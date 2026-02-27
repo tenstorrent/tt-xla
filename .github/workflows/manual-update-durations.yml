@@ -52,42 +52,6 @@ jobs:
           echo "Pre-check complete"
           echo ""
 
-      - name: Detect SSH keys on hosts
-        run: |
-          echo "=== Detecting SSH keys on hosts ==="
-          echo ""
-
-          echo "Testing SSH to f10cs03 to discover key location (base64 encoded twice):"
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c 'ssh -v f10cs03 "hostname" 2>&1 | grep -i "identity file\|offering public key\|authentication" | head -10 | base64 -w 0 | base64 -w 0 || true'
-          echo ""
-
-          echo ""
-          echo "Testing GitHub SSH connection to discover key location:"
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c 'ssh -v -T git@github.com 2>&1 | grep -i "identity file\|offering public key" | head -5 | base64 -w 0 | base64 -w 0 || true'
-          echo ""
-
-          echo ""
-          echo "Checking standard SSH key locations:"
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c '
-            for key in ~/.ssh/id_rsa ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ${{ steps.capture-home.outputs.home }}/.ssh/id_rsa ${{ steps.capture-home.outputs.home }}/.ssh/id_ed25519; do
-              if [ -f "$key" ]; then
-                echo "  Found key: $key"
-              fi
-            done | base64 -w 0 | base64 -w 0
-            '
-          echo ""
-
-          echo ""
-
       - name: Validate host-to-host mpirun (bare metal)
         run: |
           echo "=== Bare Metal MPI Validation ==="
@@ -112,100 +76,87 @@ jobs:
           echo "Bare metal MPI validation complete!"
           echo ""
 
-      - name: Start SSH agents on all hosts via mpirun
+      - name: Start SSH agent on controller
         run: |
-          echo "=== Starting SSH agents on all hosts ==="
+          echo "=== Starting SSH agent on controller ==="
           echo ""
 
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c '
-            eval $(ssh-agent -s)
-            ssh-add ~/.ssh/id_rsa 2>/dev/null || ssh-add ~/.ssh/id_ed25519 2>/dev/null || ssh-add
-            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" > /tmp/ssh_agent_env
-            echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> /tmp/ssh_agent_env
-            echo "$(hostname): SSH agent started with PID $SSH_AGENT_PID"
-            '
+          eval $(ssh-agent -s)
+          ssh-add ~/.ssh/id_rsa 2>/dev/null || ssh-add ~/.ssh/id_ed25519 2>/dev/null || ssh-add
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" > /tmp/ssh_agent_env
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> /tmp/ssh_agent_env
+          echo "SSH agent started on controller with PID $SSH_AGENT_PID"
 
           echo ""
-          echo "SSH agents started on all hosts"
+          echo "SSH agent started on controller"
           echo ""
 
-      - name: Start containers on all hosts via mpirun
+      - name: Start container on controller
         run: |
-          echo "=== Starting containers on all hosts ==="
+          echo "=== Starting container on controller ==="
           echo ""
 
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c '
-            source /tmp/ssh_agent_env
-            CONTAINER_ID=$(docker run --rm -d \
-              --name multihost-poc \
-              --privileged \
-              --pid=host \
-              --network=host \
-              -v /etc/mpirun:/etc/mpirun:ro \
-              -v $SSH_AUTH_SOCK:/ssh-agent \
-              -e SSH_AUTH_SOCK=/ssh-agent \
-              -v ${{ github.workspace }}:/workspace \
-              -w /workspace \
-              ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
-              sleep infinity)
-            if [ -z "$CONTAINER_ID" ]; then
-              echo "$(hostname): ERROR - Failed to start container!"
-              exit 1
-            fi
-            echo "$(hostname): Container started with ID: $CONTAINER_ID"
-            '
+          source /tmp/ssh_agent_env
+
+          # Build docker run command with conditional SSH agent forwarding
+          DOCKER_CMD="docker run --rm -d \
+            --name multihost-poc \
+            --privileged \
+            --pid=host \
+            --network=host \
+            -v /etc/mpirun:/etc/mpirun:ro"
+
+          # Add SSH agent forwarding only if SSH_AUTH_SOCK exists
+          if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+            echo "SSH_AUTH_SOCK found: $SSH_AUTH_SOCK - enabling SSH agent forwarding"
+            DOCKER_CMD="$DOCKER_CMD -v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
+          else
+            echo "Warning: SSH_AUTH_SOCK not found or not a socket - skipping SSH agent forwarding"
+          fi
+
+          DOCKER_CMD="$DOCKER_CMD \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
+            sleep infinity"
+
+          CONTAINER_ID=$(eval $DOCKER_CMD)
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "ERROR - Failed to start container on controller!"
+            exit 1
+          fi
+          echo "Container started on controller with ID: $CONTAINER_ID"
 
           echo ""
-          echo "Containers started on all hosts"
+          echo "Container started on controller"
           echo ""
 
-      - name: Make remote_docker.sh executable in all containers
+      - name: Make remote_docker.sh executable in controller container
         run: |
-          echo "Making remote_docker.sh executable in all containers..."
+          echo "Making remote_docker.sh executable in controller container..."
 
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c 'docker exec multihost-poc chmod +x /workspace/tests/torch/multi_host/experimental/remote_docker.sh'
+          docker exec multihost-poc chmod +x /workspace/tests/torch/multi_host/experimental/remote_docker.sh
 
           echo ""
-          echo "Verifying script is executable in containers..."
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c 'docker exec multihost-poc ls -la /workspace/tests/torch/multi_host/experimental/remote_docker.sh'
+          echo "Verifying script is executable in controller container..."
+          docker exec multihost-poc ls -la /workspace/tests/torch/multi_host/experimental/remote_docker.sh
 
 
-      - name: Verify SSH agent forwarding in containers
+      - name: Verify SSH agent forwarding in controller container
         run: |
-          echo "=== Verifying SSH agent forwarding in containers ==="
+          echo "=== Verifying SSH agent forwarding in controller container ==="
           echo ""
 
-          echo "Checking SSH_AUTH_SOCK inside containers:"
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c 'docker exec multihost-poc printenv SSH_AUTH_SOCK'
+          echo "Checking SSH_AUTH_SOCK inside controller container:"
+          docker exec multihost-poc printenv SSH_AUTH_SOCK || echo "SSH_AUTH_SOCK not set (expected if SSH agent forwarding was skipped)"
           echo ""
 
-          echo "Checking if SSH agent socket exists inside containers:"
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c 'docker exec multihost-poc ls -la /ssh-agent'
+          echo "Checking if SSH agent socket exists inside controller container:"
+          docker exec multihost-poc ls -la /ssh-agent 2>/dev/null || echo "SSH agent socket not found (expected if SSH agent forwarding was skipped)"
           echo ""
 
-          echo "Testing ssh-add -l inside containers:"
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c 'docker exec multihost-poc ssh-add -l || true'
+          echo "Testing ssh-add -l inside controller container:"
+          docker exec multihost-poc ssh-add -l || echo "ssh-add failed (expected if SSH agent forwarding was skipped)"
 
           echo ""
           echo "SSH agent verification complete"
@@ -236,7 +187,7 @@ jobs:
           echo "=== Checking docker ps on all hosts ==="
           echo ""
 
-          echo "Docker ps output (base64 encoded):"
+          echo "Docker ps output:"
           mpirun --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --tag-output \
