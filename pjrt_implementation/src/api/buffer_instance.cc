@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <thread>
@@ -122,15 +123,12 @@ size_t BufferInstance::tensorSize() {
 }
 
 size_t BufferInstance::logicalTensorSize() const {
-  size_t volume = 1;
-  for (std::int64_t dim : m_dimensions) {
-    volume *= static_cast<size_t>(dim);
-  }
-
   size_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
       data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
 
-  return volume * dtype_element_size;
+  return std::accumulate(
+      m_dimensions.begin(), m_dimensions.end(), dtype_element_size,
+      [](size_t acc, std::int64_t dim) { return acc * static_cast<size_t>(dim); });
 }
 
 std::string BufferInstance::toShapeStr() const {
