@@ -144,10 +144,13 @@ void BufferInstance::deleteData() {
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
-    m_done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
+    EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
+                                          tt_pjrt_status::kSuccess);
 
     // TODO(mrakita): Revert.
     // https://github.com/openxla/xla/issues/25172
+    assert(m_done_with_host_buffer_event->isIndestructible() &&
+           "Expected done_with_host_buffer_event to be indestructible");
     delete m_done_with_host_buffer_event;
   }
 }
@@ -200,7 +203,8 @@ void BufferInstance::copyFromHost(
         host_buffer, shape, strides, element_size, runtime_data_type);
 
     // Memory is copied, we don't need host buffer anymore.
-    done_with_host_buffer_event->markAsReady(tt_pjrt_status::kSuccess);
+    EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                          tt_pjrt_status::kSuccess);
   }
   // Otherwise when input host buffer has other semantic we are allowed to alias
   // it, so we can create borrowed host which doesn't copy any data and instead
@@ -334,11 +338,11 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
                           rt_data_type);
 
-      e->markAsReady(tt_pjrt_status::kSuccess);
+      EventInstance::markAsReadyAndCallback(e, tt_pjrt_status::kSuccess);
 
     } catch (const std::exception &error) {
       LOG_F(ERROR, "Copy to host buffer failed with error: %s", error.what());
-      e->markAsReady(tt_pjrt_status::kInternal);
+      EventInstance::markAsReadyAndCallback(e, tt_pjrt_status::kInternal);
     }
   });
 
@@ -355,7 +359,8 @@ void BufferInstance::markAsDataReady() {
 
   m_data_ready = true;
   if (m_data_ready_event) {
-    m_data_ready_event->markAsReady(tt_pjrt_status::kSuccess);
+    EventInstance::markAsReadyAndCallback(m_data_ready_event,
+                                          tt_pjrt_status::kSuccess);
   }
 }
 
@@ -394,7 +399,8 @@ tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
   std::unique_ptr<EventInstance> data_ready_event =
       EventInstance::createInstance();
   if (m_data_ready) {
-    data_ready_event->markAsReady(tt_pjrt_status::kSuccess);
+    EventInstance::markAsReadyAndCallback(data_ready_event.get(),
+                                          tt_pjrt_status::kSuccess);
   }
   m_data_ready_event = data_ready_event.get();
 
