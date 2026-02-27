@@ -1,0 +1,276 @@
+name: Update Test Durations
+
+# This workflow updates test durations based on the latest nightly, weekly, weekly training and push workflow runs.
+# It processes the JUnit XML reports from the last successful nightly, weekly, weekly training and push workflows,
+# calculates the test durations, and creates a pull request to update the `.test_durations` file.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  packages: read
+  checks: write
+  contents: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+  # Define controller and all participating hostnames
+  CONTROLLER_HOST: forge-qbae-01
+  ALL_HOSTS: forge-qbae-01,forge-qbae-02
+  # SSH user with keyless SSH configured between hosts
+  SSH_USER: ttuser
+  # Artifact download mode: 'specific' to use ARTIFACT_RUN_ID, 'latest' to use latest push-main
+  ARTIFACT_MODE: specific
+  ARTIFACT_RUN_ID: 22102864988
+
+jobs:
+  multihost-test:
+    runs-on: ${{ matrix.hostname }}
+    strategy:
+      fail-fast: false
+      matrix:
+        hostname:
+          - forge-qbae-01
+          - forge-qbae-02
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Start SSH agent
+        run: |
+          eval $(ssh-agent -s)
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          ssh-add ~/.ssh/id_rsa || ssh-add ~/.ssh/id_ed25519 || ssh-add
+
+      - name: Start container
+        run: |
+          docker run -d \
+            --name ubuntu-host-mapped \
+            --privileged \
+            --pid=host \
+            --network=host \
+            --device /dev/tenstorrent \
+            -v /dev/hugepages:/dev/hugepages \
+            -v /dev/hugepages-1G:/dev/hugepages-1G \
+            -v /etc/udev/rules.d:/etc/udev/rules.d \
+            -v /lib/modules:/lib/modules \
+            -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+            -v /mnt/dockercache:/mnt/dockercache \
+            -v $SSH_AUTH_SOCK:/ssh-agent \
+            -e SSH_AUTH_SOCK=/ssh-agent \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
+            sleep infinity
+
+      - name: Mark repo as safe for git
+        run: |
+          docker exec ubuntu-host-mapped git config --global --add safe.directory /workspace
+          docker exec ubuntu-host-mapped git config --global --add safe.directory /workspace/third_party/tt_forge_models
+
+      - name: Download artifact and setup venv
+        shell: bash
+        env:
+          CURRENT_HOST: ${{ matrix.hostname }}
+          CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
+          ALL_HOSTS: ${{ env.ALL_HOSTS }}
+          ARTIFACT_MODE: ${{ env.ARTIFACT_MODE }}
+          ARTIFACT_RUN_ID: ${{ env.ARTIFACT_RUN_ID }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          docker exec \
+            -e GH_TOKEN="${{ github.token }}" \
+            -e CURRENT_HOST="${{ matrix.hostname }}" \
+            -e CONTROLLER_HOST="${{ env.CONTROLLER_HOST }}" \
+            -e ALL_HOSTS="${{ env.ALL_HOSTS }}" \
+            -e ARTIFACT_MODE="${{ env.ARTIFACT_MODE }}" \
+            -e ARTIFACT_RUN_ID="${{ env.ARTIFACT_RUN_ID }}" \
+            ubuntu-host-mapped bash -c "
+          echo 'Current hostname:' \$CURRENT_HOST
+          echo 'Controller hostname:' \$CONTROLLER_HOST
+          echo 'All participating hosts:' \$ALL_HOSTS
+          hostname
+
+          # Download the artifact based on mode
+          ARTIFACT_DIR=xla_artifacts
+          if [ \"\$ARTIFACT_MODE\" = \"specific\" ]; then
+            echo 'Downloading artifacts from specific run:' \$ARTIFACT_RUN_ID
+            python3 .github/scripts/download_artifacts.py --run-id \$ARTIFACT_RUN_ID --filter xla-whl-release --output-folder \$ARTIFACT_DIR
+          else
+            echo 'Downloading artifacts from latest push-main'
+            python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release --output-folder \$ARTIFACT_DIR
+          fi
+
+          # Create venv
+          source venv/activate
+
+          # Install the wheel
+          echo 'Not installing wheel for now.'
+          WHEEL_PATH=\$(find \$ARTIFACT_DIR -name '*.whl' | head -n 1)
+          echo 'Installing wheel:' \$WHEEL_PATH
+          pip install \"\$WHEEL_PATH\"
+
+          # temporarily relocate scale_out (oops)
+          echo 'Temporarily relocating scale_out to outer directory'
+          cd /workspace/venv/lib/python3.11/site-packages/pjrt_plugin_tt/tt-metal/tests/scale_out
+          mv scale_out/* .
+          rm -rf scale_out
+          ls
+          "
+
+      - name: Make remote_docker.sh executable
+        run: |
+          docker exec ubuntu-host-mapped bash -c "
+          chmod +x /workspace/tests/torch/multi_host/experimental/remote_docker.sh
+          "
+
+      - name: Reset hardware and run liveness check
+        shell: bash
+        run: |
+          docker exec ubuntu-host-mapped bash -c "
+          source venv/activate
+
+          # Install tt-smi
+          pip install tt-smi
+
+          # Try running MNIST first without reset
+          echo 'Attempting liveness check without reset first...'
+          if python3 examples/pytorch/mnist.py; then
+            echo 'Liveness check passed without reset!'
+            exit 0
+          fi
+
+          # Reset and test in a loop - retry if liveness check fails
+          MAX_ATTEMPTS=5
+          for i in \$(seq 1 \$MAX_ATTEMPTS); do
+            echo 'Attempt' \$i'/'\$MAX_ATTEMPTS': Resetting hardware...'
+            tt-smi -r
+            sleep 1
+
+            echo 'Running liveness check (MNIST example)...'
+            if python3 examples/pytorch/mnist.py; then
+              echo 'Liveness check passed!'
+              break
+            else
+              echo 'Liveness check failed, will retry...'
+              if [ \$i -eq \$MAX_ATTEMPTS ]; then
+                echo 'Failed after '\$MAX_ATTEMPTS' attempts'
+                exit 1
+              fi
+            fi
+          done
+          "
+
+      - name: Worker Pause
+        if: matrix.hostname != env.CONTROLLER_HOST
+        shell: bash
+        env:
+          CURRENT_HOST: ${{ matrix.hostname }}
+          CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
+          ALL_HOSTS: ${{ env.ALL_HOSTS }}
+        run: |
+          docker exec ubuntu-host-mapped bash -c "
+          echo 'Worker ready and waiting for commands.'
+
+          # Write ready status file (we are already in the container)
+          mkdir -p /tmp/worker_status
+          echo 'ready' > /tmp/worker_status/ready
+
+          echo 'Status file written, worker is ready'
+          sleep 6000
+          "
+
+      - name: Controller Barrier
+        if: matrix.hostname == env.CONTROLLER_HOST
+        shell: bash
+        env:
+          CURRENT_HOST: ${{ matrix.hostname }}
+          CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
+          ALL_HOSTS: ${{ env.ALL_HOSTS }}
+          SSH_USER: ${{ env.SSH_USER }}
+        run: |
+          docker exec \
+            -e CURRENT_HOST="${{ matrix.hostname }}" \
+            -e CONTROLLER_HOST="${{ env.CONTROLLER_HOST }}" \
+            -e ALL_HOSTS="${{ env.ALL_HOSTS }}" \
+            -e SSH_USER="${{ env.SSH_USER }}" \
+            ubuntu-host-mapped bash -c "
+          echo 'Controller waiting for all workers to be ready...'
+
+          # Convert comma-separated hosts to array
+          IFS=',' read -ra HOST_ARRAY <<< \"\$ALL_HOSTS\"
+
+          # Wait for each worker to be ready
+          for remote_host in \"\${HOST_ARRAY[@]}\"; do
+            if [ \"\$remote_host\" != \"\$CURRENT_HOST\" ]; then
+              echo 'Checking if worker' \$remote_host 'is ready...'
+
+              # Poll until the ready file exists in the worker container
+              # SSH as the configured user, then docker exec into the container
+              while true; do
+                if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 \${SSH_USER}@\${remote_host} 'docker exec ubuntu-host-mapped test -f /tmp/worker_status/ready' 2>/dev/null; then
+                  echo 'Worker' \$remote_host 'is ready!'
+                  break
+                else
+                  echo 'Worker' \$remote_host 'not ready yet, waiting...'
+                  sleep 5
+                fi
+              done
+            fi
+          done
+
+          echo 'All workers are ready! Controller barrier complete.'
+          "
+
+      - name: Controller Run Tests
+        if: matrix.hostname == env.CONTROLLER_HOST
+        shell: bash
+        env:
+          CURRENT_HOST: ${{ matrix.hostname }}
+          CONTROLLER_HOST: ${{ env.CONTROLLER_HOST }}
+          ALL_HOSTS: ${{ env.ALL_HOSTS }}
+          SSH_USER: ${{ env.SSH_USER }}
+        run: |
+          docker exec \
+            -e GH_TOKEN="${{ github.token }}" \
+            -e TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain \
+            ubuntu-host-mapped bash -c "
+          echo 'Running tests across all hosts...'
+          source venv/activate
+
+          # echo 'Sleeping for 6000 seconds'
+          # sleep 6000
+
+          export TTXLA_LOGGER_LEVEL=DEBUG
+          export TT_DISTRIBUTED_WORKER_PATH=/workspace/venv/lib/python3.11/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker
+          export TT_RUNTIME_ENABLE_DISTRIBUTED=1
+          export TT_DISTRIBUTED_RANK_BINDING=dual_bh_quietbox
+          export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=forge-qbae-01
+          export TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE=enp10s0f1np1
+          export TT_DISTRIBUTED_HOSTS_LIST=forge-qbae-01,forge-qbae-02
+          export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
+
+          pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
+
+          # TTXLA_LOGGER_LEVEL=DEBUG pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k \"dual_bh_quietbox\"
+
+
+          sleep 6000
+          "
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker exec ubuntu-host-mapped chown -R $(id -u):$(id -g) /workspace || true
+
+          docker stop ubuntu-host-mapped || true
+          docker rm ubuntu-host-mapped || true
+
+          # Stop SSH agent
+          if [ -n "$SSH_AGENT_PID" ]; then
+            kill $SSH_AGENT_PID || true
+          fi
