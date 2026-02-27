@@ -41,6 +41,21 @@ on:
         required: false
         type: boolean
         default: true
+      should_build_wheel:
+        description: "Should the xla wheel be built"
+        required: false
+        type: boolean
+        default: true
+      artifact_release_run_id:
+        description: "Run ID that already contains the wheel artifact (used when should_build_wheel=false)"
+        required: false
+        type: string
+        default: ""
+      wheel_release_artifact_name:
+        description: "Wheel artifact name to download (used when should_build_wheel=false)"
+        required: false
+        type: string
+        default: "xla-whl-release"
 
   workflow_dispatch:
     inputs:
@@ -87,6 +102,21 @@ on:
         required: false
         type: boolean
         default: true
+      should_build_wheel:
+        description: "Should the xla wheel be built"
+        required: false
+        type: boolean
+        default: true
+      artifact_release_run_id:
+        description: "Run ID that already contains the wheel artifact (used when should_build_wheel=false)"
+        required: false
+        type: string
+        default: ""
+      wheel_release_artifact_name:
+        description: "Wheel artifact name to download (used when should_build_wheel=false)"
+        required: false
+        type: string
+        default: "xla-whl-release"
 
 permissions:
   packages: write
@@ -97,7 +127,7 @@ permissions:
 
 jobs:
   docker-build:
-    if: ${{ !inputs.use_docker_wheel }}
+    if: ${{ !inputs.use_docker_wheel && inputs.should_build_wheel }}
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
@@ -105,7 +135,7 @@ jobs:
 
   build:
     needs: docker-build
-    if: ${{ !inputs.use_docker_wheel }}
+    if: ${{ !inputs.use_docker_wheel && inputs.should_build_wheel }}
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
@@ -191,8 +221,8 @@ jobs:
     with:
       matrix: ${{ needs.filter-tests.outputs.matrix_n150 }}
       docker_image: ${{ inputs.docker_image }}
-      artifact_run_id: ${{ needs.build.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build.outputs.wheel_artifact_name }}
+      artifact_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
+      wheel_artifact_name: ${{ inputs.should_build_wheel && needs.build.outputs.wheel_artifact_name || inputs.wheel_release_artifact_name }}
       use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
@@ -206,8 +236,8 @@ jobs:
     with:
       matrix: ${{ needs.filter-tests.outputs.matrix_p150 }}
       docker_image: ${{ inputs.docker_image }}
-      artifact_run_id: ${{ needs.build.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build.outputs.wheel_artifact_name }}
+      artifact_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
+      wheel_artifact_name: ${{ inputs.should_build_wheel && needs.build.outputs.wheel_artifact_name || inputs.wheel_release_artifact_name }}
       use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
@@ -221,8 +251,8 @@ jobs:
     with:
       matrix: ${{ needs.filter-tests.outputs.matrix_llmbox }}
       docker_image: ${{ inputs.docker_image }}
-      artifact_run_id: ${{ needs.build.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build.outputs.wheel_artifact_name }}
+      artifact_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
+      wheel_artifact_name: ${{ inputs.should_build_wheel && needs.build.outputs.wheel_artifact_name || inputs.wheel_release_artifact_name }}
       use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
