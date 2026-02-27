@@ -127,7 +127,7 @@ bfloat16 (Brain Floating Point 16-bit) provides:
 Enable bfp8 weight conversion using compile options. The model **MUST** be cast to bfloat16 before compilation.
 ```python
 torch_xla.set_custom_compile_options({
-    "experimental_enable_weight_bfp8_conversion": "true",  # Cast matmul weights to bfloat8_b
+    "experimental_weight_dtype": "bfp8",  # Cast matmul weights to bfloat8_b
 })
 ```
 
