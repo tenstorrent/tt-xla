@@ -364,6 +364,15 @@ def memory_usage_tracker(request):
         # Initialize memory tracking variables
         vm = psutil.virtual_memory()
         start_mem = (vm.total - vm.available) / (1024 * 1024)  # MB
+        start_free = vm.available / (1024 * 1024)  # MB
+        start_proc_rss = process.memory_info().rss / (1024 * 1024)  # MB
+
+        with newline_logger():
+            logger.info(f"Memory at test start:")
+        logger.info(f"    System used:      {start_mem:.2f} MB")
+        logger.info(f"    System free:      {start_free:.2f} MB")
+        logger.info(f"    Process RSS:      {start_proc_rss:.2f} MB")
+
         min_mem = start_mem
         max_mem = start_mem
         total_mem = start_mem
