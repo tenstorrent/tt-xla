@@ -12,6 +12,9 @@ permissions:
 
 env:
   GH_TOKEN: ${{ github.token }}
+  # Artifact download mode: 'specific' to use ARTIFACT_RUN_ID, 'latest' to use latest push-main
+  ARTIFACT_MODE: specific
+  ARTIFACT_RUN_ID: 22497768082
 
 jobs:
   multihost-hostname-check:
@@ -28,6 +31,24 @@ jobs:
       - name: Capture runner's home directory
         id: capture-home
         run: echo "home=${HOME}" >> $GITHUB_OUTPUT
+
+      - name: Download artifact on bare metal
+        run: |
+          echo "=== Downloading artifact on bare metal ==="
+          echo ""
+
+          ARTIFACT_DIR=xla_artifacts
+          if [ "${{ env.ARTIFACT_MODE }}" = "specific" ]; then
+            echo "Downloading artifacts from specific run: ${{ env.ARTIFACT_RUN_ID }}"
+            python3 .github/scripts/download_artifacts.py --run-id ${{ env.ARTIFACT_RUN_ID }} --filter xla-whl-release --output-folder $ARTIFACT_DIR
+          else
+            echo "Downloading artifacts from latest push-main"
+            python3 .github/scripts/download_artifacts.py --workflow push-main.yml --branch main --filter xla-whl-release --output-folder $ARTIFACT_DIR
+          fi
+
+          echo ""
+          echo "Artifact download complete"
+          echo ""
 
       - name: Pre-check for existing containers
         run: |
@@ -216,6 +237,120 @@ jobs:
 
           echo ""
           echo "Container-to-container SSH smoketest complete"
+          echo ""
+
+      - name: Install wheel in controller container
+        run: |
+          echo "=== Installing wheel in controller container ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+
+            # Find the wheel file
+            ARTIFACT_DIR=xla_artifacts
+            WHEEL_PATH=$(find $ARTIFACT_DIR -name "*.whl" | head -n 1)
+
+            if [ -z "$WHEEL_PATH" ]; then
+              echo "ERROR: No wheel file found in $ARTIFACT_DIR"
+              exit 1
+            fi
+
+            echo "Installing wheel: $WHEEL_PATH"
+            pip install "$WHEEL_PATH"
+
+            echo "Wheel installation complete"
+          '
+
+          echo ""
+          echo "Wheel installed in controller container"
+          echo ""
+
+      - name: Locate distributed worker path
+        run: |
+          echo "=== Locating distributed worker path in controller container ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+
+            echo "Checking possible locations for distributed worker binary:"
+            echo ""
+
+            # Possible paths to check
+            PATHS=(
+              "/workspace/venv/lib/python3.11/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker"
+              "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker"
+              "/workspace/venv/lib/python*/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker"
+              "/opt/ttmlir-toolchain/runtime/distributed/worker"
+            )
+
+            FOUND_PATH=""
+            for path in "${PATHS[@]}"; do
+              # Use glob expansion for paths with wildcards
+              for expanded_path in $path; do
+                if [ -f "$expanded_path" ]; then
+                  echo "✓ Found: $expanded_path"
+                  if [ -z "$FOUND_PATH" ]; then
+                    FOUND_PATH="$expanded_path"
+                  fi
+                else
+                  echo "✗ Not found: $expanded_path"
+                fi
+              done
+            done
+
+            echo ""
+            if [ -n "$FOUND_PATH" ]; then
+              echo "Will use: $FOUND_PATH"
+              echo "DISTRIBUTED_WORKER_PATH=$FOUND_PATH" > /tmp/worker_path_env
+            else
+              echo "WARNING: No distributed worker binary found!"
+              exit 1
+            fi
+          '
+
+          echo ""
+          echo "Distributed worker path located"
+          echo ""
+
+      - name: Controller run tests
+        run: |
+          echo "=== Running tests from controller container ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+
+            # Load the distributed worker path
+            source /tmp/worker_path_env
+
+            echo "Configuring distributed runtime environment..."
+            export TTXLA_LOGGER_LEVEL=DEBUG
+            export TT_DISTRIBUTED_WORKER_PATH="$DISTRIBUTED_WORKER_PATH"
+            export TT_RUNTIME_ENABLE_DISTRIBUTED=1
+            export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
+            export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
+            export TT_DISTRIBUTED_HOSTS_LIST=f10cs03,f10cs04
+            export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
+
+            echo ""
+            echo "Environment configured:"
+            echo "  TT_DISTRIBUTED_WORKER_PATH: $TT_DISTRIBUTED_WORKER_PATH"
+            echo "  TT_DISTRIBUTED_CONTROLLER_HOST_NAME: $TT_DISTRIBUTED_CONTROLLER_HOST_NAME"
+            echo "  TT_DISTRIBUTED_HOSTS_LIST: $TT_DISTRIBUTED_HOSTS_LIST"
+            echo "  TT_DISTRIBUTED_RANK_BINDING: $TT_DISTRIBUTED_RANK_BINDING"
+            echo ""
+
+            echo "Running test: test_simple_sharded_addition"
+            pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
+          '
+
+          echo ""
+          echo "Test execution complete"
           echo ""
 
       - name: Verify containers via mpirun
