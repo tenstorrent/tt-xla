@@ -126,9 +126,10 @@ size_t BufferInstance::logicalTensorSize() const {
   size_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
       data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
 
-  return std::accumulate(
-      m_dimensions.begin(), m_dimensions.end(), dtype_element_size,
-      [](size_t acc, std::int64_t dim) { return acc * static_cast<size_t>(dim); });
+  return std::accumulate(m_dimensions.begin(), m_dimensions.end(),
+                         dtype_element_size, [](size_t acc, std::int64_t dim) {
+                           return acc * static_cast<size_t>(dim);
+                         });
 }
 
 std::string BufferInstance::toShapeStr() const {
