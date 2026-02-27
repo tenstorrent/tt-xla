@@ -171,7 +171,8 @@ jobs:
 
           # Run mpirun from inside one of the containers (controller)
           docker exec multihost-poc bash -c '
-            mpirun --hostfile /etc/mpirun/hostfile \
+            mpirun --allow-run-as-root \
+              --hostfile /etc/mpirun/hostfile \
               --mca btl_tcp_if_exclude docker0,lo \
               --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh \
               --tag-output \
