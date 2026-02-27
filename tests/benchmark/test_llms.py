@@ -179,8 +179,12 @@ def test_llm_tp(
 ):
     # Need to define arch since get_xla_device_arch() doesn't work when spmd is enabled
     arch = "wormhole_llmbox"
-    mesh_config_fn = ModelLoaderModule.get_mesh_config
-    shard_spec_fn = ModelLoaderModule.load_shard_spec
+    mesh_config_fn = kwargs.pop(
+        "mesh_config_fn", getattr(ModelLoaderModule, "get_mesh_config", None)
+    )
+    shard_spec_fn = kwargs.pop(
+        "shard_spec_fn", getattr(ModelLoaderModule, "load_shard_spec", None)
+    )
 
     if "optimization_level" in kwargs:
         optimization_level = kwargs.pop("optimization_level")
@@ -850,6 +854,27 @@ def test_llama_3_1_70b_tp(output_file, num_layers, request):
     )  # https://github.com/tenstorrent/tt-xla/issues/2976
 
 
+# Use 1x8 shard specs for gpt-oss-20b until https://github.com/tenstorrent/tt-xla/issues/3490 is resolved.
+def _gpt_oss_20b_mesh_config_fn(model_loader, num_devices):
+    return (1, num_devices), ("batch", "model")
+
+
+def _gpt_oss_20b_shard_spec_fn(model_loader, model):
+    shard_specs = {}
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.mlp.router.weight] = (None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
+    return shard_specs
+
+
 def test_gpt_oss_20b_tp(output_file, num_layers, request):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -863,6 +888,8 @@ def test_gpt_oss_20b_tp(output_file, num_layers, request):
         output_file,
         num_layers=num_layers,
         request=request,
+        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
     )
 
@@ -880,6 +907,8 @@ def test_gpt_oss_20b_tp_batch_size_1(output_file, num_layers, request):
         output_file,
         num_layers=num_layers,
         request=request,
+        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=1,
         optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
     )

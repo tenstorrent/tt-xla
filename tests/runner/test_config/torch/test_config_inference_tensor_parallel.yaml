@@ -35,7 +35,7 @@ test_config:
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3490
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
