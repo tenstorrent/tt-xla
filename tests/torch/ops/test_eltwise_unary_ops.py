@@ -178,7 +178,7 @@ def test_clamp_min_on_bool_sum():
 
     Regression test for a TT bug where .clamp(min=1) applied to the result
     of (x >= threshold).sum(-1) produces -1.0 instead of 1.0 when the raw
-    sum is 0 (all comparisons were False).  Discovered via the rank=0
+    sum is 0 (all comparisons were False). Discovered via the rank=0
     artifact in gather_logprobs (vLLM plugin).
     """
 

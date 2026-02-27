@@ -255,7 +255,7 @@ def test_gather_logprobs_rank_clamp_guards_precision_artifact():
     Root cause
     ----------
     On TT hardware gather_logprobs runs as separate uncompiled XLA ops (unlike
-    the GPU sampler's @torch.compile-fused batched_count_greater_than).  The
+    the GPU sampler's @torch.compile-fused batched_count_greater_than). The
     gathered logprob can end up fractionally above the stored value at that
     position, making (logprobs >= gathered).sum(-1) == 0 (rank=0), which is
     mathematically impossible but was observed in CI (Llama-3.2-3B n300,
@@ -264,7 +264,7 @@ def test_gather_logprobs_rank_clamp_guards_precision_artifact():
     How this test works
     -------------------
     count_tokens_ge encapsulates the rank formula + clamp used by
-    gather_logprobs.  We call it directly with a threshold one float32 ULP
+    gather_logprobs. We call it directly with a threshold one float32 ULP
     above the true maximum (torch.nextafter) — the exact artifact condition.
     Nothing in logprobs satisfies (logprob >= threshold), so the raw count
     is 0.  count_tokens_ge returns >= 1 (rank is 1-based).
@@ -298,13 +298,13 @@ def test_gather_logprobs_topk_indices_are_exact():
     On TT hardware the .to(torch.int32) cast for topk_indices inside a
     compiled XLA graph routes through bfloat16, rounding large token IDs.
     For example, token 19585 rounds to 19584 (bfloat16 precision at that
-    magnitude is 64 units).  When two top-k tokens round to the same ID
+    magnitude is 64 units). When two top-k tokens round to the same ID
     their logprob dict entries collide and one disappears, causing
     'expected >= N logprob entries, got N-1' failures in test_logprobs.
 
     This CPU test verifies the contract: gather_logprobs must return the
-    exact integer positions from torch.topk.  On CPU the conversion is
-    always exact.  A fix for TT is to convert topk_indices via CPU before
+    exact integer positions from torch.topk. On CPU the conversion is
+    always exact. A fix for TT is to convert topk_indices via CPU before
     building the indices tensor.
     """
     torch.manual_seed(0)

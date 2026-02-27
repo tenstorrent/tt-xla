@@ -24,14 +24,14 @@ def test_concat_int32():
 
     Regression test for a TT bug (TTNNWorkaroundsPass) where torch.cat on
     integer tensors in tile layout with non-32-aligned shapes inserts a
-    cast to bfloat16 for padding, then casts back.  This rounds large integer
+    cast to bfloat16 for padding, then casts back. This rounds large integer
     values: e.g. 19585 → 19584 (bfloat16 precision is 64 units at that
-    magnitude).  When two different top-k token IDs round to the same value
+    magnitude). When two different top-k token IDs round to the same value
     their logprob dict entries collide and vLLM sees fewer logprob entries
     than requested.
 
     This test concatenates two int32 tensors containing values that are NOT
-    exactly representable in bfloat16.  The output must exactly match the
+    exactly representable in bfloat16. The output must exactly match the
     CPU reference.
     """
 

@@ -402,9 +402,9 @@ def test_gather_logprobs_topk_indices_exact_on_device(device):
     """gather_logprobs must return exact top-k token IDs, not bfloat16-rounded.
 
     On TT hardware, topk_indices.to(torch.int32) inside a compiled XLA graph
-    routes through bfloat16.  Tokens whose IDs are not bfloat16-representable
+    routes through bfloat16. Tokens whose IDs are not bfloat16-representable
     get rounded: e.g. 19585 → 19584 (bfloat16 precision is 64 units at that
-    range).  When two different top-k tokens round to the same ID their
+    range). When two different top-k tokens round to the same ID their
     logprob dict entries collide and vLLM sees fewer entries than requested,
     causing 'expected >= N logprob entries, got N-1' in test_logprobs.
 
