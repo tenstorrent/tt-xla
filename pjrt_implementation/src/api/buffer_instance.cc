@@ -145,16 +145,9 @@ void BufferInstance::deleteData() {
   joinCopyThread();
 
   m_data_deleted = true;
-  if (m_done_with_host_buffer_event) {
-    EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
-                                          tt_pjrt_status::kSuccess);
-
-    // TODO(mrakita): Revert.
-    // https://github.com/openxla/xla/issues/25172
-    assert(m_done_with_host_buffer_event->isIndestructible() &&
-           "Expected done_with_host_buffer_event to be indestructible");
-    delete m_done_with_host_buffer_event;
-  }
+  // Note: m_done_with_host_buffer_event is no longer used since we always
+  // create owned tensors and mark the event as ready immediately after copying
+  // in copyFromHost(). This field can be removed in a future cleanup.
 }
 
 // Constructing buffer instance for the first time.
@@ -181,55 +174,19 @@ void BufferInstance::copyFromHost(
 
   tt::runtime::Tensor runtime_tensor;
 
-  // In distributed runtime, we always create owned host tensor because we
-  // cannot alias the host buffer.
-  //
-  // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
-  // we are not allowed to alias it directly, so we have to create owned host
-  // tensor which copies buffer data. In JAX this semantic is used only for
-  // copying scalars and numpy arrays, so the copy shouldn't take long. We can
-  // mark the event as ready since we don't need the original host buffer
-  // anymore.
-  //
-  // If the runtime data type which has been inferred from m_data_type is not
-  // supported by runtime/ttnn, then we must create an owned tensor as runtime
-  // must case the data inside the host buffer into a supported data type. Thus,
-  // the buffer cannot be borrowed.
-  if (::tt::runtime::getCurrentHostRuntime() ==
-          tt::runtime::HostRuntime::Distributed ||
-      host_buffer_semantics ==
-          PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
+  // Always create an owned host tensor to avoid borrowing memory from PJRT.
+  // This ensures we have complete ownership of the tensor data and can safely
+  // manage its lifetime independently of the PJRT host buffer.
+  // The host buffer data is copied into our owned tensor, so we can immediately
+  // mark the done_with_host_buffer_event as ready since we no longer need
+  // access to the original host buffer.
+  runtime_tensor = tt::runtime::createOwnedHostTensor(
+      host_buffer, shape, strides, element_size, runtime_data_type);
 
-    runtime_tensor = tt::runtime::createOwnedHostTensor(
-        host_buffer, shape, strides, element_size, runtime_data_type);
-
-    // Memory is copied, we don't need host buffer anymore.
-    EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
-                                          tt_pjrt_status::kSuccess);
-  }
-  // Otherwise when input host buffer has other semantic we are allowed to alias
-  // it, so we can create borrowed host which doesn't copy any data and instead
-  // uses direct pointer to existing data. Since we are holding a pointer to the
-  // original data we can't mark the event as ready yet, so we remember it and
-  // mark it as ready once the buffer is destroyed.
-  else {
-    // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
-    // so we have to const cast here.
-    // https://github.com/tenstorrent/tt-metal/issues/20622
-    runtime_tensor = tt::runtime::createBorrowedHostTensor(
-        const_cast<void *>(host_buffer), shape, strides, element_size,
-        runtime_data_type);
-
-    // Memory is aliased, we need to hold on to host buffer until this buffer is
-    // deleted.
-    m_done_with_host_buffer_event = done_with_host_buffer_event.get();
-
-    // TODO(mrakita): This is a major hack that we currently have to do because
-    // XLA PJRT client destroys event immediately after it sets callback on it.
-    // https://github.com/openxla/xla/issues/25172
-    m_done_with_host_buffer_event->setIndestructible();
-  }
+  // Memory is copied, we don't need host buffer anymore.
+  // Mark the event as ready immediately after the copy completes.
+  EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                        tt_pjrt_status::kSuccess);
 
   PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
 
