@@ -23,6 +23,6 @@ IMAGE_NAME="multihost-poc"
 USER="ubuntu"
 
 # Use bash -c inside docker exec to handle the complex MPI environment string
-ssh -A $SSH_OPTS -l $USER "$HOST" sudo docker exec \
+ssh $SSH_OPTS -l $USER "$HOST" sudo docker exec \
   -u root \
   $IMAGE_NAME bash -c "'$REMOTE_COMMAND'"
