@@ -345,8 +345,8 @@ def test_seed(llm, prompt):
 def test_bad_words(llm, prompt):
     """Test that bad_words bans are enforced in the generated output.
 
-    Uses "the" as a banned word.  For models where this tokenizes to a single
-    token, asserts the token ID never appears.  For multi-token tokenizations,
+    Uses "the" as a banned word. For models where this tokenizes to a single
+    token, asserts the token ID never appears. For multi-token tokenizations,
     asserts the full contiguous sequence never appears (prefix matching
     suppresses the final token whenever the prefix is generated).
     """

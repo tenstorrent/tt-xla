@@ -215,7 +215,7 @@ class XLASupportedSamplingMetadata:
             no_logit_bias = True
 
         # Build bad_words_mask tensor (single-token AND multi-token).
-        # Single-token bad words are always banned.  Multi-token bad words
+        # Single-token bad words are always banned. Multi-token bad words
         # use prefix matching against output token history: a sequence
         # [t0, t1, ..., tN] bans tN only when the most recent N output
         # tokens equal [t0, ..., tN-1].
