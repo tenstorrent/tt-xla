@@ -411,10 +411,9 @@ class MetadataInterpreter(Interpreter):
             if metadata:
                 # Set context before executing - all dispatched ops will see this
                 token = _current_node_metadata.set(metadata)
-                try:
-                    return super().run_node(node)
-                finally:
-                    _current_node_metadata.reset(token)
+                result = super().run_node(node)
+                _current_node_metadata.reset(token)
+                return result
 
         return super().run_node(node)
 
@@ -443,8 +442,8 @@ class MetadataDispatchMode(TorchDispatchMode):
        torch_xla._XLAC._set_xla_custom_op_name_prefix(). torch-xla traces back from the
        tensor to find which operation produced it, then labels that operation node in HLO.
 
-    This approach correctly handles FX nodes that decompose into multiple aten operations,
-    unlike a counter-based approach which assumes 1:1 mapping between FX nodes and dispatches.
+    This is non-invasive: it doesn't modify the FX graph or operation semantics, only adds
+    debugging metadata to the generated XLA HLO IR for better observability.
     """
 
     def __torch_dispatch__(self, func, types, args=(), kwargs=None):
