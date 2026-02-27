@@ -39,15 +39,15 @@ def test_tensor_parallel_generation_n300(model_name: str):
     reason="Skipping due to bug in tt-metal SDPA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
 )
 @pytest.mark.parametrize(
-    ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
+    ["model_name", "enable_const_eval", "experimental_weight_dtype"],
     [
-        pytest.param("Qwen/Qwen3-0.6B", False, False),
+        pytest.param("Qwen/Qwen3-0.6B", False, ""),
     ],
 )
 def test_tensor_parallel_generation_llmbox_small(
     model_name: str,
     enable_const_eval: bool,
-    experimental_enable_weight_bfp8_conversion: bool,
+    experimental_weight_dtype: str,
 ):
     prompts = [
         "I like taking walks in the",
@@ -63,7 +63,7 @@ def test_tensor_parallel_generation_llmbox_small(
             "enable_const_eval": enable_const_eval,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
-            "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
+            "experimental_weight_dtype": experimental_weight_dtype,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -79,17 +79,17 @@ def test_tensor_parallel_generation_llmbox_small(
     reason="Skipping due to bug in tt-metal SDPA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
 )
 @pytest.mark.parametrize(
-    ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
+    ["model_name", "enable_const_eval", "experimental_weight_dtype"],
     [
-        pytest.param("Qwen/Qwen3-32B", False, False),
-        pytest.param("Qwen/Qwen2.5-32B", False, False),
-        pytest.param("meta-llama/Llama-3.1-70B", True, True),
+        pytest.param("Qwen/Qwen3-32B", False, ""),
+        pytest.param("Qwen/Qwen2.5-32B", False, ""),
+        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp8"),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
     model_name: str,
     enable_const_eval: bool,
-    experimental_enable_weight_bfp8_conversion: bool,
+    experimental_weight_dtype: str,
 ):
     prompts = [
         "I like taking walks in the",
@@ -105,7 +105,7 @@ def test_tensor_parallel_generation_llmbox_large(
             "enable_const_eval": enable_const_eval,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
-            "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
+            "experimental_weight_dtype": experimental_weight_dtype,
         },
     }
     llm = vllm.LLM(**llm_args)

@@ -414,7 +414,7 @@ def create_benchmark_result(
     optimization_level: int = 0,
     program_cache_enabled: bool = False,
     trace_enabled: bool = False,
-    enable_weight_bfp8_conversion: bool = False,
+    experimental_weight_dtype: str = "",
     model_info: str = "",
     display_name: str = "",
     torch_xla_enabled: bool = True,
@@ -480,7 +480,7 @@ def create_benchmark_result(
         "optimization_level": optimization_level,
         "program_cache_enabled": program_cache_enabled,
         "trace_enabled": trace_enabled,
-        "enable_weight_bfp8_conversion": enable_weight_bfp8_conversion,
+        "experimental_weight_dtype": experimental_weight_dtype,
         "model_info": model_info,
         "display_name": display_name,
     }

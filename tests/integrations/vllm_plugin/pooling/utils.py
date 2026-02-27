@@ -12,7 +12,7 @@ def run_pooling_test(
     model_name: str,
     baseline_path,
     max_model_len: int,
-    experimental_enable_weight_bfp8_conversion: bool = False,
+    experimental_weight_dtype: str = "",
     enable_tensor_parallel: bool = False,
     enable_data_parallel: bool = False,
     min_context_len: int = 128,
@@ -39,7 +39,7 @@ def run_pooling_test(
         "max_num_batched_tokens": max_num_batched_tokens,
         "max_num_seqs": max_num_reqs,
         "additional_config": {
-            "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
+            "experimental_weight_dtype": experimental_weight_dtype,
             "enable_tensor_parallel": enable_tensor_parallel,
             "enable_data_parallel": enable_data_parallel,
             "min_context_len": min_context_len,

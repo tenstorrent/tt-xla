@@ -55,7 +55,7 @@ DEFAULT_LOOP_COUNT = 32
 DEFAULT_INPUT_SEQUENCE_LENGTH = 128
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_REQUIRED_PCC = 0.97
-DEFAULT_ENABLE_WEIGHT_BFP8_CONVERSION = False
+DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = ""
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 
 
@@ -75,7 +75,7 @@ def test_encoder(
     input_sequence_length=DEFAULT_INPUT_SEQUENCE_LENGTH,
     data_format=DEFAULT_DATA_FORMAT,
     required_pcc=DEFAULT_REQUIRED_PCC,
-    enable_weight_bfp8_conversion=DEFAULT_ENABLE_WEIGHT_BFP8_CONVERSION,
+    experimental_weight_dtype=DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE,
     experimental_enable_permute_matmul_fusion=DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION,
     num_layers=None,
 ):
@@ -96,7 +96,7 @@ def test_encoder(
         input_sequence_length: Length of input sentence
         data_format: Data format
         required_pcc: Required PCC threshold
-        enable_weight_bfp8_conversion: Enable BFP8 weight conversion
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
         experimental_enable_permute_matmul_fusion: Enable permute matmul fusion
         load_inputs_fn: Optional function to load raw inputs.
             Signature: fn(batch_size) -> List[str]. Defaults to get_default_inputs.
@@ -117,7 +117,7 @@ def test_encoder(
     input_sequence_length={input_sequence_length}
     data_format={data_format}
     required_pcc={required_pcc}
-    enable_weight_bfp8_conversion={enable_weight_bfp8_conversion}
+    experimental_weight_dtype={experimental_weight_dtype}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
     """
@@ -139,7 +139,7 @@ def test_encoder(
         preprocess_fn=preprocess_fn,
         output_processor_fn=output_processor_fn,
         required_pcc=required_pcc,
-        enable_weight_bfp8_conversion=enable_weight_bfp8_conversion,
+        experimental_weight_dtype=experimental_weight_dtype,
         experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
     )
 

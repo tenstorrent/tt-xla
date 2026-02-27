@@ -21,10 +21,9 @@ CompileOptions CompileOptions::parse(
   options.enable_bfp8_conversion =
       internal::parseBoolOption(compile_options, "enable_bfp8_conversion")
           .value_or(options.enable_bfp8_conversion);
-  options.experimental_enable_weight_bfp8_conversion =
-      internal::parseBoolOption(compile_options,
-                                "experimental_enable_weight_bfp8_conversion")
-          .value_or(options.experimental_enable_weight_bfp8_conversion);
+  options.experimental_weight_dtype =
+      internal::parseStringOption(compile_options, "experimental_weight_dtype")
+          .value_or(options.experimental_weight_dtype);
   options.math_fidelity =
       internal::parseStringOption(compile_options, "math_fidelity");
 

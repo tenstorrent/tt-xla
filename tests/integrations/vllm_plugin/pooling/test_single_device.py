@@ -62,7 +62,7 @@ def test_embed_qwen3_reduced_dims():
         "model_name",
         "baseline_path",
         "max_model_len",
-        "experimental_enable_weight_bfp8_conversion",
+        "experimental_weight_dtype",
     ],
     [
         pytest.param(
@@ -146,13 +146,13 @@ def test_embedding_nightly(
     model_name: str,
     baseline_path,
     max_model_len: int,
-    experimental_enable_weight_bfp8_conversion: bool,
+    experimental_weight_dtype: str,
 ):
     run_pooling_test(
         model_name,
         baseline_path,
         max_model_len,
-        experimental_enable_weight_bfp8_conversion,
+        experimental_weight_dtype,
     )
 
 

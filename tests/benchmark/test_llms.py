@@ -21,7 +21,7 @@ DEFAULT_LOOP_COUNT = 1
 DEFAULT_INPUT_SEQUENCE_LENGTH = 128
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
-DEFAULT_ENABLE_WEIGHT_BFP8_CONVERSION = True
+DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 DEFAULT_REQUIRED_PCC = 0.95
 
@@ -41,7 +41,7 @@ def test_llm(
     input_sequence_length=DEFAULT_INPUT_SEQUENCE_LENGTH,
     data_format=DEFAULT_DATA_FORMAT,
     task=DEFAULT_TASK,
-    enable_weight_bfp8_conversion=DEFAULT_ENABLE_WEIGHT_BFP8_CONVERSION,
+    experimental_weight_dtype=DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE,
     experimental_enable_permute_matmul_fusion=DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION,
     read_logits_fn=default_read_logits_fn,
     mesh_config_fn=None,
@@ -64,7 +64,7 @@ def test_llm(
         input_sequence_length: Input sequence length
         data_format: Data format
         task: Task type
-        enable_weight_bfp8_conversion: Enable BFP8 weight conversion
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
         experimental_enable_permute_matmul_fusion: Enable permute matmul fusion optimization
         read_logits_fn: Function to extract logits from model output
         required_pcc: Required PCC threshold
@@ -92,7 +92,7 @@ def test_llm(
     input_sequence_length={input_sequence_length}
     data_format={data_format}
     task={task}
-    enable_weight_bfp8_conversion={enable_weight_bfp8_conversion}
+    experimental_weight_dtype={experimental_weight_dtype}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
     required_pcc={required_pcc}
     num_layers={num_layers}
@@ -111,7 +111,7 @@ def test_llm(
         task=task,
         data_format=data_format,
         input_sequence_length=input_sequence_length,
-        enable_weight_bfp8_conversion=enable_weight_bfp8_conversion,
+        experimental_weight_dtype=experimental_weight_dtype,
         experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
         read_logits_fn=read_logits_fn,
