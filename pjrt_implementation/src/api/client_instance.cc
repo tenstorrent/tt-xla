@@ -782,6 +782,17 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
 
+  // Print tensor shape being created
+  std::string shape_str = "[";
+  for (size_t i = 0; i < args->num_dims; ++i) {
+    shape_str += std::to_string(args->dims[i]);
+    if (i < args->num_dims - 1) {
+      shape_str += ", ";
+    }
+  }
+  shape_str += "]";
+  LOG_F(INFO, "Creating buffer with shape: %s", shape_str.c_str());
+
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
     LOG_F(ERROR,
