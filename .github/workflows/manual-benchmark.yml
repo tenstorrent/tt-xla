@@ -55,7 +55,7 @@ on:
         description: "Wheel artifact name to download (used when should_build_wheel=false)"
         required: false
         type: string
-        default: "xla-whl-release"
+        default: ""
 
   workflow_dispatch:
     inputs:
@@ -116,7 +116,7 @@ on:
         description: "Wheel artifact name to download (used when should_build_wheel=false)"
         required: false
         type: string
-        default: "xla-whl-release"
+        default: ""
 
 permissions:
   packages: write
