@@ -937,8 +937,12 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.optimizationLevel = compile_options.optimization_level;
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
-  options.experimentalBfp8Weights =
-      compile_options.experimental_enable_weight_bfp8_conversion;
+  // Map user-facing dtype names to WeightDtype enum values.
+  if (compile_options.experimental_weight_dtype == "bfp8") {
+    options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat8;
+  } else if (compile_options.experimental_weight_dtype == "bfp4") {
+    options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat4;
+  }
 
   // Set compute kernel config options if provided
   if (compile_options.math_fidelity.has_value()) {
