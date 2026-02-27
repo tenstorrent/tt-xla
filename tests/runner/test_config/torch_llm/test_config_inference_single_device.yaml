@@ -204,7 +204,7 @@ test_config:
     required_pcc: 0.98 # Is 0.984 for n150 and p150
     status: EXPECTED_PASSING
     assert_pcc: false
-    markers: [nightly]
+    markers: [nightly, large]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_1-single_device-inference:
     arch_overrides:
