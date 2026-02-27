@@ -396,12 +396,15 @@ def memory_usage_tracker(request):
         avg_mem = total_mem / count
         by_test = max_mem - start_mem
 
+        proc_rss = process.memory_info().rss / (1024 * 1024)  # MB
+
         with newline_logger():
             logger.info(f"Test memory usage:")
         logger.info(f"    By test: {by_test:.2f} MB")
         logger.info(f"    Minimum: {min_mem:.2f} MB")
         logger.info(f"    Maximum: {max_mem:.2f} MB")
         logger.info(f"    Average: {avg_mem:.2f} MB")
+        logger.info(f"    RSS:     {proc_rss:.2f} MB")
     else:
         yield
 
@@ -413,7 +416,8 @@ def memory_usage_tracker(request):
     if request.config.getoption("--log-memory"):
         vm = psutil.virtual_memory()
         after_gc = (vm.total - vm.available) / (1024 * 1024)  # MB
-        logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
+        after_gc_rss = process.memory_info().rss / (1024 * 1024)  # MB
+        logger.info(f"Memory after gc: {after_gc:.2f} MB (RSS: {after_gc_rss:.2f} MB)")
 
 
 @pytest.fixture(scope="session", autouse=True)
