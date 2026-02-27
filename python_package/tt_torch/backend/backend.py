@@ -8,9 +8,11 @@ import torch
 import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
+import torch_xla.runtime as xr
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
+from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
 
 from .decompositions import populate_decompositions
@@ -62,8 +64,17 @@ def torch_pass_pipeline(
     program = program.run_decompositions(decompositions)
 
     compiled_graph = program.module()
+    # When torch.compile traces a model, it flattens the module hierarchy and
+    # mangles parameter names (e.g., "model.layers.0.weight" becomes something
+    # like "L__self___model_layers___0___weight"). Dynamo stores a reverse
+    # mapping in GraphModule.meta so we can recover the original names. We pass
+    # this to insert_argument_type_markers so that MLIR argument names (ttir.name)
+    # match the original model's state_dict keys.
+    flat_name_to_original_fqn = compiled_graph.meta.get(
+        "dynamo_flat_name_to_original_fqn", {}
+    )
     compiled_graph = insert_argument_type_markers(
-        compiled_graph, program.graph_signature
+        compiled_graph, program.graph_signature, flat_name_to_original_fqn
     )
     compiled_graph = bypass_dtype_promotion_and_redundant_cast(
         compiled_graph, example_inputs
@@ -79,6 +90,26 @@ def torch_pass_pipeline(
     node_info = extract_nodes_info(compiled_graph)
 
     return compiled_graph, program.graph_signature, node_info
+
+
+def _mark_unsharded_args_replicated(args: Tuple[torch.Tensor]) -> None:
+    """Mark unsharded XLA tensors as REPLICATED when running in SPMD mode.
+
+    In SPMD mode, torch_xla's InputCollector propagates sharding annotations
+    during graph capture and marks unsharded tensors as '<replicated>'. At
+    runtime, freshly created tensors (e.g. input_ids, cache_position) carry no
+    sharding annotation and return '' from _get_xla_sharding_spec. Explicitly
+    marking them REPLICATED keeps their sharding spec consistent with what was
+    recorded at capture time and prevents spurious retracing in dynamo_bridge.
+    """
+    if not xr.is_spmd():
+        return
+    replicated = torch_xla._XLAC.OpSharding([], [], [], ShardingType.REPLICATED)
+    for arg in args:
+        if isinstance(arg, torch.Tensor) and not torch_xla._XLAC._get_xla_sharding_spec(
+            arg
+        ):
+            torch_xla._XLAC._xla_mark_sharding(arg, replicated)
 
 
 class XLAExecutor:
@@ -175,6 +206,10 @@ class XLAExecutor:
             )
 
         full_args = self.params_and_consts + args
+        # Ensure unsharded tensors are marked REPLICATED in SPMD mode so their
+        # sharding spec matches what was recorded at graph capture time. This is a temporary workaround
+        # until a change is made in torch-xla to automatically mark unsharded tensors as REPLICATED at runtime in SPMD mode.
+        _mark_unsharded_args_replicated(full_args)
         return self.compiled_graph(*full_args)
 
     def __call__(self, *args):

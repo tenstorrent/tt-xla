@@ -37,7 +37,7 @@ cd tests/jax/multi_chip/bounties/Llama_3.1-8B
 
 ### 🐍 Create and Activate Virtual Environment
 
-Make sure you're using Python ≥3.11 (tested on 3.12):
+Make sure you're using Python ≥3.12 (tested on 3.12):
 
 ```
 python3 -m venv llama_env

@@ -219,6 +219,18 @@ test_config:
     bringup_status: FAILED_RUNTIME
     markers: [large]
 
+  mamba/causal_lm/jax-mamba-370m-hf-single_device-inference:
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/jax-mamba-790m-hf-single_device-inference:
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/jax-mamba-2.8b-hf-single_device-inference:
+    status: EXPECTED_PASSING
+
+  mamba/causal_lm/jax-mamba-1.4b-hf-single_device-inference:
+    status: EXPECTED_PASSING
+
   marian_mt/text_classification/jax-Opus_Mt_En_De-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Failed to legalize operation 'ttir.scatter' - https://github.com/tenstorrent/tt-xla/issues/911"
@@ -382,9 +394,11 @@ test_config:
 
   qwen_2_5_coder/causal_lm/jax-1.5B-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP

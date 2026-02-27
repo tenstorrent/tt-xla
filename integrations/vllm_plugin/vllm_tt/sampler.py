@@ -50,14 +50,90 @@ class Sampler(nn.Module):
     def greedy_sample(self, logits: torch.Tensor) -> torch.Tensor:
         return logits.argmax(dim=-1).view(-1)
 
+    def apply_penalties(
+        self,
+        logits: torch.Tensor,
+        output_token_counts: torch.Tensor,
+        prompt_token_mask: torch.Tensor,
+        presence_penalties: torch.Tensor,
+        frequency_penalties: torch.Tensor,
+        repetition_penalties: torch.Tensor,
+    ) -> torch.Tensor:
+        """Apply presence, frequency, and repetition penalties on-device.
+
+        Uses element-wise masking ops only — no sort, scatter, or gather.
+        Matches the vLLM GPU spec (vllm/model_executor/layers/utils.py):
+          - repetition_penalty: applied to tokens in prompt ∪ output
+          - frequency_penalty:  applied to output tokens, scaled by count
+          - presence_penalty:   applied to output tokens, flat per token
+
+        ``output_token_counts`` is a [batch, vocab] float32 count tensor.
+        ``prompt_token_mask`` is a [batch, vocab] bool mask for prompt tokens.
+        Both are pre-built on CPU and transferred to device before graph execution.
+        """
+        occurred_output = output_token_counts > 0  # [batch, vocab] bool
+
+        # Apply in the same order as the GPU reference:
+        # repetition -> frequency -> presence.
+
+        # Repetition penalty covers prompt ∪ output tokens.
+        rep_mask = occurred_output | prompt_token_mask
+        rep = repetition_penalties.unsqueeze(1)  # [batch, 1]
+        penalty_factor = torch.where(logits > 0, torch.reciprocal(rep), rep)
+        logits = torch.where(rep_mask, logits * penalty_factor, logits)
+
+        # Frequency penalty: subtract penalty scaled by output occurrence count.
+        logits -= frequency_penalties.unsqueeze(1) * output_token_counts.to(
+            logits.dtype
+        )
+
+        # Presence penalty: subtract a flat penalty for each token that appeared in output.
+        logits -= presence_penalties.unsqueeze(1) * occurred_output.to(logits.dtype)
+
+        return logits
+
+    def apply_bad_words(
+        self,
+        logits: torch.Tensor,
+        bad_words_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        return logits + bad_words_mask
+
+    def apply_logit_bias(
+        self,
+        logits: torch.Tensor,
+        logit_bias_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        return logits + logit_bias_tensor
+
     def sample(
         self,
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
     ) -> torch.Tensor:
-        greedy_sampled = self.greedy_sample(logits)
+        # Apply bad_words mask first (sets banned tokens to -inf).
+        if not sampling_metadata.no_bad_words:
+            logits = self.apply_bad_words(logits, sampling_metadata.bad_words_mask)
+
+        # Apply logit_bias before computing greedy argmax.
+        if not sampling_metadata.no_logit_bias:
+            logits = self.apply_logit_bias(logits, sampling_metadata.logit_bias_tensor)
 
         assert sampling_metadata.temperature is not None
+
+        # Apply penalties before temperature so both greedy and random paths
+        # see penalized logits.
+        if not sampling_metadata.no_penalties:
+            logits = self.apply_penalties(
+                logits,
+                sampling_metadata.output_token_counts,
+                sampling_metadata.prompt_token_mask,
+                sampling_metadata.presence_penalties,
+                sampling_metadata.frequency_penalties,
+                sampling_metadata.repetition_penalties,
+            )
+
+        greedy_sampled = self.greedy_sample(logits)
 
         # Apply temperature.
         logits = self.apply_temperature(
