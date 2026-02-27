@@ -82,7 +82,7 @@ jobs:
           echo ""
 
           eval $(ssh-agent -s)
-          ssh-add ~/.ssh/id_rsa 2>/dev/null || ssh-add ~/.ssh/id_ed25519 2>/dev/null || ssh-add
+          ssh-add /home/ubuntu/.ssh/id_rsa_multihost
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" > /tmp/ssh_agent_env
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> /tmp/ssh_agent_env
           echo "SSH agent started on controller with PID $SSH_AGENT_PID"
