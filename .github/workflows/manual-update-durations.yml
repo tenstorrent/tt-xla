@@ -131,6 +131,41 @@ jobs:
           echo "Container started on controller"
           echo ""
 
+      - name: Start containers on worker hosts via mpirun
+        run: |
+          echo "=== Starting containers on worker hosts ==="
+          echo ""
+
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c '
+            # Skip if this is the controller (container already running)
+            if docker ps --filter name=multihost-poc --format "{{.Names}}" | grep -q multihost-poc; then
+              echo "$(hostname): Container already running (controller), skipping"
+            else
+              CONTAINER_ID=$(docker run --rm -d \
+                --name multihost-poc \
+                --privileged \
+                --pid=host \
+                --network=host \
+                -v /etc/mpirun:/etc/mpirun:ro \
+                -v ${{ github.workspace }}:/workspace \
+                -w /workspace \
+                ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
+                sleep infinity)
+              if [ -z "$CONTAINER_ID" ]; then
+                echo "$(hostname): ERROR - Failed to start container!"
+                exit 1
+              fi
+              echo "$(hostname): Container started with ID: $CONTAINER_ID"
+            fi
+            '
+
+          echo ""
+          echo "Containers started on all hosts"
+          echo ""
+
       - name: Make remote_docker.sh executable in controller container
         run: |
           echo "Making remote_docker.sh executable in controller container..."
