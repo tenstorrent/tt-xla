@@ -364,6 +364,15 @@ def memory_usage_tracker(request):
         # Initialize memory tracking variables
         vm = psutil.virtual_memory()
         start_mem = (vm.total - vm.available) / (1024 * 1024)  # MB
+        start_free = vm.available / (1024 * 1024)  # MB
+        start_proc_rss = process.memory_info().rss / (1024 * 1024)  # MB
+
+        with newline_logger():
+            logger.info(f"Memory at test start:")
+        logger.info(f"    System used:      {start_mem:.2f} MB")
+        logger.info(f"    System free:      {start_free:.2f} MB")
+        logger.info(f"    Process RSS:      {start_proc_rss:.2f} MB")
+
         min_mem = start_mem
         max_mem = start_mem
         total_mem = start_mem
@@ -396,12 +405,15 @@ def memory_usage_tracker(request):
         avg_mem = total_mem / count
         by_test = max_mem - start_mem
 
+        end_proc_rss = process.memory_info().rss / (1024 * 1024)  # MB
+
         with newline_logger():
             logger.info(f"Test memory usage:")
         logger.info(f"    By test: {by_test:.2f} MB")
         logger.info(f"    Minimum: {min_mem:.2f} MB")
         logger.info(f"    Maximum: {max_mem:.2f} MB")
         logger.info(f"    Average: {avg_mem:.2f} MB")
+        logger.info(f"    Process RSS (end): {end_proc_rss:.2f} MB")
     else:
         yield
 
@@ -413,7 +425,10 @@ def memory_usage_tracker(request):
     if request.config.getoption("--log-memory"):
         vm = psutil.virtual_memory()
         after_gc = (vm.total - vm.available) / (1024 * 1024)  # MB
-        logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
+        after_gc_proc_rss = process.memory_info().rss / (1024 * 1024)  # MB
+        logger.info(f"Memory after garbage collection:")
+        logger.info(f"    System used:  {after_gc:.2f} MB")
+        logger.info(f"    Process RSS:  {after_gc_proc_rss:.2f} MB")
 
 
 @pytest.fixture(scope="session", autouse=True)
