@@ -1197,6 +1197,113 @@ def all_to_all_combine_fake(
         )
 
 
+@torch.library.custom_op(
+    "tt::moe_expert_token_remap", mutates_args=[], device_types=["xla", "cpu"]
+)
+def moe_expert_token_remap(
+    topk_tensor: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    expert_metadata: torch.Tensor,
+    reduction_size: int = 16,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Convert global expert routing to local device expert mapping and sparsity.
+
+    Remaps global expert indices from dispatch metadata to local per-device
+    expert indices and creates a sparsity pattern for efficient sparse_matmul.
+
+    Args:
+        topk_tensor: Routing scores [D, B, S, E], bfloat16
+        expert_mapping: Expert-to-device mapping [1, 1, E, D], int64
+        expert_metadata: Expert indices from dispatch [D, B, S, K], int64
+        reduction_size: Group size for sparsity reduction (default 16)
+
+    Returns:
+        mapping: Expert routing weights [1, B, S, E], bfloat16 (compound-sharded to E_local on device)
+        reduced: Sparsity pattern [1, 1, ceil(B*S/reduction_size), E], bfloat16 (compound-sharded to E_local on device)
+    """
+    import math
+
+    device = topk_tensor.device
+    D, B, S, E = topk_tensor.shape
+    K = expert_metadata.shape[-1]
+    num_devices = expert_mapping.shape[-1]
+    E_local = E // num_devices
+
+    reduced_seq = math.ceil(B * S / reduction_size)
+
+    if device.type == "xla":
+        output_shapes = [
+            [1, B, S, E],
+            [1, 1, reduced_seq, E],
+        ]
+        output_dtypes = [topk_tensor.dtype, topk_tensor.dtype]
+
+        frontend_attributes = {
+            "reduction_size": str(reduction_size),
+        }
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [topk_tensor, expert_mapping, expert_metadata],
+            "tt.moe_expert_token_remap",
+            output_shapes,
+            output_dtypes,
+            frontend_attributes=frontend_attributes,
+        )
+
+    # CPU fallback: uses global E shape (compiler shards to E_local on device)
+    mapping = torch.zeros(1, B, S, E, dtype=topk_tensor.dtype, device=device)
+    reduced = torch.zeros(
+        1, 1, reduced_seq, E, dtype=topk_tensor.dtype, device=device
+    )
+
+    experts_per_device = E // num_devices
+    for d in range(D):
+        for b in range(B):
+            for s in range(S):
+                for k in range(K):
+                    global_expert = expert_metadata[d, b, s, k].item()
+                    device_id = -1
+                    for dev in range(num_devices):
+                        if expert_mapping[0, 0, global_expert, dev].item() == 1:
+                            device_id = dev
+                            break
+                    if device_id == 0:
+                        local_idx = global_expert % experts_per_device
+                        mapping[0, b, s, local_idx] = topk_tensor[
+                            d, b, s, global_expert
+                        ]
+                        chunk_idx = (b * S + s) // reduction_size
+                        if chunk_idx < reduced_seq:
+                            reduced[0, 0, chunk_idx, local_idx] = 1.0
+
+    return mapping, reduced
+
+
+@moe_expert_token_remap.register_fake
+def moe_expert_token_remap_fake(
+    topk_tensor: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    expert_metadata: torch.Tensor,
+    reduction_size: int = 16,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    import math
+
+    D, B, S, E = topk_tensor.shape
+    num_devices = expert_mapping.shape[-1]
+    reduced_seq = math.ceil(B * S / reduction_size)
+
+    mapping = torch.zeros(
+        [1, B, S, E], dtype=topk_tensor.dtype, device=topk_tensor.device
+    )
+    reduced = torch.zeros(
+        [1, 1, reduced_seq, E],
+        dtype=topk_tensor.dtype,
+        device=topk_tensor.device,
+    )
+    return mapping, reduced
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):

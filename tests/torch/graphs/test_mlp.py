@@ -1281,12 +1281,12 @@ def test_a2a_chained_combine_compound_expert_matmul():
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("axis_0", "axis_1"))
 
-    B = 8
+    B = 1
     S = 128
     H = 64
     M = 32
-    E = num_devices
-    K = 2
+    E = 128
+    K = 4
 
     print(f"\n{'='*60}")
     print(f"A2A Single Combine + Compound Expert Sparse Matmul Test")
@@ -1451,7 +1451,7 @@ def test_a2a_chained_combine_compound_expert_matmul():
                     scale = e + 1
                     actual = combined_cpu[k, local_b, s, :4]
                     expected = hidden[global_b, s, :4].float() * scale
-                    if torch.allclose(actual.float(), expected, rtol=0.1, atol=2.0):
+                    if torch.allclose(actual.float(), expected, atol=1.0e-1):
                         num_match += 1
                         if len(matches_sample) < 3:
                             matches_sample.append((global_b, s, k, expected.tolist()[:2], actual.float().tolist()[:2]))
