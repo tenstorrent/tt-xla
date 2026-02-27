@@ -327,7 +327,7 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
       LoadedExecutableInstance::unwrap(args->executable);
 
   if (instance->isCompileOnly()) {
-    LOG_F(ERROR, "Execution is not supported in compile-only mode "
+    LOG_F(ERROR, "Early aborting execution in compile-only mode "
                  "(TT_COMPILE_ONLY_SYSTEM_DESC is set).");
     return *ErrorInstance::makeError(tt_pjrt_status::kInternal).release();
   }
