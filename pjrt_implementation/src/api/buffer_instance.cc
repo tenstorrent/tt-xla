@@ -140,7 +140,11 @@ void BufferInstance::deleteData() {
     return;
   }
 
-  joinCopyThread();
+  {
+    const std::lock_guard<std::mutex> lock{m_copy_to_host_thread_mutex};
+    if (m_copy_to_host_thread.joinable())
+      m_copy_to_host_thread.join();
+  }
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
@@ -313,24 +317,17 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // TODO(acolic): Copying in a separate thread is left to match previous
   // behavior. Check whether it is needed: it does not make much sense to
   // create new thread for each shard, because tensors are moved once from
-  // device when onHost is called on a first shard; on the other hand, there is
-  // no sense to create new thread for memcpy because framework would wait on a
-  // copy anyway, right? Also, creating std::thread for memcpy might be overhead
-  // with performance loss. We must measure.
-  // Also, std::thread (as all objects from std::) has a value semantic, so it
-  // does not make any sense to create std::thread as a unique_ptr.
+  // device when onHost is called on a first shard. Also, creating std::thread
+  // for memcpy might be overhead with performance loss. We should measure.
   const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
-  if (m_copy_to_host_thread) {
-    m_copy_to_host_thread->join();
-    m_copy_to_host_thread.reset();
-  }
+  if (m_copy_to_host_thread.joinable())
+    m_copy_to_host_thread.join();
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
-  m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
+  m_copy_to_host_thread = std::thread([=, _event = event.get()] {
     try {
       ZoneScopedN("CopyToHostThread");
-      // const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
 
       m_pjrt_tensor->move_to_host();
 
@@ -338,11 +335,11 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
                           rt_data_type);
 
-      e->markAsReady(tt_pjrt_status::kSuccess);
+      _event->markAsReady(tt_pjrt_status::kSuccess);
 
     } catch (const std::exception &error) {
       LOG_F(ERROR, "Copy to host buffer failed with error: %s", error.what());
-      e->markAsReady(tt_pjrt_status::kInternal);
+      _event->markAsReady(tt_pjrt_status::kInternal);
     }
   });
 
