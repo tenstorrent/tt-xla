@@ -265,6 +265,9 @@ class A2aSparseMLP(nn.Module):
         self.dispatch_devices = (
             dispatch_devices if dispatch_devices is not None else num_devices
         )
+        # When True, uses fused moe_expert_token_remap kernel for sparsity
+        # and runs the entire sparse_matmul pathway with E_local (experts per device).
+        self.use_fused_remap = True
 
         # Copy references to original module's components
         self.router = original_mlp.router
@@ -334,126 +337,185 @@ class A2aSparseMLP(nn.Module):
         else:
             dim_a, dim_b = BD // M, seq_len
 
-        # 5. Build sparsity mask from metadata (M grouping)
-        # metadata[0]: [B*D, S, K] — expert indices for dispatched tokens
-        # Use ALL M positions (not just M=0) so all experts get sparsity=1.
-        # M=0 only would miss experts when M is a multiple of num_experts.
+        # 5. Build sparsity mask & run expert computation
         E = self.num_experts
-        if split_seq:
-            metadata_full = metadata[0].view(BD, seq_len // M, M, K)  # [BD, S//M, M, K]
-            metadata_flat = metadata_full.reshape(BD, (seq_len // M) * M, K)  # [BD, S, K]
-            sparsity_flat = torch.zeros(
-                BD, (seq_len // M) * M, 1, E,
-                dtype=hidden_states.dtype, device=hidden_states.device,
+
+        if self.use_fused_remap:
+            # ===== Fused moe_expert_token_remap path =====
+            # Output uses global E shape; compiler compound-shards E→E_local on device.
+            # Weights [E, H, inter*2] → [1, E, H, inter*2] similarly sharded.
+            D = self.dispatch_devices
+
+            # Build topk_tensor [1, BD, S, E] — fold D into batch dim so the
+            # kernel sees BD tokens and produces BD*S/M reduced entries.
+            topk_3d = router_scores.view(batch_size, seq_len, E)
+            topk_repeated = topk_3d.repeat(D, 1, 1)  # [BD, S, E]
+            topk_tensor = topk_repeated.unsqueeze(0)  # [1, BD, S, E]
+
+            # metadata already [1, BD, S, K] — pass as-is
+            _, sparsity_remap = torch.ops.tt.moe_expert_token_remap(
+                topk_tensor,
+                self.expert_mapping,
+                metadata,
+                reduction_size=M,
             )
-            sparsity_flat.scatter_(
-                dim=-1,
-                index=metadata_flat.unsqueeze(2),
-                src=torch.ones_like(metadata_flat.unsqueeze(2), dtype=hidden_states.dtype),
+            # sparsity_remap: [1, 1, ceil(BD*S/M), E] (global E shape)
+            sparsity = sparsity_remap.view(dim_a, dim_b, 1, E)
+
+            # Weights: [E, H, inter*2] → [1, E, H, inter*2] (compiler shards E→E_local)
+            gate_up_proj = self.experts.gate_up_proj.unsqueeze(0)
+            down_proj = self.experts.down_proj.view(
+                1, E, self.intermediate_size, -1
             )
-            sparsity = sparsity_flat.view(BD, seq_len // M, M, E).sum(dim=2).clamp(max=1.0)
-            sparsity = sparsity.unsqueeze(2)  # [BD, S//M, 1, E]
-        else:
-            metadata_full = metadata[0].view(BD // M, M, seq_len, K)  # [BD//M, M, S, K]
-            metadata_flat = metadata_full.reshape((BD // M) * M, seq_len, K)  # [BD, S, K]
-            sparsity_flat = torch.zeros(
-                (BD // M) * M, seq_len, 1, E,
-                dtype=hidden_states.dtype, device=hidden_states.device,
+            gate_up_bias = self.experts.gate_up_proj_bias
+            down_bias = self.experts.down_proj_bias
+
+            # Reshape dispatched for sparse_matmul
+            if split_seq:
+                hidden_4d = dispatched.view(BD, seq_len // M, M, hidden_size)
+            elif dim_b == 1:
+                hidden_4d = dispatched.view(BD // M, 1, M, hidden_size)
+            else:
+                hidden_4d = dispatched.view(BD // M, M, seq_len, hidden_size)
+                hidden_4d = hidden_4d.permute(0, 2, 1, 3)
+
+            # Gate+Up sparse_matmul with E_local sparsity
+            gate_up_out = torch.ops.tt.sparse_matmul(
+                hidden_4d, gate_up_proj, sparsity,
+                nnz=0, is_input_a_sparse=False, is_input_b_sparse=True,
             )
-            sparsity_flat.scatter_(
-                dim=-1,
-                index=metadata_flat.unsqueeze(2),
-                src=torch.ones_like(metadata_flat.unsqueeze(2), dtype=hidden_states.dtype),
+            gate_up_out = gate_up_out.squeeze(2)  # [dim_a, dim_b, E_local, M, inter*2]
+            gate_up_out = gate_up_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E_local, inter*2]
+            gate_up_out = gate_up_out + gate_up_bias
+
+            # Activation
+            gate_out = gate_up_out[..., ::2]
+            up_out = gate_up_out[..., 1::2]
+            if self.activation_type == ACTIVATION_DEEPSEEK:
+                activated = F.silu(gate_out) * up_out
+            else:
+                gate_out = gate_out.clamp(max=self.limit)
+                up_out = up_out.clamp(-self.limit, self.limit)
+                glu = gate_out * torch.sigmoid(gate_out * self.alpha)
+                activated = (up_out + 1) * glu
+
+            # Down sparse_matmul (sparsity already expanded to E)
+            activated_reshaped = (
+                activated.permute(0, 1, 3, 2, 4)
+                .contiguous()
+                .view(dim_a * dim_b, E, M, self.intermediate_size)
             )
-            sparsity = sparsity_flat.view(BD // M, M, seq_len, E).sum(dim=1).clamp(max=1.0)
-            sparsity = sparsity.unsqueeze(2)  # [BD//M, S, 1, E]
+            sparsity_down = sparsity.view(1, 1, dim_a * dim_b, E)
+            down_out = torch.ops.tt.sparse_matmul(
+                activated_reshaped, down_proj, sparsity_down,
+                nnz=0, is_input_a_sparse=True, is_input_b_sparse=False,
+            )
 
-        # 6. Reshape weights for sparse_matmul: [E, H, inter*2] → [1, E, H, inter*2]
-        gate_up_proj = self.experts.gate_up_proj.unsqueeze(0)
-        down_proj = self.experts.down_proj.view(
-            1, self.num_experts, self.intermediate_size, -1
-        )
-        gate_up_bias = self.experts.gate_up_proj_bias
-        down_bias = self.experts.down_proj_bias
+            # Reshape for combine: [E, BD, S, H]
+            down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
+            down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
+            down_out = down_out + down_bias
+            if split_seq:
+                down_out = down_out.permute(3, 0, 1, 2, 4).contiguous()
+                down_out = down_out.view(E, BD, seq_len, hidden_size)
+            elif dim_b == 1:
+                down_out = down_out.squeeze(1)
+                down_out = down_out.permute(2, 0, 1, 3).contiguous()
+                down_out = down_out.view(E, BD, hidden_size).unsqueeze(1)
+            else:
+                down_out = down_out.permute(3, 0, 2, 1, 4).contiguous()
+                down_out = down_out.view(E, BD, seq_len, hidden_size)
 
-        # 7. sparse_matmul(gate_up) with M grouping
-        # input_a: [dim_a, dim_b, M, H], sparsity: [dim_a, dim_b, 1, E]
-        if split_seq:
-            hidden_4d = dispatched.view(BD, seq_len // M, M, hidden_size)
-        elif dim_b == 1:
-            # decode (S=1): view directly — same layout as permute when S=1
-            hidden_4d = dispatched.view(BD // M, 1, M, hidden_size)
         else:
-            # dispatched is [1, BD, S, H]; need [BD//M, S, M, H]
-            hidden_4d = dispatched.view(BD // M, M, seq_len, hidden_size)
-            hidden_4d = hidden_4d.permute(0, 2, 1, 3)  # [BD//M, S, M, H]
-        gate_up_out = torch.ops.tt.sparse_matmul(
-            hidden_4d,
-            gate_up_proj,
-            sparsity,
-            nnz=0,
-            is_input_a_sparse=False,
-            is_input_b_sparse=True,
-        )
-        # Permute E and M so bias [E, inter*2] broadcasts naturally from the right
-        gate_up_out = gate_up_out.squeeze(2)  # [dim_a, dim_b, E, M, inter*2]
-        gate_up_out = gate_up_out.permute(
-            0, 1, 3, 2, 4
-        )  # [dim_a, dim_b, M, E, inter*2]
-        gate_up_out = gate_up_out + gate_up_bias
+            # ===== Manual sparsity construction path (E_total throughout) =====
+            if split_seq:
+                metadata_full = metadata[0].view(BD, seq_len // M, M, K)
+                metadata_flat = metadata_full.reshape(BD, (seq_len // M) * M, K)
+                sparsity_flat = torch.zeros(
+                    BD, (seq_len // M) * M, 1, E,
+                    dtype=hidden_states.dtype, device=hidden_states.device,
+                )
+                sparsity_flat.scatter_(
+                    dim=-1,
+                    index=metadata_flat.unsqueeze(2),
+                    src=torch.ones_like(metadata_flat.unsqueeze(2), dtype=hidden_states.dtype),
+                )
+                sparsity = sparsity_flat.view(BD, seq_len // M, M, E).sum(dim=2).clamp(max=1.0)
+                sparsity = sparsity.unsqueeze(2)
+            else:
+                metadata_full = metadata[0].view(BD // M, M, seq_len, K)
+                metadata_flat = metadata_full.reshape((BD // M) * M, seq_len, K)
+                sparsity_flat = torch.zeros(
+                    (BD // M) * M, seq_len, 1, E,
+                    dtype=hidden_states.dtype, device=hidden_states.device,
+                )
+                sparsity_flat.scatter_(
+                    dim=-1,
+                    index=metadata_flat.unsqueeze(2),
+                    src=torch.ones_like(metadata_flat.unsqueeze(2), dtype=hidden_states.dtype),
+                )
+                sparsity = sparsity_flat.view(BD // M, M, seq_len, E).sum(dim=1).clamp(max=1.0)
+                sparsity = sparsity.unsqueeze(2)
 
-        # 8. Split & Activation (interleaved layout, all ops work on 5D)
-        gate_out = gate_up_out[..., ::2]  # [dim_a, dim_b, M, E, inter]
-        up_out = gate_up_out[..., 1::2]
+            gate_up_proj = self.experts.gate_up_proj.unsqueeze(0)
+            down_proj = self.experts.down_proj.view(
+                1, E, self.intermediate_size, -1
+            )
+            gate_up_bias = self.experts.gate_up_proj_bias
+            down_bias = self.experts.down_proj_bias
 
-        if self.activation_type == ACTIVATION_DEEPSEEK:
-            activated = F.silu(gate_out) * up_out
-        else:
-            gate_out = gate_out.clamp(max=self.limit)
-            up_out = up_out.clamp(-self.limit, self.limit)
-            glu = gate_out * torch.sigmoid(gate_out * self.alpha)
-            activated = (up_out + 1) * glu
+            if split_seq:
+                hidden_4d = dispatched.view(BD, seq_len // M, M, hidden_size)
+            elif dim_b == 1:
+                hidden_4d = dispatched.view(BD // M, 1, M, hidden_size)
+            else:
+                hidden_4d = dispatched.view(BD // M, M, seq_len, hidden_size)
+                hidden_4d = hidden_4d.permute(0, 2, 1, 3)
 
-        # 9. sparse_matmul(down) with M grouping
-        # activated: [dim_a, dim_b, M, E, inter] → [dim_a*dim_b, E, M, inter]
-        activated_reshaped = (
-            activated.permute(0, 1, 3, 2, 4)
-            .contiguous()
-            .view(dim_a * dim_b, self.num_experts, M, self.intermediate_size)
-        )
-        sparsity_down = sparsity.view(1, 1, dim_a * dim_b, self.num_experts)
-        down_out = torch.ops.tt.sparse_matmul(
-            activated_reshaped,
-            down_proj,
-            sparsity_down,
-            nnz=0,
-            is_input_a_sparse=True,
-            is_input_b_sparse=False,
-        )
-        # [dim_a*dim_b, E, M, H] → [dim_a, dim_b, M, E, H] (swap E,M for bias broadcast)
-        down_out = down_out.view(dim_a, dim_b, self.num_experts, M, hidden_size)
-        down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
-        down_out = down_out + down_bias  # [E, H] broadcasts naturally
-        if split_seq:
-            # [BD, S//M, M, E, H] → [E, BD, S//M, M, H] → [E, BD, S, H]
-            down_out = down_out.permute(3, 0, 1, 2, 4).contiguous()
-            down_out = down_out.view(self.num_experts, BD, seq_len, hidden_size)
-        elif dim_b == 1:
-            # decode (S=1): produce [E, 1, BD, H] to avoid tile waste on S=1 dim
-            # [BD//M, 1, M, E, H] → [BD//M, M, E, H] → [E, BD//M, M, H] → [E, BD, H] → [E, 1, BD, H]
-            down_out = down_out.squeeze(1)
-            down_out = down_out.permute(2, 0, 1, 3).contiguous()
-            down_out = down_out.view(self.num_experts, BD, hidden_size).unsqueeze(1)
-        else:
-            # [BD//M, S, M, E, H] → [E, BD//M, M, S, H] → [E, BD, S, H]
-            down_out = down_out.permute(3, 0, 2, 1, 4).contiguous()
-            down_out = down_out.view(self.num_experts, BD, seq_len, hidden_size)
+            gate_up_out = torch.ops.tt.sparse_matmul(
+                hidden_4d, gate_up_proj, sparsity,
+                nnz=0, is_input_a_sparse=False, is_input_b_sparse=True,
+            )
+            gate_up_out = gate_up_out.squeeze(2)
+            gate_up_out = gate_up_out.permute(0, 1, 3, 2, 4)
+            gate_up_out = gate_up_out + gate_up_bias
 
-        # 9. Combine: gather expert outputs back along cluster_axis
-        # Use output_shard_dim=2 for decode to place BD on dim -2 (avoids tile waste on S=1)
-        # After combine, each device has results from its LOCAL experts only.
-        # Reduce-scatter along the other axis (handled by shard framework) aggregates
-        # expert results across column devices to get the full expert output sum.
+            gate_out = gate_up_out[..., ::2]
+            up_out = gate_up_out[..., 1::2]
+            if self.activation_type == ACTIVATION_DEEPSEEK:
+                activated = F.silu(gate_out) * up_out
+            else:
+                gate_out = gate_out.clamp(max=self.limit)
+                up_out = up_out.clamp(-self.limit, self.limit)
+                glu = gate_out * torch.sigmoid(gate_out * self.alpha)
+                activated = (up_out + 1) * glu
+
+            activated_reshaped = (
+                activated.permute(0, 1, 3, 2, 4)
+                .contiguous()
+                .view(dim_a * dim_b, E, M, self.intermediate_size)
+            )
+            sparsity_down = sparsity.view(1, 1, dim_a * dim_b, E)
+            down_out = torch.ops.tt.sparse_matmul(
+                activated_reshaped, down_proj, sparsity_down,
+                nnz=0, is_input_a_sparse=True, is_input_b_sparse=False,
+            )
+
+            down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
+            down_out = down_out.permute(0, 1, 3, 2, 4)
+            down_out = down_out + down_bias
+            if split_seq:
+                down_out = down_out.permute(3, 0, 1, 2, 4).contiguous()
+                down_out = down_out.view(E, BD, seq_len, hidden_size)
+            elif dim_b == 1:
+                down_out = down_out.squeeze(1)
+                down_out = down_out.permute(2, 0, 1, 3).contiguous()
+                down_out = down_out.view(E, BD, hidden_size).unsqueeze(1)
+            else:
+                down_out = down_out.permute(3, 0, 2, 1, 4).contiguous()
+                down_out = down_out.view(E, BD, seq_len, hidden_size)
+
+        # Combine: gather expert outputs back along cluster_axis
         decode_mode = dim_b == 1 and not split_seq
         combined = torch.ops.tt.all_to_all_combine(
             down_out,
@@ -464,20 +526,12 @@ class A2aSparseMLP(nn.Module):
             num_experts_per_tok=K,
             output_shard_dim=2 if decode_mode else 1,
         )
-        # combined: [K, B, S, H] (default) or [K, 1, B, H] (decode)
 
-        # 10. All-reduce for 2D compound sharding is handled by the C++ sharding
-        # rule for all_to_all_combine. The H dimension is split into two factors:
-        # H_reduce (kReduction, operand→kNullDim) triggers all-reduce on the TP
-        # axis, and H_out (kPassThrough, kNullDim→result) creates the output H.
-
-        # 11. Weighted sum
-        # Extract top-k weights from router_scores
+        # Weighted sum
         topk_weights = torch.gather(
             router_scores, dim=-1, index=router_indices
         )  # [B*S, K]
         if seq_len == 1:
-            # decode: combined is [K, 1, B, H] — squeeze the S=1 dim at position 1
             topk_weights = topk_weights.view(batch_size, K)
             topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)  # [K, B, 1]
             output = (combined.squeeze(1) * topk_weights).sum(dim=0)  # [B, H]
@@ -487,7 +541,6 @@ class A2aSparseMLP(nn.Module):
             topk_weights = topk_weights.permute(2, 0, 1).unsqueeze(-1)  # [K, B, S, 1]
             output = (combined * topk_weights).sum(dim=0)  # [B, S, H]
 
-        # Cast back to input dtype (router_scores are float32, which promotes output)
         return output.to(hidden_states.dtype), router_scores
 
 
