@@ -17,16 +17,19 @@ def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Te
     Returns a 1-based rank: rank 1 means only the token itself satisfies >=.
 
     Workaround for https://github.com/tenstorrent/tt-xla/issues/3464:
-    TTNNWorkaroundsPass casts integer reduction operands to bfloat16;
-    the fused sum(-1).clamp(min=1) path returns -1 instead of 1 on TT.
-    torch.maximum with an explicit ones tensor gives the correct result.
+    tt-metal does not support boolean tensors, so ElementTypeNormalization
+    converts i1 (bool) to bfloat16 early in the TTIR pipeline.  The
+    comparison (logprobs >= threshold) produces bf16 1.0/0.0 values.
+    When sum(-1).clamp(min=1) is fused into a single kernel, the result
+    is -1 instead of 1 on TT (each op is correct in isolation).
+    torch.maximum with an explicit ones tensor avoids the broken fusion.
 
     Returns int64 (natural sum dtype).  Callers that need int32 — e.g.
     gather_logprobs for the LogprobsTensors convention — must cast after.
     """
     counts = (logprobs >= threshold).sum(-1)
-    # TODO(#3464): replace with counts.clamp(min=1) once TTNNWorkaroundsPass
-    # no longer casts integer reduction operands to bfloat16.
+    # TODO(#3464): replace with counts.clamp(min=1) once the fused
+    # sum+clamp kernel handles bf16-represented booleans correctly.
     return torch.maximum(counts, torch.ones_like(counts))
 
 

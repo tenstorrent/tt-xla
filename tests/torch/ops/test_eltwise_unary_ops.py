@@ -164,8 +164,8 @@ def test_clamp():
 
 
 @pytest.mark.xfail(
-    reason="TTNNWorkaroundsPass casts integer reduction operands to bfloat16; "
-    "sum(-1).clamp(min=1) fusion produces -1 instead of 1. "
+    reason="Boolean tensors are represented as bfloat16 (tt-metal has no bool type); "
+    "fused sum(-1).clamp(min=1) on bf16 booleans produces -1 instead of 1. "
     "Tracked: https://github.com/tenstorrent/tt-xla/issues/3464",
     strict=True,
 )
