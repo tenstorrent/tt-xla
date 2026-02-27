@@ -995,6 +995,15 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
         std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
             submesh_for_optim.handle);
   }
+
+  // TODO(dmilinkovic): Temporarily disable const-eval on CPU for Codegen
+  // backends until the pipeline restructuring on TT-MLIR side is done.
+  // https://github.com/tenstorrent/tt-mlir/issues/6927
+  if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
+      compile_options.backend == BackendRuntime::TTNNCodegenPy) {
+    options.enableCPUHoistedConstEval = false;
+  }
+
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);

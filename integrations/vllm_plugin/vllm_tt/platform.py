@@ -47,7 +47,7 @@ class TTConfig:
     # Enables hoisting const-eval subgraphs to CPU module. When enabled, const-eval
     # operations are hoisted to be executed on the CPU instead of being executed
     # on the device.
-    enable_const_eval_on_cpu: bool = False
+    enable_const_eval_on_cpu: bool = True
 
     min_context_len: int = 128
     batch_size: int = 1
