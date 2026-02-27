@@ -222,24 +222,21 @@ class Sampler(nn.Module):
         # Find the topK values.
         topk_logprobs, topk_indices = torch.topk(logprobs, num_logprobs, dim=-1)
 
-        # Get with the logprob of the prompt or sampled token.
-        # Cast to int32: TT does not support int64 as a gather index (returns
-        # NaN).  The on-device cast routes through bfloat16 — a known TT hw
-        # limitation — so large vocab indices are rounded (e.g. 33042→33024).
-        token_ids = token_ids.to(torch.int32).unsqueeze(-1)
+        # Get the logprob of the prompt or sampled token.
+        token_ids = token_ids.unsqueeze(-1)
         token_logprobs = logprobs.gather(-1, token_ids)
 
-        # Cast to int32 to match LogprobsTensors.empty_cpu() convention.
-        token_ranks = count_tokens_ge(logprobs, token_logprobs).to(torch.int32)
+        token_ranks = count_tokens_ge(logprobs, token_logprobs)
 
-        # Concatenate together with the topk.
-        # Cast topk_indices to int32 to match token_ids dtype for cat.
-        # TODO(#3463): replace with the direct on-device cat once TTNNWorkaroundsPass
+        # Cast to int32 on CPU for LogprobsTensors; ElementTypeNormalization
+        # handles this on-device but the concat below runs on CPU (#3463).
+        # TODO(#3463): replace with direct on-device cat once TTNNWorkaroundsPass
         # no longer casts integer concat operands to bfloat16 for tile-layout padding.
-        # indices = torch.cat((token_ids, topk_indices.to(torch.int32)), dim=1)
         indices = torch.cat(
-            (token_ids.cpu(), topk_indices.cpu().to(torch.int32)), dim=1
+            (token_ids.cpu().to(torch.int32), topk_indices.cpu().to(torch.int32)),
+            dim=1,
         ).to(token_ids.device)
+        token_ranks = token_ranks.to(torch.int32)
         logprobs = torch.cat((token_logprobs, topk_logprobs), dim=1)
 
         return LogprobsTensors(indices, logprobs, token_ranks)
