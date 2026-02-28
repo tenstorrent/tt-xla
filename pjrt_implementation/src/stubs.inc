@@ -174,3 +174,4 @@
   _STUB(PJRT_AsyncHostToDeviceTransferManager_SetBufferError);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferLiteral);
+  _STUB(PJRT_Device_GetAttributes);
