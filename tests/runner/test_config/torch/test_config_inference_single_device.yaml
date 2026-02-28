@@ -1221,9 +1221,7 @@ test_config:
     status: EXPECTED_PASSING
 
   stable_diffusion_unet/pytorch-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
+    status: EXPECTED_PASSING
 
   unet_for_conditional_generation/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
@@ -1273,14 +1271,10 @@ test_config:
     status: EXPECTED_PASSING
 
   nbeats/pytorch-seasonality_basis-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
+    status: EXPECTED_PASSING
 
   nbeats/pytorch-trend_basis-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
+    status: EXPECTED_PASSING
 
   gpt2/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
