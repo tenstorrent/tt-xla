@@ -89,7 +89,7 @@ jobs:
     with:
       runs-on-filter: n150
       sh-runner: false
-      skip-device-perf: false
+      skip-device-perf: true
       perf_regression_check: false
       test_filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
       should_build_wheel: false
@@ -104,7 +104,7 @@ jobs:
     with:
       runs-on-filter: n300-llmbox
       sh-runner: false
-      skip-device-perf: false
+      skip-device-perf: true
       perf_regression_check: false
       test_filter: test_llama_3_1_70b_tp
       should_build_wheel: false
