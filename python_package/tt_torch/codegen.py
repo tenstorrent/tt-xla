@@ -71,8 +71,7 @@ def _codegen_via_export(
     xm.wait_device_ops()
     return None
 
-
-def codegen_py(
+def _codegen_regular_path(
     model: nn.Module,
     *args,
     compiler_options: dict = {},
@@ -80,9 +79,44 @@ def codegen_py(
     export_tensors: bool = True,
     **kwargs,
 ):
-    return _codegen_via_export(
-        model, args, compiler_options, "codegen_py", export_path, export_tensors
-    )
+    real_compile_options = {
+        **compiler_options,
+        "backend": "codegen_py",
+        "export_path": export_path,
+        "export_tensors": export_tensors,
+    }
+    torch_xla.set_custom_compile_options(real_compile_options)
+    device = xm.xla_device()
+    # Using legacy compile is a temporary hack to 1) Make MetaDataProp work 2) Decrease odds of codegenning for graphs that never need to get executed.
+    # New compile serves to primarily reduce execution overhead, which we don't really care about if executing only once for codegen.
+    # TODO(sgligorijevic): Clean this up
+    model.compile(backend="tt", options={"tt_legacy_compile": True})
+    model = model.to(device)
+    args = [arg.to(device) for arg in args if isinstance(arg, torch.Tensor)]
+    kwargs = {k: v.to(device) for k, v in kwargs.items() if isinstance(v, torch.Tensor)}
+    output = model(*args, **kwargs)
+    # Wait for all device operations to complete before returning
+    # This ensures codegen files are fully written
+    xm.wait_device_ops()
+    return None
+
+def codegen_py(
+    model: nn.Module,
+    *args,
+    use_export: bool = False,
+    compiler_options: dict = {},
+    export_path: str = "codegen_result",
+    export_tensors: bool = True,
+    **kwargs,
+):
+    if use_export:
+        return _codegen_via_export(
+            model, args, compiler_options, "codegen_py", export_path, export_tensors
+        )
+    else:
+        return _codegen_regular_path(
+            model, *args, compiler_options=compiler_options, export_path=export_path, export_tensors=export_tensors
+        )
 
 
 def codegen_cpp(

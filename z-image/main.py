@@ -249,6 +249,7 @@ def run_codegen(target="text_encoder"):
             model.text_encoder_module,
             tokens.input_ids,
             tokens.attention_mask.bool(),
+            use_export=False,
             export_path=str(EXPORT_DIR / "text_encoder"),
             compiler_options=compile_options,
         )
@@ -276,6 +277,7 @@ def run_codegen(target="text_encoder"):
             latent_input,
             timestep,
             cap_feat,
+            use_export=True,
             export_path=str(EXPORT_DIR / "transformer"),
             compiler_options=compile_options,
         )
@@ -290,6 +292,7 @@ def run_codegen(target="text_encoder"):
         codegen_py(
             vae_module,
             latents,
+            use_export=True,
             export_path=str(EXPORT_DIR / "vae"),
             compiler_options=compile_options,
         )
@@ -314,8 +317,8 @@ def main():
 
     compare_images("Golden vs CPU", out_golden, out_cpu)
 
-    # run_codegen(target="text_encoder")
-    run_codegen(target="transformer")
+    run_codegen(target="text_encoder")
+    # run_codegen(target="transformer")
     # run_codegen(target="vae")
 
     # out_tt = run_on_tt()

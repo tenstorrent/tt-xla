@@ -8,10 +8,6 @@ import torch
 import torch.nn as nn
 from diffusers.pipelines.z_image.pipeline_z_image import calculate_shift
 from transformer import ZImageTransformer
-from transformers.masking_utils import (
-    create_causal_mask,
-    create_sliding_window_causal_mask,
-)
 
 
 class TextEncoderModule(nn.Module):
@@ -45,21 +41,31 @@ class TextEncoderModule(nn.Module):
         )
         position_ids = cache_position.unsqueeze(0)
 
-        mask_kwargs = {
-            "config": self.config,
-            "input_embeds": inputs_embeds,
-            "attention_mask": attention_mask,
-            "cache_position": cache_position,
-            "past_key_values": None,
-            "position_ids": position_ids,
-        }
-        causal_mask_mapping = {
-            "full_attention": create_causal_mask(**mask_kwargs),
-        }
+        # Build causal masks directly as tensors to avoid HuggingFace's
+        # flex_attention mask functions which use vmap (incompatible with XLA).
+        seq_len = inputs_embeds.shape[1]
+        dtype = inputs_embeds.dtype
+        causal = torch.tril(
+            torch.ones(seq_len, seq_len, dtype=torch.bool, device=inputs_embeds.device)
+        )
+        # Combine with padding mask: [1, 1, seq_len, seq_len] & [B, 1, 1, seq_len]
+        full_mask = causal.unsqueeze(0).unsqueeze(0) & attention_mask[:, None, None, :]
+        full_mask = torch.where(
+            full_mask, 0.0, torch.finfo(dtype).min
+        ).to(dtype)
+
+        causal_mask_mapping = {"full_attention": full_mask}
+
         if self.has_sliding_layers:
-            causal_mask_mapping["sliding_attention"] = (
-                create_sliding_window_causal_mask(**mask_kwargs)
-            )
+            window = self.config.sliding_window
+            row_idx = torch.arange(seq_len, device=inputs_embeds.device).unsqueeze(1)
+            col_idx = torch.arange(seq_len, device=inputs_embeds.device).unsqueeze(0)
+            sliding = causal & ((row_idx - col_idx) < window)
+            sliding_mask = sliding.unsqueeze(0).unsqueeze(0) & attention_mask[:, None, None, :]
+            sliding_mask = torch.where(
+                sliding_mask, 0.0, torch.finfo(dtype).min
+            ).to(dtype)
+            causal_mask_mapping["sliding_attention"] = sliding_mask
 
         hidden_states = inputs_embeds
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
