@@ -4,7 +4,7 @@ jaxlib==0.7.1
 requests
 torch@https://download.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
 loguru
-torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit8ee513e-cp312-cp312-linux_x86_64.whl
+torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit0df1f5f-cp312-cp312-linux_x86_64.whl
 
 # TTNN + tracy requirements
 networkx==3.6.1
