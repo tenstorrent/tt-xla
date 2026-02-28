@@ -35,7 +35,7 @@ Vocab sizes:
 import pytest
 import torch
 from vllm_tt.metadata import XLASupportedSamplingMetadata
-from vllm_tt.sampler import Sampler
+from vllm_tt.sampler import Sampler, count_tokens_ge
 
 
 def make_metadata(
@@ -286,3 +286,155 @@ def test_bad_words(device, vocab_size):
     assert (
         actual.item() >= 10
     ), f"tokens 0-9 are banned with -inf and must not be selected, got {actual.item()}"
+
+
+def run_logprobs_pipeline(logits, token_ids):
+    sampler = Sampler()
+    logprobs = sampler.compute_logprobs(logits)
+    result = sampler.gather_logprobs(logprobs, 5, token_ids)
+    return result.logprob_token_ids, result.logprobs, result.selected_token_ranks
+
+
+def run_count_tokens_ge_with_artifact(logits):
+    """Calls count_tokens_ge with a threshold guaranteed to exceed all logprobs.
+
+    log_softmax values are always <= 0, so 0.0 is always above the maximum.
+    (logprobs >= 0).sum(-1) == 0 for any finite input — raw rank is 0.
+    count_tokens_ge must clamp to 1; without the clamp the caller's assert fails.
+
+    Returns ranks as float32: TT cannot transfer a standalone integer tensor
+    from device, but float32 transfers fine and preserves the >= 1 assertion.
+    """
+    logprobs = Sampler().compute_logprobs(logits)
+    artifact = torch.zeros(logprobs.shape[0], 1, device=logprobs.device)
+    return count_tokens_ge(logprobs, artifact).float()
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_gather_logprobs(device, vocab_size):
+    """On-device logprob pipeline: correct shapes, dtypes, and valid values.
+
+    Validates shapes (batch x num_logprobs+1 for logprobs/token_ids, batch for
+    ranks), dtypes (int32 for indices/ranks avoids numpy.int64 serialization
+    crash), log-probabilities non-positive, and the bfloat16-rounded token ID
+    at column 0 (TT routes integer ops through bfloat16; see assertion below).
+    """
+    batch_size = 2
+    logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
+    token_ids_cpu = torch.randint(0, vocab_size, (batch_size,), dtype=torch.int32)
+
+    compiled_fn = torch.compile(run_logprobs_pipeline, backend="tt", dynamic=False)
+    ids_dev, lp_dev, ranks_dev = compiled_fn(
+        logits_cpu.to(device), token_ids_cpu.to(device)
+    )
+    ids = ids_dev.cpu()
+    lp = lp_dev.cpu()
+    ranks = ranks_dev.cpu()
+
+    num_logprobs = 5
+    assert ids.shape == (batch_size, num_logprobs + 1), f"shape mismatch: {ids.shape}"
+    assert lp.shape == (batch_size, num_logprobs + 1), f"shape mismatch: {lp.shape}"
+    assert ranks.shape == (batch_size,), f"shape mismatch: {ranks.shape}"
+
+    assert ids.dtype == torch.int32, f"logprob_token_ids must be int32, got {ids.dtype}"
+    assert (
+        ranks.dtype == torch.int32
+    ), f"selected_token_ranks must be int32, got {ranks.dtype}"
+    assert lp.dtype == torch.float32, f"logprobs must be float32, got {lp.dtype}"
+
+    assert (lp <= 0).all(), "Log-probabilities must be <= 0"
+    assert (ids >= 0).all() and (ids < vocab_size).all(), "Token IDs out of vocab range"
+    assert (ranks >= 1).all(), "Token ranks must be >= 1 (rank is 1-based)"
+
+    # Sampled token ID (column 0) must be returned exactly.
+    # gather_logprobs builds the indices tensor on CPU to avoid bfloat16
+    # rounding of large IDs (e.g. 33042 → 33024) by TT's integer torch.cat.
+    for i in range(batch_size):
+        assert ids[i, 0].item() == token_ids_cpu[i].item(), (
+            f"row {i}: sampled token {token_ids_cpu[i].item()} must be "
+            f"returned exactly, got {ids[i, 0].item()}"
+        )
+
+    # Top-k log-probs (columns 1..) must be sorted descending
+    topk_lp = lp[:, 1:]
+    diffs = topk_lp[:, :-1] - topk_lp[:, 1:]
+    assert (diffs >= -1e-4).all(), "Top-k log-probs must be sorted descending"
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_gather_logprobs_rank_nonzero_outside_topk(device, vocab_size):
+    """gather_logprobs on TT device must clamp rank to >= 1 (rank=0 artifact).
+
+    Injects a value one float32 ULP above the true maximum logprob as the
+    simulated gathered logprob — the exact condition seen on TT hardware
+    where the gathered value ends up fractionally above the stored value,
+    making (logprobs >= gathered).sum() == 0.
+
+    Runs at production vocab sizes on actual TT hardware.
+    Fails deterministically without clamp(min=1) in gather_logprobs.
+    """
+    torch.manual_seed(99)
+    batch_size = 4
+    logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
+
+    # Compile the artifact pipeline: compute logprobs then call count_tokens_ge
+    # with threshold=0 (always > max because log_softmax is always negative).
+    # Raw rank is 0; count_tokens_ge must clamp to 1.
+    compiled_fn = torch.compile(
+        run_count_tokens_ge_with_artifact, backend="tt", dynamic=False
+    )
+    ranks = compiled_fn(logits_cpu.to(device)).cpu()
+
+    assert (
+        ranks >= 1
+    ).all(), (
+        f"count_tokens_ge must return >= 1 (rank is 1-based); got {ranks.tolist()}."
+    )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_gather_logprobs_topk_indices_exact_on_device(device):
+    """gather_logprobs must return exact top-k token IDs, not bfloat16-rounded.
+
+    On TT hardware, topk_indices.to(torch.int32) inside a compiled XLA graph
+    routes through bfloat16. Tokens whose IDs are not bfloat16-representable
+    get rounded: e.g. 19585 → 19584 (bfloat16 precision is 64 units at that
+    range). When two different top-k tokens round to the same ID their
+    logprob dict entries collide and vLLM sees fewer entries than requested,
+    causing 'expected >= N logprob entries, got N-1' in test_logprobs.
+
+    This test constructs logits where token 19585 is explicitly in the top-5.
+    If topk_indices are rounded, 19585 appears as 19584 (which is also in
+    top-5), and the returned IDs contain a duplicate instead of 19585.
+    """
+    num_logprobs = 5
+    vocab_size = 128256
+
+    # Top-5 at exact positions including 19585 (rounds to 19584 in bfloat16).
+    logits = torch.full((1, vocab_size), -100.0)
+    top5 = [264, 280, 460, 19584, 19585]
+    for rank, pos in enumerate(top5):
+        logits[0, pos] = 5.0 - rank  # descending so topk order is known
+    sampled = torch.tensor([264], dtype=torch.int32)  # sample the top-1
+
+    # Run gather_logprobs UNCOMPILED — this is how model_runner.py calls it.
+    # (The compiled path cannot use .cpu() mid-graph for the exact-int32 fix.)
+    sampler = Sampler()
+    logprobs_dev = sampler.compute_logprobs(logits.to(device))
+    result = sampler.gather_logprobs(logprobs_dev, num_logprobs, sampled.to(device))
+    topk_ids = result.logprob_token_ids.cpu()[0, 1:].tolist()  # cols 1-5 are top-k
+
+    assert 19585 in topk_ids, (
+        f"Token 19585 must appear in top-k logprob IDs but got {topk_ids}. "
+        "bfloat16 rounding collapsed 19585 → 19584: "
+        "fix by converting topk_indices via CPU in gather_logprobs."
+    )
+    assert len(set(topk_ids)) == num_logprobs, (
+        f"All top-k IDs must be distinct but got {topk_ids} (duplicates present). "
+        "bfloat16 rounding caused two different tokens to map to the same ID."
+    )

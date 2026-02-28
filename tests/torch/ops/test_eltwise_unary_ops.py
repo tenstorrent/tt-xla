@@ -4,7 +4,13 @@
 
 import pytest
 import torch
-from infra import Framework, run_op_test, run_op_test_with_random_inputs
+from infra import (
+    ComparisonConfig,
+    Framework,
+    run_op_test,
+    run_op_test_with_random_inputs,
+)
+from infra.evaluators.evaluation_config import AtolConfig, PccConfig
 from utils import Category
 
 from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random_inputs
@@ -155,6 +161,42 @@ def test_clamp():
             return torch.clamp(x, -1, 1)
 
     run_unary_ops(Clamp())
+
+
+@pytest.mark.xfail(
+    reason="Boolean tensors are represented as bfloat16 (tt-metal has no bool type); "
+    "fused sum(-1).clamp(min=1) on bf16 booleans produces -1 instead of 1. "
+    "Tracked: https://github.com/tenstorrent/tt-xla/issues/3464",
+    strict=True,
+)
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+def test_clamp_min_on_bool_sum():
+    """clamp(min=1) on the output of a boolean sum must return 1, not -1.
+
+    Regression test for a TT bug where .clamp(min=1) applied to the result
+    of (x >= threshold).sum(-1) produces -1.0 instead of 1.0 when the raw
+    sum is 0 (all comparisons were False). Discovered via the rank=0
+    artifact in gather_logprobs (vLLM plugin).
+    """
+
+    class ClampMinOnBoolSum(torch.nn.Module):
+        def forward(self, x, threshold):
+            # All x values are negative, threshold is positive,
+            # so (x >= threshold) is all False, sum is 0.
+            # clamp(min=1) must return 1, not -1.
+            # Cast to float32: TT cannot transfer standalone integer tensors
+            # from device; the float cast lets run_op_test compare results.
+            return (x >= threshold).sum(-1).clamp(min=1).float()
+
+    model = ClampMinOnBoolSum()
+    x = -torch.ones(4, 128, dtype=torch.float32)
+    threshold = torch.ones(4, 1, dtype=torch.float32)
+    # Use atol: PCC is undefined (NaN) for constant-valued output tensors.
+    cfg = ComparisonConfig(atol=AtolConfig(True, 0.01), pcc=PccConfig(False))
+    run_op_test(model, [x, threshold], framework=Framework.TORCH, comparison_config=cfg)
 
 
 @pytest.mark.push

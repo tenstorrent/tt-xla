@@ -185,11 +185,6 @@ class XLASupportedSamplingMetadata:
         # Guards for parameters that are tracked by InputBatch but not yet
         # forwarded through this function into the compiled sampler graph.
         # Each raise should be removed once the feature is fully plumbed here.
-        if needs_logprobs:
-            raise NotImplementedError(
-                "logprobs is not yet supported in the TT sampler. "
-                "https://github.com/tenstorrent/tt-xla/issues/3366"
-            )
         if input_batch.generators:
             raise NotImplementedError(
                 "seed is not yet supported in the TT sampler. "
