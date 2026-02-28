@@ -214,19 +214,23 @@ class DynamicLoader:
         rel_path = os.path.relpath(loader_path, models_root)
         rel_path_without_ext = rel_path.replace(".py", "")
 
-        # Use different/dummy module name to avoid conflicts with real package name
+        # Use a dummy sys.modules key (dashes) to avoid conflicts with the real package.
         module_path = "tt-forge-models." + rel_path_without_ext.replace(os.sep, ".")
 
-        spec = importlib.util.spec_from_file_location(module_path, location=loader_path)
-        mod = importlib.util.module_from_spec(spec)
-
-        # Set the module's __package__ for relative imports to work
+        # spec name must share the same prefix as __package__ so that spec.parent ==
+        # __package__; otherwise Python 3.12 issues a DeprecationWarning on every
+        # relative import inside the loaded module.
         loader_dir = os.path.dirname(loader_path)
         package_name = "tt_forge_models." + os.path.relpath(
             loader_dir, models_root
         ).replace(os.sep, ".")
+        module_stem = os.path.splitext(os.path.basename(loader_path))[0]
+
+        spec = importlib.util.spec_from_file_location(
+            package_name + "." + module_stem, location=loader_path
+        )
+        mod = importlib.util.module_from_spec(spec)
         mod.__package__ = package_name
-        mod.__name__ = module_path
 
         # Add the module to sys.modules to support relative imports
         sys.modules[module_path] = mod
