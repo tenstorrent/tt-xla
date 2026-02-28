@@ -215,7 +215,10 @@ def benchmark_resnet_jax(
     # Convert JAX arrays to PyTorch tensors for PCC comparison
     golden_tensor = torch.from_numpy(np.asarray(golden_output))
     prediction_tensor = torch.from_numpy(np.asarray(predictions[0]))
-    pcc_value = compute_pcc(golden_tensor, prediction_tensor, required_pcc=required_pcc)
+    pcc_value = compute_pcc(golden_tensor, prediction_tensor)
+    assert (
+        pcc_value >= required_pcc
+    ), f"PCC verification failed. PCC={pcc_value:.6f}, Required PCC={required_pcc}"
     print(f"PCC verification passed with PCC={pcc_value:.6f}")
 
     result = create_benchmark_result(
