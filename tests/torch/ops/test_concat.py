@@ -9,12 +9,6 @@ from infra.evaluators.evaluation_config import AtolConfig, PccConfig
 from utils import Category
 
 
-@pytest.mark.xfail(
-    reason="TTNNWorkaroundsPass casts integer concat operands to bfloat16, "
-    "rounding large token IDs (e.g. 19585 → 19584). "
-    "Tracked: https://github.com/tenstorrent/tt-xla/issues/3463",
-    strict=False,
-)
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
@@ -22,17 +16,10 @@ from utils import Category
 def test_concat_int32():
     """torch.cat on int32 tensors must return exact values, not bfloat16-rounded.
 
-    Regression test for a TT bug (TTNNWorkaroundsPass) where torch.cat on
-    integer tensors in tile layout with non-32-aligned shapes inserts a
-    cast to bfloat16 for padding, then casts back. This rounds large integer
-    values: e.g. 19585 → 19584 (bfloat16 precision is 64 units at that
-    magnitude). When two different top-k token IDs round to the same value
-    their logprob dict entries collide and vLLM sees fewer logprob entries
-    than requested.
-
-    This test concatenates two int32 tensors containing values that are NOT
-    exactly representable in bfloat16. The output must exactly match the
-    CPU reference.
+    Regression test for tt-mlir#7205: torch.cat on integer tensors in tile
+    layout with non-32-aligned shapes previously rounded large values via a
+    bfloat16 cast (e.g. 19585 → 19584). Fixed by removing the concat
+    workaround from TTNNWorkaroundsPass.
     """
 
     # 19585 is not bfloat16-representable (rounds to 19584).

@@ -228,14 +228,11 @@ class Sampler(nn.Module):
 
         token_ranks = count_tokens_ge(logprobs, token_logprobs)
 
-        # Cast to int32 on CPU for LogprobsTensors; ElementTypeNormalization
-        # handles this on-device but the concat below runs on CPU (#3463).
-        # TODO(#3463): replace with direct on-device cat once TTNNWorkaroundsPass
-        # no longer casts integer concat operands to bfloat16 for tile-layout padding.
+        # Cast to int32 for LogprobsTensors (vLLM convention).
         indices = torch.cat(
-            (token_ids.cpu().to(torch.int32), topk_indices.cpu().to(torch.int32)),
+            (token_ids.to(torch.int32), topk_indices.to(torch.int32)),
             dim=1,
-        ).to(token_ids.device)
+        )
         token_ranks = token_ranks.to(torch.int32)
         logprobs = torch.cat((token_logprobs, topk_logprobs), dim=1)
 
