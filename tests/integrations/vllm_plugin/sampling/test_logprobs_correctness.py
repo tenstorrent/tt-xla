@@ -292,20 +292,12 @@ def test_gather_logprobs_rank_clamp_guards_precision_artifact():
 
 @pytest.mark.push
 def test_gather_logprobs_topk_indices_are_exact():
-    """logprob_token_ids must contain the exact top-k token IDs, not
-    bfloat16-rounded approximations.
+    """logprob_token_ids must contain the exact top-k token IDs.
 
-    On TT hardware the .to(torch.int32) cast for topk_indices inside a
-    compiled XLA graph routes through bfloat16, rounding large token IDs.
-    For example, token 19585 rounds to 19584 (bfloat16 precision at that
-    magnitude is 64 units). When two top-k tokens round to the same ID
-    their logprob dict entries collide and one disappears, causing
-    'expected >= N logprob entries, got N-1' failures in test_logprobs.
-
-    This CPU test verifies the contract: gather_logprobs must return the
-    exact integer positions from torch.topk. On CPU the conversion is
-    always exact. A fix for TT is to convert topk_indices via CPU before
-    building the indices tensor.
+    Regression test for tt-mlir#7205: integer concat in tile layout previously
+    rounded large token IDs via a bfloat16 cast (e.g. 19585 → 19584).
+    This CPU test verifies gather_logprobs returns the exact integer
+    positions from torch.topk.
     """
     torch.manual_seed(0)
     batch, vocab = 2, 128256

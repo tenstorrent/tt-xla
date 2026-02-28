@@ -318,8 +318,7 @@ def test_gather_logprobs(device, vocab_size):
 
     Validates shapes (batch x num_logprobs+1 for logprobs/token_ids, batch for
     ranks), dtypes (int32 for indices/ranks avoids numpy.int64 serialization
-    crash), log-probabilities non-positive, and the bfloat16-rounded token ID
-    at column 0 (TT routes integer ops through bfloat16; see assertion below).
+    crash), log-probabilities non-positive, and exact token ID at column 0.
     """
     batch_size = 2
     logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
@@ -349,8 +348,6 @@ def test_gather_logprobs(device, vocab_size):
     assert (ranks >= 1).all(), "Token ranks must be >= 1 (rank is 1-based)"
 
     # Sampled token ID (column 0) must be returned exactly.
-    # gather_logprobs builds the indices tensor on CPU to avoid bfloat16
-    # rounding of large IDs (e.g. 33042 → 33024) by TT's integer torch.cat.
     for i in range(batch_size):
         assert ids[i, 0].item() == token_ids_cpu[i].item(), (
             f"row {i}: sampled token {token_ids_cpu[i].item()} must be "
@@ -401,14 +398,10 @@ def test_gather_logprobs_rank_nonzero_outside_topk(device, vocab_size):
 def test_gather_logprobs_topk_indices_exact_on_device(device):
     """gather_logprobs must return exact top-k token IDs, not bfloat16-rounded.
 
-    On TT hardware, topk_indices.to(torch.int32) inside a compiled XLA graph
-    routes through bfloat16. Tokens whose IDs are not bfloat16-representable
-    get rounded: e.g. 19585 → 19584 (bfloat16 precision is 64 units at that
-    range). When two different top-k tokens round to the same ID their
-    logprob dict entries collide and vLLM sees fewer entries than requested,
-    causing 'expected >= N logprob entries, got N-1' in test_logprobs.
+    Regression test for tt-mlir#7205: integer concat in tile layout previously
+    rounded large token IDs via a bfloat16 cast (e.g. 19585 → 19584).
 
-    This test constructs logits where token 19585 is explicitly in the top-5.
+    Constructs logits where token 19585 is explicitly in the top-5.
     If topk_indices are rounded, 19585 appears as 19584 (which is also in
     top-5), and the returned IDs contain a duplicate instead of 19585.
     """
