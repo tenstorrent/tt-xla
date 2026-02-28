@@ -22,6 +22,8 @@ XFAIL_DIRS: dict[str, str] = {
 # Specific files with known issues - tests will be marked as xfail with the given reason
 XFAIL_FILES: dict[str, str] = {
     "pytorch/gpt_oss_20b.py": "Gpt-oss example requires llmbox or galaxy",
+    "jax/compile_only.py": "compile_only example requires a system descriptor path",
+    "pytorch/compile_only.py": "compile_only example requires a system descriptor path",
 }
 
 

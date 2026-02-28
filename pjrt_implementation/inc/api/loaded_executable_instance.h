@@ -72,6 +72,9 @@ public:
     return m_addressable_devices;
   }
 
+  // Returns true if the client was initialized in compile-only mode.
+  bool isCompileOnly() const;
+
   // Returns true if the executable was deleted.
   bool isDeleted();
 
