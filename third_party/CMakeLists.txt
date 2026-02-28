@@ -27,13 +27,12 @@ if (TOOLCHAIN STREQUAL "ON")
     )
 else()
     include(ExternalProject)
+    include(GNUInstallDirs)
     add_subdirectory(pjrt_c_api)
 
     # ----- tt-mlir -----
-
     set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
     set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
-    set(TTMLIR_LIB_DIR "${TTMLIR_SOURCE_DIR}/install")
     set(WITH_METAL_RUNTIME_ROOT_SET "")
     if(NOT DEFINED ENV{TT_METAL_RUNTIME_ROOT})
         set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
@@ -63,18 +62,22 @@ else()
 
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=${TTMLIR_BUILD_TYPE}
-          -DCMAKE_C_COMPILER=clang-17
-          -DCMAKE_CXX_COMPILER=clang++-17
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
           -DTT_RUNTIME_DEBUG=${TT_RUNTIME_DEBUG}
           -DTTMLIR_ENABLE_BINDINGS_PYTHON=${TTMLIR_ENABLE_BINDINGS_PYTHON}
-          -DCMAKE_INSTALL_PREFIX=${TTMLIR_LIB_DIR}
+          -DCMAKE_INSTALL_PREFIX=${TTMLIR_INSTALL_PREFIX}
+          -DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}
           -DTT_RUNTIME_ENABLE_PERF_TRACE=${TTMLIR_ENABLE_PERF_TRACE}
           -DTTMLIR_ENABLE_OPMODEL=ON
           -DTTMLIR_ENABLE_EXPLORER=${TTXLA_ENABLE_EXPLORER}
+          -DTTMLIR_ENABLE_TESTS=OFF
+          -DTTMLIR_ENABLE_TOOLS=${TTXLA_ENABLE_TOOLS}
+          -DTTMLIR_ENABLE_DOCS=OFF
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
@@ -90,10 +93,17 @@ else()
 
     set_target_properties(tt-mlir PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-    install(DIRECTORY ${TTMLIR_LIB_DIR}/ DESTINATION "${CMAKE_INSTALL_PREFIX}" USE_SOURCE_PERMISSIONS)
+    # Add a step to patch RPATH of installed libraries to support both lib and lib64
+    ExternalProject_Add_Step(tt-mlir patch_rpath
+        COMMAND ${CMAKE_COMMAND} -E echo "Patching RPATH for tt-mlir libraries..."
+        COMMAND bash -c "find ${TTMLIR_INSTALL_PREFIX} -name '*.so*' -type f -exec patchelf --set-rpath '$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64' {} \\\\\\; 2>/dev/null || true"
+        DEPENDEES install
+        WORKING_DIRECTORY ${TTMLIR_INSTALL_PREFIX}
+    )
+
+    install(DIRECTORY ${TTMLIR_INSTALL_PREFIX}/ DESTINATION "${CMAKE_INSTALL_PREFIX}" USE_SOURCE_PERMISSIONS)
 
     # Expose all tt-mlir .so files as shared imported libraries.
-    set(TTMLIR_LIB_DIR ${TTMLIR_LIB_DIR} PARENT_SCOPE)
     message(STATUS "Linking to TTMLIR libraries in ${TTMLIR_LIB_DIR}")
     file(GLOB TTMLIR_LIBRARIES "${TTMLIR_LIB_DIR}/*.so")
     foreach(TTMLIR_LIBRARY ${TTMLIR_LIBRARIES})
@@ -117,10 +127,11 @@ else()
         CMAKE_GENERATOR Ninja
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=clang-17
-          -DCMAKE_CXX_COMPILER=clang++-17
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_FLAGS=${FLAGS}
-          -DCMAKE_INSTALL_PREFIX=${TTPJRT_SOURCE_DIR}/third_party/loguru/src/loguru-install
+          -DCMAKE_INSTALL_PREFIX=${LOGURU_INSTALL_PREFIX}
+          -DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}
         GIT_REPOSITORY https://github.com/emilk/loguru.git
         GIT_TAG ${LOGURU_VERSION}
         GIT_PROGRESS ON

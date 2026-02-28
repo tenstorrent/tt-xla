@@ -33,6 +33,12 @@ add_library(TTPJRTTTDylib SHARED
 target_link_libraries(TTPJRTTTDylib PUBLIC
     TTPJRTBindings
     coverage_config
+    MPI::MPI_CXX
+)
+
+target_link_directories(TTPJRTTTDylib PRIVATE
+    ${TTMLIR_LIB_DIR}
+    ${LOGURU_LIB_DIR}
 )
 
 target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
@@ -42,9 +48,11 @@ target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
 set_target_properties(TTPJRTTTDylib PROPERTIES
     PREFIX "" # Disable "lib" prefix.
     LIBRARY_OUTPUT_NAME pjrt_plugin_tt
-    BUILD_RPATH "$ORIGIN:$ORIGIN/lib"
-    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib"
+    BUILD_RPATH "$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64"
+    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64"
 )
+
+set_property(TARGET TTPJRTTTDylib PROPERTY BUILD_WITH_INSTALL_RPATH ON)
 
 install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})
 

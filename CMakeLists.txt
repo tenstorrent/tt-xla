@@ -36,17 +36,49 @@ enable_testing()
 set(TTPJRT_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 set(TTMLIR_TOOLCHAIN_DIR $ENV{TTMLIR_TOOLCHAIN_DIR})
 
-set(CMAKE_C_COMPILER clang-17)
-set(CMAKE_CXX_COMPILER clang++-17)
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
+# Find MPI (OpenMPI with ULFM support required for tt-metal)
+# Force CMake to use ULFM-enabled OpenMPI from /opt/openmpi-v5.0.7-ulfm
+# instead of system OpenMPI which lacks ULFM support
+set(MPI_HOME "/opt/openmpi-v5.0.7-ulfm" CACHE PATH "Path to ULFM-enabled OpenMPI")
+
+# Check if MPI_HOME exists and contains expected libraries
+if(EXISTS "${MPI_HOME}")
+    message(STATUS "MPI_HOME found at: ${MPI_HOME}")
+    if(EXISTS "${MPI_HOME}/lib/libmpi.so.40")
+        message(STATUS "Found libmpi.so.40 at: ${MPI_HOME}/lib/libmpi.so.40")
+    else()
+        message(WARNING "libmpi.so.40 not found at: ${MPI_HOME}/lib/libmpi.so.40")
+    endif()
+    if(EXISTS "${MPI_HOME}/lib/libmpi.so")
+        message(STATUS "Found libmpi.so at: ${MPI_HOME}/lib/libmpi.so")
+    endif()
+else()
+    message(WARNING "MPI_HOME does not exist: ${MPI_HOME}")
+endif()
+
+set(MPI_C_COMPILER "${MPI_HOME}/bin/mpicc" CACHE FILEPATH "MPI C compiler")
+set(MPI_CXX_COMPILER "${MPI_HOME}/bin/mpicxx" CACHE FILEPATH "MPI CXX compiler")
+find_package(MPI REQUIRED)
+
+# Print MPI configuration details
+message(STATUS "MPI_CXX_COMPILER: ${MPI_CXX_COMPILER}")
+message(STATUS "MPI_CXX_LIBRARIES: ${MPI_CXX_LIBRARIES}")
+message(STATUS "MPI_CXX_INCLUDE_DIRS: ${MPI_CXX_INCLUDE_DIRS}")
+message(STATUS "MPI_CXX_LINK_FLAGS: ${MPI_CXX_LINK_FLAGS}")
+
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" ON)
 option(TTMLIR_ENABLE_BINDINGS_PYTHON "Enable Python bindings in tt-mlir" OFF)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
 option(TTXLA_ENABLE_PJRT_TESTS "Enable PJRT tests" OFF)
+option(TTXLA_ENABLE_EWHEEL_INSTALL "Enable editable wheel install" ON)
+option(TTXLA_ENABLE_TOOLS "Enable building tools" ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(TTXLA_ENABLE_PJRT_TESTS ON)
 endif()
@@ -90,6 +122,13 @@ link_directories(${TTMLIR_TOOLCHAIN_DIR}//lib)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     add_definitions(-DLOGURU_DEBUG_LOGGING=1)
 endif()
+
+# Set up library directories for third-party dependencies
+include(GNUInstallDirs)
+set(TTMLIR_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install")
+set(TTMLIR_LIB_DIR "${TTMLIR_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+set(LOGURU_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install")
+set(LOGURU_LIB_DIR "${LOGURU_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
 
 add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)

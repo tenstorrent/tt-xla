@@ -30,15 +30,19 @@ PUBLIC
 
 add_dependencies(TTPJRTUtils
     tt-mlir
+    loguru
 )
 
 target_link_libraries(TTPJRTUtils PUBLIC
     coverage_config
+)
+
+target_link_libraries(TTPJRTUtils PRIVATE
     loguru
 )
 
 target_link_directories(TTPJRTUtils PUBLIC
-    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
+    ${LOGURU_LIB_DIR}
 )
 
 set_target_properties(TTPJRTUtils PROPERTIES

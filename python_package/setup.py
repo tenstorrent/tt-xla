@@ -10,6 +10,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
+from sys import stderr, stdout
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_py import build_py
@@ -240,6 +241,14 @@ class BdistWheel(bdist_wheel):
         python, abi, plat = bdist_wheel.get_tag(self)
         # Force specific Python 3.12 ABI format for the wheel
         python, abi = "cp312", "cp312"
+        # Ensure platform-specific tag for x86_64 architecture
+        # This prevents 'any' platform and enables auditwheel to properly repair
+        import platform
+
+        if plat == "any" or not plat:
+            machine = platform.machine().lower()
+            if machine in ("x86_64", "amd64"):
+                plat = "linux_x86_64"
         return python, abi, plat
 
 
@@ -258,6 +267,9 @@ class CMakeBuildPy(build_py):
     .yaml, .so, .a, etc.) are going to be included in the final package. This cannot be
     done solely using `package_data` parameter of `setup` which expects python modules.
     """
+
+    def in_ci(self) -> bool:
+        return os.environ.get("IN_CIBW_ENV") == "ON"
 
     def run(self):
         if hasattr(self, "editable_mode") and self.editable_mode:
@@ -298,6 +310,8 @@ class CMakeBuildPy(build_py):
             "Ninja",
             "-B",
             "build",
+            "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
+            "-DTTXLA_ENABLE_TOOLS=OFF" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
@@ -305,16 +319,47 @@ class CMakeBuildPy(build_py):
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
 
-        print(f"CMake arguments: {cmake_args}")
+        cmake_cmd = ["cmake"]
+        # Run source env/activate if in ci, otherwise onus is on dev
+        if self.in_ci():
+            cmake_cmd = [
+                "source",
+                "venv/activate",
+                "&&",
+                "cmake",
+            ]
+
+        print(f"CMake arguments: {[*cmake_cmd, *cmake_args]}")
 
         # Set environment variables to create a more portable build.
         os.environ["TRACY_NO_ISA_EXTENSIONS"] = "1"
         os.environ["TRACY_NO_INVARIANT_CHECK"] = "1"
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
-        subprocess.check_call(["cmake", *cmake_args], cwd=REPO_DIR)
-        subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR, env=os.environ)
-        subprocess.check_call(["cmake", *install_command], cwd=REPO_DIR)
+        print("Setting up CMake project...")
+        stdout.flush()
+        stderr.flush()
+        subprocess.run(
+            " ".join([*cmake_cmd, *cmake_args]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+        )
+        subprocess.run(
+            " ".join([*cmake_cmd, *build_command]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+        )
+        subprocess.run(
+            " ".join([*cmake_cmd, *install_command]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+        )
 
         self._prune_install_tree(install_dir)
 
@@ -326,6 +371,13 @@ class CMakeBuildPy(build_py):
         _remove_broken_symlinks(install_dir)
         _remove_static_archives(install_dir)
 
+        # remove cmake and pkgconfig files
+        _remove_bloat_dir(install_dir / "lib" / "cmake")
+        _remove_bloat_dir(install_dir / "lib" / "pkgconfig")
+        _remove_bloat_dir(install_dir / "lib64" / "cmake")
+        _remove_bloat_dir(install_dir / "lib64" / "pkgconfig")
+        _remove_bloat_dir(install_dir / "include")
+        _remove_bloat_dir(install_dir / "tt-metal" / "tests")
         if config.build_type == "release":
             _strip_shared_objects(install_dir)
 
@@ -343,12 +395,18 @@ class CMakeBuildPy(build_py):
                 print(f"{script_file} already copied.")
 
 
+def _remove_bloat_dir(dir_path: Path) -> None:
+    if dir_path.exists() and dir_path.is_dir():
+        print(f"Removing bloat directory: {dir_path}")
+        shutil.rmtree(dir_path)
+
+
 def _remove_static_archives(root: Path) -> None:
     for archive in root.rglob("*.a"):
         if archive.is_symlink() or not archive.is_file():
             continue
         rel = archive.relative_to(root)
-        if rel.parts and rel.parts[0] == "lib":
+        if rel.parts and rel.parts[0] in ("lib", "lib64"):
             print(f"Removing static archive: {rel}")
             archive.unlink()
 
@@ -434,12 +492,6 @@ setup(
             "tracy = tracy.__main__:main",
         ],
     },
-    ext_modules=[
-        Extension(
-            name="pjrt_plugin_tt.native",
-            sources=[],
-        )
-    ],
     include_package_data=True,
     install_requires=config.requirements,
     license="Apache-2.0",
