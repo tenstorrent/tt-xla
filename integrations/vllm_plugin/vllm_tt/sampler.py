@@ -11,9 +11,35 @@ from .metadata import XLASupportedSamplingMetadata
 _SAMPLING_EPS = 1e-5
 
 
+def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
+    """Count tokens per row whose logprob >= threshold, minimum 1.
+
+    Returns a 1-based rank: rank 1 means only the token itself satisfies >=.
+
+    Workaround for https://github.com/tenstorrent/tt-xla/issues/3464:
+    tt-metal does not support boolean tensors, so ElementTypeNormalization
+    converts i1 (bool) to bfloat16 early in the TTIR pipeline. The
+    comparison (logprobs >= threshold) produces bf16 1.0/0.0 values.
+    When sum(-1).clamp(min=1) is fused into a single kernel, the result
+    is -1 instead of 1 on TT (each op is correct in isolation).
+    torch.maximum with an explicit ones tensor avoids the broken fusion.
+
+    Returns int64 (natural sum dtype). Callers that need int32 — e.g.
+    gather_logprobs for the LogprobsTensors convention — must cast after.
+    """
+    counts = (logprobs >= threshold).sum(-1)
+    # TODO(#3464): replace with counts.clamp(min=1) once the fused
+    # sum+clamp kernel handles bf16-represented booleans correctly.
+    return torch.maximum(counts, torch.ones_like(counts))
+
+
 class Sampler(nn.Module):
     def __init__(self):
         # TODO(houseroad): Add support for logprobs_mode.
+        # Note: basic logprob support is already working — when logprobs are
+        # requested, model_runner.py calls gather_logprobs() after forward()
+        # and passes LogprobsLists directly to the engine.
+        # logprobs_tensors is intentionally None in forward() — see comment there.
         super().__init__()
 
     def forward(
@@ -32,6 +58,11 @@ class Sampler(nn.Module):
             # [num_requests, 1], where each row represents one generated
             # token per request.
             sampled_token_ids=sampled.unsqueeze(-1),
+            # Logprobs do not flow through SamplerOutput. When logprobs are
+            # requested, model_runner.py calls gather_logprobs() after
+            # forward() and assembles LogprobsLists directly — bypassing this
+            # field entirely. Setting logprobs_tensors=None here is
+            # intentional.
             logprobs_tensors=None,
         )
         return sampler_output
@@ -191,19 +222,22 @@ class Sampler(nn.Module):
         # Find the topK values.
         topk_logprobs, topk_indices = torch.topk(logprobs, num_logprobs, dim=-1)
 
-        # Get with the logprob of the prompt or sampled token.
+        # Get the logprob of the prompt or sampled token.
         token_ids = token_ids.unsqueeze(-1)
         token_logprobs = logprobs.gather(-1, token_ids)
 
-        # Compute the ranks of the actual token.
-        token_ranks = (logprobs >= token_logprobs).sum(-1)
+        token_ranks = count_tokens_ge(logprobs, token_logprobs)
 
-        # Concatenate together with the topk.
-        indices = torch.cat((token_ids, topk_indices), dim=1)
+        # Cast to int32 on CPU for LogprobsTensors; ElementTypeNormalization
+        # handles this on-device but the concat below runs on CPU (#3463).
+        # TODO(#3463): replace with direct on-device cat once TTNNWorkaroundsPass
+        # no longer casts integer concat operands to bfloat16 for tile-layout padding.
+        indices = torch.cat(
+            (token_ids.cpu().to(torch.int32), topk_indices.cpu().to(torch.int32)),
+            dim=1,
+        ).to(token_ids.device)
+        token_ranks = token_ranks.to(torch.int32)
         logprobs = torch.cat((token_logprobs, topk_logprobs), dim=1)
-
-        # Use int32 to reduce the tensor size.
-        indices = indices.to(torch.int32)
 
         return LogprobsTensors(indices, logprobs, token_ranks)
 

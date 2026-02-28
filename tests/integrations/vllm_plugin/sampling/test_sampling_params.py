@@ -268,15 +268,15 @@ def test_stop_sequences(llm, prompt):
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
-@pytest.mark.skip(
-    reason="numpy.int64 serialization crash in vLLM v0.13.0 (#3310); logprobs not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3366"
-)
 def test_logprobs(llm, prompt):
-    """Test requesting log probabilities."""
+    """Test that logprobs are returned with correct structure and valid values."""
+    max_tokens = 8
     logprobs_values = [None, 1, 5]
 
     for logprobs in logprobs_values:
-        params = vllm.SamplingParams(temperature=0.8, logprobs=logprobs, max_tokens=8)
+        params = vllm.SamplingParams(
+            temperature=0.8, logprobs=logprobs, max_tokens=max_tokens
+        )
         result = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
 
         print(
@@ -289,7 +289,26 @@ def test_logprobs(llm, prompt):
             assert (
                 result.logprobs is not None
             ), f"Should have logprobs when logprobs={logprobs}"
-            assert len(result.logprobs) > 0, "Should have logprob entries"
+            # One logprob dict per generated token
+            assert len(result.logprobs) == len(result.token_ids), (
+                f"logprobs length {len(result.logprobs)} != "
+                f"token count {len(result.token_ids)}"
+            )
+            for token_idx, lp_dict in enumerate(result.logprobs):
+                # Each dict has at least (logprobs + 1) entries: top-k plus the sampled token
+                assert len(lp_dict) >= logprobs, (
+                    f"token {token_idx}: expected >= {logprobs} logprob entries, "
+                    f"got {len(lp_dict)}"
+                )
+                for token_id, lp_entry in lp_dict.items():
+                    assert lp_entry.logprob <= 0.0, (
+                        f"token {token_idx}, id {token_id}: "
+                        f"logprob {lp_entry.logprob:.4f} must be <= 0"
+                    )
+                    assert lp_entry.rank >= 1, (
+                        f"token {token_idx}, id {token_id}: "
+                        f"rank {lp_entry.rank} must be >= 1"
+                    )
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
