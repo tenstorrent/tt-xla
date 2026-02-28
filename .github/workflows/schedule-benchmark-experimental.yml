@@ -28,6 +28,8 @@ jobs:
     outputs:
       matrix_p150: ${{ steps.set-perf-benchmarks.outputs.matrix_p150 }}
       matrix_p150_skip: ${{ steps.set-perf-benchmarks.outputs.matrix_p150_skip }}
+      matrix_n150_accuracy: ${{ steps.set-perf-benchmarks.outputs.matrix_n150_accuracy }}
+      matrix_n150_accuracy_skip: ${{ steps.set-perf-benchmarks.outputs.matrix_n150_accuracy_skip }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -39,6 +41,7 @@ jobs:
       id: set-perf-benchmarks
       shell: bash
       run: |
+        # Filter for regular p150 tests
         result=$(python .github/scripts/filter-test-matrix.py \
           .github/workflows/perf-bench-matrix.json \
           "tt-xla")
@@ -55,6 +58,24 @@ jobs:
         echo "matrix_p150=$matrix_p150" >> $GITHUB_OUTPUT
         echo "matrix_p150_skip=$matrix_p150_skip" >> $GITHUB_OUTPUT
 
+        # Filter for n150 accuracy tests
+        result_sh=$(python .github/scripts/filter-test-matrix.py \
+          .github/workflows/perf-bench-matrix.json \
+          "tt-xla" \
+          --sh-runner)
+
+        # Filter by: runs-on contains "n150" AND accuracy-testing == true
+        matrix_n150_accuracy=$(echo $result_sh | jq -r -c '.matrix | map(select((."runs-on" | contains("n150")) and (.["accuracy-testing"] == true)))')
+
+        matrix_n150_accuracy_skip="false"
+
+        if [ "$matrix_n150_accuracy" == "[]" ]; then
+          matrix_n150_accuracy_skip="true"
+        fi
+
+        echo "matrix_n150_accuracy=$matrix_n150_accuracy" >> $GITHUB_OUTPUT
+        echo "matrix_n150_accuracy_skip=$matrix_n150_accuracy_skip" >> $GITHUB_OUTPUT
+
   run-p150-perf-benchmarks:
     needs: [filter-tests, build-image, build-ttxla]
     if: ${{ needs.filter-tests.outputs.matrix_p150_skip == 'false' }}
@@ -66,9 +87,22 @@ jobs:
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
 
+  run-n150-accuracy-benchmarks:
+    needs: [filter-tests, build-image, build-ttxla]
+    if: ${{ needs.filter-tests.outputs.matrix_n150_accuracy_skip == 'false' }}
+    secrets: inherit
+    uses: ./.github/workflows/call-perf-test.yml
+    with:
+      matrix: ${{ needs.filter-tests.outputs.matrix_n150_accuracy }}
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      sh-runner: true
+
   fail-notify:
     needs:
       - run-p150-perf-benchmarks
+      - run-n150-accuracy-benchmarks
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from benchmarks.llm_benchmark import benchmark_llm_torch_xla
 from loguru import logger
+from token_accuracy import TokenAccuracy
 from utils import create_model_loader, resolve_display_name
 
 # Defaults for all llms
@@ -18,6 +19,9 @@ DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
 DEFAULT_TRACE_ENABLED = False
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_LOOP_COUNT = 1
+# WARNING: Changing this value will affect accuracy metrics due to context length differences.
+# If changed, ALL reference outputs (*.refpt files) must be regenerated with the same total_length
+# using scripts/generate_reference_outputs.py --total_length <value>
 DEFAULT_INPUT_SEQUENCE_LENGTH = 128
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
@@ -51,6 +55,7 @@ def test_llm(
     fp32_dest_acc_en=None,
     num_layers=None,
     request=None,
+    accuracy_testing: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -69,7 +74,12 @@ def test_llm(
         read_logits_fn: Function to extract logits from model output
         required_pcc: Required PCC threshold
         num_layers: Number of layers to override
+        accuracy_testing: Enable token accuracy testing with reference data
     """
+    # Set default batch size if None
+    if batch_size is None:
+        batch_size = DEFAULT_BATCH_SIZE
+
     model_loader = create_model_loader(
         ModelLoaderModule, num_layers=num_layers, variant=variant
     )
@@ -100,6 +110,13 @@ def test_llm(
     """
     )
 
+    # Resolve model name for accuracy testing
+    model_name_for_accuracy = None
+    if accuracy_testing:
+        model_name_for_accuracy = TokenAccuracy.get_model_name_from_variant(
+            model_loader, variant
+        )
+
     results = benchmark_llm_torch_xla(
         optimization_level=optimization_level,
         trace_enabled=trace_enabled,
@@ -120,6 +137,8 @@ def test_llm(
         arch=arch,
         required_pcc=required_pcc,
         fp32_dest_acc_en=fp32_dest_acc_en,
+        accuracy_testing=accuracy_testing,
+        model_name_for_accuracy=model_name_for_accuracy,
     )
 
     if output_file:
@@ -205,7 +224,7 @@ def test_llm_tp(
     )
 
 
-def test_llama_3_2_1b(output_file, num_layers, request):
+def test_llama_3_2_1b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -218,10 +237,12 @@ def test_llama_3_2_1b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_llama_3_2_3b(output_file, num_layers, request):
+def test_llama_3_2_3b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -234,10 +255,12 @@ def test_llama_3_2_3b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_gemma_1_1_2b(output_file, num_layers, request):
+def test_gemma_1_1_2b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -250,10 +273,12 @@ def test_gemma_1_1_2b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_gemma_2_2b(output_file, num_layers, request):
+def test_gemma_2_2b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -266,10 +291,12 @@ def test_gemma_2_2b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_phi1(output_file, num_layers, request):
+def test_phi1(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.phi1.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -282,10 +309,12 @@ def test_phi1(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_phi1_5(output_file, num_layers, request):
+def test_phi1_5(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.phi1_5.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -298,10 +327,12 @@ def test_phi1_5(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_phi2(output_file, num_layers, request):
+def test_phi2(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.phi2.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -314,10 +345,12 @@ def test_phi2(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_falcon3_1b(output_file, num_layers, request):
+def test_falcon3_1b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -333,10 +366,12 @@ def test_falcon3_1b(output_file, num_layers, request):
         read_logits_fn=read_logits_fn,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_falcon3_3b(output_file, num_layers, request):
+def test_falcon3_3b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -352,10 +387,12 @@ def test_falcon3_3b(output_file, num_layers, request):
         read_logits_fn=read_logits_fn,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_qwen_2_5_0_5b(output_file, num_layers, request):
+def test_qwen_2_5_0_5b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -369,10 +406,12 @@ def test_qwen_2_5_0_5b(output_file, num_layers, request):
         required_pcc=0.94,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_qwen_3_0_6b(output_file, num_layers, request):
+def test_qwen_3_0_6b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -385,10 +424,12 @@ def test_qwen_3_0_6b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_qwen_3_1_7b(output_file, num_layers, request):
+def test_qwen_3_1_7b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -401,10 +442,12 @@ def test_qwen_3_1_7b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_qwen_3_4b(output_file, num_layers, request):
+def test_qwen_3_4b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -417,10 +460,12 @@ def test_qwen_3_4b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_qwen_2_5_1_5b(output_file, num_layers, request):
+def test_qwen_2_5_1_5b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -433,10 +478,12 @@ def test_qwen_2_5_1_5b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_qwen_2_5_3b(output_file, num_layers, request):
+def test_qwen_2_5_3b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -449,10 +496,12 @@ def test_qwen_2_5_3b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_qwen_3_8b(output_file, num_layers, request):
+def test_qwen_3_8b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -465,10 +514,12 @@ def test_qwen_3_8b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_qwen_2_5_7b(output_file, num_layers, request):
+def test_qwen_2_5_7b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -481,6 +532,8 @@ def test_qwen_2_5_7b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
@@ -552,7 +605,7 @@ def test_mamba_2_8b(output_file, num_layers, request):
     )
 
 
-def test_falcon3_7b(output_file, num_layers, request):
+def test_falcon3_7b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -568,10 +621,12 @@ def test_falcon3_7b(output_file, num_layers, request):
         read_logits_fn=read_logits_fn,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_mistral_7b(output_file, num_layers, request):
+def test_mistral_7b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -584,10 +639,12 @@ def test_mistral_7b(output_file, num_layers, request):
         output_file=output_file,
         num_layers=num_layers,
         request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_ministral_8b(output_file, num_layers, request):
+def test_ministral_8b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -601,10 +658,12 @@ def test_ministral_8b(output_file, num_layers, request):
         num_layers=num_layers,
         request=request,
         fp32_dest_acc_en=False,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
-def test_llama_3_1_8b(output_file, num_layers, request):
+def test_llama_3_1_8b(output_file, num_layers, request, accuracy_testing, batch_size):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -618,6 +677,8 @@ def test_llama_3_1_8b(output_file, num_layers, request):
         num_layers=num_layers,
         request=request,
         fp32_dest_acc_en=False,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
     )
 
 
