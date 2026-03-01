@@ -11,6 +11,7 @@ import shutil
 import sys
 import threading
 import time
+import types
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -486,6 +487,47 @@ def cleanup_cache_fixture():
     cleanup_cache()
 
 
+def _release_dynamo_bridge_tensors():
+    """Release XLA tensor references retained by torch_xla dynamo bridge closures.
+
+    Workaround for torch_xla leak: extract_internal() in dynamo_bridge.py creates
+    an optimized_mod closure capturing sym_constants_to_graph_vars, a dict holding
+    GraphInputMatcher with ALL model-weight XLA tensors (~26 GB for 8B TP).
+    torch._dynamo.reset() frees XLAExecutor but this closure survives.
+    """
+    try:
+        all_objects = gc.get_objects()
+    except Exception:
+        return
+    cleared = False
+    for obj in all_objects:
+        if not (
+            isinstance(obj, types.FunctionType)
+            and obj.__qualname__ == "extract_internal.<locals>.optimized_mod"
+            and obj.__closure__
+        ):
+            continue
+        for varname, cell in zip(obj.__code__.co_freevars, obj.__closure__):
+            try:
+                val = cell.cell_contents
+            except ValueError:
+                continue
+            if varname == "sym_constants_to_graph_vars" and isinstance(val, dict):
+                # Clear each GraphInputMatcher's tensor list individually to avoid
+                # PyTorch "Deallocating UntypedStorage" warnings from bulk free.
+                for entry in val.values():
+                    if isinstance(entry, tuple):
+                        for item in entry:
+                            if hasattr(item, "graph_input_xla_values"):
+                                item.graph_input_xla_values.clear()
+                val.clear()
+                cleared = True
+            elif varname == "xla_model" and hasattr(val, "xla_args"):
+                val.xla_args = None
+    if cleared:
+        gc.collect()
+
+
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
 # do so blindly around all tests: https://github.com/tenstorrent/tt-xla/issues/1265.
 @pytest.fixture(autouse=True)
@@ -493,6 +535,7 @@ def run_around_tests():
     torch.manual_seed(0)
     yield
     torch._dynamo.reset()
+    _release_dynamo_bridge_tensors()
 
 
 @pytest.fixture()
