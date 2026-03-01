@@ -44,8 +44,7 @@ LoadedExecutableInstance::~LoadedExecutableInstance() {
   using namespace tt::runtime;
 
   const std::optional<Device> &device = m_client_instance->parentMesh();
-  if (device && getCurrentHostRuntime() == HostRuntime::Local &&
-      isProgramCacheEnabled(*device)) {
+  if (device && isProgramCacheEnabled(*device)) {
     DLOG_F(LOG_DEBUG, "Clearing program cache.");
     clearProgramCache(*device);
   }

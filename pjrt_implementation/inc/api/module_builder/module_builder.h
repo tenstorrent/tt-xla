@@ -122,6 +122,13 @@ class ModuleBuilder {
 public:
   ModuleBuilder();
 
+  // Resets the MLIR context to free accumulated BumpPtrAllocator memory.
+  // Must be called AFTER buildModule() returns (all OwningOpRef locals
+  // destroyed). The MLIRContext accumulates IR storage that cannot be
+  // individually freed; resetting it releases all memory allocated during the
+  // previous compilation.
+  void resetContext();
+
   // Compiles given mlir module code and returns produced executable image
   // for execution on a given system, together with the compilation status
   // for error checking.

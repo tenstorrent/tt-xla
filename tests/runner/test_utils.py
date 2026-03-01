@@ -650,13 +650,24 @@ def record_model_test_properties(
         pytest.xfail(reason)
 
 
+_cached_device_arch: Optional[str] = None
+
+
 def get_xla_device_arch():
     """
     Get the XLA device architecture (wormhole, blackhole, etc.)
 
+    The result is cached after the first successful call so that repeated
+    queries within the same process (e.g. across multiple sequential tests)
+    do not re-enter the XLA runtime.
+
     Returns:
         str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
     """
+    global _cached_device_arch
+    if _cached_device_arch is not None:
+        return _cached_device_arch
+
     all_attributes = xr.global_runtime_device_attributes()
     device_attributes = all_attributes[0]
 
@@ -664,7 +675,9 @@ def get_xla_device_arch():
 
     for arch in ["wormhole", "blackhole"]:
         if arch in arch_name:
+            _cached_device_arch = arch
             return arch
+    _cached_device_arch = ""
     return ""
 
 

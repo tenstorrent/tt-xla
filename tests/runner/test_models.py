@@ -200,7 +200,13 @@ def _run_model_test_impl(
 
             # prints perf benchmark results to console
             # Dumps perf benchmark results to JSON report if --perf-report-dir is given
-            if framework == Framework.TORCH and run_mode == RunMode.INFERENCE:
+            # Only record benchmark when test succeeded: on failure the device may be in
+            # a closed/bad state, and get_xla_device_arch() would SIGABRT the process.
+            if (
+                framework == Framework.TORCH
+                and run_mode == RunMode.INFERENCE
+                and succeeded
+            ):
                 measurements = getattr(tester, "_perf_measurements", None)
                 model_config = loader.load_config()
                 batch_size, input_sequence_length, input_size = (
@@ -238,6 +244,19 @@ def _run_model_test_impl(
                     input_sequence_length=input_sequence_length,
                     data_format="bfloat16",
                 )
+
+            # Explicitly release large model objects so memory can be reclaimed
+            # before the next test. This helps gc.collect() + malloc_trim(0) in
+            # the memory_usage_tracker fixture work more effectively.
+            if tester is not None:
+                if getattr(tester, "_workload", None) is not None:
+                    tester._workload.model = None
+                    tester._workload.compiled_executable = None
+                    tester._workload.args = []
+                    tester._workload.kwargs = {}
+                    tester._workload.shard_spec_fn = None
+                tester._model = None
+                tester._input_activations = None
 
 
 @pytest.mark.model_test

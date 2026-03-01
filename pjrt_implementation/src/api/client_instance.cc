@@ -393,6 +393,15 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> compile_result =
       m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path,
                                     compile_options, this);
+
+  // Reset the MLIR context to free accumulated BumpPtrAllocator memory.
+  // The MLIRContext accumulates IR allocations from the compilation pipeline
+  // (VHLO→SHLO→TTIR→TTNN passes) that cannot be individually freed. By
+  // destroying and recreating the context here (after buildModule returns and
+  // all OwningOpRef<ModuleOp> locals are destroyed), we release that memory
+  // before it accumulates across multiple model compilations.
+  m_module_builder->resetContext();
+
   tt_pjrt_status status = std::get<tt_pjrt_status>(compile_result);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
