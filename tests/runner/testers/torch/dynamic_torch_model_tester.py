@@ -5,6 +5,7 @@
 """Dynamic Torch model tester implementation."""
 
 import collections
+import inspect
 from typing import Any
 
 import torch
@@ -116,16 +117,74 @@ class DynamicTorchModelTester(TorchModelTester):
     def _get_shard_specs_function(self):
         """Get shard specs function from the dynamic loader if available.
 
+        Handles standard TP, DP, and combined TP+DP with FSDP/megatron strategies.
+
         Returns:
             Shard spec function if loader supports it, None otherwise
         """
         if self.parallelism == Parallelism.DATA_PARALLEL:
             return self.dynamic_loader.load_shard_spec_data_parallel
-        else:
+
+        strategy = (
+            getattr(self._test_metadata, "sharding_strategy", None)
+            if self._test_metadata
+            else None
+        )
+        shard_inputs = (
+            getattr(self._test_metadata, "shard_inputs", False)
+            if self._test_metadata
+            else False
+        )
+
+        # No explicit strategy → default TP behavior from the loader
+        if strategy is None:
             return self.dynamic_loader.get_shard_spec_function()
+
+        loader_shard_spec_fn = self.dynamic_loader.get_shard_spec_function()
+        if loader_shard_spec_fn is None:
+            return None
+
+        supports_strategy_kwargs = False
+        try:
+            signature = inspect.signature(self.dynamic_loader.loader.load_shard_spec)
+            params = signature.parameters
+            supports_strategy_kwargs = "strategy" in params and "batch_axis" in params
+        except (TypeError, ValueError):
+            supports_strategy_kwargs = False
+
+        # Build the weight shard spec function.
+        # When shard_inputs is on, the mesh uses ("data", "model") axes, so FSDP
+        # specs must use "data" instead of "batch" — handled by batch_axis arg.
+        # (Megatron ignores batch_axis — its non-model axis is always None.)
+        batch_axis = "data" if shard_inputs else "batch"
+        if supports_strategy_kwargs:
+            weight_fn = lambda model: self.dynamic_loader.loader.load_shard_spec(
+                model, strategy=strategy, batch_axis=batch_axis
+            )
+        else:
+            # Backward-compat fallback: ignore explicit strategy if loader does
+            # not support strategy kwargs.
+            weight_fn = loader_shard_spec_fn
+
+        if shard_inputs:
+            # Combined TP + input sharding: shard weights AND inputs.
+            # The device runner dispatches to the 3-arg form (model, args, kwargs).
+            dp_loader = self.dynamic_loader
+
+            def combined_shard_spec(model, args, kwargs):
+                weight_specs = weight_fn(model) or {}
+                dp_specs = dp_loader.load_shard_spec_data_parallel(args, kwargs)
+                weight_specs.update(dp_specs)
+                return weight_specs
+
+            return combined_shard_spec
+
+        return weight_fn
 
     def _get_mesh(self):
         """Get mesh configuration from the dynamic loader if available.
+
+        Supports explicit mesh_shape / shard_inputs from test_metadata.
 
         Returns:
             Mesh object if loader supports mesh configuration, None otherwise
@@ -134,8 +193,17 @@ class DynamicTorchModelTester(TorchModelTester):
             return None
 
         num_devices = xr.global_runtime_device_count()
+
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
+        elif self._test_metadata and getattr(self._test_metadata, "mesh_shape", None):
+            # Explicit mesh from test metadata, e.g. (1, 8) or (2, 4)
+            mesh_shape = self._test_metadata.mesh_shape
+            shard_inputs = getattr(self._test_metadata, "shard_inputs", False)
+            if shard_inputs:
+                mesh_names = ("data", "model")
+            else:
+                mesh_names = ("batch", "model")
         else:
             mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
 
