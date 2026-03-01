@@ -35,6 +35,7 @@ test_config:
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    markers: [2d_sharing]
     required_pcc: 0.98
 
   gpt_oss/pytorch-120B-tensor_parallel-inference:
