@@ -431,6 +431,275 @@ def memory_usage_tracker(request):
         logger.info(f"    System used:  {after_gc:.2f} MB")
         logger.info(f"    Process RSS:  {after_gc_proc_rss:.2f} MB")
 
+        # Scan for large CPU tensors still alive - helps diagnose memory leaks.
+        # Write to a file to bypass pytest's stdout/stderr capture.
+        _diag_file = f"/tmp/mem_diag_{os.getpid()}.log"
+
+        def _diag(msg):
+            with open(_diag_file, "a") as _f:
+                _f.write(msg + "\n")
+
+        large_tensors = []
+        total_live_cpu_mb = 0.0
+        for obj in gc.get_objects():
+            if isinstance(obj, torch.Tensor) and obj.device.type == "cpu":
+                size_mb = obj.element_size() * obj.nelement() / (1024 * 1024)
+                total_live_cpu_mb += size_mb
+                if size_mb > 100:
+                    large_tensors.append((size_mb, tuple(obj.shape), obj.dtype))
+        _diag(
+            f"[MEM_DIAG] Live CPU tensors: total={total_live_cpu_mb:.1f} MB, "
+            f"large(>100MB) count={len(large_tensors)}"
+        )
+        if large_tensors:
+            large_tensors.sort(reverse=True)
+            for size, shape, dtype in large_tensors[:20]:
+                _diag(f"[MEM_DIAG]   {size:.1f} MB: shape={shape}, dtype={dtype}")
+
+        # Scan for live non-CPU tensors (XLA tensors hold PJRT buffers with
+        # owned host copies in Distributed/TP mode).
+        large_xla_tensor_objs = []
+        large_xla_tensors = []
+        total_live_xla_mb = 0.0
+        for obj in gc.get_objects():
+            if isinstance(obj, torch.Tensor) and obj.device.type not in ("cpu", "meta"):
+                try:
+                    size_mb = obj.element_size() * obj.nelement() / (1024 * 1024)
+                    total_live_xla_mb += size_mb
+                    if size_mb > 10:
+                        large_xla_tensor_objs.append(obj)
+                        large_xla_tensors.append(
+                            (size_mb, obj.device.type, tuple(obj.shape), obj.dtype)
+                        )
+                except Exception:
+                    pass
+        _diag(
+            f"[MEM_DIAG] Live non-CPU tensors (xla/etc): total={total_live_xla_mb:.1f} MB, "
+            f"large(>10MB) count={len(large_xla_tensors)}"
+        )
+        if large_xla_tensors:
+            large_xla_tensors.sort(reverse=True)
+            for size, dev, shape, dtype in large_xla_tensors[:20]:
+                _diag(
+                    f"[MEM_DIAG]   {size:.1f} MB: device={dev} shape={shape}, dtype={dtype}"
+                )
+
+        # Trace immediate referrers for the top-3 largest live XLA tensors.
+        if large_xla_tensor_objs:
+            large_xla_tensor_objs.sort(
+                key=lambda t: t.element_size() * t.nelement(), reverse=True
+            )
+            _diag_vars = {id(large_xla_tensor_objs), id(large_xla_tensors)}
+            for sample in large_xla_tensor_objs[:3]:
+                _diag(
+                    f"[MEM_DIAG] Referrers of XLA tensor shape={tuple(sample.shape)}, "
+                    f"dtype={sample.dtype}:"
+                )
+                refs1 = [
+                    r
+                    for r in gc.get_referrers(sample)
+                    if id(r) not in _diag_vars and not isinstance(r, type)
+                ]
+                for ref in refs1[:5]:
+                    _diag(f"[MEM_DIAG]   ← {type(ref).__name__}: {repr(ref)[:200]}")
+                    # One more level: referrers of this referrer
+                    refs2 = [
+                        r
+                        for r in gc.get_referrers(ref)
+                        if id(r) not in _diag_vars
+                        and r is not refs1
+                        and not isinstance(r, type)
+                    ]
+                    for ref2 in refs2[:3]:
+                        _diag(
+                            f"[MEM_DIAG]     ← {type(ref2).__name__}: {repr(ref2)[:150]}"
+                        )
+
+        # Scan for live torch.fx.GraphModule objects — these hold FX nodes whose
+        # meta['val'] can pin XLA tensors.  Find what holds them.
+        try:
+            import torch.fx as _torch_fx
+
+            live_gms = [
+                obj
+                for obj in gc.get_objects()
+                if isinstance(obj, _torch_fx.GraphModule)
+            ]
+            _diag(f"[MEM_DIAG] Live torch.fx.GraphModule objects: {len(live_gms)}")
+            for gm in live_gms[:3]:
+                _diag(f"[MEM_DIAG]   GraphModule type={type(gm).__name__}")
+
+            # Find functions/closures that capture any of the live GraphModules.
+            # A function's __closure__ is a tuple of cell objects; each cell's
+            # cell_contents is the captured variable value.
+            if live_gms:
+                live_gm_ids = {id(gm) for gm in live_gms}
+                holding_functions = []
+                for obj in gc.get_objects():
+                    if isinstance(obj, types.FunctionType) and obj.__closure__:
+                        for cell in obj.__closure__:
+                            try:
+                                val = cell.cell_contents
+                                if id(val) in live_gm_ids:
+                                    holding_functions.append((obj, cell, val))
+                                    break
+                            except ValueError:
+                                pass  # empty cell
+                _diag(
+                    f"[MEM_DIAG] Functions with closures holding live GraphModules: "
+                    f"{len(holding_functions)}"
+                )
+                for fn, cell, gm in holding_functions[:5]:
+                    _diag(
+                        f"[MEM_DIAG]   function={fn.__qualname__!r} "
+                        f"defined at {fn.__code__.co_filename}:{fn.__code__.co_firstlineno}"
+                    )
+                    # Find who holds the function itself
+                    fn_refs = [
+                        r
+                        for r in gc.get_referrers(fn)
+                        if not isinstance(r, type)
+                        and r is not holding_functions
+                        and r is not live_gms
+                    ]
+                    for ref in fn_refs[:4]:
+                        _diag(
+                            f"[MEM_DIAG]     ← {type(ref).__name__}: {repr(ref)[:200]}"
+                        )
+        except Exception as e:
+            _diag(f"[MEM_DIAG] GraphModule scan failed: {e}")
+
+        # Scan for live XLAExecutor objects (compiled "tt" backend instances).
+        # Each holds params_and_consts (XLA tensors) and compiled_graph closure.
+        try:
+            from tt_torch.backend.backend import XLAExecutor
+
+            live_executors = [
+                obj for obj in gc.get_objects() if isinstance(obj, XLAExecutor)
+            ]
+            _diag(f"[MEM_DIAG] Live XLAExecutor objects: {len(live_executors)}")
+            for ex in live_executors[:3]:
+                pc = len(ex.params_and_consts) if ex.params_and_consts else 0
+                _diag(
+                    f"[MEM_DIAG]   XLAExecutor: params_and_consts count={pc}, "
+                    f"compiled_graph={'set' if ex.compiled_graph is not None else 'None'}"
+                )
+                referrers = gc.get_referrers(ex)
+                _diag(f"[MEM_DIAG]   XLAExecutor referrers ({len(referrers)} total):")
+                for ref in referrers[:5]:
+                    _diag(f"[MEM_DIAG]     {type(ref).__name__}: {repr(ref)[:120]}")
+        except Exception as e:
+            _diag(f"[MEM_DIAG] XLAExecutor scan failed: {e}")
+
+        # Scan for live torch.nn.Module objects (possible unreleased model refs).
+        live_modules = [
+            obj for obj in gc.get_objects() if isinstance(obj, torch.nn.Module)
+        ]
+        _diag(f"[MEM_DIAG] Live torch.nn.Module objects: {len(live_modules)}")
+        for mod in live_modules[:5]:
+            num_params = sum(p.numel() for p in mod.parameters())
+            _diag(f"[MEM_DIAG]   {type(mod).__name__}: {num_params:,} params")
+
+        # Use smaps_rollup for a high-level breakdown of memory types.
+        try:
+            rollup_stats = {}
+            with open(f"/proc/{os.getpid()}/smaps_rollup", "r") as f:
+                for line in f:
+                    if ":" in line:
+                        key, val = line.split(":", 1)
+                        rollup_stats[key.strip()] = val.strip()
+            _diag(f"[MEM_DIAG] smaps_rollup (process RSS={after_gc_proc_rss:.0f} MB):")
+            for key in (
+                "Rss",
+                "Private_Dirty",
+                "Private_Clean",
+                "Shared_Dirty",
+                "Shared_Clean",
+                "Anonymous",
+                "Swap",
+            ):
+                if key in rollup_stats:
+                    kb = int(rollup_stats[key].split()[0])
+                    _diag(f"[MEM_DIAG]   {key:20s}: {kb / 1024:.1f} MB")
+        except Exception as e:
+            _diag(f"[MEM_DIAG] smaps_rollup parse failed: {e}")
+
+        # Parse /proc/self/smaps for per-region virtual size + RSS.
+        # Shows which anonymous regions are actually resident (not just virtual).
+        try:
+            regions = []
+            cur_size_mb = 0.0
+            cur_rss_mb = 0.0
+            cur_name = "(anon)"
+            cur_perms = ""
+            with open(f"/proc/{os.getpid()}/smaps", "r") as smaps_f:
+                for line in smaps_f:
+                    # Header line: starts with hex address range
+                    if line and line[0] in "0123456789abcdef":
+                        if cur_size_mb > 0:
+                            regions.append(
+                                (cur_rss_mb, cur_size_mb, cur_name, cur_perms)
+                            )
+                        parts = line.split()
+                        start, end = parts[0].split("-")
+                        cur_size_mb = (int(end, 16) - int(start, 16)) / (1024 * 1024)
+                        cur_rss_mb = 0.0
+                        cur_perms = parts[1] if len(parts) >= 2 else ""
+                        cur_name = parts[5] if len(parts) >= 6 else "(anon)"
+                    elif line.startswith("Rss:"):
+                        kb = int(line.split()[1])
+                        cur_rss_mb = kb / 1024
+            if cur_size_mb > 0:
+                regions.append((cur_rss_mb, cur_size_mb, cur_name, cur_perms))
+            # Sort by RSS descending
+            regions.sort(reverse=True)
+            _diag(f"[MEM_DIAG] Top 15 regions by RSS (rss / virt):")
+            for rss_mb, virt_mb, name, perms in regions[:15]:
+                _diag(
+                    f"[MEM_DIAG]   rss={rss_mb:7.0f} MB  virt={virt_mb:7.0f} MB"
+                    f"  {perms}  {name}"
+                )
+        except Exception as e:
+            _diag(f"[MEM_DIAG] smaps parse failed: {e}")
+
+        # Use malloc_info to see glibc's internal heap state (free vs in-use).
+        try:
+            import ctypes as _ctypes
+            import ctypes.util as _ctypes_util
+
+            libc = _ctypes.CDLL(_ctypes_util.find_library("c"))
+            libc.fopen.restype = _ctypes.c_void_p
+            libc.fopen.argtypes = [_ctypes.c_char_p, _ctypes.c_char_p]
+            libc.fclose.argtypes = [_ctypes.c_void_p]
+            libc.malloc_info.argtypes = [_ctypes.c_int, _ctypes.c_void_p]
+
+            _mi_path = f"/tmp/malloc_info_{os.getpid()}.xml"
+            fp = libc.fopen(_mi_path.encode(), b"w")
+            if fp:
+                libc.malloc_info(0, _ctypes.c_void_p(fp))
+                libc.fclose(_ctypes.c_void_p(fp))
+                with open(_mi_path) as _mif:
+                    _mi_content = _mif.read()
+                # Extract totals from the XML: system=total_system, in_use=allocated
+                import re as _re
+
+                system_m = _re.search(r'<total type="system" size="(\d+)"', _mi_content)
+                inuse_m = _re.search(r'<total type="in_use" size="(\d+)"', _mi_content)
+                if system_m and inuse_m:
+                    system_bytes = int(system_m.group(1))
+                    inuse_bytes = int(inuse_m.group(1))
+                    free_bytes = system_bytes - inuse_bytes
+                    _diag(
+                        f"[MEM_DIAG] glibc malloc_info totals:"
+                        f"  system={system_bytes/(1<<20):.0f} MB"
+                        f"  in_use={inuse_bytes/(1<<20):.0f} MB"
+                        f"  free={free_bytes/(1<<20):.0f} MB"
+                    )
+                else:
+                    _diag(f"[MEM_DIAG] malloc_info: (could not parse totals)")
+        except Exception as e:
+            _diag(f"[MEM_DIAG] malloc_info failed: {e}")
+
 
 @pytest.fixture(scope="session", autouse=True)
 def initialize_device_connectors():
