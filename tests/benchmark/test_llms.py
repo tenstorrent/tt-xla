@@ -8,8 +8,8 @@ import os
 import numpy as np
 import pytest
 from benchmarks.llm_benchmark import benchmark_llm_torch_xla
+from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
-from token_accuracy import TokenAccuracy
 from utils import create_model_loader, resolve_display_name
 
 # Defaults for all llms

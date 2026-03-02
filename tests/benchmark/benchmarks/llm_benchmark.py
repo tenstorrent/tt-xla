@@ -15,11 +15,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import transformers
-from decode_utils import (
-    generate_and_benchmark,
-    init_accuracy_testing,
-    init_static_cache,
-)
+from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache

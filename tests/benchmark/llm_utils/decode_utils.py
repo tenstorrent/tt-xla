@@ -27,16 +27,6 @@ from transformers.cache_utils import StaticCache
 ReadLogitsFn = Callable[[object], torch.Tensor]
 
 
-def default_read_logits_fn(output: object) -> torch.Tensor:
-    """Extract logits from a HuggingFace model output."""
-    # Common case: ModelingOutputs with .logits
-    if hasattr(output, "logits"):
-        return output.logits
-    raise TypeError(
-        f"Unsupported model output type for logits extraction: {type(output)}"
-    )
-
-
 def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> None:
     """Ensure determinism-relevant flags are set."""
     assert model.training is False, "Model must be in eval mode"
@@ -139,8 +129,8 @@ def generate_and_benchmark(
     Supports two modes:
     - Autoregressive (ground_truth_tokens=None): feeds model predictions back.
       Used for device benchmarks and CPU PCC baseline.
-    - Teacher forcing (ground_truth_tokens provided): feeds ground truth tokens,
-      no EOS check. Used for device accuracy testing and reference generation.
+    - Teacher forcing (ground_truth_tokens provided): feeds ground truth tokens.
+      Used for device accuracy testing and reference generation.
 
     Args:
         model: Model instance (eval mode, no dropout)
@@ -148,7 +138,7 @@ def generate_and_benchmark(
         device: Target device (CPU or TT)
         max_tokens_to_generate: Number of decode steps to run
         read_logits_fn: Function to extract logits from model output
-        tokenizer: Tokenizer for EOS detection and text decoding (autoregressive mode)
+        tokenizer: Tokenizer for text decoding (autoregressive mode)
         verbose: Print per-iteration timing and decoded tokens
         ground_truth_tokens: 1D tensor of ground truth token IDs for teacher forcing.
                            None = autoregressive mode.
@@ -158,8 +148,6 @@ def generate_and_benchmark(
         - output_logits: List of logit tensors per step
         - iteration_times: List of iteration times in nanoseconds
     """
-    if read_logits_fn is None:
-        read_logits_fn = default_read_logits_fn
 
     if ground_truth_tokens is not None:
         assert (
@@ -185,25 +173,12 @@ def generate_and_benchmark(
             # Greedy decoding: argmax on last position (no sampling/temperature/top_p)
             next_token_ids = logits[:, -1].argmax(dim=-1)
 
-            # Autoregressive path: decode tokens, check EOS
+            # Autoregressive path
             if ground_truth_tokens is None:
                 output_text = [
                     tokenizer.decode(token_id) for token_id in next_token_ids
                 ]
                 output_tokens.append(output_text)
-
-                # Check for EOS token and early exit
-                if torch.all(next_token_ids == tokenizer.eos_token_id):
-                    if verbose:
-                        print()
-                    end = time.perf_counter_ns()
-                    iteration_times.append(end - start)
-                    if verbose:
-                        print(
-                            f"Iteration\t{step}/{max_tokens_to_generate}\t"
-                            f"took {iteration_times[-1] / 1e6:.04} ms"
-                        )
-                    break
 
             # Next token: ground truth (teacher forcing) or predicted (autoregressive)
             if ground_truth_tokens is not None:
@@ -254,7 +229,7 @@ def init_accuracy_testing(model_name_for_accuracy: str, max_cache_len: int, toke
     Raises:
         ValueError: If model_name_for_accuracy is None
     """
-    from token_accuracy import TokenAccuracy
+    from llm_utils.token_accuracy import TokenAccuracy
 
     if model_name_for_accuracy is None:
         raise ValueError(

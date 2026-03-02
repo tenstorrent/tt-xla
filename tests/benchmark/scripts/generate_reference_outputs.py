@@ -42,7 +42,7 @@ _tt_xla_str = str(_tt_xla_dir)
 if _tt_xla_str not in sys.path:
     sys.path.insert(0, _tt_xla_str)
 
-from decode_utils import extract_topk, generate_and_benchmark, init_static_cache
+from llm_utils import extract_topk, generate_and_benchmark, init_static_cache
 
 
 def generate_reference_outputs(total_length, output_file, model_name):
