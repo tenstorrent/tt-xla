@@ -4,7 +4,7 @@
 
 import argparse
 import os
-from typing import Any, List, Optional
+from typing import List
 
 import numpy as np
 import torch
@@ -24,9 +24,11 @@ from transformers import (
 from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
-
-from tt_torch.transformers_cache import replace_static_sliding_window_layers_with_tt
-
+from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.transformers_overrides import (
+    override_cache_sliding_window_layers,
+    override_gpt_oss_sliding_window_causal_mask,
+)
 
 DEFAULT_PROMPTS = ["Explain quantum mechanics."]
 
@@ -74,8 +76,7 @@ def gpt_oss_20b(interactive: bool = False):
         # Mark sharding on inputs and model internals
         mark_sharding_on_inputs_and_model(model, input_args, mesh)
 
-        # Patch model to avoid per-layer recompilations, then compile
-        patch_model_for_compile(model)
+        # Compile model
         compiled_model = torch.compile(model, backend="tt")
 
         # Run generation loop until EOS token generated or max tokens reached
@@ -92,32 +93,6 @@ def gpt_oss_20b(interactive: bool = False):
 
         if not interactive:
             break
-
-
-def patch_model_for_compile(model: torch.nn.Module):
-    """
-    Patch model classes to avoid per-layer torch.compile recompilations.
-
-    GradientCheckpointingLayer.__call__ references self.gradient_checkpointing
-    and self.training, causing torch.compile to guard on each layer object's
-    identity. In eval mode, the custom __call__ is a passthrough to
-    nn.Module.__call__, so reverting it is safe.
-
-    The @deprecate_kwarg wrappers on forward methods access
-    args[0].__class__.__name__, also triggering per-object guards. Since we
-    don't use deprecated kwarg names, unwrapping them is safe.
-    """
-    from transformers.modeling_layers import GradientCheckpointingLayer
-
-    GradientCheckpointingLayer.__call__ = torch.nn.Module.__call__
-
-    layer_class = type(model.model.layers[0])
-    if hasattr(layer_class.forward, "__wrapped__"):
-        layer_class.forward = layer_class.forward.__wrapped__
-
-    attn_class = type(model.model.layers[0].self_attn)
-    if hasattr(attn_class.forward, "__wrapped__"):
-        attn_class.forward = attn_class.forward.__wrapped__
 
 
 def setup_spmd():
@@ -176,8 +151,8 @@ def setup_model_and_tokenizer(
         trust_remote_code=True,
         attn_implementation="eager",
     )
-    model.model.layers = torch.nn.ModuleList(list(model.model.layers)[:4])
-    model.config.num_hidden_layers = 4
+    # Override the gpt_oss model to use the TT-friendly sliding window causal mask
+    override_gpt_oss_sliding_window_causal_mask()
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -230,8 +205,7 @@ def construct_inputs(
         return_attention_mask=True,
     )
 
-    # Disable sliding window cache to avoid torch.compile recompilations.
-    cache_config = model_config # disable_sliding_window_attention(model_config)
+    cache_config = model_config
 
     # Static cache should be initialized on CPU and separately transferred to device
     # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
@@ -253,7 +227,8 @@ def construct_inputs(
     )
 
     sliding_window = getattr(cache_config, "sliding_window", max_cache_len)
-    replace_static_sliding_window_layers_with_tt(static_cache, max_cache_len, sliding_window)
+    # Override the cache sliding window layers to use the torch.compile/TT-friendly version
+    override_cache_sliding_window_layers(static_cache, max_cache_len, sliding_window)
 
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
@@ -290,37 +265,6 @@ def construct_inputs(
     return input_args, formatted_prompts
 
 
-def disable_sliding_window_attention(
-    config: PretrainedConfig,
-) -> PretrainedConfig:
-    """
-    Override all layer types to 'full_attention' to disable sliding window cache.
-
-    GPT-OSS-20B originally has 24 layers alternating between "sliding_attention" and
-    "full_attention". When StaticCache is initialized with sliding attention layers,
-    it creates StaticSlidingWindowLayer instances that use conditional logic and
-    Python Int (which torch.compile treats as constants). This triggers expensive
-    recompilation for every token generated.
-
-    This function offers a hacky workaround. Because this program stops token
-    generation once the cache is full, StaticSlidingWindowLayer would be essentially
-    functionally equivalent to StaticLayer. Hence by forcing all layers to be
-    "full_attention" before passing the config to create the StaticCache, we can
-    ensure the cache only has simple StaticLayer and avoid recompilation.
-
-    See https://github.com/tenstorrent/tt-xla/issues/3186 for progress on properly
-    running sliding window attention.
-
-    Args:
-        config: Model configuration with layer_types attribute
-
-    Returns:
-        Config modified to have all layers set to "full_attention"
-    """
-    config.layer_types = ["full_attention"] * config.num_hidden_layers
-    return config
-
-
 def transfer_to_device(
     model: torch.nn.Module, input_args: dict, device: torch.device
 ) -> tuple[torch.nn.Module, dict]:
@@ -338,10 +282,6 @@ def transfer_to_device(
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
-        if hasattr(layer, "cumulative_length") and isinstance(
-            layer.cumulative_length, torch.Tensor
-        ):
-            layer.cumulative_length = layer.cumulative_length.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
@@ -368,6 +308,10 @@ def mark_sharding_on_inputs_and_model(
     for layer in input_args["past_key_values"].layers:
         xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
         xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+
+    if hasattr(model, "lm_head") and model.lm_head is not None:
+        hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+        model.lm_head.register_forward_hook(hook)
 
     xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, "batch"))
     xs.mark_sharding(model.model.norm.weight, mesh, ("batch",))
