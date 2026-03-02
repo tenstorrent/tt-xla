@@ -125,6 +125,13 @@ jobs:
             --privileged \
             --pid=host \
             --network=host \
+            --device /dev/tenstorrent \
+            -v /dev/hugepages:/dev/hugepages \
+            -v /dev/hugepages-1G:/dev/hugepages-1G \
+            -v /etc/udev/rules.d:/etc/udev/rules.d \
+            -v /lib/modules:/lib/modules \
+            -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+            -v /mnt/dockercache:/mnt/dockercache \
             -v /etc/mpirun:/etc/mpirun:ro"
 
           # Add SSH agent forwarding only if SSH_AUTH_SOCK exists
@@ -170,7 +177,14 @@ jobs:
                 --privileged \
                 --pid=host \
                 --network=host \
+                --device /dev/tenstorrent \
                 -v /etc/mpirun:/etc/mpirun:ro \
+                -v /dev/hugepages:/dev/hugepages \
+                -v /dev/hugepages-1G:/dev/hugepages-1G \
+                -v /etc/udev/rules.d:/etc/udev/rules.d \
+                -v /lib/modules:/lib/modules \
+                -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+                -v /mnt/dockercache:/mnt/dockercache \
                 -v ${{ github.workspace }}:/workspace \
                 -w /workspace \
                 ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
@@ -369,12 +383,22 @@ jobs:
           echo "Verification complete!"
           echo ""
 
+      - name: Fix workspace permissions
+        if: always()
+        run: |
+          echo "=== Restoring workspace ownership on controller ==="
+          # Files written by the container run as root. Chown them back to the runner
+          # user so the next checkout can delete them. This runs directly (not through
+          # mpirun) so it is guaranteed to execute even if mpirun connectivity fails.
+          docker exec multihost-poc chown -R $(id -u):$(id -g) /workspace || true
+          echo "Controller workspace ownership restored"
+
       - name: Cleanup
         if: always()
         run: |
           echo "=== Cleaning up containers and SSH agents on all hosts ==="
           # Note: Containers are created with --rm flag, which automatically removes them when stopped.
-          # The 'docker rm' command will fail with "No such container" error - this is expected and harmless.
+          # The docker rm command will fail with No such container - this is expected and harmless.
           mpirun --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --tag-output \
