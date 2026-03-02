@@ -16,6 +16,13 @@ import tempfile
 import mmap
 import gc
 
+try:
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    print("Warning: transformers not available. Llama tests will be skipped.")
+
 
 def get_memory_info():
     """Get current process memory usage information."""
@@ -930,3 +937,167 @@ def test_large_parameter_model_cpu():
     print("="*70 + "\n")
 
     return output
+
+
+def test_llama_on_tt_device():
+    """Test loading Llama 3.1 8B and moving it to TT device with PJRT mmap.
+
+    This test:
+    1. Loads Llama 3.1 8B from Transformers on CPU
+    2. Moves it to TT device (triggers PJRT mmap for all parameters)
+    3. Runs inference on TT device
+    4. Monitors memory at each stage
+
+    This demonstrates our PJRT mmap implementation with a real LLM!
+
+    Note: Requires transformers, and model will be downloaded if not cached.
+    Model size: ~16GB (8B parameters × 2 bytes for FP16)
+    """
+    if not TRANSFORMERS_AVAILABLE:
+        print("\n" + "="*70)
+        print("SKIPPING: transformers not available")
+        print("Install with: pip install transformers")
+        print("="*70)
+        return None
+
+    print("\n" + "="*70)
+    print("Testing Llama 3.1 8B on TT Device with PJRT mmap")
+    print("="*70)
+
+    # Set device type to TT
+    xr.set_device_type("TT")
+
+    # Take initial snapshot
+    print_memory_snapshot("Initial (before loading model)")
+
+    model_name = "meta-llama/Llama-3.1-8B"
+
+    print(f"\nLoading {model_name} on CPU...")
+    print("Note: This will download ~16GB model if not already cached")
+    print("      First run will take a while!\n")
+
+    # Create temporary offload directory for Transformers disk offload
+    offload_dir = tempfile.mkdtemp(prefix="llama_offload_")
+
+    try:
+        # Load model with Transformers' disk offload first
+        print("Loading model with Transformers disk offload...", flush=True)
+        print(f"Offload directory: {offload_dir}\n")
+
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.bfloat16,  # Use BF16
+            low_cpu_mem_usage=True,
+            device_map="cpu",  # Keep on CPU for now
+            offload_folder=offload_dir,  # Use disk offload
+            offload_state_dict=True,  # Offload during loading
+        )
+
+        mem_after_cpu_load = print_memory_snapshot("After loading with Transformers disk offload (CPU)")
+
+        # Load tokenizer
+        print("\nLoading tokenizer...")
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        # Get TT device
+        device = xm.xla_device()
+        print(f"\nTT device: {device}")
+
+        # Move model to TT device
+        print("\n" + "="*70)
+        print("Moving model to TT device...")
+        print("This will create mmap regions in PJRT for all model parameters!")
+        print("Expected: hundreds of mmap regions totaling ~16GB")
+        print("="*70)
+        print("\nCheck PJRT logs for BufferInstance[UID=*]::copyFromHost messages", flush=True)
+        print("Enable with: export TTXLA_LOGGER_LEVEL=DEBUG\n", flush=True)
+
+        device_model = model.to(device)
+
+        # Give system time to process
+        time.sleep(2)
+
+        mem_after_to_device = print_memory_snapshot("After moving model to TT device (PJRT mmap'd)")
+
+        # Prepare dummy input
+        print("\n" + "="*70)
+        print("Running forward pass on TT device...")
+        print("="*70)
+
+        prompt = "The capital of France is"
+        print(f"Input prompt: '{prompt}'")
+
+        inputs = tokenizer(prompt, return_tensors="pt", padding=True)
+
+        # Move inputs to TT device
+        print("Moving inputs to TT device...")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        # Run forward pass (not generate, just forward)
+        print("Running model forward pass...", flush=True)
+        model.eval()
+        with torch.no_grad():
+            outputs = device_model(**inputs)
+
+        # Force synchronization
+        print("Synchronizing...", flush=True)
+        torch_xla.sync()
+
+        mem_after_inference = print_memory_snapshot("After forward pass and sync")
+
+        # Get logits and decode
+        logits = outputs.logits
+        predicted_token_id = logits[0, -1].argmax().item()
+        predicted_token = tokenizer.decode([predicted_token_id])
+
+        print(f"\nPredicted next token: '{predicted_token}'")
+
+        # Print summary
+        print(f"\n{'='*70}")
+        print("Memory Usage Summary - Llama 3.1 8B on TT Device")
+        print(f"{'='*70}")
+        print(f"Model: {model_name}")
+        print(f"Model size: ~16GB (8B params × 2 bytes FP16)")
+        print(f"\nMemory after CPU load:   {mem_after_cpu_load['rss_mb']:.2f} MB")
+        print(f"Memory after to(device): {mem_after_to_device['rss_mb']:.2f} MB "
+              f"({mem_after_to_device['rss_mb'] - mem_after_cpu_load['rss_mb']:+.2f} MB)")
+        print(f"Memory after inference:  {mem_after_inference['rss_mb']:.2f} MB "
+              f"({mem_after_inference['rss_mb'] - mem_after_to_device['rss_mb']:+.2f} MB)")
+
+        print(f"\nKey observations:")
+        print(f"  - Model loaded with Transformers disk offload (stage 1)")
+        print(f"  - Then moved in-place to TT device (stage 2)")
+        print(f"  - Each parameter triggered copyFromHost in PJRT")
+        print(f"  - Each copyFromHost created an mmap'd buffer")
+        print(f"  - Total mmap size should be ~16GB across hundreds of buffers")
+        print(f"  - Memory is swappable to disk by OS under pressure")
+        print(f"\nTwo-stage disk offload:")
+        print(f"  1. Transformers offload: Used during model loading to save RAM")
+        print(f"  2. PJRT mmap offload: Used for TT device buffers (our implementation!)")
+        print(f"\nTo see detailed PJRT mmap information:")
+        print(f"  1. Set TTXLA_LOGGER_LEVEL=DEBUG")
+        print(f"  2. Look for BufferInstance[UID=*]::copyFromHost messages")
+        print(f"  3. Check /proc/{os.getpid()}/maps for anonymous mmap regions")
+        print("="*70 + "\n")
+
+        return outputs
+
+    except Exception as e:
+        print(f"\nError: {e}")
+        print("Common issues:")
+        print("  - Model not found (need HuggingFace authentication for Llama)")
+        print("  - Use: huggingface-cli login")
+        print("  - Not enough disk space for model download")
+        print("  - Out of memory during CPU load (try a smaller model first)")
+        import traceback
+        traceback.print_exc()
+        return None
+
+    finally:
+        # Cleanup Transformers offload directory
+        if offload_dir and os.path.exists(offload_dir):
+            import shutil
+            print(f"\nCleaning up Transformers offload directory: {offload_dir}")
+            shutil.rmtree(offload_dir, ignore_errors=True)
