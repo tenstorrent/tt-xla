@@ -201,7 +201,7 @@ class DynamicTorchModelTester(TorchModelTester):
         batch_axis = "data" if shard_inputs else "batch"
         if supports_strategy_kwargs:
             weight_fn = lambda model: self.dynamic_loader.loader.load_shard_spec(
-                model, strategy=strategy, batch_axis=batch_axis
+                model, strategy=str(strategy), batch_axis=batch_axis
             )
         else:
             # Backward-compat fallback: ignore explicit strategy if loader does
@@ -252,6 +252,26 @@ class DynamicTorchModelTester(TorchModelTester):
         if mesh_shape and mesh_names:
             return get_mesh(mesh_shape, mesh_names)
         return None
+
+    def _get_prefill_pcc_mask(self):
+        """Return boolean token mask for LLM prefill PCC filtering."""
+        if self.run_phase != RunPhase.LLM_PREFILL:
+            return None
+        if not isinstance(self._input_activations, collections.abc.Mapping):
+            return None
+
+        attention_mask = self._input_activations.get("attention_mask")
+        if not isinstance(attention_mask, torch.Tensor):
+            return None
+        return attention_mask.to(dtype=torch.bool)
+
+    def _compare(self, device_out, golden_out):
+        """Compare outputs, masking padded prefill tokens for PCC only."""
+        return self._evaluator.evaluate(
+            device_out,
+            golden_out,
+            pcc_mask=self._get_prefill_pcc_mask(),
+        )
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
         """

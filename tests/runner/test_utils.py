@@ -57,6 +57,14 @@ class RunPhase(Enum):
         return self.value
 
 
+class ShardingStrategy(Enum):
+    FSDP = "fsdp"
+    MEGATRON = "megatron"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 @dataclass(frozen=True)
 class ShardingConfig:
     """Configuration for multi-chip sharding in LLM tests.
@@ -66,12 +74,12 @@ class ShardingConfig:
     combinations without changing the Parallelism enum or shared code paths.
 
     Attributes:
-        shard_strategy: "fsdp" (both axes) or "megatron" (model axis only). None = loader default.
+        shard_strategy: FSDP (both axes) or MEGATRON (model axis only). None = loader default.
         shard_inputs: Whether to shard inputs across the batch/data axis of the mesh.
         parallelism: Parallelism enum value for dispatch and backward-compat reporting.
     """
 
-    shard_strategy: Optional[str]
+    shard_strategy: Optional[ShardingStrategy]
     shard_inputs: bool
     parallelism: Parallelism
 
@@ -88,43 +96,16 @@ class ShardingConfigs:
     TENSOR_PARALLEL = ShardingConfig(None, False, Parallelism.TENSOR_PARALLEL)
 
     # --- Explicit TP strategies (mesh shape is parametrized separately) ---
-    FSDP = ShardingConfig("fsdp", False, Parallelism.TENSOR_PARALLEL)
-    FSDP_DP = ShardingConfig("fsdp", True, Parallelism.TENSOR_PARALLEL)
+    FSDP = ShardingConfig(ShardingStrategy.FSDP, False, Parallelism.TENSOR_PARALLEL)
+    FSDP_DP = ShardingConfig(ShardingStrategy.FSDP, True, Parallelism.TENSOR_PARALLEL)
 
     # --- Megatron sharding (weights sharded on "model" axis only) ---
-    MEGATRON = ShardingConfig("megatron", False, Parallelism.TENSOR_PARALLEL)
-    MEGATRON_DP = ShardingConfig("megatron", True, Parallelism.TENSOR_PARALLEL)
-
-
-def fix_venv_isolation():
-    """
-    Fix venv isolation issue: ensure venv packages take precedence over system packages.
-
-    This function adjusts the Python path to prioritize virtual environment packages
-    over system packages, preventing package conflicts and ensuring proper isolation
-    during test execution.
-    """
-    venv_site = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        "..",
-        "venv",
-        "lib",
-        "python3.11",
-        "site-packages",
+    MEGATRON = ShardingConfig(
+        ShardingStrategy.MEGATRON, False, Parallelism.TENSOR_PARALLEL
     )
-    if os.path.exists(venv_site) and venv_site not in sys.path:
-        sys.path.insert(0, os.path.abspath(venv_site))
-
-    # Remove system packages from path to ensure proper isolation
-    sys.path = [
-        p
-        for p in sys.path
-        if "/usr/local/lib/python3.11/dist-packages" not in p
-        or p == "/usr/local/lib/python3.11/dist-packages"
-    ]
-    # Re-add at the end as fallback
-    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
-        sys.path.append("/usr/local/lib/python3.11/dist-packages")
+    MEGATRON_DP = ShardingConfig(
+        ShardingStrategy.MEGATRON, True, Parallelism.TENSOR_PARALLEL
+    )
 
 
 def find_dumped_ir_files(artifacts_dir: str) -> List[str]:
@@ -184,7 +165,7 @@ class ModelTestConfig:
         self.seq_len = self._resolve("seq_len", default=None)
 
         # Sharding configuration for TP prefill tests (set from parametrization, not YAML)
-        self.sharding_strategy = None  # "fsdp" or "megatron"
+        self.sharding_strategy: ShardingStrategy | None = None
         self.mesh_shape = None  # e.g. (1, 8), (2, 4)
         self.shard_inputs = (
             False  # whether to shard inputs across the batch/data mesh axis
