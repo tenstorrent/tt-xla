@@ -13,6 +13,7 @@ Usage:
 
 import ast
 import difflib
+import itertools
 import os
 import sys
 from dataclasses import dataclass, field
@@ -443,21 +444,22 @@ class TestConfigValidator:
         # Prefill: seq_{128..8192} x batch_{1,2} (test_models.py:444-448)
         for rel_path, variant, phase in llm_models:
             base = f"{rel_path}-{variant}" if variant else rel_path
-            for parallelism in PARALLELISMS_LLM:
-                for mesh_shape in LLM_MESH_SHAPES:
-                    for run_mode in RUN_MODES_LLM:
-                        if phase == "llm_decode":
-                            ids.add(
-                                f"{base}-{phase}-seq_1-batch_1"
-                                f"-{parallelism}-{mesh_shape}-{run_mode}"
-                            )
-                        else:
-                            for seq in LLM_SEQUENCE_LENGTHS:
-                                for batch in LLM_BATCH_SIZES:
-                                    ids.add(
-                                        f"{base}-{phase}-seq_{seq}-batch_{batch}"
-                                        f"-{parallelism}-{mesh_shape}-{run_mode}"
-                                    )
+            for parallelism, mesh_shape, run_mode in itertools.product(
+                PARALLELISMS_LLM, LLM_MESH_SHAPES, RUN_MODES_LLM
+            ):
+                if phase == "llm_decode":
+                    ids.add(
+                        f"{base}-{phase}-seq_1-batch_1"
+                        f"-{parallelism}-{mesh_shape}-{run_mode}"
+                    )
+                else:
+                    for seq, batch in itertools.product(
+                        LLM_SEQUENCE_LENGTHS, LLM_BATCH_SIZES
+                    ):
+                        ids.add(
+                            f"{base}-{phase}-seq_{seq}-batch_{batch}"
+                            f"-{parallelism}-{mesh_shape}-{run_mode}"
+                        )
 
         return ids
 

@@ -30,6 +30,7 @@ from tests.runner.test_utils import (
     ModelTestStatus,
     RunPhase,
     ShardingConfigs,
+    ShardingStrategy,
     create_benchmark_result,
     find_dumped_ir_files,
     get_input_shape_info,
@@ -404,8 +405,8 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
     return "strategy" in params and "batch_axis" in params
 
 
-def _validate_llm_combo(sharding_config, mesh_shape):
-    """Return skip reason for invalid sharding/mesh combinations."""
+def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
+    """Return skip reason for invalid LLM sharding strategy/mesh combinations."""
     strategy = sharding_config.shard_strategy
     shard_inputs = sharding_config.shard_inputs
 
@@ -418,12 +419,20 @@ def _validate_llm_combo(sharding_config, mesh_shape):
         return "Explicit sharding strategy requires mesh_shape"
 
     if mesh_shape == (1, 8):
-        if strategy != "megatron" or shard_inputs:
-            return "Redundant on mesh_1x8: keep only megatron no-DP"
+        if strategy != ShardingStrategy.MEGATRON or shard_inputs:
+            return (
+                "For mesh_1x8, only megatron-no_dp is kept because fsdp-no_dp is "
+                "effectively equivalent here (non-model mesh dimension is size 1). "
+                "Use strategy=megatron with shard_inputs=False, or switch to mesh_2x4 "
+                "if you want distinct fsdp behavior."
+            )
         return None
 
     if mesh_shape != (2, 4):
-        return "Unsupported mesh_shape for explicit sharding strategy"
+        return (
+            f"Unsupported mesh_shape={mesh_shape} for explicit sharding strategy. "
+            "Supported explicit strategy mesh shapes: mesh_1x8 and mesh_2x4."
+        )
 
     return None
 
@@ -477,7 +486,7 @@ def _validate_llm_combo(sharding_config, mesh_shape):
         ),
     ],
 )
-@pytest.mark.parametrize("batch_size", [1, 2], ids=_generate_batch_size_id)
+@pytest.mark.parametrize("batch_size", [1, 32], ids=_generate_batch_size_id)
 @pytest.mark.parametrize(
     "sequence_length",
     [None, 128, 1024, 2048, 4096, 8192],
@@ -507,7 +516,9 @@ def test_llms_torch(
     supports_strategy_shard_spec = _supports_strategy_shard_spec(model_loader_cls)
     parallelism = sharding_config.parallelism
 
-    invalid_combo_reason = _validate_llm_combo(sharding_config, mesh_shape)
+    invalid_combo_reason = _validate_llm_sharding_mesh_combination(
+        sharding_config, mesh_shape
+    )
     if invalid_combo_reason is not None:
         pytest.skip(invalid_combo_reason)
 
