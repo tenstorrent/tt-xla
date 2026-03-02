@@ -2331,9 +2331,9 @@ test_config:
   ultra_fast_lane_detection_v2/pytorch-TuSimple_ResNet34_Backbone-single_device-inference:
     status: EXPECTED_PASSING
 
-  faster_rcnn/pytorch-ResNet50_Backbone_with_FPN-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
+  # faster_rcnn/pytorch-ResNet50_Backbone_with_FPN-single_device-inference:
+  #   status: NOT_SUPPORTED_SKIP
+  #   reason: "Out of Memory: Not enough space to allocate 62521344 B L1 buffer across 72 banks, where each bank needs to store 868352 B, but bank size is only 1331936 B"
 
   deformable_detr/pytorch-Deformable_Detr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2479,7 +2479,7 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
-  wan/pytorch-2.2_Ti2v_5B-single_device-inference:
+  wan/pytorch-2.2_Ti2v_5BP-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
 

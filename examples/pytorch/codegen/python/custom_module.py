@@ -3,59 +3,77 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Demonstrates how to hook into compile options to use Codegen, from Torch
-"""
+Demonstrates codegen (emitPy) for the RPN module of Faster R-CNN.
 
-import shutil
-from pathlib import Path
+The RPN forward expects (ImageList, dict[str, Tensor]) which codegen_py
+cannot handle directly (it filters args to torch.Tensor only). This wrapper
+takes flat tensors as positional args and reconstructs the structured inputs
+internally so codegen_py can trace through the module.
+"""
 
 import torch
 import torch.nn as nn
 import torch_xla.runtime as xr
 from tt_torch import codegen_py
+import torchvision
+from torchvision.models.detection.image_list import ImageList
 
 
-class Model(nn.Module):
-    def __init__(self):
+FEATURE_KEYS = ["0", "1", "2", "3", "pool"]
+FEATURE_SHAPES = {
+    "0": (1, 256, 200, 304),
+    "1": (1, 256, 100, 152),
+    "2": (1, 256, 50, 76),
+    "3": (1, 256, 25, 38),
+    "pool": (1, 256, 13, 19),
+}
+IMAGE_TENSOR_SHAPE = (1, 3, 800, 1216)
+IMAGE_SIZES = [(800, 1200)]
+
+
+class RPNWrapper(nn.Module):
+    """Wraps the RPN to accept flat tensor args for codegen compatibility."""
+
+    def __init__(self, rpn):
         super().__init__()
-        self.A = nn.Linear(32, 128)
-        self.B = nn.Linear(128, 64)
+        self.rpn = rpn
 
-    def forward(self, x):
-        x = self.A(x)
-        x = nn.functional.relu(x)
-        x = self.B(x)
-        x = torch.tanh(x)
-        return torch.sum(x**2)
+    def forward(self, image_tensor, feat_0, feat_1, feat_2, feat_3, feat_pool):
+        images = ImageList(image_tensor, IMAGE_SIZES)
+        features = {
+            "0": feat_0,
+            "1": feat_1,
+            "2": feat_2,
+            "3": feat_3,
+            "pool": feat_pool,
+        }
+        boxes, losses = self.rpn(images, features)
+        return boxes[0]
 
 
-def main():
-    # Set up XLA runtime for TT backend.
+def test_codegen():
     xr.set_device_type("TT")
 
-    # Any compile options you could specify when executing the model normally can also be used with codegen.
-    extra_options = {
-        # "optimization_level": 0,  # Levels 0, 1, and 2 are supported
-    }
+    base_model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
+        weights=torchvision.models.detection.FasterRCNN_ResNet50_FPN_Weights.DEFAULT
+    )
+    base_model.eval()
 
-    model = Model()
-    x = torch.randn(32, 32)
+    model = RPNWrapper(base_model.rpn)
+    model.eval()
 
-    codegen_py(model, x, export_path="model", compiler_options=extra_options)
+    image_tensor = torch.rand(IMAGE_TENSOR_SHAPE)
+    feat_tensors = [torch.randn(FEATURE_SHAPES[k]) for k in FEATURE_KEYS]
 
-
-def test_codegen_creates_model_folder():
-    """Test that codegen_py creates the model folder and clean up afterwards."""
-    model_dir = Path("model")
-    if model_dir.exists():
-        shutil.rmtree(model_dir)
-    try:
-        main()
-        assert model_dir.exists(), "Expected 'model' directory to be created"
-    finally:
-        if model_dir.exists():
-            shutil.rmtree(model_dir)
+    codegen_py(
+        model,
+        image_tensor, *feat_tensors,
+        export_path="faster_rcnn_rpn_module",
+    )
 
 
 if __name__ == "__main__":
-    main()
+    test_codegen()
+
+
+

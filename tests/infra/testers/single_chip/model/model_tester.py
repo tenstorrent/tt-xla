@@ -13,7 +13,7 @@ from typing import Callable, Optional, Tuple
 from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
-
+from ttxla_tools.logging import logger
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from ...base_tester import BaseTester
@@ -160,17 +160,19 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
+        logger.info("compile for cpu starts")
         self._compile_for_cpu(self._workload)
+        logger.info("compile for cpu ends and cpu run starts")
         cpu_res = self._run_on_cpu(self._workload)
-
+        logger.info("compile for tt starts and cpu run ends")
         self._compile_for_tt_device(self._workload)
-
+        logger.info("tt run starts")
         if not self._disable_perf_measurement:
             e2e_perf_stats = self._test_e2e_perf()
             list.append(self._perf_measurements, e2e_perf_stats)
 
         tt_res = self._run_on_tt_device(self._workload)
-
+        logger.info("tt run ends")
         if request:
             self.handle_filecheck_and_serialization(request, self._workload)
 
