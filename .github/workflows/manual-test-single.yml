@@ -30,6 +30,7 @@ on:
           - 'n300-llmbox'
           - 'llmbox-1'
           - 'llmbox-2'
+          - 'galaxy-wh-6u'
       shared_runners:
         description: 'Run test on the CIv2 runner'
         required: false

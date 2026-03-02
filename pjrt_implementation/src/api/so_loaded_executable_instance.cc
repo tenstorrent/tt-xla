@@ -133,7 +133,8 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
       std::unique_ptr<EventInstance> device_complete_event =
           EventInstance::createInstance();
-      device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
+      EventInstance::markAsReadyAndCallback(device_complete_event.get(),
+                                            tt_pjrt_status::kSuccess);
 
       // Releasing ownership to the PJRT API caller
       args->device_complete_events[device_num] =

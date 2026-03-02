@@ -157,8 +157,21 @@ def proxy_import(package_name: str):
     proxy.__path__ = wrapper_module.__path__
     proxy.__file__ = wrapper_module.__file__
 
+    initial_proxy_keys = set(proxy.__dict__.keys())
+
     sys.modules[package_name] = proxy
     try:
         yield proxy
     finally:
+        # Some packages dynamically register top-level attributes during import by calling
+        # `setattr(sys.modules[package_name], name, obj)`. With the proxy in place, those
+        # calls land on the proxy, not the real wrapper. They are also NOT captured by
+        # `from _original import *`, because that statement writes into the executing
+        # module's own `__dict__` (the real wrapper), not into `sys.modules[package_name]`
+        # (the proxy) — two separate objects. Transfer any newly-set proxy attributes to
+        # the real wrapper so they remain accessible after import completes.
+        # Example: in `ttnn`, `register_python_operation` / `register_cpp_operation` register
+        # top-level ops (e.g. `ttnn.from_torch`, `ttnn.add`) this way.
+        for key in set(proxy.__dict__.keys()) - initial_proxy_keys:
+            wrapper_module.__dict__[key] = proxy.__dict__[key]
         sys.modules[package_name] = wrapper_module

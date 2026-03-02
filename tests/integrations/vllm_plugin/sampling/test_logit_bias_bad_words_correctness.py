@@ -12,8 +12,11 @@ apply_logit_bias:
 
 apply_bad_words:
   Validates that single-token bad words get -inf in the logits, non-banned
-  tokens are not touched, and that multi-token sequences raise
-  NotImplementedError (on-device enforcement only supports single-token bans).
+  tokens are not touched.
+
+_compute_bad_words_mask:
+  Validates the mask-building logic for both single-token and multi-token
+  bad words, including prefix matching against output token history.
 """
 
 import math
@@ -231,68 +234,134 @@ def test_apply_bad_words_per_request_independence():
 
 
 # ---------------------------------------------------------------------------
-# Mask-building logic (from metadata.py from_input_batch)
+# _compute_bad_words_mask (from metadata.py)
 # ---------------------------------------------------------------------------
-# These tests replicate the mask-building loop from
-# XLASupportedSamplingMetadata.from_input_batch to verify the multi-token
-# skip behaviour without requiring a full InputBatch.
+# Tests for the mask-building logic that supports both single-token and
+# multi-token bad words via prefix matching against output token history.
 
+from vllm_tt.metadata import XLASupportedSamplingMetadata
 
-def _build_bad_words_mask(bad_words_token_ids, padded_num_reqs, vocab_size):
-    """Replicate the from_input_batch mask-building logic for isolated testing."""
-    bad_words_cpu = torch.zeros(padded_num_reqs, vocab_size, dtype=torch.float32)
-    for req_idx, token_seqs in bad_words_token_ids.items():
-        for token_seq in token_seqs:
-            if len(token_seq) > 1:
-                raise NotImplementedError(
-                    "Multi-token bad_words sequences are not yet supported "
-                    "in the TT sampler. Only single-token bad words can be "
-                    "enforced on device. "
-                    "https://github.com/tenstorrent/tt-xla/issues/3363"
-                )
-            if len(token_seq) == 1:
-                bad_words_cpu[req_idx, token_seq[0]] = float("-inf")
-    return bad_words_cpu
+_compute = XLASupportedSamplingMetadata._compute_bad_words_mask
 
 
 @pytest.mark.push
 def test_bad_words_mask_building_single_token():
     """Single-token bad words are set to -inf in the mask."""
-    mask = _build_bad_words_mask({0: [[5], [17]]}, padded_num_reqs=1, vocab_size=100)
+    mask = _compute({0: [[5], [17]]}, [[]], 1, 100)
 
     assert math.isinf(mask[0, 5]) and mask[0, 5] < 0
     assert math.isinf(mask[0, 17]) and mask[0, 17] < 0
-    # Other tokens untouched
     assert mask[0, 0] == 0.0
-
-
-@pytest.mark.push
-def test_bad_words_mask_building_multi_token_raises():
-    """Multi-token sequences (len > 1) must raise NotImplementedError.
-
-    On-device enforcement only supports single-token bans.  Silently skipping
-    multi-token sequences would give the user no signal that their bad_words
-    entry did nothing.
-    """
-    import pytest as _pytest
-
-    with _pytest.raises(NotImplementedError, match="Multi-token bad_words"):
-        _build_bad_words_mask(
-            {0: [[5], [10, 20]]},
-            padded_num_reqs=1,
-            vocab_size=100,
-        )
 
 
 @pytest.mark.push
 def test_bad_words_mask_building_empty_seq_silently_skipped():
     """Empty token sequences (len == 0) must not crash or affect the mask."""
-    mask = _build_bad_words_mask(
-        {0: [[], [7]]},
-        padded_num_reqs=1,
-        vocab_size=100,
-    )
+    mask = _compute({0: [[], [7]]}, [[]], 1, 100)
 
     assert math.isinf(mask[0, 7]) and mask[0, 7] < 0
-    # No IndexError for empty seq, and nothing else affected
     assert mask[0, 0] == 0.0
+
+
+@pytest.mark.push
+def test_multi_token_prefix_match():
+    """Multi-token bad word bans the last token when prefix matches history."""
+    # Bad word [10, 20, 30]: ban 30 when last 2 output tokens are [10, 20]
+    mask = _compute({0: [[10, 20, 30]]}, [[10, 20]], 1, 100)
+    assert math.isinf(mask[0, 30]) and mask[0, 30] < 0
+
+
+@pytest.mark.push
+def test_multi_token_prefix_no_match():
+    """Multi-token bad word must NOT ban when prefix doesn't match."""
+    mask = _compute({0: [[10, 20, 30]]}, [[10, 99]], 1, 100)
+    assert mask[0, 30] == 0.0
+
+
+@pytest.mark.push
+def test_multi_token_not_enough_history():
+    """Multi-token bad word must NOT ban when history is too short."""
+    mask = _compute({0: [[10, 20, 30]]}, [[10]], 1, 100)
+    assert mask[0, 30] == 0.0
+
+
+@pytest.mark.push
+def test_two_token_bad_word():
+    """Two-token bad word [A, B] bans B when last output token is A."""
+    mask = _compute({0: [[5, 15]]}, [[5]], 1, 100)
+    assert math.isinf(mask[0, 15]) and mask[0, 15] < 0
+
+
+@pytest.mark.push
+def test_multi_token_empty_history():
+    """Multi-token bad word must NOT ban when history is empty."""
+    mask = _compute({0: [[10, 20]]}, [[]], 1, 100)
+    assert mask[0, 20] == 0.0
+
+
+@pytest.mark.push
+def test_mixed_single_and_multi_token():
+    """Single-token and multi-token bad words coexist correctly."""
+    mask = _compute(
+        {0: [[42], [5, 15], [5, 25], [99, 88]]},
+        [[5]],
+        1,
+        100,
+    )
+    assert math.isinf(mask[0, 42]) and mask[0, 42] < 0, "single-token always banned"
+    assert math.isinf(mask[0, 15]) and mask[0, 15] < 0, "[5,15] prefix matches"
+    assert math.isinf(mask[0, 25]) and mask[0, 25] < 0, "[5,25] prefix matches"
+    assert mask[0, 88] == 0.0, "[99,88] prefix doesn't match"
+    assert (mask[0] == float("-inf")).sum() == 3
+
+
+@pytest.mark.push
+def test_multiple_requests_independent():
+    """Bad words are applied per-request, not globally."""
+    mask = _compute({0: [[10]], 2: [[20]]}, [[], [], []], 3, 100)
+    assert math.isinf(mask[0, 10]) and mask[0, 10] < 0
+    assert mask[0, 20] == 0.0
+    assert not (mask[1] != 0).any()
+    assert math.isinf(mask[2, 20]) and mask[2, 20] < 0
+    assert mask[2, 10] == 0.0
+
+
+@pytest.mark.push
+def test_padding_rows_are_zero():
+    """Padding rows beyond actual requests should be all zeros."""
+    mask = _compute({0: [[42]]}, [[]], 4, 100)
+    for i in range(1, 4):
+        assert not (mask[i] != 0).any(), f"padding row {i} should be all zeros"
+
+
+@pytest.mark.push
+def test_token_id_out_of_vocab_range():
+    """Bad word token IDs beyond vocab_size should be silently skipped."""
+    mask = _compute({0: [[999]]}, [[]], 1, 50)
+    assert not (mask[0] != 0).any()
+
+
+@pytest.mark.push
+def test_matches_upstream_reference():
+    """Mask must produce the same bans as upstream vLLM bad_words logic."""
+    from vllm.v1.sample.ops.bad_words import _apply_bad_words_single_batch
+
+    vocab_size = 1000
+    bad_words_0 = [[100], [200, 300], [400, 500, 600], [200, 301]]
+    bad_words_1 = [[50], [60, 70]]
+    output_ids = [[200, 400, 500], [60]]
+
+    mask = _compute({0: bad_words_0, 1: bad_words_1}, output_ids, 2, vocab_size)
+
+    for req_idx, (bw, past) in enumerate(
+        [(bad_words_0, output_ids[0]), (bad_words_1, output_ids[1])]
+    ):
+        ref_logits = torch.zeros(vocab_size)
+        _apply_bad_words_single_batch(ref_logits, bw, past)
+        ref_banned = ref_logits == float("-inf")
+        actual_banned = mask[req_idx] == float("-inf")
+        assert torch.equal(actual_banned, ref_banned), (
+            f"Request {req_idx}: mask mismatch with upstream.\n"
+            f"  ours: {actual_banned.nonzero().flatten().tolist()}\n"
+            f"  ref:  {ref_banned.nonzero().flatten().tolist()}"
+        )

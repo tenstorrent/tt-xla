@@ -12,10 +12,10 @@
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_EVENT_INSTANCE_H_
 
 // c++ standard library includes
+#include <atomic>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <vector>
 
 // PJRT C API includes
@@ -46,7 +46,6 @@ public:
   // Creates new event instance.
   static std::unique_ptr<EventInstance> createInstance();
 
-  // Destructor, handles shutting down the callbacks thread.
   ~EventInstance();
 
   // Binds PJRT API functions implementation related to PJRT_Event structure.
@@ -67,30 +66,37 @@ public:
   // success).
   PJRT_Error *getErrorFromStatus();
 
-  // Marks event as ready with the status of the work. It will cause all
-  // callbacks in the callbacks thread to be executed, and will unlock caller's
-  // threads awaiting on the event.
-  void markAsReady(tt_pjrt_status status);
-
   // Waits until the event is ready, blocking the calling thread.
   void await();
 
   // Invokes the callback immediately on the calling thread if the event is
-  // ready, otherwise adds it to the list so it can be executed on a separate
-  // thread once the event is ready.
+  // ready, otherwise adds it to the list so it can be executed once the event
+  // is marked as ready.
   void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
 
   // See comment below for `m_indestructible`.
   void setIndestructible() { m_indestructible = true; }
   bool isIndestructible() const { return m_indestructible; }
 
+  // Marks the given event as ready with the given status and executes all
+  // registered callbacks (on the same thread).
+  //
+  // NOTE: This is a static method that takes the event instance as an argument
+  // because in some cases the callback functions destroy the event instance.
+  // So, to avoid any subtle bugs (or UB), we first mark the event as ready,
+  // move all callback functions from the event instance, and then execute the
+  // callbacks so that the event instance can be safely destroyed.
+  static void markAsReadyAndCallback(EventInstance *event_instance,
+                                     tt_pjrt_status status);
+
 private:
-  // Constructor, spawns the callbacks thread. Private because we wan't events
-  // to be created via factory method.
+  // Constructor is private because we want events to be created via factory
+  // method.
   EventInstance();
 
-  // Kills the callbacks thread;
-  void killTheCallbacksThread();
+  // Marks event as ready with the status of the work. The caller must hold the
+  // `m_ready_mutex` while calling this method.
+  void markAsReadyNoLock(tt_pjrt_status status);
 
   // True if the event is marked as ready, false otherwise.
   bool m_ready;
@@ -105,9 +111,6 @@ private:
   // as ready.
   std::condition_variable m_ready_condition;
 
-  // Thread waiting for event to be ready in order to execute the callbacks.
-  std::unique_ptr<std::thread> m_callbacks_thread;
-
   // Holds callbacks to be executed once the event is ready. PJRT docs don't
   // specify if only one callback can be registered per event, so we allow
   // registering multiple.
@@ -117,6 +120,10 @@ private:
   // XLA PJRT client destroys event immediately after it sets callback on it.
   // https://github.com/openxla/xla/issues/25172
   bool m_indestructible;
+
+  // Holds the number of awaiters (registered via `onEventAwait`) waiting on
+  // this event to be ready.
+  std::atomic<size_t> m_awaiters_count;
 };
 
 namespace internal {

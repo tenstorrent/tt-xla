@@ -88,7 +88,6 @@ class InputBatch:
             device=device,
             block_sizes=block_sizes,
             kernel_block_sizes=kernel_block_sizes,
-            num_speculative_tokens=num_speculative_tokens,
             cp_kv_cache_interleave_size=cp_kv_cache_interleave_size,
         )
 

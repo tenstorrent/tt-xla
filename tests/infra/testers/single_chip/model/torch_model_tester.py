@@ -17,6 +17,7 @@ from infra.utilities import (
     compile_torch_workload_for_tt_device,
 )
 from infra.workloads import TorchWorkload, Workload
+from tt_torch.sharding import sharding_constraint_tensor
 from ttxla_tools.logging import logger
 
 from tests.infra.evaluators import ComparisonResult
@@ -212,6 +213,37 @@ class TorchModelTester(ModelTester):
         )
         return existing_grads, none_grads
 
+    def mark_gradient_sharding(self, model: torch.nn.Module):
+        """Apply sharding to gradients based on parameter shard specs.
+
+        For tensor parallel training, gradients must be sharded identically to parameters.
+        This method marks gradient tensors with the same shard specs as their parameters.
+        """
+
+        assert (
+            self._workload.shard_spec_fn is not None
+        ), "Shard spec function must be provided for tensor parallel training"
+        assert (
+            self._workload.mesh is not None
+        ), "Mesh must be provided for tensor parallel training"
+
+        # Get shard specs from the model
+        shard_specs = self._workload.shard_spec_fn(self._model)
+        assert (
+            shard_specs is not None
+        ), "Shard specs must be provided for tensor parallel training"
+
+        for name, param in model.named_parameters():
+            if param.grad is None:
+                continue
+            if param not in shard_specs:
+                logger.warning(f"Parameter {name} not found in shard specs")
+                continue
+            shard_spec = shard_specs[param]
+            param.grad = sharding_constraint_tensor(
+                param.grad, self._workload.mesh, shard_spec
+            )
+
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         # Initialize XLA computation client to properly set up autograd engine device queues
         # before any backward passes. See: https://github.com/pytorch/xla/issues/4174
@@ -239,6 +271,11 @@ class TorchModelTester(ModelTester):
 
         # Run forward on TT
         compile_options = {"tt_experimental_compile": False}
+
+        # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
+        if self._parallelism == Parallelism.TENSOR_PARALLEL:
+            compile_options["tt_enable_torch_fx_fusion_pass"] = False
+
         self._compile_for_tt_device(self._workload, compile_options)
         tt_res = self._run_on_tt_device(self._workload)
         tt_res = self._unpack_forward_output(tt_res)
@@ -254,6 +291,10 @@ class TorchModelTester(ModelTester):
             kwargs={"gradient": random_grad},
         )
         self._run_on_tt_device(tt_backward_workload)
+
+        if self._parallelism == Parallelism.TENSOR_PARALLEL:
+            self.mark_gradient_sharding(self._model)
+
         # TODO: Adding explicit sync to ensure view of gradients are not computed without reason
         # https://github.com/tenstorrent/tt-xla/issues/1466
         wanted_grads = [p.grad for p in self._model.parameters() if p.grad is not None]

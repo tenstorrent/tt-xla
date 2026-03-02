@@ -177,7 +177,6 @@ eager_failing_unary_ops = {
     torch.logit,
     torch.rsqrt,
     torch.sqrt,
-    torch.tan,
 }
 
 # Create eager version with xfail markers for failing ops

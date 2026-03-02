@@ -1228,9 +1228,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_scheduled_tokens = scheduler_output.total_num_scheduled_tokens
         combined_pooler_outputs: list[torch.Tensor] = []
 
-        with set_forward_context(None, self.vllm_config):
-            self.maybe_setup_kv_connector(scheduler_output)
-
         while start_index < self.input_batch.num_reqs:
             (
                 attn_metadata,

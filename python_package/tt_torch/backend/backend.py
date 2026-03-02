@@ -8,13 +8,19 @@ import torch
 import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
+import torch_xla.runtime as xr
 from torch._dynamo import register_backend
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
+from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
 
 from .decompositions import populate_decompositions
-from .metadata_propagation import MetadataDispatchMode, extract_nodes_info
+from .metadata_propagation import (
+    MetadataDispatchMode,
+    MetadataInterpreter,
+    extract_nodes_info,
+)
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
@@ -32,7 +38,7 @@ def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
-) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, list[str]]:
+) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, dict[str, str]]:
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
@@ -90,6 +96,26 @@ def torch_pass_pipeline(
     return compiled_graph, program.graph_signature, node_info
 
 
+def _mark_unsharded_args_replicated(args: Tuple[torch.Tensor]) -> None:
+    """Mark unsharded XLA tensors as REPLICATED when running in SPMD mode.
+
+    In SPMD mode, torch_xla's InputCollector propagates sharding annotations
+    during graph capture and marks unsharded tensors as '<replicated>'. At
+    runtime, freshly created tensors (e.g. input_ids, cache_position) carry no
+    sharding annotation and return '' from _get_xla_sharding_spec. Explicitly
+    marking them REPLICATED keeps their sharding spec consistent with what was
+    recorded at capture time and prevents spurious retracing in dynamo_bridge.
+    """
+    if not xr.is_spmd():
+        return
+    replicated = torch_xla._XLAC.OpSharding([], [], [], ShardingType.REPLICATED)
+    for arg in args:
+        if isinstance(arg, torch.Tensor) and not torch_xla._XLAC._get_xla_sharding_spec(
+            arg
+        ):
+            torch_xla._XLAC._xla_mark_sharding(arg, replicated)
+
+
 class XLAExecutor:
     """
     This class is used to execute a compiled program on an XLA device.
@@ -102,7 +128,7 @@ class XLAExecutor:
         self,
         module: torch.fx.GraphModule,
         signature: torch.export.ExportGraphSignature,
-        node_info: list[str],
+        node_info: dict[str, str],
         legacy_compile_enabled: bool,
     ):
         self.module = module
@@ -184,6 +210,10 @@ class XLAExecutor:
             )
 
         full_args = self.params_and_consts + args
+        # Ensure unsharded tensors are marked REPLICATED in SPMD mode so their
+        # sharding spec matches what was recorded at graph capture time. This is a temporary workaround
+        # until a change is made in torch-xla to automatically mark unsharded tensors as REPLICATED at runtime in SPMD mode.
+        _mark_unsharded_args_replicated(full_args)
         return self.compiled_graph(*full_args)
 
     def __call__(self, *args):
@@ -191,10 +221,13 @@ class XLAExecutor:
             return self._call_experimental_compile(*args)
 
         if self.inject_metadata:
-            # MetadataDispatchMode intercepts tensor operations via TorchDispatchMode and
-            # attaches FX metadata (module hierarchy, file, line) to XLA tensors.
-            with MetadataDispatchMode(self.node_info):
-                output = self.module(*args)
+            # Use MetadataInterpreter + MetadataDispatchMode to correctly track metadata
+            # even when FX nodes decompose into multiple aten operations at dispatch time.
+            # MetadataInterpreter sets a context variable for each FX node, and
+            # MetadataDispatchMode reads it to attach the correct metadata to each dispatch.
+            with MetadataDispatchMode():
+                interp = MetadataInterpreter(self.module, self.node_info)
+                output = interp.run(*args)
         else:
             output = self.module(*args)
         gm_has_functional_output_kind: bool = True

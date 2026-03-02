@@ -31,7 +31,13 @@ _TARGET_MARKS = {
     "n300": ("vllm_n300", [pytest.mark.tensor_parallel, pytest.mark.dual_chip]),
     "n300_llmbox": (
         "vllm_n300_llmbox",
-        [pytest.mark.tensor_parallel, pytest.mark.llmbox],
+        [
+            pytest.mark.tensor_parallel,
+            pytest.mark.llmbox,
+            pytest.mark.skip(
+                reason="Skipping due to bug in tt-metal SDPA op. Issue: https://github.com/tenstorrent/tt-xla/issues/3465"
+            ),
+        ],
     ),
 }
 
@@ -262,15 +268,15 @@ def test_stop_sequences(llm, prompt):
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
-@pytest.mark.skip(
-    reason="numpy.int64 serialization crash in vLLM v0.13.0 (#3310); logprobs not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3366"
-)
 def test_logprobs(llm, prompt):
-    """Test requesting log probabilities."""
+    """Test that logprobs are returned with correct structure and valid values."""
+    max_tokens = 8
     logprobs_values = [None, 1, 5]
 
     for logprobs in logprobs_values:
-        params = vllm.SamplingParams(temperature=0.8, logprobs=logprobs, max_tokens=8)
+        params = vllm.SamplingParams(
+            temperature=0.8, logprobs=logprobs, max_tokens=max_tokens
+        )
         result = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
 
         print(
@@ -283,7 +289,26 @@ def test_logprobs(llm, prompt):
             assert (
                 result.logprobs is not None
             ), f"Should have logprobs when logprobs={logprobs}"
-            assert len(result.logprobs) > 0, "Should have logprob entries"
+            # One logprob dict per generated token
+            assert len(result.logprobs) == len(result.token_ids), (
+                f"logprobs length {len(result.logprobs)} != "
+                f"token count {len(result.token_ids)}"
+            )
+            for token_idx, lp_dict in enumerate(result.logprobs):
+                # Each dict has at least (logprobs + 1) entries: top-k plus the sampled token
+                assert len(lp_dict) >= logprobs, (
+                    f"token {token_idx}: expected >= {logprobs} logprob entries, "
+                    f"got {len(lp_dict)}"
+                )
+                for token_id, lp_entry in lp_dict.items():
+                    assert lp_entry.logprob <= 0.0, (
+                        f"token {token_idx}, id {token_id}: "
+                        f"logprob {lp_entry.logprob:.4f} must be <= 0"
+                    )
+                    assert lp_entry.rank >= 1, (
+                        f"token {token_idx}, id {token_id}: "
+                        f"rank {lp_entry.rank} must be >= 1"
+                    )
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
@@ -343,20 +368,18 @@ def test_seed(llm, prompt):
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_bad_words(llm, prompt):
-    """Test that the banned token ID is absent from every output token."""
+    """Test that bad_words bans are enforced in the generated output.
+
+    Uses "the" as a banned word. For models where this tokenizes to a single
+    token, asserts the token ID never appears. For multi-token tokenizations,
+    asserts the full contiguous sequence never appears (prefix matching
+    suppresses the final token whenever the prefix is generated).
+    """
     banned = "the"
 
-    # Check tokenization before running the model: multi-token words cannot be
-    # enforced on device and will now raise NotImplementedError in from_input_batch.
-    # Skip early rather than let the generate call fail unexpectedly.
     tokenizer = llm.get_tokenizer()
     banned_ids = tokenizer.encode(" " + banned, add_special_tokens=False)
     print(f"[TESTOUT test_bad_words] {banned!r} -> token IDs {banned_ids}")
-    if len(banned_ids) != 1:
-        pytest.skip(
-            f"{banned!r} tokenizes to {len(banned_ids)} tokens in this model; "
-            "on-device bad_words only enforces single-token sequences"
-        )
 
     baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
     baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0]
@@ -367,11 +390,22 @@ def test_bad_words(llm, prompt):
     print(f"[TESTOUT test_bad_words] bad_words=[{banned!r}]: {output.text[:50]}...")
 
     assert len(output.text) > 0, "Should produce output with bad_words"
-    # Assert at the token-ID level: the banned token ID must not appear anywhere.
-    assert banned_ids[0] not in list(output.token_ids), (
-        f"banned token ID {banned_ids[0]} ({banned!r}) must not appear in output "
-        f"token_ids: {list(output.token_ids)}"
-    )
+    # For single-token bad words: the banned ID must not appear at all.
+    # For multi-token: the full sequence must not appear (prefix matching
+    # suppresses the final token whenever the prefix is present).
+    if len(banned_ids) == 1:
+        assert banned_ids[0] not in list(output.token_ids), (
+            f"banned token ID {banned_ids[0]} ({banned!r}) must not appear in "
+            f"output token_ids: {list(output.token_ids)}"
+        )
+    else:
+        # Multi-token: the full bad_words sequence must not appear contiguously.
+        output_ids = list(output.token_ids)
+        for i in range(len(output_ids) - len(banned_ids) + 1):
+            assert output_ids[i : i + len(banned_ids)] != banned_ids, (
+                f"banned sequence {banned_ids} ({banned!r}) must not appear "
+                f"contiguously in output token_ids: {output_ids}"
+            )
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")

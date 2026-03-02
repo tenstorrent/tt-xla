@@ -11,13 +11,13 @@ export XLA_HLO_DEBUG=1
 
 This module provides node metadata tracking by:
 1. Extracting location metadata from FX graph nodes (module hierarchy, file, line)
-2. Intercepting operations at runtime via TorchDispatchMode
-3. Attaching node metadata (module hierarchy, file, line) to XLA tensors using torch-xla's API
+2. Using a custom FX Interpreter to track which FX node is being executed
+3. Intercepting operations at runtime via TorchDispatchMode
+4. Attaching node metadata (module hierarchy, file, line) to XLA tensors using torch-xla's API
 
-The counter-based approach relies on FX guarantees:
-- Nodes are stored in topological order
-- Code generation preserves node order
-- Dispatch happens in execution order
+The Interpreter-based approach ensures correct metadata attribution even when a single
+FX node decomposes into multiple aten operations at dispatch time. A context variable
+tracks the currently executing FX node, and all dispatched ops inherit its metadata.
 
 Note: extract_nodes_info() must be called after all FX transformation passes complete.
 FX passes may modify the graph (add/remove/reorder nodes), so extracting metadata too
@@ -35,15 +35,24 @@ Correct usage pattern:
 import ast
 import os
 import types
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 import torch
 import torch_xla
+from torch.fx import Interpreter
 from torch.utils._python_dispatch import TorchDispatchMode
 from ttxla_tools.logging import logger
 
 # Enable debug logging for location metadata
 DBG_LOC = False
+
+# Context variable to track current FX node metadata across dispatch calls.
+# This allows MetadataDispatchMode to know which FX node triggered each dispatch,
+# even when a single FX node decomposes into multiple aten operations.
+_current_node_metadata: ContextVar[str | None] = ContextVar(
+    "_current_node_metadata", default=None
+)
 
 
 @dataclass
@@ -325,10 +334,18 @@ def _extract_source_and_module_hierarchy_info(
     )
 
 
-def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
+def extract_nodes_info(graph_module: torch.fx.GraphModule) -> dict[str, str]:
+    """
+    Extract metadata for each FX node, returning a dict keyed by node name.
+
+    Returns a dict mapping node name -> metadata string, which allows the
+    MetadataInterpreter to look up metadata by node name during execution.
+    This approach correctly handles FX nodes that decompose into multiple
+    aten operations at dispatch time.
+    """
     global DBG_LOC
 
-    emit_locs = []
+    node_info: dict[str, str] = {}
     op_index = 0
 
     for node in graph_module.graph.nodes:
@@ -344,7 +361,8 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
         # If no metadata is available, use unknown location
         if not hasattr(node, "meta") or not node.meta:
             DBG_LOC and print(f"  NO meta for node: {node.op} - {node.name}")
-            emit_locs.append(EmitLoc.make_unknown())
+            node_info[node.name] = EmitLoc.make_unknown().to_string()
+            op_index += 1
             continue
 
         # Skip if node.target is <class 'builtin_function_or_method'>
@@ -361,10 +379,43 @@ def extract_nodes_info(graph_module: torch.fx.GraphModule) -> list[str]:
         DBG_LOC and print(f"  EmitLoc: {emit_loc}")
 
         # Build location string if we have any metadata
-        emit_locs.append(emit_loc)
+        node_info[node.name] = emit_loc.to_string()
         op_index += 1
 
-    return [emit_loc.to_string() for emit_loc in emit_locs]
+    return node_info
+
+
+class MetadataInterpreter(Interpreter):
+    """
+    Executes FX graph while setting metadata context for each node.
+
+    This ensures that all dispatched aten operations from a single FX node
+    receive the same metadata, regardless of how many ops the FX node
+    decomposes into at runtime.
+
+    For example, torch.matmul may decompose into expand -> view -> bmm -> view
+    at dispatch time. Using this Interpreter, all four aten ops will receive
+    the metadata from the original matmul FX node.
+    """
+
+    def __init__(self, module: torch.fx.GraphModule, node_info: dict[str, str]):
+        super().__init__(module)
+        # Map from node name -> metadata string
+        self.node_info = node_info
+
+    def run_node(self, node: torch.fx.Node):
+        if node.op == "call_function":
+            # Get metadata for this node
+            metadata = self.node_info.get(node.name)
+
+            if metadata:
+                # Set context before executing - all dispatched ops will see this
+                token = _current_node_metadata.set(metadata)
+                result = super().run_node(node)
+                _current_node_metadata.reset(token)
+                return result
+
+        return super().run_node(node)
 
 
 class MetadataDispatchMode(TorchDispatchMode):
@@ -376,21 +427,18 @@ class MetadataDispatchMode(TorchDispatchMode):
     modifying the computation itself.
 
     How it works:
-    1. At compile time, extract_nodes_info() builds an ordered list of metadata from FX graph
-       nodes (only call_function nodes, since they're the only ones that dispatch operations).
+    1. At compile time, extract_nodes_info() builds a dict mapping node names to metadata
+       strings from FX graph nodes.
 
-    2. At runtime, when graph_module.forward() executes, it triggers operations in sequence.
-       Each operation increments our counter, letting us map it to the corresponding FX node.
+    2. At runtime, MetadataInterpreter executes the graph and sets a context variable
+       (_current_node_metadata) before each FX node executes. This context variable
+       tracks which FX node is currently being executed.
 
-       Example flow:
-         FX Node 0 (call_function: linear) → Runtime: aten::linear dispatched   (counter=0)
-         FX Node 1 (call_function: relu)   → Runtime: aten::relu dispatched     (counter=1)
-         FX Node 2 (output)                 → No dispatch (not call_function)
+    3. When aten operations are dispatched (potentially multiple ops from a single FX node
+       due to decomposition), this class reads the context variable to get the correct
+       metadata for the currently executing FX node.
 
-       The counter-based approach works because FX guarantees topological ordering and
-       execution follows the same order.
-
-    3. For each dispatched operation, we attach metadata to the output XLA tensor using
+    4. For each dispatched operation, we attach metadata to the output XLA tensor using
        torch_xla._XLAC._set_xla_custom_op_name_prefix(). torch-xla traces back from the
        tensor to find which operation produced it, then labels that operation node in HLO.
 
@@ -398,26 +446,16 @@ class MetadataDispatchMode(TorchDispatchMode):
     debugging metadata to the generated XLA HLO IR for better observability.
     """
 
-    def __init__(self, node_info: list[str]):
-        super().__init__()
-        self.node_info = node_info
-        self.operation_index = 0
+    def __torch_dispatch__(self, func, types, args=(), kwargs=None):
+        kwargs = kwargs or {}
+        result = func(*args, **kwargs)
 
-    def __torch_dispatch__(self, func, types, args=(), kwargs={}):
-        res = func(*args, **kwargs)
+        # Get metadata from context variable (set by MetadataInterpreter)
+        metadata = _current_node_metadata.get()
+        if metadata:
+            self._set_metadata(result, metadata)
 
-        # Set metadata only for computation nodes since they have module hierarchy info.
-        # XLA nodes without location info inherit from parent/child nodes, which works
-        # perfectly since computation nodes always have locations.
-        module_hierarchy = EmitLoc.make_unknown().to_string()
-        if self.operation_index < len(self.node_info):
-            module_hierarchy = self.node_info[self.operation_index]
-            self._set_metadata(res, module_hierarchy)
-
-        # increment counter (critical for correctness)
-        self.operation_index += 1
-
-        return res
+        return result
 
     def _set_metadata(
         self, result: torch.Tensor | tuple | list, module_hierarchy: str

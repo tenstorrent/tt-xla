@@ -37,6 +37,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
+  gpt_oss/pytorch-120B-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3490
+
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
@@ -66,7 +71,7 @@ test_config:
   qwen_3/causal_lm/pytorch-0_6B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
+    assert_pcc: True
 
   qwen_3/causal_lm/pytorch-14B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -75,7 +80,7 @@ test_config:
   qwen_3/causal_lm/pytorch-1_7B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2550
+    assert_pcc: True
 
   qwen_3/causal_lm/pytorch-32B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -151,10 +156,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   llama/causal_lm/pytorch-3.1_70B-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on galaxy"
-    bringup_status: FAILED_RUNTIME
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    markers: [nightly] # Not red model, but high priority.
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -201,3 +205,13 @@ test_config:
     supported_archs: [n300-llmbox]
     assert_pcc: false # PCC comparison failed. Calculated: pcc=0.701951301689392. Required: pcc=0.99
     status: EXPECTED_PASSING
+
+  mistral/pytorch-mistral_small_3.1_24b_instruct_2503-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    assert_pcc: false # PCC comparison failed. Calculated: pcc=0.9757716745992953. Required: pcc=0.99
+    status: EXPECTED_PASSING
+
+  mistral/pytorch-mistral_small_3.2_24b_instruct_2506-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "KeyError: c_lifted_tensor_1 - https://github.com/tenstorrent/tt-xla/issues/3221"

@@ -260,7 +260,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
       std::unique_ptr<EventInstance> device_complete_event =
           EventInstance::createInstance();
-      device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
+      EventInstance::markAsReadyAndCallback(device_complete_event.get(),
+                                            tt_pjrt_status::kSuccess);
 
       // Releasing the ownership to the PJRT API caller since the caller is
       // responsible for calling `PJRT_Event_Destroy` on the event.

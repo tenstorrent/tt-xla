@@ -5,7 +5,7 @@
 """Shared constants for test configuration validation, loading, and discovery."""
 
 # Allowed architecture identifiers for arch_overrides and --arch option
-ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox"}
+ALLOWED_ARCHES = {"n150", "p150", "n300", "n300-llmbox", "galaxy-wh-6u"}
 
 # Allowed fields in test_config YAML entries
 ALLOWED_FIELDS = {
