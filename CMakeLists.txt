@@ -63,16 +63,6 @@ else()
     message(WARNING "MPI_HOME does not exist: ${MPI_HOME}")
 endif()
 
-set(MPI_C_COMPILER "${MPI_HOME}/bin/mpicc" CACHE FILEPATH "MPI C compiler")
-set(MPI_CXX_COMPILER "${MPI_HOME}/bin/mpicxx" CACHE FILEPATH "MPI CXX compiler")
-find_package(MPI REQUIRED)
-
-# Print MPI configuration details
-message(STATUS "MPI_CXX_COMPILER: ${MPI_CXX_COMPILER}")
-message(STATUS "MPI_CXX_LIBRARIES: ${MPI_CXX_LIBRARIES}")
-message(STATUS "MPI_CXX_INCLUDE_DIRS: ${MPI_CXX_INCLUDE_DIRS}")
-message(STATUS "MPI_CXX_LINK_FLAGS: ${MPI_CXX_LINK_FLAGS}")
-
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" ON)
 option(TTMLIR_ENABLE_BINDINGS_PYTHON "Enable Python bindings in tt-mlir" OFF)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
