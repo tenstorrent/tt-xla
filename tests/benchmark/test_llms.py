@@ -850,8 +850,7 @@ def test_llama_3_1_70b_tp(output_file, num_layers, request):
         output_file,
         num_layers=num_layers,
         request=request,
-        required_pcc=-1.0,
-    )  # https://github.com/tenstorrent/tt-xla/issues/2976
+    )
 
 
 # Use 1x8 shard specs for gpt-oss-20b until https://github.com/tenstorrent/tt-xla/issues/3490 is resolved.
