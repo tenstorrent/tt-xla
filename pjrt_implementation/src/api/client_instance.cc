@@ -310,6 +310,7 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
+
   m_system_descriptor = tt::runtime::getCurrentSystemDesc();
 
   m_system_descriptor.store(m_cached_system_descriptor_path.data());

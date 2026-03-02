@@ -81,6 +81,27 @@ namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
 
+// Maps per-axis fabric config to TTNN mesh topology for CCL operations.
+static std::vector<mlir::tt::ttcore::Topology>
+fabricConfigToMeshTopology(
+    const tt::runtime::MeshFabricConfig &fabricConfig) {
+  std::vector<mlir::tt::ttcore::Topology> meshTopology;
+  for (const auto &axisConfig : fabricConfig.perAxisConfig) {
+    switch (axisConfig) {
+    case tt::runtime::FabricConfig::FABRIC_1D:
+      meshTopology.push_back(mlir::tt::ttcore::Topology::Linear);
+      break;
+    case tt::runtime::FabricConfig::FABRIC_1D_RING:
+      meshTopology.push_back(mlir::tt::ttcore::Topology::Ring);
+      break;
+    default:
+      meshTopology.push_back(mlir::tt::ttcore::Topology::Disabled);
+      break;
+    }
+  }
+  return meshTopology;
+}
+
 // Helper function to get current timestamp in milliseconds.
 static std::string getCurrentTimeStamp() {
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -999,21 +1020,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Map per-axis fabric config to mesh topology for CCL operations.
   // Compute fabric config for the compilation mesh shape directly, since the
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
-  tt::runtime::MeshFabricConfig fabricConfig =
-      client_instance->computeFabricConfig(devices_mesh_shape);
-  for (const auto &axisConfig : fabricConfig.perAxisConfig) {
-    switch (axisConfig) {
-    case tt::runtime::FabricConfig::FABRIC_1D:
-      options.meshTopology.push_back(mlir::tt::ttcore::Topology::Linear);
-      break;
-    case tt::runtime::FabricConfig::FABRIC_1D_RING:
-      options.meshTopology.push_back(mlir::tt::ttcore::Topology::Ring);
-      break;
-    default:
-      options.meshTopology.push_back(mlir::tt::ttcore::Topology::Disabled);
-      break;
-    }
-  }
+  options.meshTopology = fabricConfigToMeshTopology(
+      client_instance->computeFabricConfig(devices_mesh_shape));
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
