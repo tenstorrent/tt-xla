@@ -25,7 +25,7 @@ from typing import (
     Tuple,
     Union,
 )
-
+import subprocess
 import numpy as np
 import pandas as pd
 import torch
@@ -4131,10 +4131,140 @@ class FlowmatchingActionHead(nn.Module):
         return next(iter(self.parameters())).dtype
 
 
+def _extract_frames_at_timestamps_ffmpeg(
+    video_path: str, timestamps: list[float]
+) -> np.ndarray:
+    """Extract frames at specific timestamps using ffmpeg."""
+    frames = []
+
+    for timestamp in timestamps:
+        cmd = [
+            "ffmpeg",
+            "-ss",
+            str(timestamp),
+            "-i",
+            video_path,
+            "-vframes",
+            "1",
+            "-f",
+            "image2pipe",
+            "-pix_fmt",
+            "rgb24",
+            "-vcodec",
+            "rawvideo",
+            "-",
+        ]
+
+        try:
+            output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+
+            # Check if output is empty (timestamp doesn't exist)
+            if len(output) == 0:
+                raise subprocess.CalledProcessError(1, cmd)
+
+            # Get frame dimensions
+            if len(frames) == 0:
+                info_cmd = [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=width,height",
+                    "-of",
+                    "json",
+                    video_path,
+                ]
+                info_output = subprocess.check_output(info_cmd).decode("utf-8")
+                info_data = json.loads(info_output)
+                width = info_data["streams"][0]["width"]
+                height = info_data["streams"][0]["height"]
+
+            # Decode raw RGB data
+            frame_data = np.frombuffer(output, dtype=np.uint8)
+            frame = frame_data.reshape((height, width, 3))
+            frames.append(frame)
+
+        except subprocess.CalledProcessError:
+            # Timestamp might be out of bounds, use last frame or black frame
+            if len(frames) > 0:
+                frames.append(frames[-1])
+            else:
+                frames.append(np.zeros((480, 640, 3), dtype=np.uint8))
+
+    return np.array(frames)
+
+
+def _extract_frames_ffmpeg(video_path: str, frame_indices: list[int]) -> np.ndarray:
+    """Extract specific frames using ffmpeg."""
+    frames = []
+
+    for idx in frame_indices:
+        # Use ffmpeg to extract a specific frame
+        cmd = [
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-vf",
+            f"select=eq(n\\,{idx})",
+            "-vframes",
+            "1",
+            "-f",
+            "image2pipe",
+            "-pix_fmt",
+            "rgb24",
+            "-vcodec",
+            "rawvideo",
+            "-",
+        ]
+
+        try:
+            output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+
+            # Check if output is empty (frame doesn't exist)
+            if len(output) == 0:
+                raise subprocess.CalledProcessError(1, cmd)
+
+            # Get frame dimensions by probing first
+            if len(frames) == 0:
+                info_cmd = [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=width,height",
+                    "-of",
+                    "json",
+                    video_path,
+                ]
+                info_output = subprocess.check_output(info_cmd).decode("utf-8")
+                info_data = json.loads(info_output)
+                width = info_data["streams"][0]["width"]
+                height = info_data["streams"][0]["height"]
+
+            # Decode raw RGB data
+            frame_data = np.frombuffer(output, dtype=np.uint8)
+            frame = frame_data.reshape((height, width, 3))
+            frames.append(frame)
+
+        except subprocess.CalledProcessError:
+            # Frame might not exist, create a black frame
+            if len(frames) > 0:
+                frames.append(np.zeros_like(frames[0]))
+            else:
+                # Default fallback frame
+                frames.append(np.zeros((480, 640, 3), dtype=np.uint8))
+
+    return np.array(frames)
+
+
 def get_frames_by_indices(
     video_path: str,
     indices: list[int] | np.ndarray,
-    video_backend: str = "decord",
+    video_backend: str = "ffmpeg",
     video_backend_kwargs: dict = {},
 ) -> np.ndarray:
     if video_backend == "decord":
@@ -4150,6 +4280,8 @@ def get_frames_by_indices(
             video_path, dimension_order="NHWC", num_ffmpeg_threads=0
         )
         return decoder.get_frames_at(indices=indices).data.numpy()
+    elif video_backend == "ffmpeg":
+        return _extract_frames_ffmpeg(video_path, list(indices))
     elif video_backend == "opencv":
         frames = []
         cap = cv2.VideoCapture(video_path, **video_backend_kwargs)
@@ -4169,20 +4301,24 @@ def get_frames_by_indices(
 def get_frames_by_timestamps(
     video_path: str,
     timestamps: list[float] | np.ndarray,
-    video_backend: str = "decord",
+    video_backend: str = "ffmpeg",
     video_backend_kwargs: dict = {},
 ) -> np.ndarray:
     """Get frames from a video at specified timestamps.
+
     Args:
         video_path (str): Path to the video file.
         timestamps (list[int] | np.ndarray): Timestamps to retrieve frames for, in seconds.
-        video_backend (str, optional): Video backend to use. Defaults to "decord".
+        video_backend (str, optional): Video backend to use. Defaults to "ffmpeg".
+
     Returns:
         np.ndarray: Frames at the specified timestamps.
     """
     if video_backend == "decord":
         if not DECORD_AVAILABLE:
-            raise ImportError("decord is not available.")
+            raise ImportError(
+                "decord is not available. Install it with: pip install decord"
+            )
         vr = decord.VideoReader(video_path, **video_backend_kwargs)
         num_frames = len(vr)
         # Retrieve the timestamps for each frame in the video
@@ -4196,9 +4332,34 @@ def get_frames_by_timestamps(
         if not TORCHCODEC_AVAILABLE:
             raise ImportError("torchcodec is not available.")
         decoder = torchcodec.decoders.VideoDecoder(
-            video_path, dimension_order="NHWC", num_ffmpeg_threads=0
+            video_path, device="cpu", dimension_order="NHWC", num_ffmpeg_threads=0
         )
+
+        # https://docs.pytorch.org/torchcodec/stable/generated/torchcodec.decoders.VideoStreamMetadata.html#torchcodec.decoders.VideoStreamMetadata
+        fps = decoder.metadata.average_fps
+        interval = 1 / fps
+        timestamps = np.array(timestamps).astype(np.float64)
+
+        # Correct float precision issues in timestamps
+        # E.g. for 5fps video: [1.0, 1.20000005, 1.39999998] -> [1.0, 1.2, 1.4]
+        # Without this, the torchcodec will read the delayed frame (e.g. 1.39999998 -> 1.2)
+        # Round to nearest frame interval to prevent torchcodec from reading wrong frames
+        # Allow max 1% error from expected interval
+        closest_timestamps = np.round(timestamps / interval) * interval
+        timestamp_errors = np.abs(closest_timestamps - timestamps) / interval
+        invalid_mask = timestamp_errors >= 0.01
+        if np.any(invalid_mask):
+            invalid_indices = np.where(invalid_mask)[0]
+            invalid_timestamps = timestamps[invalid_indices]
+            raise ValueError(
+                f"Try to read invalid timestamps {invalid_timestamps} from video {video_path} (FPS: {fps})"
+            )
+
+        timestamps = closest_timestamps
+
         return decoder.get_frames_played_at(seconds=timestamps).data.numpy()
+    elif video_backend == "ffmpeg":
+        return _extract_frames_at_timestamps_ffmpeg(video_path, list(timestamps))
     elif video_backend == "opencv":
         # Open the video file
         cap = cv2.VideoCapture(video_path, **video_backend_kwargs)
@@ -4224,51 +4385,40 @@ def get_frames_by_timestamps(
         cap.release()
         frames = np.array(frames)
         return frames
+
     elif video_backend == "torchvision_av":
         # set backend
         torchvision.set_video_backend("pyav")
+
         # set a video stream reader
+        # TODO(rcadene): also load audio stream at the same time
         reader = torchvision.io.VideoReader(video_path, "video")
+
         # set the first and last requested timestamps
         # Note: previous timestamps are usually loaded, since we need to access the previous key frame
         first_ts = timestamps[0]
         last_ts = timestamps[-1]
+
         # access closest key frame of the first requested frame
         # Note: closest key frame timestamp is usally smaller than `first_ts` (e.g. key frame can be the first frame of the video)
         # for details on what `seek` is doing see: https://pyav.basswood-io.com/docs/stable/api/container.html?highlight=inputcontainer#av.container.InputContainer.seek
         reader.seek(first_ts, keyframes_only=True)
+
         # load all frames until last requested frame
         loaded_frames = []
         loaded_ts = []
         for frame in reader:
             current_ts = frame["pts"]
-            loaded_frames.append(frame["data"].numpy())
+            loaded_frames.append(frame["data"])
             loaded_ts.append(current_ts)
             if current_ts >= last_ts:
                 break
+
         reader.container.close()
         reader = None
         frames = np.array(loaded_frames)
-        loaded_ts = np.array(loaded_ts)
-
-        # Find the closest frame for each requested timestamp
-        selected_frames = []
-        for target_ts in timestamps:
-            # Find the closest frame before or equal to this timestamp
-            valid_indices = loaded_ts <= target_ts
-            if np.any(valid_indices):
-                # Get the closest frame before or equal to the timestamp
-                valid_ts = loaded_ts[valid_indices]
-                closest_idx = np.abs(valid_ts - target_ts).argmin()
-                # Map back to original index
-                original_idx = np.where(valid_indices)[0][closest_idx]
-                selected_frames.append(frames[original_idx])
-            else:
-                # If no frame is before the timestamp, use the first frame
-                selected_frames.append(frames[0])
-
-        frames = np.array(selected_frames)
         return frames.transpose(0, 2, 3, 1)
+
     else:
         raise NotImplementedError
 

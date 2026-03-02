@@ -160,14 +160,13 @@ class ModelLoader(ForgeModel):
         dataset = LeRobotSingleDataset(
             modality_configs=self._modality_config,
             embodiment_tag=self.embodiment_tag,
-            video_backend="decord",
+            video_backend="ffmpeg",
             video_backend_kwargs=None,
             transforms=None,
         )
 
         # Get first sample (index 0)
         observations = dataset[0]
-
         if dtype_override:
             print(
                 f"Warning: dtype_override may not work well with mixed-type observations (videos, states, etc.)."
