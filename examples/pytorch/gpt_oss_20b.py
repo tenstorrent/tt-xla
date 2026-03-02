@@ -76,7 +76,8 @@ def gpt_oss_20b(interactive: bool = False):
         # Mark sharding on inputs and model internals
         mark_sharding_on_inputs_and_model(model, input_args, mesh)
 
-        # Compile model
+        # Patch model to avoid per-layer recompilations, then compile
+        patch_model_for_compile(model)
         compiled_model = torch.compile(model, backend="tt")
 
         # Run generation loop until EOS token generated or max tokens reached
@@ -93,6 +94,32 @@ def gpt_oss_20b(interactive: bool = False):
 
         if not interactive:
             break
+
+
+def patch_model_for_compile(model: torch.nn.Module):
+    """
+    Patch model classes to avoid per-layer torch.compile recompilations.
+
+    GradientCheckpointingLayer.__call__ references self.gradient_checkpointing
+    and self.training, causing torch.compile to guard on each layer object's
+    identity. In eval mode, the custom __call__ is a passthrough to
+    nn.Module.__call__, so reverting it is safe.
+
+    The @deprecate_kwarg wrappers on forward methods access
+    args[0].__class__.__name__, also triggering per-object guards. Since we
+    don't use deprecated kwarg names, unwrapping them is safe.
+    """
+    from transformers.modeling_layers import GradientCheckpointingLayer
+
+    GradientCheckpointingLayer.__call__ = torch.nn.Module.__call__
+
+    layer_class = type(model.model.layers[0])
+    if hasattr(layer_class.forward, "__wrapped__"):
+        layer_class.forward = layer_class.forward.__wrapped__
+
+    attn_class = type(model.model.layers[0].self_attn)
+    if hasattr(attn_class.forward, "__wrapped__"):
+        attn_class.forward = attn_class.forward.__wrapped__
 
 
 def setup_spmd():
@@ -282,6 +309,10 @@ def transfer_to_device(
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
+        if hasattr(layer, "cumulative_length") and isinstance(
+            layer.cumulative_length, torch.Tensor
+        ):
+            layer.cumulative_length = layer.cumulative_length.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
