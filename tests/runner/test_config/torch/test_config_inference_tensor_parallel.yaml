@@ -198,13 +198,17 @@ test_config:
 
   olmo3/causal_lm/pytorch-3_32b_think-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    assert_pcc: false # PCC comparison failed. Calculated: pcc=0.3691241923630818. Required: pcc=0.99
+    # assert_pcc: false # PCC comparison failed. Calculated: pcc=0.3691241923630818. Required: pcc=0.99
+    assert_pcc: true
     status: EXPECTED_PASSING
+    markers: [testing]
 
   olmo3/causal_lm/pytorch-3_1125_32b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    assert_pcc: false # PCC comparison failed. Calculated: pcc=0.701951301689392. Required: pcc=0.99
+    # assert_pcc: false # PCC comparison failed. Calculated: pcc=0.701951301689392. Required: pcc=0.99
+    assert_pcc: true
     status: EXPECTED_PASSING
+    markers: [testing]
 
   mistral/pytorch-mistral_small_3.1_24b_instruct_2503-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
