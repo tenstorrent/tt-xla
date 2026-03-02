@@ -54,7 +54,7 @@ jobs:
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
-      dockbuild: ${{ inputs.manylinux_build == 'true' && 'all' || 'ci' }}
+      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
   build-ttxla:
     needs: build-image
