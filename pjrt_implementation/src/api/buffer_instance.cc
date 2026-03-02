@@ -11,11 +11,17 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstring>
 #include <memory>
 #include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <thread>
+
+// POSIX includes
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
@@ -41,6 +47,69 @@
 #include "utils/utils.h"
 
 namespace tt::pjrt {
+
+// MmappedBuffer implementation
+MmappedBuffer::MmappedBuffer(const void *source_data, size_t size)
+    : m_data(nullptr), m_size(size) {
+  DLOG_F(LOG_DEBUG, "MmappedBuffer: Creating mmap for %zu bytes (%.2f MB)",
+         size, size / 1024.0 / 1024.0);
+
+  // Create anonymous mmap with MAP_PRIVATE and MAP_ANONYMOUS
+  // This allows the OS to swap pages to disk when memory pressure is high
+  m_data = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
+                  MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (m_data == MAP_FAILED) {
+    LOG_F(ERROR, "MmappedBuffer: Failed to create mmap for %zu bytes: %s",
+          size, std::strerror(errno));
+    throw std::runtime_error("Failed to create mmap buffer: " +
+                             std::string(std::strerror(errno)));
+  }
+
+  DLOG_F(LOG_DEBUG, "MmappedBuffer: Successfully created mmap at address %p, size %.2f MB",
+         m_data, size / 1024.0 / 1024.0);
+
+  // Copy data into the mmap'd region
+  std::memcpy(m_data, source_data, size);
+
+  DLOG_F(LOG_DEBUG, "MmappedBuffer: Copied %zu bytes into mmap'd region", size);
+
+  // Advise the kernel that this memory can be swapped out aggressively
+  // MADV_DONTNEED tells the kernel it can free these pages immediately if needed
+  int madvise_result = ::madvise(m_data, size, MADV_DONTNEED);
+  if (madvise_result == 0) {
+    DLOG_F(LOG_DEBUG, "MmappedBuffer: madvise(MADV_DONTNEED) successful for %p", m_data);
+  } else {
+    DLOG_F(LOG_DEBUG, "MmappedBuffer: madvise(MADV_DONTNEED) failed for %p: %s",
+           m_data, std::strerror(errno));
+  }
+}
+
+MmappedBuffer::~MmappedBuffer() {
+  if (m_data != nullptr && m_data != MAP_FAILED) {
+    DLOG_F(LOG_DEBUG, "MmappedBuffer: Destroying mmap at address %p, size %.2f MB",
+           m_data, m_size / 1024.0 / 1024.0);
+    ::munmap(m_data, m_size);
+  }
+}
+
+MmappedBuffer::MmappedBuffer(MmappedBuffer &&other) noexcept
+    : m_data(other.m_data), m_size(other.m_size) {
+  other.m_data = nullptr;
+  other.m_size = 0;
+}
+
+MmappedBuffer &MmappedBuffer::operator=(MmappedBuffer &&other) noexcept {
+  if (this != &other) {
+    if (m_data != nullptr && m_data != MAP_FAILED) {
+      ::munmap(m_data, m_size);
+    }
+    m_data = other.m_data;
+    m_size = other.m_size;
+    other.m_data = nullptr;
+    other.m_size = 0;
+  }
+  return *this;
+}
 
 std::mutex BufferInstance::s_copy_to_host_internal_mutex;
 
@@ -144,10 +213,22 @@ void BufferInstance::deleteData() {
 
   joinCopyThread();
 
+  // IMPORTANT: Destroy the borrowed tensor before the mmap'd buffer!
+  // The borrowed tensor points to memory owned by m_mmapped_buffer,
+  // so we must ensure the tensor is destroyed first.
+  if (m_pjrt_tensor) {
+    DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::deleteData - Destroying borrowed tensor", m_uid);
+    m_pjrt_tensor.reset();
+  }
+
+  // Now it's safe to destroy the mmap'd buffer
+  if (m_mmapped_buffer) {
+    DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::deleteData - Destroying mmap at address %p, size %.2f MB",
+           m_uid, m_mmapped_buffer->data(), m_mmapped_buffer->size() / 1024.0 / 1024.0);
+    m_mmapped_buffer.reset();
+  }
+
   m_data_deleted = true;
-  // Note: m_done_with_host_buffer_event is no longer used since we always
-  // create owned tensors and mark the event as ready immediately after copying
-  // in copyFromHost(). This field can be removed in a future cleanup.
 }
 
 // Constructing buffer instance for the first time.
@@ -172,18 +253,32 @@ void BufferInstance::copyFromHost(
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
 
-  tt::runtime::Tensor runtime_tensor;
+  // Calculate the total size of the buffer
+  size_t buffer_size = element_size;
+  for (auto dim : shape) {
+    buffer_size *= dim;
+  }
 
-  // Always create an owned host tensor to avoid borrowing memory from PJRT.
-  // This ensures we have complete ownership of the tensor data and can safely
-  // manage its lifetime independently of the PJRT host buffer.
-  // The host buffer data is copied into our owned tensor, so we can immediately
-  // mark the done_with_host_buffer_event as ready since we no longer need
-  // access to the original host buffer.
-  runtime_tensor = tt::runtime::createOwnedHostTensor(
-      host_buffer, shape, strides, element_size, runtime_data_type);
+  DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::copyFromHost - Creating mmap for buffer size %zu bytes (%.2f MB), shape=%s",
+         m_uid, buffer_size, buffer_size / 1024.0 / 1024.0, toShapeStr().c_str());
 
-  // Memory is copied, we don't need host buffer anymore.
+  // Create an mmap'd buffer that can be offloaded to disk by the OS
+  // This gives us memory pressure relief while maintaining data integrity
+  m_mmapped_buffer = std::make_unique<MmappedBuffer>(host_buffer, buffer_size);
+
+  DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::copyFromHost - Mmap created at address %p for %.2f MB",
+         m_uid, m_mmapped_buffer->data(), buffer_size / 1024.0 / 1024.0);
+
+  // Create a borrowed host tensor that points to the mmap'd memory
+  // The borrowed tensor doesn't own the memory, so it won't free it on destruction
+  // The mmap'd buffer will be cleaned up when this BufferInstance is destroyed
+  tt::runtime::Tensor runtime_tensor = tt::runtime::createBorrowedHostTensor(
+      m_mmapped_buffer->data(), shape, strides, element_size, runtime_data_type);
+
+  DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::copyFromHost - Created borrowed tensor pointing to mmap at %p",
+         m_uid, m_mmapped_buffer->data());
+
+  // Memory is copied into mmap'd region, we don't need the original host buffer anymore.
   // Mark the event as ready immediately after the copy completes.
   EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                         tt_pjrt_status::kSuccess);

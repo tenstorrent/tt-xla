@@ -20,6 +20,10 @@
 #include <thread>
 #include <vector>
 
+// POSIX includes
+#include <sys/mman.h>
+#include <unistd.h>
+
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -32,6 +36,28 @@
 #include "utils/status.h"
 
 namespace tt::pjrt {
+
+// RAII wrapper for memory-mapped buffers that can be offloaded to disk
+class MmappedBuffer {
+public:
+  MmappedBuffer(const void *source_data, size_t size);
+  ~MmappedBuffer();
+
+  // Delete copy constructor and copy assignment
+  MmappedBuffer(const MmappedBuffer &) = delete;
+  MmappedBuffer &operator=(const MmappedBuffer &) = delete;
+
+  // Allow move semantics
+  MmappedBuffer(MmappedBuffer &&other) noexcept;
+  MmappedBuffer &operator=(MmappedBuffer &&other) noexcept;
+
+  void *data() const { return m_data; }
+  size_t size() const { return m_size; }
+
+private:
+  void *m_data;
+  size_t m_size;
+};
 
 class DeviceInstance;
 class MemoryInstance;
@@ -261,6 +287,11 @@ private:
 
   // Pjrt tensor reference.
   PjrtTensorRef m_pjrt_tensor;
+
+  // Memory-mapped buffer for disk offloading. When present, the runtime tensor
+  // borrows memory from this buffer, which can be swapped to disk by the OS.
+  // Must be destroyed after the borrowed runtime tensor is destroyed.
+  std::unique_ptr<MmappedBuffer> m_mmapped_buffer;
 };
 
 namespace internal {
