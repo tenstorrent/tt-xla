@@ -195,7 +195,7 @@ test_config:
       - matmul_with_activation_silu.ttnn.mlir
       - softmax.ttnn.mlir # SDPA fusion is not enabled without the optimizer, so we only check for softmax
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_2-single_device-mesh_default-inference:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_32-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
 
@@ -203,7 +203,7 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_1024-batch_2-single_device-mesh_default-inference:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_1024-batch_32-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
 
@@ -212,7 +212,7 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_2-single_device-mesh_default-inference:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_32-single_device-mesh_default-inference:
     required_pcc: 0.98 # Is 0.984 for n150 and p150
     status: EXPECTED_PASSING
     markers: [nightly, large]
@@ -227,7 +227,7 @@ test_config:
         status: EXPECTED_PASSING
         markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_2-single_device-mesh_default-inference:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_32-single_device-mesh_default-inference:
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -242,7 +242,7 @@ test_config:
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_2-single_device-mesh_default-inference:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_32-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
