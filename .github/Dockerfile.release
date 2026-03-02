@@ -31,6 +31,8 @@ RUN add-apt-repository ppa:deadsnakes/ppa && \
     python3.12 -m ensurepip --upgrade && \
     python3.12 -m pip install --no-cache-dir --upgrade pip setuptools wheel
 
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
 # Install system dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \

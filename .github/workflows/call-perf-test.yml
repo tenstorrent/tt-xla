@@ -136,7 +136,7 @@ jobs:
           --name ${{ inputs.wheel_artifact_name }}
 
         echo "=== Installing wheel ==="
-        pip install wheels/*.whl
+        uv pip install wheels/*.whl
 
     - name: Install system dependencies
       shell: bash
@@ -147,8 +147,8 @@ jobs:
     - name: Install Python dependencies
       shell: bash
       run: |
-        pip install ${{ matrix.build.pyreq }}
-        pip install torchvision==0.24.0+cpu --index-url https://download.pytorch.org/whl/cpu
+        uv pip install ${{ matrix.build.pyreq }}
+        uv pip install torchvision==0.24.0+cpu --index-url https://download.pytorch.org/whl/cpu
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
@@ -314,16 +314,16 @@ jobs:
         python3.12 -m venv ttrt-venv
         source ttrt-venv/bin/activate
         apt-get install -y -qq --no-install-recommends libtbb12 libcapstone4
-        pip install ttrt-whl-tracy/ttrt*.whl --upgrade
-        pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
-        pip install pandas==2.3.3
+        uv pip install ttrt-whl-tracy/ttrt*.whl --upgrade --extra-index-url https://download.pytorch.org/whl/cpu
+        uv pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
+        uv pip install pandas==2.3.3
 
     - name: Run Device Perf
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
       shell: bash
       run: |
         source ttrt-venv/bin/activate
-        pip install pandas==2.3.3
+        uv pip install pandas==2.3.3
 
         echo "Save artifacts"
         ttrt query --save-artifacts
