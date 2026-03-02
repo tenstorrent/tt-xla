@@ -386,12 +386,17 @@ jobs:
       - name: Fix workspace permissions
         if: always()
         run: |
-          echo "=== Restoring workspace ownership on controller ==="
-          # Files written by the container run as root. Chown them back to the runner
-          # user so the next checkout can delete them. This runs directly (not through
-          # mpirun) so it is guaranteed to execute even if mpirun connectivity fails.
-          docker exec multihost-poc chown -R $(id -u):$(id -g) /workspace || true
-          echo "Controller workspace ownership restored"
+          echo "=== Restoring workspace ownership ==="
+          # Spin up a throwaway container to chown as root. This does NOT rely on
+          # multihost-poc being present: that container may already be gone (--rm removes
+          # it on stop) or may never have started (e.g. checkout failed this run).
+          # Because the workspace is NFS-shared, one chown from the controller covers
+          # files created by both controller and worker containers.
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
+            chown -R "$(id -u):$(id -g)" /workspace || true
+          echo "Workspace ownership restored"
 
       - name: Cleanup
         if: always()
