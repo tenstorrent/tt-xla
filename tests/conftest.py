@@ -486,6 +486,25 @@ def cleanup_cache_fixture():
     cleanup_cache()
 
 
+def _release_dynamo_bridge_tensors():
+    """Workaround for torch_xla leak: after torch._dynamo.reset(), GraphInputMatcher
+    objects and their parent caches survive, holding all model-weight XLA tensors
+    (~26 GB for 8B TP). We find these by type and clear their parent dicts.
+    """
+    from torch_xla._dynamo.dynamo_bridge import GraphInputMatcher
+
+    for obj in gc.get_objects():
+        if isinstance(obj, torch.fx.GraphModule):
+            if getattr(obj, "xla_args", None) is not None:
+                obj.xla_args = None
+        if isinstance(obj, GraphInputMatcher):
+            for ref in gc.get_referrers(obj):
+                if isinstance(ref, tuple):
+                    for d in gc.get_referrers(ref):
+                        if isinstance(d, dict):
+                            d.clear()
+
+
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
 # do so blindly around all tests: https://github.com/tenstorrent/tt-xla/issues/1265.
 @pytest.fixture(autouse=True)
@@ -493,6 +512,7 @@ def run_around_tests():
     torch.manual_seed(0)
     yield
     torch._dynamo.reset()
+    _release_dynamo_bridge_tensors()
 
 
 @pytest.fixture()
