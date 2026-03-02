@@ -83,8 +83,7 @@ const std::string c_mlir_format_name = "mlir";
 
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
 static std::vector<mlir::tt::ttcore::Topology>
-fabricConfigToMeshTopology(
-    const tt::runtime::MeshFabricConfig &fabricConfig) {
+fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
   std::vector<mlir::tt::ttcore::Topology> meshTopology;
   for (const auto &axisConfig : fabricConfig.perAxisConfig) {
     switch (axisConfig) {
