@@ -983,6 +983,72 @@ def sparse_matmul_fake(
     )
 
 
+def _sparse_matmul_setup_context(ctx, inputs, output):
+    input_a, input_b, sparsity, nnz, is_input_a_sparse, is_input_b_sparse = inputs
+    ctx.save_for_backward(input_a, input_b, sparsity)
+    ctx.is_input_a_sparse = is_input_a_sparse
+    ctx.is_input_b_sparse = is_input_b_sparse
+
+
+def _sparse_matmul_backward(ctx, grad_output):
+    input_a, input_b, sparsity = ctx.saved_tensors
+    is_a_sparse = ctx.is_input_a_sparse
+    is_b_sparse = ctx.is_input_b_sparse
+
+    input_b_cast = input_b.to(input_a.dtype)
+
+    if is_a_sparse and is_b_sparse:
+        # Forward: [1, E, M, K] @ [1, E, K, N] -> [1, E, M, N]
+        # sparsity: [1, 1, 1, E]
+        mask = sparsity[0, 0, 0]  # [E]
+        masked_grad = grad_output * mask.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+        grad_a = torch.matmul(masked_grad, input_b_cast.transpose(-1, -2))
+        grad_b = torch.matmul(input_a.transpose(-1, -2), masked_grad)
+
+    elif not is_a_sparse and is_b_sparse:
+        # Forward: [A, B, M, K] @ [1, E, K, N] -> [A, B, 1, E, M, N]
+        # sparsity: [A, B, 1, E]
+        A, B, M, K = input_a.shape
+        E = input_b.shape[1]
+        N = input_b.shape[-1]
+
+        masked_grad = grad_output * sparsity.unsqueeze(-1).unsqueeze(-1)
+        masked_grad = masked_grad.squeeze(2)  # [A, B, E, M, N]
+
+        # grad_a: [A, B, E, M, N] @ [E, N, K] -> [A, B, E, M, K], sum over E
+        input_b_t = input_b_cast.squeeze(0).transpose(-1, -2)  # [E, N, K]
+        grad_a = torch.matmul(masked_grad, input_b_t).sum(dim=2)  # [A, B, M, K]
+
+        # grad_b: [AB, 1, K, M] @ [AB, E, M, N] -> [AB, E, K, N], sum over AB
+        input_a_t = input_a.transpose(-1, -2).reshape(A * B, K, M)
+        mg = masked_grad.reshape(A * B, E, M, N)
+        grad_b = torch.matmul(input_a_t.unsqueeze(1), mg).sum(dim=0).unsqueeze(0)
+
+    elif is_a_sparse and not is_b_sparse:
+        # Forward: [A, E, M, K] @ [1, E, K, N] -> [A, E, M, N]
+        # sparsity: [1, 1, A, E]
+        mask = sparsity[0, 0]  # [A, E]
+        masked_grad = grad_output * mask.unsqueeze(-1).unsqueeze(-1)
+
+        input_b_t = input_b_cast.squeeze(0).transpose(-1, -2)  # [E, N, K]
+        grad_a = torch.matmul(masked_grad, input_b_t)  # [A, E, M, K]
+
+        grad_b = torch.matmul(
+            input_a.transpose(-1, -2), masked_grad
+        ).sum(dim=0).unsqueeze(0)  # [1, E, K, N]
+
+    else:
+        raise ValueError("Invalid sparse mode")
+
+    return grad_a, grad_b.to(input_b.dtype), None, None, None, None
+
+
+sparse_matmul.register_autograd(
+    _sparse_matmul_backward,
+    setup_context=_sparse_matmul_setup_context,
+)
+
+
 @torch.library.custom_op(
     "tt::all_to_all_dispatch", mutates_args=[], device_types=["xla", "cpu"]
 )
@@ -1067,6 +1133,33 @@ def all_to_all_dispatch_fake(
         [1, BD, S, K], dtype=expert_indices.dtype, device=expert_indices.device
     )
     return dispatched, metadata
+
+
+def _all_to_all_dispatch_setup_context(ctx, inputs, output):
+    input_tensor, expert_indices, expert_mapping, num_devices, cluster_axis = inputs
+    ctx.num_devices = num_devices
+    ctx.input_shape = input_tensor.shape
+
+
+def _all_to_all_dispatch_backward(ctx, grad_dispatched, grad_metadata):
+    num_devices = ctx.num_devices
+    B = ctx.input_shape[0]
+
+    if num_devices > 1:
+        S = grad_dispatched.shape[2]
+        H = grad_dispatched.shape[3]
+        grad = grad_dispatched.view(1, num_devices, B, S, H).sum(dim=1)
+    else:
+        grad = grad_dispatched
+
+    grad_input = grad.permute(1, 0, 2, 3)
+    return grad_input, None, None, None, None
+
+
+all_to_all_dispatch.register_autograd(
+    _all_to_all_dispatch_backward,
+    setup_context=_all_to_all_dispatch_setup_context,
+)
 
 
 @torch.library.custom_op(
@@ -1197,6 +1290,88 @@ def all_to_all_combine_fake(
         )
 
 
+def _all_to_all_combine_setup_context(ctx, inputs, output):
+    (
+        input_tensor,
+        expert_metadata,
+        expert_mapping,
+        num_devices,
+        cluster_axis,
+        num_experts_per_tok,
+        output_shard_dim,
+    ) = inputs
+    ctx.save_for_backward(expert_metadata)
+    ctx.num_devices = num_devices
+    ctx.num_experts_per_tok = num_experts_per_tok
+    ctx.output_shard_dim = output_shard_dim
+    ctx.input_shape = input_tensor.shape
+
+
+def _all_to_all_combine_backward(ctx, grad_output):
+    (expert_metadata,) = ctx.saved_tensors
+    num_devices = ctx.num_devices
+    K = ctx.num_experts_per_tok
+    output_shard_dim = ctx.output_shard_dim
+    E_local = ctx.input_shape[0]
+
+    if output_shard_dim == 1:
+        _, BD, S, H = ctx.input_shape
+        B = BD // num_devices
+        metadata_indices = expert_metadata[0, :B]
+        indices = metadata_indices.permute(2, 0, 1)
+        indices_expanded = indices.unsqueeze(-1).expand_as(grad_output)
+
+        valid = (indices >= 0) & (indices < E_local)
+        grad_masked = grad_output * valid.unsqueeze(-1).to(grad_output.dtype)
+        indices_safe = indices_expanded.clamp(0, max(E_local - 1, 0))
+
+        grad_input = torch.zeros(
+            E_local, B, S, H, dtype=grad_output.dtype, device=grad_output.device
+        )
+        grad_input.scatter_add_(0, indices_safe, grad_masked)
+
+        if BD > B:
+            grad_input_full = torch.zeros(
+                E_local, BD, S, H,
+                dtype=grad_output.dtype,
+                device=grad_output.device,
+            )
+            grad_input_full[:, :B, :, :] = grad_input
+            grad_input = grad_input_full
+    else:
+        _, S, BD, H = ctx.input_shape
+        B = BD // num_devices
+        metadata_indices = expert_metadata[0, :B]
+        indices = metadata_indices.permute(2, 1, 0)
+        indices_expanded = indices.unsqueeze(-1).expand_as(grad_output)
+
+        valid = (indices >= 0) & (indices < E_local)
+        grad_masked = grad_output * valid.unsqueeze(-1).to(grad_output.dtype)
+        indices_safe = indices_expanded.clamp(0, max(E_local - 1, 0))
+
+        grad_input = torch.zeros(
+            E_local, S, B, H, dtype=grad_output.dtype, device=grad_output.device
+        )
+        grad_input.scatter_add_(0, indices_safe, grad_masked)
+
+        if BD > B:
+            grad_input_full = torch.zeros(
+                E_local, S, BD, H,
+                dtype=grad_output.dtype,
+                device=grad_output.device,
+            )
+            grad_input_full[:, :, :B, :] = grad_input
+            grad_input = grad_input_full
+
+    return grad_input, None, None, None, None, None, None
+
+
+all_to_all_combine.register_autograd(
+    _all_to_all_combine_backward,
+    setup_context=_all_to_all_combine_setup_context,
+)
+
+
 @torch.library.custom_op(
     "tt::moe_expert_token_remap", mutates_args=[], device_types=["xla", "cpu"]
 )
@@ -1302,6 +1477,25 @@ def moe_expert_token_remap_fake(
         device=topk_tensor.device,
     )
     return mapping, reduced
+
+
+def _moe_expert_token_remap_setup_context(ctx, inputs, output):
+    topk_tensor, expert_mapping, expert_metadata, reduction_size = inputs
+    ctx.topk_shape = topk_tensor.shape
+    ctx.topk_dtype = topk_tensor.dtype
+
+
+def _moe_expert_token_remap_backward(ctx, grad_mapping, grad_reduced):
+    grad_topk = torch.zeros(
+        ctx.topk_shape, dtype=ctx.topk_dtype, device=grad_mapping.device
+    )
+    return grad_topk, None, None, None
+
+
+moe_expert_token_remap.register_autograd(
+    _moe_expert_token_remap_backward,
+    setup_context=_moe_expert_token_remap_setup_context,
+)
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow
