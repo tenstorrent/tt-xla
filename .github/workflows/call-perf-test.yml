@@ -314,7 +314,7 @@ jobs:
         python3.12 -m venv ttrt-venv
         source ttrt-venv/bin/activate
         apt-get install -y -qq --no-install-recommends libtbb12 libcapstone4
-        pip install ttrt-whl-tracy/ttrt*.whl --upgrade
+        pip install ttrt-whl-tracy/ttrt*.whl --upgrade --extra-index-url https://download.pytorch.org/whl/cpu
         pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
         pip install pandas==2.3.3
 
