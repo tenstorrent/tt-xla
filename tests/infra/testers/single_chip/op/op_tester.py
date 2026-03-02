@@ -41,12 +41,14 @@ class OpTester(BaseTester):
         framework: Framework = Framework.JAX,
         compiler_config: CompilerConfig = None,
         torch_options: dict = None,
+        custom_comparator: Optional[Callable] = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
         if compiler_config is None:
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
         self._torch_options = torch_options if torch_options is not None else {}
+        self._custom_comparator = custom_comparator
         self._enable_perf_measurement = (
             os.environ.get("ENABLE_OP_TEST_PERF_MEASUREMENT", "0") == "1"
         )
@@ -73,7 +75,10 @@ class OpTester(BaseTester):
         self._compile_for_tt_device(tt_workload)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
-        self._evaluator.evaluate(tt_res, cpu_res)
+        if self._custom_comparator is not None:
+            self._custom_comparator(tt_res, cpu_res, workload.args)
+        else:
+            self._evaluator.evaluate(tt_res, cpu_res)
 
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
@@ -215,6 +220,7 @@ def run_op_test_with_random_inputs(
     compiler_config: CompilerConfig = None,
     torch_options: dict = None,
     request=None,
+    custom_comparator: Optional[Callable] = None,
 ) -> None:
     """
     Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
@@ -227,6 +233,7 @@ def run_op_test_with_random_inputs(
         framework,
         compiler_config=compiler_config,
         torch_options=torch_options,
+        custom_comparator=custom_comparator,
     )
     tester.test_with_random_inputs(
         op, input_shapes, minval, maxval, dtype, request=request
