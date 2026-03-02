@@ -63,9 +63,10 @@ jobs:
     uses: ./.github/workflows/call-perf-test.yml
     with:
       matrix: ${{ needs.filter-tests.outputs.matrix_p150 }}
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: "ghcr.io/tenstorrent/tt-xla-slim:nightly-latest"
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      use_docker_wheel: true
 
   fail-notify:
     needs:
