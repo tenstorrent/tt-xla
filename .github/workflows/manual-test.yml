@@ -4,81 +4,70 @@ name: Run Test
 # It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
 
 on:
-  schedule:
-    - cron: '0 5 * * *'
   workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
+        type: choice
+        options:
+          - 'basic-test.json'
+          - 'basic-test-nightly.json'
+          - 'model-test-push.json'
+          - 'model-test-full.json'
+          - 'on-pr.json'
+          - 'schedule-nightly.json'
+          - 'model-test-passing.json'
+          - 'model-test-xfail.json'
+          - 'model-test-experimental.json'
+          - 'model-test-training-xfail-weekly.json'
+          - 'model-test-extended.json'
+          - 'mlir-uplift-qualification.json'
+          - 'model-test-passing-weekly.json'
+          - 'model-test-weekly.json'
+          - 'vllm-model-tests.json'
+          - 'vllm-model-tests-nightly.json'
+          - 'Custom'
+      test_suite_custom:
+        description: 'Custom test suite json'
+        required: false
+        type: string
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
 
 permissions:
-  id-token: write
-  actions: write
   packages: write
   checks: write
+
+run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
 
 jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
 
   build-ttxla:
-    uses: ./.github/workflows/call-build.yml
-    name: "Build tt-xla"
-    secrets: inherit
     needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override }}
 
-  filter-tests:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix_p150: ${{ steps.set-perf-benchmarks.outputs.matrix_p150 }}
-      matrix_p150_skip: ${{ steps.set-perf-benchmarks.outputs.matrix_p150_skip }}
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
-        submodules: 'recursive'
-
-    - name: Filter Matrix
-      id: set-perf-benchmarks
-      shell: bash
-      run: |
-        result=$(python .github/scripts/filter-test-matrix.py \
-          .github/workflows/perf-bench-matrix.json \
-          "tt-xla")
-
-        matrix=$(echo $result | jq -r -c '.matrix')
-        matrix_p150=$(echo $result | jq -r -c '.matrix | map(select(."runs-on" | contains("p150")))')
-
-        matrix_p150_skip="false"
-
-        if [ "$matrix_p150" == "[]" ]; then
-          matrix_p150_skip="true"
-        fi
-
-        echo "matrix_p150=$matrix_p150" >> $GITHUB_OUTPUT
-        echo "matrix_p150_skip=$matrix_p150_skip" >> $GITHUB_OUTPUT
-
-  run-p150-perf-benchmarks:
-    needs: [filter-tests, build-image, build-ttxla]
-    if: ${{ needs.filter-tests.outputs.matrix_p150_skip == 'false' }}
+  test:
+    if: success() && !cancelled() && inputs.preset != 'tt_forge_models'
+    uses: ./.github/workflows/call-test.yml
+    needs: [ build-image, build-ttxla]
     secrets: inherit
-    uses: ./.github/workflows/call-perf-test.yml
     with:
-      matrix: ${{ needs.filter-tests.outputs.matrix_p150 }}
-      docker_image: "ghcr.io/tenstorrent/tt-xla-slim:nightly-latest"
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      use_docker_wheel: true
-
-  fail-notify:
-    needs:
-      - run-p150-perf-benchmarks
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check if the needed jobs succeeded or failed
-        id: check
-        uses: re-actors/alls-green@release/v1
-        with:
-          jobs: ${{ toJSON(needs) }}
+      test_suite: ${{ inputs.test_suite }}
+      test_suite_custom: ${{ inputs.test_suite_custom }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+      alchemist_artifact_name: ${{ needs.build-ttxla.outputs.alchemist_artifact_name }}
