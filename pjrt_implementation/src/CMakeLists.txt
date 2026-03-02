@@ -33,7 +33,6 @@ add_library(TTPJRTTTDylib SHARED
 target_link_libraries(TTPJRTTTDylib PUBLIC
     TTPJRTBindings
     coverage_config
-    MPI::MPI_CXX
 )
 
 target_link_directories(TTPJRTTTDylib PRIVATE
