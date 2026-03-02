@@ -690,3 +690,22 @@ def captured_output_fixture(request):
         tee.start()
         yield tee
         tee.stop()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """
+    Print detected failing reason to console when available.
+    """
+    outcome = yield
+    report = outcome.get_result()
+
+    # Only print once per test call phase
+    if report.when != "call":
+        return
+
+    meta = getattr(item, "_test_meta", None)
+    failing_reason = getattr(meta, "failing_reason", None) if meta else None
+    if failing_reason:
+        desc = failing_reason.value.description
+        print(f"Failing reason - {desc}")

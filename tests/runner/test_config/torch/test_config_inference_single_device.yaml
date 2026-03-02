@@ -1980,8 +1980,9 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
   bevformer/pytorch-Tiny-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    status: EXPECTED_PASSING
 
   bevformer/pytorch-Small-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2452,8 +2453,8 @@ test_config:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "RuntimeError: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_module L__self___maxpool1(*(FakeTensor(..., device='xla:0', size=(1, 96, 16, 128, 128), dtype=torch.bfloat16),), https://github.com/tenstorrent/tt-xla/issues/2567"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: failed to legalize operation 'stablehlo.reduce_window' - https://github.com/tenstorrent/tt-mlir/issues/7240"
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
     supported_archs: ["p150"]
