@@ -61,7 +61,7 @@ LLM_PHASES = {"load_inputs_decode": "llm_decode", "load_inputs_prefill": "llm_pr
 
 # LLM parametrization values (mirrors test_models.py)
 LLM_SEQUENCE_LENGTHS = (128, 1024, 2048, 4096, 8192)
-LLM_BATCH_SIZES = (1, 2)
+LLM_BATCH_SIZES = (1, 32)
 
 # Models excluded from PyTorch discovery (matches dynamic_loader.py)
 TORCH_EXCLUDED_MODEL_DIRS = {"suryaocr"}
