@@ -13,6 +13,7 @@ does not include one, we provide a minimal template via --chat-template.
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -22,7 +23,6 @@ import pytest
 import requests
 
 MODEL = "facebook/opt-125m"
-SERVER_PORT = 8321
 SERVER_HOST = "localhost"
 SERVER_STARTUP_TIMEOUT = 300  # seconds
 REQUEST_TIMEOUT = 120  # seconds
@@ -46,10 +46,18 @@ def get_output_text(result):
     return "".join(texts)
 
 
+def _find_free_port():
+    """Ask the OS for a free port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+
 @pytest.fixture(scope="module")
 def vllm_server():
     """Start a vLLM OpenAI-compatible server and wait for it to be ready."""
-    base_url = f"http://{SERVER_HOST}:{SERVER_PORT}"
+    port = _find_free_port()
+    base_url = f"http://{SERVER_HOST}:{port}"
 
     # Write the chat template to a temp file (vLLM --chat-template accepts a path).
     template_fd, template_path = tempfile.mkstemp(suffix=".jinja")
@@ -69,7 +77,7 @@ def vllm_server():
         "--model",
         MODEL,
         "--port",
-        str(SERVER_PORT),
+        str(port),
         "--max-model-len",
         "128",
         "--max-num-batched-tokens",
