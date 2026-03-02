@@ -112,8 +112,12 @@ def test_llm(
 
     # Resolve model name for accuracy testing
     model_name_for_accuracy = None
+    hf_model_name = None
     if accuracy_testing:
         model_name_for_accuracy = TokenAccuracy.get_model_name_from_variant(
+            model_loader, variant
+        )
+        hf_model_name = TokenAccuracy.get_hf_model_name_from_variant(
             model_loader, variant
         )
 
@@ -139,6 +143,7 @@ def test_llm(
         fp32_dest_acc_en=fp32_dest_acc_en,
         accuracy_testing=accuracy_testing,
         model_name_for_accuracy=model_name_for_accuracy,
+        hf_model_name_for_accuracy=hf_model_name,
     )
 
     if output_file:

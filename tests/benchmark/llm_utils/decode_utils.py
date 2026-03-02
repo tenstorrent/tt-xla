@@ -10,7 +10,7 @@ extraction, predicted token collection, text decoding) is done by callers.
 
 Used by:
 - benchmarks/llm_benchmark.py (device benchmarks + accuracy testing)
-- scripts/generate_reference_outputs.py (offline CPU reference .refpt generation)
+- llm_utils/reference_generator.py (on-demand CPU reference .refpt generation)
 
 Sharing the decode loop prevents drift between codepaths (argmax dtype, cache
 semantics, teacher-forcing logic) which can cause accuracy mismatches.
@@ -18,6 +18,7 @@ semantics, teacher-forcing logic) which can cause accuracy mismatches.
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Callable, Optional
 
@@ -210,16 +211,27 @@ def generate_and_benchmark(
     return output_logits, iteration_times
 
 
-def init_accuracy_testing(model_name_for_accuracy: str, max_cache_len: int, tokenizer):
+def init_accuracy_testing(
+    model_name_for_accuracy: str,
+    max_cache_len: int,
+    tokenizer,
+    hf_model_name: str = None,
+):
     """Initialize token accuracy testing for LLM benchmarks.
 
+    Generates the .refpt reference file on-demand if it is missing or was
+    created with different library versions.
+
     Args:
-        model_name_for_accuracy: Model name for .refpt file lookup
+        model_name_for_accuracy: Short model name for .refpt file lookup
+            (e.g., "Llama-3.2-1B-Instruct")
         max_cache_len: Maximum cache length (determines prefill and decode splits).
                       WARNING: This value must match the total_length used when generating
                       reference outputs. Context length mismatch causes accuracy degradation.
-                      If changed, regenerate ALL reference outputs with matching total_length.
         tokenizer: HuggingFace tokenizer instance
+        hf_model_name: Full HuggingFace model name for on-demand generation
+            (e.g., "meta-llama/Llama-3.2-1B-Instruct"). Required when
+            the .refpt file needs to be generated.
 
     Returns:
         Tuple of (token_accuracy, custom_input_prompt)
@@ -227,7 +239,8 @@ def init_accuracy_testing(model_name_for_accuracy: str, max_cache_len: int, toke
             - custom_input_prompt: Reference text string for benchmarking
 
     Raises:
-        ValueError: If model_name_for_accuracy is None
+        ValueError: If model_name_for_accuracy is None or if generation is
+            needed but hf_model_name is not provided.
     """
     from llm_utils.token_accuracy import TokenAccuracy
 
@@ -235,6 +248,31 @@ def init_accuracy_testing(model_name_for_accuracy: str, max_cache_len: int, toke
         raise ValueError(
             "model_name_for_accuracy must be provided when accuracy_testing=True"
         )
+
+    # On-demand generation: check if .refpt exists and versions match
+    if TokenAccuracy.needs_regeneration(model_name_for_accuracy):
+        if hf_model_name is None:
+            raise ValueError(
+                f"Reference file for '{model_name_for_accuracy}' needs generation "
+                f"but hf_model_name was not provided."
+            )
+
+        from llm_utils.reference_generator import (
+            _REFERENCE_DIR,
+            generate_reference_outputs,
+        )
+
+        output_file = os.path.join(_REFERENCE_DIR, f"{model_name_for_accuracy}.refpt")
+        print(
+            f"Generating reference outputs for {model_name_for_accuracy} on CPU "
+            f"(this may take a minute)..."
+        )
+        generate_reference_outputs(
+            total_length=max_cache_len,
+            output_file=output_file,
+            model_name=hf_model_name,
+        )
+        print(f"Reference generation complete: {output_file}")
 
     # Use half the cache for prefill, half for decode
     # This ensures we fit within hardware constraints

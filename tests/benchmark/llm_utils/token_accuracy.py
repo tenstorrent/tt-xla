@@ -36,7 +36,7 @@ class TokenAccuracy:
         """
         # Default reference_dir to reference_outputs/ relative to this file
         if reference_dir is None:
-            reference_dir = str(Path(__file__).parent / "reference_outputs")
+            reference_dir = str(Path(__file__).parent.parent / "reference_outputs")
 
         # Load reference data file
         reference_data_file = os.path.join(reference_dir, f"{model_name}.refpt")
@@ -52,36 +52,13 @@ class TokenAccuracy:
         torch.serialization.add_safe_globals([torch.torch_version.TorchVersion])
         reference_data = torch.load(reference_data_file)
 
-        # Validate library versions
+        # Log library versions from the reference file (validation is handled
+        # upstream by needs_regeneration() which triggers re-generation on mismatch)
         if "library_versions" in reference_data:
             saved_versions = reference_data["library_versions"]
-            current_torch_version = torch.__version__
-            current_transformers_version = transformers.__version__
-
-            if saved_versions["torch"] != current_torch_version:
-                raise RuntimeError(
-                    f"PyTorch version mismatch!\n"
-                    f"  Reference file was generated with: torch {saved_versions['torch']}\n"
-                    f"  Current environment has: torch {current_torch_version}\n"
-                    f"Please regenerate the reference file with the current library versions."
-                )
-
-            if saved_versions["transformers"] != current_transformers_version:
-                raise RuntimeError(
-                    f"Transformers version mismatch!\n"
-                    f"  Reference file was generated with: transformers {saved_versions['transformers']}\n"
-                    f"  Current environment has: transformers {current_transformers_version}\n"
-                    f"Please regenerate the reference file with the current library versions."
-                )
-
             logger.info(
-                f"Library versions validated: torch={current_torch_version}, "
-                f"transformers={current_transformers_version}"
-            )
-        else:
-            logger.warning(
-                "Reference file does not contain library version information. "
-                "This file may be outdated. Consider regenerating it."
+                f"Reference file versions: torch={saved_versions['torch']}, "
+                f"transformers={saved_versions['transformers']}"
             )
 
         # Extract data
@@ -204,19 +181,66 @@ class TokenAccuracy:
         Example:
             LLAMA_3_2_1B_INSTRUCT -> "Llama-3.2-1B-Instruct"
         """
-        # Get the config for this variant from _VARIANTS dict
+        hf_name = TokenAccuracy.get_hf_model_name_from_variant(model_loader, variant)
+        if "/" in hf_name:
+            return hf_name.split("/")[-1]
+        return hf_name
+
+    @staticmethod
+    def get_hf_model_name_from_variant(model_loader, variant) -> str:
+        """
+        Get the full HuggingFace model name from a variant.
+
+        Args:
+            model_loader: Model loader instance
+            variant: Model variant enum
+
+        Returns:
+            Full pretrained model name (e.g., 'meta-llama/Llama-3.2-1B-Instruct')
+        """
         config = model_loader._VARIANTS.get(variant)
         if config is None:
             raise ValueError(f"Variant {variant} not found in model loader")
+        return config.pretrained_model_name
 
-        # Get pretrained model name from config
-        pretrained_name = config.pretrained_model_name
+    @staticmethod
+    def needs_regeneration(model_name: str, reference_dir: str = None) -> bool:
+        """Check if a .refpt file needs to be generated or regenerated.
 
-        # Extract model name from HuggingFace format
-        # e.g., "meta-llama/Llama-3.2-1B-Instruct" -> "Llama-3.2-1B-Instruct"
-        if "/" in pretrained_name:
-            model_name = pretrained_name.split("/")[-1]
-        else:
-            model_name = pretrained_name
+        Returns True if:
+        - The .refpt file doesn't exist, OR
+        - The .refpt file was generated with different torch/transformers versions
 
-        return model_name
+        Args:
+            model_name: Short model name (e.g., "Llama-3.2-1B-Instruct")
+            reference_dir: Directory containing .refpt files
+        """
+        if reference_dir is None:
+            reference_dir = str(Path(__file__).parent.parent / "reference_outputs")
+
+        refpt_path = os.path.join(reference_dir, f"{model_name}.refpt")
+
+        if not os.path.exists(refpt_path):
+            logger.info(f"Reference file not found: {refpt_path}")
+            return True
+
+        torch.serialization.add_safe_globals([torch.torch_version.TorchVersion])
+        data = torch.load(refpt_path)
+
+        if "library_versions" not in data:
+            logger.info("Reference file missing library version info, regenerating")
+            return True
+
+        saved = data["library_versions"]
+        if saved["torch"] != torch.__version__:
+            logger.info(
+                f"torch version changed: {saved['torch']} -> {torch.__version__}"
+            )
+            return True
+        if saved["transformers"] != transformers.__version__:
+            logger.info(
+                f"transformers version changed: {saved['transformers']} -> {transformers.__version__}"
+            )
+            return True
+
+        return False

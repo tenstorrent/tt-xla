@@ -207,6 +207,7 @@ def benchmark_llm_torch_xla(
     fp32_dest_acc_en=None,
     accuracy_testing: bool = False,
     model_name_for_accuracy: str = None,
+    hf_model_name_for_accuracy: str = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -233,6 +234,7 @@ def benchmark_llm_torch_xla(
         required_pcc: Required PCC threshold for validation
         accuracy_testing: Whether to perform token accuracy testing
         model_name_for_accuracy: Model name for .refpt file lookup (required if accuracy_testing=True)
+        hf_model_name_for_accuracy: Full HuggingFace model name for on-demand .refpt generation
 
     Returns:
         Benchmark result containing token generation performance metrics and model information
@@ -301,6 +303,7 @@ def benchmark_llm_torch_xla(
             model_name_for_accuracy=model_name_for_accuracy,
             max_cache_len=max_cache_len,
             tokenizer=tokenizer,
+            hf_model_name=hf_model_name_for_accuracy,
         )
 
     # Construct inputs, including static cache
