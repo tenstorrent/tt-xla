@@ -397,7 +397,7 @@ jobs:
 
         workflow_id=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
-          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/manual-benchmark.yml/runs?status=completed&branch=main&per_page=100" \
+          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/schedule-nightly.yml/runs?status=completed&branch=main&per_page=100" \
           | jq -r '.workflow_runs[0].id')
         echo "last_nightly_workflow_id=$workflow_id" >> $GITHUB_OUTPUT
 
