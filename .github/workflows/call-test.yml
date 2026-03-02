@@ -315,6 +315,14 @@ jobs:
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
+    - name: Run singlehost test before multihost
+      if: ${{ matrix.build.name == 'run_torch_multi_host' }}
+      shell: bash
+      run: |
+        echo "Running single-host test before multi-host test"
+        source venv/activate
+        python -m pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference] --disable-perf-measurement
+
     - name: Run tests
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
