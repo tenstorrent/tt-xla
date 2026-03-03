@@ -444,9 +444,9 @@ jobs:
           echo "ttrun printenv test complete"
           echo ""
 
-      - name: ttrun smoketests - ip a
+      - name: ttrun smoketests - IP address
         run: |
-          echo "=== ttrun smoketest: ip a ==="
+          echo "=== ttrun smoketest: IP address ==="
           echo ""
 
           docker exec multihost-poc bash -c '
@@ -457,14 +457,30 @@ jobs:
             ./ttnn/ttnn/distributed/ttrun.py \
               --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --host f10cs03,f10cs04 --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
-              bash -c "/sbin/ip a | base64 | base64"
+              bash -c "hostname -I"
           '
 
           echo ""
-          echo "ttrun ip a test complete"
+          echo "ttrun IP address test complete"
           echo ""
 
+      - name: mpirun smoketest - IP address
+        run: |
+          echo "=== mpirun smoketest: IP address ==="
+          echo ""
 
+          docker exec multihost-poc bash -c '
+            mpirun --allow-run-as-root \
+              --hostfile /etc/mpirun/hostfile \
+              --mca btl_tcp_if_exclude docker0,lo \
+              --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh \
+              --tag-output \
+              hostname -I
+          '
+
+          echo ""
+          echo "mpirun IP address test complete"
+          echo ""
 
       - name: Controller run tests
         run: |
