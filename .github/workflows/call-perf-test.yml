@@ -360,6 +360,7 @@ jobs:
         if-no-files-found: warn
 
     - name: Add config fields to perf report
+      if: success() || failure()
       shell: bash
       run: |
         PERF_REPORT_FILE="${{ steps.strings.outputs.perf_report_json_file }}"
