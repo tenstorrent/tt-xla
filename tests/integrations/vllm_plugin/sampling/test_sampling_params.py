@@ -342,13 +342,10 @@ def test_output_length_controls(llm, prompt):
     ), f"short ({results[0][3]} tokens) should be <= medium ({results[1][3]} tokens)"
 
 
-@pytest.mark.skip(
-    reason="seed not yet supported in TT sampler — https://github.com/tenstorrent/tt-xla/issues/3365"
-)
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_seed(llm, prompt):
     """Test that same seed produces same output, different seeds diverge."""
-    base = {"temperature": 0.8, "top_p": 0.9, "max_tokens": 16}
+    base = {"temperature": 1.5, "top_p": 0.9, "max_tokens": 32}
     outputs_same = []
     for i in range(2):
         params = vllm.SamplingParams(seed=42, **base)

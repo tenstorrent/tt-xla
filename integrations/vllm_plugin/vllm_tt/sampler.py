@@ -184,7 +184,9 @@ class Sampler(nn.Module):
 
         # Random sample.
         probs = logits.softmax(dim=-1, dtype=torch.float32)
-        random_sampled = self.random_sample(probs, sampling_metadata.generators)
+        random_sampled = self.random_sample(
+            probs, sampling_metadata.generators, sampling_metadata.q_samples
+        )
 
         sampled = torch.where(
             sampling_metadata.temperature < _SAMPLING_EPS,
@@ -262,16 +264,20 @@ class Sampler(nn.Module):
         self,
         probs: torch.Tensor,
         generators: dict[int, torch.Generator],
+        q_samples: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        q = torch.empty_like(probs)
-        # NOTE(woosuk): To batch-process the requests without their own seeds,
-        # which is the common case, we first assume that every request does
-        # not have its own seed. Then, we overwrite the values for the requests
-        # that have their own seeds.
-        q.exponential_()
-        if generators:
-            for i, generator in generators.items():
-                q[i].exponential_(generator=generator)
+        if q_samples is not None:
+            q = q_samples
+        else:
+            q = torch.empty_like(probs)
+            # NOTE(woosuk): To batch-process the requests without their own
+            # seeds, which is the common case, we first assume that every
+            # request does not have its own seed. Then, we overwrite the values
+            # for the requests that have their own seeds.
+            q.exponential_()
+            if generators:
+                for i, generator in generators.items():
+                    q[i].exponential_(generator=generator)
         return probs.div_(q).argmax(dim=-1).view(-1)
 
 

@@ -262,14 +262,7 @@ class TTPlatform(Platform):
         params: ParamsType,
         processed_inputs: ProcessorInputs,
     ) -> None:
-        """Raises if this request is unsupported on this platform"""
-        from vllm.sampling_params import SamplingParams, SamplingType
-
-        if (
-            isinstance(params, SamplingParams)
-            and params.sampling_type == SamplingType.RANDOM_SEED
-        ):
-            raise ValueError("Torch XLA does not support per-request seed.")
+        pass
 
     @classmethod
     @torch.compile(backend="tt")
