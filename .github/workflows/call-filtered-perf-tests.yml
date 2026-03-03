@@ -30,6 +30,10 @@ on:
         required: false
         type: string
         default: release
+      vllm_tt_artifact_name:
+        description: "Name of the vllm-tt plugin wheel artifact"
+        required: false
+        type: string
       use_docker_wheel:
         description: "Use wheel from docker instead of building a new one"
         required: false
@@ -97,6 +101,7 @@ jobs:
       artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
       artifact_suffix: ${{ inputs.artifact_suffix }}
       wheel_build: ${{ inputs.wheel_build }}
+      vllm_tt_artifact_name: ${{ inputs.vllm_tt_artifact_name }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}

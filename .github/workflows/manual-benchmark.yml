@@ -62,6 +62,11 @@ on:
         required: false
         type: boolean
         default: false
+      wheel_release_vllm_tt_artifact_name:
+        description: "vllm-tt wheel artifact name to download (used when should_build_wheel=false)"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   packages: write
@@ -131,6 +136,7 @@ jobs:
       docker_image: ${{ inputs.docker_image }}
       artifact_release_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
       artifact_suffix: ${{ inputs.should_build_wheel && needs.build.outputs.artifact_suffix || '' }}
+      vllm_tt_artifact_name: ${{ inputs.should_build_wheel && needs.build.outputs.wheel_release_vllm_tt_artifact_name || inputs.wheel_release_vllm_tt_artifact_name }}
       use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
