@@ -311,7 +311,7 @@ class CMakeBuildPy(build_py):
             "-B",
             "build",
             "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
-            "-DTTXLA_ENABLE_TOOLS=OFF" + enable_explorer,
+            "-DTTXLA_ENABLE_TOOLS=" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
