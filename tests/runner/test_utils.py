@@ -44,6 +44,57 @@ class RunPhase(Enum):
         return self.value
 
 
+class ShardingStrategy(Enum):
+    FSDP = "fsdp"
+    MEGATRON = "megatron"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True)
+class ShardingConfig:
+    """Configuration for multi-chip sharding in LLM tests.
+
+    Bundles shard_strategy and shard_inputs into a single
+    test parameter. Used only by test_llms_torch to expand tested sharding
+    combinations without changing the Parallelism enum or shared code paths.
+
+    Attributes:
+        shard_strategy: FSDP (both axes) or MEGATRON (model axis only). None = loader default.
+        shard_inputs: Whether to shard inputs across the batch/data axis of the mesh.
+        parallelism: Parallelism enum value for dispatch and backward-compat reporting.
+    """
+
+    shard_strategy: Optional[ShardingStrategy]
+    shard_inputs: bool
+    parallelism: Parallelism
+
+
+class ShardingConfigs:
+    """Pre-defined sharding configurations for test_llms_torch parametrization.
+
+    TENSOR_PARALLEL has all-None fields so the tester falls through to the
+    existing (loader-driven) code path — preserving current behavior and test IDs.
+    """
+
+    # --- Backward-compatible defaults (None strategy → existing code paths) ---
+    SINGLE_DEVICE = ShardingConfig(None, False, Parallelism.SINGLE_DEVICE)
+    TENSOR_PARALLEL = ShardingConfig(None, False, Parallelism.TENSOR_PARALLEL)
+
+    # --- Explicit TP strategies (mesh shape is parametrized separately) ---
+    FSDP = ShardingConfig(ShardingStrategy.FSDP, False, Parallelism.TENSOR_PARALLEL)
+    FSDP_DP = ShardingConfig(ShardingStrategy.FSDP, True, Parallelism.TENSOR_PARALLEL)
+
+    # --- Megatron sharding (weights sharded on "model" axis only) ---
+    MEGATRON = ShardingConfig(
+        ShardingStrategy.MEGATRON, False, Parallelism.TENSOR_PARALLEL
+    )
+    MEGATRON_DP = ShardingConfig(
+        ShardingStrategy.MEGATRON, True, Parallelism.TENSOR_PARALLEL
+    )
+
+
 def find_dumped_ir_files(artifacts_dir: str) -> List[str]:
     """
     Find dumped SHLO IR files in a given directory.
@@ -99,6 +150,13 @@ class ModelTestConfig:
         # Misc arguments used in test
         self.batch_size = self._resolve("batch_size", default=None)
         self.seq_len = self._resolve("seq_len", default=None)
+
+        # Sharding configuration for TP prefill tests (set from parametrization, not YAML)
+        self.sharding_strategy: ShardingStrategy | None = None
+        self.mesh_shape = None  # e.g. (1, 8), (2, 4)
+        self.shard_inputs = (
+            False  # whether to shard inputs across the batch/data mesh axis
+        )
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
