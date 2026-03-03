@@ -314,6 +314,7 @@ def copy_default(
     # Then clone to ensure contiguous memory
     return src_converted.expand(dst.shape).clone()
 
+
 def complex_add(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
     if not input.is_complex() or not other.is_complex():
         return NotImplemented
@@ -322,6 +323,7 @@ def complex_add(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
     stacked = torch.stack([real, imag], dim=-1)
     return torch.view_as_complex(stacked)
 
+
 def complex_mul(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
     if not input.is_complex() or not other.is_complex():
         return NotImplemented
@@ -329,6 +331,7 @@ def complex_mul(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
     imag = torch.real(input) * torch.imag(other) + torch.imag(input) * torch.real(other)
     stacked = torch.stack([real, imag], dim=-1)
     return torch.view_as_complex(stacked)
+
 
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:

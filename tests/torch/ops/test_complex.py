@@ -146,8 +146,7 @@ def test_complex_real_imag_combined(shape: tuple, request):
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(
-    category=Category.OP_TEST,
-    torch_op_name="torch.add"
+    category=Category.OP_TEST, torch_op_name="torch.add"
 )
 @pytest.mark.parametrize(
     "shape",
@@ -161,17 +160,20 @@ def test_complex_add(shape: tuple, request):
 
     run_op_test(
         ComplexAdd(),
-        [torch.randn(shape, dtype=torch.complex64), torch.randn(shape, dtype=torch.complex64)],
+        [
+            torch.randn(shape, dtype=torch.complex64),
+            torch.randn(shape, dtype=torch.complex64),
+        ],
         framework=Framework.TORCH,
         request=request,
     )
+
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(
-    category=Category.OP_TEST,
-    torch_op_name="torch.add"
+    category=Category.OP_TEST, torch_op_name="torch.add"
 )
 @pytest.mark.parametrize(
     "shape",
@@ -188,17 +190,20 @@ def test_complex_add_real_imag(shape: tuple, request):
 
     run_op_test(
         ComplexAdd(),
-        [torch.randn(shape, dtype=torch.complex64), torch.randn(shape, dtype=torch.complex64)],
+        [
+            torch.randn(shape, dtype=torch.complex64),
+            torch.randn(shape, dtype=torch.complex64),
+        ],
         framework=Framework.TORCH,
         request=request,
     )
+
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(
-    category=Category.OP_TEST,
-    torch_op_name="apply_rotary_emb"
+    category=Category.OP_TEST, torch_op_name="apply_rotary_emb"
 )
 @pytest.mark.parametrize(
     "batch_size, seq_len, n_heads, dim",
