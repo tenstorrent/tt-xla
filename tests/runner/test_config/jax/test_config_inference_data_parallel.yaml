@@ -4,6 +4,14 @@
 
 test_config:
 
+  arctic/causal_lm/jax-Base-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  arctic/causal_lm/jax-Instruct-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   falcon/jax-3_1B_Base-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING

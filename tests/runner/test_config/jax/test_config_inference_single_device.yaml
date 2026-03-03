@@ -29,6 +29,12 @@ test_config:
   alexnet/image_classification/jax-Custom-single_device-inference:
     status: EXPECTED_PASSING
 
+  arctic/causal_lm/jax-Base-single_device-inference:
+    status: EXPECTED_PASSING
+
+  arctic/causal_lm/jax-Instruct-single_device-inference:
+    status: EXPECTED_PASSING
+
   bart/causal_lm/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
 
