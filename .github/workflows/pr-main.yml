@@ -39,6 +39,9 @@ jobs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      dockbuild: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'all' || 'ci' }}
+
 
   build-ttxla-release:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -67,6 +70,14 @@ jobs:
     needs: [ inspect-changes, build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  build-manylinux-ttxla:
+    if: needs.inspect-changes.outputs.wheel-changes == 'true' || needs.inspect-changes.outputs.run-uplift-model-tests == 'true'
+    needs: [ build-image, inspect-changes ]
+    uses: ./.github/workflows/call-build-manylinux.yml
+    secrets: inherit
+    with:
+      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   test:
     needs: [ inspect-changes, build-image, build-ttxla-release ]
