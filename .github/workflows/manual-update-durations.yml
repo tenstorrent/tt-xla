@@ -350,7 +350,9 @@ jobs:
             export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
             export TT_DISTRIBUTED_HOSTS_LIST=f10cs03,f10cs04
             export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
-
+            export TT_METAL_LOGGER_LEVEL=DEBUG
+            export TT_METAL_LOGGER_TYPES=Fabric,Always
+            
             echo ""
             echo "Environment configured:"
             echo "  TT_DISTRIBUTED_WORKER_PATH: $TT_DISTRIBUTED_WORKER_PATH"
