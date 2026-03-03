@@ -330,6 +330,58 @@ jobs:
           echo "Distributed worker path located"
           echo ""
 
+      - name: Verify containers via mpirun
+        run: |
+          echo "=== Checking docker ps on all hosts ==="
+          echo ""
+
+          echo "Docker ps output:"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'echo "=== $(hostname) ==="; docker ps --filter name=multihost-poc'
+          echo ""
+          echo ""
+
+          echo "Verification complete!"
+          echo ""
+
+      - name: TT device smoketest in each container
+        run: |
+          echo "=== TT device smoketest: controller container (f10cs03) ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+            echo "Running TT device smoketest..."
+            python -c "import torch_xla.runtime as xr; xr.set_device_type(\"TT\"); import torch_xla; print(torch_xla.device())"
+          '
+
+          echo ""
+          echo "Controller container smoketest passed"
+          echo ""
+
+          echo "=== TT device smoketest: worker container (f10cs04) ==="
+          echo ""
+
+          mpirun --host f10cs04 \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            --allow-run-as-root \
+            bash -c '
+              docker exec multihost-poc bash -c "
+                cd /workspace &&
+                source venv/activate &&
+                echo Running TT device smoketest... &&
+                python -c \"import torch_xla.runtime as xr; xr.set_device_type(\\\"TT\\\"); import torch_xla; print(torch_xla.device())\"
+              "
+            '
+
+          echo ""
+          echo "Worker container smoketest passed"
+          echo ""
+
       - name: Controller run tests
         run: |
           echo "=== Running tests from controller container ==="
@@ -352,7 +404,7 @@ jobs:
             export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
             export TT_METAL_LOGGER_LEVEL=DEBUG
             export TT_METAL_LOGGER_TYPES=Fabric,Always
-            
+
             echo ""
             echo "Environment configured:"
             echo "  TT_DISTRIBUTED_WORKER_PATH: $TT_DISTRIBUTED_WORKER_PATH"
@@ -369,21 +421,7 @@ jobs:
           echo "Test execution complete"
           echo ""
 
-      - name: Verify containers via mpirun
-        run: |
-          echo "=== Checking docker ps on all hosts ==="
-          echo ""
 
-          echo "Docker ps output:"
-          mpirun --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --tag-output \
-            bash -c 'echo "=== $(hostname) ==="; docker ps --filter name=multihost-poc'
-          echo ""
-          echo ""
-
-          echo "Verification complete!"
-          echo ""
 
       - name: Fix workspace permissions
         if: always()
