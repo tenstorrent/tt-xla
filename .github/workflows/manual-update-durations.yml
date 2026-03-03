@@ -395,6 +395,7 @@ jobs:
               docker exec multihost-poc bash -c "
                 cd /workspace &&
                 source venv/activate &&
+                pip install tt-smi &&
                 tt-smi -r &&
                 python -c \"import torch_xla.runtime as xr; xr.set_device_type(\\\"TT\\\"); import torch_xla; print(torch_xla.device())\"
               "
@@ -402,6 +403,66 @@ jobs:
 
           echo ""
           echo "Smoketest complete"
+          echo ""
+
+      - name: ttrun smoketests - hostname
+        run: |
+          echo "=== ttrun smoketest: hostname ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+
+            cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal && \
+            ./ttnn/ttnn/distributed/ttrun.py \
+              --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
+              --mpi-args " --host f10cs03,f10cs04 --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
+              bash -c "hostname"
+          '
+
+          echo ""
+          echo "ttrun hostname test complete"
+          echo ""
+
+      - name: ttrun smoketests - printenv
+        run: |
+          echo "=== ttrun smoketest: printenv ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+
+            cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal && \
+            ./ttnn/ttnn/distributed/ttrun.py \
+              --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
+              --mpi-args " --host f10cs03,f10cs04 --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
+              bash -c "printenv | sort"
+          '
+
+          echo ""
+          echo "ttrun printenv test complete"
+          echo ""
+
+      - name: ttrun smoketests - ip a
+        run: |
+          echo "=== ttrun smoketest: ip a ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+
+            cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal && \
+            ./ttnn/ttnn/distributed/ttrun.py \
+              --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
+              --mpi-args " --host f10cs03,f10cs04 --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
+              bash -c "/sbin/ip a | base64 | base64"
+          '
+
+          echo ""
+          echo "ttrun ip a test complete"
           echo ""
 
       - name: Controller run tests
