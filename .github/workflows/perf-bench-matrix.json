@@ -413,6 +413,27 @@
         "pyreq": "datasets loguru pytest requests torch==2.9.0 tqdm transformers==4.57.1",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b",
         "accuracy-testing": true
+      },
+      {
+        "name": "vllm_opt_125m",
+        "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.1 vllm==0.15.0",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[opt-125m]"
+      },
+      {
+        "name": "vllm_opt_125m_batch2",
+        "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.1 vllm==0.15.0",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[opt-125m-batch2]"
+      },
+      {
+        "name": "vllm_llama_3_2_3b",
+        "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.1 vllm==0.15.0",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]"
+      },
+      {
+        "name": "vllm_llama_3_2_3b_tp",
+        "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.1 vllm==0.15.0",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark_tp[llama-3.2-3b-tp]",
+        "runs-on": "llmbox"
       }
     ]
   }
