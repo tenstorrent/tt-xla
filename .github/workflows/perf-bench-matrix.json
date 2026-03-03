@@ -454,19 +454,25 @@
         "name": "vllm_opt_125m",
         "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.1 vllm==0.15.0",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[opt-125m]",
-        "vllm": true
+        "vllm": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true
       },
       {
         "name": "vllm_opt_125m_batch2",
         "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.1 vllm==0.15.0",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[opt-125m-batch2]",
-        "vllm": true
+        "vllm": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true
       },
       {
         "name": "vllm_llama_3_2_3b",
         "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.1 vllm==0.15.0",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",
-        "vllm": true
+        "vllm": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true
       }
     ]
   }
