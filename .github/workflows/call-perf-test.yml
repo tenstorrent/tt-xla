@@ -397,7 +397,7 @@ jobs:
 
         workflow_id=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
-          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/perf-benchmark.yml/runs?status=completed&branch=main&per_page=100" \
+          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/schedule-nightly.yml/runs?status=completed&branch=main&per_page=100" \
           | jq -r '.workflow_runs[0].id')
         echo "last_nightly_workflow_id=$workflow_id" >> $GITHUB_OUTPUT
 
@@ -417,7 +417,7 @@ jobs:
       uses: ./.github/actions/superset-api
       with:
         query: 'benchmarks/last_measurement'
-        query_params: '{"project":"tt-xla","ml_model_name":"${{ steps.set-query-strings.outputs.model_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}"}'
+        query_params: '{"project":"tt-forge/tt-xla","ml_model_name":"${{ steps.set-query-strings.outputs.model_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}"}'
 
     - name: Check perf regression
       if: inputs.perf_regression_check

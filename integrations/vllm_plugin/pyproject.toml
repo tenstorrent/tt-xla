@@ -1,0 +1,10 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+# Skip repair for pure Python wheels
+repair-wheel-command = ""
