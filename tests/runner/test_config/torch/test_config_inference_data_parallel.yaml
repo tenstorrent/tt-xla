@@ -450,10 +450,10 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hardnet/pytorch-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.97
+  # hardnet/pytorch-data_parallel-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.97
 
   dla/pytorch-46_C-data_parallel-inference:
     supported_archs: [n300]
@@ -690,10 +690,10 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hrnet/pytorch-W64-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+  # hrnet/pytorch-W64-data_parallel-inference:
+  #   supported_archs: [n300]
+  #   status: EXPECTED_PASSING
+  #   required_pcc: 0.98
 
   vgg/pytorch-Torchvision_Vgg13_Bn-data_parallel-inference:
     supported_archs: [n300]

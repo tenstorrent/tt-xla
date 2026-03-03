@@ -844,10 +844,10 @@ test_config:
   resnet/pytorch-ResNet152-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hardnet/pytorch-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    markers: [notimeout]
-    reason: "RuntimeError: TT_FATAL conv2d"
+  # hardnet/pytorch-single_device-training:
+  #   status: KNOWN_FAILURE_XFAIL
+  #   markers: [notimeout]
+  #   reason: "RuntimeError: TT_FATAL conv2d"
   perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
