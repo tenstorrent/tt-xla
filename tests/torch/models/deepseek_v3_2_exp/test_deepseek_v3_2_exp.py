@@ -54,11 +54,11 @@ def test_deepseek_modified_transformer_single_layer():
         output.to("cpu")
 
 
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "error: failed to legalize operation 'stablehlo.constant'"
-    )
-)
+# @pytest.mark.xfail(
+#     reason=failed_ttmlir_compilation(
+#         "error: failed to legalize operation 'stablehlo.constant'"
+#     )
+# )
 def test_deepseek_complex_rotary_emb():
     xr.set_device_type("TT")
 
