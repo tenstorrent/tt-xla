@@ -972,6 +972,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.optimizationLevel = compile_options.optimization_level;
+  options.enableGreedyOptimizer = true;
   options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
   options.experimentalBfp8Weights =
       compile_options.experimental_enable_weight_bfp8_conversion;
