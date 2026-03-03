@@ -97,8 +97,11 @@ static tt_pjrt_status launchDistributedRuntime() {
   // Hostname of the controller node
   const char *controller_host_name =
       std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
-  // Comma separated list of hostnames
+  // Comma separated list of hostnames — mutually exclusive with
+  // TT_DISTRIBUTED_HOSTS_FILE
   const char *hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
+  // Path to an MPI hostfile — mutually exclusive with TT_DISTRIBUTED_HOSTS_LIST
+  const char *hosts_file = std::getenv("TT_DISTRIBUTED_HOSTS_FILE");
   // Path to the shell script used by MPI to execute commands on remote hosts
   // eg. tests/torch/multi_host/experimental/remote_docker.sh
   const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
@@ -111,6 +114,12 @@ static tt_pjrt_status launchDistributedRuntime() {
     return tt_pjrt_status::kInternal;
   }
 
+  if (hosts_list && hosts_file) {
+    LOG_F(ERROR, "TT_DISTRIBUTED_HOSTS_LIST and TT_DISTRIBUTED_HOSTS_FILE are "
+                 "mutually exclusive; set only one");
+    return tt_pjrt_status::kInternal;
+  }
+
   // On a single node setup (eg. split llmbox), these environment variables are
   // not set.
   if (!controller_host_name) {
@@ -118,9 +127,9 @@ static tt_pjrt_status launchDistributedRuntime() {
         WARNING,
         "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
   }
-  if (!hosts_list) {
-    DLOG_F(WARNING,
-           "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
+  if (!hosts_list && !hosts_file) {
+    DLOG_F(WARNING, "Neither TT_DISTRIBUTED_HOSTS_LIST nor "
+                    "TT_DISTRIBUTED_HOSTS_FILE environment variable is set");
   }
 
   tt::runtime::setMetalHome(metal_home);
@@ -167,6 +176,8 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   if (!hosts_list_vec.empty()) {
     distributed_options.multiProcessArgs->withHosts(hosts_list_vec);
+  } else if (hosts_file) {
+    distributed_options.multiProcessArgs->withHostsFilePath(hosts_file);
   }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
