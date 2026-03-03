@@ -85,6 +85,7 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         rank_binding="dual_bh_quietbox",
         controller_host_name="10.250.36.210",
         hosts_list="10.250.36.210,10.250.36.212",
+        btl_tcp_if_include="enp10s0f1np1",
     ),
 }
 
