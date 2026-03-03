@@ -24,9 +24,13 @@ def main():
     conversation = []
 
     while True:
-        input_text = input("Enter a message (or 'q' to quit): ")
+        input_text = input("Enter a message ('c' to clear history, 'q' to quit): ")
         if input_text == "q":
             break
+        if input_text == "c":
+            conversation.clear()
+            print("Conversation history cleared.")
+            continue
 
         conversation.append({"role": "user", "content": input_text})
 
@@ -39,17 +43,19 @@ def main():
         try:
             full_response = ""
             with requests.post(url, json=data, stream=True) as response:
-                response.raise_for_status()
+                if response.status_code != 200:
+                    error = response.json().get("error", {})
+                    print(f"Server error: {error.get('message', response.text)}")
+                    conversation.pop()
+                    continue
                 for line in response.iter_lines(decode_unicode=True):
                     if not line or not line.startswith("data: "):
                         continue
                     event_data = line[len("data: ") :]
                     if event_data.strip() == "[DONE]":
-                        print("\nResponse completed.")
                         break
                     try:
                         event = json.loads(event_data)
-                        # Extract text deltas from streaming events
                         if event.get("type") == "response.output_text.delta":
                             delta = event.get("delta", "")
                             print(delta, end="", flush=True)
@@ -57,6 +63,7 @@ def main():
                     except json.JSONDecodeError:
                         pass
 
+            print()
             conversation.append({"role": "assistant", "content": full_response})
         except requests.exceptions.ConnectionError:
             print(
