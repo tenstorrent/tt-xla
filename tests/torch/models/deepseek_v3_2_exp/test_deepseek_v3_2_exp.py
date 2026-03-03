@@ -11,7 +11,7 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from torch_xla.distributed.spmd import Mesh
-
+from benchmark.utils import compute_pcc
 from tests.utils import failed_ttmlir_compilation
 
 # This model is modified from the original deepseek_v3_2_exp model.py to:
@@ -272,7 +272,7 @@ def test_deepseek_indexer(batch_size):
     indexer = model.layers[0].attn.indexer
 
     # Enable raw score return for testing (returns index_score instead of topk_indices)
-    indexer.return_raw_scores = True
+    indexer.return_raw_scores = False
 
     # Create inputs
     hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
@@ -338,4 +338,56 @@ def test_deepseek_indexer(batch_size):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
+    )
+
+def topk_indices_comparator(device_output, golden_output, inputs):
+    device_values, device_indices = device_output
+    golden_values, _ = golden_output
+    input_tensor = inputs[0]
+
+    # Move device outputs from XLA to CPU for comparison
+    device_values = device_values.cpu()
+    device_indices = device_indices.cpu()
+
+    # 1) PCC between golden_values and device_values
+    pcc = compute_pcc(golden_values, device_values)
+    assert pcc > 0.99, f"PCC between golden and device values: {pcc} (required > 0.99)"
+
+    # 2) Assert device_indices has no duplicate elements (per row, along last dim)
+    for i in range(device_indices.shape[0]):
+        row = device_indices[i]
+        assert (
+            row.unique().numel() == row.numel()
+        ), "Duplicate indices found in device output"
+
+    # 3) Gather values using device_indices, compute cosine similarity with golden_values
+    gathered = torch.gather(input_tensor, -1, device_indices)
+    cos_sim = torch.nn.functional.cosine_similarity(
+        gathered.flatten().unsqueeze(0).float(),
+        golden_values.flatten().unsqueeze(0).float(),
+    )
+    print(f"Cosine similarity: {cos_sim}")
+    assert (
+        cos_sim > 0.99
+    ), f"Cosine similarity: {cos_sim.item()} (required > 0.99)"
+
+
+def test_topk():
+    xr.set_device_type("TT")
+
+    class TopKIndices(torch.nn.Module):
+        def forward(self, x):
+            output, indices = torch.topk(x, k=64, dim=-1)
+            return output, indices
+
+    model = TopKIndices()
+    # input_tensor = torch.arange(64, 0, -1, dtype=torch.bfloat16).view(1, 64)
+    input_tensor = torch.randn(1, 64, dtype=torch.bfloat16)
+    print(f"input_tensor: {input_tensor}")
+
+    run_graph_test(
+        model,
+        [input_tensor],
+        framework=Framework.TORCH,
+        custom_comparator=topk_indices_comparator,
     )

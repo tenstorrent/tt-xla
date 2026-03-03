@@ -31,12 +31,14 @@ class GraphTester(OpTester):
         framework: Framework = Framework.JAX,
         compiler_config: CompilerConfig = None,
         torch_options: dict = None,
+        custom_comparator: Optional[Callable] = None,
     ) -> None:
         super().__init__(
             comparison_config=comparison_config,
             framework=framework,
             compiler_config=compiler_config,
             torch_options=torch_options,
+            custom_comparator=custom_comparator,
         )
 
 
@@ -50,6 +52,7 @@ def run_graph_test(
     compiler_config: CompilerConfig = None,
     torch_options: dict = None,
     request=None,
+    custom_comparator: Optional[Callable] = None,
 ) -> None:
     """
     Tests `graph` with `inputs` by running it on TT device and CPU and comparing the
@@ -60,6 +63,7 @@ def run_graph_test(
         framework,
         compiler_config=compiler_config,
         torch_options=torch_options,
+        custom_comparator=custom_comparator,
     )
     if framework == Framework.TORCH:
         workload = TorchWorkload(
