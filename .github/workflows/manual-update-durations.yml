@@ -395,6 +395,7 @@ jobs:
               docker exec multihost-poc bash -c "
                 cd /workspace &&
                 source venv/activate &&
+                tt-smi -r &&
                 python -c \"import torch_xla.runtime as xr; xr.set_device_type(\\\"TT\\\"); import torch_xla; print(torch_xla.device())\"
               "
             '
