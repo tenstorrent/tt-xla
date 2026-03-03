@@ -15,20 +15,6 @@ from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
 class TorchComparisonEvaluator(ComparisonEvaluator):
     """ComparisonEvaluator for Torch tensors/pytrees."""
 
-    def _compare_pcc_masked(
-        self,
-        device_output: PyTree,
-        golden_output: PyTree,
-        pcc_config: PccConfig,
-        pcc_mask: torch.Tensor | None = None,
-    ) -> float:
-        return self._compare_pcc(
-            device_output,
-            golden_output,
-            pcc_config,
-            pcc_mask=pcc_mask,
-        )
-
     # @override
     def _is_single_element(self, tensor: PyTree) -> bool:
         """Returns True if the tensor has only a single element."""
@@ -128,6 +114,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             if pcc_mask is None:
                 return x, y
 
+            assert (
+                pcc_mask.ndim == 2
+            ), f"Expected pcc_mask to have shape [batch, seq], got {tuple(pcc_mask.shape)}"
             batch_size, seq_len = pcc_mask.shape
 
             if x.dim() < 2 or y.dim() < 2:
@@ -144,19 +133,19 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
                 and x.shape[1] == seq_len
                 and y.shape[1] == seq_len
             ):
-                pass
+                x_seq_first, y_seq_first = x, y
             elif (
                 x.dim() == 4
                 and y.dim() == 4
                 and x.shape[2] == seq_len
                 and y.shape[2] == seq_len
             ):
-                x = x.movedim(2, 1)
-                y = y.movedim(2, 1)
+                x_seq_first = x.movedim(2, 1)
+                y_seq_first = y.movedim(2, 1)
             else:
                 return x, y
 
-            x, y = x[pcc_mask], y[pcc_mask]
+            x, y = x_seq_first[pcc_mask], y_seq_first[pcc_mask]
             return x, y
 
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):

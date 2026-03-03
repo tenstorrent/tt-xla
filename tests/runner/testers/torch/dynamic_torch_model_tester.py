@@ -257,8 +257,6 @@ class DynamicTorchModelTester(TorchModelTester):
         """Return boolean token mask for LLM prefill PCC filtering."""
         if self.run_phase != RunPhase.LLM_PREFILL:
             return None
-        if not isinstance(self._input_activations, collections.abc.Mapping):
-            return None
 
         attention_mask = self._input_activations.get("attention_mask")
         if not isinstance(attention_mask, torch.Tensor):
