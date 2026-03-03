@@ -23,7 +23,6 @@ import pytest
 import requests
 
 MODEL = "facebook/opt-125m"
-SERVER_HOST = "localhost"
 SERVER_STARTUP_TIMEOUT = 300  # seconds
 REQUEST_TIMEOUT = 120  # seconds
 
@@ -57,7 +56,7 @@ def _find_free_port():
 def vllm_server():
     """Start a vLLM OpenAI-compatible server and wait for it to be ready."""
     port = _find_free_port()
-    base_url = f"http://{SERVER_HOST}:{port}"
+    base_url = f"http://localhost:{port}"
 
     # Write the chat template to a temp file (vLLM --chat-template accepts a path).
     template_fd, template_path = tempfile.mkstemp(suffix=".jinja")
@@ -162,12 +161,20 @@ def _read_tail(path, chars=2000):
 
 @pytest.mark.nightly
 @pytest.mark.single_device
-def test_responses_api_basic(vllm_server):
-    """Test basic text generation via /v1/responses with a string input."""
+@pytest.mark.parametrize(
+    "input_value",
+    [
+        "Hello, my name is",
+        [{"role": "user", "content": "Once upon a time, there was a"}],
+    ],
+    ids=["string_input", "message_input"],
+)
+def test_responses_api_basic(vllm_server, input_value):
+    """Test text generation via /v1/responses with string and message inputs."""
     url = f"{vllm_server}/v1/responses"
     data = {
         "model": MODEL,
-        "input": "Hello, my name is",
+        "input": input_value,
         "max_output_tokens": 32,
     }
 
@@ -183,38 +190,7 @@ def test_responses_api_basic(vllm_server):
 
     output_text = get_output_text(result)
     assert len(output_text) > 0, "Expected non-empty output text"
-    print(f"Input: 'Hello, my name is'")
-    print(f"Output: {output_text}")
-
-
-@pytest.mark.nightly
-@pytest.mark.single_device
-def test_responses_api_message_input(vllm_server):
-    """Test /v1/responses with message-style input (list of role/content dicts)."""
-    url = f"{vllm_server}/v1/responses"
-    data = {
-        "model": MODEL,
-        "input": [
-            {"role": "user", "content": "Once upon a time, there was a"},
-        ],
-        "max_output_tokens": 32,
-    }
-
-    response = requests.post(url, json=data, timeout=REQUEST_TIMEOUT)
-    assert (
-        response.status_code == 200
-    ), f"Expected 200, got {response.status_code}: {response.text}"
-
-    result = response.json()
-    assert "output" in result, "Response should contain an 'output' field"
-    assert len(result["output"]) > 0, "Response should have at least one output item"
-
-    message_items = [item for item in result["output"] if item.get("type") == "message"]
-    assert len(message_items) > 0, "Expected at least one message output item"
-
-    output_text = get_output_text(result)
-    assert len(output_text) > 0, "Expected non-empty output text"
-    print(f"Input: [user: 'Once upon a time, there was a']")
+    print(f"Input: {input_value!r}")
     print(f"Output: {output_text}")
 
 
