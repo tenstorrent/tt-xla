@@ -24,10 +24,53 @@
 | **best_of** | **No** — removed in vLLM v1 | N/A | N/A | N/A | None | v0-only feature, fully removed. `SamplingParams(best_of=...)` raises `TypeError` in vLLM 0.15.0. Only a stale docstring in `llm.py` references it. |
 | **min_p** | Yes | `test_sampling_param_sweep`, `test_combined_sampling` | `test_combined`, `test_boundary_values` | Yes — `apply_min_p()` in `sampler.py:243-261`, softmax + adaptive threshold masking on device | None | |
 | **bad_words** | Yes | `test_bad_words` | `test_bad_words` | Partially — mask tensor (`bad_words_mask`) built on **CPU** (`_compute_bad_words_mask` in `metadata.py:125-166`), then transferred to device. The `-inf` masking (`logits + mask`) runs **on device**. Multi-token prefix matching runs on CPU per step. | CPU prefix matching is unavoidable (requires output history comparison). Single-token bans are fully device-side once the mask is built. | |
-| **structured_outputs** (guided decoding) | Yes (via `guided_decoding` param) | **No dedicated test** | **No** | **CPU** — `apply_grammar_bitmask()` at `model_runner.py:2063-2082` explicitly does `.to("cpu")`, unpacks the bitmask on CPU, then sends back to device. The `structured_decode` `torch.where` wrapper is compiled but the actual bitmask logic is CPU. | Major gap: grammar bitmask unpacking runs entirely on CPU. Moving bitwise ops to device would improve latency. Needs dedicated test coverage. | Supported but slow path; `apply_grammar_bitmask` is a known CPU bottleneck |
+| **structured_outputs** (guided decoding) | Yes (via `guided_decoding` param) | `test_structured_outputs_regex` | **No** | **CPU** — `apply_grammar_bitmask()` at `model_runner.py:2063-2082` explicitly does `.to("cpu")`, unpacks the bitmask on CPU, then sends back to device. The `structured_decode` `torch.where` wrapper is compiled but the actual bitmask logic is CPU. | Moving bitwise ops to device would improve latency. | Supported but slow path; `apply_grammar_bitmask` is a known CPU bottleneck |
 | **logit_bias** | Yes | `test_logit_bias` | `test_logit_bias` | Yes — `apply_logit_bias()` in `sampler.py:133-138`, simple `logits + bias_tensor` on device. Bias tensor built on CPU and transferred. | None | |
 | **stop_token_ids** | Yes | `test_stop_token_ids` | No — requires decode loop | **CPU** — vLLM engine checks sampled token ID against stop set after each step on CPU | None — same as `stop`, correctly CPU post-processing | Tracked alongside `min_tokens` in `input_batch.py:162-163` |
 | **ignore_eos** | Yes | `test_ignore_eos` | No — requires decode loop | **CPU** — vLLM engine-level: simply doesn't check for EOS token when `ignore_eos=True` | None — CPU-side flag controlling the decode loop | |
+
+## Test Coverage Summary
+
+| Param | E2E test (`test_sampling_params.py`) | Synthetic test (`test_sampling_params_synthetic.py`) | Notes |
+|---|---|---|---|
+| **temperature** | `test_sampling_param_sweep`, `test_greedy_determinism`, `test_combined_sampling` | `test_greedy`, `test_non_greedy`, `test_combined`, `test_boundary_values` | |
+| **top_k** | `test_sampling_param_sweep`, `test_combined_sampling` | `test_non_greedy`, `test_combined` | |
+| **top_p** | `test_sampling_param_sweep`, `test_combined_sampling` | `test_non_greedy`, `test_combined` | |
+| **min_p** | `test_sampling_param_sweep`, `test_combined_sampling` | `test_combined`, `test_boundary_values` | |
+| **presence_penalty** | `test_additive_penalties_end_to_end` | `test_penalties` | |
+| **frequency_penalty** | `test_additive_penalties_end_to_end` | `test_penalties` | |
+| **repetition_penalty** | `test_repetition_penalty_end_to_end` | `test_penalties` | |
+| **seed** | `test_seed` | `test_seed_precomputed_noise`, `test_seed_mixed_batch` | |
+| **logprobs** | `test_logprobs` | `test_gather_logprobs`, `test_gather_logprobs_rank_nonzero_outside_topk`, `test_gather_logprobs_topk_indices_exact_on_device` | |
+| **bad_words** | `test_bad_words` | `test_bad_words` | |
+| **logit_bias** | `test_logit_bias` | `test_logit_bias` | |
+| **structured_outputs** | `test_structured_outputs_regex` | N/A | No device graph to test synthetically — bitmask unpacking runs on CPU |
+| **stop** | `test_stop_sequences` | N/A | CPU-only (string matching in decode loop) |
+| **stop_token_ids** | `test_stop_token_ids` | N/A | CPU-only (token ID check in decode loop) |
+| **ignore_eos** | `test_ignore_eos` | N/A | CPU-only (flag controlling decode loop) |
+| **max_tokens** | `test_output_length_controls` | N/A | CPU-only (loop counter) |
+| **n** | `test_sampling_has_diversity_when_temp_positive` | N/A | Engine-level multiplexing |
+| **min_tokens** | N/A | N/A | CPU-only (engine won't stop until min reached) |
+| **best_of** | N/A | N/A | Removed in vLLM v1 |
+| **messages** | N/A | N/A | Chat API param, not a sampling param |
+
+### Not tested — not functional or not applicable (vLLM 0.15.0)
+
+| Param | Status | Notes |
+|---|---|---|
+| **prompt_logprobs** | Plumbed but stubbed | `num_prompt_logprobs` tracked in `input_batch.py`/`model_runner.py`, but output always returns `None` (line 1340). Not implemented in TT plugin. |
+| **allowed_token_ids** | Plumbed but not wired | Mask built in `input_batch.py` (lines 310-330), passed through metadata, but sampler never reads it. `metadata.py:62` sets `allowed_token_ids_mask = None`. |
+| **logits_processors** | CPU callbacks | Custom callables, no device graph involvement. |
+| **detokenize** | CPU post-processing | Output formatting only. |
+| **skip_special_tokens** | CPU post-processing | Output formatting only. |
+| **spaces_between_special_tokens** | CPU post-processing | Output formatting only. |
+| **include_stop_str_in_output** | CPU post-processing | Output formatting only. |
+| **truncate_prompt_tokens** | CPU pre-processing | Input truncation before model execution. |
+| **flat_logprobs** | Output formatting | Controls logprobs output shape. |
+| **output_kind** | Output formatting | Controls `RequestOutput` structure. |
+| **skip_clone** / **skip_reading_prefix_cache** / **extra_args** | Internal plumbing | No user-facing behavior to test. |
+
+Every param that executes on device has both e2e and synthetic coverage. CPU-only params have e2e coverage only, which is appropriate since there is no device graph to test.
 
 ## Execution Summary
 
@@ -40,14 +83,14 @@
 **Not applicable**: `best_of` (removed in vLLM v1)
 
 **CPU bottleneck / needs work**:
-1. **`structured_outputs`** — grammar bitmask unpacking runs entirely on CPU (`apply_grammar_bitmask` line 2063-2082). No test coverage.
-2. **`logprobs` gather** — `gather_logprobs` is not `torch.compile`d (commented out at `model_runner.py:2027`), runs eagerly.
-3. **`sample_from_logits`** — also not `torch.compile`d (commented out at `model_runner.py:2005-2007`) due to SPMD correctness issue. Runs eagerly on XLA device.
+1. **`structured_outputs`** — grammar bitmask unpacking runs entirely on CPU (`apply_grammar_bitmask` line 2063-2082). E2e test added (`a87ab8fca`).
+2. ~~**`logprobs` gather** — `gather_logprobs` is not `torch.compile`d (commented out at `model_runner.py:2027`), runs eagerly.~~ **DONE** — enabled `torch.compile` in `9fb0445b2`.
+3. ~~**`sample_from_logits`** — also not `torch.compile`d (commented out at `model_runner.py:2005-2007`) due to SPMD correctness issue. Runs eagerly on XLA device.~~ **DONE** — enabled `torch.compile` for SPMD mode in `9fb0445b2`.
 
 ## Action Items
 
-1. **Add `structured_outputs` e2e test** — supported but untested, runs on CPU
+1. ~~**Add `structured_outputs` e2e test**~~ — **DONE** (`a87ab8fca`)
 2. **Move `apply_grammar_bitmask` to device** — currently explicitly CPU-bound, would benefit structured output latency
-3. **Re-enable `torch.compile` for `sample_from_logits`** — blocked on SPMD correctness fix (see TODO at `model_runner.py:2005`)
-4. **Re-enable `torch.compile` for `gather_logprobs`** — commented out at `model_runner.py:2027`
+3. ~~**Re-enable `torch.compile` for `sample_from_logits`**~~ — **DONE** (`9fb0445b2`)
+4. ~~**Re-enable `torch.compile` for `gather_logprobs`**~~ — **DONE** (`9fb0445b2`)
 5. **Fix #3464** (bf16 bool fusion) — would remove `count_tokens_ge` workaround and enable `clamp(min=1)` directly
