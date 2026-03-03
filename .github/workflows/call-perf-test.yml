@@ -408,6 +408,8 @@ jobs:
           arch="blackhole"
         elif [[ "${{ matrix.build.runs-on }}" == *"llmbox"* ]]; then
           arch="wormhole_llmbox"
+        elif [[ "${{ matrix.build.runs-on }}" == *"galaxy"* ]]; then
+          arch="wormhole_galaxy"
         fi
         echo "arch=$arch" >> $GITHUB_OUTPUT
 
