@@ -16,11 +16,13 @@ complementary:
   - here:      param semantics are correct in a real generation loop
 """
 
+import re
 import signal
 
 import pytest
 import vllm
 from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
+from vllm.sampling_params import StructuredOutputsParams
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -562,3 +564,29 @@ def test_parameter_boundary_values(llm, prompt):
             f" {str(params)[:60]}... -> {output[:40]}..."
         )
         assert len(output) > 0, f"Boundary test {i+1} should produce output"
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_structured_outputs_regex(llm, prompt):
+    """Test that structured output with a regex constraint is respected.
+
+    Uses a simple digit pattern so we can validate with re.fullmatch().
+    Exercises the grammar bitmask pipeline (apply_grammar_bitmask +
+    structured_decode) end-to-end.
+    """
+    pattern = r"\d{3}-\d{4}"
+    params = vllm.SamplingParams(
+        temperature=0.0,
+        max_tokens=16,
+        structured_outputs=StructuredOutputsParams(regex=pattern),
+    )
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_structured_outputs_regex] "
+        f"pattern={pattern!r} output={output.text!r}"
+    )
+
+    assert len(output.text) > 0, "Should produce output with regex constraint"
+    assert re.fullmatch(
+        pattern, output.text
+    ), f"Output {output.text!r} does not match regex {pattern!r}"
