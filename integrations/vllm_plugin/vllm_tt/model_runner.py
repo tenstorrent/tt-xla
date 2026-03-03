@@ -436,15 +436,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
-        if not self.enable_tensor_parallel:
-            self.sample_from_logits_func = torch.compile(
-                self.sample_from_logits,
-                backend="tt",
-                fullgraph=True,
-                dynamic=False,
-            )
-        else:
-            self.sample_from_logits_func = self.sample_from_logits
+        self.sample_from_logits_func = torch.compile(
+            self.sample_from_logits,
+            backend="tt",
+            fullgraph=True,
+            dynamic=False,
+        )
 
         # For passing scheduler_output between successive
         # execute_model() and sample_tokens() calls.
@@ -2002,9 +1999,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         return self.model.compute_logits(sample_hidden_states)
 
-    # TODO: Under SPMD mode, sample_from_logits has correctness issue.
-    #       Re-enable the torch.compile once the issue is fixed in torchxla.
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
@@ -2024,7 +2018,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
         return out_tokens
 
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def gather_logprobs(
         self, logits: torch.Tensor, sampled_tokens: torch.Tensor
     ) -> LogprobsTensors:
