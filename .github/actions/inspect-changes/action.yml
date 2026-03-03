@@ -144,6 +144,7 @@ runs:
 
           # Check wheel build file changes
           wheel_patterns=(
+            "CMakeLists.txt"
             "**/CMakeLists.txt"
             "python_package/*"
           )
