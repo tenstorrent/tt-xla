@@ -348,24 +348,10 @@ jobs:
 
       - name: TT device smoketest in each container
         run: |
-          echo "=== TT device smoketest: controller container (f10cs03) ==="
+          echo "=== TT device smoketest in all containers ==="
           echo ""
 
-          docker exec multihost-poc bash -c '
-            cd /workspace
-            source venv/activate
-            echo "Running TT device smoketest..."
-            python -c "import torch_xla.runtime as xr; xr.set_device_type(\"TT\"); import torch_xla; print(torch_xla.device())"
-          '
-
-          echo ""
-          echo "Controller container smoketest passed"
-          echo ""
-
-          echo "=== TT device smoketest: worker container (f10cs04) ==="
-          echo ""
-
-          mpirun --host f10cs04 \
+          mpirun --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --tag-output \
             --allow-run-as-root \
@@ -373,13 +359,12 @@ jobs:
               docker exec multihost-poc bash -c "
                 cd /workspace &&
                 source venv/activate &&
-                echo Running TT device smoketest... &&
                 python -c \"import torch_xla.runtime as xr; xr.set_device_type(\\\"TT\\\"); import torch_xla; print(torch_xla.device())\"
               "
             '
 
           echo ""
-          echo "Worker container smoketest passed"
+          echo "Smoketest complete"
           echo ""
 
       - name: Controller run tests
