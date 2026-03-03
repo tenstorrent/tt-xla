@@ -82,7 +82,6 @@ endif()
 
 option(TTXLA_TRACY_ZONES "Enable PJRT tracy zones" OFF)
 
-
 # ----- coverage_config -----
 
 add_library(coverage_config INTERFACE)
