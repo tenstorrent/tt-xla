@@ -50,11 +50,11 @@ class ComparisonEvaluator(Evaluator):
         _comparison_result.atol = self._compare_atol(
             device_output, golden_output, self._comparison_config.atol
         )
-        _comparison_result.pcc = self._compare_pcc_masked(
+        _comparison_result.pcc = self._compare_pcc(
             device_output,
             golden_output,
             self._comparison_config.pcc,
-            pcc_mask,
+            pcc_mask=pcc_mask,
         )
         _comparison_result.allclose = self._compare_allclose(
             device_output, golden_output, self._comparison_config.allclose
@@ -176,25 +176,17 @@ class ComparisonEvaluator(Evaluator):
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    def _compare_pcc_masked(
-        self,
-        device_output: PyTree,
-        golden_output: PyTree,
-        pcc_config: PccConfig,
-        pcc_mask: Tensor | None = None,
-    ) -> float:
-        """Optional PCC mask hook; default behavior ignores the mask."""
-        return self._compare_pcc(device_output, golden_output, pcc_config)
-
     @abstractmethod
     def _compare_pcc(
         self,
         device_output: PyTree,
         golden_output: PyTree,
         pcc_config: PccConfig,
+        pcc_mask: Tensor | None = None,
     ) -> float:
         """
-        Compares PCC metric between device and golden output.
+        Compares PCC metric between device and golden output, with optional
+        masking for padded tokens.
         Returns the calculated PCC value.
         """
         raise NotImplementedError("Subclasses must implement this method")
