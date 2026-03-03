@@ -346,6 +346,42 @@ jobs:
           echo "Verification complete!"
           echo ""
 
+      - name: Hostname diagnostic
+        run: |
+          echo "=== Hostname diagnostic ==="
+          echo ""
+
+          echo "--- Bare-metal hostnames (MPI view) ---"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'echo "bare-metal: $(hostname)"'
+          echo ""
+
+          echo "--- Container hostnames (docker exec view) ---"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'docker exec multihost-poc hostname'
+          echo ""
+
+          echo "--- Container gethostname() via Python ---"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'docker exec multihost-poc python3 -c "import socket; print(\"python gethostname:\", socket.gethostname())"'
+          echo ""
+
+          echo "--- /etc/hostname inside each container ---"
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c 'docker exec multihost-poc cat /etc/hostname'
+          echo ""
+
+          echo "Hostname diagnostic complete"
+          echo ""
+
       - name: TT device smoketest in each container
         run: |
           echo "=== TT device smoketest in all containers ==="

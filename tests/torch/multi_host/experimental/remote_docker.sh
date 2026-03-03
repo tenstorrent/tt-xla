@@ -22,10 +22,7 @@ SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLeve
 IMAGE_NAME="multihost-poc"
 USER="ubuntu"
 
-echo "Printenv from host: $HOST"
-printenv
-
 # Use bash -c inside docker exec to handle the complex MPI environment string
 ssh $SSH_OPTS -l $USER "$HOST" sudo docker exec \
   -u root \
-  $IMAGE_NAME bash -c "echo 'Printenv from container:'; printenv ; '$REMOTE_COMMAND'"
+  $IMAGE_NAME bash -c "'$REMOTE_COMMAND'"
