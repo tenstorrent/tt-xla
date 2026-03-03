@@ -395,8 +395,7 @@ jobs:
               docker exec multihost-poc bash -c "
                 cd /workspace &&
                 source venv/activate &&
-                pip install tt-smi &&
-                tt-smi -r &&
+                pip install tt-smi -q &&
                 python -c \"import torch_xla.runtime as xr; xr.set_device_type(\\\"TT\\\"); import torch_xla; print(torch_xla.device())\"
               "
             '
@@ -465,6 +464,8 @@ jobs:
           echo "ttrun ip a test complete"
           echo ""
 
+
+
       - name: Controller run tests
         run: |
           echo "=== Running tests from controller container ==="
@@ -483,7 +484,8 @@ jobs:
             export TT_RUNTIME_ENABLE_DISTRIBUTED=1
             export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
             export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
-            export TT_DISTRIBUTED_HOSTS_LIST=f10cs03,f10cs04
+            # export TT_DISTRIBUTED_HOSTS_LIST=f10cs03,f10cs04
+            export TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
             export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
             export TT_METAL_LOGGER_LEVEL=DEBUG
             export TT_METAL_LOGGER_TYPES=Fabric,Always
@@ -492,7 +494,7 @@ jobs:
             echo "Environment configured:"
             echo "  TT_DISTRIBUTED_WORKER_PATH: $TT_DISTRIBUTED_WORKER_PATH"
             echo "  TT_DISTRIBUTED_CONTROLLER_HOST_NAME: $TT_DISTRIBUTED_CONTROLLER_HOST_NAME"
-            echo "  TT_DISTRIBUTED_HOSTS_LIST: $TT_DISTRIBUTED_HOSTS_LIST"
+            echo "  TT_DISTRIBUTED_HOSTS_FILE: $TT_DISTRIBUTED_HOSTS_FILE"
             echo "  TT_DISTRIBUTED_RANK_BINDING: $TT_DISTRIBUTED_RANK_BINDING"
             echo ""
 
@@ -503,8 +505,6 @@ jobs:
           echo ""
           echo "Test execution complete"
           echo ""
-
-
 
       - name: Fix workspace permissions
         if: always()
