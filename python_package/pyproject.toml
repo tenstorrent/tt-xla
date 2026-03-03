@@ -6,3 +6,6 @@ requires = [
     "cmake",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+repair-wheel-command = "auditwheel repair --exclude libTTMLIRRuntime.so --exclude libTTMLIRCompiler.so --exclude libtt_metal.so --exclude libtt_stl.so --exclude _ttnncpp.so --exclude _ttnn.so --exclude libdevice.so --exclude libtracy.so* -w {dest_dir} {wheel}"
