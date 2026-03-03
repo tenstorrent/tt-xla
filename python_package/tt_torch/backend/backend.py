@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from functools import partial
 from typing import Tuple
 
 import torch
@@ -264,7 +263,7 @@ class XLAExecutor:
         return output
 
 
-def _build_executor(
+def fw_compiler(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
@@ -272,28 +271,52 @@ def _build_executor(
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    legacy_compile_default = False
-    legacy_compile_enabled = legacy_compile_default
+
+    legacy_compile = False
     if options:
         if "tt_experimental_compile" in options:
             print(
                 'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
                 'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
             )
-            legacy_compile_enabled = not bool(options["tt_experimental_compile"])
+            legacy_compile = not bool(options["tt_experimental_compile"])
         if "tt_legacy_compile" in options:
-            legacy_compile_enabled = bool(options["tt_legacy_compile"])
-    return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
+            legacy_compile = bool(options["tt_legacy_compile"])
+
+    return XLAExecutor(module, graph_signature, node_info, legacy_compile)
 
 
-@fake_tensor_unsupported
-def _build_boxed_executor(
+def aot_backend(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ):
-    executor = _build_executor(gm, example_inputs, options)
-    return make_boxed_func(executor)
+    """AOTAutograd backend: run decompositions and trace through aot_autograd with _fw_compiler."""
+    # Rewrite AdaptiveAvgPool1d/2d(1) to torch.mean before AOTAutograd tracing.
+    # There is a Torch/TorchXLA bug where fakified XLA tensors fault in AdaptiveAveragePool, because of an as_strided_ call
+    # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3549
+    gm = rewrite_adaptive_avgpool_to_mean(gm)
+
+    # There is a well known bug in our stack that stablehlo.batch_norm_training doesn't shard properly in multichip scenarios.
+    # TorchXLA uses stablehlo.batch_norm_training for it's implementation of torch layernorm,
+    # but that gets decomposed by decompositions inside torch_pass_pipeline anyway so we don't observe it.
+    # In multichip scenarios, for reasons unknown, now the layernorm to batchnorm(specifically _native_batch_norm_legit.no_stats)
+    # conversion happens before the fx module ever reaches us.
+    # So we manually decompose batch norm early inside aot_autograd to avoid the bug. This could be a perf pitfall.
+    # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3533
+    aot_decompositions = get_aten_decompositions(
+        [
+            torch.ops.aten._native_batch_norm_legit.no_stats,
+        ]
+    )
+
+    @fake_tensor_unsupported
+    def fw_compiler_boxed(gm, example_inputs):
+        return make_boxed_func(fw_compiler(gm, example_inputs, options))
+
+    return aot_autograd(
+        fw_compiler=fw_compiler_boxed, decompositions=aot_decompositions
+    )(gm, example_inputs)
 
 
 def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
@@ -349,26 +372,10 @@ def tt_backend(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None = None,
 ):
-    # Rewrite AdaptiveAvgPool1d/2d(1) to torch.mean before AOTAutograd tracing.
-    # There is a Torch/TorchXLA bug where fakified XLA tensors fault in AdaptiveAveragePool, because of an as_strided_ call
-    # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3549
-    gm = rewrite_adaptive_avgpool_to_mean(gm)
-
-    fw_compiler = partial(_build_boxed_executor, options=options)
-
-    # There is a well known bug in our stack that stablehlo.batch_norm_training doesn't shard properly in multichip scenarios.
-    # TorchXLA uses stablehlo.batch_norm_training for it's implementation of torch layernorm,
-    # but that gets decomposed by decompositions inside torch_pass_pipeline anyway so we don't observe it.
-    # In multichip scenarios, for reasons unknown, now the layernorm to batchnorm(specifically _native_batch_norm_legit.no_stats)
-    # conversion happens before the fx module ever reaches us.
-    # So we manually decompose batch norm early inside aot_autograd to avoid the bug. This could be a perf pitfall.
-    # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3533
-    aot_decompositions = get_aten_decompositions(
-        [
-            torch.ops.aten._native_batch_norm_legit.no_stats,
-        ]
+    use_aot_autograd = (
+        bool(options.get("tt_use_aot_autograd", False)) if options else False
     )
-    aotautograd = aot_autograd(
-        fw_compiler=fw_compiler, decompositions=aot_decompositions
-    )
-    return aotautograd(gm, example_inputs)
+    if use_aot_autograd:
+        return aot_backend(gm, example_inputs, options)
+    else:
+        return fw_compiler(gm, example_inputs, options)
