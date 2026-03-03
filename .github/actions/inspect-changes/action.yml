@@ -170,6 +170,7 @@ runs:
 
         # Debug Purposes
         echo "run-uplift-model-tests=$run_uplift_model_tests"
+        echo "wheel-changes=$wheel_changes"
         echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
 
         echo "skip-build-and-test=$skip_build_and_test" >> "$GITHUB_OUTPUT"
