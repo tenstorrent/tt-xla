@@ -146,6 +146,8 @@ class DynamicTorchModelTester(TorchModelTester):
 
         supports_strategy_kwargs = False
         try:
+            # TODO(umales): Remove inspect check, once we migrate to custom loader class for
+            # Focus models.
             signature = inspect.signature(self.dynamic_loader.loader.load_shard_spec)
             params = signature.parameters
             supports_strategy_kwargs = "strategy" in params and "batch_axis" in params
@@ -200,6 +202,7 @@ class DynamicTorchModelTester(TorchModelTester):
             # Explicit mesh from test metadata, e.g. (1, 8) or (2, 4)
             mesh_shape = self._test_metadata.mesh_shape
             shard_inputs = getattr(self._test_metadata, "shard_inputs", False)
+            # TODO(umales): Remove this once https://github.com/tenstorrent/tt-xla/issues/3397 is fixed
             if shard_inputs:
                 mesh_names = ("data", "model")
             else:
