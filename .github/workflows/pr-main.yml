@@ -123,6 +123,21 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
       wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
 
+  perf-benchmark-galaxy:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
+    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    uses: ./.github/workflows/manual-benchmark.yml
+    secrets: inherit
+    with:
+      runs-on-filter: n300-llmbox
+      sh-runner: false
+      skip-device-perf: true
+      perf_regression_check: false
+      test_filter: test_llama_3_1_70b_tp_galaxy
+      should_build_wheel: false
+      artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
@@ -178,11 +193,12 @@ jobs:
       - test-tools
       - perf-benchmark-n150
       - perf-benchmark-llmbox
+      - perf-benchmark-galaxy
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, build-manylinux-ttxla, test, test_forge_models_push, build-docs, test_models_on_uplift, test-tools, perf-benchmark-n150, perf-benchmark-llmbox
+        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, build-manylinux-ttxla, test, test_forge_models_push, build-docs, test_models_on_uplift, test-tools, perf-benchmark-n150, perf-benchmark-llmbox, perf-benchmark-galaxy
         jobs: ${{ toJSON(needs) }}

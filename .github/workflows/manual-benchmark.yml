@@ -17,7 +17,7 @@ on:
         required: false
         type: string
       runs-on-filter:
-        description: "Architecture you want to run the tests on (All, n150, p150, n300-llmbox)"
+        description: "Architecture you want to run the tests on (All, n150, p150, n300-llmbox, galaxy-wh-6u)"
         required: false
         type: string
         default: n150
