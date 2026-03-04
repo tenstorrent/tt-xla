@@ -4,6 +4,7 @@
 """
 SSD300 ResNet50 model loader implementation for object detection
 """
+
 import numpy as np
 import torch
 from typing import Optional
@@ -18,7 +19,9 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
+import os
+import tempfile
+from datasets import load_dataset
 from .src.utils import prepare_ssd_input, download_checkpoint
 
 
@@ -111,11 +114,18 @@ class ModelLoader(ForgeModel):
         Returns:
             list: Input tensors that can be fed to the model.
         """
-        # Download sample image
-        input_image = get_file(self.sample_image_url)
+        # Load image from HuggingFace dataset (prepare_ssd_input expects a path)
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        pil_image = dataset[0]["image"]
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            pil_image.save(tmp.name)
+            input_image_path = tmp.name
+        try:
+            HWC = prepare_ssd_input(input_image_path)
+        finally:
+            os.unlink(input_image_path)
 
         # Prepare input using shared utility function
-        HWC = prepare_ssd_input(input_image)
         CHW = np.swapaxes(np.swapaxes(HWC, 0, 2), 1, 2)
         batch = np.expand_dims(CHW, axis=0)
         input_batch = torch.from_numpy(batch).float()

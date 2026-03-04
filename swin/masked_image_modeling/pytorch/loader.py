@@ -17,7 +17,7 @@ from third_party.tt_forge_models.config import (
 )
 from third_party.tt_forge_models.base import ForgeModel
 from PIL import Image
-from third_party.tt_forge_models.tools.utils import get_file
+from datasets import load_dataset
 from typing import Optional
 
 
@@ -119,9 +119,9 @@ class ModelLoader(ForgeModel):
             # Ensure feature extractor is initialized
             self.load_model(dtype_override=dtype_override)
 
-        # Load image
-        image_path = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_path)
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
         # Preprocess image
         inputs = self.feature_extractor(images=image, return_tensors="pt").pixel_values

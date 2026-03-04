@@ -4,6 +4,7 @@
 """
 RGBM model loader implementation for image segmentation
 """
+
 import torch
 from PIL import Image
 from torchvision import transforms
@@ -20,7 +21,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -136,8 +137,9 @@ class ModelLoader(ForgeModel):
         if self.transform_image is None:
             self._setup_transforms()
 
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        self.image = Image.open(str(image_file))
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        self.image = dataset[0]["image"]
 
         inputs = self.transform_image(self.image).unsqueeze(0)
 

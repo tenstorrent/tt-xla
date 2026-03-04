@@ -4,6 +4,7 @@
 """
 YOLOS-Small model loader implementation for object detection.
 """
+
 import torch
 from transformers import (
     YolosImageProcessor,
@@ -23,7 +24,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -149,9 +150,9 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        # Get the Image
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file)
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
         # Process images
         inputs = self.processor(images=image, return_tensors="pt")

@@ -4,6 +4,7 @@
 """
 RetinaNet model loader implementation
 """
+
 import os
 import shutil
 import zipfile
@@ -24,7 +25,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 from .src.model import Model
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 @dataclass
@@ -217,16 +218,15 @@ class ModelLoader(ForgeModel):
             weights = getattr(models.detection, weight_name).DEFAULT
             preprocess = weights.transforms()
 
-            # Load COCO image
-            input_image = get_file(
-                "http://images.cocodataset.org/val2017/000000039769.jpg"
-            )
-            image = Image.open(str(input_image)).convert("RGB")
+            # Load image from HuggingFace dataset
+            dataset = load_dataset("huggingface/cats-image")["test"]
+            image = dataset[0]["image"].convert("RGB")
             img_t = preprocess(image)
             batch_t = torch.unsqueeze(img_t, 0).contiguous()
         elif source == ModelSource.CUSTOM:
-            url = "https://i.ytimg.com/vi/q71MCWAEfL8/maxresdefault.jpg"
-            pil_img = Image.open(requests.get(url, stream=True).raw)
+            # Load image from HuggingFace dataset
+            dataset = load_dataset("huggingface/cats-image")["test"]
+            pil_img = dataset[0]["image"].copy()
             new_size = (640, 480)
             pil_img = pil_img.resize(new_size, resample=Image.BICUBIC)
 

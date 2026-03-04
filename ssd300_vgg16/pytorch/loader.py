@@ -20,7 +20,8 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file, print_compiled_model_results
+from datasets import load_dataset
+from ...tools.utils import print_compiled_model_results
 from .src.utils import SSDPostprocessor, patched_grid_default_boxes, patched_forward
 
 
@@ -116,13 +117,13 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for SSD300 VGG16.
         """
-        # Download sample image
-        input_image = get_file(self.sample_image_url)
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
 
         # Load and preprocess image using torchvision weights transforms
         weights = models.detection.SSD300_VGG16_Weights.DEFAULT
         preprocess = weights.transforms()
-        image = Image.open(str(input_image)).convert("RGB")
         img_t = preprocess(image)
         batch_t = torch.unsqueeze(img_t, 0)
         batch_t = batch_t.contiguous()
