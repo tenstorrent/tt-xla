@@ -456,7 +456,8 @@
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[opt-125m]",
         "vllm": true,
         "skip-ttir-dump": true,
-        "skip-ttnn-dump": true
+        "skip-ttnn-dump": true,
+        "runs-on": "n150"
       },
       {
         "name": "vllm_opt_125m_batch2",
@@ -464,7 +465,8 @@
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[opt-125m-batch2]",
         "vllm": true,
         "skip-ttir-dump": true,
-        "skip-ttnn-dump": true
+        "skip-ttnn-dump": true,
+        "runs-on": "n150"
       },
       {
         "name": "vllm_opt_125m_batch16",
@@ -472,7 +474,8 @@
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[opt-125m-batch16]",
         "vllm": true,
         "skip-ttir-dump": true,
-        "skip-ttnn-dump": true
+        "skip-ttnn-dump": true,
+        "runs-on": "n150"
       },
       {
         "name": "vllm_opt_125m_batch32",
@@ -480,7 +483,8 @@
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[opt-125m-batch32]",
         "vllm": true,
         "skip-ttir-dump": true,
-        "skip-ttnn-dump": true
+        "skip-ttnn-dump": true,
+        "runs-on": "n150"
       },
       {
         "name": "vllm_llama_3_2_3b",
@@ -488,7 +492,8 @@
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",
         "vllm": true,
         "skip-ttir-dump": true,
-        "skip-ttnn-dump": true
+        "skip-ttnn-dump": true,
+        "runs-on": "n150"
       },
       {
         "name": "vllm_llama_3_2_3b_batch16",
@@ -496,7 +501,8 @@
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b-batch16]",
         "vllm": true,
         "skip-ttir-dump": true,
-        "skip-ttnn-dump": true
+        "skip-ttnn-dump": true,
+        "runs-on": "n150"
       }
     ]
   }
