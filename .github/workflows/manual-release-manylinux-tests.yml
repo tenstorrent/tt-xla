@@ -60,7 +60,7 @@ jobs:
         run: |
           set -eo pipefail
 
-          docker_tag=$( (cat .github/Dockerfile.fedora | sha256sum) | cut -d ' ' -f 1)
+          docker_tag=${{ github.sha }}
           IMAGE_NAME=ghcr.io/tenstorrent/tt-xla/tt-xla-bare-fedora
 
           if docker manifest inspect $IMAGE_NAME:$docker_tag > /dev/null; then

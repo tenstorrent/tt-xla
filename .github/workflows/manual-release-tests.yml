@@ -17,9 +17,18 @@ jobs:
     with:
       dockbuild: all
 
+  build-ttxla:
+    uses: ./.github/workflows/call-build-manylinux.yml
+    name: "Build manylinux tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
+
   build-release-docker:
     name: Build Fedora Docker image with manylinux wheel
     runs-on: ubuntu-latest
+    needs: build-ttxla
     outputs:
       docker_image: ${{ steps.build-docker.outputs.docker_image }}
     steps:
@@ -51,7 +60,7 @@ jobs:
         run: |
           set -eo pipefail
 
-          docker_tag=$( (cat .github/Dockerfile.fedora | sha256sum) | cut -d ' ' -f 1)
+          docker_tag=${{ github.sha }}
           IMAGE_NAME=ghcr.io/tenstorrent/tt-xla/tt-xla-bare-fedora
 
           if docker manifest inspect $IMAGE_NAME:$docker_tag > /dev/null; then
@@ -68,14 +77,6 @@ jobs:
           fi
 
           echo "docker_image=$IMAGE_NAME:$docker_tag" >> "$GITHUB_OUTPUT"
-
-  build-ttxla:
-    uses: ./.github/workflows/call-build-manylinux.yml
-    name: "Build manylinux tt-xla"
-    secrets: inherit
-    needs: build-image
-    with:
-      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   release-tests:
     uses: ./.github/workflows/call-release-tests.yml
