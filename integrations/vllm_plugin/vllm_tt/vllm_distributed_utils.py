@@ -51,7 +51,7 @@ class XlaMergedColumnParallelLinear(nn.Module):
         for i in range(self.num_outputs):
             self.weights[i] = Parameter(self.weights[i].to("xla"), requires_grad=False)
             # xs.mark_sharding(self.weights[i], mesh, ("batch", None))
-            xs.mark_sharding(self.weights[i], mesh, ("model", "batch"))
+            xs.mark_sharding(self.weights[i], mesh, ("batch", "model"))
 
             if self.biases[i] is not None:
                 self.biases[i] = Parameter(
@@ -140,9 +140,12 @@ class XlaQKVParallelLinear(nn.Module):
         # xs.mark_sharding(self.q_weight, mesh, ("batch", None))
         # xs.mark_sharding(self.k_weight, mesh, ("batch", None))
         # xs.mark_sharding(self.v_weight, mesh, ("batch", None))
-        xs.mark_sharding(self.q_weight, mesh, ("model", "batch"))
-        xs.mark_sharding(self.k_weight, mesh, ("model", "batch"))
-        xs.mark_sharding(self.v_weight, mesh, ("model", "batch"))
+        # xs.mark_sharding(self.q_weight, mesh, ("model", "batch"))
+        # xs.mark_sharding(self.k_weight, mesh, ("model", "batch"))
+        # xs.mark_sharding(self.v_weight, mesh, ("model", "batch"))
+        xs.mark_sharding(self.q_weight, mesh, ("batch", "model"))
+        xs.mark_sharding(self.k_weight, mesh, ("batch", "model"))
+        xs.mark_sharding(self.v_weight, mesh, ("batch", "model"))
         if self.q_bias is not None:
             logger.info(f"loading bias for qkv parallel linear")
             assert (
@@ -244,7 +247,8 @@ def partition_row_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
     assert isinstance(layer, RowParallelLinear)
-    xs.mark_sharding(layer.weight, mesh, ("batch", "model"))
+    # xs.mark_sharding(layer.weight, mesh, ("batch", "model"))
+    xs.mark_sharding(layer.weight, mesh, ("model", "batch"))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -254,7 +258,7 @@ def partition_parallel_lm_head(
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, (None, "batch"))
+    xs.mark_sharding(layer.weight, mesh, ("batch", None))
     return layer
 
 

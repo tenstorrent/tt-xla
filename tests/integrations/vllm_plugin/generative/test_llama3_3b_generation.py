@@ -21,6 +21,7 @@ def test_llama3_3b_generation():
         "additional_config": {
             "enable_const_eval": False,
             "min_context_len": 32,
+            "enable_tensor_parallel": True,
         },
     }
     llm = vllm.LLM(**llm_args)
