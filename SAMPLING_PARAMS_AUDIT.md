@@ -50,6 +50,12 @@
 | **ignore_eos** | `test_ignore_eos` | N/A | CPU-only (flag controlling decode loop) |
 | **max_tokens** | `test_output_length_controls` | N/A | CPU-only (loop counter) |
 | **n** | `test_sampling_has_diversity_when_temp_positive` | N/A | Engine-level multiplexing |
+| **include_stop_str_in_output** | `test_include_stop_str_in_output` | N/A | CPU-only (output formatting, upstream vLLM) |
+| **detokenize** | `test_detokenize` | N/A | CPU-only (output formatting, upstream vLLM) |
+| **skip_special_tokens** | `test_skip_special_tokens` | N/A | CPU-only (output formatting, upstream vLLM) |
+| **spaces_between_special_tokens** | `test_spaces_between_special_tokens` | N/A | CPU-only (output formatting, upstream vLLM) |
+| **truncate_prompt_tokens** | `test_truncate_prompt_tokens` | N/A | CPU-only (input truncation, upstream vLLM) |
+| **output_kind** | `test_output_kind` | N/A | CPU-only (output format control, upstream vLLM) |
 | **min_tokens** | N/A | N/A | CPU-only (engine won't stop until min reached) |
 | **best_of** | N/A | N/A | Removed in vLLM v1 |
 | **messages** | N/A | N/A | Chat API param, not a sampling param |
@@ -60,14 +66,9 @@
 |---|---|---|
 | **prompt_logprobs** | Plumbed but stubbed | `num_prompt_logprobs` tracked in `input_batch.py`/`model_runner.py`, but output always returns `None` (line 1340). Not implemented in TT plugin. |
 | **allowed_token_ids** | Plumbed but not wired | Mask built in `input_batch.py` (lines 310-330), passed through metadata, but sampler never reads it. `metadata.py:62` sets `allowed_token_ids_mask = None`. |
-| **logits_processors** | CPU callbacks | Custom callables, no device graph involvement. |
-| **detokenize** | CPU post-processing | Output formatting only. |
-| **skip_special_tokens** | CPU post-processing | Output formatting only. |
-| **spaces_between_special_tokens** | CPU post-processing | Output formatting only. |
-| **include_stop_str_in_output** | CPU post-processing | Output formatting only. |
-| **truncate_prompt_tokens** | CPU pre-processing | Input truncation before model execution. |
+| **logits_processors** | CPU callbacks | Custom callables, stored but never applied in sampler. |
+| **min_tokens** | Plumbed but not enforced | Stored in `input_batch.py:162-163`, `metadata.py:54` marks as `None` ("impl is not vectorized"). |
 | **flat_logprobs** | Output formatting | Controls logprobs output shape. |
-| **output_kind** | Output formatting | Controls `RequestOutput` structure. |
 | **skip_clone** / **skip_reading_prefix_cache** / **extra_args** | Internal plumbing | No user-facing behavior to test. |
 
 Every param that executes on device has both e2e and synthetic coverage. CPU-only params have e2e coverage only, which is appropriate since there is no device graph to test.
@@ -107,16 +108,14 @@ Every param that executes on device has both e2e and synthetic coverage. CPU-onl
 2. **Move `apply_grammar_bitmask` to device** — currently explicitly CPU-bound (`model_runner.py:2062-2076`), would benefit structured output latency.
 9. **Fix #3464** (bf16 bool fusion) — would remove `count_tokens_ge` workaround in `sampler.py` and enable `clamp(min=1)` directly.
 
-### Params handled by upstream vLLM (verify, don't implement)
+### Params handled by upstream vLLM (verified)
 
-These are CPU-side flags that should fall through to upstream vLLM without TT plugin involvement. Verify they work correctly and add e2e tests if missing.
-
-10. **Verify `include_stop_str_in_output`** — CPU post-processing flag. Should work via upstream vLLM. Add e2e test to confirm.
-11. **Verify `detokenize`** — CPU post-processing flag. Should work via upstream. Add e2e test to confirm.
-12. **Verify `skip_special_tokens`** — CPU post-processing flag. Should work via upstream. Add e2e test to confirm.
-13. **Verify `spaces_between_special_tokens`** — CPU post-processing flag. Should work via upstream. Add e2e test to confirm.
-14. **Verify `truncate_prompt_tokens`** — CPU pre-processing flag. Should work via upstream scheduler. Add e2e test to confirm.
-15. **Verify `output_kind`** — CPU output format control. Should work via upstream. Add e2e test to confirm.
+10. ~~**Verify `include_stop_str_in_output`**~~ — **DONE** (PR #3561)
+11. ~~**Verify `detokenize`**~~ — **DONE** (PR #3561)
+12. ~~**Verify `skip_special_tokens`**~~ — **DONE** (PR #3561)
+13. ~~**Verify `spaces_between_special_tokens`**~~ — **DONE** (PR #3561)
+14. ~~**Verify `truncate_prompt_tokens`**~~ — **DONE** (PR #3561)
+15. ~~**Verify `output_kind`**~~ — **DONE** (PR #3561)
 
 ### Not a SamplingParam
 
