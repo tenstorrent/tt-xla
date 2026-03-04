@@ -21,7 +21,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -124,15 +124,13 @@ class ModelLoader(ForgeModel):
             model_name = self._variant_config.pretrained_model_name
             self.processor = SamProcessor.from_pretrained(model_name)
 
-        # Get the sample image
+        # Load image from HuggingFace dataset
         try:
-            image_path = get_file(
-                "https://huggingface.co/ybelkada/segment-anything/resolve/main/assets/car.png"
-            )
-            raw_image = Image.open(str(image_path)).convert("RGB")
+            dataset = load_dataset("huggingface/cats-image")["test"]
+            raw_image = dataset[0]["image"].convert("RGB")
         except Exception as e:
             logger.warning(
-                f"Failed to fetch image from URL. Using random fallback tensor. Reason: {e}"
+                f"Failed to load image from dataset. Using random fallback tensor. Reason: {e}"
             )
             raw_image = Image.fromarray(
                 (torch.rand(3, 1024, 1024) * 255).byte().permute(1, 2, 0).numpy()

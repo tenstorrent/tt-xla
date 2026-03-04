@@ -27,6 +27,7 @@ from third_party.tt_forge_models.yolov7.pytorch.src.model_utils import (
     letterbox,
     yolov7_postprocess,
 )
+from datasets import load_dataset
 from third_party.tt_forge_models.tools.utils import get_file
 
 
@@ -161,10 +162,9 @@ class ModelLoader(ForgeModel):
         img_size = 640
         img_size = check_img_size(img_size, s=stride)
 
-        # Resolve image
-        image_path = get_file("http://images.cocodataset.org/val2017/000000298251.jpg")
-
-        img_src = np.asarray(Image.open(image_path).convert("RGB"))
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        img_src = np.asarray(dataset[0]["image"].convert("RGB"))
         self.img_src = img_src
         img_lb, _, _ = letterbox(
             img_src,

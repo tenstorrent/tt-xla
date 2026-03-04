@@ -16,6 +16,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
+from datasets import load_dataset
 from ...tools.utils import get_file, extract_tensors_recursive
 
 
@@ -136,15 +137,14 @@ class ModelLoader(ForgeModel):
         import numpy as np
         from .src.model_utils import letterbox, check_img_size
 
-        # Get sample image from COCO dataset
-        image_file = get_file("test_images/horses.jpg")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        pil_image = dataset[0]["image"].convert("RGB")
+        im0 = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
         # Get model stride and calculate proper image size
         stride = int(self.model.stride.max())
         img_size = check_img_size(640, s=stride)
-
-        # Load and preprocess image
-        im0 = cv2.imread(str(image_file))
         im = letterbox(im0, img_size, stride=stride, auto=True)[0]
 
         # Convert to tensor format (HWC to CHW, BGR to RGB)

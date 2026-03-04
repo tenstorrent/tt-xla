@@ -20,7 +20,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -137,14 +137,9 @@ class ModelLoader(ForgeModel):
         if self.feature_extractor is None:
             self._load_feature_extractor()
 
-        # Choose sample image based on variant
-        if self._variant == ModelVariant.SWIN_B_COCO:
-            image_url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        else:
-            image_url = "https://huggingface.co/datasets/hf-internal-testing/fixtures_ade20k/resolve/main/ADE_val_00000001.jpg"
-
-        image_file = get_file(image_url)
-        image = Image.open(image_file)
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
         # Process image
         inputs = self.feature_extractor(images=image, return_tensors="pt")

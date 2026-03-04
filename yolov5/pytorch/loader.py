@@ -17,8 +17,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
-import cv2
+from datasets import load_dataset
 import numpy as np
 from .src.utils import data_preprocessing, data_postprocessing
 from PIL import Image
@@ -128,9 +127,9 @@ class ModelLoader(ForgeModel):
                 - batch_tensor: Input tensor that can be fed to the model
         """
 
-        image_path = get_file("http://images.cocodataset.org/val2017/000000397133.jpg")
-        image_sample = cv2.imread(str(image_path))
-        image_sample = Image.fromarray(np.uint8(image_sample)).convert("RGB")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image_sample = dataset[0]["image"].convert("RGB")
 
         ims, n, files, shape0, shape1, img_tensor = data_preprocessing(
             image_sample, size=(input_size, input_size)

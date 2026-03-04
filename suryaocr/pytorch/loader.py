@@ -22,7 +22,7 @@ from ...config import (
     ModelConfig,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 from .src.utils import (
@@ -115,10 +115,9 @@ class ModelLoader(ForgeModel):
         Returns:
             List[torch.Tensor, torch.Tensor]: [images_tensor, languages_tensor]
         """
-        image_file = get_file(
-            "https://raw.githubusercontent.com/VikParuchuri/surya/master/static/images/excerpt_text.png"
-        )
-        image = Image.open(str(image_file)).convert("RGB")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
         image_tensor = self._transform(image)
         image_tensor = torch.stack([image_tensor])
 

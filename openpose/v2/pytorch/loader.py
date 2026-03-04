@@ -9,7 +9,7 @@ Openpose V2 model loader implementation
 from PIL import Image
 from pytorchcv.model_provider import get_model as ptcv_get_model
 from torchvision import transforms
-from ....tools.utils import get_file
+from datasets import load_dataset
 from ....config import (
     ModelInfo,
     ModelGroup,
@@ -91,10 +91,9 @@ class ModelLoader(ForgeModel):
             dict: Input tensors that can be fed to the model.
         """
 
-        image_file = get_file(
-            "https://raw.githubusercontent.com/axinc-ai/ailia-models/master/pose_estimation_3d/blazepose-fullbody/girl-5204299_640.jpg"
-        )
-        input_image = Image.open(str(image_file))
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        input_image = dataset[0]["image"]
         preprocess = transforms.Compose(
             [
                 transforms.Resize(224),

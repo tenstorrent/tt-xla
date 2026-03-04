@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from datasets import load_dataset
 from ...tools.utils import get_file
 from ...config import (
     ModelConfig,
@@ -148,12 +149,10 @@ class ModelLoader(ForgeModel):
         input_size = 640
         img_size = check_img_size(input_size, s=stride)
 
-        # If no image provided, use default COCO image
+        # If no image provided, load from HuggingFace dataset
         if image is None:
-            cached_path = get_file(
-                "http://images.cocodataset.org/val2017/000000397133.jpg"
-            )
-            img_src = np.asarray(Image.open(cached_path).convert("RGB"))
+            dataset = load_dataset("huggingface/cats-image")["test"]
+            img_src = np.asarray(dataset[0]["image"].convert("RGB"))
         else:
             # Convert image to numpy array (RGB format) if needed
             if isinstance(image, Image.Image):

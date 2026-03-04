@@ -14,8 +14,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 from transformers import MgpstrProcessor, MgpstrForSceneTextRecognition
-from PIL import Image
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelLoader(ForgeModel):
@@ -69,9 +68,9 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None, batch_size=1):
         """Prepare sample input for MGP-STR model"""
 
-        # Get the Image
-        image_file = get_file("https://i.postimg.cc/ZKwLg2Gw/367-14.png")
-        image = Image.open(image_file).convert("RGB")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
 
         # Preprocess image
         self.processor = MgpstrProcessor.from_pretrained(self.model_name)
