@@ -22,7 +22,7 @@ import signal
 import pytest
 import vllm
 from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
-from vllm.sampling_params import StructuredOutputsParams
+from vllm.sampling_params import RequestOutputKind, StructuredOutputsParams
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -682,3 +682,96 @@ def test_detokenize(llm, prompt):
     assert list(out_no.token_ids) == list(
         out_yes.token_ids
     ), "Token IDs should be identical regardless of detokenize flag"
+
+
+@for_targets(single_device="nightly")
+def test_skip_special_tokens(llm, prompt):
+    """Test that skip_special_tokens doesn't break the pipeline.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only — verifying our plugin doesn't break the upstream
+    behavior is sufficient; no need to cross with TP targets.
+    """
+    for skip in (True, False):
+        params = vllm.SamplingParams(
+            temperature=0.0, max_tokens=16, skip_special_tokens=skip
+        )
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+        print(
+            f"[TESTOUT test_skip_special_tokens] " f"skip={skip}: {output.text[:50]!r}"
+        )
+        assert len(output.text) > 0, f"skip_special_tokens={skip} should produce output"
+
+
+@for_targets(single_device="nightly")
+def test_spaces_between_special_tokens(llm, prompt):
+    """Test that spaces_between_special_tokens doesn't crash the pipeline.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only. The behavioral difference (spacing around special
+    tokens) is tokenizer-specific and hard to assert on reliably, so this
+    test just verifies both values produce output without error.
+    """
+    for spaces in (True, False):
+        params = vllm.SamplingParams(
+            temperature=0.0,
+            max_tokens=16,
+            spaces_between_special_tokens=spaces,
+        )
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+        print(
+            f"[TESTOUT test_spaces_between_special_tokens] "
+            f"spaces={spaces}: {output.text[:50]!r}"
+        )
+        assert (
+            len(output.text) > 0
+        ), f"spaces_between_special_tokens={spaces} should produce output"
+
+
+@for_targets(single_device="nightly")
+def test_truncate_prompt_tokens(llm, prompt):
+    """Test that truncate_prompt_tokens changes the effective context.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only — verifying our plugin doesn't break the upstream
+    behavior is sufficient; no need to cross with TP targets.
+
+    With greedy decoding, fewer prompt tokens means different context and
+    therefore different output. Verifies that truncation actually takes effect.
+    """
+    full_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
+    out_full = llm.generate(prompt, full_params, use_tqdm=False)[0].outputs[0]
+
+    trunc_params = vllm.SamplingParams(
+        temperature=0.0, max_tokens=16, truncate_prompt_tokens=4
+    )
+    out_trunc = llm.generate(prompt, trunc_params, use_tqdm=False)[0].outputs[0]
+
+    print(
+        f"[TESTOUT test_truncate_prompt_tokens] "
+        f"full: {out_full.text[:50]!r} truncated: {out_trunc.text[:50]!r}"
+    )
+
+    assert len(out_full.text) > 0, "Full prompt should produce output"
+    assert len(out_trunc.text) > 0, "Truncated prompt should produce output"
+    assert list(out_full.token_ids) != list(
+        out_trunc.token_ids
+    ), "Truncated prompt should produce different output than full prompt"
+
+
+@for_targets(single_device="nightly")
+def test_output_kind(llm, prompt):
+    """Test that all output_kind values produce output without error.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only. output_kind controls how intermediate results are
+    returned during streaming; with synchronous llm.generate() the final
+    result should be valid regardless of the setting.
+    """
+    for kind in RequestOutputKind:
+        params = vllm.SamplingParams(temperature=0.0, max_tokens=16, output_kind=kind)
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+        print(f"[TESTOUT test_output_kind] {kind.name}: {output.text[:50]!r}")
+        assert (
+            len(output.token_ids) > 0
+        ), f"output_kind={kind.name} should produce token IDs"
