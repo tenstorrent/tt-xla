@@ -51,7 +51,8 @@ class XLASupportedSamplingMetadata:
     prompt_token_ids = None
     output_token_ids: list[list[int]] = field(default_factory=lambda: list())
 
-    min_tokens = None  # impl is not vectorized
+    no_min_tokens: bool = True
+    min_tokens_mask: Optional[torch.Tensor] = None
 
     no_logit_bias: bool = True
     logit_bias_tensor: Optional[torch.Tensor] = None
@@ -59,7 +60,8 @@ class XLASupportedSamplingMetadata:
     no_bad_words: bool = True
     bad_words_mask: Optional[torch.Tensor] = None
 
-    allowed_token_ids_mask = None
+    no_allowed_token_ids: bool = True
+    allowed_token_ids_mask: Optional[torch.Tensor] = None
 
     # Per-request generators live in InputBatch, not here. from_input_batch()
     # drains them to build q_samples; this field is always constructed empty.
@@ -165,6 +167,31 @@ class XLASupportedSamplingMetadata:
                         mask[req_idx, last_token_id] = float("-inf")
         return mask
 
+    @staticmethod
+    def _compute_min_tokens_mask(
+        min_tokens: dict[int, tuple[int, set[int]]],
+        req_output_token_ids: list[Optional[list[int]]],
+        padded_num_reqs: int,
+        vocab_size: int,
+    ) -> torch.Tensor:
+        """Build a [padded_num_reqs, vocab_size] float32 mask for min_tokens.
+
+        For each request where the number of output tokens generated so far
+        is below ``min_count``, sets entries to ``-inf`` for all stop token
+        IDs so they cannot be sampled. Entries are ``0.0`` elsewhere, so the
+        mask can be added to logits directly (same pattern as bad_words).
+        """
+        mask = torch.zeros(padded_num_reqs, vocab_size, dtype=torch.float32)
+        for req_idx, (min_count, stop_token_ids) in min_tokens.items():
+            if req_idx >= padded_num_reqs:
+                continue
+            output_len = len(req_output_token_ids[req_idx] or [])
+            if output_len < min_count:
+                for token_id in stop_token_ids:
+                    if token_id < vocab_size:
+                        mask[req_idx, token_id] = float("-inf")
+        return mask
+
     @classmethod
     def from_input_batch(
         cls,
@@ -231,6 +258,45 @@ class XLASupportedSamplingMetadata:
             bad_words_mask = None
             no_bad_words = True
 
+        # Bridge allowed_token_ids mask from InputBatch.
+        # InputBatch stores a bool mask (True = DISALLOWED). Convert to
+        # float32 additive mask (-inf / 0.0) to avoid masked_fill with bool
+        # tensors, which hits hardware issues at certain batch×vocab shapes.
+        has_allowed = not input_batch.no_allowed_token_ids
+        if has_allowed:
+            bool_mask = input_batch.allowed_token_ids_mask_cpu_tensor[:padded_num_reqs]
+            float_mask = torch.where(
+                bool_mask,
+                torch.tensor(float("-inf"), dtype=torch.float32),
+                torch.tensor(0.0, dtype=torch.float32),
+            )
+            allowed_token_ids_mask = float_mask.to(xla_device)
+            no_allowed_token_ids = False
+        else:
+            allowed_token_ids_mask = None
+            no_allowed_token_ids = True
+
+        # Build min_tokens mask: suppress stop/EOS tokens until min_tokens
+        # output count is reached.
+        has_min_tokens = bool(input_batch.min_tokens)
+        if has_min_tokens:
+            min_tokens_cpu = cls._compute_min_tokens_mask(
+                input_batch.min_tokens,
+                input_batch.req_output_token_ids,
+                padded_num_reqs,
+                input_batch.vocab_size,
+            )
+            # Only transfer if any entries are actually -inf this step.
+            if min_tokens_cpu.isinf().any():
+                min_tokens_mask = min_tokens_cpu.to(xla_device)
+                no_min_tokens = False
+            else:
+                min_tokens_mask = None
+                no_min_tokens = True
+        else:
+            min_tokens_mask = None
+            no_min_tokens = True
+
         # Build q_samples on CPU when per-request seeds are present.
         # Each seeded row uses its own generator; un-seeded rows use the global
         # RNG. The tensor is transferred to the XLA device so the compiled
@@ -253,6 +319,8 @@ class XLASupportedSamplingMetadata:
             and input_batch.no_penalties
             and no_logit_bias
             and no_bad_words
+            and no_allowed_token_ids
+            and no_min_tokens
             and not has_generators
         ):
             return cls(
@@ -262,6 +330,10 @@ class XLASupportedSamplingMetadata:
                 logit_bias_tensor=logit_bias_tensor,
                 no_bad_words=no_bad_words,
                 bad_words_mask=bad_words_mask,
+                no_allowed_token_ids=no_allowed_token_ids,
+                allowed_token_ids_mask=allowed_token_ids_mask,
+                no_min_tokens=no_min_tokens,
+                min_tokens_mask=min_tokens_mask,
             )
 
         def fill_slice(cpu_tensor: torch.Tensor, fill_val) -> torch.Tensor:
@@ -336,6 +408,10 @@ class XLASupportedSamplingMetadata:
             logit_bias_tensor=logit_bias_tensor,
             no_bad_words=no_bad_words,
             bad_words_mask=bad_words_mask,
+            no_allowed_token_ids=no_allowed_token_ids,
+            allowed_token_ids_mask=allowed_token_ids_mask,
+            no_min_tokens=no_min_tokens,
+            min_tokens_mask=min_tokens_mask,
             no_generators=not has_generators,
             q_samples=q_samples,
         )

@@ -2011,6 +2011,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_penalties
             and sampling_metadata.no_logit_bias
             and sampling_metadata.no_bad_words
+            and sampling_metadata.no_allowed_token_ids
+            and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
