@@ -87,10 +87,39 @@ Every param that executes on device has both e2e and synthetic coverage. CPU-onl
 2. ~~**`logprobs` gather** — `gather_logprobs` is not `torch.compile`d (commented out at `model_runner.py:2027`), runs eagerly.~~ **DONE** — enabled `torch.compile` in `9fb0445b2`.
 3. ~~**`sample_from_logits`** — also not `torch.compile`d (commented out at `model_runner.py:2005-2007`) due to SPMD correctness issue. Runs eagerly on XLA device.~~ **DONE** — enabled `torch.compile` for SPMD mode in `9fb0445b2`.
 
-## Action Items
+## Action Items — Completed
 
 1. ~~**Add `structured_outputs` e2e test**~~ — **DONE** (`a87ab8fca`)
-2. **Move `apply_grammar_bitmask` to device** — currently explicitly CPU-bound, would benefit structured output latency
 3. ~~**Re-enable `torch.compile` for `sample_from_logits`**~~ — **DONE** (`9fb0445b2`)
 4. ~~**Re-enable `torch.compile` for `gather_logprobs`**~~ — **DONE** (`9fb0445b2`)
-5. **Fix #3464** (bf16 bool fusion) — would remove `count_tokens_ge` workaround and enable `clamp(min=1)` directly
+
+## Action Items — Remaining
+
+### Broken / stubbed params (plumbed but not functional)
+
+5. **Implement `allowed_token_ids`** — Mask is built in `input_batch.py:310-330` and transferred to device, but the sampler never applies it. Needs an `apply_allowed_tokens()` call in `sampler.py` (similar to `apply_logit_bias`). Add e2e + synthetic tests.
+6. **Implement `prompt_logprobs`** — `num_prompt_logprobs` is tracked in `input_batch.py`/`model_runner.py`, but `model_runner.py:1340` hardcodes the result to `None`. Needs actual log_softmax computation on prompt tokens and gathering of top-k. Add e2e test.
+7. **Implement `min_tokens`** — Stored in `input_batch.py:162-163` but `metadata.py:54` marks it `None` with comment "impl is not vectorized". Never enforced — engine can stop before min_tokens is reached. Add e2e test.
+8. **Implement `logits_processors`** — Stored in `input_batch.py:199-200` and passed to `SamplingMetadata`, but never called in `sampler.py`. Needs a hook in the sampling pipeline to apply custom processor callables. Add e2e test.
+
+### Performance improvements
+
+2. **Move `apply_grammar_bitmask` to device** — currently explicitly CPU-bound (`model_runner.py:2062-2076`), would benefit structured output latency.
+9. **Fix #3464** (bf16 bool fusion) — would remove `count_tokens_ge` workaround in `sampler.py` and enable `clamp(min=1)` directly.
+
+### Params handled by upstream vLLM (verify, don't implement)
+
+These are CPU-side flags that should fall through to upstream vLLM without TT plugin involvement. Verify they work correctly and add e2e tests if missing.
+
+10. **Verify `include_stop_str_in_output`** — CPU post-processing flag. Should work via upstream vLLM. Add e2e test to confirm.
+11. **Verify `detokenize`** — CPU post-processing flag. Should work via upstream. Add e2e test to confirm.
+12. **Verify `skip_special_tokens`** — CPU post-processing flag. Should work via upstream. Add e2e test to confirm.
+13. **Verify `spaces_between_special_tokens`** — CPU post-processing flag. Should work via upstream. Add e2e test to confirm.
+14. **Verify `truncate_prompt_tokens`** — CPU pre-processing flag. Should work via upstream scheduler. Add e2e test to confirm.
+15. **Verify `output_kind`** — CPU output format control. Should work via upstream. Add e2e test to confirm.
+
+### Not a SamplingParam
+
+16. **`reasoning_effort`** — OpenAI chat completions API param (`ChatCompletionRequest.reasoning_effort`), not a `SamplingParams` field. Modifies the system prompt via chat template. Handled in `vllm/entrypoints/openai/`. Needs verification with TT serving endpoint if applicable.
+17. **`guided_decoding`** — Old vLLM API name, replaced by `structured_outputs` (`StructuredOutputsParams`) in vLLM 0.15.0. Already tested via `test_structured_outputs_regex`.
+18. **`extra_args`** — Pass-through dict for backend-specific extensions. No standard behavior to test.
