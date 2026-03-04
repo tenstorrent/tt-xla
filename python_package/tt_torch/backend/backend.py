@@ -302,7 +302,7 @@ def aot_backend(
         ]
     )
 
-    @fake_tensor_unsupported
+    @fake_tensor_unsupported  # see https://github.com/tenstorrent/tt-xla/issues/3572
     def fw_compiler_boxed(gm, example_inputs):
         return make_boxed_func(fw_compiler(gm, example_inputs, options))
 
