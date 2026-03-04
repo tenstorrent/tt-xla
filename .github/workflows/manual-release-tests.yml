@@ -17,14 +17,6 @@ jobs:
     with:
       dockbuild: all
 
-  build-ttxla:
-    uses: ./.github/workflows/call-build-manylinux.yml
-    name: "Build manylinux tt-xla"
-    secrets: inherit
-    needs: build-image
-    with:
-      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
-
   build-release-docker:
     name: Build Fedora Docker image with manylinux wheel
     runs-on: ubuntu-latest
@@ -77,6 +69,14 @@ jobs:
           fi
 
           echo "docker_image=$IMAGE_NAME:$docker_tag" >> "$GITHUB_OUTPUT"
+
+  build-ttxla:
+    uses: ./.github/workflows/call-build-manylinux.yml
+    name: "Build manylinux tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   release-tests:
     uses: ./.github/workflows/call-release-tests.yml
