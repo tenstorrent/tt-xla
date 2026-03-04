@@ -1212,6 +1212,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def sample_tokens(
         self, grammar_output: "GrammarOutput | None"
     ) -> ModelRunnerOutput:
+        logger.info(f"sample token")
         if self.scheduler_output is None:
             # Nothing to do (PP non-final rank case), output isn't used.
             return None  # type: ignore[return-value]
@@ -1472,11 +1473,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
-        if num_tokens == 1:
-            logger.info(
-                f"Skipping dummy run with num_tokens=1 to avoid XLA graph breakage."
-            )
-            return
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(

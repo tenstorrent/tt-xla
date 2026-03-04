@@ -19,12 +19,18 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
         pytest.param(
             "Qwen/Qwen3-Embedding-0.6B",
             "baseline/qwen3_embedding_0.6B_baseline.pt",
-            75,
+            64,
         ),
     ],
 )
 def test_embedding_push(model_name: str, baseline_path, max_model_len: int):
-    run_pooling_test(model_name, baseline_path, max_model_len, min_context_len=32)
+    run_pooling_test(
+        model_name,
+        baseline_path,
+        max_model_len,
+        min_context_len=32,
+        enable_tensor_parallel=True,
+    )
 
 
 @pytest.mark.push
