@@ -11,7 +11,6 @@ import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from torch.nn.parameter import Parameter
 from tt_torch.sharding import sharding_constraint_hook
-from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.linear import (
     ColumnParallelLinear,
     MergedColumnParallelLinear,
@@ -24,6 +23,7 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
 )
 
 from .logger import tt_init_logger
+from .overrides import TTRMSNorm
 
 logger = tt_init_logger(__name__)
 
@@ -264,6 +264,17 @@ def partition_vocab_parallel_embedding(
     return layer
 
 
+def partition_rmsnorm_layer(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+    assert isinstance(layer, TTRMSNorm)
+    logger.debug("Applied parallel sharding to %s", layer)
+    logger.info(f"layer.weight.shape={layer.weight.shape}")
+    xs.mark_sharding(layer.weight, mesh, ("x"))
+    # Apply sharding constraint to the output of the layer.
+    # hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
+    # layer.register_forward_hook(hook_forward)
+    return layer
+
+
 MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
     [
         ("MergedColumnParallelLinear", partition_merged_column_parallel_linear),
@@ -272,6 +283,7 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
+        ("TTRMSNorm", partition_rmsnorm_layer),
     ]
 )
 
