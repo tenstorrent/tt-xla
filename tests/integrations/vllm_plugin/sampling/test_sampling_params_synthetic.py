@@ -310,6 +310,13 @@ def run_count_tokens_ge_with_artifact(logits):
     return count_tokens_ge(logprobs, artifact).float()
 
 
+# Separate function from run_sampler so torch.compile traces a distinct
+# graph for the q_samples code path (different branch in random_sample).
+def run_sampler_seeded(logits, metadata):
+    sampler = Sampler()
+    return sampler(logits, metadata).sampled_token_ids
+
+
 @pytest.mark.push
 @pytest.mark.single_device
 @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
@@ -358,6 +365,92 @@ def test_gather_logprobs(device, vocab_size):
     topk_lp = lp[:, 1:]
     diffs = topk_lp[:, :-1] - topk_lp[:, 1:]
     assert (diffs >= -1e-4).all(), "Top-k log-probs must be sorted descending"
+
+
+def _seeded_q(seed, batch_size, vocab_size):
+    """Generate exponential noise from a fixed seed."""
+    gen = torch.Generator(device="cpu")
+    gen.manual_seed(seed)
+    q = torch.empty(batch_size, vocab_size, dtype=torch.float32)
+    q.exponential_(generator=gen)
+    return q
+
+
+def _seeded_metadata(q_cpu, device):
+    """Build sampling metadata with pre-computed noise for a single-row batch."""
+    return XLASupportedSamplingMetadata(
+        temperature=torch.full((1,), 0.8, device=device),
+        top_k=torch.full((1,), 50, dtype=torch.int32, device=device),
+        top_p=torch.full((1,), 0.9, device=device),
+        min_p=torch.full((1,), 0.0, device=device),
+        all_greedy=False,
+        no_generators=False,
+        q_samples=q_cpu.to(device),
+    )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_seed_precomputed_noise(device, vocab_size):
+    """Pre-computed Gumbel noise (q_samples) produces deterministic sampling on TT.
+
+    Verifies that:
+      1. Same q_samples + same probs -> same token (deterministic).
+      2. Different q_samples can yield a different token (non-trivial check).
+    """
+    torch.manual_seed(0)
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    compiled_fn = torch.compile(run_sampler_seeded, backend="tt", dynamic=False)
+    token_a = (
+        compiled_fn(
+            logits_cpu.to(device),
+            _seeded_metadata(_seeded_q(42, 1, vocab_size), device),
+        )
+        .cpu()
+        .item()
+    )
+
+    # Run again with identical seed — must produce the same token.
+    token_b = (
+        compiled_fn(
+            logits_cpu.to(device),
+            _seeded_metadata(_seeded_q(42, 1, vocab_size), device),
+        )
+        .cpu()
+        .item()
+    )
+
+    assert (
+        token_a == token_b
+    ), f"Same seed must produce same token: seed=42 run1={token_a}, run2={token_b}"
+    assert 0 <= token_a < vocab_size
+
+    # Different seed — may produce a different token.
+    token_c = (
+        compiled_fn(
+            logits_cpu.to(device),
+            _seeded_metadata(_seeded_q(999, 1, vocab_size), device),
+        )
+        .cpu()
+        .item()
+    )
+    assert 0 <= token_c < vocab_size
+    # Not asserting token_c != token_a — different seeds usually diverge but
+    # it's not guaranteed for every vocab_size. The determinism check above
+    # is the critical contract.
+
+
+def _build_q_samples(batch_size, vocab_size, seeded_indices):
+    """Build q_samples the same way metadata.py does: global RNG + per-row seeds."""
+    q = torch.empty(batch_size, vocab_size, dtype=torch.float32)
+    q.exponential_()
+    for idx, seed in seeded_indices.items():
+        gen = torch.Generator(device="cpu")
+        gen.manual_seed(seed)
+        q[idx].exponential_(generator=gen)
+    return q
 
 
 @pytest.mark.push
@@ -431,3 +524,53 @@ def test_gather_logprobs_topk_indices_exact_on_device(device):
         f"All top-k IDs must be distinct but got {topk_ids} (duplicates present). "
         "bfloat16 rounding caused two different tokens to map to the same ID."
     )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_seed_mixed_batch(device, vocab_size):
+    """Mixed batch on TT: seeded rows deterministic, all tokens valid.
+
+    Batch of 4 where rows 1 and 3 have per-request seeds, rows 0 and 2
+    use global RNG. Exercises the multi-row q_samples path at production
+    vocab sizes on actual TT hardware.
+
+    top_k and top_p are set to None so the sort path (which has known TT
+    issues at certain shapes) doesn't interfere — this test validates the
+    q_samples determinism, not the filtering ops.
+    """
+    batch_size = 4
+    torch.manual_seed(0)
+    logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
+    seeded_indices = {1: 42, 3: 123}
+
+    compiled_fn = torch.compile(run_sampler_seeded, backend="tt", dynamic=False)
+
+    results = []
+    for _ in range(2):
+        q_cpu = _build_q_samples(batch_size, vocab_size, seeded_indices)
+        metadata = XLASupportedSamplingMetadata(
+            temperature=torch.full((batch_size,), 0.8, device=device),
+            top_k=None,
+            top_p=None,
+            min_p=None,
+            all_greedy=False,
+            no_generators=False,
+            q_samples=q_cpu.to(device),
+        )
+        tokens = compiled_fn(logits_cpu.to(device), metadata).cpu()
+        assert tokens.shape == (batch_size, 1)
+        results.append(tokens.squeeze(-1).tolist())
+
+    # All tokens must be in vocab range.
+    for run in results:
+        for tok in run:
+            assert 0 <= tok < vocab_size, f"Token {tok} out of range [0, {vocab_size})"
+
+    # Seeded rows must be deterministic across runs.
+    for idx in seeded_indices:
+        assert results[0][idx] == results[1][idx], (
+            f"Seeded row {idx} (seed={seeded_indices[idx]}) must be deterministic: "
+            f"run1={results[0][idx]}, run2={results[1][idx]}"
+        )

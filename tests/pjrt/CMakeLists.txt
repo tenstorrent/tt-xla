@@ -11,10 +11,10 @@ include(FetchContent)
 
 if(TTXLA_ENABLE_PJRT_TESTS)
     # TODO(acicovic): Investigate why this is needed here and in /third_party/.
-    if(CMAKE_C_COMPILER MATCHES "clang-17")
+    if(CMAKE_C_COMPILER MATCHES "clang")
         set(CMAKE_C_COMPILER "/usr/bin/clang-17" CACHE STRING "" FORCE)
     endif()
-    if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+-17")
+    if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+")
         set(CMAKE_CXX_COMPILER "/usr/bin/clang++-17" CACHE STRING "" FORCE)
     endif()
 
