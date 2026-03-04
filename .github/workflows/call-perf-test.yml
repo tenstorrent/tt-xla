@@ -166,6 +166,7 @@ jobs:
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
+        source venv/activate
         pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report
