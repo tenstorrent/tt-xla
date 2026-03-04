@@ -203,13 +203,13 @@
       {
         "name": "test_llama_3_1_70b_tp",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp",
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp[wormhole_llmbox]",
         "runs-on": "n300-llmbox"
       },
       {
         "name": "llama_3_1_70b_tp_galaxy",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy",
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp[wormhole_galaxy]",
         "runs-on": "galaxy-wh-6u"
       },
       {
