@@ -1,4 +1,4 @@
-name: Manual release tests
+name: Manual manylinux release tests
 
 on:
   workflow_dispatch:
