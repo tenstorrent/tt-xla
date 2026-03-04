@@ -17,6 +17,9 @@ outputs:
   run-uplift-model-tests:
     description: "True if we need to run extended tests"
     value: ${{ steps.inspect.outputs.run-uplift-model-tests }}
+  wheel-changes:
+    description: "True if wheel build related files changed."
+    value: ${{ steps.inspect.outputs.wheel-changes }}
 runs:
   using: "composite"
   steps:
@@ -38,6 +41,8 @@ runs:
         only_run_forge_models=false
         run_uplift_model_tests=false
         tt_mlir_version_changed=false
+        wheel_changes=false
+
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
           echo "Changed files:"
@@ -137,6 +142,23 @@ runs:
             fi
           fi
 
+          # Check wheel build file changes
+          wheel_patterns=(
+            "CMakeLists.txt"
+            "**/CMakeLists.txt"
+            "python_package/*"
+          )
+
+          for file in $CHANGED_FILES; do
+            for pattern in "${wheel_patterns[@]}"; do
+              if [[ $file == $pattern ]]; then
+                echo "Wheel-related file changed: $file"
+                wheel_changes=true
+              break 2
+              fi
+            done
+          done
+
         else
           skip_build_and_test=false
           run_pr_tests=true
@@ -149,6 +171,7 @@ runs:
 
         # Debug Purposes
         echo "run-uplift-model-tests=$run_uplift_model_tests"
+        echo "wheel-changes=$wheel_changes"
         echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
 
         echo "skip-build-and-test=$skip_build_and_test" >> "$GITHUB_OUTPUT"
@@ -156,3 +179,4 @@ runs:
         echo "run-perf-tests=$run_perf_tests" >> "$GITHUB_OUTPUT"
         echo "only-run-forge-models=$only_run_forge_models" >> "$GITHUB_OUTPUT"
         echo "run-uplift-model-tests=$run_uplift_model_tests" >> "$GITHUB_OUTPUT"
+        echo "wheel-changes=$wheel_changes" >> "$GITHUB_OUTPUT"

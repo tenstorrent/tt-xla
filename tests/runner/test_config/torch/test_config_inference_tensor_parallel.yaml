@@ -174,9 +174,7 @@ test_config:
 
   phi4/causal_lm/pytorch-Phi_4-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on n300-llmbox 14B param"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_2/causal_lm/pytorch-Qwq_32B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
