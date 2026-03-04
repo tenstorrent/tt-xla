@@ -163,12 +163,6 @@ def test_clamp():
     run_unary_ops(Clamp())
 
 
-@pytest.mark.xfail(
-    reason="Boolean tensors are represented as bfloat16 (tt-metal has no bool type); "
-    "fused sum(-1).clamp(min=1) on bf16 booleans produces -1 instead of 1. "
-    "Tracked: https://github.com/tenstorrent/tt-xla/issues/3464",
-    strict=True,
-)
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
@@ -176,10 +170,9 @@ def test_clamp():
 def test_clamp_min_on_bool_sum():
     """clamp(min=1) on the output of a boolean sum must return 1, not -1.
 
-    Regression test for a TT bug where .clamp(min=1) applied to the result
-    of (x >= threshold).sum(-1) produces -1.0 instead of 1.0 when the raw
-    sum is 0 (all comparisons were False). Discovered via the rank=0
-    artifact in gather_logprobs (vLLM plugin).
+    Regression test for #3464: ConstantOp canonicalization truncated i64
+    constants to i32 without clamping, so MAX_I64 became -1 and
+    clamp(min=1, max=-1) returned -1 instead of 1.
     """
 
     class ClampMinOnBoolSum(torch.nn.Module):
