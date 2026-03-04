@@ -32,7 +32,7 @@ test_config:
   vovnet/pytorch-57_Th-single_device-inference:
     status: EXPECTED_PASSING # https://github.com/tenstorrent/tt-xla/issues/2390
 
-  hardnet/pytorch-single_device-inference:
+  hardnet/pytorch-hardnet68-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
