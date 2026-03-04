@@ -145,6 +145,7 @@ jobs:
           DOCKER_CMD="$DOCKER_CMD \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
+            --hostname mpirun-host \
             ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest \
             sleep infinity"
 
