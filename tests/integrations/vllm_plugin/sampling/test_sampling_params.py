@@ -596,3 +596,89 @@ def test_structured_outputs_regex(llm, prompt):
     assert re.fullmatch(
         pattern, output.text
     ), f"Output {output.text!r} does not match regex {pattern!r}"
+
+
+@for_targets(single_device="nightly")
+def test_include_stop_str_in_output(llm, prompt):
+    """Test that include_stop_str_in_output controls whether stop string appears.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only — verifying our plugin doesn't break the upstream
+    behavior is sufficient; no need to cross with TP targets.
+    """
+    # Generate a baseline and pick a word from it as the stop string,
+    # guaranteeing the stop will be hit on a deterministic greedy run.
+    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0].text
+    words = baseline.split()
+    assert len(words) >= 3, f"Baseline too short to pick a stop word: {baseline!r}"
+    stop = words[2]
+    print(
+        f"[TESTOUT test_include_stop_str_in_output] "
+        f"baseline: {baseline!r}, stop={stop!r}"
+    )
+
+    params_exclude = vllm.SamplingParams(
+        temperature=0.0,
+        max_tokens=32,
+        stop=[stop],
+        include_stop_str_in_output=False,
+    )
+    out_exclude = llm.generate(prompt, params_exclude, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_include_stop_str_in_output] " f"exclude: {out_exclude.text!r}"
+    )
+
+    params_include = vllm.SamplingParams(
+        temperature=0.0,
+        max_tokens=32,
+        stop=[stop],
+        include_stop_str_in_output=True,
+    )
+    out_include = llm.generate(prompt, params_include, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_include_stop_str_in_output] " f"include: {out_include.text!r}"
+    )
+
+    assert stop not in out_exclude.text, (
+        f"With include=False, stop string {stop!r} should not appear "
+        f"in output: {out_exclude.text!r}"
+    )
+    assert out_include.text.endswith(stop), (
+        f"With include=True, output should end with stop string {stop!r}, "
+        f"got: {out_include.text!r}"
+    )
+
+
+@for_targets(single_device="nightly")
+def test_detokenize(llm, prompt):
+    """Test that detokenize=False suppresses text output but keeps token IDs.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only — verifying our plugin doesn't break the upstream
+    behavior is sufficient; no need to cross with TP targets.
+    """
+    params_no_detok = vllm.SamplingParams(
+        temperature=0.0, max_tokens=16, detokenize=False
+    )
+    out_no = llm.generate(prompt, params_no_detok, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_detokenize] detokenize=False: "
+        f"text={out_no.text!r} token_ids={list(out_no.token_ids)[:8]}"
+    )
+
+    params_detok = vllm.SamplingParams(temperature=0.0, max_tokens=16, detokenize=True)
+    out_yes = llm.generate(prompt, params_detok, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_detokenize] detokenize=True: "
+        f"text={out_yes.text!r} token_ids={list(out_yes.token_ids)[:8]}"
+    )
+
+    assert len(out_no.token_ids) > 0, "Should produce token IDs with detokenize=False"
+    assert (
+        out_no.text == ""
+    ), f"With detokenize=False, text should be empty, got: {out_no.text!r}"
+    assert len(out_yes.text) > 0, "With detokenize=True, text should be present"
+    assert list(out_no.token_ids) == list(
+        out_yes.token_ids
+    ), "Token IDs should be identical regardless of detokenize flag"
