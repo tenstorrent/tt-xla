@@ -405,7 +405,7 @@ jobs:
           echo "Smoketest complete"
           echo ""
 
-      - name: Install build dependencies for tt-metal (shouldn't be necessary)
+      - name: Install build dependencies for tt-metal
         run: |
           echo "=== Installing build dependencies ==="
           echo ""
@@ -413,7 +413,16 @@ jobs:
           docker exec multihost-poc bash -c '
             export DEBIAN_FRONTEND=noninteractive
             apt-get update
-            apt-get install -y ninja-build cmake build-essential
+            apt-get install -y gcc-12 g++-12
+
+            # Set GCC-12 as the default compiler
+            update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
+            update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
+            update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-12 100
+            update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-12 100
+
+            # Verify GCC version
+            gcc --version
           '
 
           echo ""
