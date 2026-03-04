@@ -31,6 +31,7 @@ jobs:
       skip-device-perf: false
       use_docker_wheel: true
       perf_regression_check: true
+      test_filter: efficientnet,mobilenetv2,resnet,segformer,vit,vovnet
 
   perf-benchmark-llmbox:
     uses: ./.github/workflows/manual-benchmark.yml
@@ -42,6 +43,7 @@ jobs:
       skip-device-perf: false
       use_docker_wheel: true
       perf_regression_check: true
+      test_filter: test_llama_3_1_70b_tp
 
   demo-tests:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
