@@ -820,8 +820,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
 
   std::cerr << "=== Running SHLO compiler pipeline ===" << std::endl;
   enableVerboseIRPrinting(stablehlo_pipeline_pm);
-  stablehlo_pipeline_pm.getContext()->disableMultithreading();
-  stablehlo_pipeline_pm.enableIRPrinting();
+  // stablehlo_pipeline_pm.getContext()->disableMultithreading();
+  // stablehlo_pipeline_pm.enableIRPrinting();
 
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to run stablehlo pipeline");

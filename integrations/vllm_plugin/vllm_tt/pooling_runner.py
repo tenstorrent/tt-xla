@@ -282,8 +282,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Setup for parallel execution.
         if self.enable_tensor_parallel or self.enable_data_parallel:
             mesh_shape = (self.num_devices, 1)
-            mesh_shape = (2, 4)
+            # mesh_shape = (2, 4)
             device_ids = np.array(range(self.num_devices))
+            logger.info(f"mesh shape: {mesh_shape} device_ids: {device_ids}")
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         self.enforce_eager = model_config.enforce_eager
