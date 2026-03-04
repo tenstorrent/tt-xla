@@ -38,6 +38,9 @@ class VLLMBenchmarkConfig:
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
     """Build engine args from config and create a vLLM LLM instance."""
+    additional_config = dict(config.additional_config)
+    additional_config.setdefault("cpu_sampling", True)
+
     llm_args: Dict[str, Any] = {
         "model": config.model,
         "max_model_len": config.max_model_len,
@@ -45,7 +48,7 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
         "max_num_batched_tokens": config.batch_size * config.max_model_len,
         "gpu_memory_utilization": config.gpu_memory_utilization,
         "disable_log_stats": False,
-        "additional_config": config.additional_config,
+        "additional_config": additional_config,
     }
 
     print(f"Creating vLLM engine for {config.model} ...")
