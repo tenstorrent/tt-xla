@@ -127,6 +127,25 @@ def composite_layer_norm(
     return output
 
 
+def composite_topk(
+    input: Tensor,
+    k: int,
+    dim: int = -1,
+    largest: bool = True,
+    sorted: bool = True,
+    *,
+    out: tuple[Tensor, ...] | list[Tensor] | None = None,
+) -> tuple[Tensor, Tensor]:
+    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
+    
+    builder = StableHLOCompositeBuilder(name="tenstorrent.topk", attr=attrs)
+
+    input = builder.mark_inputs(input)
+    values, indices = torch.topk(input, k, dim, largest, sorted, out=out)
+    values, indices = builder.mark_outputs(values, indices)
+
+    return (values, indices)
+
 ################# module replacements #################
 
 
@@ -197,6 +216,7 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
+    torch.topk: composite_topk,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
 }
