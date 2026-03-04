@@ -128,6 +128,7 @@ class ModelLoader(ForgeModel):
         )
         model.eval()
 
+        self.config = model.config
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
@@ -187,3 +188,37 @@ class ModelLoader(ForgeModel):
             decoded_output = self.tokenizer.decode(next_token_id)
 
         return decoded_output
+
+    def get_mesh_config(self, num_devices: int):
+        """Return mesh shape and axis names for tensor parallel."""
+        if self.config.num_attention_heads % num_devices == 0:
+            mesh_shape = (1, num_devices)
+        elif (
+            self.config.num_attention_heads % (num_devices // 2) == 0
+            and num_devices % 2 == 0
+        ):
+            mesh_shape = (2, num_devices // 2)
+        else:
+            raise ValueError(
+                f"Cannot evenly distribute {self.config.num_attention_heads} heads "
+                f"across {num_devices} devices"
+            )
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.self_attn.o_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.qkv_proj.weight] = ("model", "batch")
+
+            shard_specs[layer.mlp.gate_up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("model", "batch")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+        return shard_specs
+
+    def load_config(self):
+        """Load and return the configuration for the model variant."""
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+        return self.config
