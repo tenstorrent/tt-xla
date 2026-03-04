@@ -61,6 +61,18 @@ SINGLE_DEVICE_CONFIGS = [
         ),
         id="llama-3.2-3b-batch16",
     ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.2-3B",
+            batch_size=32,
+            max_model_len=128,
+            additional_config={
+                "optimization_level": 2,
+                "experimental_enable_weight_bfp8_conversion": True,
+            },
+        ),
+        id="llama-3.2-3b-batch32",
+    ),
 ]
 
 
