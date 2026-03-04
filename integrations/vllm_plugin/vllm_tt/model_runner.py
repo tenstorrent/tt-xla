@@ -423,9 +423,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             device="cpu",
             pin_memory=self.pin_memory,
         )
-        self.structured_decode_arange = torch.arange(
-            0, 32, device="cpu", pin_memory=self.pin_memory
+        # Power-of-2 masks for on-device bitmask unpacking via bitwise_and.
+        # Use numpy uint32->int32 view to avoid overflow for bit 31.
+        bitmask_values = np.array([1 << i for i in range(32)], dtype=np.uint32).view(
+            np.int32
         )
+        self.structured_decode_bitmasks = torch.from_numpy(bitmask_values.copy())
+        if self.pin_memory:
+            self.structured_decode_bitmasks = (
+                self.structured_decode_bitmasks.pin_memory()
+            )
 
         self.mm_budget = (
             MultiModalBudget(
@@ -1684,12 +1691,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # The first dimension of the above 3 dummy tensors cannot be
         # mark_dynamic because some operations in structured_decode require
         # them to be static.
-        arange = self.structured_decode_arange.to(self.device)
+        bitmasks = self.structured_decode_bitmasks.to(self.device)
         self.structured_decode(
             dummy_require_struct_decoding,
             dummy_grammar_bitmask,
             dummy_logits,
-            arange,
+            bitmasks,
         )
 
         xm.wait_device_ops()
@@ -2003,7 +2010,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         return self.model.compute_logits(sample_hidden_states)
 
-    # TODO: Under SPMD mode, sample_from_logits has correctness issue.
+    # TODO(#3589): Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
     # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
@@ -2055,34 +2062,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         require_struct_decoding: torch.Tensor,
         grammar_bitmask: torch.Tensor,
         logits: torch.Tensor,
-        arange: torch.Tensor,
+        bitmasks: torch.Tensor,
     ) -> torch.Tensor:
         return torch.where(
             require_struct_decoding,
-            self.apply_grammar_bitmask(logits, grammar_bitmask, arange),
+            self.apply_grammar_bitmask(logits, grammar_bitmask, bitmasks),
             logits,
         )
 
     def apply_grammar_bitmask(
-        self, logits: torch.Tensor, grammar_bitmask: torch.Tensor, arange: torch.Tensor
+        self,
+        logits: torch.Tensor,
+        grammar_bitmask: torch.Tensor,
+        bitmasks: torch.Tensor,
     ):
-        assert logits.shape[0] == grammar_bitmask.shape[0]
-        device = logits.device
-        logits = logits.to("cpu")
-        grammar_bitmask = grammar_bitmask.to("cpu")
-        arange = arange.to("cpu")
-
-        logits_cloned = logits.clone()
-        for i in range(logits.shape[0]):
-            unpacked_bitmask = (
-                torch.bitwise_right_shift(grammar_bitmask[i][:, None], arange[None, :])
-                & 1
-            ) == 0
-            unpacked_bitmask = unpacked_bitmask.reshape(-1)[: self.vocab_size]
-            logits_cloned[i] = logits_cloned[i].masked_fill(
-                unpacked_bitmask, -float("inf")
-            )
-        return logits_cloned.to(device)
+        # Unpack bitmask on-device using bitwise_and with power-of-2 masks
+        # instead of bitwise_right_shift (unsupported on TT hardware).
+        # grammar_bitmask: [batch, ceil(vocab/32)] int32
+        # bitmasks: [32] int32 = [1, 2, 4, ..., 2^31]
+        bits = grammar_bitmask.unsqueeze(-1) & bitmasks
+        allowed = (bits != 0).reshape(logits.shape[0], -1)[:, : self.vocab_size]
+        return torch.where(allowed, logits, torch.full_like(logits, float("-inf")))
 
     def embed_multimodal(self, *args, **kwargs):
         return self.model.embed_multimodal(*args, **kwargs)
@@ -2117,7 +2117,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return (
             self.require_structured_out_cpu[:num_reqs].to(logits.device),
             self.grammar_bitmask_cpu[:num_reqs].to(logits.device),
-            self.structured_decode_arange.to(logits.device),
+            self.structured_decode_bitmasks.to(logits.device),
         )
 
     def _get_mm_dummy_batch(
