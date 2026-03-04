@@ -13,10 +13,6 @@
 # file to be run in CI, placeholder entries must be removed to prevent duplicated model reports.
 
 PLACEHOLDER_MODELS:
-  deepseek-ai/DeepSeek-V3:
-    bringup_status: NOT_STARTED
-  meta-llama/Llama-3.2-11B-Vision-Instruct:
-    bringup_status: NOT_STARTED
   meta-llama/Llama-3.2-90B-Vision-Instruct:
     bringup_status: NOT_STARTED
   meta-llama/Llama-4-Maverick-17B-128E-Instruct:
@@ -25,17 +21,9 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   deepseek-ai/DeepSeek-R1:
     bringup_status: NOT_STARTED
-  mistralai/Mistral-Small-3.1-24B-Instruct-2503:
-    bringup_status: NOT_STARTED
-  mistralai/Mistral-Small-3.2-24B-Instruct-2506:
-    bringup_status: NOT_STARTED
   genmo/mochi-1-preview:
     bringup_status: NOT_STARTED
-  openbmb/MiniCPM-o-2_6:
-    bringup_status: NOT_STARTED
   mistralai/Mixtral-8x7B-Instruct-v0.1:
-    bringup_status: NOT_STARTED
-  openai/gpt-oss-120b:
     bringup_status: NOT_STARTED
   Hiperglobal Shallow uNet:
     bringup_status: NOT_STARTED
@@ -48,8 +36,6 @@ PLACEHOLDER_MODELS:
   MiniMaxAI/MiniMax-VL-01:
     bringup_status: NOT_STARTED
   mistralai/Pixtral-Large-Instruct-2411:
-    bringup_status: NOT_STARTED
-  upstage/SOLAR-10.7B-Instruct-v1.0:
     bringup_status: NOT_STARTED
   Gaussian Splatting:
     bringup_status: NOT_STARTED
@@ -66,8 +52,6 @@ PLACEHOLDER_MODELS:
   SAM_large_sa1b:
     bringup_status: NOT_STARTED
   Motif-Technologies/Motif-Image-6B-Preview:
-    bringup_status: NOT_STARTED
-  Isaac GROOT:
     bringup_status: NOT_STARTED
   Yolov3_416:
     bringup_status: NOT_STARTED
