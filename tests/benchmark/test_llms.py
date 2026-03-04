@@ -174,7 +174,6 @@ def test_llm(
             json.dump(results, file, indent=2)
 
 
-# Need to define arch since get_xla_device_arch() only returns the architecture and not the size of the devce (n300, llmbox, etc.)
 def test_llm_tp(
     ModelLoaderModule,
     variant,
@@ -182,12 +181,8 @@ def test_llm_tp(
     num_layers=None,
     request=None,
     arch="wormhole_llmbox",
-    mesh_config_fn=None,
-    shard_spec_fn=None,
     **kwargs,
 ):
-    if arch is None:
-        arch = "wormhole_llmbox"
     mesh_config_fn = kwargs.pop(
         "mesh_config_fn", getattr(ModelLoaderModule, "get_mesh_config", None)
     )

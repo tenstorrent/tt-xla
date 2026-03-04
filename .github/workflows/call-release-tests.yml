@@ -52,6 +52,7 @@ jobs:
       sh-runner: false
       skip-device-perf: false
       use_docker_wheel: true
+      perf_regression_check: true
 
   demo-tests:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main

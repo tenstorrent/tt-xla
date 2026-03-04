@@ -129,7 +129,7 @@ jobs:
     uses: ./.github/workflows/manual-benchmark.yml
     secrets: inherit
     with:
-      runs-on-filter: n300-llmbox
+      runs-on-filter: galaxy-wh-6u
       sh-runner: false
       skip-device-perf: true
       perf_regression_check: false
