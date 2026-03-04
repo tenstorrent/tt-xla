@@ -396,6 +396,8 @@ jobs:
                 cd /workspace &&
                 source venv/activate &&
                 pip install tt-smi -q &&
+                tt-smi -s || true &&
+                tt-smi || true &&
                 python -c \"import torch_xla.runtime as xr; xr.set_device_type(\\\"TT\\\"); import torch_xla; print(torch_xla.device())\"
               "
             '
