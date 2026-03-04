@@ -397,13 +397,92 @@ jobs:
                 source venv/activate &&
                 pip install tt-smi -q &&
                 tt-smi -s || true &&
-                tt-smi || true &&
                 python -c \"import torch_xla.runtime as xr; xr.set_device_type(\\\"TT\\\"); import torch_xla; print(torch_xla.device())\"
               "
             '
 
           echo ""
           echo "Smoketest complete"
+          echo ""
+
+      - name: Install build dependencies for tt-metal (shouldn't be necessary)
+        run: |
+          echo "=== Installing build dependencies ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y ninja-build cmake build-essential
+          '
+
+          echo ""
+          echo "Build dependencies installed"
+          echo ""
+
+      - name: Checkout and build tt-metal tests
+        run: |
+          echo "=== Checking out and building tt-metal tests ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            if [ -d "tt-metal/.git" ]; then
+              echo "tt-metal directory exists, pulling latest changes..."
+              cd tt-metal
+              git fetch origin
+              git checkout main
+              git pull
+              git submodule update --init --recursive
+            else
+              echo "Cloning tt-metal repository..."
+              git clone --recurse-submodules https://github.com/tenstorrent/tt-metal.git
+              cd tt-metal
+            fi
+
+            echo ""
+            echo "Configuring CMake..."
+            cmake -B build -G Ninja \
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DTT_METAL_BUILD_TESTS=ON \
+              -DWITH_PYTHON_BINDINGS=OFF \
+              -DBUILD_PROGRAMMING_EXAMPLES=OFF \
+              -DTTNN_BUILD_TESTS=OFF \
+              -DBUILD_TT_TRAIN=OFF \
+              -DENABLE_TRACY=OFF
+
+            echo ""
+            echo "Building test targets..."
+            cmake --build build --target test_physical_discovery -j$(nproc)
+            cmake --build build --target run_cluster_validation -j$(nproc)
+          '
+
+          echo ""
+          echo "tt-metal tests built successfully"
+          echo ""
+
+      - name: Run tt-metal smoketests
+        run: |
+          echo "=== Running tt-metal smoketests ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace/tt-metal
+            echo "Listing dependencies of tests"
+            ldd ./build/test/tt_metal/tt_fabric/test_physical_discovery
+            ldd ./build/tools/scaleout/run_cluster_validation
+            
+            echo "Running test_physical_discovery..."
+            ./build/test/tt_metal/tt_fabric/test_physical_discovery \
+              --gtest_filter="PhysicalDiscovery.*" || true
+
+            echo ""
+            echo "Running run_cluster_validation..."
+            ./build/tools/scaleout/run_cluster_validation --help || true
+          '
+
+          echo ""
+          echo "tt-metal smoketests complete"
           echo ""
 
       - name: ttrun smoketests - hostname
