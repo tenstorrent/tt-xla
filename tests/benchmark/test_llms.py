@@ -928,17 +928,12 @@ def test_llama_3_1_70b_tp_galaxy(output_file, num_layers, request):
         ModelVariant,
     )
 
-    def get_mesh_config(self, num_devices: int):
-        mesh_shape = (4, num_devices // 4)
-        return mesh_shape, ("batch", "model")
-
     variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
 
     test_llm_tp(
         ModelLoaderModule=ModelLoader,
         variant=variant,
         output_file=output_file,
-        mesh_config_fn=get_mesh_config,
         arch="wormhole_galaxy",
         num_layers=num_layers,
         request=request,
