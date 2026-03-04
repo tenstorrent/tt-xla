@@ -10,13 +10,19 @@ COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/script.sh
 
+# Install Python 3.12
+RUN add-apt-repository ppa:deadsnakes/ppa -y && \
+    apt-get update -qq  && \
+    apt-get install -y -qq python3.12 python3.12-dev python3.12-venv
+
+
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} as ci
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install requirements.txt as global Python 3.11 packages
+
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/script.sh
@@ -100,7 +106,6 @@ SHELL ["/bin/bash", "-c"]
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install requirements.txt as global Python 3.11 packages
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/script.sh
