@@ -562,3 +562,119 @@ def test_parameter_boundary_values(llm, prompt):
             f" {str(params)[:60]}... -> {output[:40]}..."
         )
         assert len(output) > 0, f"Boundary test {i+1} should produce output"
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_allowed_token_ids(llm, prompt):
+    """Test that allowed_token_ids constrains output to only the specified tokens.
+
+    Encodes a small set of common ASCII strings through the tokenizer to
+    obtain token IDs, then verifies that with allowed_token_ids, all
+    generated tokens are in that set.
+    """
+    tokenizer = llm.get_tokenizer()
+
+    # Use common ASCII-printable tokens that any model should have.
+    # Encode single characters to get reliable token IDs.
+    allowed_ids = set()
+    for ch in ["a", "b", "c", "d", "e", " ", ".", ",", "the", "and", "is"]:
+        ids = tokenizer.encode(ch, add_special_tokens=False)
+        allowed_ids.update(ids)
+    allowed_ids = sorted(allowed_ids)[:20]  # cap to avoid overly permissive set
+    print(f"[TESTOUT test_allowed_token_ids] allowed_ids={allowed_ids}")
+
+    params = vllm.SamplingParams(
+        temperature=0.0, max_tokens=8, allowed_token_ids=allowed_ids
+    )
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_allowed_token_ids] output: {output.text!r} "
+        f"token_ids={list(output.token_ids)}"
+    )
+
+    assert len(output.token_ids) > 0, "Should produce output with allowed_token_ids"
+    allowed_set = set(allowed_ids)
+    for tid in output.token_ids:
+        assert tid in allowed_set, (
+            f"Token {tid} not in allowed set {allowed_ids}, "
+            f"full output token_ids: {list(output.token_ids)}"
+        )
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_min_tokens(llm, prompt):
+    """Test that min_tokens suppresses stop_token_ids until the minimum is reached.
+
+    Runs a greedy baseline to find a token that appears early in the output,
+    then uses it as a stop_token_id. Without min_tokens, generation stops at
+    that token (verified by the baseline). With min_tokens set above that
+    position, generation must continue past it.
+    """
+    # Greedy baseline — find a token that appears early.
+    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0]
+    baseline_ids = list(baseline.token_ids)
+    print(
+        f"[TESTOUT test_min_tokens] baseline: {len(baseline_ids)} tokens, "
+        f"ids={baseline_ids[:8]}... text: {baseline.text[:50]}..."
+    )
+
+    assert (
+        len(baseline_ids) >= 5
+    ), f"Baseline too short ({len(baseline_ids)} tokens) to pick a stop token"
+
+    # Pick the 3rd token as a stop_token_id.
+    stop_id = baseline_ids[2]
+
+    # Verify that stop_token_id actually stops generation early.
+    stop_params = vllm.SamplingParams(
+        temperature=0.0, max_tokens=32, stop_token_ids=[stop_id]
+    )
+    stop_output = llm.generate(prompt, stop_params, use_tqdm=False)[0].outputs[0]
+    stop_len = len(stop_output.token_ids)
+    print(
+        f"[TESTOUT test_min_tokens] stop_token_ids=[{stop_id}]: "
+        f"{stop_len} tokens (should be <= 3)"
+    )
+    assert stop_len <= 3, (
+        f"stop_token_ids=[{stop_id}] should stop generation at or before "
+        f"position 3, got {stop_len} tokens"
+    )
+
+    # Now use min_tokens=8 with the same stop_token_id.
+    # min_tokens must suppress the stop token until 8 tokens are generated.
+    min_tok = 8
+    params = vllm.SamplingParams(
+        temperature=0.0,
+        min_tokens=min_tok,
+        max_tokens=32,
+        stop_token_ids=[stop_id],
+    )
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    n_tokens = len(output.token_ids)
+    print(
+        f"[TESTOUT test_min_tokens] min_tokens={min_tok}, "
+        f"stop_token_ids=[{stop_id}]: {n_tokens} tokens, "
+        f"text: {output.text[:50]}..."
+    )
+
+    assert n_tokens >= min_tok, (
+        f"With min_tokens={min_tok} and stop_token_ids=[{stop_id}], "
+        f"output must have at least {min_tok} tokens, got {n_tokens}. "
+        f"Without min_tokens, generation stopped at {stop_len} tokens — "
+        f"min_tokens enforcement is not working."
+    )
+
+    # The stop token must not appear in the first min_tokens positions.
+    # Without sampler-level suppression, the model still freely samples the
+    # stop token (the engine just doesn't halt) — so greedy decoding would
+    # produce the same token at the same position as the baseline.
+    # With suppression, the stop token's logit is -inf and cannot be sampled.
+    early_ids = list(output.token_ids[:min_tok])
+    print(f"[TESTOUT test_min_tokens] first {min_tok} token_ids: {early_ids}")
+    assert stop_id not in early_ids, (
+        f"Stop token {stop_id} was sampled at position "
+        f"{early_ids.index(stop_id)} (within first {min_tok} tokens). "
+        f"The sampler should suppress it via -inf logit masking, not just "
+        f"rely on the engine to ignore it."
+    )
