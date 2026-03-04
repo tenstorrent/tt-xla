@@ -63,6 +63,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
+      force_rebuild: ${{ inputs.manylinux_build }} # Force rebuild for non-manylinux build when manylinux_build is true, to ensure the artifact is available for testing.
 
   build-manylinux-ttxla:
     if: inputs.manylinux_build
