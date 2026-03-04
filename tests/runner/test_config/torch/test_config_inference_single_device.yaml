@@ -809,11 +809,11 @@ test_config:
   stereo/pytorch-Small-single_device-inference:
     status: EXPECTED_PASSING
 
-  pocket_tts/pytorch-Pocket_tts-single_device-inference:
-    assert_pcc: false
-    status: NOT_SUPPORTED_SKIP
-    reason: "Aborted - https://github.com/tenstorrent/tt-mlir/issues/6786"
-    bringup_status: FAILED_RUNTIME
+  # pocket_tts/pytorch-Pocket_tts-single_device-inference:
+  #   assert_pcc: false
+  #   status: NOT_SUPPORTED_SKIP
+  #   reason: "Aborted - https://github.com/tenstorrent/tt-mlir/issues/6786"
+  #   bringup_status: FAILED_RUNTIME
 
   albert/token_classification/pytorch-Xlarge_v2-single_device-inference:
     assert_pcc: false
@@ -2486,8 +2486,8 @@ test_config:
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   wan/pytorch-2.2_Ti2v_5B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
 
   monodle/pytorch-Dla34-single_device-inference:
     status: EXPECTED_PASSING
