@@ -411,7 +411,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
         ]:
             if num_devices == 32:  # Galaxy
-                mesh_shape = (8, 4)
+                mesh_shape = (4, 8)
             else:  # wh/bh llmbox
                 mesh_shape = (2, num_devices // 2)
         else:
