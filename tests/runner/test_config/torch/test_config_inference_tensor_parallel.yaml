@@ -215,3 +215,7 @@ test_config:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
     reason: "KeyError: c_lifted_tensor_1 - https://github.com/tenstorrent/tt-xla/issues/3221"
+
+  qwen_3_5/pytorch-Qwen/Qwen3.5-27B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
