@@ -9,6 +9,7 @@ import onnx
 from PIL import Image
 from torchvision import transforms
 import numpy as np
+from datasets import load_dataset
 
 from ...config import (
     ModelInfo,
@@ -19,7 +20,6 @@ from ...config import (
 )
 from ...base import ForgeModel
 from ...config import ModelGroup, ModelTask, ModelSource, Framework
-from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
@@ -75,6 +75,9 @@ class ModelLoader(ForgeModel):
         # Load model with defaults
         variant_name = kwargs.get("variant_name", "dla1x_od")
         path = f"test_files/onnx/centernet/{variant_name}.onnx"
+        # Note: get_file is still needed for model weights, but we'll use load_dataset for images
+        from ...tools.utils import get_file
+
         file = get_file(path)
         model = onnx.load(file)
 
@@ -95,10 +98,9 @@ class ModelLoader(ForgeModel):
             h, w = 512, 512
         else:
             h, w = 1280, 384
-        image_file = get_file(
-            "https://github.com/xingyizhou/CenterNet/raw/master/images/17790319373_bd19b24cfc_k.jpg"
-        )
-        image = Image.open(image_file).convert("RGB").resize((h, w))
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB").resize((h, w))
         m, s = np.mean(image, axis=(0, 1)), np.std(image, axis=(0, 1))
         preprocess = transforms.Compose(
             [transforms.ToTensor(), transforms.Normalize(mean=m, std=s)]

@@ -22,9 +22,10 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file, print_compiled_model_results
+from ...tools.utils import print_compiled_model_results
 from .src.model import MLPMixer
 import torch
+from datasets import load_dataset
 
 
 @dataclass
@@ -239,9 +240,9 @@ class ModelLoader(ForgeModel):
                 # Use standard image for 1K variants
                 image_url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
 
-            # Get the Image
-            image_file = get_file(image_url)
-            image = Image.open(str(image_file)).convert("RGB")
+            # Load image from HuggingFace dataset
+            dataset = load_dataset("huggingface/cats-image")["test"]
+            image = dataset[0]["image"].convert("RGB")
 
             # Use cached model if available, otherwise load it
             if hasattr(self, "_cached_model") and self._cached_model is not None:

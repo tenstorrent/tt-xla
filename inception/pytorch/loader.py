@@ -10,8 +10,9 @@ from dataclasses import dataclass
 import timm
 from PIL import Image
 from torchvision import transforms
+from datasets import load_dataset
 
-from ...tools.utils import VisionPreprocessor, VisionPostprocessor, get_file
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 
 from ...config import (
     ModelConfig,
@@ -164,16 +165,15 @@ class ModelLoader(ForgeModel):
         # Handle OSMR variant separately (requires custom preprocessing)
         if source == ModelSource.OSMR:
             if image is None:
-                # Get the Image
-                image_file = get_file(
-                    "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-                )
-                image = Image.open(image_file).convert("RGB")
+                # Load image from HuggingFace dataset
+                dataset = load_dataset("huggingface/cats-image")["test"]
+                image = dataset[0]["image"].convert("RGB")
 
             # Convert to PIL if needed
             if isinstance(image, str):
-                image_file = get_file(image)
-                image = Image.open(image_file).convert("RGB")
+                # If image is a string URL, load from dataset instead
+                dataset = load_dataset("huggingface/cats-image")["test"]
+                image = dataset[0]["image"].convert("RGB")
             elif not isinstance(image, Image.Image):
                 # If it's a tensor or other type, we need to handle it
                 # For now, assume it's already processed or raise an error

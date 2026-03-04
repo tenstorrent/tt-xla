@@ -8,6 +8,7 @@ import torch
 from transformers import AutoProcessor
 from PIL import Image
 from typing import Optional
+from datasets import load_dataset
 
 from ...base import ForgeModel
 from ...config import (
@@ -19,7 +20,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
 from ...openvla.pytorch.src.modeling_prismatic import OpenVLAForActionPrediction
 
 
@@ -164,9 +164,9 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        # Load the sample image
-        image_file = get_file(self.sample_image_url)
-        image = Image.open(image_file).convert("RGB")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
 
         # Choose the prompt based on variant
         sample_prompt = (

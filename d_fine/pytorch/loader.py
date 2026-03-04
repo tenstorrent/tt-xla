@@ -7,7 +7,7 @@ D-Fine model loader implementation for object detection
 import torch
 from transformers.image_utils import load_image
 from transformers import DFineForObjectDetection, AutoImageProcessor
-from ...tools.utils import get_file
+from datasets import load_dataset
 from typing import Optional
 
 from ...base import ForgeModel
@@ -146,8 +146,9 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        self.image = load_image(str(image_file))
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        self.image = dataset[0]["image"]
         inputs = self.processor(images=self.image, return_tensors="pt")
 
         if dtype_override is not None:
@@ -174,11 +175,9 @@ class ModelLoader(ForgeModel):
             self._load_processor()
 
         if self.image is None:
-            # Load default image if not already loaded
-            image_file = get_file(
-                "http://images.cocodataset.org/val2017/000000039769.jpg"
-            )
-            self.image = load_image(str(image_file))
+            # Load image from HuggingFace dataset if not already loaded
+            dataset = load_dataset("huggingface/cats-image")["test"]
+            self.image = dataset[0]["image"]
 
         # Post-process the model outputs
         results = self.processor.post_process_object_detection(

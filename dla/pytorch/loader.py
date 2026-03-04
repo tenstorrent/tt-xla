@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import timm
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
+from datasets import load_dataset
 
 from ...config import (
     ModelConfig,
@@ -23,7 +24,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file, print_compiled_model_results
+from ...tools.utils import print_compiled_model_results
 from .src import dla_model
 
 
@@ -188,11 +189,9 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for DLA.
         """
-        # Get the Image
-        image_file = get_file(
-            "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
 
         source = self._variant_config.source
 

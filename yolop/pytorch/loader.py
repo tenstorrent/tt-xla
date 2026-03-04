@@ -9,6 +9,7 @@ import torch
 import cv2
 import numpy as np
 from typing import Optional
+from datasets import load_dataset
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -19,7 +20,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
 from torchvision import transforms
 from .src.model_utils import letterbox_for_img
 
@@ -109,11 +109,12 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for YOLOP.
         """
-        # Get a sample image suitable for YOLOP
-        image_file = get_file("test_images/yolop_input.jpg")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        pil_image = dataset[0]["image"]
 
-        # Load image using OpenCV (BGR format)
-        image = cv2.imread(image_file, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
+        # Convert PIL image to numpy array (BGR format for cv2)
+        image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
         # Apply letterbox preprocessing
         img, _ = letterbox_for_img(image)
