@@ -136,6 +136,7 @@ jobs:
           --name ${{ inputs.wheel_artifact_name }}
 
         echo "=== Installing wheel ==="
+        source venv/activate
         pip install wheels/*.whl
 
     - name: Install system dependencies
@@ -147,6 +148,7 @@ jobs:
     - name: Install Python dependencies
       shell: bash
       run: |
+        source venv/activate
         pip install ${{ matrix.build.pyreq }}
         pip install torchvision==0.24.0+cpu --index-url https://download.pytorch.org/whl/cpu
 
