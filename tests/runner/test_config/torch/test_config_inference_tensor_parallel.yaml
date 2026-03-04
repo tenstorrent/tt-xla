@@ -28,9 +28,7 @@ test_config:
 
   gemma/pytorch-2_27B_IT-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
