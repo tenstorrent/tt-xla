@@ -437,7 +437,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
-        if not self.enable_tensor_parallel:
+        if self.tt_config.cpu_sampling:
+            self.sample_from_logits_func = self.sample_from_logits_cpu
+        elif not self.enable_tensor_parallel:
             self.sample_from_logits_func = torch.compile(
                 self.sample_from_logits,
                 backend="tt",
@@ -1247,10 +1249,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
+            sampling_device = (
+                torch.device("cpu") if self.tt_config.cpu_sampling else self.device
+            )
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
-                self.device,
+                sampling_device,
                 vocab_size=self.vocab_size,
             )
             if grammar_output is not None:
@@ -1772,7 +1777,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
-            self._precompile_sample_from_logits()
+            if not self.tt_config.cpu_sampling:
+                self._precompile_sample_from_logits()
             self._precompile_gather_logprobs()
 
     def profile_run(
@@ -2019,6 +2025,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_logit_bias
             and sampling_metadata.no_bad_words
             and sampling_metadata.no_generators
+        ):
+            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+        else:
+            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
+        return out_tokens
+
+    def sample_from_logits_cpu(
+        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
+    ) -> torch.Tensor:
+        """
+        Sample on CPU instead of compiling a device sampling graph.
+        """
+        logits = logits.cpu()
+        if (
+            sampling_metadata.all_greedy
+            and sampling_metadata.no_penalties
+            and sampling_metadata.no_logit_bias
+            and sampling_metadata.no_bad_words
         ):
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
