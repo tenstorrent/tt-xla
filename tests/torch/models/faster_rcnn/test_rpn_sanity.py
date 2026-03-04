@@ -54,9 +54,9 @@ def test_rpn_cpu(rpn):
 
     boxes, losses = rpn(images, features)
 
-    # assert len(boxes) == 1
-    # assert boxes[0].shape[-1] == 4
-    # assert isinstance(losses, dict)
+    assert len(boxes) == 1
+    assert boxes[0].shape[-1] == 4
+    assert isinstance(losses, dict)
 
 
 def test_rpn_tt(rpn):
@@ -68,6 +68,6 @@ def test_rpn_tt(rpn):
 
     boxes, losses = rpn(images, features)
 
-    # assert len(boxes) == 1
-    # assert boxes[0].shape[-1] == 4
-    # assert isinstance(losses, dict)
+    assert len(boxes) == 1
+    assert boxes[0].shape[-1] == 4
+    assert isinstance(losses, dict)
