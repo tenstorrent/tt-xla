@@ -165,9 +165,8 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_32-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
     supported_archs: ["n300-llmbox"]
-    required_pcc: 0.81 # Is 0.817
-    status: EXPECTED_PASSING
-    assert_pcc: false
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
     supported_archs: ["n300-llmbox"]
@@ -178,7 +177,7 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_32-megatron-no_dp-tensor_parallel-mesh_1x8-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
 
   # --- FSDP, mesh 2x4, no DP ---
@@ -226,19 +225,18 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_32-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
-    required_pcc: 0.80 # Is 0.802
-    status: EXPECTED_PASSING
-    assert_pcc: false
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_32-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
 
   # --- FSDP, mesh 2x4, DP (batch must be >= data dim 2) ---
@@ -287,17 +285,17 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_32-fsdp-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_32-fsdp-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, no DP ---
@@ -335,7 +333,8 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_32-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
@@ -343,7 +342,8 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_32-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, DP (batch must be >= data dim 2) ---
@@ -388,15 +388,15 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_32-megatron-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_32-megatron-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    reason: "DRAM OOM"
     markers: [nightly]
