@@ -271,6 +271,7 @@ jobs:
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
       shell: bash
       run: |
+        source venv/activate
         mlir_sha=$(python .github/scripts/get_description_field_from_wheel.py "pjrt-plugin-tt" "tt-mlir-commit")
         echo "Found tt-mlir-commit: $mlir_sha"
 
