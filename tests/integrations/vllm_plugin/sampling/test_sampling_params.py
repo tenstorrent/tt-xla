@@ -217,6 +217,12 @@ def test_greedy_determinism(llm, prompt):
         outputs[0] == outputs[1] == outputs[2]
     ), "Greedy sampling must be deterministic"
 
+    # Guard against degenerate output (e.g. all token_id 0 under TP).
+    token_ids = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].token_ids
+    assert (
+        len(set(token_ids)) > 1
+    ), f"All tokens are identical ({token_ids[0]}), model is likely producing garbage"
+
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_combined_sampling(llm, prompt):
