@@ -2652,3 +2652,51 @@ test_config:
         reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B (allocated: 1055220960 B, free: 18520832 B, largest free block: 9253856 B)"
       p150:
         status: EXPECTED_PASSING
+
+  gpt_oss/pytorch-20B-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  gpt_oss/pytorch-120B-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-Small_24B_INSTRUCT_2501-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-Large_INSTRUCT_2411-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-Devstral_Small_2505-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-Magistral_Small_2506-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-mistral_small_3.1_24b_instruct_2503-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-mistral_small_3.2_24b_instruct_2506-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  olmo3/causal_lm/pytorch-3_1125_32b-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  olmo3/causal_lm/pytorch-3_32b_think-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  glm/causal_lm/pytorch-4.7-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  glm/causal_lm/pytorch-4.5-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  glm/causal_lm/pytorch-4.5_Air-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  llama/causal_lm/pytorch-3.1_405B_Instruct-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  llama/sequence_classification/pytorch-3.1_405B-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  llama/sequence_classification/pytorch-3.1_405B_Instruct-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
