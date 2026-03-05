@@ -33,6 +33,7 @@ add_library(TTPJRTTTDylib SHARED
 target_link_libraries(TTPJRTTTDylib PUBLIC
     TTPJRTBindings
     coverage_config
+    atomic
 )
 
 target_link_directories(TTPJRTTTDylib PRIVATE
@@ -41,9 +42,6 @@ target_link_directories(TTPJRTTTDylib PRIVATE
 )
 
 target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
-
-# Statically link libatomic for manylinux compatibility
-target_link_libraries(TTPJRTTTDylib PRIVATE "-Wl,-Bstatic" atomic "-Wl,-Bdynamic")
 
 # Setting RPATH to a path involving $ORIGIN (resolved location of the pjrt_plugin_tt.so
 # file) sets its search paths in which it will search for libs it dynamically links.
