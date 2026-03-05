@@ -61,12 +61,9 @@ def _codegen_via_export(
     gm = gm.to(device)
     xla_args = tuple(a.to(device) for a in args)
 
-    # 5. Extract compiled graph (single StableHLO graph)
-    #    XLA handles lowering to StableHLO internally
-    compiled = bridge.extract_compiled_graph(gm, xla_args)
-
-    # 6. Execute once to trigger codegen
-    compiled(*xla_args)
+    # 5. Compile with TT backend and execute to trigger codegen
+    gm = torch.compile(gm, backend="tt")
+    gm(*xla_args)
 
     xm.wait_device_ops()
     return None
