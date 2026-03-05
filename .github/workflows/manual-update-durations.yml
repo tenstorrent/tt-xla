@@ -14,7 +14,7 @@ env:
   GH_TOKEN: ${{ github.token }}
   # Artifact download mode: 'specific' to use ARTIFACT_RUN_ID, 'latest' to use latest push-main
   ARTIFACT_MODE: specific
-  ARTIFACT_RUN_ID: 22640397314
+  ARTIFACT_RUN_ID: 22737149855
 
 jobs:
   multihost-hostname-check:
@@ -447,6 +447,7 @@ jobs:
             else
               echo "Cloning tt-metal repository..."
               git clone --recurse-submodules https://github.com/tenstorrent/tt-metal.git
+              git checkout jzx/dual_t3k
               cd tt-metal
             fi
 
