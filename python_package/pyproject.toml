@@ -8,4 +8,10 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-repair-wheel-command = "auditwheel repair --lib-sdir pjrt_plugin_tt/lib64 -w {dest_dir} {wheel}"
+repair-wheel-command = """\
+    TEMP_DIR=$(mktemp -d) && \
+    unzip -q {wheel} -d $TEMP_DIR && \
+    LD_LIBRARY_PATH=$TEMP_DIR/pjrt_plugin_tt/lib:$TEMP_DIR/pjrt_plugin_tt/lib64:$LD_LIBRARY_PATH \
+    auditwheel repair -w {dest_dir} {wheel} && \
+    rm -rf $TEMP_DIR
+"""
