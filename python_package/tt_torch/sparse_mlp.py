@@ -33,11 +33,10 @@ class SparseMLP(nn.Module):
     This module wraps an existing MLP and replaces dense expert computation
     with sparse_matmul operations that skip inactive experts.
 
-    Uses INTERLEAVED gate_up_proj layout directly from original model:
-    - Weights stored as [g0, u0, g1, u1, ...] (interleaved)
-    - Split with [::2]/[1::2] strided slices
-    - TP sharding works because UpdateGlobalToLocalShapes pass handles
-      strided slices where stride == shard_factor
+    De-interleaves gate_up_proj in __init__ from the original model's
+    interleaved layout [g0, u0, g1, u1, ...] to contiguous [gates | ups],
+    so the forward uses simple [:inter] / [inter:] splits whose backward
+    is a trivial concatenation (no interior pads / scatter explosion).
     """
 
     def __init__(
@@ -130,10 +129,9 @@ class SparseMLP(nn.Module):
         )
         gate_up_out = gate_up_out + self.experts.gate_up_proj_bias
 
-        # 5. Split & Activation (Interleaved Layout)
-        # Slicing works for TP because stride (2) matches shard_factor
-        gate_out = gate_up_out[..., ::2]  # Even indices
-        up_out = gate_up_out[..., 1::2]  # Odd indices
+        # 5. Split & Activation (contiguous layout after de-interleave in __init__)
+        gate_out = gate_up_out[..., : self.intermediate_size]
+        up_out = gate_up_out[..., self.intermediate_size :]
 
         gate_out = gate_out.clamp(max=self.limit)
         up_out = up_out.clamp(-self.limit, self.limit)
@@ -250,6 +248,7 @@ class A2aSparseMLP(nn.Module):
         flat_device_order: Optional[List[int]] = None,
         activation_type: str = ACTIVATION_GPT_OSS,
         dispatch_devices: Optional[int] = None,
+        mesh_shape: Optional[tuple] = None,
     ):
         super().__init__()
 
@@ -278,6 +277,22 @@ class A2aSparseMLP(nn.Module):
         else:
             raise ValueError("Expected fused gate_up_proj in experts module")
 
+        # De-interleave gate_up_proj weights and biases from
+        # [g0, u0, g1, u1, ...] to [g0, g1, ..., u0, u1, ...]
+        # so the forward can use contiguous splits ([:inter] / [inter:])
+        # instead of strided slices ([::2] / [1::2]) whose backward
+        # generates interior pads that decompose into thousands of scatter ops.
+        with torch.no_grad():
+            w = self.experts.gate_up_proj
+            gate_w = w[..., ::2].contiguous()
+            up_w = w[..., 1::2].contiguous()
+            self.experts.gate_up_proj.copy_(torch.cat([gate_w, up_w], dim=-1))
+
+            b = self.experts.gate_up_proj_bias
+            gate_b = b[..., ::2].contiguous()
+            up_b = b[..., 1::2].contiguous()
+            self.experts.gate_up_proj_bias.copy_(torch.cat([gate_b, up_b], dim=-1))
+
         if config is not None and hasattr(config, "hidden_size"):
             hidden_size = config.hidden_size
         else:
@@ -290,7 +305,9 @@ class A2aSparseMLP(nn.Module):
         # Expert-to-device mapping [1, 1, E, D] where D = num_devices (total)
         # Maps each expert to its owning device. When cluster_axis=0, the dispatch
         # kernel derives the target row from the device_id in the mapping.
-        mapping = build_expert_mapping(num_experts, num_devices)
+        # mesh_shape is required for 2D compound sharding ("model", "batch") so the
+        # mapping matches the GSPMD partition layout on the mesh.
+        mapping = build_expert_mapping(num_experts, num_devices, mesh_shape=mesh_shape)
         if flat_device_order is not None:
             permuted = torch.zeros_like(mapping)
             for d in range(num_devices):
@@ -388,9 +405,9 @@ class A2aSparseMLP(nn.Module):
             gate_up_out = gate_up_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E_local, inter*2]
             gate_up_out = gate_up_out + gate_up_bias
 
-            # Activation
-            gate_out = gate_up_out[..., ::2]
-            up_out = gate_up_out[..., 1::2]
+            # Activation (contiguous layout after de-interleave in __init__)
+            gate_out = gate_up_out[..., : self.intermediate_size]
+            up_out = gate_up_out[..., self.intermediate_size :]
             if self.activation_type == ACTIVATION_DEEPSEEK:
                 activated = F.silu(gate_out) * up_out
             else:
@@ -480,8 +497,9 @@ class A2aSparseMLP(nn.Module):
             gate_up_out = gate_up_out.permute(0, 1, 3, 2, 4)
             gate_up_out = gate_up_out + gate_up_bias
 
-            gate_out = gate_up_out[..., ::2]
-            up_out = gate_up_out[..., 1::2]
+            # Activation (contiguous layout after de-interleave in __init__)
+            gate_out = gate_up_out[..., : self.intermediate_size]
+            up_out = gate_up_out[..., self.intermediate_size :]
             if self.activation_type == ACTIVATION_DEEPSEEK:
                 activated = F.silu(gate_out) * up_out
             else:
@@ -525,6 +543,7 @@ class A2aSparseMLP(nn.Module):
             cluster_axis=self.cluster_axis,
             num_experts_per_tok=K,
             output_shard_dim=2 if decode_mode else 1,
+            expert_indices=expert_indices,
         )
 
         # Weighted sum
@@ -717,6 +736,7 @@ class A2aSparseStackedMlp(nn.Module):
             num_devices=self.num_devices,
             cluster_axis=self.cluster_axis,
             num_experts_per_tok=K,
+            expert_indices=expert_indices,
         )
         # combined: [K, B, S, H]
 
@@ -854,6 +874,7 @@ def create_a2a_from_deepseek_v3_moe(
     cluster_axis: int = 0,
     flat_device_order: Optional[List[int]] = None,
     dispatch_devices: Optional[int] = None,
+    mesh_shape: Optional[tuple] = None,
 ) -> A2aSparseMLPWithSharedExperts:
     """
     Create A2aSparseMLP from DeepseekV3MoE.
@@ -866,6 +887,8 @@ def create_a2a_from_deepseek_v3_moe(
         flat_device_order: Snake order for T3K, e.g. [0,1,2,3,7,6,5,4]
         dispatch_devices: Devices along cluster_axis (for BD = B * dispatch_devices).
             Defaults to num_devices when None (single-axis dispatch).
+        mesh_shape: Mesh shape tuple (rows, cols) for 2D compound sharding.
+            Required when experts are compound-sharded across both mesh axes.
     """
     adapter = DeepseekV3MoEToA2AAdapter(moe_module)
     a2a_mlp = A2aSparseMLP(
@@ -878,6 +901,7 @@ def create_a2a_from_deepseek_v3_moe(
         flat_device_order=flat_device_order,
         activation_type=ACTIVATION_DEEPSEEK,
         dispatch_devices=dispatch_devices,
+        mesh_shape=mesh_shape,
     )
     shared_experts = getattr(moe_module, "shared_experts", None)
     return A2aSparseMLPWithSharedExperts(a2a_mlp, shared_experts)

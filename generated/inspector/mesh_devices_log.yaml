@@ -1,0 +1,8 @@
+- mesh_device_created:
+    mesh_id: 1
+    timestamp_ns: 1772730632323141329
+    devices: [24, 28, 20, 16, 17, 18, 19, 11, 10, 9, 8, 12, 4, 0, 1, 5, 13, 14, 6, 2, 3, 7, 15, 23, 31, 27, 26, 30, 22, 21, 29, 25]
+    shape: [32, 1]
+- mesh_device_initialized:
+    mesh_id: 1
+    timestamp_ns: 1772730632327792835

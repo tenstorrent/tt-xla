@@ -313,6 +313,32 @@ class TorchModelTester(ModelTester):
         forward_result = self._compare(tt_res, cpu_res)
         backward_result = self._compare(tt_grads, cpu_grads)
 
+        print(f"[PCC] Forward PCC: {forward_result.pcc}, passed: {forward_result.passed}")
+        print(f"[PCC] Backward PCC: {backward_result.pcc}, passed: {backward_result.passed}")
+
+        # Per-parameter gradient PCC breakdown for debugging
+        for name in sorted(cpu_grads.keys()):
+            if name not in tt_grads:
+                print(f"  [grad] {name}: MISSING on TT")
+                continue
+            cg = cpu_grads[name].detach().cpu().float().flatten()
+            tg = tt_grads[name].detach().cpu().float().flatten()
+            if cg.numel() <= 1:
+                p = 0.0
+            else:
+                vx = cg - cg.mean()
+                vy = tg - tg.mean()
+                denom = vx.norm() * vy.norm()
+                p = float((vx @ vy) / denom) if denom > 0 else float("nan")
+            tag = "MLP" if "mlp" in name else "ATTN" if "self_attn" in name else "OTHER"
+            cpu_shape = cpu_grads[name].shape
+            tt_shape = tt_grads[name].shape
+            cpu_nnz = float((cpu_grads[name].detach().cpu().float().abs() > 1e-6).sum())
+            tt_nnz = float((tt_grads[name].detach().cpu().float().abs() > 1e-6).sum())
+            cpu_norm = float(cpu_grads[name].detach().cpu().float().norm())
+            tt_norm = float(tt_grads[name].detach().cpu().float().norm())
+            print(f"  [grad] {name}: PCC={p:.6f}  ({tag})  cpu_shape={cpu_shape} tt_shape={tt_shape} cpu_nnz={cpu_nnz:.0f} tt_nnz={tt_nnz:.0f} cpu_norm={cpu_norm:.4f} tt_norm={tt_norm:.4f}")
+
         # Only the first result is recorded in the report properties,
         # and only want to report on the backward result
         return backward_result, forward_result

@@ -7,6 +7,7 @@ import tt_torch.backend.backend
 
 # Import module so custom operations are registered
 import tt_torch.custom_ops
+import tt_torch.custom_moe_ops
 
 # Import torch overrides so they are registered
 import tt_torch.torch_overrides

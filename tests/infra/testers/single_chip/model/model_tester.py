@@ -177,8 +177,8 @@ class ModelTester(BaseTester, ABC):
         return (self._compare(tt_res, cpu_res),)
 
     def _test_e2e_perf(self) -> dict[str, float]:
-        warmup_iters_count = 3
-        perf_iters_count = 2
+        warmup_iters_count = 0
+        perf_iters_count = 1
 
         # warmup runs
         for _ in range(warmup_iters_count):
