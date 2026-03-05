@@ -506,8 +506,11 @@ def all_to_all_combine(
         )
 
     elif device.type == "cpu":
-        # CPU fallback: gather expert outputs from replicated BD positions.
+        # CPU fallback: gather expert outputs from the BD position where
+        # dispatch actually wrote the token data (device slot of the expert).
+        D = num_devices
         metadata_indices = expert_metadata[0]  # [BD, S, K]
+        device_map = expert_mapping[0, 0].argmax(dim=-1)  # [E] → device_id
 
         if output_shard_dim == 1:
             combined = torch.zeros(
@@ -518,8 +521,9 @@ def all_to_all_combine(
                     for k in range(K):
                         expert_id = metadata_indices[b, s, k].item()
                         if 0 <= expert_id < E_local:
+                            bd = b * D + device_map[expert_id].item()
                             combined[k, b, s, :] = input_tensor[
-                                expert_id, b, s, :
+                                expert_id, bd, s, :
                             ]
         else:
             combined = torch.zeros(
@@ -530,8 +534,9 @@ def all_to_all_combine(
                     for k in range(K):
                         expert_id = metadata_indices[b, s, k].item()
                         if 0 <= expert_id < E_local:
+                            bd = b * D + device_map[expert_id].item()
                             combined[k, s, b, :] = input_tensor[
-                                expert_id, s, b, :
+                                expert_id, s, bd, :
                             ]
 
         return combined
@@ -613,9 +618,13 @@ def _all_to_all_combine_backward(ctx, grad_output):
     else:
         grad_t = grad_output.permute(2, 1, 0, 3)  # [B, S, K, H]
 
-    # build_expert_mapping assigns contiguous blocks: device_row = e // E_local
+    # Device row from global expert ID: experts are contiguously assigned
+    # to devices, E_per_device = E_total / D.  Use expert_mapping to get
+    # E_total so this works on both CPU (E_local == E) and XLA (E_local == E/D).
+    E_total = expert_mapping.shape[2]
+    E_per_device = max(E_total // D, 1)
     e_ids = meta.long()                                                    # [B, S, K]
-    rows = e_ids // max(E_local, 1)                                        # [B, S, K]
+    rows = e_ids // E_per_device                                           # [B, S, K]
     b_idx = torch.arange(B, device=grad_output.device).view(B, 1, 1)
     bd = b_idx * D + rows                                                  # [B, S, K]
 
