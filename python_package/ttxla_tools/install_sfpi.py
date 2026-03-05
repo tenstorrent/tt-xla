@@ -118,7 +118,7 @@ def main():
             )
         elif sfpi_dist == "fedora":
             subprocess.run(
-                ["sudo", "rpm", "-i", str(temp_pkg_path)],
+                ["sudo", "rpm", "--upgrade", "--force", str(temp_pkg_path)],
                 check=True,
                 capture_output=False,
                 text=True,
