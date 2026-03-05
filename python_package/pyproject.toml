@@ -12,6 +12,15 @@ repair-wheel-command = """\
     TEMP_DIR=$(mktemp -d) && \
     unzip -q {wheel} -d $TEMP_DIR && \
     LD_LIBRARY_PATH=$TEMP_DIR/pjrt_plugin_tt/lib:$TEMP_DIR/pjrt_plugin_tt/lib64:$LD_LIBRARY_PATH \
-    auditwheel repair -w {dest_dir} {wheel} && \
+    auditwheel repair \
+        --exclude libTTMLIRRuntime.so \
+        --exclude libTTMLIRCompiler.so \
+        --exclude libtt_metal.so \
+        --exclude libtt_stl.so \
+        --exclude _ttnncpp.so \
+        --exclude _ttnn.so \
+        --exclude libdevice.so \
+        --exclude libtracy.so \
+        -w {dest_dir} {wheel} && \
     rm -rf $TEMP_DIR
 """
