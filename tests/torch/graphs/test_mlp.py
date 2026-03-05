@@ -115,7 +115,7 @@ AVAILABLE_VARIANT_MAP = {
         "3_Mamba_7B_Base",
         "7B_Instruct",
     ],
-    "gpt_oss": ["20b", "120b"],
+    "gpt_oss": ["20B", "120B"],
 }
 
 
