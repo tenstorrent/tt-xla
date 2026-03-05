@@ -125,6 +125,11 @@ class ModelTestConfig:
             self._resolve("filechecks", default=[])
         )
 
+        # Compiler config: enable experimental BFP8 weight conversion
+        self.enable_weight_bfp8_conversion = self._resolve(
+            "enable_weight_bfp8_conversion", default=False
+        )
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:
