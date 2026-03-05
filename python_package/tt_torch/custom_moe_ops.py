@@ -234,12 +234,14 @@ def _sparse_matmul_backward(ctx, grad_output):
         grad_a = grad_a_full.sum(dim=1).reshape(A, B, M, K)
 
         # grad_b: sum_{ab} sp[ab,e] * input_a[ab,M,K]^T @ grad[ab,e,M,N] -> [1,E,K,N]
-        # matmul broadcast: [AB,1,K,M] @ [AB,E,M,N] -> [AB,E,K,N]
+        # Fold AB into the M contraction dim so a single matmul replaces matmul+reduce.
+        # reduce (stablehlo.reduce) may not be zero-initialised on TT.
         sp_mask = sparsity.reshape(AB, E, 1, 1).to(grad_3d.dtype)
-        mg = grad_3d * sp_mask  # [AB, E, M, N]
-        a_flat_T = input_a.reshape(AB, M, K).transpose(-2, -1)  # [AB, K, M]
-        grad_b = torch.matmul(a_flat_T.unsqueeze(1), mg).sum(0).unsqueeze(0)
-        # [1, E, K, N]
+        mg = grad_3d * sp_mask                                           # [AB, E, M, N]
+        a_flat_T = input_a.reshape(AB, M, K).transpose(-2, -1)          # [AB, K, M]
+        a_folded = a_flat_T.permute(1, 0, 2).reshape(K, AB * M)         # [K, AB*M]
+        mg_folded = mg.permute(1, 0, 2, 3).reshape(E, AB * M, N)        # [E, AB*M, N]
+        grad_b = torch.matmul(a_folded, mg_folded).unsqueeze(0)         # [1, E, K, N]
 
     elif is_a_sparse and not is_b_sparse:
         # Forward: [A, E, M, K] @ [1, E, K, N] -> [A, E, M, N]
@@ -252,11 +254,15 @@ def _sparse_matmul_backward(ctx, grad_output):
         )
 
         # grad_b: sum_a mask[a,e] * input_a[a,e,K,M] @ grad[a,e,M,N] -> [1,E,K,N]
+        # Fold A into M to avoid separate reduce.
         mask = sparsity[0, 0]  # [A, E]
-        masked_grad = grad_output * mask.unsqueeze(-1).unsqueeze(-1)  # [A, E, M, N]
-        input_a_T = input_a.transpose(-2, -1)  # [A, E, K, M]
-        grad_b = torch.matmul(input_a_T, masked_grad).sum(0).unsqueeze(0)
-        # [1, E, K, N]
+        masked_grad = grad_output * mask.unsqueeze(-1).unsqueeze(-1)     # [A, E, M, N]
+        input_a_T = input_a.transpose(-2, -1)                            # [A, E, K, M]
+        A_, E_, K_, M_ = input_a_T.shape
+        N_ = masked_grad.shape[3]
+        a_T_folded = input_a_T.permute(1, 2, 0, 3).reshape(E_, K_, A_ * M_)  # [E, K, A*M]
+        mg_folded = masked_grad.permute(1, 0, 2, 3).reshape(E_, A_ * M_, N_) # [E, A*M, N]
+        grad_b = torch.matmul(a_T_folded, mg_folded).unsqueeze(0)            # [1, E, K, N]
 
     else:
         raise ValueError("Invalid sparse mode")
@@ -370,10 +376,16 @@ def _all_to_all_dispatch_backward(ctx, grad_dispatched, _grad_metadata):
     B = ctx.B
     S, H = grad_dispatched.shape[2], grad_dispatched.shape[3]
 
-    # Dispatch replicated [B,1,S,H] → [1,B*D,S,H].
-    # Backward: sum the D copies back.
+    # Forward replicated [B,1,S,H] → [1,B*D,S,H] via repeat(D).
+    # Backward: accumulate the D copies back into [1,B,S,H].
+    # Use scatter_add (stablehlo.scatter) instead of .sum (stablehlo.reduce)
+    # because reduce may not be zero-initialised on TT.
     if D > 1:
-        grad = grad_dispatched.view(1, D, B, S, H).sum(dim=1)
+        idx = torch.arange(B, device=grad_dispatched.device).repeat(D)
+        idx = idx.view(1, B * D, 1, 1).expand_as(grad_dispatched)
+        grad = torch.zeros(
+            1, B, S, H, dtype=grad_dispatched.dtype, device=grad_dispatched.device
+        ).scatter_add(1, idx, grad_dispatched)
     else:
         grad = grad_dispatched
 
