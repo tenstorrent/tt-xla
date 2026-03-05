@@ -136,9 +136,6 @@ def test_embed_qwen3_reduced_dims():
             "baseline/qwen3_embedding_8B_baseline.pt",
             64,
             True,
-            marks=pytest.mark.xfail(
-                reason="Static CBs exceed L1 size - https://github.com/tenstorrent/tt-xla/issues/2935"
-            ),
         ),
     ],
 )
