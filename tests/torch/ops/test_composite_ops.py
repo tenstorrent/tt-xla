@@ -18,6 +18,7 @@ from tt_torch.composite_ops import (
     composite_gelu,
     composite_layer_norm,
     composite_rms_norm,
+    composite_topk,
 )
 
 from tests.infra.evaluators.evaluation_config import ComparisonConfig
@@ -243,6 +244,57 @@ def test_patched_layer_norm_functional(
     run_graph_test(
         model,
         [input_tensor, weight, bias],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("k", [1, 5, 16])
+@pytest.mark.parametrize("dim", [-1, 0])
+@pytest.mark.parametrize("largest", [True, False])
+def test_composite_topk(k, dim, largest):
+    if dim == 0 and k == 16:
+        pytest.skip()
+    class TopkModel(torch.nn.Module):
+        def forward(self, x):
+            return composite_topk(x, k, dim, largest)
+
+    options = {"tt_enable_composite_ops": False}
+
+    input = torch.randn(8, 16)
+    model = TopkModel()
+
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            model,
+            [input],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("k", [1, 5, 16])
+@pytest.mark.parametrize("dim", [-1, 0])
+@pytest.mark.parametrize("largest", [True, False])
+def test_patched_topk(k, dim, largest):
+    if dim == 0 and k == 16:
+        pytest.skip()
+    class TopkModel(torch.nn.Module):
+        def forward(self, x):
+            return torch.topk(x, k, dim, largest)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input = torch.randn(8, 16)
+    model = TopkModel()
+
+    run_graph_test(
+        model,
+        [input],
         comparison_config=ComparisonConfig(),
         framework=Framework.TORCH,
         torch_options=options,

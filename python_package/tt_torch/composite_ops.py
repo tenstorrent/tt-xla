@@ -126,7 +126,6 @@ def composite_layer_norm(
 
     return output
 
-
 def composite_topk(
     input: Tensor,
     k: int,
@@ -136,8 +135,13 @@ def composite_topk(
     *,
     out: tuple[Tensor, ...] | list[Tensor] | None = None,
 ) -> tuple[Tensor, Tensor]:
+    """
+    Creates composite topk operation for torch-xla using StableHLOCompositeBuilder.
+
+    Returns a (values, indices) tuple.
+    """
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
-    
+
     builder = StableHLOCompositeBuilder(name="tenstorrent.topk", attr=attrs)
 
     input = builder.mark_inputs(input)
@@ -145,6 +149,7 @@ def composite_topk(
     values, indices = builder.mark_outputs(values, indices)
 
     return (values, indices)
+
 
 ################# module replacements #################
 
