@@ -170,7 +170,7 @@ def test_deepseek_attention_decode(batch_size):
     xr.set_device_type("TT")
 
     # Decode-specific parameters
-    prefill_seq_len = 32  # Simulate that 32 tokens were already processed
+    prefill_seq_len = 10  # Simulate that 32 tokens were already processed
     decode_seq_len = 1    # Generate one token at a time
     start_pos = prefill_seq_len  # Start position for the new token
 
@@ -178,7 +178,8 @@ def test_deepseek_attention_decode(batch_size):
         n_layers=1,
         q_lora_rank=3072,
         max_batch_size=batch_size,
-        max_seq_len=prefill_seq_len * 2
+        max_seq_len=prefill_seq_len * 2,
+        # index_topk=16
     )
 
     model = ModifiedTransformer(args)
@@ -211,6 +212,33 @@ def test_deepseek_attention_decode(batch_size):
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
     def get_shard_spec(attention, args, kwargs):
+        # mesh_batch_axis_size = mesh.shape()["batch"]
+        # # Conditionally shard weights that involve batch axis
+        # batch_axis = "batch" if batch_size >= mesh_batch_axis_size else None
+
+        # shard_specs = {}
+
+        # # Input tensors
+        # shard_specs[args[0]] = (None, None, batch_axis)  # hidden_states (batch, 1, dim)
+
+        # # Weight tensors
+        # shard_specs[attention.wq_b.weight] = ("model", None)
+        # shard_specs[attention.wkv_b.weight] = ("model", None)
+        # shard_specs[attention.wo.weight] = (batch_axis, "model")
+        # shard_specs[attention.wq_a.weight] = (None, batch_axis)
+        # shard_specs[attention.wkv_a.weight] = (None, batch_axis)
+
+        # # Cache tensors
+        # shard_specs[attention.kv_cache] = (batch_axis, None, None)
+        # shard_specs[attention.pe_cache] = (batch_axis, None, None)
+
+        # # Indexer sharding (if present)
+        # shard_specs[attention.indexer.wq_b.weight] = ("model", None)
+        # shard_specs[attention.indexer.wk.weight] = (None, batch_axis)
+        # shard_specs[attention.indexer.weights_proj.weight] = ("model", batch_axis)
+        # shard_specs[attention.indexer.k_cache] = (batch_axis, None, None)
+
+
         mesh_batch_axis_size = mesh.shape()["batch"]
         # Conditionally shard weights that involve batch axis
         batch_axis = "batch" if batch_size >= mesh_batch_axis_size else None
@@ -218,24 +246,26 @@ def test_deepseek_attention_decode(batch_size):
         shard_specs = {}
 
         # Input tensors
-        shard_specs[args[0]] = (None, None, batch_axis)  # hidden_states (batch, 1, dim)
+        shard_specs[args[0]] = (None, None, None)  # hidden_states (batch, 1, dim)
 
         # Weight tensors
-        shard_specs[attention.wq_b.weight] = ("model", None)
-        shard_specs[attention.wkv_b.weight] = ("model", None)
-        shard_specs[attention.wo.weight] = (batch_axis, "model")
-        shard_specs[attention.wq_a.weight] = (None, batch_axis)
-        shard_specs[attention.wkv_a.weight] = (None, batch_axis)
+        shard_specs[attention.wq_b.weight] = (None, None)
+        shard_specs[attention.wkv_b.weight] = (None, None)
+        shard_specs[attention.wo.weight] = (None, None)
+        shard_specs[attention.wq_a.weight] = (None, None)
+        shard_specs[attention.wkv_a.weight] = (None, None)
 
         # Cache tensors
-        shard_specs[attention.kv_cache] = (batch_axis, None, None)
-        shard_specs[attention.pe_cache] = (batch_axis, None, None)
+        shard_specs[attention.kv_cache] = (None, None, None)
+        shard_specs[attention.pe_cache] = (None, None, None)
 
         # Indexer sharding (if present)
-        shard_specs[attention.indexer.wq_b.weight] = ("model", None)
-        shard_specs[attention.indexer.wk.weight] = (None, batch_axis)
-        shard_specs[attention.indexer.weights_proj.weight] = ("model", batch_axis)
-        shard_specs[attention.indexer.k_cache] = (batch_axis, None, None)
+        shard_specs[attention.indexer.wq_b.weight] = (None, None)
+        shard_specs[attention.indexer.wk.weight] = (None, None)
+        shard_specs[attention.indexer.weights_proj.weight] = (None, None)
+        shard_specs[attention.indexer.k_cache] = (None, None, None)
+
+        
 
         return shard_specs
 
@@ -264,7 +294,7 @@ def test_deepseek_indexer(batch_size):
 
     seq_len = 32
     args = ModelArgs(
-        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
+        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2, index_topk=16
     )
 
     model = ModifiedTransformer(args)
@@ -390,4 +420,35 @@ def test_topk():
         [input_tensor],
         framework=Framework.TORCH,
         custom_comparator=topk_indices_comparator,
+    )
+
+
+def test_sparse_gather():
+    xr.set_device_type("TT")
+    
+    topk = 16
+    kv_lora_rank = 512
+
+    class SparseGather(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.kv_lora_rank = 512
+
+        def forward(self, topk_indices, kv_cache):
+            gather_idx = topk_indices.squeeze(1) # (bsz, topk)
+
+            kv_sparse = kv_cache.gather(
+                1, gather_idx.unsqueeze(-1).expand(-1, -1, kv_lora_rank))
+            # kv_sparse = kv_cache.gather(
+            #     1, gather_idx.)
+            return kv_sparse
+
+    model = SparseGather()
+    kv_cache = torch.randn(1, topk, kv_lora_rank, dtype=torch.bfloat16)
+    topk_indices = torch.randint(0, topk, (1, 1, topk), dtype=torch.int64)
+
+    run_graph_test(
+        model,
+        [topk_indices, kv_cache],
+        framework=Framework.TORCH,
     )
