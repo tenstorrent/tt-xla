@@ -276,6 +276,18 @@ jobs:
             pip install "$WHEEL_PATH"
 
             echo "Wheel installation complete"
+
+            # Find and check libtt_metal.so
+            echo ""
+            echo "Locating libtt_metal.so..."
+            LIBTT_METAL=$(find /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt -name "libtt_metal.so" -type f | head -n 1)
+            if [ -n "$LIBTT_METAL" ]; then
+              echo "Found libtt_metal.so at: $LIBTT_METAL"
+              echo "Running ldd on libtt_metal.so:"
+              ldd "$LIBTT_METAL"
+            else
+              echo "Warning: libtt_metal.so not found"
+            fi
           '
 
           echo ""
