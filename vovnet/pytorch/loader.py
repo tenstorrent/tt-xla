@@ -34,6 +34,7 @@ from ...tools.utils import (
     VisionPostprocessor,
     print_compiled_model_results,
 )
+from datasets import load_dataset
 from dataclasses import dataclass
 from loguru import logger
 
@@ -249,11 +250,14 @@ class ModelLoader(ForgeModel):
         Args:
             dtype_override: Optional torch.dtype override.
             batch_size: Batch size (default: 1).
-            image: Optional input image.
+            image: Optional input image. If None, loads from HuggingFace datasets.
 
         Returns:
             torch.Tensor: Preprocessed input tensor.
         """
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
         return self.input_preprocess(
             image=image,
             dtype_override=dtype_override,

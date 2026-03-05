@@ -177,11 +177,13 @@ class ModelLoader(ForgeModel):
             weight_name = self._TORCHVISION_WEIGHTS[self._variant]
             weights = getattr(models.detection, weight_name).DEFAULT
             model = getattr(models.detection, model_name)(weights=weights)
+            # Show where torchvision RetinaNet is loaded from
+            # import torchvision.models.detection.retinanet as _retinanet_mod
+            # print("torchvision RetinaNet loaded from:", getattr(_retinanet_mod, "__file__", "?"))
         elif source == ModelSource.CUSTOM:
             # Load custom model
             checkpoint_path = self._download_nvidia_model(model_name)
             model = Model.load(checkpoint_path)
-
         model.eval()
 
         # Only convert dtype if explicitly requested
@@ -209,7 +211,13 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for RetinaNet.
         """
-        # Get the pretrained model name  amd source from the instance's variant config
+        # Load image from HuggingFace datasets
+        dataset = load_dataset("huggingface/cats-image", split="test")
+        image = dataset[0]["image"]
+        if hasattr(image, "convert"):
+            image = image.convert("RGB")
+
+        # Get the pretrained model name and source from the instance's variant config
         source = self._variant_config.source
         model_name = self._variant_config.pretrained_model_name
 
@@ -217,19 +225,11 @@ class ModelLoader(ForgeModel):
             weight_name = self._TORCHVISION_WEIGHTS[self._variant]
             weights = getattr(models.detection, weight_name).DEFAULT
             preprocess = weights.transforms()
-
-            # Load image from HuggingFace dataset
-            dataset = load_dataset("huggingface/cats-image")["test"]
-            image = dataset[0]["image"].convert("RGB")
             img_t = preprocess(image)
             batch_t = torch.unsqueeze(img_t, 0).contiguous()
         elif source == ModelSource.CUSTOM:
-            # Load image from HuggingFace dataset
-            dataset = load_dataset("huggingface/cats-image")["test"]
-            pil_img = dataset[0]["image"].copy()
             new_size = (640, 480)
-            pil_img = pil_img.resize(new_size, resample=Image.BICUBIC)
-
+            pil_img = image.resize(new_size, resample=Image.BICUBIC)
             preprocess = transforms.Compose(
                 [
                     transforms.ToTensor(),
@@ -238,7 +238,6 @@ class ModelLoader(ForgeModel):
                     ),
                 ]
             )
-
             img = preprocess(pil_img)
             batch_t = img.unsqueeze(0)
 
