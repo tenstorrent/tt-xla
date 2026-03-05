@@ -704,10 +704,14 @@ jobs:
 
             # Run ttrun from wheel tt-metal directory so it can resolve mesh graph descriptor paths
             cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal
+
+            # Find the test config file
+            TEST_CONFIG=$(find /workspace/tt-metal -name "test_dual_t3k.yaml" -type f | head -n 1)
+
             ./ttnn/ttnn/distributed/ttrun.py \
               --rank-binding "tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
-              bash -c "export TT_METAL_HOME=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && /workspace/tt-metal/build/test/tt_metal/perf_microbenchmark/routing/test_tt_fabric --test_config /workspace/tt-metal/tests/tt_metal/perf_microbenchmark/routing/test_dual_t3k.yaml"
+              bash -c "export TT_METAL_HOME=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && /workspace/tt-metal/build/test/tt_metal/perf_microbenchmark/routing/test_tt_fabric --test_config $TEST_CONFIG"
           ' || true
 
           echo ""
