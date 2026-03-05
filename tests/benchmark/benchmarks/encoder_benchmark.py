@@ -259,7 +259,10 @@ def benchmark_encoder_torch_xla(
     )
 
     # Evaluate PCC
-    pcc_value = compute_pcc(predictions[0], golden_output, required_pcc=required_pcc)
+    pcc_value = compute_pcc(predictions[0], golden_output)
+    assert (
+        pcc_value >= required_pcc
+    ), f"PCC verification failed. PCC={pcc_value:.6f}, Required PCC={required_pcc}"
     print(f"PCC verification passed with PCC={pcc_value:.6f}")
     evaluation_score = pcc_value
 

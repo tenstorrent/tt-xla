@@ -8,7 +8,6 @@ import os
 import re
 import secrets
 import socket
-from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -204,8 +203,20 @@ def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
             results["config"]["ttnn_num_graphs"] = num_graphs_with_metrics
 
 
-def _compute_pcc_single(golden_flat: torch.Tensor, device_flat: torch.Tensor) -> float:
-    """Helper to compute PCC between two flattened tensors."""
+def compute_pcc(golden_output: torch.Tensor, device_output: torch.Tensor) -> float:
+    """
+    Compute Pearson Correlation Coefficient between golden and device output.
+
+    Args:
+        golden_output: Golden output tensor
+        device_output: Device output tensor
+
+    Returns:
+        PCC value between the two tensors.
+    """
+    golden_flat = golden_output.to(torch.float32).flatten()
+    device_flat = device_output.to(torch.float32).flatten()
+
     golden_centered = golden_flat - golden_flat.mean()
     device_centered = device_flat - device_flat.mean()
     denom = golden_centered.norm() * device_centered.norm()
@@ -220,78 +231,6 @@ def _compute_pcc_single(golden_flat: torch.Tensor, device_flat: torch.Tensor) ->
     pcc = ((golden_centered @ device_centered) / denom).item()
     # Clamp to [-1, 1] to handle floating-point precision errors
     return max(-1.0, min(1.0, pcc))
-
-
-def compute_pcc(golden_output, device_output, required_pcc: float = 0.99) -> float:
-    """
-    Compute Pearson Correlation Coefficient between golden and device output.
-
-    Supports single tensors or collections of tensors (e.g., multi-scale outputs).
-    For collections, computes PCC for each element individually, then computes the overall
-    PCC by concatenating all tensors into a single flattened tensor before comparison.
-
-    Args:
-        golden_output: Golden output tensor or collection of tensors
-        device_output: Device output tensor or collection of tensors
-        required_pcc: Minimum required PCC threshold
-
-    Returns:
-        Overall PCC value (computed across all concatenated tensor elements).
-
-    Raises:
-        AssertionError: If computed PCC is below required_pcc threshold
-    """
-    # Normalize inputs to iterables for uniform processing
-    is_collection = isinstance(golden_output, Sequence) and not isinstance(
-        golden_output, torch.Tensor
-    )
-    golden_iter = golden_output if is_collection else (golden_output,)
-    device_iter = device_output if is_collection else (device_output,)
-
-    assert len(golden_iter) == len(device_iter), (
-        f"Output length mismatch: golden has {len(golden_iter)} elements, "
-        f"device has {len(device_iter)} elements"
-    )
-
-    # Compute PCC per scale
-    scale_pccs = []
-    for i, (golden, device) in enumerate(zip(golden_iter, device_iter)):
-        golden_flat = golden.to(torch.float32).flatten()
-        device_flat = device.to(torch.float32).flatten()
-        scale_pcc = _compute_pcc_single(golden_flat, device_flat)
-        scale_pccs.append(scale_pcc)
-
-        if is_collection:
-            print(f"  Scale {i} (shape {golden.shape}): PCC={scale_pcc:.6f}")
-
-    # Compute overall PCC
-    golden_all = torch.cat([g.to(torch.float32).flatten() for g in golden_iter])
-    device_all = torch.cat([d.to(torch.float32).flatten() for d in device_iter])
-    pcc_value = _compute_pcc_single(golden_all, device_all)
-
-    # Print results
-    if is_collection:
-        print(
-            f"PCC check: Computing PCC for {len(golden_iter)} output tensors (multi-scale)"
-        )
-        print(
-            f"PCC check: Overall PCC={pcc_value:.6f}, Min scale PCC={min(scale_pccs):.6f}, Required PCC={required_pcc}"
-        )
-    else:
-        print(f"PCC check: Calculated PCC={pcc_value:.6f}, Required PCC={required_pcc}")
-
-    # Validate
-    if is_collection:
-        assert pcc_value >= required_pcc, (
-            f"PCC comparison failed. Overall PCC={pcc_value:.6f}, "
-            f"Min scale PCC={min(scale_pccs):.6f}. Required: pcc={required_pcc}"
-        )
-    else:
-        assert (
-            pcc_value >= required_pcc
-        ), f"PCC comparison failed. Calculated: pcc={pcc_value:.6f}. Required: pcc={required_pcc}"
-
-    return pcc_value
 
 
 def get_benchmark_metadata() -> Dict[str, str]:
