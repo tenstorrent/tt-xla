@@ -147,8 +147,43 @@ def composite_topk(
     input = builder.mark_inputs(input)
     values, indices = torch.topk(input, k, dim, largest, sorted, out=out)
     values, indices = builder.mark_outputs(values, indices)
-
     return (values, indices)
+
+
+def composite_topk_values(
+    input: Tensor,
+    k: int,
+    dim: int = -1,
+    largest: bool = True,
+    sorted: bool = True,
+    *,
+    out: tuple[Tensor, ...] | list[Tensor] | None = None,
+) -> Tensor:
+    """Composite topk returning only values. Marks a single output at pos=0."""
+    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
+    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_values", attr=attrs)
+    input = builder.mark_inputs(input)
+    values, _ = torch.topk(input, k, dim, largest, sorted)
+    values = builder.mark_outputs(values)
+    return values
+
+
+def composite_topk_indices(
+    input: Tensor,
+    k: int,
+    dim: int = -1,
+    largest: bool = True,
+    sorted: bool = True,
+    *,
+    out: tuple[Tensor, ...] | list[Tensor] | None = None,
+) -> Tensor:
+    """Composite topk returning only indices. Marks a single output at pos=0."""
+    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
+    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_indices", attr=attrs)
+    input = builder.mark_inputs(input)
+    _, indices = torch.topk(input, k, dim, largest, sorted)
+    indices = builder.mark_outputs(indices)
+    return indices
 
 
 ################# module replacements #################
@@ -221,7 +256,6 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
-    torch.topk: composite_topk,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
 }

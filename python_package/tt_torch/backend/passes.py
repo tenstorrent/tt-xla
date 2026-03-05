@@ -1,11 +1,13 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import operator
 import re
 
 import torch
 from torch.export.graph_signature import InputKind, OutputKind
 from tt_torch import composite_ops
+from tt_torch.composite_ops import composite_topk, composite_topk_indices, composite_topk_values
 from tt_torch.fusion_providers import FusionProvider
 from ttxla_tools.logging import logger
 
@@ -31,6 +33,18 @@ def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
         gm.recompile()
 
 
+def _replace_topk_with_single_output(gm, topk_node, getitem_nodes, composite_fn):
+    """Replace torch.topk + getitem chain with a single-output composite node."""
+    with gm.graph.inserting_before(topk_node):
+        new_node = gm.graph.call_function(
+            composite_fn, args=topk_node.args, kwargs=topk_node.kwargs
+        )
+    for getitem in getitem_nodes:
+        getitem.replace_all_uses_with(new_node)
+        gm.graph.erase_node(getitem)
+    gm.graph.erase_node(topk_node)
+
+
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
@@ -44,9 +58,37 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
        - node.target is a string like "some_module"
        - Replaced by creating new call_function node (composite function) with get_attr for parameters
     """
-    for node in gm.graph.nodes:
+    for node in list(gm.graph.nodes):
         if node.op == "call_function":
-            if node.target in composite_ops.replacements:
+            if node.target == torch.topk:
+                value_getitems = [
+                    u
+                    for u in node.users
+                    if u.op == "call_function"
+                    and u.target == operator.getitem
+                    and u.args[1] == 0
+                ]
+                index_getitems = [
+                    u
+                    for u in node.users
+                    if u.op == "call_function"
+                    and u.target == operator.getitem
+                    and u.args[1] == 1
+                ]
+                has_values = bool(value_getitems)
+                has_indices = bool(index_getitems)
+
+                if has_values and has_indices:
+                    node.target = composite_topk
+                elif has_values:
+                    _replace_topk_with_single_output(
+                        gm, node, value_getitems, composite_topk_values
+                    )
+                elif has_indices:
+                    _replace_topk_with_single_output(
+                        gm, node, index_getitems, composite_topk_indices
+                    )
+            elif node.target in composite_ops.replacements:
                 node.target = composite_ops.replacements[node.target]
 
         elif node.op == "call_module":
