@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Generate a MLIR_FILES list for test_serialize_and_builder_integration.
+Generate a MLIR_FILES list for test_load_split_and_execute.
 
 For each test (one at a time) the script:
   1. Empties the artifacts directory to avoid stale files.
   2. Runs the test with --serialize.
   3. Scans the artifacts directory for generated MLIR files.
-  4. Writes tests/torch/mlir_files_generated.py with those files.
-  5. Immediately runs test_serialize_and_builder_integration.
+  4. Writes tests/builder/generated_mlir_files.py with those files.
+  5. Immediately runs test_load_split_and_execute.
   6. Moves on to the next test.
 
 Sources
@@ -23,18 +23,18 @@ Sources
 
 Examples:
     # Any test — full node ID (op tests, graph tests, etc.)
-    python scripts/gen_mlir_files_list.py \\
+    python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
         "tests/jax/single_chip/ops/test_add.py::test_add"
 
-    python scripts/gen_mlir_files_list.py \\
-        "tests/runner/test_models.py::test_all_models_torch[pytorch_resnet50-inference-single_device]" \\
+    python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
+        "tests/runner/test_models.py::test_all_models_torch[pytorch_resnet50-inference-single_device]" \
         "tests/runner/test_models.py::test_all_models_torch[pytorch_bert_base_uncased-inference-single_device]"
 
     # LLM benchmark tests (shorthand, artifacts in modules/irs/)
-    python scripts/gen_mlir_files_list.py test_phi1_5 test_gemma_2_2b --source llm
+    python tests/integrations/tt_mlir_builder/run_test_op_by_op.py test_phi1_5 test_gemma_2_2b --source llm
 
     # Model runner tests (shorthand, artifacts in output_artifact/)
-    python scripts/gen_mlir_files_list.py \\
+    python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
         pytorch_resnet50-inference-single_device \\
         pytorch_bert_base_uncased-inference-single_device \\
         --source models
@@ -49,13 +49,52 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
+# Setup Python path for builder module access
+# ---------------------------------------------------------------------------
+
+
+def setup_pythonpath():
+    """Ensure PYTHONPATH includes necessary directories for builder module access."""
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
+    tests_dir = repo_root / "tests"
+
+    # Add repo root and tests directory to sys.path if not already present
+    for path in [str(repo_root), str(tests_dir)]:
+        if path not in sys.path:
+            sys.path.insert(0, path)
+
+    # Ensure PYTHONPATH environment variable includes necessary paths
+    # This is needed for subprocesses
+    current_pythonpath = os.environ.get("PYTHONPATH", "")
+    paths_to_add = [str(repo_root), str(tests_dir)]
+
+    # Check if TT_MLIR_HOME is set and add python_packages and runtime/python
+    tt_mlir_home = os.environ.get("TT_MLIR_HOME")
+    if tt_mlir_home:
+        tt_mlir_python_packages = Path(tt_mlir_home) / "build" / "python_packages"
+        tt_mlir_runtime_python = Path(tt_mlir_home) / "build" / "runtime" / "python"
+        if tt_mlir_python_packages.exists():
+            paths_to_add.append(str(tt_mlir_python_packages))
+        if tt_mlir_runtime_python.exists():
+            paths_to_add.append(str(tt_mlir_runtime_python))
+
+    # Build the new PYTHONPATH
+    existing_paths = current_pythonpath.split(":") if current_pythonpath else []
+    new_paths = [p for p in paths_to_add if p not in existing_paths]
+
+    if new_paths:
+        all_paths = new_paths + existing_paths
+        os.environ["PYTHONPATH"] = ":".join(filter(None, all_paths))
+
+
+setup_pythonpath()
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-BUILDER_TEST = (
-    "tests/torch/test_torch_filecheck.py::test_serialize_and_builder_integration"
-)
-GENERATED_MLIR_LIST = Path("tests/torch/mlir_files_generated.py")
+BUILDER_TEST = "tests/integrations/tt_mlir_builder/load_split_and_execute.py::test_load_split_and_execute"
+GENERATED_MLIR_LIST = Path("tests/integrations/tt_mlir_builder/generated_mlir_files.py")
 DEFAULT_ARTIFACTS_DIR = Path("output_artifact")
 
 # Source shorthands
@@ -226,15 +265,17 @@ def collect_mlir_files(
 
 
 def run_test(node_id: str) -> int:
-    cmd = ["pytest", "-sv", node_id, "--serialize"]
+    cmd = [sys.executable, "-m", "pytest", "-sv", node_id, "--serialize"]
     print(f"Running: {' '.join(cmd)}\n")
-    return subprocess.run(cmd).returncode
+    # Ensure subprocess inherits the full environment including PYTHONPATH
+    return subprocess.run(cmd, env=os.environ.copy()).returncode
 
 
 def run_builder_integration_test() -> int:
-    cmd = ["pytest", "-sv", BUILDER_TEST]
+    cmd = [sys.executable, "-m", "pytest", "-sv", BUILDER_TEST]
     print(f"\nRunning: {' '.join(cmd)}\n")
-    return subprocess.run(cmd).returncode
+    # Ensure subprocess inherits the full environment including PYTHONPATH
+    return subprocess.run(cmd, env=os.environ.copy()).returncode
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +285,7 @@ def run_builder_integration_test() -> int:
 
 def write_mlir_files_list(entries: list[tuple[str, str]], output_path: Path) -> None:
     lines = [
-        "# AUTO-GENERATED by scripts/gen_mlir_files_list.py — do not edit by hand.\n",
+        "# AUTO-GENERATED by tests/integrations/tt_mlir_builder/run_test_op_by_op.py — do not edit by hand.\n",
         "# Re-run the script to regenerate this file.\n",
         "\n",
         "MLIR_FILES = [\n",
@@ -300,7 +341,7 @@ def resolve_test_ids_and_artifacts(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run tests with --serialize and feed the resulting MLIR files into test_serialize_and_builder_integration.",
+        description="Run tests with --serialize and feed the resulting MLIR files into test_load_split_and_execute.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -353,11 +394,11 @@ def main() -> int:
         "--no-builder-test",
         action="store_true",
         default=False,
-        help="Skip running test_serialize_and_builder_integration after each test",
+        help="Skip running test_load_split_and_execute after each test",
     )
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
     os.chdir(repo_root)
 
     test_ids, artifacts_dir = resolve_test_ids_and_artifacts(
