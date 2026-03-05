@@ -30,6 +30,8 @@ ALLOWED_FIELDS = {
     "execution_pass",
     # FileCheck patterns list
     "filechecks",
+    # Compiler config options
+    "enable_weight_bfp8_conversion",
 }
 
 # Single source of truth for the placeholders YAML filename

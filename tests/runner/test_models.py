@@ -92,11 +92,19 @@ def _run_model_test_impl(
         if request.config.getoption("--dump-irs", default=False):
             ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
 
+        if compiler_config is None and test_metadata.enable_weight_bfp8_conversion:
+            compiler_config = CompilerConfig(
+                experimental_enable_weight_bfp8_conversion=True,
+            )
+
         if compiler_config is None and ir_dump_path:
             compiler_config = CompilerConfig(
                 export_path=ir_dump_path,
                 export_model_name=model_info.name,
             )
+        elif compiler_config is not None and ir_dump_path:
+            compiler_config.export_path = ir_dump_path
+            compiler_config.export_model_name = model_info.name
 
         succeeded = False
         comparison_result = None
