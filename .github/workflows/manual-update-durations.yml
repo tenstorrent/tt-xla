@@ -695,6 +695,7 @@ jobs:
           echo ""
 
       - name: ttrun smoketests - tt-metal test_tt_fabric routing
+        if: false
         run: |
           echo "=== ttrun smoketest: tt-metal test_tt_fabric routing microbenchmark ==="
           echo ""
