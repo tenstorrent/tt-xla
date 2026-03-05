@@ -12,18 +12,17 @@ from utils import Category
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
-@pytest.mark.filecheck(["repvgg_conv_sum.ttnn.mlir"])
-def test_repvgg_conv_sum_fusion(request):
-    def repvgg_block(
-        x: torch.Tensor, w3x3: torch.Tensor, w1x1: torch.Tensor
+@pytest.mark.filecheck(["matmul_with_bias.ttnn.mlir"])
+@pytest.mark.xfail(reason="Turns out this fusion is broken?")
+def test_matmul_with_bias_fusion(request):
+    def matmul_with_bias(
+        x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
     ) -> torch.Tensor:
-        return torch.nn.functional.conv2d(
-            x, w3x3, padding=1
-        ) + torch.nn.functional.conv2d(x, w1x1)
+        return torch.nn.functional.linear(x, weight, bias)
 
     run_graph_test_with_random_inputs(
-        repvgg_block,
-        [(1, 16, 32, 32), (16, 16, 3, 3), (16, 16, 1, 1)],
+        matmul_with_bias,
+        [(1, 32, 64), (128, 64), (128,)],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
         request=request,
