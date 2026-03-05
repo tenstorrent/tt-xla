@@ -452,8 +452,7 @@ test_config:
     status: EXPECTED_PASSING
 
   squeezebert/pytorch-Mnli-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
-    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+    status: EXPECTED_PASSING
 
   swin/image_classification/pytorch-T-single_device-inference:
     status: EXPECTED_PASSING
