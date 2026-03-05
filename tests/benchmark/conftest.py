@@ -38,6 +38,21 @@ def pytest_addoption(parser):
         help="Number of model layers (positive integer). Overrides model config when supported.",
     )
 
+    parser.addoption(
+        "--batch-size",
+        action="store",
+        default=None,
+        type=make_validator_positive_int("--batch-size"),
+        help="Batch size (positive integer). Overrides config value.",
+    )
+
+    parser.addoption(
+        "--accuracy-testing",
+        action="store_true",
+        default=False,
+        help="Enable accuracy testing mode. Uses reference data for TOP1/TOP5 accuracy.",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -47,3 +62,13 @@ def output_file(request):
 @pytest.fixture
 def num_layers(request):
     return request.config.getoption("--num-layers")
+
+
+@pytest.fixture
+def batch_size(request):
+    return request.config.getoption("--batch-size")
+
+
+@pytest.fixture
+def accuracy_testing(request):
+    return request.config.getoption("--accuracy-testing")
