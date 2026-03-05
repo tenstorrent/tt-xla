@@ -9,18 +9,12 @@
 
 test_config:
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
-    # required_pcc: 0.98,
-    # PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC decreased with inputs changes to 0.946 in BH / 0.887 in WH"
 
   gpt_neo/causal_lm/pytorch-1_3B-single_device-inference:
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
   gpt_neo/causal_lm/pytorch-2_7B-single_device-inference:
-    assert_pcc: false  # 0.749 on BH / 0.76 on WH
     status: EXPECTED_PASSING
 
   vovnet/pytorch-27s-single_device-inference:
@@ -68,11 +62,11 @@ test_config:
     status: EXPECTED_PASSING
 
   bloom/pytorch-single_device-inference:
-    status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        assert_pcc: false
-        reason: "PCC comparison failed. Calculated: pcc=0.9799284338951111. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1828"
+        status: EXPECTED_PASSING
+      p150:
+        status: EXPECTED_PASSING
 
   xglm/pytorch-564M-single_device-inference:
     status: EXPECTED_PASSING
@@ -87,7 +81,6 @@ test_config:
 
   mamba/pytorch-790M_HF-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
     markers: ["extended"]
 
   openpose/v2/pytorch-single_device-inference:
@@ -364,11 +357,9 @@ test_config:
     status: EXPECTED_PASSING
 
   mamba/pytorch-1.4b_HF-single_device-inference:
-    assert_pcc: false # -0.0130 WH / -0.0888 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
 
   mamba/pytorch-370M_HF-single_device-inference:
-    assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
 
   mgp_str_base/pytorch-single_device-inference:
@@ -537,7 +528,6 @@ test_config:
 
   mamba/pytorch-2.8b_HF-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
   deit/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
@@ -757,7 +747,6 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-Large_v2-single_device-inference:
-    required_pcc: 0.975
     status: EXPECTED_PASSING
 
   albert/token_classification/pytorch-Xlarge_v1-single_device-inference:
@@ -780,9 +769,7 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.958276593048647. Required: pcc=0.99"
 
   opt/causal_lm/pytorch-1.3b-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9574284831613491. Required: pcc=0.99"
 
   perceiverio_vision/pytorch-Vision_Perceiver_Learned-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -799,9 +786,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   opt/qa/pytorch-1.3b-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99"
 
   # yolov8/pytorch-yolov8n-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -1900,13 +1885,11 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   falcon/pytorch-7B_Instruct-single_device-inference:
-    supported_archs: ["p150"]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475"
     arch_overrides:
       n150:
         status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
+      p150:
+        status: EXPECTED_PASSING
 
   d_fine/pytorch-Nano-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2279,7 +2262,6 @@ test_config:
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/3379"
 
   gemma/codegemma/pytorch-2B-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-Tinyllama_v1.1-single_device-inference:
