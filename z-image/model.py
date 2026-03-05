@@ -2,12 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+from pathlib import Path
 from typing import Optional
 
 import torch
 import torch.nn as nn
 from diffusers.pipelines.z_image.pipeline_z_image import calculate_shift
 from transformer import ZImageTransformer
+
+DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+TENSOR_DUMP_DIR = DIR / "tensor_dump"
 
 
 class TextEncoderModule(nn.Module):
@@ -141,6 +146,9 @@ class ZImageModule(nn.Module):
         print(f"input_ids.shape: {input_ids.shape}")
         print(f"attention_mask.shape: {attention_mask.shape}")
 
+        torch.save(input_ids, f"{TENSOR_DUMP_DIR}/input_ids.pt")
+        torch.save(attention_mask, f"{TENSOR_DUMP_DIR}/attention_mask.pt")
+
         # Move inputs to same device as text encoder
         te_device = self.text_encoder_module.embed_tokens.weight.device
         prompt_embeds = self.text_encoder_module(
@@ -152,6 +160,9 @@ class ZImageModule(nn.Module):
         # Filter padding on CPU (variable-length output, can't be compiled)
         prompt_embeds = prompt_embeds.cpu()
         attention_mask = attention_mask.cpu()
+
+        torch.save(prompt_embeds, f"{TENSOR_DUMP_DIR}/prompt_embeds.pt")
+
         return [prompt_embeds[i][attention_mask[i]] for i in range(len(prompt_embeds))]
 
     def forward(self, prompt, latents, num_inference_steps):

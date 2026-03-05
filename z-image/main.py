@@ -23,8 +23,10 @@ DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 # CONFIG
 compile_options = {
     "optimization_level": 2,
+    # "optimization_level": 1,
     "codegen_try_recover_structure": False,
     # "enable_const_eval": False,
+    # "export_path": "ir_export",
 }
 EXPORT_DIR = DIR / "codegen"
 torch_xla.set_custom_compile_options(compile_options)
@@ -210,7 +212,7 @@ class VAEDecodeModule(nn.Module):
         return self.decoder(z)
 
 
-def run_codegen(target="text_encoder"):
+def run_codegen(target):
     """Run codegen on either the text_encoder, transformer, or vae.
 
     Args:
@@ -245,11 +247,12 @@ def run_codegen(target="text_encoder"):
             truncation=True,
             return_tensors="pt",
         )
+
         codegen_py(
             model.text_encoder_module,
             tokens.input_ids,
             tokens.attention_mask.bool(),
-            use_export=False,
+            use_export=False,  # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             export_path=str(EXPORT_DIR / "text_encoder"),
             compiler_options=compile_options,
         )
@@ -277,7 +280,7 @@ def run_codegen(target="text_encoder"):
             latent_input,
             timestep,
             cap_feat,
-            use_export=True,
+            use_export=True,  # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             export_path=str(EXPORT_DIR / "transformer"),
             compiler_options=compile_options,
         )
@@ -317,7 +320,7 @@ def main():
 
     compare_images("Golden vs CPU", out_golden, out_cpu)
 
-    run_codegen(target="text_encoder")
+    # run_codegen(target="text_encoder")
     # run_codegen(target="transformer")
     # run_codegen(target="vae")
 
