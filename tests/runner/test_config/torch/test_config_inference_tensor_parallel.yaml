@@ -160,6 +160,8 @@ test_config:
     arch_overrides:
       n300-llmbox:
         enable_weight_bfp8_conversion: true
+        optimization_level: 1
+        enable_permute_matmul_fusion: false
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]

@@ -125,9 +125,13 @@ class ModelTestConfig:
             self._resolve("filechecks", default=[])
         )
 
-        # Compiler config: enable experimental BFP8 weight conversion
+        # Compiler config options
         self.enable_weight_bfp8_conversion = self._resolve(
             "enable_weight_bfp8_conversion", default=False
+        )
+        self.optimization_level = self._resolve("optimization_level", default=None)
+        self.enable_permute_matmul_fusion = self._resolve(
+            "enable_permute_matmul_fusion", default=None
         )
 
     def _resolve(self, key, default=None):

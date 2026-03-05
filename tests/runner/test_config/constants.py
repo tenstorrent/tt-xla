@@ -32,6 +32,8 @@ ALLOWED_FIELDS = {
     "filechecks",
     # Compiler config options
     "enable_weight_bfp8_conversion",
+    "optimization_level",
+    "enable_permute_matmul_fusion",
 }
 
 # Single source of truth for the placeholders YAML filename

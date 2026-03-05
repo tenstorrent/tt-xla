@@ -92,10 +92,19 @@ def _run_model_test_impl(
         if request.config.getoption("--dump-irs", default=False):
             ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
 
-        if compiler_config is None and test_metadata.enable_weight_bfp8_conversion:
-            compiler_config = CompilerConfig(
-                experimental_enable_weight_bfp8_conversion=True,
-            )
+        # Build CompilerConfig from test_metadata YAML fields if any are set
+        if compiler_config is None:
+            cc_kwargs = {}
+            if test_metadata.enable_weight_bfp8_conversion:
+                cc_kwargs["experimental_enable_weight_bfp8_conversion"] = True
+            if test_metadata.optimization_level is not None:
+                cc_kwargs["optimization_level"] = int(test_metadata.optimization_level)
+            if test_metadata.enable_permute_matmul_fusion is not None:
+                cc_kwargs["experimental_enable_permute_matmul_fusion"] = bool(
+                    test_metadata.enable_permute_matmul_fusion
+                )
+            if cc_kwargs:
+                compiler_config = CompilerConfig(**cc_kwargs)
 
         if compiler_config is None and ir_dump_path:
             compiler_config = CompilerConfig(
