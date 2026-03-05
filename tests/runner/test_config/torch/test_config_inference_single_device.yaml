@@ -582,21 +582,18 @@ test_config:
     status: EXPECTED_PASSING
 
   phi2/token_classification/pytorch-Phi_2-single_device-inference:
-    assert_pcc: false # PCC: 0.8971 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
-    status: EXPECTED_PASSING
     arch_overrides:
       p150:
-        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
+        status: EXPECTED_PASSING
       n150:
-        assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
+        status: EXPECTED_PASSING
 
   phi2/token_classification/pytorch-Phi_2_Pytdml-single_device-inference:
-    status: EXPECTED_PASSING
     arch_overrides:
       p150:
-        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
+        status: EXPECTED_PASSING
       n150:
-        assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
+        status: EXPECTED_PASSING
 
   phi2/sequence_classification/pytorch-Phi_2-single_device-inference:
     status: EXPECTED_PASSING
