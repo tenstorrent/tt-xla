@@ -1580,9 +1580,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+        enable_weight_bfp8_conversion: true
 
   gpt_neo/sequence_classification/pytorch-125M-single_device-inference:
     status: EXPECTED_PASSING
