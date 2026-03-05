@@ -2053,17 +2053,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ) -> torch.Tensor:
         """
         Sample on CPU instead of compiling a device sampling graph.
+
+        This function mainly exists as a workaround for https://github.com/tenstorrent/tt-xla/issues/3610.
+        Only support greedy sampling for now to reduce maintenance overhead.
         """
         logits = logits.cpu()
-        if (
-            sampling_metadata.all_greedy
-            and sampling_metadata.no_penalties
-            and sampling_metadata.no_logit_bias
-            and sampling_metadata.no_bad_words
-        ):
-            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
-        else:
-            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
+        out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         return out_tokens
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
