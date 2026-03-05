@@ -40,7 +40,10 @@ target_link_directories(TTPJRTTTDylib PRIVATE
     ${LOGURU_LIB_DIR}
 )
 
-target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined" "-static-libatomic")
+target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
+
+# Statically link libatomic for manylinux compatibility
+target_link_libraries(TTPJRTTTDylib PRIVATE "-Wl,-Bstatic" atomic "-Wl,-Bdynamic")
 
 # Setting RPATH to a path involving $ORIGIN (resolved location of the pjrt_plugin_tt.so
 # file) sets its search paths in which it will search for libs it dynamically links.
