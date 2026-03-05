@@ -646,9 +646,10 @@ jobs:
             cd /workspace
             source venv/activate
 
-            # Run ttrun from wheel location but execute test from tt-metal build directory
-            /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/ttnn/ttnn/distributed/ttrun.py \
-              --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
+            # Run ttrun from wheel tt-metal directory so it can resolve mesh graph descriptor paths
+            cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal
+            ./ttnn/ttnn/distributed/ttrun.py \
+              --rank-binding "tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
               bash -c "cd /workspace/tt-metal && export TT_METAL_KERNEL_PATH=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/test/tt_metal/tt_fabric/test_physical_discovery --gtest_filter=\"PhysicalDiscovery.*\""
           ' || true
@@ -666,9 +667,10 @@ jobs:
             cd /workspace
             source venv/activate
 
-            # Run ttrun from wheel location but execute test from tt-metal build directory
-            /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/ttnn/ttnn/distributed/ttrun.py \
-              --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
+            # Run ttrun from wheel tt-metal directory so it can resolve mesh graph descriptor paths
+            cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal
+            ./ttnn/ttnn/distributed/ttrun.py \
+              --rank-binding "tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
               bash -c "cd /workspace/tt-metal && export TT_METAL_KERNEL_PATH=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/test/tt_metal/tt_fabric/test_physical_discovery --gtest_filter=\"PhysicalMappingGeneration.Generate2x4SliceToPCIeDeviceMapping\""
           ' || true
@@ -686,9 +688,10 @@ jobs:
             cd /workspace
             source venv/activate
 
-            # Run ttrun from wheel location but execute test from tt-metal build directory
-            /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/ttnn/ttnn/distributed/ttrun.py \
-              --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
+            # Run ttrun from wheel tt-metal directory so it can resolve mesh graph descriptor paths
+            cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal
+            ./ttnn/ttnn/distributed/ttrun.py \
+              --rank-binding "tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
               bash -c "cd /workspace/tt-metal && export TT_METAL_KERNEL_PATH=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/tools/scaleout/run_cluster_validation --print-connectivity --send-traffic"
           ' || true
@@ -706,9 +709,10 @@ jobs:
             cd /workspace
             source venv/activate
 
-            # Run ttrun from wheel location but execute test from tt-metal build directory
-            /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/ttnn/ttnn/distributed/ttrun.py \
-              --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
+            # Run ttrun from wheel tt-metal directory so it can resolve mesh graph descriptor paths
+            cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal
+            ./ttnn/ttnn/distributed/ttrun.py \
+              --rank-binding "tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
               bash -c "cd /workspace/tt-metal && export TT_METAL_HOME=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/test/tt_metal/perf_microbenchmark/routing/test_tt_fabric --test_config tests/tt_metal/perf_microbenchmark/routing/test_dual_t3k.yaml"
           ' || true
