@@ -16,6 +16,19 @@ import torch.nn.functional as F
 from torch_xla.experimental import stablehlo_custom_call
 
 
+def _expert_dispatch_slots(e_ids, E, D, cluster_axis):
+    """Map global expert IDs to dispatch slot indices (0..D-1).
+
+    Works for both 1D and 2D meshes without reading expert_mapping:
+      cluster_axis=0 → experts round-robin across dispatch rows: slot = e % D
+      cluster_axis=1 → experts contiguously blocked: slot = e // (E // D)
+    """
+    if cluster_axis == 0:
+        return e_ids % D
+    else:
+        return e_ids // max(E // D, 1)
+
+
 # =============================================================================
 # sparse_matmul
 # =============================================================================
@@ -342,11 +355,12 @@ def all_to_all_dispatch(
 
         if D > 1:
             # Sparse dispatch: write tokens only to device slots holding their experts
+            E = expert_mapping.shape[2]
             x = torch.zeros(1, BD, S, H, dtype=input_tensor.dtype, device=device)
             e_ids = expert_indices[:, 0, :, :].long()  # [B, S, K]
-            mapping = expert_mapping[0, 0]  # [E, D]
-            device_per_expert = mapping[e_ids]  # [B, S, K, D]
-            goes_to_device = device_per_expert.max(dim=2).values  # [B, S, D]
+            slots = _expert_dispatch_slots(e_ids, E, D, cluster_axis)  # [B, S, K]
+            slot_oh = F.one_hot(slots, D)  # [B, S, K, D]
+            goes_to_device = slot_oh.max(dim=2).values  # [B, S, D]
             for d in range(D):
                 mask_d = goes_to_device[:, :, d].unsqueeze(-1).to(inp.dtype)  # [B, S, 1]
                 x[0, d * B : (d + 1) * B, :, :] = inp * mask_d
@@ -384,13 +398,14 @@ def _all_to_all_dispatch_setup_context(ctx, inputs, output):
     input_tensor, expert_indices, expert_mapping, num_devices, cluster_axis = inputs
     D = num_devices
     B = input_tensor.shape[0]
+    E = expert_mapping.shape[2]
 
     if D > 1:
-        # Precompute dispatch mask: [B, S, D] — which device slots each token writes to
+        # Precompute dispatch mask: [B, S, D] — which dispatch slots each token writes to
         e_ids = expert_indices[:, 0, :, :].long()  # [B, S, K]
-        mapping = expert_mapping[0, 0]  # [E, D]
-        device_per_expert = mapping[e_ids]  # [B, S, K, D]
-        goes_to_device = device_per_expert.max(dim=2).values.to(
+        slots = _expert_dispatch_slots(e_ids, E, D, cluster_axis)  # [B, S, K]
+        slot_oh = F.one_hot(slots, D)  # [B, S, K, D]
+        goes_to_device = slot_oh.max(dim=2).values.to(
             input_tensor.dtype
         )  # [B, S, D]
         ctx.save_for_backward(goes_to_device)
@@ -507,10 +522,10 @@ def all_to_all_combine(
 
     elif device.type == "cpu":
         # CPU fallback: gather expert outputs from the BD position where
-        # dispatch actually wrote the token data (device slot of the expert).
+        # dispatch actually wrote the token data (dispatch slot of the expert).
         D = num_devices
+        E = expert_mapping.shape[2]
         metadata_indices = expert_metadata[0]  # [BD, S, K]
-        device_map = expert_mapping[0, 0].argmax(dim=-1)  # [E] → device_id
 
         if output_shard_dim == 1:
             combined = torch.zeros(
@@ -521,7 +536,10 @@ def all_to_all_combine(
                     for k in range(K):
                         expert_id = metadata_indices[b, s, k].item()
                         if 0 <= expert_id < E_local:
-                            bd = b * D + device_map[expert_id].item()
+                            slot = _expert_dispatch_slots(
+                                torch.tensor(expert_id), E, D, cluster_axis
+                            ).item()
+                            bd = b * D + slot
                             combined[k, b, s, :] = input_tensor[
                                 expert_id, bd, s, :
                             ]
@@ -534,7 +552,10 @@ def all_to_all_combine(
                     for k in range(K):
                         expert_id = metadata_indices[b, s, k].item()
                         if 0 <= expert_id < E_local:
-                            bd = b * D + device_map[expert_id].item()
+                            slot = _expert_dispatch_slots(
+                                torch.tensor(expert_id), E, D, cluster_axis
+                            ).item()
+                            bd = b * D + slot
                             combined[k, s, b, :] = input_tensor[
                                 expert_id, s, bd, :
                             ]
@@ -585,6 +606,7 @@ def _all_to_all_combine_setup_context(ctx, inputs, output):
     ) = inputs
     ctx.save_for_backward(expert_metadata, expert_mapping)
     ctx.num_devices = num_devices
+    ctx.cluster_axis = cluster_axis
     ctx.num_experts_per_tok = num_experts_per_tok
     ctx.output_shard_dim = output_shard_dim
     ctx.input_shape = input_tensor.shape
@@ -618,13 +640,9 @@ def _all_to_all_combine_backward(ctx, grad_output):
     else:
         grad_t = grad_output.permute(2, 1, 0, 3)  # [B, S, K, H]
 
-    # Device row from global expert ID: experts are contiguously assigned
-    # to devices, E_per_device = E_total / D.  Use expert_mapping to get
-    # E_total so this works on both CPU (E_local == E) and XLA (E_local == E/D).
     E_total = expert_mapping.shape[2]
-    E_per_device = max(E_total // D, 1)
     e_ids = meta.long()                                                    # [B, S, K]
-    rows = e_ids // E_per_device                                           # [B, S, K]
+    rows = _expert_dispatch_slots(e_ids, E_total, D, ctx.cluster_axis)     # [B, S, K]
     b_idx = torch.arange(B, device=grad_output.device).view(B, 1, 1)
     bd = b_idx * D + rows                                                  # [B, S, K]
 
