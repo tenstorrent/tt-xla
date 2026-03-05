@@ -8,7 +8,6 @@ import torchvision
 from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights
 from torchvision import transforms as T
 from typing import Optional
-from PIL import Image
 
 from ...base import ForgeModel
 from ...config import (
@@ -20,7 +19,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -105,11 +104,9 @@ class ModelLoader(ForgeModel):
         Returns:
             list[list[torch.Tensor]]: input tensors that can be fed to the model.
         """
-        # Download and load image
-        img_path = get_file(
-            "https://cdn.pixabay.com/photo/2013/07/05/01/08/traffic-143391_960_720.jpg"
-        )
-        img_pil = Image.open(img_path).convert("RGB")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        img_pil = dataset[0]["image"].convert("RGB")
 
         # Define and apply transform
         transform = T.Compose([T.ToTensor()])

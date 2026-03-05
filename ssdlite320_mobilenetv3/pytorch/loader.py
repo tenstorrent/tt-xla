@@ -18,8 +18,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 
-from PIL import Image
-from ...tools.utils import get_file
+from datasets import load_dataset
 from torchvision import transforms
 import torchvision.models as models
 from torchvision.models.detection.anchor_utils import DefaultBoxGenerator
@@ -123,11 +122,9 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for SSDLite320 MobileNetV3.
         """
-        # Get the Image
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-        )
-        image = Image.open(image_file)
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
         # Preprocess image for SSD models
         preprocess = transforms.Compose(

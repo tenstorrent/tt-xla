@@ -9,7 +9,6 @@ import timm
 from typing import Optional
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
-from PIL import Image
 from torchvision import transforms
 from pytorchcv.model_provider import get_model as ptcv_get_model
 
@@ -23,7 +22,8 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file, print_compiled_model_results
+from datasets import load_dataset
+from ...tools.utils import print_compiled_model_results
 from dataclasses import dataclass
 
 
@@ -225,11 +225,9 @@ class ModelLoader(ForgeModel):
         """
         source = self._variant_config.source
 
-        # Get the Image
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
 
         if source == ModelSource.TIMM:
             # Use cached model if available, otherwise load it

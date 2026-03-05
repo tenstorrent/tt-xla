@@ -16,7 +16,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -146,12 +146,19 @@ class ModelLoader(ForgeModel):
             torch.Tensor: Preprocessed input tensor suitable for Efficientdet.
         """
         from .src.model_utils import preprocess_image
+        import io
 
-        # Get the Image
-        image_file = get_file("http://images.cocodataset.org/test2017/000000000001.jpg")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
+
+        # Save to buffer for preprocess_image compatibility
+        img_buffer = io.BytesIO()
+        image.save(img_buffer, format="JPEG")
+        img_buffer.seek(0)
 
         # Preprocess the Image
-        inputs = preprocess_image(image_file, target_size=self.model.config.image_size)
+        inputs = preprocess_image(img_buffer, target_size=self.model.config.image_size)
 
         # Replicate tensors for batch size
         inputs = inputs.repeat_interleave(batch_size, dim=0)

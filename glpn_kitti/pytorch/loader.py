@@ -7,8 +7,8 @@ GLPN-KITTI model loader implementation
 import torch
 
 
-from PIL import Image
 from transformers import GLPNImageProcessor, GLPNForDepthEstimation
+from datasets import load_dataset
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -17,7 +17,6 @@ from ...config import (
     Framework,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
 
 
 class ModelLoader(ForgeModel):
@@ -90,8 +89,9 @@ class ModelLoader(ForgeModel):
             dict: Input tensors and attention masks that can be fed to the model.
         """
 
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        self.image = Image.open(str(image_file))
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        self.image = dataset[0]["image"]
 
         # Ensure processor is initialized
         if self.processor is None:

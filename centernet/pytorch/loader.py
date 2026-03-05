@@ -20,6 +20,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
+from datasets import load_dataset
 from ...tools.utils import get_file, extract_tensors_recursive
 from .src.model_utils import create_model, pre_process, load_model
 
@@ -166,11 +167,13 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.Tensor: Preprocessed input tensor suitable for CenterNet.
         """
-        # Get the Image
-        image_file = get_file(
-            "https://github.com/xingyizhou/CenterNet/raw/master/images/17790319373_bd19b24cfc_k.jpg"
-        )
-        image = cv2.imread(image_file)
+        # Load image from HuggingFace dataset
+        import numpy as np
+
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        pil_image = dataset[0]["image"].convert("RGB")
+        # Convert PIL image to numpy array in BGR format (cv2 convention)
+        image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
         # Preprocess image
         inputs = pre_process(image)

@@ -7,7 +7,6 @@ DETR model loader implementation for segmentation.
 import torch
 from transformers import DetrForSegmentation, DetrFeatureExtractor
 from typing import Optional
-from PIL import Image
 
 from ....base import ForgeModel
 from ....config import (
@@ -19,7 +18,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -129,9 +128,9 @@ class ModelLoader(ForgeModel):
         if self.feature_extractor is None:
             self._load_feature_extractor()
 
-        # Get the Image
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file)
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
         inputs = self.feature_extractor(images=image, return_tensors="pt")
 
         # Handle batch size

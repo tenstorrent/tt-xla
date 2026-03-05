@@ -8,7 +8,6 @@ EfficientNet-Lite model loader implementation (timm variants)
 from typing import Optional
 
 import torch
-from PIL import Image
 from torchvision import transforms
 
 import timm
@@ -25,7 +24,8 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file, print_compiled_model_results
+from datasets import load_dataset
+from ...tools.utils import print_compiled_model_results
 
 
 class ModelVariant(StrEnum):
@@ -91,10 +91,9 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size: int = 1):
-        image_file = get_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
 
         # Use cached model if available, otherwise load it
         model_for_config = (

@@ -6,7 +6,6 @@ PerceiverIO Vision model loader implementation for image classification
 """
 import torch
 from loguru import logger
-from PIL import Image
 from transformers import (
     AutoImageProcessor,
     PerceiverForImageClassificationConvProcessing,
@@ -24,8 +23,8 @@ from ...config import (
     ModelConfig,
 )
 from ...base import ForgeModel
+from datasets import load_dataset
 from ...tools.utils import print_compiled_model_results
-from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -129,17 +128,16 @@ class ModelLoader(ForgeModel):
             )
 
         try:
-            input_image = get_file(
-                "http://images.cocodataset.org/val2017/000000039769.jpg"
-            )
-            image = Image.open(str(input_image))
+            # Load image from HuggingFace dataset
+            dataset = load_dataset("huggingface/cats-image")["test"]
+            image = dataset[0]["image"]
             pixel_values = self.image_processor(
                 images=image, return_tensors="pt"
             ).pixel_values
         except Exception as e:
             logger.warning(
-                f"Failed to download the image file ({e}), replacing input with random tensor. "
-                "Please check if the URL is up to date"
+                f"Failed to load the image from dataset ({e}), replacing input with random tensor. "
+                "Please check if the dataset is available"
             )
             height = self.image_processor.to_dict()["size"]["height"]
             width = self.image_processor.to_dict()["size"]["width"]
