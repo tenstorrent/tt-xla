@@ -8,4 +8,4 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-repair-wheel-command = "auditwheel repair --lib-sdir pjrt_plugin_tt/lib -w {dest_dir} {wheel}"
+repair-wheel-command = "auditwheel repair --lib-sdir pjrt_plugin_tt/lib64 -w {dest_dir} {wheel}"
