@@ -63,7 +63,8 @@ def _extract_metrics(
     outputs: List[vllm.RequestOutput],
     batch_size: int,
 ) -> Tuple[float, float, int, float]:
-    """Extract per-request metrics and return aggregated values.
+    """
+    Extract per-request metrics and return aggregated values.
 
     Returns:
         (avg_ttft_ms, tokens_per_second, decode_total_tokens, decode_total_time)
@@ -109,7 +110,8 @@ def _extract_metrics(
 def _get_device_info(
     config: VLLMBenchmarkConfig,
 ) -> Tuple[str, int, Optional[Tuple[int, int]]]:
-    """Derive device info from config.
+    """
+    Derive device info from config.
 
     This is a workaround as these info are needed for the benchmark schema, but
     vLLM abstracts the device layer. Mesh shape follows the plugin convention (num_devices, 1).
@@ -120,6 +122,39 @@ def _get_device_info(
     if config.additional_config.get("enable_tensor_parallel", False):
         return "wormhole_llmbox", 8, (8, 1)
     return "wormhole", 1, None
+
+
+def _assert_token_counts(
+    outputs: List[vllm.RequestOutput], max_tokens: int, max_model_len: int
+):
+    """Assert every request generated the expected number of tokens."""
+    for i, output in enumerate(outputs):
+        prompt_len = len(output.prompt_token_ids)
+        expected = min(max_tokens, max_model_len - prompt_len)
+        actual = len(output.outputs[0].token_ids)
+        assert actual == expected, (
+            f"Request {i} generated {actual} tokens, expected {expected} "
+            f"(prompt_len={prompt_len}, max_tokens={max_tokens}, "
+            f"max_model_len={max_model_len}). "
+            f"This may indicate preemption or OOM."
+        )
+
+
+def _assert_no_preemptions(llm: vllm.LLM):
+    """
+    Assert the engine had zero preemptions during the run.
+
+    Failing this assertion usually means more memory is needed for the KV Cache,
+    which can be adjusted through the gpu_memory_utilization config field.
+    """
+    for metric in llm.get_metrics():
+        if metric.name == "vllm:num_preemptions":
+            assert metric.value == 0, (
+                f"Preemptions detected: {metric.value}. "
+                "KV Cache size likely needs to be increased."
+            )
+            return
+    assert False, "vllm:num_preemptions metric not found in engine metrics."
 
 
 def benchmark_vllm(
@@ -134,13 +169,16 @@ def benchmark_vllm(
 
     if config.warmup_iterations > 0:
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
-        warmup_params = vllm.SamplingParams(max_tokens=1, ignore_eos=True)
         for _ in range(config.warmup_iterations):
-            llm.generate(prompts, warmup_params)
+            llm.generate(prompts, sampling_params)
         print("Warmup complete.")
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
     outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+
+    # Assert decode is consistent
+    _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
+    _assert_no_preemptions(llm)
 
     avg_ttft_ms, tokens_per_second, decode_total_tokens, decode_total_time = (
         _extract_metrics(outputs, config.batch_size)
