@@ -465,6 +465,7 @@ jobs:
             echo "Building test targets..."
             cmake --build build --target test_physical_discovery -j$(nproc)
             cmake --build build --target run_cluster_validation -j$(nproc)
+            cmake --build build --target test_tt_fabric -j$(nproc)
           '
 
           echo ""
@@ -500,6 +501,8 @@ jobs:
             echo ""
             echo "Running run_cluster_validation..."
             ./build/tools/scaleout/run_cluster_validation --print-connectivity --send-traffic || true
+
+            echo "Skipping test_tt_fabric routing microbenchmark... since it dies and will break the device"
           '
 
           echo ""
@@ -552,6 +555,16 @@ jobs:
               -x TT_METAL_LOGGER_LEVEL=$TT_METAL_LOGGER_LEVEL \
               -x TT_METAL_LOGGER_TYPES=$TT_METAL_LOGGER_TYPES \
               ./build/tools/scaleout/run_cluster_validation --print-connectivity --send-traffic || true
+
+            echo ""
+            echo "Running test_tt_fabric routing microbenchmark with mpirun..."
+            mpirun $mpirun_args \
+              -x TT_METAL_HOME=$TT_METAL_HOME \
+              -x LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
+              -x TT_METAL_LOGGER_LEVEL=$TT_METAL_LOGGER_LEVEL \
+              -x TT_METAL_LOGGER_TYPES=$TT_METAL_LOGGER_TYPES \
+              ./build/test/tt_metal/perf_microbenchmark/routing/test_tt_fabric \
+              --test_config tests/tt_metal/perf_microbenchmark/routing/test_dual_t3k.yaml || true
           '
 
           echo ""
@@ -637,7 +650,7 @@ jobs:
             /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/ttnn/ttnn/distributed/ttrun.py \
               --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
-              bash -c "cd /workspace/tt-metal && export TT_METAL_HOME=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/test/tt_metal/tt_fabric/test_physical_discovery --gtest_filter=\"PhysicalDiscovery.*\""
+              bash -c "cd /workspace/tt-metal && export TT_METAL_KERNEL_PATH=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/test/tt_metal/tt_fabric/test_physical_discovery --gtest_filter=\"PhysicalDiscovery.*\""
           ' || true
 
           echo ""
@@ -657,7 +670,7 @@ jobs:
             /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/ttnn/ttnn/distributed/ttrun.py \
               --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
-              bash -c "cd /workspace/tt-metal && export TT_METAL_HOME=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/test/tt_metal/tt_fabric/test_physical_discovery --gtest_filter=\"PhysicalMappingGeneration.Generate2x4SliceToPCIeDeviceMapping\""
+              bash -c "cd /workspace/tt-metal && export TT_METAL_KERNEL_PATH=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/test/tt_metal/tt_fabric/test_physical_discovery --gtest_filter=\"PhysicalMappingGeneration.Generate2x4SliceToPCIeDeviceMapping\""
           ' || true
 
           echo ""
@@ -677,11 +690,31 @@ jobs:
             /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/ttnn/ttnn/distributed/ttrun.py \
               --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
               --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
-              bash -c "cd /workspace/tt-metal && export TT_METAL_HOME=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/tools/scaleout/run_cluster_validation --print-connectivity --send-traffic"
+              bash -c "cd /workspace/tt-metal && export TT_METAL_KERNEL_PATH=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/tools/scaleout/run_cluster_validation --print-connectivity --send-traffic"
           ' || true
 
           echo ""
           echo "ttrun run_cluster_validation complete"
+          echo ""
+
+      - name: ttrun smoketests - tt-metal test_tt_fabric routing
+        run: |
+          echo "=== ttrun smoketest: tt-metal test_tt_fabric routing microbenchmark ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+
+            # Run ttrun from wheel location but execute test from tt-metal build directory
+            /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/ttnn/ttnn/distributed/ttrun.py \
+              --rank-binding "/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml" \
+              --mpi-args " --hostfile /etc/mpirun/hostfile --mca btl self,tcp --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh --tag-output --allow-run-as-root " \
+              bash -c "cd /workspace/tt-metal && export TT_METAL_HOME=/workspace/tt-metal && export TT_METAL_LOGGER_LEVEL=DEBUG && export TT_METAL_LOGGER_TYPES=Fabric,Always && export LD_LIBRARY_PATH=/workspace/tt-metal/build/lib:\$LD_LIBRARY_PATH && ./build/test/tt_metal/perf_microbenchmark/routing/test_tt_fabric --test_config tests/tt_metal/perf_microbenchmark/routing/test_dual_t3k.yaml"
+          ' || true
+
+          echo ""
+          echo "ttrun test_tt_fabric routing complete"
           echo ""
 
       - name: mpirun smoketest - hostname
