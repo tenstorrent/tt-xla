@@ -8,7 +8,6 @@ Fuyu model loader implementation for multimodal AI tasks.
 import os
 import torch
 import torch.nn as nn
-from PIL import Image
 from transformers import (
     AutoTokenizer,
     FuyuConfig,
@@ -16,6 +15,7 @@ from transformers import (
     FuyuImageProcessor,
     FuyuProcessor,
 )
+from datasets import load_dataset
 from typing import Optional
 
 from ...config import (
@@ -28,7 +28,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import get_file
 
 
 def generate_fuyu_embedding(model, input_ids, image_patches, image_patches_indices):
@@ -197,13 +196,13 @@ class ModelLoader(ForgeModel):
         if self.model is None or self.processor is None:
             self.load_model(dtype_override=dtype_override)
 
-        # Download and load the image
-        input_image = get_file(self.image_url)
-        image_pil = Image.open(str(input_image))
+        # Load dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
         # Process text and image inputs
         model_inputs = self.processor(
-            text=self.text_prompt, images=[image_pil], device="cpu", return_tensor="pt"
+            text=self.text_prompt, images=[image], device="cpu", return_tensor="pt"
         )
 
         # Generate embeddings
@@ -214,10 +213,6 @@ class ModelLoader(ForgeModel):
             model_inputs["image_patches_indices"],
         )
         inputs_embeds = inputs_embeds.clone().detach()
-
-        # Clean up the downloaded image
-        if os.path.exists("bus.png"):
-            os.remove("bus.png")
 
         # Return as list for consistency with other loaders
         return inputs_embeds

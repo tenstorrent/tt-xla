@@ -6,9 +6,8 @@ DETR model loader implementation for object detection.
 """
 import torch
 from transformers import DetrForObjectDetection, DetrImageProcessor
-from typing import Optional
-from PIL import Image
 from datasets import load_dataset
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
@@ -128,7 +127,6 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        # Load image from HuggingFace dataset
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
         inputs = self.processor(images=image, return_tensors="pt")

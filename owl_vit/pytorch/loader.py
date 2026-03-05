@@ -7,8 +7,8 @@ OWL-ViT model loader implementation for object detection.
 import torch
 from transformers import OwlViTProcessor, OwlViTForObjectDetection
 from transformers.models.owlvit.modeling_owlvit import OwlViTObjectDetectionOutput
+from datasets import load_dataset
 from typing import Optional
-from PIL import Image
 
 from ...base import ForgeModel
 from ...config import (
@@ -20,7 +20,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -128,9 +127,9 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        # Get the Image
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        self.image = Image.open(image_file)
+        # Load dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        self.image = dataset[0]["image"]
 
         # Define text labels for object detection
         self.text_labels = [["a photo of a cat", "a photo of a dog"]]
@@ -166,11 +165,9 @@ class ModelLoader(ForgeModel):
             self._load_processor()
 
         if self.image is None:
-            # Load image if not already loaded
-            image_file = get_file(
-                "http://images.cocodataset.org/val2017/000000039769.jpg"
-            )
-            self.image = Image.open(image_file)
+            # Load dataset if not already loaded
+            dataset = load_dataset("huggingface/cats-image")["test"]
+            self.image = dataset[0]["image"]
 
         if self.text_labels is None:
             # Use text labels if not already set

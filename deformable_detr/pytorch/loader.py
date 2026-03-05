@@ -6,8 +6,8 @@ Deformable DETR model loader implementation for object detection.
 """
 import torch
 from transformers import DeformableDetrForObjectDetection, DeformableDetrImageProcessor
+from datasets import load_dataset
 from typing import Optional
-from PIL import Image
 
 from ...base import ForgeModel
 from ...config import (
@@ -19,7 +19,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -150,9 +149,11 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        # Get the Image
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file)
+        # Load dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
+
+        # Process the image
         inputs = self.processor(images=image, return_tensors="pt")
 
         # Handle batch size

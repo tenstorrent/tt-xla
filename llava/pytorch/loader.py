@@ -10,7 +10,7 @@ import re
 from typing import Optional
 
 import torch
-from PIL import Image
+from datasets import load_dataset
 from transformers import LlavaForConditionalGeneration, AutoProcessor
 
 from ...base import ForgeModel
@@ -23,7 +23,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
 from ...tools.utils import cast_input_to_type
 
 
@@ -105,11 +104,9 @@ class ModelLoader(ForgeModel):
             conversation, padding=True, add_generation_prompt=True
         )
 
-        # Load image
-
-        ## Add the get file utililty here
-        input_image = get_file("https://www.ilankelman.org/stopsigns/australia.jpg")
-        image = Image.open(str(input_image))
+        # Load dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
         # Preprocess
         inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
