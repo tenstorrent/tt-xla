@@ -331,13 +331,29 @@ def all_to_all_dispatch(
         )
 
     elif device.type == "cpu":
-        # CPU fallback: replicate tokens D times (same as TT all-to-all dispatch).
-        x = input_tensor.permute(1, 0, 2, 3)  # [1, B, S, H]
+        D = num_devices
+        BD = B * D
+        inp = input_tensor[:, 0, :, :]  # [B, S, H]
+
+        # Metadata: replicate expert_indices D times (combine needs full view)
         m = expert_indices.permute(1, 0, 2, 3)  # [1, B, S, K]
-        if num_devices > 1:
-            x = x.repeat(1, num_devices, 1, 1)  # [1, B*D, S, H]
-            m = m.repeat(1, num_devices, 1, 1)  # [1, B*D, S, K]
-        return x.clone(), m.clone()
+        if D > 1:
+            m = m.repeat(1, D, 1, 1)  # [1, BD, S, K]
+
+        if D > 1:
+            # Sparse dispatch: write tokens only to device slots holding their experts
+            x = torch.zeros(1, BD, S, H, dtype=input_tensor.dtype, device=device)
+            e_ids = expert_indices[:, 0, :, :].long()  # [B, S, K]
+            mapping = expert_mapping[0, 0]  # [E, D]
+            device_per_expert = mapping[e_ids]  # [B, S, K, D]
+            goes_to_device = device_per_expert.max(dim=2).values  # [B, S, D]
+            for d in range(D):
+                mask_d = goes_to_device[:, :, d].unsqueeze(-1).to(inp.dtype)  # [B, S, 1]
+                x[0, d * B : (d + 1) * B, :, :] = inp * mask_d
+        else:
+            x = input_tensor.permute(1, 0, 2, 3).clone()  # [1, B, S, H]
+
+        return x, m.clone()
 
     else:
         raise ValueError(f"Unsupported device type: {device.type}")
@@ -366,9 +382,23 @@ def all_to_all_dispatch_fake(
 
 def _all_to_all_dispatch_setup_context(ctx, inputs, output):
     input_tensor, expert_indices, expert_mapping, num_devices, cluster_axis = inputs
-    ctx.save_for_backward(expert_mapping)
-    ctx.num_devices = num_devices
-    ctx.B = input_tensor.shape[0]
+    D = num_devices
+    B = input_tensor.shape[0]
+
+    if D > 1:
+        # Precompute dispatch mask: [B, S, D] — which device slots each token writes to
+        e_ids = expert_indices[:, 0, :, :].long()  # [B, S, K]
+        mapping = expert_mapping[0, 0]  # [E, D]
+        device_per_expert = mapping[e_ids]  # [B, S, K, D]
+        goes_to_device = device_per_expert.max(dim=2).values.to(
+            input_tensor.dtype
+        )  # [B, S, D]
+        ctx.save_for_backward(goes_to_device)
+    else:
+        ctx.save_for_backward(expert_mapping)  # placeholder, unused in D==1 path
+
+    ctx.num_devices = D
+    ctx.B = B
 
 
 def _all_to_all_dispatch_backward(ctx, grad_dispatched, _grad_metadata):
@@ -376,16 +406,18 @@ def _all_to_all_dispatch_backward(ctx, grad_dispatched, _grad_metadata):
     B = ctx.B
     S, H = grad_dispatched.shape[2], grad_dispatched.shape[3]
 
-    # Forward replicated [B,1,S,H] → [1,B*D,S,H] via repeat(D).
-    # Backward: accumulate the D copies back into [1,B,S,H].
-    # Use scatter_add (stablehlo.scatter) instead of .sum (stablehlo.reduce)
-    # because reduce may not be zero-initialised on TT.
+    # Forward sparsely wrote tokens to device slots: output[b*D+d] = input[b] * mask[b,s,d].
+    # Backward: accumulate masked gradient slices back into [1,B,S,H].
+    # Avoid .sum() (stablehlo.reduce — may not be zero-init on TT) and
+    # scatter_add (stablehlo.scatter — decomposes into O(S*H) sequential ops).
+    # Masked slice + add: D-1 additions, each a single stablehlo.add.
     if D > 1:
-        idx = torch.arange(B, device=grad_dispatched.device).repeat(D)
-        idx = idx.view(1, B * D, 1, 1).expand_as(grad_dispatched)
-        grad = torch.zeros(
-            1, B, S, H, dtype=grad_dispatched.dtype, device=grad_dispatched.device
-        ).scatter_add(1, idx, grad_dispatched)
+        (goes_to_device,) = ctx.saved_tensors  # [B, S, D]
+        mask_0 = goes_to_device[:, :, 0:1].unsqueeze(0)  # [1, B, S, 1]
+        grad = grad_dispatched[:, :B] * mask_0
+        for d in range(1, D):
+            mask_d = goes_to_device[:, :, d : d + 1].unsqueeze(0)  # [1, B, S, 1]
+            grad = grad + grad_dispatched[:, d * B : (d + 1) * B] * mask_d
     else:
         grad = grad_dispatched
 
