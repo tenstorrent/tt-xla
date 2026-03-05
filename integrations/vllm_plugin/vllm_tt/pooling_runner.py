@@ -18,6 +18,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
+from vllm.attention.layer import Attention, MLAAttention
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -29,11 +30,9 @@ from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_
 from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
 from vllm.forward_context import set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
-from vllm.model_executor.layers.attention.attention import Attention
 from vllm.model_executor.layers.attention.chunked_local_attention import (
     ChunkedLocalAttention,
 )
-from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.models.interfaces import (
@@ -45,7 +44,6 @@ from vllm.model_executor.models.interfaces_base import (
     is_text_generation_model,
 )
 from vllm.multimodal import MULTIMODAL_REGISTRY
-from vllm.multimodal.encoder_budget import MultiModalBudget
 from vllm.multimodal.inputs import (
     BatchedTensorInputs,
     MultiModalKwargsItem,
@@ -80,6 +78,7 @@ from vllm.v1.worker.kv_connector_model_runner_mixin import (
 )
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 from vllm.v1.worker.utils import (
+    MultiModalBudget,
     add_kv_sharing_layers_to_kv_cache_groups,
     bind_kv_cache,
     sanity_check_mm_encoder_outputs,
