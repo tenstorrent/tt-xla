@@ -51,12 +51,7 @@ def create_inference_tester(hidden_sizes: tuple, format: str) -> MNISTMLPTester:
     [
         "float32",
         "bfloat16",
-        pytest.param(
-            "bfp8",
-            marks=pytest.mark.skip(
-                reason="Skip until mixed-precision is supported in MLIR. https://github.com/tenstorrent/tt-mlir/issues/5252"
-            ),
-        ),
+        "bfp8",
     ],
 )
 def test_mnist_mlp_inference(hidden_sizes: tuple, format: str, request):
