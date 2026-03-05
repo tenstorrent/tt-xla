@@ -17,11 +17,11 @@ from pathlib import Path
 
 def get_fedora_package_manager():
     if shutil.which("dnf"):
-        return ["dnf", "downgrade"]
+        return ["dnf", "install", "--allowerasing"]
     elif shutil.which("yum"):
-        return ["yum", "downgrade"]
+        return ["yum", "install"]
     elif shutil.which("zypper"):
-        return ["zypper", "install", "--oldpackage"]
+        return ["zypper", "install", "--oldpackage", "--allow-downgrade"]
     else:
         return None
 
