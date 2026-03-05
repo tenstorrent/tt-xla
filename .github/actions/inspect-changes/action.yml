@@ -106,6 +106,10 @@ runs:
               if [[ $file =~ ^tests/runner/.+\.(yml|yaml)$ ]]; then
                 echo "Config file $file changed"
                 yml_changed=true
+                # Skip placeholder files - they don't have a test_config section
+                if [[ $file == *"placeholders"* ]]; then
+                  continue
+                fi
                 # Get the original file content before PR changes
                 rm -f .original_file.yml
                 git show "${{ github.event.pull_request.base.sha }}:$file" >.original_file.yml

@@ -28,12 +28,10 @@ test_config:
 
   gemma/pytorch-2_27B_IT-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip or even n300-llmbox either, needs debug - https://github.com/tenstorrent/tt-xla/issues/1494"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   gpt_oss/pytorch-20B-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
+    supported_archs: [n300-llmbox, galaxy-wh-6u]
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
@@ -213,3 +211,7 @@ test_config:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
     reason: "KeyError: c_lifted_tensor_1 - https://github.com/tenstorrent/tt-xla/issues/3221"
+
+  solar-10_7B/causal_lm/pytorch-10_7B_Instruct_v1.0-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING

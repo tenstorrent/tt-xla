@@ -10,6 +10,10 @@ COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/script.sh
 
+ARG OMPI_TAG=v5.0.7
+ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
+ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
+
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} as ci
 SHELL ["/bin/bash", "-c"]
 
@@ -104,6 +108,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/script.sh
+
+ARG OMPI_TAG=v5.0.7
+ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
+ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
 
 # Add entrypoint script
 COPY .github/entrypoint.sh /usr/local/bin/entrypoint.sh
