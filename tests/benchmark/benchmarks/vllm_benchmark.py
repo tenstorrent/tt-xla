@@ -39,6 +39,8 @@ class VLLMBenchmarkConfig:
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
     """Build engine args from config and create a vLLM LLM instance."""
     additional_config = dict(config.additional_config)
+    # Using CPU sampling so that we have batch_size = 32
+    # See issue: https://github.com/tenstorrent/tt-xla/issues/3610
     additional_config.setdefault("cpu_sampling", True)
 
     llm_args: Dict[str, Any] = {
@@ -163,7 +165,9 @@ def benchmark_vllm(
 ) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
     prompts = [DEFAULT_PROMPT] * config.batch_size
-    sampling_params = vllm.SamplingParams(max_tokens=config.max_tokens, ignore_eos=True)
+    sampling_params = vllm.SamplingParams(
+        max_tokens=config.max_tokens, ignore_eos=True, temperature=0.0
+    )
 
     llm = _create_llm(config)
 
