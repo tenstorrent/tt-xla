@@ -24,7 +24,7 @@ Sources
 Examples:
     # Any test — full node ID (op tests, graph tests, etc.)
     python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
-        "tests/jax/single_chip/ops/test_add.py::test_add"
+        "tests/torch/ops/test_add.py::test_add"
 
     python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
         "tests/runner/test_models.py::test_all_models_torch[pytorch_resnet50-inference-single_device]" \
@@ -38,56 +38,28 @@ Examples:
         pytorch_resnet50-inference-single_device \\
         pytorch_bert_base_uncased-inference-single_device \\
         --source models
+
+    # Run only TTIR tests from an LLM
+    python tests/integrations/tt_mlir_builder/run_test_op_by_op.py test_llama_3_2_1b --source llm --target ttir
+
+    # Run multiple targets (TTIR and TTNN, skip StableHLO)
+    python tests/integrations/tt_mlir_builder/run_test_op_by_op.py test_phi1_5 --source llm --target ttir --target ttnn
 """
 
 import argparse
 import os
-import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Setup Python path for builder module access
-# ---------------------------------------------------------------------------
-
-
-def setup_pythonpath():
-    """Ensure PYTHONPATH includes necessary directories for builder module access."""
-    repo_root = Path(__file__).resolve().parent.parent.parent.parent
-    tests_dir = repo_root / "tests"
-
-    # Add repo root and tests directory to sys.path if not already present
-    for path in [str(repo_root), str(tests_dir)]:
-        if path not in sys.path:
-            sys.path.insert(0, path)
-
-    # Ensure PYTHONPATH environment variable includes necessary paths
-    # This is needed for subprocesses
-    current_pythonpath = os.environ.get("PYTHONPATH", "")
-    paths_to_add = [str(repo_root), str(tests_dir)]
-
-    # Check if TT_MLIR_HOME is set and add python_packages and runtime/python
-    tt_mlir_home = os.environ.get("TT_MLIR_HOME")
-    if tt_mlir_home:
-        tt_mlir_python_packages = Path(tt_mlir_home) / "build" / "python_packages"
-        tt_mlir_runtime_python = Path(tt_mlir_home) / "build" / "runtime" / "python"
-        if tt_mlir_python_packages.exists():
-            paths_to_add.append(str(tt_mlir_python_packages))
-        if tt_mlir_runtime_python.exists():
-            paths_to_add.append(str(tt_mlir_runtime_python))
-
-    # Build the new PYTHONPATH
-    existing_paths = current_pythonpath.split(":") if current_pythonpath else []
-    new_paths = [p for p in paths_to_add if p not in existing_paths]
-
-    if new_paths:
-        all_paths = new_paths + existing_paths
-        os.environ["PYTHONPATH"] = ":".join(filter(None, all_paths))
-
-
-setup_pythonpath()
+from test_utils import (
+    build_name_filter,
+    collect_mlir_files,
+    filter_mlir_files_by_target,
+    resolve_test_ids_and_artifacts,
+    run_pytest,
+    snapshot_mlir_files,
+    write_and_display_mlir_files,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -97,249 +69,111 @@ BUILDER_TEST = "tests/integrations/tt_mlir_builder/load_split_and_execute.py::te
 GENERATED_MLIR_LIST = Path("tests/integrations/tt_mlir_builder/generated_mlir_files.py")
 DEFAULT_ARTIFACTS_DIR = Path("output_artifact")
 
-# Source shorthands
-LLM_TEST_FILE = "tests/benchmark/test_llms.py"
-LLM_ARTIFACTS_DIR = Path("modules/irs")
-
-MODELS_TEST_FILE = "tests/runner/test_models.py"
-MODELS_TEST_FN = "test_all_models_torch"
-MODELS_ARTIFACTS_DIR = Path("output_artifact")
-
-# Prefix-based classification (modules/irs/ style)
-# e.g. shlo_compiler_phi1_bs32_...mlir, ttir_phi1_...mlir
-_PREFIX_TO_TARGET = {
-    "shlo_compiler_": "stablehlo",
-    "ttir_": "ttir",
-    "ttnn_": "ttnn",
-}
-_SKIP_PREFIXES = ("shlo_compiler_cleaned_",)
-
-# Suffix-based classification (output_artifact/ style)
-# e.g. test_all_models_torch_resnet50_..._ttir.mlir
-_SUFFIX_TO_TARGET = {
-    "_ttir": "ttir",
-    "_ttnn": "ttnn",
-}
-
 
 # ---------------------------------------------------------------------------
-# Classification
+# Test Runner
 # ---------------------------------------------------------------------------
 
 
-def classify_mlir_file(filename: str) -> str | None:
-    """Return the MLIR target for a filename, or None to skip it.
-
-    Handles both naming conventions:
-      - prefix-based  (modules/irs/ output):    shlo_compiler_* / ttir_* / ttnn_*
-      - suffix-based  (output_artifact/ output): *_ttir.mlir / *_ttnn.mlir
-    """
-    if not filename.endswith(".mlir"):
-        return None
-
-    # Explicit skips first (more specific than the prefix entries below)
-    for skip in _SKIP_PREFIXES:
-        if filename.startswith(skip):
-            return None
-
-    # Prefix-based
-    for prefix, target in _PREFIX_TO_TARGET.items():
-        if filename.startswith(prefix):
-            return target
-
-    # Suffix-based
-    stem = filename[: -len(".mlir")]
-    for suffix, target in _SUFFIX_TO_TARGET.items():
-        if stem.endswith(suffix):
-            return target
-
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Directory helpers
-# ---------------------------------------------------------------------------
-
-
-def empty_dir(directory: Path) -> None:
-    """Remove all contents of directory without deleting it."""
-    if directory.exists():
-        for item in directory.iterdir():
-            if item.is_file():
-                item.unlink()
-            elif item.is_dir():
-                shutil.rmtree(item)
-        print(f"Emptied {directory}/")
-    else:
-        directory.mkdir(parents=True)
-        print(f"Created {directory}/")
-
-
-# ---------------------------------------------------------------------------
-# Collection
-# ---------------------------------------------------------------------------
-
-
-def _sanitize(name: str) -> str:
-    """Mirror the sanitize_test_name logic used by the test infra to name output files."""
-    return re.sub(r"[\[\](),\-\s/:]+", "_", name).rstrip("_")
-
-
-def _llm_model_name(test_fn_name: str) -> str:
-    """Derive the model name embedded in LLM IR filenames from a test function name.
-
-    test_ministral_8b -> ministral_8b  (strip leading 'test_')
-    """
-    return test_fn_name.removeprefix("test_")
-
-
-def _matches_llm_model(filename: str, model_name: str) -> bool:
-    """Return True if filename belongs to the given LLM model.
-
-    LLM files look like: {type_prefix}{model_name}_{batch_size}_...mlir
-    e.g. ttnn_ministral_8b_5lyr_bs32_isl128_runc72f_g1_1772039706530.mlir
-    """
-    for prefix in _PREFIX_TO_TARGET:
-        if filename.startswith(prefix + model_name + "_"):
-            return True
-    return False
-
-
-def build_name_filter(source: str | None, node_id: str):
-    """Return a callable(filename) -> bool that accepts only files for this test.
-
-    output_artifact/ files are prefixed with the sanitized node name.
-    modules/irs/ LLM files embed the model name after the type prefix.
-    """
-    if source == "llm":
-        # node_id is the full path e.g. tests/benchmark/test_llms.py::test_ministral_8b
-        test_fn = node_id.split("::")[-1]
-        model_name = _llm_model_name(test_fn)
-        print(f"Will collect files matching LLM model name: {model_name!r}")
-        return lambda f, m=model_name: _matches_llm_model(f, m)
-    else:
-        node_name = node_id.split("::")[-1] if "::" in node_id else node_id
-        prefix = _sanitize(node_name)
-        print(f"Will collect files matching prefix: {prefix!r}")
-        return lambda f, p=prefix: f.startswith(p)
-
-
-def snapshot_mlir_files(artifacts_dir: Path) -> set[Path]:
-    """Return the set of .mlir files currently in artifacts_dir."""
-    if not artifacts_dir.exists():
-        return set()
-    return {f for f in artifacts_dir.glob("*.mlir")}
-
-
-def collect_mlir_files(
+def run_tests(
+    test_ids: list[str],
     artifacts_dir: Path,
-    exclude: set[Path] | None = None,
-    name_filter=None,
-) -> list[tuple[str, str]]:
-    """Scan artifacts_dir and return a sorted list of (target, path) tuples.
+    source: str | None,
+    target_filters: list[str] | None,
+    no_run: bool,
+) -> int:
+    """Run tests, collect MLIR artifacts, and execute builder tests.
 
-    exclude     – set of pre-existing files to skip (snapshot taken before the
-                  test ran). Pass this for LLM tests, where each run generates
-                  new uniquely-timestamped files alongside any old ones.
-                  Do NOT pass this for output_artifact/ tests, where the tester
-                  overwrites files in-place (the pre-existing file IS the fresh result).
-
-    name_filter – callable(filename: str) -> bool; when provided, only matching
-                  files are collected.
+    Returns:
+        Exit code (0 for success, 1 for failure)
     """
-    entries = []
-    for mlir_file in sorted(artifacts_dir.glob("*.mlir")):
-        if exclude and mlir_file in exclude:
+    failed_tests: list[str] = []
+    builder_test_failures: list[str] = []
+
+    # Handle --no-run: collect existing files without running tests
+    if no_run:
+        mlir_files = collect_mlir_files(artifacts_dir)
+        mlir_files = filter_mlir_files_by_target(mlir_files, target_filters)
+        if not mlir_files:
+            target_note = (
+                f" (filtered to {', '.join(target_filters)})" if target_filters else ""
+            )
+            print(
+                f"No MLIR files found in {artifacts_dir}/{target_note}", file=sys.stderr
+            )
+            return 1
+        write_and_display_mlir_files(mlir_files, GENERATED_MLIR_LIST)
+        return run_pytest(BUILDER_TEST)
+
+    # Run each test and collect its MLIR artifacts
+    for i, test_id in enumerate(test_ids, 1):
+        print(f"\n{'='*60}\n[{i}/{len(test_ids)}] {test_id}\n{'='*60}\n")
+
+        # Prepare artifacts directory and track pre-existing files
+        pre_existing = snapshot_mlir_files(artifacts_dir)
+        if pre_existing:
+            note = (
+                "will ignore them (LLM tests timestamp files)"
+                if source == "llm"
+                else "will include matching ones (other tests overwrite files)"
+            )
+            print(f"Found {len(pre_existing)} pre-existing files — {note}")
+
+        # Run test with serialization
+        name_filter = build_name_filter(source, test_id)
+        exit_code = run_pytest(test_id, ["--serialize"])
+        if exit_code != 0:
+            print(f"Warning: test failed with exit code {exit_code}", file=sys.stderr)
+            failed_tests.append(test_id)
+
+        # Collect MLIR files (exclude pre-existing for LLM tests only)
+        exclude = pre_existing if source == "llm" else None
+        mlir_files = collect_mlir_files(
+            artifacts_dir, exclude=exclude, name_filter=name_filter
+        )
+        mlir_files = filter_mlir_files_by_target(mlir_files, target_filters)
+
+        if not mlir_files:
+            target_note = (
+                f" (filtered to {', '.join(target_filters)})" if target_filters else ""
+            )
+            print(
+                f"Warning: no MLIR files found{target_note}, skipping builder test",
+                file=sys.stderr,
+            )
             continue
-        if name_filter and not name_filter(mlir_file.name):
-            continue
-        target = classify_mlir_file(mlir_file.name)
-        if target is not None:
-            entries.append((target, str(mlir_file)))
-    return entries
 
-
-# ---------------------------------------------------------------------------
-# pytest invocations
-# ---------------------------------------------------------------------------
-
-
-def run_test(node_id: str) -> int:
-    cmd = [sys.executable, "-m", "pytest", "-sv", node_id, "--serialize"]
-    print(f"Running: {' '.join(cmd)}\n")
-    # Ensure subprocess inherits the full environment including PYTHONPATH
-    return subprocess.run(cmd, env=os.environ.copy()).returncode
-
-
-def run_builder_integration_test() -> int:
-    cmd = [sys.executable, "-m", "pytest", "-sv", BUILDER_TEST]
-    print(f"\nRunning: {' '.join(cmd)}\n")
-    # Ensure subprocess inherits the full environment including PYTHONPATH
-    return subprocess.run(cmd, env=os.environ.copy()).returncode
-
-
-# ---------------------------------------------------------------------------
-# Output
-# ---------------------------------------------------------------------------
-
-
-def write_mlir_files_list(entries: list[tuple[str, str]], output_path: Path) -> None:
-    lines = [
-        "# AUTO-GENERATED by tests/integrations/tt_mlir_builder/run_test_op_by_op.py — do not edit by hand.\n",
-        "# Re-run the script to regenerate this file.\n",
-        "\n",
-        "MLIR_FILES = [\n",
-    ]
-    for target, path in entries:
-        lines.append(f'    ("{target}", "{path}"),\n')
-    lines.append("]\n")
-    output_path.write_text("".join(lines))
-    print(f"Wrote {len(entries)} entries to {output_path}")
-
-
-def _print_mlir_files(entries: list[tuple[str, str]]) -> None:
-    print("\n# MLIR_FILES:\n")
-    print("MLIR_FILES = [")
-    for target, path in entries:
-        print(f'    ("{target}", "{path}"),')
-    print("]")
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-
-def resolve_test_ids_and_artifacts(
-    source: str | None, names: list[str], artifacts_dir_override: str | None
-) -> tuple[list[str], Path]:
-    """Return (pytest_node_ids, artifacts_dir) based on --source and --artifacts-dir."""
-    if source == "llm":
-        node_ids = [f"{LLM_TEST_FILE}::{name}" for name in names]
-        artifacts_dir = (
-            Path(artifacts_dir_override)
-            if artifacts_dir_override
-            else LLM_ARTIFACTS_DIR
+        # Write files list and run builder test
+        target_summary = (
+            f" ({', '.join(target_filters)} only)" if target_filters else ""
         )
-    elif source == "models":
-        node_ids = [f"{MODELS_TEST_FILE}::{MODELS_TEST_FN}[{name}]" for name in names]
-        artifacts_dir = (
-            Path(artifacts_dir_override)
-            if artifacts_dir_override
-            else MODELS_ARTIFACTS_DIR
+        print(f"Collected {len(mlir_files)} MLIR files{target_summary}")
+        write_and_display_mlir_files(mlir_files, GENERATED_MLIR_LIST)
+
+        if run_pytest(BUILDER_TEST) != 0:
+            builder_test_failures.append(test_id)
+
+    if failed_tests:
+        print(
+            f"\nWarning: tests that did not pass: {', '.join(failed_tests)}",
+            file=sys.stderr,
         )
-    else:
-        # Raw mode: names are already full pytest node IDs
-        node_ids = names
-        artifacts_dir = (
-            Path(artifacts_dir_override)
-            if artifacts_dir_override
-            else DEFAULT_ARTIFACTS_DIR
+    if builder_test_failures:
+        print(
+            f"\nWarning: builder integration test failed for: {', '.join(builder_test_failures)}",
+            file=sys.stderr,
         )
-    return node_ids, artifacts_dir
+
+    return 1 if (failed_tests or builder_test_failures) else 0
+
+
+# ---------------------------------------------------------------------------
+# Argument Parsing and Main Entry Point
+# ---------------------------------------------------------------------------
 
 
 def main() -> int:
+    """Parse arguments and run tests."""
     parser = argparse.ArgumentParser(
         description="Run tests with --serialize and feed the resulting MLIR files into test_load_split_and_execute.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -385,109 +219,29 @@ def main() -> int:
         help="Skip running tests; only collect files already in --artifacts-dir",
     )
     parser.add_argument(
-        "--no-empty",
-        action="store_true",
-        default=False,
-        help="Skip emptying the artifacts directory before each test (useful with --no-run)",
-    )
-    parser.add_argument(
-        "--no-builder-test",
-        action="store_true",
-        default=False,
-        help="Skip running test_load_split_and_execute after each test",
+        "--target",
+        action="append",
+        choices=["stablehlo", "ttir", "ttnn"],
+        help="Only test specific MLIR target(s). Can be specified multiple times. Default: all targets",
     )
     args = parser.parse_args()
 
+    # Setup
     repo_root = Path(__file__).resolve().parent.parent.parent.parent
     os.chdir(repo_root)
 
     test_ids, artifacts_dir = resolve_test_ids_and_artifacts(
-        args.source, args.test_names, args.artifacts_dir
+        args.source, args.test_names, args.artifacts_dir, DEFAULT_ARTIFACTS_DIR
     )
 
-    failed_tests: list[str] = []
-    builder_test_failures: list[str] = []
-
-    if args.no_run:
-        entries = collect_mlir_files(artifacts_dir)
-        if not entries:
-            print(f"No matching MLIR files found in {artifacts_dir}/.", file=sys.stderr)
-            return 1
-        write_mlir_files_list(entries, GENERATED_MLIR_LIST)
-        _print_mlir_files(entries)
-        if not args.no_builder_test:
-            return run_builder_integration_test()
-        return 0
-
-    for i, test_id in enumerate(test_ids):
-        print(f"\n{'='*60}")
-        print(f"[{i+1}/{len(test_ids)}] {test_id}")
-        print(f"{'='*60}\n")
-
-        if not args.no_empty:
-            empty_dir(artifacts_dir)
-            pre_existing: set[Path] = set()
-        else:
-            pre_existing = snapshot_mlir_files(artifacts_dir)
-            if pre_existing:
-                if args.source == "llm":
-                    print(
-                        f"Noted {len(pre_existing)} pre-existing MLIR file(s) — "
-                        "will ignore them (LLM tests generate new timestamped files each run)."
-                    )
-                else:
-                    print(
-                        f"Noted {len(pre_existing)} pre-existing MLIR file(s) — "
-                        "will include matching ones (output_artifact files are overwritten in-place)."
-                    )
-
-        name_filter = build_name_filter(args.source, test_id)
-
-        exit_code = run_test(test_id)
-        if exit_code != 0:
-            print(
-                f"\nWarning: test exited with code {exit_code}. "
-                "Collecting any MLIR files that were generated anyway.",
-                file=sys.stderr,
-            )
-            failed_tests.append(test_id)
-
-        # For LLM tests, pass the pre-existing snapshot so that old
-        # uniquely-timestamped files from the same model are excluded.
-        # For output_artifact/ tests, files are overwritten in-place so the
-        # snapshot must not be used (the "pre-existing" file IS the fresh result).
-        snapshot_to_exclude = pre_existing if args.source == "llm" else None
-        entries = collect_mlir_files(
-            artifacts_dir, exclude=snapshot_to_exclude, name_filter=name_filter
-        )
-        if not entries:
-            print(
-                f"Warning: no MLIR files found for {test_id}, skipping builder test.",
-                file=sys.stderr,
-            )
-            continue
-
-        print(f"Collected {len(entries)} MLIR files.")
-        write_mlir_files_list(entries, GENERATED_MLIR_LIST)
-        _print_mlir_files(entries)
-
-        if not args.no_builder_test:
-            builder_exit_code = run_builder_integration_test()
-            if builder_exit_code != 0:
-                builder_test_failures.append(test_id)
-
-    if failed_tests:
-        print(
-            f"\nWarning: tests that did not pass: {', '.join(failed_tests)}",
-            file=sys.stderr,
-        )
-    if builder_test_failures:
-        print(
-            f"\nWarning: builder integration test failed for: {', '.join(builder_test_failures)}",
-            file=sys.stderr,
-        )
-
-    return 1 if (failed_tests or builder_test_failures) else 0
+    # Run tests
+    return run_tests(
+        test_ids=test_ids,
+        artifacts_dir=artifacts_dir,
+        source=args.source,
+        target_filters=args.target,
+        no_run=args.no_run,
+    )
 
 
 if __name__ == "__main__":
