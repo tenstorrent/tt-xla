@@ -417,7 +417,9 @@ def memory_usage_tracker(request):
         vm = psutil.virtual_memory()
         after_gc = (vm.total - vm.available) / (1024 * 1024)  # MB
         after_gc_rss = process.memory_info().rss / (1024 * 1024)  # MB
-        logger.info(f"Memory after gc: {after_gc:.2f} MB (RSS: {after_gc_rss:.2f} MB)")
+        logger.info(
+            f"Memory usage after gc: {after_gc:.2f} MB (RSS: {after_gc_rss:.2f} MB)"
+        )
 
 
 @pytest.fixture(scope="session", autouse=True)
