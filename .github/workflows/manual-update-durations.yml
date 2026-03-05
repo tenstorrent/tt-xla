@@ -275,6 +275,13 @@ jobs:
             pip install "$WHEEL_PATH"
 
             echo "Wheel installation complete"
+
+            # Temporarily relocate scale_out (oops)
+            echo "Temporarily relocating scale_out to outer directory"
+            cd /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/scale_out
+            mv scale_out/* .
+            rm -rf scale_out
+            ls
           '
 
           echo ""

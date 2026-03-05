@@ -20,7 +20,7 @@ REMOTE_COMMAND="$*"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 IMAGE_NAME="multihost-poc"
-USER="ubuntu"
+USER="ttuser"
 
 # Use bash -c inside docker exec to handle the complex MPI environment string
 ssh $SSH_OPTS -l $USER "$HOST" sudo docker exec \
