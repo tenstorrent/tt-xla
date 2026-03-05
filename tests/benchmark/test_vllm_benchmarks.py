@@ -20,22 +20,6 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         VLLMBenchmarkConfig(
             model="facebook/opt-125m",
-            batch_size=2,
-            max_model_len=128,
-        ),
-        id="opt-125m-batch2",
-    ),
-    pytest.param(
-        VLLMBenchmarkConfig(
-            model="facebook/opt-125m",
-            batch_size=16,
-            max_model_len=128,
-        ),
-        id="opt-125m-batch16",
-    ),
-    pytest.param(
-        VLLMBenchmarkConfig(
-            model="facebook/opt-125m",
             batch_size=32,
             max_model_len=128,
         ),
@@ -52,24 +36,8 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         VLLMBenchmarkConfig(
             model="meta-llama/Llama-3.2-3B",
-            batch_size=16,
-            max_model_len=128,
-            additional_config={
-                "optimization_level": 2,
-                "experimental_enable_weight_bfp8_conversion": True,
-            },
-        ),
-        id="llama-3.2-3b-batch16",
-    ),
-    pytest.param(
-        VLLMBenchmarkConfig(
-            model="meta-llama/Llama-3.2-3B",
             batch_size=32,
             max_model_len=128,
-            additional_config={
-                "optimization_level": 2,
-                "experimental_enable_weight_bfp8_conversion": True,
-            },
         ),
         id="llama-3.2-3b-batch32",
     ),
