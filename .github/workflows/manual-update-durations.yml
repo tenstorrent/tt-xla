@@ -19,8 +19,7 @@ env:
 jobs:
   multihost-hostname-check:
     runs-on:
-      - multi-host-t3000
-      - in-service
+      - multihost-experimental
 
     steps:
       - name: Checkout
