@@ -120,7 +120,7 @@ jobs:
           source /tmp/ssh_agent_env
 
           # Build docker run command with conditional SSH agent forwarding
-          DOCKER_CMD="docker run --rm -d \
+          DOCKER_CMD="docker run --pull=always --rm -d \
             --name multihost-poc \
             --privileged \
             --pid=host \
@@ -173,7 +173,7 @@ jobs:
             if docker ps --filter name=multihost-poc --format "{{.Names}}" | grep -q multihost-poc; then
               echo "$(hostname): Container already running (controller), skipping"
             else
-              CONTAINER_ID=$(docker run --rm -d \
+              CONTAINER_ID=$(docker run --pull=always --rm -d \
                 --name multihost-poc \
                 --privileged \
                 --pid=host \
