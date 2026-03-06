@@ -844,7 +844,7 @@ test_config:
   resnet/pytorch-ResNet152-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  hardnet/pytorch-single_device-training:
+  hardnet/pytorch-hardnet68-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "RuntimeError: TT_FATAL conv2d"

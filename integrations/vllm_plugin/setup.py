@@ -27,14 +27,19 @@ class BdistWheel(bdist_wheel):
     def finalize_options(self):
         if self.code_coverage is None:
             self.code_coverage = False
-
-        bdist_wheel.finalize_options(self)
+        # Match vllm's platform specificity
         self.root_is_pure = False
+        bdist_wheel.finalize_options(self)
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
         # Force specific Python 3.12 ABI format for the wheel
         python, abi = "cp312", "cp312"
+        # Ensure we don't use 'any' platform tag for non-pure wheels
+        if plat == "any":
+            import sysconfig
+
+            plat = sysconfig.get_platform().replace("-", "_").replace(".", "_")
         return python, abi, plat
 
 
@@ -46,8 +51,8 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "vllm==0.15.0",
-        "transformers==4.57.1",
+        "vllm==0.16.0",
+        "transformers==4.57.6",
     ],
     python_requires=">=3.12, <3.13",
     license="Apache-2.0",

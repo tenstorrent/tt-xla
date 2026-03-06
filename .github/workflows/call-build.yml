@@ -20,6 +20,10 @@ on:
             default: release
             type: string
             required: false
+        force_rebuild:
+            description: 'Force rebuild even if artifact exists'
+            type: boolean
+            required: false
     outputs:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
@@ -56,7 +60,8 @@ jobs:
           # - Not a pull request event
           # - Not a merge commit (has exactly 1 parent)
           # - No MLIR override specified
-          if [[ "${{ github.event_name }}" != "pull_request" && \
+          if [[ "${{ inputs.force_rebuild }}" != "true" && \
+                "${{ github.event_name }}" != "pull_request" && \
                 $(git cat-file -p HEAD | grep -c "^parent ") -eq 1 && \
                 "${{ inputs.mlir_override }}" == "" ]]; then
             artifact_suffix="-$(git rev-parse --short HEAD)"

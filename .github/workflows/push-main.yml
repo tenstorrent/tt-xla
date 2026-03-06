@@ -21,6 +21,8 @@ jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      dockbuild: all
 
   build-ttxla:
     uses: ./.github/workflows/call-build.yml
@@ -46,6 +48,13 @@ jobs:
     needs: [ build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  build-manylinux-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build-manylinux.yml
+    secrets: inherit
+    with:
+      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   test:
     needs: [ build-image, build-ttxla ]

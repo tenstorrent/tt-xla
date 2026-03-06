@@ -450,7 +450,7 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
 
-  hardnet/pytorch-data_parallel-inference:
+  hardnet/pytorch-hardnet68-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.97

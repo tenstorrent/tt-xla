@@ -32,7 +32,7 @@ test_config:
   vovnet/pytorch-57_Th-single_device-inference:
     status: EXPECTED_PASSING # https://github.com/tenstorrent/tt-xla/issues/2390
 
-  hardnet/pytorch-single_device-inference:
+  hardnet/pytorch-hardnet68-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -452,8 +452,7 @@ test_config:
     status: EXPECTED_PASSING
 
   squeezebert/pytorch-Mnli-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
-    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
+    status: EXPECTED_PASSING
 
   swin/image_classification/pytorch-T-single_device-inference:
     status: EXPECTED_PASSING
@@ -582,21 +581,18 @@ test_config:
     status: EXPECTED_PASSING
 
   phi2/token_classification/pytorch-Phi_2-single_device-inference:
-    assert_pcc: false # PCC: 0.8971 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
-    status: EXPECTED_PASSING
     arch_overrides:
       p150:
-        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
+        status: EXPECTED_PASSING
       n150:
-        assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
+        status: EXPECTED_PASSING
 
   phi2/token_classification/pytorch-Phi_2_Pytdml-single_device-inference:
-    status: EXPECTED_PASSING
     arch_overrides:
       p150:
-        required_pcc: 0.975 # p150 : https://github.com/tenstorrent/tt-xla/issues/2181
+        status: EXPECTED_PASSING
       n150:
-        assert_pcc: false # n150 : https://github.com/tenstorrent/tt-xla/issues/2433, large decrese with change torch==2.9.0
+        status: EXPECTED_PASSING
 
   phi2/sequence_classification/pytorch-Phi_2-single_device-inference:
     status: EXPECTED_PASSING
@@ -1231,9 +1227,7 @@ test_config:
     status: EXPECTED_PASSING
 
   stable_diffusion_unet/pytorch-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/2565"
+    status: EXPECTED_PASSING
 
   unet_for_conditional_generation/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
@@ -1283,14 +1277,10 @@ test_config:
     status: EXPECTED_PASSING
 
   nbeats/pytorch-seasonality_basis-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
+    status: EXPECTED_PASSING
 
   nbeats/pytorch-trend_basis-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Url for dataset is not reachable - https://github.com/tenstorrent/tt-xla/issues/2507"
+    status: EXPECTED_PASSING
 
   gpt2/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
@@ -1590,9 +1580,7 @@ test_config:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Too large for single chip"
-        bringup_status: FAILED_RUNTIME
+        enable_weight_bfp8_conversion: true
 
   gpt_neo/sequence_classification/pytorch-125M-single_device-inference:
     status: EXPECTED_PASSING
@@ -2583,7 +2571,6 @@ test_config:
 
   vocoder_speecht5/pytorch-hifigan-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # PCC < 0.1, tracking issue https://github.com/tenstorrent/tt-xla/issues/3064
 
   ssd512/object_detection/pytorch-ssd512-single_device-inference:
     status: EXPECTED_PASSING
@@ -2605,8 +2592,12 @@ test_config:
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 645 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/3184"
 
   arcee/text_generation/pytorch-arcee_Spark-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B (allocated: 1055220960 B, free: 18520832 B, largest free block: 9253856 B) - https://github.com/tenstorrent/tt-xla/issues/3183"
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B (allocated: 1055220960 B, free: 18520832 B, largest free block: 9253856 B) - https://github.com/tenstorrent/tt-xla/issues/3183"
+      p150:
+        status: EXPECTED_PASSING
 
   olmo3/causal_lm/pytorch-3_7b_think-single_device-inference:
     arch_overrides:
@@ -2633,25 +2624,77 @@ test_config:
         status: EXPECTED_PASSING
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Hangs (https://github.com/tenstorrent/tt-xla/issues/3478)"
-    #Was xfailed previously, reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B (allocated: 972700384 B, free: 99121408 B, largest free block: 55576928 B) - https://github.com/tenstorrent/tt-xla/issues/3388"
+    supported_archs: ["p150"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0725-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Hangs (https://github.com/tenstorrent/tt-xla/issues/3478)"
-    #Was xfailed previously, reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B (allocated: 972700384 B, free: 99121408 B, largest free block: 55576928 B) - https://github.com/tenstorrent/tt-xla/issues/3388"
+    supported_archs: ["p150"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Hangs (https://github.com/tenstorrent/tt-xla/issues/3478)"
-    #Was xfailed previously, reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B (allocated: 972700384 B, free: 99121408 B, largest free block: 55576928 B) - https://github.com/tenstorrent/tt-xla/issues/3388"
+    supported_archs: ["p150"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
 
   olm_ocr/image_text_generation/pytorch-olmOCR-2-7B-1025-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Hangs (https://github.com/tenstorrent/tt-xla/issues/3478)"
-    #Was xfailed previously, reason: "Out of Memory: Not enough space to allocate 681836544 B DRAM buffer across 12 banks, where each bank needs to store 56819712 B, but bank size is 1071821792 B (allocated: 972700384 B, free: 99121408 B, largest free block: 55576928 B) - https://github.com/tenstorrent/tt-xla/issues/3388"
+    supported_archs: ["p150"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
+
+  solar-10_7B/causal_lm/pytorch-10_7B_Instruct_v1.0-single_device-inference:
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B (allocated: 1055220960 B, free: 18520832 B, largest free block: 9253856 B)"
+      p150:
+        status: EXPECTED_PASSING
+
+  gpt_oss/pytorch-20B-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  gpt_oss/pytorch-120B-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-Small_24B_INSTRUCT_2501-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-Large_INSTRUCT_2411-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-Devstral_Small_2505-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-Magistral_Small_2506-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-mistral_small_3.1_24b_instruct_2503-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  mistral/pytorch-mistral_small_3.2_24b_instruct_2506-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  olmo3/causal_lm/pytorch-3_1125_32b-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  olmo3/causal_lm/pytorch-3_32b_think-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
+
+  glm/causal_lm/pytorch-4.7-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  glm/causal_lm/pytorch-4.5-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  glm/causal_lm/pytorch-4.5_Air-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  llama/causal_lm/pytorch-3.1_405B_Instruct-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  llama/sequence_classification/pytorch-3.1_405B-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  llama/sequence_classification/pytorch-3.1_405B_Instruct-single_device-inference:
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
