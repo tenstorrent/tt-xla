@@ -42,6 +42,7 @@ SEQ_LEN = 1024
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["sdpa.ttnn.mlir"])
 @pytest.mark.filecheck(["split_query_key_value_and_split_heads.ttnn.mlir"])
+@pytest.mark.filecheck(["concatenate_heads.ttnn.mlir"])
 def test_llama_3_8b_sdpa(request):
     config = LlamaModelLoader(variant=LlamaModelVariant.LLAMA_3_8B).load_config()
     config._attn_implementation = "eager"
@@ -71,6 +72,7 @@ def test_llama_3_8b_sdpa(request):
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["sdpa.ttnn.mlir"])
 @pytest.mark.filecheck(["split_query_key_value_and_split_heads.ttnn.mlir"])
+@pytest.mark.filecheck(["concatenate_heads.ttnn.mlir"])
 def test_gpt_oss_20b_sdpa(request):
     config = GPTOSSModelLoader(variant=GPTOSSModelVariant.GPT_OSS_20B).load_config()
     config._attn_implementation = "eager"

@@ -4,6 +4,7 @@
 
 import pytest
 import torch
+from einops import rearrange
 from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
@@ -24,23 +25,15 @@ def test_split_query_key_value_and_split_heads_mha_matmul(request):
         wk: torch.Tensor,
         wv: torch.Tensor,
     ) -> tuple:
-        # Reshape input: [batch, seq_len, hidden_dim] -> [batch*seq_len, hidden_dim]
-        x_2d = x.reshape(batch * seq_len, hidden_dim)
-        # Project Q, K, V
-        q = (
-            torch.matmul(x_2d, wq)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        x_2d = rearrange(x, "b s d -> (b s) d")
+        q = rearrange(
+            torch.matmul(x_2d, wq), "(b s) (h d) -> b h s d", b=batch, h=num_heads
         )
-        k = (
-            torch.matmul(x_2d, wk)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        k = rearrange(
+            torch.matmul(x_2d, wk), "(b s) (h d) -> b h s d", b=batch, h=num_heads
         )
-        v = (
-            torch.matmul(x_2d, wv)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        v = rearrange(
+            torch.matmul(x_2d, wv), "(b s) (h d) -> b h s d", b=batch, h=num_heads
         )
         return q, k, v
 
@@ -68,7 +61,7 @@ def test_split_query_key_value_and_split_heads_mha_matmul_with_bias(request):
     batch, seq_len, hidden_dim = 1, 32, 512
     num_heads, head_size = 8, 64
 
-    def mha_qkv_linear(
+    def mha_qkv_matmul_with_bias(
         x: torch.Tensor,
         wq: torch.Tensor,
         wk: torch.Tensor,
@@ -77,26 +70,20 @@ def test_split_query_key_value_and_split_heads_mha_matmul_with_bias(request):
         bk: torch.Tensor,
         bv: torch.Tensor,
     ) -> tuple:
-        x_2d = x.reshape(batch * seq_len, hidden_dim)
-        q = (
-            (torch.matmul(x_2d, wq) + bq)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        x_2d = rearrange(x, "b s d -> (b s) d")
+        q = rearrange(
+            torch.matmul(x_2d, wq) + bq, "(b s) (h d) -> b h s d", b=batch, h=num_heads
         )
-        k = (
-            (torch.matmul(x_2d, wk) + bk)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        k = rearrange(
+            torch.matmul(x_2d, wk) + bk, "(b s) (h d) -> b h s d", b=batch, h=num_heads
         )
-        v = (
-            (torch.matmul(x_2d, wv) + bv)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        v = rearrange(
+            torch.matmul(x_2d, wv) + bv, "(b s) (h d) -> b h s d", b=batch, h=num_heads
         )
         return q, k, v
 
     run_graph_test_with_random_inputs(
-        mha_qkv_linear,
+        mha_qkv_matmul_with_bias,
         [
             (batch, seq_len, hidden_dim),
             (hidden_dim, num_heads * head_size),
@@ -132,21 +119,24 @@ def test_split_query_key_value_and_split_heads_mha_linear(request):
         bk: torch.Tensor,
         bv: torch.Tensor,
     ) -> tuple:
-        x_2d = x.reshape(batch * seq_len, hidden_dim)
-        q = (
-            torch.nn.functional.linear(x_2d, wq, bq)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        x_2d = rearrange(x, "b s d -> (b s) d")
+        q = rearrange(
+            torch.nn.functional.linear(x_2d, wq, bq),
+            "(b s) (h d) -> b h s d",
+            b=batch,
+            h=num_heads,
         )
-        k = (
-            torch.nn.functional.linear(x_2d, wk, bk)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        k = rearrange(
+            torch.nn.functional.linear(x_2d, wk, bk),
+            "(b s) (h d) -> b h s d",
+            b=batch,
+            h=num_heads,
         )
-        v = (
-            torch.nn.functional.linear(x_2d, wv, bv)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        v = rearrange(
+            torch.nn.functional.linear(x_2d, wv, bv),
+            "(b s) (h d) -> b h s d",
+            b=batch,
+            h=num_heads,
         )
         return q, k, v
 
@@ -183,21 +173,15 @@ def test_split_query_key_value_and_split_heads_mha_transposed_key(request):
         wk: torch.Tensor,
         wv: torch.Tensor,
     ) -> tuple:
-        x_2d = x.reshape(batch * seq_len, hidden_dim)
-        q = (
-            torch.matmul(x_2d, wq)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        x_2d = rearrange(x, "b s d -> (b s) d")
+        q = rearrange(
+            torch.matmul(x_2d, wq), "(b s) (h d) -> b h s d", b=batch, h=num_heads
         )
-        k = (
-            torch.matmul(x_2d, wk)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 3, 1)
+        k = rearrange(
+            torch.matmul(x_2d, wk), "(b s) (h d) -> b h d s", b=batch, h=num_heads
         )
-        v = (
-            torch.matmul(x_2d, wv)
-            .reshape(batch, seq_len, num_heads, head_size)
-            .permute(0, 2, 1, 3)
+        v = rearrange(
+            torch.matmul(x_2d, wv), "(b s) (h d) -> b h s d", b=batch, h=num_heads
         )
         return q, k, v
 
@@ -231,21 +215,15 @@ def test_split_query_key_value_and_split_heads_gqa_matmul(request):
         wk: torch.Tensor,
         wv: torch.Tensor,
     ) -> tuple:
-        x_2d = x.reshape(batch * seq_len, hidden_dim)
-        q = (
-            torch.matmul(x_2d, wq)
-            .reshape(batch, seq_len, num_query_heads, head_size)
-            .permute(0, 2, 1, 3)
+        x_2d = rearrange(x, "b s d -> (b s) d")
+        q = rearrange(
+            torch.matmul(x_2d, wq), "(b s) (h d) -> b h s d", b=batch, h=num_query_heads
         )
-        k = (
-            torch.matmul(x_2d, wk)
-            .reshape(batch, seq_len, num_kv_heads, head_size)
-            .permute(0, 2, 1, 3)
+        k = rearrange(
+            torch.matmul(x_2d, wk), "(b s) (h d) -> b h s d", b=batch, h=num_kv_heads
         )
-        v = (
-            torch.matmul(x_2d, wv)
-            .reshape(batch, seq_len, num_kv_heads, head_size)
-            .permute(0, 2, 1, 3)
+        v = rearrange(
+            torch.matmul(x_2d, wv), "(b s) (h d) -> b h s d", b=batch, h=num_kv_heads
         )
         return q, k, v
 
