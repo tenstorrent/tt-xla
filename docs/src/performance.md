@@ -40,7 +40,7 @@ The `optimization_level` compiler option controls multiple optimization passes f
 To set the optimization level, use:
 ```python
 torch_xla.set_custom_compile_options({
-    "optimization_level": "1",
+    "optimization_level": 1,
 })
 ```
 
@@ -98,7 +98,7 @@ All of the above is a one time fixed cost and all subsequent iterations of the m
 
 ## 3. Data Formats
 
-TT Hardware supports multiple lower precision data formats ([docs](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/tensor.html#data-type)). For use trough tt-xla try the following:
+TT Hardware supports multiple lower precision data formats ([docs](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/tensor.html#data-type)). For use through tt-xla try the following:
 * bfloat16
 * bfloat8_b
 
@@ -124,20 +124,20 @@ bfloat16 (Brain Floating Point 16-bit) provides:
 
 ### bfloat8_b
 
-Enable bfp8 conversion using compile options. The model **MUST** be cast to bfloat16 before compilation.
+Enable bfp8 weight conversion using compile options. The model **MUST** be cast to bfloat16 before compilation.
 ```python
 torch_xla.set_custom_compile_options({
-    "enable_bfp8_conversion": "true",  # Enable bfloat8_b
+    "experimental_enable_weight_bfp8_conversion": "true",  # Cast matmul weights to bfloat8_b
 })
 ```
 
-bfloat8_b (Block Float 8-bit) provides even faster computation and more memory reduction.
+bfloat8_b (Block Float 8-bit) weight conversion casts matmul weights to bfp8 format, providing faster computation and reduced memory usage.
 
 #### Notes
 
 - **Possibility of accuracy loss** for some workloads
 - **Verify output:** Check that accuracy is acceptable for your use case
-- **Automatic conversion:** Model is automatically converted during compilation (for bfp8)
+- **Automatic conversion:** Weights are automatically converted during compilation
 - **Not always beneficial:** Profile your specific model to verify improvement
 
 ---
@@ -170,7 +170,6 @@ torch_xla.set_custom_compile_options({
 - `TT_RUNTIME_TRACE_REGION_SIZE` should be set (recommended: `"10000000"` or 10MB)
   - The trace region size determines how much memory is allocated in DRAM for storing the trace. Adjust based on your model.
   - If you see trace-related errors, try increasing this value.
-- Program cache must be enabled with `TT_RUNTIME_ENABLE_PROGRAM_CACHE` must be set to `"1"` (This is set by default)
 
 ---
 
