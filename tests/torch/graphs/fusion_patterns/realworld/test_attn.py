@@ -29,9 +29,7 @@ from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
     ModelVariant as LlamaModelVariant,
 )
 
-_COMPILER_CONFIG = CompilerConfig(optimization_level=1)
 SEQ_LEN = 1024
-
 
 # ---------------------------------------------------------------------------
 # Llama 3 8B tests
@@ -43,6 +41,7 @@ SEQ_LEN = 1024
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["sdpa.ttnn.mlir"])
+@pytest.mark.filecheck(["split_query_key_value_and_split_heads.ttnn.mlir"])
 def test_llama_3_8b_sdpa(request):
     config = LlamaModelLoader(variant=LlamaModelVariant.LLAMA_3_8B).load_config()
     config._attn_implementation = "eager"
@@ -56,7 +55,7 @@ def test_llama_3_8b_sdpa(request):
         attention,
         [hidden_states, (cos, sin), None, None],
         framework=Framework.TORCH,
-        compiler_config=_COMPILER_CONFIG,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -71,6 +70,7 @@ def test_llama_3_8b_sdpa(request):
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["sdpa.ttnn.mlir"])
+@pytest.mark.filecheck(["split_query_key_value_and_split_heads.ttnn.mlir"])
 def test_gpt_oss_20b_sdpa(request):
     config = GPTOSSModelLoader(variant=GPTOSSModelVariant.GPT_OSS_20B).load_config()
     config._attn_implementation = "eager"
@@ -84,6 +84,6 @@ def test_gpt_oss_20b_sdpa(request):
         attention,
         [hidden_states, (cos, sin), None, None],
         framework=Framework.TORCH,
-        compiler_config=_COMPILER_CONFIG,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
