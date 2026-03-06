@@ -20,7 +20,7 @@ env:
   GH_TOKEN: ${{ github.token }}
   # Artifact download mode: 'specific' to use ARTIFACT_RUN_ID, 'latest' to use latest push-main
   ARTIFACT_MODE: specific
-  ARTIFACT_RUN_ID: 22769898527
+  ARTIFACT_RUN_ID: 22774145128
 
 jobs:
   multihost-hostname-check:
