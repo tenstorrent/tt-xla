@@ -305,11 +305,11 @@ def apply_top_k_top_p(
 
     if k is not None:
         top_k_count = probs_sort.size(1) - k.to(torch.long)  # shape: (batch, )
-        top_k_count = top_k_count.unsqueeze(dim=1)
+        top_k_count = top_k_count.clamp(max=probs_sort.size(1) - 1).unsqueeze(dim=1)
         top_k_cutoff = probs_sort.gather(-1, top_k_count)
 
-        # Make sure the no top-k rows are no-op.
-        no_top_k_mask = (k == logits.shape[1]).unsqueeze(dim=1)
+        # Make sure the disabled top-k rows (k<=0 or k==vocab_size) are no-op.
+        no_top_k_mask = ((k <= 0) | (k == logits.shape[1])).unsqueeze(dim=1)
         top_k_cutoff.masked_fill_(no_top_k_mask, -float("inf"))
 
         elements_to_discard = probs < top_k_cutoff
