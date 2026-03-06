@@ -135,6 +135,10 @@ class RequirementsManager:
             f"[Requirements] __enter__: newly_installed={sorted(self._newly_installed)}"
         )
         _dbg(f"[Requirements] __enter__: changed_versions={self._changed_versions}")
+
+        # Clear module cache for packages that were installed/changed to ensure
+        # fresh imports with the new versions
+        self._clear_module_cache()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -159,6 +163,12 @@ class RequirementsManager:
                 ]
                 _dbg(f"[Requirements] __exit__: restoring versions: {pinned}")
                 self._pip_install(tuple(pinned))
+
+                # Clear module cache after restoration to ensure clean state
+                _dbg(
+                    f"[Requirements] __exit__: clearing module cache after restoration"
+                )
+                self._clear_module_cache()
         finally:
             # Always release the lock if held
             if self._lock_file is not None:
@@ -338,3 +348,52 @@ class RequirementsManager:
             return result.returncode == 0
         except Exception:
             return False
+
+    def _clear_module_cache(self) -> None:
+        """Clear cached modules for packages that were installed/changed.
+
+        This ensures that when modules are imported again, they use the new
+        package versions rather than cached versions from before installation.
+        """
+        if not (self._newly_installed or self._changed_versions):
+            return
+
+        packages_to_clear = set(self._newly_installed) | set(
+            self._changed_versions.keys()
+        )
+        modules_to_remove = []
+
+        _dbg(
+            f"[Requirements] _clear_module_cache: clearing cache for {sorted(packages_to_clear)}"
+        )
+
+        for module_name, module in sys.modules.items():
+            if module is None:
+                continue
+
+            for package in packages_to_clear:
+                if module_name == package or module_name.startswith(package + "."):
+                    # Skip flax modules - we don't want to clear them as it breaks isinstance checks
+                    if not (
+                        module_name.startswith("flax")
+                        or module_name.startswith("jax")
+                        and module_name.startswith("torch")
+                    ):
+                        modules_to_remove.append(module_name)
+                    break
+
+        # Remove the modules from cache
+        for module_name in modules_to_remove:
+            _dbg(f"[Requirements] _clear_module_cache: removing {module_name}")
+            del sys.modules[module_name]
+
+        # Clear Python's internal import path caches
+        if modules_to_remove:
+            import importlib
+
+            importlib.invalidate_caches()
+            _dbg(f"[Requirements] _clear_module_cache: invalidated import caches")
+
+        _dbg(
+            f"[Requirements] _clear_module_cache: removed {len(modules_to_remove)} modules from cache"
+        )
