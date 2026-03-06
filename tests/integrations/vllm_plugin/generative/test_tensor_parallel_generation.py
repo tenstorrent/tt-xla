@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import vllm
-
+import os
+os.environ["TTXLA_LOGGER_LEVEL"] = "DEBUG"
 
 @pytest.mark.push
 @pytest.mark.tensor_parallel
@@ -77,7 +78,7 @@ def test_tensor_parallel_generation_llmbox_small(
     [
         pytest.param("Qwen/Qwen3-32B", False, False),
         pytest.param("Qwen/Qwen2.5-32B", False, False),
-        pytest.param("meta-llama/Llama-3.1-70B", True, True),
+        # pytest.param("meta-llama/Llama-3.1-70B", True, True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(

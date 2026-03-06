@@ -1779,6 +1779,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self,
         num_tokens: int,
     ) -> None:
+        logger.info(f"Profiling a run with num_tokens={num_tokens}.")
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
@@ -1857,6 +1858,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         xm.wait_device_ops()
         self.encoder_cache.clear()
         gc.collect()
+        logger.info(f"Profiling finished for num_tokens={num_tokens}.")
 
     def maybe_setup_cross_layer_kv_sharing(
         self,
