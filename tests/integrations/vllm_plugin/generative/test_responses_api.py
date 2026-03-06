@@ -333,6 +333,7 @@ def test_responses_api_top_logprobs(vllm_server):
         "max_output_tokens": 5,
         "temperature": 0.0,
         "top_logprobs": 3,
+        "include": ["message.output_text.logprobs"],
     }
 
     response = requests.post(url, json=data, timeout=REQUEST_TIMEOUT)
@@ -349,7 +350,7 @@ def test_responses_api_top_logprobs(vllm_server):
         if item.get("type") == "message":
             for content in item.get("content", []):
                 if content.get("type") == "output_text":
-                    logprobs = content.get("logprobs", [])
+                    logprobs = content.get("logprobs") or []
                     assert len(logprobs) > 0, "Expected logprobs in output_text content"
                     for entry in logprobs:
                         assert "token" in entry, "Logprob entry should have 'token'"
