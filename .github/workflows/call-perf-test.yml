@@ -46,6 +46,8 @@ env:
   GH_TOKEN: ${{ github.token }}
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
   TT_XLA_CI: 1
+  TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
+  TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE: "source /opt/tt-triage-venv/bin/activate && python /opt/tt-triage/tools/tt-triage.py 1>&2"
 
 jobs:
   run-perf-test:
@@ -153,6 +155,11 @@ jobs:
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
+
+    - name: Set up tt-triage
+      shell: bash
+      run: |
+        .github/scripts/install-tt-triage.sh
 
     - name: Run benchmark
       id: run-benchmark
