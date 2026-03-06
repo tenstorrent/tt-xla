@@ -78,16 +78,10 @@ def training_tester() -> ResnetTester:
         pytest.param(
             "bfp8",
             1,
-            marks=pytest.mark.xfail(
-                reason="bfp8 with optimization_level_1 has hudge data mismatch. Tracking issue: https://github.com/tenstorrent/tt-xla/issues/1673"
-            ),
         ),
         pytest.param(
             "bfp8",
             0,
-            marks=pytest.mark.xfail(
-                reason="ttnn.batch_norm not supported for bfp8 https://github.com/tenstorrent/tt-xla/issues/3163"
-            ),
         ),
         pytest.param(
             "bfloat16",
