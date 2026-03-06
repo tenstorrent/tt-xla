@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
 
 import numpy as np
+import psutil
 import torch
 import torch.nn as nn
 
@@ -101,6 +102,8 @@ from .platform import TTConfig
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
 
+logger = tt_init_logger(__name__)
+
 
 def add_kv_sharing_layers_to_kv_cache_groups(
     shared_kv_cache_layers: dict[str, str],
@@ -135,8 +138,6 @@ def add_kv_sharing_layers_to_kv_cache_groups(
 
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
-
-logger = tt_init_logger(__name__)
 
 INVALID_TOKEN_ID = -1
 # Smallest output size
@@ -1463,6 +1464,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
+        _rss = lambda l: logger.warning(
+            "[MEM] _dummy_run(%d) %s: RSS = %.2f GB",
+            num_tokens,
+            l,
+            psutil.Process().memory_info().rss / 1024**3,
+        )
+        _rss("START")
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(
@@ -1496,6 +1504,53 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             layer_name: attn_metadata for layer_name in layer_names
         }
 
+        _rss("before model forward (dynamo trace)")
+
+        # Monkey-patch extract_graph_helper to add RSS logging at key points
+        import torch_xla._dynamo.dynamo_bridge as _bridge
+
+        _orig_extract = _bridge.extract_graph_helper
+        _compile_count = [0]
+
+        # Patch _get_tensors_xla_device_data_node to measure before/after
+        _orig_get_data_node = torch_xla._XLAC._get_tensors_xla_device_data_node
+
+        def _patched_get_data_node(tensors):
+            rss_before = psutil.Process().memory_info().rss / 1024**3
+            result = _orig_get_data_node(tensors)
+            rss_after = psutil.Process().memory_info().rss / 1024**3
+            logger.warning(
+                "[MEM] _get_tensors_xla_device_data_node: RSS %.2f -> %.2f GB (+%.2f), returned %d graph inputs",
+                rss_before,
+                rss_after,
+                rss_after - rss_before,
+                len(result[0]),
+            )
+            return result
+
+        torch_xla._XLAC._get_tensors_xla_device_data_node = _patched_get_data_node
+
+        def _patched_extract(xla_model, sym_constants_to_graph_vars):
+            _compile_count[0] += 1
+            rss_start = psutil.Process().memory_info().rss / 1024**3
+            logger.warning(
+                "[MEM] extract_graph_helper #%d START: RSS = %.2f GB, xla_args=%d",
+                _compile_count[0],
+                rss_start,
+                len(xla_model.xla_args) if hasattr(xla_model, "xla_args") else -1,
+            )
+            result = _orig_extract(xla_model, sym_constants_to_graph_vars)
+            rss_end = psutil.Process().memory_info().rss / 1024**3
+            logger.warning(
+                "[MEM] extract_graph_helper #%d END: RSS = %.2f GB (+%.2f GB)",
+                _compile_count[0],
+                rss_end,
+                rss_end - rss_start,
+            )
+            return result
+
+        _bridge.extract_graph_helper = _patched_extract
+
         with (
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([num_tokens], dtype=np.int32)
@@ -1505,6 +1560,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
+
+        _bridge.extract_graph_helper = _orig_extract
+        torch_xla._XLAC._get_tensors_xla_device_data_node = _orig_get_data_node
+        logger.warning(
+            "[MEM] Total compilations in this forward: %d", _compile_count[0]
+        )
+        _rss("after model forward (before sync)")
+
+        torch_xla.sync(wait=False)
+        _rss("after sync(wait=False)")
+        xm.wait_device_ops()
+        _rss("after wait_device_ops")
 
         self._hidden_states_dtype = out.dtype
 
@@ -1765,15 +1832,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        _rss = lambda l: logger.warning(
+            "[MEM] capture_model %s: RSS = %.2f GB",
+            l,
+            psutil.Process().memory_info().rss / 1024**3,
+        )
+        _rss("START")
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             self._precompile_mm_encoder()
+            _rss("after _precompile_mm_encoder")
             self._precompile_backbone()
+            _rss("after _precompile_backbone")
             self._precompile_select_hidden_states()
+            _rss("after _precompile_select_hidden_states")
             self._precompile_compute_logits()
+            _rss("after _precompile_compute_logits")
             self._precompile_structured_decoding()
+            _rss("after _precompile_structured_decoding")
             self._precompile_sample_from_logits()
+            _rss("after _precompile_sample_from_logits")
             self._precompile_gather_logprobs()
+            _rss("after _precompile_gather_logprobs")
 
     def profile_run(
         self,
@@ -1842,21 +1922,32 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.encoder_cache["tmp"] = dict(enumerate(dummy_encoder_outputs))
 
         # Trigger compilation for general shape.
+        _rss = lambda l: logger.warning(
+            "[MEM] profile_run %s: RSS = %.2f GB",
+            l,
+            psutil.Process().memory_info().rss / 1024**3,
+        )
+        _rss("before _dummy_run (general)")
         torch._dynamo.config.dynamic_shapes = False
         self._dummy_run(
             num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
         )
+        _rss("after _dummy_run (general)")
         if self.most_model_len is not None:
             self._dummy_run(
                 num_tokens,
                 self.num_reqs_most_model_len,
                 self.num_blocks_per_most_len_req,
             )
+            _rss("after _dummy_run (most_model_len)")
 
         torch_xla.sync(wait=False)
+        _rss("after sync")
         xm.wait_device_ops()
+        _rss("after wait_device_ops")
         self.encoder_cache.clear()
         gc.collect()
+        _rss("after gc.collect")
 
     def maybe_setup_cross_layer_kv_sharing(
         self,

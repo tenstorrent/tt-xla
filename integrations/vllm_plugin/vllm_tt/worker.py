@@ -9,6 +9,7 @@ import sys
 from collections.abc import Callable
 from typing import Any, Optional, TypeVar
 
+import psutil
 import torch
 import torch.distributed
 import torch.nn as nn
@@ -46,6 +47,12 @@ from .pooling_runner import TTPoolingModelRunner
 logger = tt_init_logger(__name__)
 
 _R = TypeVar("_R")
+
+
+def _log_rss(label: str) -> None:
+    """Log current process RSS for memory profiling."""
+    rss_gb = psutil.Process().memory_info().rss / 1024**3
+    logger.warning("[MEM] %s: RSS = %.2f GB", label, rss_gb)
 
 
 class TTWorker:
@@ -183,6 +190,7 @@ class TTWorker:
             report_usage_stats(self.vllm_config)
 
     def determine_available_memory(self) -> int:
+        _log_rss("determine_available_memory START")
         if self.model_config.runner_type == "pooling":
             return int(11596411699)
         kv_caches: dict[str, torch.Tensor] = {}
@@ -207,12 +215,15 @@ class TTWorker:
             runner_kv_caches,
         )
 
+        _log_rss("before profile_run")
         # `max_num_tokens >= max_num_batched_tokens` due to padding.
         with self.model_runner.maybe_setup_dummy_loras(self.lora_config):
             self.model_runner.profile_run(self.model_runner.max_num_tokens)
+        _log_rss("after profile_run")
 
         # Synchronize before measuring the memory usage.
         xm.wait_device_ops()
+        _log_rss("after wait_device_ops")
 
         # During the profiling run, the model runs without KV cache. After
         # the profiling run, the model always runs with KV cache. Here we clear
@@ -222,6 +233,7 @@ class TTWorker:
         # skip dynamo guard.
         with set_current_vllm_config(self.vllm_config):
             self.model_runner.reset_dynamo_cache()
+        _log_rss("after reset_dynamo_cache")
 
         # Get the maximum amount of memory used by the model weights and
         # intermediate activations.
@@ -284,7 +296,9 @@ class TTWorker:
         return self.model_runner.add_lora(lora_request)
 
     def load_model(self) -> None:
+        _log_rss("load_model START")
         self.model_runner.load_model()
+        _log_rss("load_model END")
 
     def update_config(self, overrides: dict[str, Any]) -> None:
         self.model_runner.update_config(overrides)
@@ -293,8 +307,10 @@ class TTWorker:
         self.model_runner.reload_weights()
 
     def compile_or_warm_up_model(self) -> None:
+        _log_rss("compile_or_warm_up_model START")
         if not self.model_config.enforce_eager:
             self.model_runner.capture_model()
+        _log_rss("compile_or_warm_up_model after capture_model")
 
         # Reset the seed to ensure that the random state is not affected by
         # the model initialization and profiling.
@@ -314,7 +330,9 @@ class TTWorker:
 
     def initialize_from_config(self, kv_cache_config: KVCacheConfig) -> None:
         """Allocate GPU KV cache with the specified kv_cache_config."""
+        _log_rss("initialize_from_config START")
         self.model_runner.initialize_kv_cache(kv_cache_config)
+        _log_rss("initialize_from_config END")
 
     def check_health(self) -> None:
         # worker will always be healthy as long as it's running.
