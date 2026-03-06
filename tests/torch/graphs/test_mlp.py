@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import sys
 from typing import Callable
 
 import numpy as np
@@ -19,6 +21,11 @@ from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
 
+from tests.torch.models.kimi_k2.configuration_deepseek import (
+    DeepseekV3Config as KimiK2Config,
+)
+from tests.torch.models.kimi_k2.modeling_deepseek import DeepseekV3MLP as KimiK2MLP
+from tests.torch.models.kimi_k2.modeling_deepseek import DeepseekV3MoE as KimiK2MoE
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
     ModelLoader as FalconModelLoader,
@@ -523,6 +530,85 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
         [hidden_states],
         framework=Framework.TORCH,
         comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""Kimi K2 MLP tests"""
+
+
+# NOTE: Decoder layer has two MLPs, one with MoE and one without
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "mlp_type",
+    [
+        "mlp",
+        pytest.param(
+            "moe",
+            marks=pytest.mark.xfail(
+                reason="Torch Dynamo fails at a scalar addition (start_idx + num_tokens) as it treats one of the operands as a NumPy array instead of a Tensor."
+            ),
+        ),
+    ],
+)
+def test_kimi_k2_mlp(mlp_type, seq_len, arch):
+    xr.set_device_type("TT")
+
+    model_dir = os.path.join(os.path.dirname(__file__), "../models/kimi_k2")
+    sys.path.append(os.path.abspath(model_dir))
+
+    current_dir = os.path.dirname(__file__)
+    config_path = os.path.join(current_dir, "../models/kimi_k2/config.json")
+
+    config = KimiK2Config.from_json_file(config_path)
+
+    if mlp_type == "mlp":
+        mlp = KimiK2MLP(config).to(torch.bfloat16)
+    elif mlp_type == "moe":
+        mlp = KimiK2MoE(config).to(torch.bfloat16)
+        mlp.eval()
+        seq_len = 32  # hardcoded for now to test the MoE.Bigger seq_len takes longer.
+
+    batch_size = 4
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (2, 4)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+
+            if hasattr(mlp, "experts"):
+                for expert in mlp.experts:
+                    shard_specs[expert.gate_proj.weight] = ("model", "batch")
+                    shard_specs[expert.up_proj.weight] = ("model", "batch")
+                    shard_specs[expert.down_proj.weight] = ("batch", "model")
+            else:
+                shard_specs[mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[mlp.down_proj.weight] = ("batch", "model")
+
+            # input sharding
+            shard_specs[args[0]] = ("model", None, "batch")
+
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
