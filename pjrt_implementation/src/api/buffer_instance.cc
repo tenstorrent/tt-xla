@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <thread>
@@ -119,6 +120,16 @@ size_t BufferInstance::tensorSize() {
       data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
 
   return tensor_volume * dtype_element_size;
+}
+
+size_t BufferInstance::logicalTensorSize() const {
+  size_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
+      data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
+
+  return std::accumulate(m_dimensions.begin(), m_dimensions.end(),
+                         dtype_element_size, [](size_t acc, std::int64_t dim) {
+                           return acc * static_cast<size_t>(dim);
+                         });
 }
 
 std::string BufferInstance::toShapeStr() const {
@@ -334,7 +345,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
       m_pjrt_tensor->move_to_host();
 
-      assert(tensorSize() <= host_buffer_size && "Host buffer is too small.");
+      assert(logicalTensorSize() <= host_buffer_size &&
+             "Host buffer is too small.");
       tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
                           rt_data_type);
 
@@ -483,12 +495,7 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   // This API function can be used with null `dst` to query the required size.
   if (!args->dst) {
     ZoneScopedN("QueryHostBufferSize");
-    DLOG_F(LOG_DEBUG,
-           "Calculating required host buffer size from device tensor when "
-           "args->dst is nullptr to query the required size. This will give "
-           "an overestimated tile-aligned physical tensor size instead of a "
-           "logical size. TODO @jameszianxu");
-    args->dst_size = buffer->tensorSize();
+    args->dst_size = buffer->logicalTensorSize();
     return nullptr;
   }
 
