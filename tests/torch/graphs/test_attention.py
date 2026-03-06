@@ -2466,7 +2466,7 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
-@pytest.mark.parametrize("seq_len", [1032])
+@pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("glm").items(),
