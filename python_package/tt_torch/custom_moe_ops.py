@@ -539,7 +539,7 @@ def all_to_all_combine(
                             slot = _expert_dispatch_slots(
                                 torch.tensor(expert_id), E, D, cluster_axis
                             ).item()
-                            bd = b * D + slot
+                            bd = slot * B + b
                             combined[k, b, s, :] = input_tensor[
                                 expert_id, bd, s, :
                             ]
@@ -555,7 +555,7 @@ def all_to_all_combine(
                             slot = _expert_dispatch_slots(
                                 torch.tensor(expert_id), E, D, cluster_axis
                             ).item()
-                            bd = b * D + slot
+                            bd = slot * B + b
                             combined[k, s, b, :] = input_tensor[
                                 expert_id, s, bd, :
                             ]
@@ -644,7 +644,7 @@ def _all_to_all_combine_backward(ctx, grad_output):
     e_ids = meta.long()                                                    # [B, S, K]
     rows = _expert_dispatch_slots(e_ids, E_total, D, ctx.cluster_axis)     # [B, S, K]
     b_idx = torch.arange(B, device=grad_output.device).view(B, 1, 1)
-    bd = b_idx * D + rows                                                  # [B, S, K]
+    bd = rows * B + b_idx                                                   # [B, S, K]
 
     e_oh = F.one_hot(e_ids.clamp(0, E_local - 1), E_local).to(grad_output.dtype)  # [B,S,K,E]
     bd_oh = F.one_hot(bd.clamp(0, BD - 1), BD).to(grad_output.dtype)              # [B,S,K,BD]
