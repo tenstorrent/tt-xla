@@ -453,7 +453,7 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
       num_devices *= dim;
     }
     tt::runtime::FabricConfig global =
-        num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
+        num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_2D
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
