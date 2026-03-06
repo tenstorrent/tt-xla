@@ -18,6 +18,10 @@ from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
 from transformers.models.gemma.modeling_gemma import GemmaAttention
+from transformers.models.glm.modeling_glm import GlmAttention
+from transformers.models.glm.modeling_glm import (
+    eager_attention_forward as glm_eager_attention_forward,
+)
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssAttention
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
@@ -41,6 +45,12 @@ from third_party.tt_forge_models.gemma.pytorch.loader import (
 )
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelVariant as GemmaModelVariant,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelLoader as GLMModelLoader,
+)
+from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+    ModelVariant as GLMModelVariant,
 )
 from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
     ModelLoader as GPTOSSModelLoader,
@@ -79,6 +89,7 @@ MODEL_LOADER_MAP = {
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
     "gpt_oss": GPTOSSModelLoader,
+    "glm": GLMModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
@@ -120,6 +131,7 @@ AVAILABLE_VARIANT_MAP = {
         "Ministral_8B_Instruct",
     ],
     "gpt_oss": ["20B", "120B"],
+    "glm": ["4.7", "4.5", "4.5_Air"],
 }
 
 
@@ -2319,7 +2331,7 @@ def test_eager_batched_attention():
     output = model(hidden_states).to("cpu")
 
 
-@pytest.mark.nighly
+@pytest.mark.nightly
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
@@ -2445,6 +2457,237 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
             attention_mask,
             past_key_states,
             cache_positions,
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("seq_len", [1032])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm").items(),
+    ids=[str(k) for k in get_available_variants("glm").keys()],
+)
+def test_glm_attention_prefill(seq_len, variant, variant_config):
+    xr.set_device_type("TT")
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    config._attn_implementation = "sdpa"
+    attention = GlmAttention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 1
+    head_dim = getattr(
+        config, "head_dim", config.hidden_size // config.num_attention_heads
+    )
+    partial_rotary_factor = getattr(config, "partial_rotary_factor", 1.0)
+    rope_dim = int(head_dim * partial_rotary_factor)
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    cos_sin = torch.rand(batch_size, seq_len, rope_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh_shape = (1, num_devices)
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(attention, args, kwargs):
+        shard_specs = {}
+        shard_specs[attention.q_proj.weight] = ("model", None)
+        shard_specs[attention.q_proj.bias] = ("model",)
+        shard_specs[attention.k_proj.weight] = ("model", None)
+        shard_specs[attention.k_proj.bias] = ("model",)
+        shard_specs[attention.v_proj.weight] = ("model", None)
+        shard_specs[attention.v_proj.bias] = ("model",)
+        shard_specs[attention.o_proj.weight] = (None, "model")
+        return shard_specs
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm").items(),
+    ids=[str(k) for k in get_available_variants("glm").keys()],
+)
+def test_glm_attention_decode(variant, variant_config, arch):
+    xr.set_device_type("TT")
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    config._attn_implementation = "sdpa"
+    attention = GlmAttention(config, layer_idx=0).to(torch.bfloat16)
+    batch_size = 1
+
+    seq_len = 1
+    head_dim = getattr(
+        config, "head_dim", config.hidden_size // config.num_attention_heads
+    )
+    partial_rotary_factor = getattr(config, "partial_rotary_factor", 1.0)
+    rope_dim = int(head_dim * partial_rotary_factor)
+
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    cos_sin = torch.rand(batch_size, seq_len, rope_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    max_cache_len = 16
+    static_cache: StaticCache = StaticCache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    past_key_states = static_cache
+
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+        mesh_shape = (1, num_devices)
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(attention, args, kwargs):
+            shard_specs = {}
+            shard_specs[attention.q_proj.weight] = ("model", None)
+            shard_specs[attention.q_proj.bias] = ("model",)
+            shard_specs[attention.k_proj.weight] = ("model", None)
+            shard_specs[attention.k_proj.bias] = ("model",)
+            shard_specs[attention.v_proj.weight] = ("model", None)
+            shard_specs[attention.v_proj.bias] = ("model",)
+            shard_specs[attention.o_proj.weight] = (None, "model")
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        attention,
+        [
+            hidden_states,
+            position_embeddings,
+            attention_mask,
+            past_key_states,
+            cache_positions,
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm").items(),
+    ids=[str(k) for k in get_available_variants("glm").keys()],
+)
+def test_glm_attention(seq_len, variant, variant_config, arch):
+    xr.set_device_type("TT")
+
+    def sdpa(
+        attention_module,
+        query_states,
+        key_states,
+        value_states,
+        attention_mask,
+        dropout,
+        scaling,
+    ):
+        attention_interface: Callable = glm_eager_attention_forward
+        if attention_module.config._attn_implementation != "eager":
+            attention_interface = ALL_ATTENTION_FUNCTIONS[
+                attention_module.config._attn_implementation
+            ]
+
+        attn_output, _ = attention_interface(
+            attention_module,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=dropout,
+            scaling=scaling,
+        )
+        return attn_output
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    config._attn_implementation = "sdpa"
+    attention = GlmAttention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 1
+    num_heads = config.num_attention_heads
+    num_key_value_heads = config.num_key_value_heads
+    head_dim = getattr(config, "head_dim", config.hidden_size // num_heads)
+
+    dropout = 0.0
+    scaling = attention.scaling
+
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+        mesh_shape = (1, num_devices)
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(sdpa, args, kwargs):
+            shard_specs = {}
+            shard_specs[args[1]] = ("batch", "model", None, None)  # query_states
+            shard_specs[args[2]] = ("batch", "model", None, None)  # key_states
+            shard_specs[args[3]] = ("batch", "model", None, None)  # value_states
+            shard_specs[args[4]] = ("batch", None, None, None)  # attention_mask
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    query_states = torch.randn(
+        (batch_size, num_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    key_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    value_states = torch.randn(
+        (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
+    )
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    run_graph_test(
+        sdpa,
+        [
+            attention,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout,
+            scaling,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
