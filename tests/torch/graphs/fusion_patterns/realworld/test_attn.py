@@ -70,7 +70,9 @@ def test_llama_3_8b_sdpa(request):
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
-@pytest.mark.parametrize("layer_idx", [0, 1])
+@pytest.mark.parametrize(
+    "layer_idx", [0, 1]
+)  # Much like GPT-3, GPT-Neo and some Gemma models, GPT-OSS uses alternating sliding window and full attention layers.
 @pytest.mark.filecheck(["sdpa.ttnn.mlir"])
 @pytest.mark.filecheck(["split_query_key_value_and_split_heads.ttnn.mlir"])
 @pytest.mark.filecheck(["concatenate_heads.ttnn.mlir"])
