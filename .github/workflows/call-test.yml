@@ -327,6 +327,8 @@ jobs:
         ENABLE_BRINGUP_STAGE_LOGGING: 1
       shell: bash
       run: |
+        echo "env var"
+        echo $TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE
         source venv/activate
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
