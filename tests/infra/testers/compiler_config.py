@@ -36,8 +36,9 @@ class CompilerConfig:
     # should provide and get tensors of common dtype.
     enable_bfp8_conversion: bool = False
 
-    # Enables experimental BFP8 weight conversion in MLIR optimizer passes.
-    experimental_enable_weight_bfp8_conversion: bool = False
+    # Target dtype for weight conversion in matmul and linear operations.
+    # Valid values: "", "bfp8", "bfp4". Empty string disables.
+    experimental_weight_dtype: str = ""
 
     # Override math fidelity for all ttnn operations exposing compute kernel
     # config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
@@ -97,8 +98,8 @@ class CompilerConfig:
         if self.enable_bfp8_conversion:
             options["enable_bfp8_conversion"] = "true"
 
-        if self.experimental_enable_weight_bfp8_conversion:
-            options["experimental_enable_weight_bfp8_conversion"] = "true"
+        if self.experimental_weight_dtype:
+            options["experimental_weight_dtype"] = self.experimental_weight_dtype
 
         if self.math_fidelity is not None:
             options["math_fidelity"] = self.math_fidelity

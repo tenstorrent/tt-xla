@@ -66,15 +66,15 @@ class TTConfig:
     # Optimization level for tt-mlir compilation.
     optimization_level: int = 0
 
-    # Enables experimental BFP8 weight conversion in tt-mlir.
-    experimental_enable_weight_bfp8_conversion: bool = False
+    # Target dtype for weight conversion (e.g. "bfp8", "bfp4"). Empty disables.
+    experimental_weight_dtype: str = ""
 
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
-            "experimental_enable_weight_bfp8_conversion": self.experimental_enable_weight_bfp8_conversion,
+            "experimental_weight_dtype": self.experimental_weight_dtype,
         }
 
 
