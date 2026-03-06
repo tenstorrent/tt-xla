@@ -8,7 +8,7 @@ cd "$project_root"
 
 venv_dir="/opt/tt-triage-venv"
 
-python -m venv "$venv_dir"
+python3.12 -m venv "$venv_dir"
 source $venv_dir/bin/activate
 
 TT_MLIR_VERSION=$(grep 'set(TT_MLIR_VERSION' third_party/CMakeLists.txt | sed 's/.*"\(.*\)".*/\1/')
