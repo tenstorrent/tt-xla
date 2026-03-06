@@ -1,0 +1,89 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import pytest
+import torch
+from infra import Framework, run_graph_test
+from transformers.models.gpt_oss.modeling_gpt_oss import (
+    GptOssAttention,
+    GptOssRotaryEmbedding,
+)
+from transformers.models.llama.modeling_llama import (
+    LlamaAttention,
+    LlamaRotaryEmbedding,
+)
+from utils import Category
+
+from tests.infra.testers.compiler_config import CompilerConfig
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelLoader as GPTOSSModelLoader,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelVariant as GPTOSSModelVariant,
+)
+from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+    ModelLoader as LlamaModelLoader,
+)
+from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+    ModelVariant as LlamaModelVariant,
+)
+
+_COMPILER_CONFIG = CompilerConfig(optimization_level=1)
+SEQ_LEN = 1024
+
+
+# ---------------------------------------------------------------------------
+# Llama 3 8B tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+@pytest.mark.filecheck(["sdpa.ttnn.mlir"])
+def test_llama_3_8b_sdpa(request):
+    config = LlamaModelLoader(variant=LlamaModelVariant.LLAMA_3_8B).load_config()
+    config._attn_implementation = "eager"
+
+    attention = LlamaAttention(config, layer_idx=0).to(torch.bfloat16)
+    hidden_states = torch.randn(1, SEQ_LEN, config.hidden_size, dtype=torch.bfloat16)
+    position_ids = torch.arange(SEQ_LEN).unsqueeze(0)
+    cos, sin = LlamaRotaryEmbedding(config=config)(hidden_states, position_ids)
+
+    run_graph_test(
+        attention,
+        [hidden_states, (cos, sin), None, None],
+        framework=Framework.TORCH,
+        compiler_config=_COMPILER_CONFIG,
+        request=request,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GPT-OSS 20B tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+@pytest.mark.filecheck(["sdpa.ttnn.mlir"])
+def test_gpt_oss_20b_sdpa(request):
+    config = GPTOSSModelLoader(variant=GPTOSSModelVariant.GPT_OSS_20B).load_config()
+    config._attn_implementation = "eager"
+
+    attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
+    hidden_states = torch.randn(1, SEQ_LEN, config.hidden_size, dtype=torch.bfloat16)
+    position_ids = torch.arange(SEQ_LEN).unsqueeze(0)
+    cos, sin = GptOssRotaryEmbedding(config=config)(hidden_states, position_ids)
+
+    run_graph_test(
+        attention,
+        [hidden_states, (cos, sin), None, None],
+        framework=Framework.TORCH,
+        compiler_config=_COMPILER_CONFIG,
+        request=request,
+    )
