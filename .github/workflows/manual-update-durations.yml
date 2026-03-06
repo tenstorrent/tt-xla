@@ -5,6 +5,12 @@ name: Update Test Durations
 
 on:
   workflow_dispatch:
+    inputs:
+      test_metal:
+        description: 'Run tt-metal build and tests'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   packages: read
@@ -516,6 +522,7 @@ jobs:
           echo ""
 
       - name: Install build dependencies for tt-metal
+        if: ${{ inputs.test_metal }}
         run: |
           echo "=== Installing build dependencies ==="
           echo ""
@@ -540,6 +547,7 @@ jobs:
           echo ""
 
       - name: Checkout and build tt-metal tests
+        if: ${{ inputs.test_metal }}
         run: |
           echo "=== Checking out and building tt-metal tests ==="
           echo ""
@@ -583,6 +591,7 @@ jobs:
           echo ""
 
       - name: Run tt-metal smoketests on controller container
+        if: ${{ inputs.test_metal }}
         run: |
           echo "=== Running tt-metal smoketests (single container) ==="
           echo ""
@@ -620,6 +629,7 @@ jobs:
           echo ""
 
       - name: Run tt-metal smoketests with mpirun (multi-host)
+        if: ${{ inputs.test_metal }}
         run: |
           echo "=== Running tt-metal smoketests with mpirun across hosts ==="
           echo ""
@@ -741,6 +751,7 @@ jobs:
           echo ""
 
       - name: ttrun smoketests - tt-metal test_physical_discovery (PhysicalDiscovery)
+        if: ${{ inputs.test_metal }}
         run: |
           echo "=== ttrun smoketest: tt-metal test_physical_discovery (PhysicalDiscovery tests) ==="
           echo ""
@@ -762,6 +773,7 @@ jobs:
           echo ""
 
       - name: ttrun smoketests - tt-metal test_physical_discovery (PhysicalMappingGeneration)
+        if: ${{ inputs.test_metal }}
         run: |
           echo "=== ttrun smoketest: tt-metal test_physical_discovery (PhysicalMappingGeneration.Generate2x4SliceToPCIeDeviceMapping) ==="
           echo ""
@@ -783,6 +795,7 @@ jobs:
           echo ""
 
       - name: ttrun smoketests - tt-metal run_cluster_validation
+        if: ${{ inputs.test_metal }}
         run: |
           echo "=== ttrun smoketest: tt-metal run_cluster_validation ==="
           echo ""
