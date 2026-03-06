@@ -157,6 +157,7 @@ jobs:
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
 
     - name: Set up tt-triage
+      continue-on-error: true
       shell: bash
       run: |
         .github/scripts/install-tt-triage.sh
