@@ -493,6 +493,7 @@ def record_model_test_properties(
     comparison_results: list = None,
     comparison_config=None,
     model_size: int = None,
+    precision: str = None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -595,6 +596,7 @@ def record_model_test_properties(
         "arch": arch,
         "seq_len": getattr(test_metadata, "seq_len", None),
         "batch_size": getattr(test_metadata, "batch_size", None),
+        "precision": precision if precision is not None else "bfloat16",
     }
 
     # Add model size (in billions of parameters) to tags if available
