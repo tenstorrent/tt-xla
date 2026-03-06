@@ -445,7 +445,15 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
 tt::runtime::MeshFabricConfig
 ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
-  // Distributed uses FABRIC_1D for now.
+  std::string shape_str;
+  for (size_t i = 0; i < mesh_shape.size(); ++i) {
+    shape_str += std::to_string(mesh_shape[i]);
+    if (i < mesh_shape.size() - 1) shape_str += ", ";
+  }
+  std::cout << "[FABRIC CONFIG] computeFabricConfig - mesh_shape: ["
+            << shape_str << "]" << std::endl;
+
+  // Distributed uses FABRIC_2D (overridden from FABRIC_1D).
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
     uint32_t num_devices = 1;
@@ -455,9 +463,33 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
     tt::runtime::FabricConfig global =
         num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_2D
                         : tt::runtime::FabricConfig::DISABLED;
+
+    std::cout << "[FABRIC CONFIG] DISTRIBUTED MODE: num_devices=" << num_devices
+              << ", fabric_config=" << tt::runtime::flatbuffer::EnumNameFabricConfig(global)
+              << " (OVERRIDDEN to FABRIC_2D, NOT using tt::runtime::computeMeshFabricConfig)"
+              << std::endl;
+
     return tt::runtime::MeshFabricConfig{global, {}};
   }
-  return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
+
+  // Non-distributed mode: log that we're NOT using the runtime computation
+  std::cout << "[FABRIC CONFIG] NON-DISTRIBUTED MODE: OVERRIDING to use FABRIC_2D "
+            << "instead of tt::runtime::computeMeshFabricConfig" << std::endl;
+
+  // Override: Always use FABRIC_2D for multi-device, DISABLED for single device
+  uint32_t num_devices = 1;
+  for (auto dim : mesh_shape) {
+    num_devices *= dim;
+  }
+  tt::runtime::FabricConfig global =
+      num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_2D
+                      : tt::runtime::FabricConfig::DISABLED;
+
+  std::cout << "[FABRIC CONFIG] OVERRIDE RESULT: num_devices=" << num_devices
+            << ", fabric_config=" << tt::runtime::flatbuffer::EnumNameFabricConfig(global)
+            << std::endl;
+
+  return tt::runtime::MeshFabricConfig{global, {}};
 }
 
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
@@ -526,14 +558,32 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   // NOTE: it looks like metal context is being reinitialized each time we
   // open/close the device, so we need to set the fabric config each time
   // (even if we always set it to the same value).
+  std::string shape_str;
+  for (size_t i = 0; i < mesh_shape.size(); ++i) {
+    shape_str += std::to_string(mesh_shape[i]);
+    if (i < mesh_shape.size() - 1) shape_str += ", ";
+  }
+  std::cout << "[FABRIC CONFIG] openMeshDevice - BEFORE computeFabricConfig, mesh_shape: ["
+            << shape_str << "]" << std::endl;
+
   tt::runtime::MeshFabricConfig fabric_config = computeFabricConfig(mesh_shape);
-  DLOG_F(LOG_DEBUG,
-         "ClientInstance::openMeshDevice - setting fabric config: %s",
-         tt::runtime::flatbuffer::EnumNameFabricConfig(
-             fabric_config.globalConfig));
+
+  std::cout << "[FABRIC CONFIG] openMeshDevice - AFTER computeFabricConfig, fabric_config.globalConfig: "
+            << tt::runtime::flatbuffer::EnumNameFabricConfig(fabric_config.globalConfig)
+            << " (enum value: " << static_cast<int>(fabric_config.globalConfig) << ")"
+            << std::endl;
+
+  std::cout << "[FABRIC CONFIG] openMeshDevice - CALLING tt::runtime::setFabricConfig with: "
+            << tt::runtime::flatbuffer::EnumNameFabricConfig(fabric_config.globalConfig)
+            << std::endl;
 
   tt::runtime::setFabricConfig(fabric_config.globalConfig);
   m_fabric_config = fabric_config;
+
+  std::cout << "[FABRIC CONFIG] openMeshDevice - AFTER tt::runtime::setFabricConfig, "
+            << "stored m_fabric_config.globalConfig: "
+            << tt::runtime::flatbuffer::EnumNameFabricConfig(m_fabric_config->globalConfig)
+            << std::endl;
 
   // TODO(odjuricicTT, #1485): This is a temporary way to disable program cache
   // now that it's enabled by default here,
@@ -558,6 +608,11 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
       .meshShape = mesh_shape,
       .traceRegionSize = traceRegionSize,
   };
+
+  std::cout << "[FABRIC CONFIG] openMeshDevice - About to call tt::runtime::openMeshDevice "
+            << "with fabric already set to: "
+            << tt::runtime::flatbuffer::EnumNameFabricConfig(m_fabric_config->globalConfig)
+            << std::endl;
 
   return tt::runtime::openMeshDevice(options);
 }
