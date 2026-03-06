@@ -38,6 +38,3 @@ curl -L "https://github.com/tenstorrent/tt-metal/archive/${TT_METAL_VERSION}.tar
       tt-metal-${TT_METAL_VERSION}/tools/tt-triage.py \
       tt-metal-${TT_METAL_VERSION}/tools/triage \
       tt-metal-${TT_METAL_VERSION}/tt_metal
-
-tt_triage_exec="$tt_triage_dir/tools/tt-triage.py"
-export TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE="source ${venv_dir}/bin/activate && python ${tt_triage_exec} 1>&2"
