@@ -19,6 +19,11 @@ from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
 
+from tests.torch.models.deepseek_v3_2_exp.modified_model import MLP as DeepseekMLP
+from tests.torch.models.deepseek_v3_2_exp.modified_model import (
+    ModelArgs as DeepseekModelArgs,
+)
+from tests.torch.models.deepseek_v3_2_exp.modified_model import MoE as DeepseekMoE
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
     ModelLoader as FalconModelLoader,
@@ -523,6 +528,80 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
         [hidden_states],
         framework=Framework.TORCH,
         comparison_config=comparison_config,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+"""Deepseek MLP test"""
+
+
+# NOTE: Deepseek Decoder layer has two MLPs, one with MoE and one without
+@pytest.mark.nightly
+@parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("seq_len", [1024])
+@pytest.mark.parametrize(
+    "mlp_type",
+    [
+        "mlp",
+        pytest.param(
+            "moe",
+            marks=pytest.mark.xfail(
+                reason="Fails on ttnn.sort as it doesnt support fp32 input types."
+            ),
+        ),
+    ],
+)
+def test_deepseek_mlp(mlp_type, seq_len, arch):
+    xr.set_device_type("TT")
+
+    # Create model args with a single layer for testing
+    args = DeepseekModelArgs(
+        n_layers=1,
+        q_lora_rank=3072,
+    )
+
+    if mlp_type == "mlp":
+        mlp = DeepseekMLP(args.dim, args.inter_dim).to(torch.bfloat16)
+    elif mlp_type == "moe":
+        mlp = DeepseekMoE(args).to(torch.bfloat16)
+        seq_len = 32  # hardcoded for now to test the MoE. Bigger seq_len takes longer.
+
+    batch_size = 2
+    hidden_states = torch.randn(batch_size, seq_len, args.dim, dtype=torch.bfloat16)
+
+    if arch == "llmbox":
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (batch_size, num_devices // batch_size)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+        def get_shard_spec(mlp, args, kwargs):
+            shard_specs = {}
+
+            if hasattr(mlp, "experts"):
+                for expert in mlp.experts:
+                    shard_specs[expert.w1.weight] = ("model", "batch")  # dim, inter_dim
+                    shard_specs[expert.w2.weight] = ("batch", "model")  # inter_dim, dim
+                    shard_specs[expert.w3.weight] = ("model", "batch")  # dim, inter_dim
+            else:
+                shard_specs[mlp.w1.weight] = ("model", "batch")  # dim, inter_dim
+                shard_specs[mlp.w2.weight] = ("batch", "model")  # inter_dim, dim
+                shard_specs[mlp.w3.weight] = ("model", "batch")  # dim, inter_dim
+
+            # input sharding
+            shard_specs[args[0]] = ("batch", None, "model")
+
+            return shard_specs
+
+    else:
+        mesh = None
+        get_shard_spec = None
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
