@@ -70,7 +70,7 @@ jobs:
             docker build \
               --progress=plain \
               -t $IMAGE_NAME:$docker_tag \
-              -f .github/Dockerfile.fedora .
+              -f .github/Dockerfile.release-fedora .
 
             echo "Pushing image $IMAGE_NAME:$docker_tag"
             docker push $IMAGE_NAME:$docker_tag
@@ -78,9 +78,20 @@ jobs:
 
           echo "docker_image=$IMAGE_NAME:$docker_tag" >> "$GITHUB_OUTPUT"
 
-  release-tests:
-    uses: ./.github/workflows/call-release-tests.yml
+  basic-tests:
     needs: [ build-release-docker ]
+    uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@main
     secrets: inherit
     with:
-      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+      ref: main
+      project-filter: tt-xla
+
+  demo-tests:
+    needs: [ build-release-docker ]
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
+    secrets: inherit
+    with:
+      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+      ref: main
+      project-filter: tt-xla
