@@ -23,6 +23,7 @@ import time
 from typing import Callable, Optional
 
 import torch
+import tracy
 from transformers.cache_utils import StaticCache
 
 ReadLogitsFn = Callable[[object], torch.Tensor]
@@ -165,6 +166,7 @@ def generate_and_benchmark(
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
+            tracy.signpost("prefill_start" if step == 0 else f"decode_{step}_start")
             start = time.perf_counter_ns()
 
             output = model(**input_args)
@@ -198,6 +200,7 @@ def generate_and_benchmark(
             input_args["cache_position"] = (host_cache_pos + 1).to(device)
 
             end = time.perf_counter_ns()
+            tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
             iteration_times.append(end - start)
             if verbose:
                 print(
