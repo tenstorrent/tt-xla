@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      artifact_run_id:
+        description: 'Artifact run ID to download (leave empty for latest push-main)'
+        required: false
+        type: string
+        default: '22777374403'
 
 permissions:
   packages: read
@@ -19,8 +24,8 @@ permissions:
 env:
   GH_TOKEN: ${{ github.token }}
   # Artifact download mode: 'specific' to use ARTIFACT_RUN_ID, 'latest' to use latest push-main
-  ARTIFACT_MODE: specific
-  ARTIFACT_RUN_ID: 22777374403
+  ARTIFACT_MODE: ${{ inputs.artifact_run_id != '' && 'specific' || 'latest' }}
+  ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
 
 jobs:
   multihost-hostname-check:
