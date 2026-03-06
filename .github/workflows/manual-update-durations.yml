@@ -14,7 +14,7 @@ env:
   GH_TOKEN: ${{ github.token }}
   # Artifact download mode: 'specific' to use ARTIFACT_RUN_ID, 'latest' to use latest push-main
   ARTIFACT_MODE: specific
-  ARTIFACT_RUN_ID: 22768131078
+  ARTIFACT_RUN_ID: 22769898527
 
 jobs:
   multihost-hostname-check:
@@ -292,6 +292,103 @@ jobs:
 
           echo ""
           echo "Wheel installed in controller container"
+          echo ""
+
+      - name: Verify MPI versions in controller container
+        run: |
+          echo "=== Verifying MPI versions and library dependencies in controller container ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            echo "=== Inside venv ==="
+            cd /workspace
+            source venv/activate
+
+            echo ""
+            echo "1. mpirun version in venv:"
+            mpirun --version || echo "mpirun not found in venv"
+
+            echo ""
+            echo "2. Checking NFS-shared libtt_metal.so (from wheel) MPI linkage:"
+            LIBTT_METAL_WHEEL=$(find /workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt -name "libtt_metal.so" -type f | head -n 1)
+            if [ -n "$LIBTT_METAL_WHEEL" ]; then
+              echo "   Found at: $LIBTT_METAL_WHEEL"
+              echo "   OpenMPI version strings in libtt_metal.so:"
+              strings "$LIBTT_METAL_WHEEL" | grep -i "open.mpi\|ompi" | head -10 || echo "   No OpenMPI strings found"
+            else
+              echo "   libtt_metal.so not found in wheel"
+            fi
+
+            echo ""
+            echo "3. System libmpi.so version:"
+            if [ -f /lib/x86_64-linux-gnu/libmpi.so.40 ]; then
+              echo "   OpenMPI version strings in system libmpi.so.40:"
+              strings /lib/x86_64-linux-gnu/libmpi.so.40 | grep -i "open.mpi" | head -5 || echo "   No OpenMPI strings found"
+              echo ""
+              echo "   SONAME of system libmpi.so.40:"
+              readelf -d /lib/x86_64-linux-gnu/libmpi.so.40 | grep SONAME || echo "   No SONAME found"
+              echo ""
+              echo "   System libmpi.so symlinks:"
+              ls -la /lib/x86_64-linux-gnu/libmpi.so* || echo "   No libmpi.so files found"
+            else
+              echo "   /lib/x86_64-linux-gnu/libmpi.so.40 not found"
+            fi
+
+            echo ""
+            echo "=== Outside venv ==="
+            deactivate 2>/dev/null || true
+
+            echo ""
+            echo "4. mpirun version outside venv:"
+            mpirun --version || echo "mpirun not found outside venv"
+
+            echo ""
+            echo "5. Comparing with locally-built tt-metal (if exists):"
+            if [ -f /workspace/tt-metal/build/lib/libtt_metal.so ]; then
+              echo "   Found locally-built libtt_metal.so"
+              echo "   OpenMPI version strings in locally-built libtt_metal.so:"
+              strings /workspace/tt-metal/build/lib/libtt_metal.so | grep -i "open.mpi\|ompi" | head -10 || echo "   No OpenMPI strings found"
+            else
+              echo "   Locally-built tt-metal not found (will be built in later steps)"
+            fi
+
+            echo ""
+            echo "6. Which mpirun is being used:"
+            which mpirun || echo "mpirun not in PATH"
+            echo ""
+            echo "7. LD_LIBRARY_PATH:"
+            echo "   $LD_LIBRARY_PATH"
+          '
+
+          echo ""
+          echo "MPI version verification complete in controller container"
+          echo ""
+
+      - name: Verify MPI versions on all worker containers
+        run: |
+          echo "=== Verifying MPI versions on all containers via mpirun ==="
+          echo ""
+
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --tag-output \
+            bash -c '
+              docker exec multihost-poc bash -c "
+                echo \"=== Host: \$(hostname) ===\" &&
+                echo \"\" &&
+                echo \"1. mpirun version:\" &&
+                mpirun --version | head -3 || echo \"mpirun not found\" &&
+                echo \"\" &&
+                echo \"2. System libmpi.so SONAME:\" &&
+                readelf -d /lib/x86_64-linux-gnu/libmpi.so.40 2>/dev/null | grep SONAME || echo \"libmpi.so.40 not found\" &&
+                echo \"\" &&
+                echo \"3. Which mpirun:\" &&
+                which mpirun || echo \"mpirun not in PATH\"
+              "
+            '
+
+          echo ""
+          echo "MPI version verification complete on all containers"
           echo ""
 
       - name: Locate distributed worker path
