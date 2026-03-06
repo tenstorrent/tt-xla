@@ -43,26 +43,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
-# Find MPI (OpenMPI with ULFM support required for tt-metal)
-# Force CMake to use ULFM-enabled OpenMPI from /opt/openmpi-v5.0.7-ulfm
-# instead of system OpenMPI which lacks ULFM support
-set(MPI_HOME "/opt/openmpi-v5.0.7-ulfm" CACHE PATH "Path to ULFM-enabled OpenMPI")
-
-# Check if MPI_HOME exists and contains expected libraries
-if(EXISTS "${MPI_HOME}")
-    message(STATUS "MPI_HOME found at: ${MPI_HOME}")
-    if(EXISTS "${MPI_HOME}/lib/libmpi.so.40")
-        message(STATUS "Found libmpi.so.40 at: ${MPI_HOME}/lib/libmpi.so.40")
-    else()
-        message(WARNING "libmpi.so.40 not found at: ${MPI_HOME}/lib/libmpi.so.40")
-    endif()
-    if(EXISTS "${MPI_HOME}/lib/libmpi.so")
-        message(STATUS "Found libmpi.so at: ${MPI_HOME}/lib/libmpi.so")
-    endif()
-else()
-    message(WARNING "MPI_HOME does not exist: ${MPI_HOME}")
-endif()
-
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" ON)
 option(TTMLIR_ENABLE_BINDINGS_PYTHON "Enable Python bindings in tt-mlir" OFF)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
