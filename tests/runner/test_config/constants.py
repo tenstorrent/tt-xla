@@ -32,6 +32,8 @@ ALLOWED_FIELDS = {
     "filechecks",
     # Compiler config options
     "enable_weight_bfp8_conversion",
+    # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
+    "inject_custom_moe",
 }
 
 # Single source of truth for the placeholders YAML filename
