@@ -66,7 +66,6 @@ def test_llama_3_8b_sdpa(request):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)

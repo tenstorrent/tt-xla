@@ -9,7 +9,6 @@ from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -29,7 +28,6 @@ def test_concatenate_heads_3d(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)

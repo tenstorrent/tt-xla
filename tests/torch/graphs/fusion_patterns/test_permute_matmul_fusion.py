@@ -8,7 +8,6 @@ from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -26,7 +25,6 @@ def test_matmul_permute_a(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -44,7 +42,6 @@ def test_matmul_permute_b(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -65,7 +62,6 @@ def test_linear_permute_a(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)

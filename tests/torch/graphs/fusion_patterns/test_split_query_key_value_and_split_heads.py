@@ -9,7 +9,6 @@ from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -51,7 +50,6 @@ def test_split_query_key_value_and_split_heads_mha_matmul(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -99,7 +97,6 @@ def test_split_query_key_value_and_split_heads_mha_matmul_with_bias(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -157,7 +154,6 @@ def test_split_query_key_value_and_split_heads_mha_linear(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -199,7 +195,6 @@ def test_split_query_key_value_and_split_heads_mha_transposed_key(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)

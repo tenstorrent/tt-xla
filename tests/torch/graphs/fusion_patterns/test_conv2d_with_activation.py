@@ -10,7 +10,6 @@ from infra import Framework, run_graph_test
 from utils import Category
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -32,7 +31,6 @@ def test_conv2d_with_relu(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -54,7 +52,6 @@ def test_conv2d_with_relu6(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -76,7 +73,6 @@ def test_conv2d_with_silu(request):
     )
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)

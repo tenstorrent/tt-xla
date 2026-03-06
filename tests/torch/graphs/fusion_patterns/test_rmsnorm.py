@@ -9,7 +9,6 @@ from utils import Category
 
 
 # duplicated to have all fusion tests in the same place, also it uses the F.rms_norm rather than pulling from HF model code
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)

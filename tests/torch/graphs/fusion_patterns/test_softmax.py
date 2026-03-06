@@ -9,7 +9,6 @@ from utils import Category
 
 
 # pulls double duty to test SoftmaxFusionPattern and NumericallyStableSoftmaxFusionPattern
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
