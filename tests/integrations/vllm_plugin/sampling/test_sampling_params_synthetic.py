@@ -574,3 +574,129 @@ def test_seed_mixed_batch(device, vocab_size):
             f"Seeded row {idx} (seed={seeded_indices[idx]}) must be deterministic: "
             f"run1={results[0][idx]}, run2={results[1][idx]}"
         )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_allowed_token_ids(device, vocab_size):
+    """allowed_token_ids mask compiles, runs, and constrains token selection on TT.
+
+    Uses temperature=0 (greedy) so the result is deterministic: only tokens
+    100-109 are allowed, so the sampled token must be in that range.
+    """
+    torch.manual_seed(0)
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    # Build additive mask: -inf for disallowed tokens, 0.0 for allowed.
+    allowed_set = set(range(100, 110))
+    mask = torch.full((1, vocab_size), float("-inf"), dtype=torch.float32)
+    for tid in allowed_set:
+        mask[0, tid] = 0.0
+
+    metadata = XLASupportedSamplingMetadata(
+        temperature=torch.zeros(1, device=device),
+        top_k=None,
+        top_p=None,
+        min_p=None,
+        all_greedy=False,
+        no_allowed_token_ids=False,
+        allowed_token_ids_mask=mask.to(device),
+    )
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size, context="allowed_token_ids")
+    assert (
+        actual.item() in allowed_set
+    ), f"Only tokens {sorted(allowed_set)} are allowed, got {actual.item()}"
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_allowed_token_ids_mixed_batch(device, vocab_size):
+    """Mixed batch: req 0 constrained to tokens 100-109, others unconstrained.
+
+    Uses temperature=0 (greedy). Req 0 must pick from 100-109. Other
+    requests can pick any token. Uses batch=4 to match production padding.
+    """
+    batch_size = 4
+    torch.manual_seed(0)
+    logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
+
+    # Build additive mask: -inf for disallowed tokens, 0.0 for allowed.
+    allowed_set = set(range(100, 110))
+    mask = torch.zeros(batch_size, vocab_size, dtype=torch.float32)
+    # Req 0: constrained — -inf everywhere except allowed set.
+    mask[0] = float("-inf")
+    for tid in allowed_set:
+        mask[0, tid] = 0.0
+    # Reqs 1-3: unconstrained — all 0.0 (no-op).
+
+    metadata = XLASupportedSamplingMetadata(
+        temperature=torch.zeros(batch_size, device=device),
+        top_k=None,
+        top_p=None,
+        min_p=None,
+        all_greedy=False,
+        no_allowed_token_ids=False,
+        allowed_token_ids_mask=mask.to(device),
+    )
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
+
+    assert actual.shape == (batch_size, 1)
+    assert (
+        actual[0].item() in allowed_set
+    ), f"Req 0: only tokens {sorted(allowed_set)} allowed, got {actual[0].item()}"
+    assert_valid_tokens(actual, vocab_size, context="allowed_token_ids_mixed")
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_min_tokens(device, vocab_size):
+    """min_tokens mask suppresses stop/EOS tokens when output count < min.
+
+    Constructs logits where EOS token (id=2) has the highest logit. With
+    min_tokens mask active (output count < min), EOS must be suppressed
+    and a different token sampled. Uses greedy for determinism.
+    """
+    eos_id = 2
+    logits_cpu = torch.full((1, vocab_size), -10.0, dtype=torch.float32)
+    # Make EOS the strongest signal.
+    logits_cpu[0, eos_id] = 10.0
+    # Make token 100 the second strongest.
+    logits_cpu[0, 100] = 5.0
+
+    # Build min_tokens mask: suppress EOS (output count < min).
+    min_tokens_mask = torch.zeros(1, vocab_size, dtype=torch.float32)
+    min_tokens_mask[0, eos_id] = float("-inf")
+
+    metadata = XLASupportedSamplingMetadata(
+        temperature=torch.zeros(1, device=device),
+        top_k=None,
+        top_p=None,
+        min_p=None,
+        all_greedy=False,
+        no_min_tokens=False,
+        min_tokens_mask=min_tokens_mask.to(device),
+    )
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size, context="min_tokens")
+    assert actual.item() != eos_id, (
+        f"EOS token {eos_id} should be suppressed by min_tokens mask, "
+        f"got {actual.item()}"
+    )
+    assert actual.item() == 100, (
+        f"With EOS suppressed, next-best token 100 should be selected, "
+        f"got {actual.item()}"
+    )
