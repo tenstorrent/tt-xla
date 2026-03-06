@@ -1016,6 +1016,15 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
             submesh_for_optim.handle);
   }
 
+  // TODO(dmilinkovic): Temporarily disable const-eval on CPU for Codegen
+  // backends until the pipeline restructuring on TT-MLIR side is done.
+  // https://github.com/tenstorrent/tt-mlir/issues/6927
+  if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
+      compile_options.backend == BackendRuntime::TTNNCodegenPy) {
+    options.enableCPUHoistedConstEval = false;
+  }
+
+
   // Map per-axis fabric config to mesh topology for CCL operations.
   // Compute fabric config for the compilation mesh shape directly, since the
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
