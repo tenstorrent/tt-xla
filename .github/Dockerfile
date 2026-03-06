@@ -11,6 +11,7 @@ RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pk
     rm /tmp/script.sh
 
 COPY --chown=root:root --chmod=777 .github/scripts/install-tt-triage.sh /tmp/install-tt-triage.sh
+COPY third_party/CMakeLists.txt third_party/CMakeLists.txt
 RUN /tmp/install-tt-triage.sh || true
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} as ci

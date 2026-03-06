@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-project_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")/../.." rev-parse --show-toplevel)"
-cd "$project_root"
-
 venv_dir="/opt/tt-triage-venv"
 
 python3.12 -m venv "$venv_dir"
