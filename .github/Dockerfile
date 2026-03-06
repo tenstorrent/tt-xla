@@ -10,6 +10,8 @@ COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/script.sh
 
+RUN .github/scripts/install-tt-triage.sh || true
+
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} as ci
 SHELL ["/bin/bash", "-c"]
 
