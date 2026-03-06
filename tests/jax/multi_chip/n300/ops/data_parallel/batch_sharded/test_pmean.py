@@ -33,7 +33,7 @@ from utils import failed_fe_compilation, failed_runtime
     [
         pytest.param(
             ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.xfail(
+            marks=pytest.mark.skip(
                 reason=failed_runtime(
                     "Hangs https://github.com/tenstorrent/tt-xla/issues/3407"
                 )
