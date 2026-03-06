@@ -98,46 +98,63 @@ def vllm_server():
 
     proc = None
     try:
+        print(f"\nStarting vLLM server: {' '.join(cmd[:6])}... (port={port})")
         proc = subprocess.Popen(
             cmd,
             stdout=log_file,
             stderr=subprocess.STDOUT,
         )
+        print(f"Server process started (pid={proc.pid})")
 
         health_url = f"{base_url}/health"
-        deadline = time.time() + SERVER_STARTUP_TIMEOUT
+        start_time = time.time()
+        deadline = start_time + SERVER_STARTUP_TIMEOUT
         ready = False
+        print(
+            f"\nWaiting for vLLM server on port {port} (timeout={SERVER_STARTUP_TIMEOUT}s)..."
+        )
         while time.time() < deadline:
+            elapsed = time.time() - start_time
             if proc.poll() is not None:
-                log_tail = _read_tail(log_path)
+                log_tail = _read_tail(log_path, chars=8000)
                 pytest.fail(
-                    f"vLLM server exited with code {proc.returncode} before becoming ready.\n"
-                    f"Output:\n{log_tail}"
+                    f"vLLM server exited with code {proc.returncode} after {elapsed:.0f}s.\n"
+                    f"Output (last 8000 chars):\n{log_tail}"
                 )
             try:
                 resp = requests.get(health_url, timeout=5)
                 if resp.status_code == 200:
+                    print(f"vLLM server ready after {elapsed:.0f}s")
                     ready = True
                     break
+                else:
+                    print(f"  [{elapsed:.0f}s] /health returned {resp.status_code}")
             except requests.ConnectionError:
                 pass
+            except Exception as e:
+                print(f"  [{elapsed:.0f}s] health check error: {type(e).__name__}: {e}")
             time.sleep(2)
 
         if not ready:
+            elapsed = time.time() - start_time
+            print(f"Server NOT ready after {elapsed:.0f}s, sending SIGTERM...")
             proc.send_signal(signal.SIGTERM)
             proc.wait(timeout=10)
-            log_tail = _read_tail(log_path)
+            log_tail = _read_tail(log_path, chars=8000)
             pytest.fail(
                 f"vLLM server did not become ready within {SERVER_STARTUP_TIMEOUT}s\n"
-                f"Output:\n{log_tail}"
+                f"Output (last 8000 chars):\n{log_tail}"
             )
 
         yield base_url
 
+        print(f"\nTearing down vLLM server (pid={proc.pid})...")
         proc.send_signal(signal.SIGTERM)
         try:
             proc.wait(timeout=30)
+            print("Server shut down cleanly.")
         except subprocess.TimeoutExpired:
+            print("Server didn't stop in 30s, killing...")
             proc.kill()
             proc.wait()
     finally:
