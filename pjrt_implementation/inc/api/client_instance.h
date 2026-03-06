@@ -121,8 +121,9 @@ public:
     return m_fabric_config;
   }
 
-  // Computes the fabric config for the given mesh shape using the stored system
-  // descriptor. In distributed mode, falls back to FABRIC_1D.
+  // Computes the fabric config for the given mesh shape.
+  // OVERRIDDEN: Always uses FABRIC_2D for multi-device configurations,
+  // NOT using tt::runtime::computeMeshFabricConfig.
   tt::runtime::MeshFabricConfig
   computeFabricConfig(const std::vector<uint32_t> &meshShape);
 
