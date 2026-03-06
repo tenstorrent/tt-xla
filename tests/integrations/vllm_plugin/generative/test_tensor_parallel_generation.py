@@ -39,6 +39,8 @@ def test_tensor_parallel_generation_n300(model_name: str):
     ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
     [
         pytest.param("Qwen/Qwen3-0.6B", False, False),
+        pytest.param("Qwen/Qwen3-1.7B", False, False),
+        pytest.param("Qwen/Qwen3-4B", False, False),
     ],
 )
 def test_tensor_parallel_generation_llmbox_small(
