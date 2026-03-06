@@ -2331,6 +2331,7 @@ def test_eager_batched_attention():
     output = model(hidden_states).to("cpu")
 
 
+@pytest.mark.test_ci
 @pytest.mark.nightly
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -2464,7 +2465,6 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
     )
 
 
-@pytest.mark.test_ci
 @pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.parametrize("seq_len", [1024])
@@ -2522,7 +2522,6 @@ def test_glm_attention_prefill(seq_len, variant, variant_config):
     )
 
 
-@pytest.mark.test_ci
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
@@ -2601,7 +2600,6 @@ def test_glm_attention_decode(variant, variant_config, arch):
     )
 
 
-@pytest.mark.test_ci
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
