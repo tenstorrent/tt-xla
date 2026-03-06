@@ -261,7 +261,7 @@ def test_llama_mlp(seq_len, variant, variant_config, arch, request):
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-@pytest.mark.filecheck(["gelu.ttnn.mlir"])
+@pytest.mark.filecheck(["matmul_with_activation_gelu.ttnn.mlir"])
 def test_gemma_mlp(seq_len, variant, variant_config, arch, request):
     if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
