@@ -130,6 +130,9 @@ class ModelTestConfig:
             "enable_weight_bfp8_conversion", default=False
         )
 
+        # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
+        self.inject_custom_moe = self._resolve("inject_custom_moe", default=False)
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:
