@@ -94,9 +94,10 @@ def _run_model_test_impl(
 
         if compiler_config is None:
             compiler_config = CompilerConfig()
-
+        precision = None
         if test_metadata.enable_weight_bfp8_conversion:
             compiler_config.experimental_enable_weight_bfp8_conversion = True
+            precision = "bfp8"
 
         if ir_dump_path:
             compiler_config.export_path = ir_dump_path
@@ -188,6 +189,8 @@ def _run_model_test_impl(
 
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly
+            if precision is None:
+                precision = "bfloat16"
             record_model_test_properties(
                 record_property,
                 request,
@@ -200,6 +203,7 @@ def _run_model_test_impl(
                 comparison_results=list(comparison_result) if comparison_result else [],
                 comparison_config=comparison_config,
                 model_size=model_size,
+                precision=precision,
             )
 
             # prints perf benchmark results to console
@@ -616,7 +620,7 @@ def test_placeholder_models(model_name, record_property, request):
 
     model_info = DummyModelInfo(model_name_lc)
     test_metadata = ModelTestConfig(data=model_test_config_data, arch=None)
-
+    precision = None
     record_model_test_properties(
         record_property,
         request,
@@ -624,4 +628,5 @@ def test_placeholder_models(model_name, record_property, request):
         test_metadata=test_metadata,
         run_mode=RunMode.INFERENCE,
         parallelism=Parallelism.SINGLE_DEVICE,
+        precision=precision,
     )
