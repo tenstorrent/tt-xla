@@ -206,7 +206,8 @@ def test_qwen3_mlp(seq_len, variant, variant_config, arch):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_mlp(seq_len, variant, variant_config, arch):
+@pytest.mark.filecheck(["matmul_with_activation_silu.ttnn.mlir"])
+def test_llama_mlp(seq_len, variant, variant_config, arch, request):
     if "70b" in str(variant) and not arch == "llmbox":
         pytest.skip("70B models don't fit on a single device")
 
@@ -245,6 +246,7 @@ def test_llama_mlp(seq_len, variant, variant_config, arch):
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
+        request=request,
     )
 
 
@@ -259,7 +261,8 @@ def test_llama_mlp(seq_len, variant, variant_config, arch):
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-def test_gemma_mlp(seq_len, variant, variant_config, arch):
+@pytest.mark.filecheck(["gelu.ttnn.mlir"])
+def test_gemma_mlp(seq_len, variant, variant_config, arch, request):
     if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -298,6 +301,7 @@ def test_gemma_mlp(seq_len, variant, variant_config, arch):
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
+        request=request,
     )
 
 
@@ -474,6 +478,7 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
+@pytest.mark.filecheck(["matmul_with_activation_silu.ttnn.mlir"])
 def test_gpt_oss_mlp(variant, variant_config, arch):
     xr.set_device_type("TT")
 

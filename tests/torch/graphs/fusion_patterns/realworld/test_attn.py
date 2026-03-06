@@ -70,14 +70,15 @@ def test_llama_3_8b_sdpa(request):
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+@pytest.mark.parametrize("layer_idx", [0, 1])
 @pytest.mark.filecheck(["sdpa.ttnn.mlir"])
 @pytest.mark.filecheck(["split_query_key_value_and_split_heads.ttnn.mlir"])
 @pytest.mark.filecheck(["concatenate_heads.ttnn.mlir"])
-def test_gpt_oss_20b_sdpa(request):
+def test_gpt_oss_20b_sdpa(layer_idx, request):
     config = GPTOSSModelLoader(variant=GPTOSSModelVariant.GPT_OSS_20B).load_config()
     config._attn_implementation = "eager"
 
-    attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
+    attention = GptOssAttention(config, layer_idx=layer_idx).to(torch.bfloat16)
     hidden_states = torch.randn(1, SEQ_LEN, config.hidden_size, dtype=torch.bfloat16)
     position_ids = torch.arange(SEQ_LEN).unsqueeze(0)
     cos, sin = GptOssRotaryEmbedding(config=config)(hidden_states, position_ids)
