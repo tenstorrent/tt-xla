@@ -13,6 +13,8 @@ from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
+from loguru import logger
+from tt_torch.sparse_mlp import enable_sparse_mlp, get_moe_shard_specs
 
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
@@ -62,6 +64,9 @@ class DynamicTorchModelTester(TorchModelTester):
             run_mode=run_mode,
             parallelism=self.parallelism,
         )
+
+        if test_metadata and getattr(test_metadata, "inject_custom_moe", False):
+            self._inject_custom_moe(self._model)
 
     # --- TorchModelTester interface implementations ---
 
@@ -149,3 +154,20 @@ class DynamicTorchModelTester(TorchModelTester):
         Calls the unpack_forward_output method of the dynamic loader.
         """
         return self.dynamic_loader.unpack_forward_output(output)
+
+    def _inject_custom_moe(self, model):
+        """Injects a custom MoE implementation into the model if specified in test metadata."""
+        logger.info(
+            "Custom MoE injection enabled for this test - using sparse_mlp.py implementation in tt_torch"
+        )
+        mesh_info = self._workload.mesh.shape()
+        mesh_shape = tuple(mesh_info.values())
+        mesh_names = tuple(mesh_info.keys())
+        enable_sparse_mlp(model, mesh=mesh_shape)
+        shard_spec_fn = self._workload.shard_spec_fn
+        if shard_spec_fn:
+
+            def combined_shard_spec_fn(model, _fn=shard_spec_fn, _names=mesh_names):
+                return get_moe_shard_specs(model, _fn, _names)
+
+            self._workload.shard_spec_fn = combined_shard_spec_fn
