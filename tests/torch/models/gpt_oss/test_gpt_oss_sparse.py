@@ -11,11 +11,11 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import parametrize_arch
-from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+from third_party.tt_forge_models.gpt_oss.pytorch.s_loader import (
     ModelLoader as GPTOSSModelLoader,
     ModelVariant as GPTOSSModelVariant,
 )
-from third_party.tt_forge_models.gpt_oss.pytorch.CI_loader import (
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
     ModelLoader as GPTOSSCurrentModelLoader,
     ModelVariant as GPTOSSCurrentModelVariant,
 )
@@ -100,7 +100,7 @@ def test_gpt_oss_decoder_layer(variant, arch):
     run_graph_test(
         model,
         [inputs["input_ids"], inputs["attention_mask"]],
-        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.90)),
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.99)),
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
