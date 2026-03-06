@@ -156,6 +156,8 @@ jobs:
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
 
+    # A temmporary step because triage isn't preinstalled in tt-xla-slim image
+    # When perf tests migrate to running in the tt-xla-base image, this can be removed
     - name: Set up tt-triage
       continue-on-error: true
       shell: bash
