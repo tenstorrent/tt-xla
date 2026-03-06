@@ -841,8 +841,7 @@ def test_llama_3_8b_tp(output_file, num_layers, request):
     )
 
 
-@pytest.mark.parametrize("arch", ["wormhole_llmbox", "wormhole_galaxy"])
-def test_llama_3_1_70b_tp(output_file, num_layers, request, arch):
+def test_llama_3_1_70b_tp(output_file, num_layers, request):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -850,12 +849,7 @@ def test_llama_3_1_70b_tp(output_file, num_layers, request, arch):
 
     variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
     test_llm_tp(
-        ModelLoader,
-        variant,
-        output_file,
-        num_layers=num_layers,
-        request=request,
-        arch=arch,
+        ModelLoader, variant, output_file, num_layers=num_layers, request=request
     )
 
 
@@ -916,4 +910,21 @@ def test_gpt_oss_20b_tp_batch_size_1(output_file, num_layers, request):
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=1,
         optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
+    )
+
+
+def test_llama_3_1_70b_tp_galaxy(output_file, num_layers, request):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        arch="wormhole_galaxy",
     )
