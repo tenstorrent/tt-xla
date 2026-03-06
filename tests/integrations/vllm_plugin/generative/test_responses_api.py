@@ -23,7 +23,7 @@ import pytest
 import requests
 
 MODEL = "facebook/opt-125m"
-SERVER_STARTUP_TIMEOUT = 300  # seconds
+SERVER_STARTUP_TIMEOUT = 600  # seconds (CI can be slow: model download + compilation)
 REQUEST_TIMEOUT = 120  # seconds
 
 # Minimal chat template for models that lack one (e.g. opt-125m).
