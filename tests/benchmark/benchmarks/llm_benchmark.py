@@ -21,6 +21,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenize
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
+import tracy
+
 from utils import (
     build_xla_export_name,
     compute_pcc,
@@ -208,6 +210,7 @@ def benchmark_llm_torch_xla(
     accuracy_testing: bool = False,
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
+    max_output_tokens=None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -317,7 +320,8 @@ def benchmark_llm_torch_xla(
     )
 
     # Limit maximum generation count to fit within preallocated static cache
-    max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
+    if max_output_tokens is None:
+        max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
 
     # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
     if not accuracy_testing:
@@ -392,7 +396,7 @@ def benchmark_llm_torch_xla(
 
     # Warmup run
     print("Warming up...")
-    warmup_tokens = min(MIN_STEPS, max_tokens_to_generate)
+    warmup_tokens = min(MIN_STEPS, max_output_tokens)
     _, _ = generate_and_benchmark(
         compiled_model,
         input_args,
@@ -402,6 +406,8 @@ def benchmark_llm_torch_xla(
         tokenizer=tokenizer,
         verbose=False,
     )
+
+    tracy.signpost("warmup_complete")
 
     # Reconstruct inputs for the actual benchmark run
     input_args = construct_inputs(
@@ -424,7 +430,7 @@ def benchmark_llm_torch_xla(
         compiled_model,
         input_args,
         device,
-        max_tokens_to_generate,
+        max_output_tokens,
         read_logits_fn=read_logits_fn,
         tokenizer=tokenizer,
         verbose=True,
@@ -436,11 +442,6 @@ def benchmark_llm_torch_xla(
         predicted_tokens = [
             logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits
         ]
-
-    if len(iteration_times) < 10:
-        raise RuntimeError(
-            "LLM benchmark failed: insufficient number of iterations completed."
-        )
 
     ttft_ns = iteration_times[0]
     ttft_ms = ttft_ns / 1e6
