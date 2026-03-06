@@ -186,6 +186,7 @@ def get_columns() -> List[str]:
         "specific_test_case",
         "model_type",
         "group",
+        "precision",
         "arch",
         "bringup_status",
         "model_status",
@@ -204,6 +205,7 @@ def get_header_labels() -> List[str]:
     label_map = {
         "pcc_threshold": "pcc_thres",
         "pcc_assertion_enabled": "pcc_en",
+        "precision": "data_type",
     }
     return [label_map.get(k, k) for k in keys]
 
@@ -241,6 +243,9 @@ def iter_test_records(tree: ET.ElementTree) -> Iterator[Dict]:
         # Get model_status from model_test_status field in tags (optional)
         model_test_status = record.get("model_test_status")
         record["model_status"] = normalize_model_test_status(model_test_status)
+
+        # Data type / precision: support both tag keys (e.g. "precision": "bfloat16")
+        record["precision"] = record.get("precision") or record.get("data_type") or ""
 
         yield record
 
