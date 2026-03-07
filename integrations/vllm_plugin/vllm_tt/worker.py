@@ -297,6 +297,20 @@ class TTWorker:
 
     def load_model(self) -> None:
         _log_rss("load_model START")
+        # Workaround: disable record_metadata_for_reloading which was added
+        # in vllm v0.16.0 (PR #32133). It stores meta tensor copies of all
+        # parameters during model init, causing dynamo to create ~3x more
+        # tensor copies during compilation tracing.
+        # See: https://github.com/vllm-project/vllm/pull/32133
+        try:
+            import vllm.model_executor.model_loader.utils as _loader_utils
+            from vllm.model_executor.model_loader.reload import (
+                record_metadata_for_reloading as _orig,
+            )
+
+            _loader_utils.record_metadata_for_reloading = lambda model: None
+        except ImportError:
+            pass  # older vllm without reload module
         self.model_runner.load_model()
         _log_rss("load_model END")
 
