@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import fcntl
+import importlib
 import os
 import shutil
 import subprocess
@@ -134,7 +135,10 @@ class RequirementsManager:
         _dbg(
             f"[Requirements] __enter__: newly_installed={sorted(self._newly_installed)}"
         )
-        _dbg(f"[Requirements] __enter__: changed_versions={self._changed_versions}")
+        _dbg(
+            f"[Requirements] __enter__: changed_versions={sorted(self._changed_versions.keys())}"
+        )
+        self._purge_stale_modules()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -151,14 +155,29 @@ class RequirementsManager:
                 _dbg(f"[Requirements] __exit__: uninstalling: {to_remove}")
                 self._pip_uninstall(to_remove)
 
-            # Restore original versions for packages that changed
+            # Restore original versions for packages that changed using a temp
+            # requirements file so that all install formats (==, @, -e) are handled.
             if self._changed_versions:
-                pinned = [
-                    f"{name}=={version}"
-                    for name, version in sorted(self._changed_versions.items())
-                ]
-                _dbg(f"[Requirements] __exit__: restoring versions: {pinned}")
-                self._pip_install(tuple(pinned))
+                _dbg(
+                    f"[Requirements] __exit__: restoring versions: {sorted(self._changed_versions.keys())}"
+                )
+                restore_file = None
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w",
+                        suffix=".txt",
+                        delete=False,
+                        prefix="tt_xla_restore_",
+                    ) as f:
+                        for name in sorted(self._changed_versions):
+                            f.write(self._changed_versions[name] + "\n")
+                        restore_file = f.name
+                    self._pip_install_requirements(restore_file)
+                finally:
+                    if restore_file and os.path.isfile(restore_file):
+                        os.unlink(restore_file)
+
+            self._purge_stale_modules()
         finally:
             # Always release the lock if held
             if self._lock_file is not None:
@@ -182,6 +201,34 @@ class RequirementsManager:
         _dbg(
             f"[Requirements] _compute_diffs: +{len(self._newly_installed)} new, ~{len(self._changed_versions)} changed"
         )
+
+    def _purge_stale_modules(self) -> None:
+        """Remove changed/new packages from sys.modules so re-imports load from disk.
+
+        After pip install or rollback, cached module objects in sys.modules may
+        point to the old version's code.  Purging forces Python to re-import
+        from the updated on-disk packages the next time they are imported.
+        """
+        affected_normalized: Set[str] = set()
+        for name in self._newly_installed | set(self._changed_versions.keys()):
+            affected_normalized.add(name.lower().replace("-", "_"))
+
+        if not affected_normalized:
+            return
+
+        purged = []
+        for key in list(sys.modules.keys()):
+            top_level = key.split(".")[0].lower().replace("-", "_")
+            if top_level in affected_normalized:
+                purged.append(key)
+                del sys.modules[key]
+
+        if purged:
+            _dbg(
+                f"[Requirements] purged {len(purged)} stale module(s) from sys.modules"
+            )
+
+        importlib.invalidate_caches()
 
     @staticmethod
     def _pip(args: Tuple[str, ...]) -> None:
@@ -239,17 +286,32 @@ class RequirementsManager:
 
     @staticmethod
     def _parse_freeze(text: str) -> Dict[str, str]:
+        """Parse ``pip freeze`` output into {normalised_name: full_freeze_line}.
+
+        Handles all install formats: ``name==version``, ``name @ URL``,
+        and ``-e ...#egg=name``.  Storing the full freeze line allows the
+        rollback to use ``pip install -r`` which understands all these formats.
+        """
         result: Dict[str, str] = {}
         for line in text.splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            if "==" in line and not line.startswith("-e ") and "@" not in line:
+
+            name = None
+            if line.startswith("-e "):
+                if "#egg=" in line:
+                    name = line.split("#egg=")[-1].strip()
+            elif "@" in line and "==" not in line:
+                name = line.split("@")[0].strip()
+            elif "==" in line:
                 try:
-                    name, version = line.split("==", 1)
-                    result[name.strip().lower()] = version.strip()
+                    name = line.split("==", 1)[0].strip()
                 except ValueError:
                     continue
+
+            if name:
+                result[name.lower()] = line
         return result
 
     def _install_system_requirements(self, system_req_path: str) -> None:
