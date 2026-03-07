@@ -102,11 +102,50 @@ v0.15.1 (released Feb 4, 2026) shows identical low-memory behavior to v0.15.0:
 - `extract_graph_helper START`: 5.22 GB (vs 20.63 GB on v0.16.0)
 - Peak RSS: 7.9 GB (vs 22 GB on v0.16.0)
 
+## Root Cause Found: PR #32133 — [QeRL] Layerwise Reloading
+
+Git bisect (8 steps) narrowed the regression to commit range `74898a701..f857a03f6`.
+
+- **Last good**: `74898a701` — `[BugFix][LoRA] TritonExperts is ModularMoEPath for FP8 models` (3700 MB)
+- **First bad**: `f857a03f6` — `[QeRL] Layerwise Reloading (#32133)` (8711 MB, first testable commit after the change)
+
+PR #32133 (https://github.com/vllm-project/vllm/pull/32133) adds `record_metadata_for_reloading(model)`
+which is called during model initialization and runs `capture_layer_to_meta(layer)` on every module. This
+creates meta tensor copies of all parameters with `tensor.__dict__.copy()`, potentially causing dynamo to
+specialize differently during tracing.
+
+Key changes in the PR:
+- `model_executor/model_loader/utils.py`: adds `record_metadata_for_reloading(model)` call in `initialize_model`
+- `model_executor/model_loader/reload/meta.py`: `capture_layer_to_meta` creates meta tensors with copied `__dict__`
+- `v1/worker/gpu_model_runner.py`: expanded `reload_weights` method (98 lines changed)
+
+## Bisect Setup
+
+```bash
+# Clone vllm repo
+git clone --depth 500 https://github.com/vllm-project/vllm.git /tmp/vllm_repo
+
+# Save .so files from v0.16 wheel
+pip install vllm==0.16.0
+mkdir -p /tmp/vllm_so_cache
+find /path/to/site-packages/vllm -name "*.so" -exec cp {} /tmp/vllm_so_cache/ \;
+
+# Start bisect
+cd /tmp/vllm_repo
+git bisect start
+git bisect bad v0.16.0
+git bisect good v0.15.1
+
+# Run bisect script (auto-installs, adds shims, runs test, checks RSS)
+git clean -fdx vllm/ && bash /path/to/vllm_bisect.sh
+# Then: git bisect good/bad/skip based on output
+```
+
 ## Next Steps
 
-1. File upstream vllm issue with A/B data — the vllm team can bisect on GPU
-2. Check if the regression also affects GPU users (likely, but less visible)
-3. Update TT plugin for vllm 0.17.0 API and test if fixed there
+1. File upstream vllm issue referencing PR #32133
+2. Test workaround: skip `record_metadata_for_reloading` call on TT platform
+3. Check if the regression also affects GPU users
 
 ## Key Files
 
