@@ -141,11 +141,48 @@ git clean -fdx vllm/ && bash /path/to/vllm_bisect.sh
 # Then: git bisect good/bad/skip based on output
 ```
 
+## Assessment: Bug or Intentional?
+
+The memory regression is an **unintentional side effect** of an intentional feature.
+
+The QeRL layerwise reloading feature is legitimately useful — it enables fast weight
+reloading for RL training pipelines. `record_metadata_for_reloading()` is intentionally
+placed in `initialize_model()` so metadata is always available if someone later calls
+`reload_weights()`.
+
+However, the memory impact is unintended. The function stores meta tensor copies with
+`tensor.__dict__.copy()` for **every module in the model**, even when layerwise reloading
+will never be used (which is most deployments). The `__dict__.copy()` on vLLM parameter
+subclasses (which have custom attributes like `weight_loader`, `output_dim`, etc.) creates
+additional Python objects that reference the parameter tensors. When dynamo traces through
+the model, these extra references cause it to create more tensor copies.
+
+The `LAYERWISE_INFO` is a `WeakKeyDictionary` keyed on modules, so the metadata should be
+GC'd when the model is deleted — but during the model's lifetime (including compilation),
+all that metadata is alive and affects dynamo's tracing behavior.
+
+## Upstream Status (as of v0.17.0, released 2026-03-06)
+
+- **Not fixed** in v0.17.0 — same unconditional `record_metadata_for_reloading()` call
+- **Not reported** — zero issues or PRs mentioning the memory impact
+- **Not noticed** — likely because GPU hosts have hundreds of GB of RAM and the 3x
+  regression is proportionally smaller for typical GPU deployments
+
+The fix upstream would be straightforward: make `record_metadata_for_reloading()` lazy
+(only capture metadata when `reload_weights()` is actually called) or make it opt-in
+via config.
+
+## Workaround (applied in tt-xla)
+
+Monkey-patch `record_metadata_for_reloading` to a no-op before model loading in the
+TT worker (commit ab2c8ac14). This disables the layerwise weight reloading feature
+(which TT doesn't use) and restores v0.15 memory behavior.
+
 ## Next Steps
 
-1. File upstream vllm issue referencing PR #32133
-2. Test workaround: skip `record_metadata_for_reloading` call on TT platform
-3. Check if the regression also affects GPU users
+1. Ship v0.16.0 uplift with the workaround
+2. File upstream vllm issue referencing PR #32133 once we have a GPU-reproducible path
+3. Suggested upstream fix: make `record_metadata_for_reloading` lazy or opt-in
 
 ## Key Files
 
