@@ -85,11 +85,28 @@ Starting from broken v0.16 (20.6 GB), swapping v0.15 files in:
 
 **Conclusion:** The regression is caused by interaction of multiple changes across files that can't be individually swapped due to cross-dependencies, most likely involving the `config/` package restructure.
 
+## Git Bisect Attempt
+
+Attempted git bisect between v0.15.1 and v0.16.0 (471 commits) by building vllm
+from source (`VLLM_TARGET_DEVICE=empty pip install .` ~10s per commit). However,
+intermediate commits have incompatible module structures with the TT plugin:
+- `vllm.tracing` changed from single file to package (missing `Tracer` export)
+- `vllm.envs` missing attributes at various commits
+- Model registry subprocess failures
+
+Each commit needs custom shims, making automated bisect impractical.
+
+## v0.15.1 Confirmed Good
+
+v0.15.1 (released Feb 4, 2026) shows identical low-memory behavior to v0.15.0:
+- `extract_graph_helper START`: 5.22 GB (vs 20.63 GB on v0.16.0)
+- Peak RSS: 7.9 GB (vs 22 GB on v0.16.0)
+
 ## Next Steps
 
-1. Clone vllm repo and use `git bisect` with build-from-source to find exact commit
-2. Enable `TORCH_LOGS=+dynamo` on both versions and diff the trace output
-3. File upstream vllm issue with the A/B data
+1. File upstream vllm issue with A/B data — the vllm team can bisect on GPU
+2. Check if the regression also affects GPU users (likely, but less visible)
+3. Update TT plugin for vllm 0.17.0 API and test if fixed there
 
 ## Key Files
 
