@@ -11,7 +11,6 @@ from flax import linen
 from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import JaxModelTester, RunMode
-from transformers import FlaxPreTrainedModel
 
 from tests.runner.utils import JaxDynamicLoader
 
@@ -102,6 +101,9 @@ class DynamicJaxModelTester(JaxModelTester):
         Returns:
             Forward method kwargs from loader if available, otherwise from parent
         """
+        # Deferred: version may change per model via RequirementsManager
+        from transformers import FlaxPreTrainedModel
+
         # First get the base kwargs from parent (includes params and inputs for HF models)
         kwargs = super()._get_forward_method_kwargs()
 
@@ -150,6 +152,9 @@ class DynamicJaxModelTester(JaxModelTester):
         Returns:
             Static argnames from loader if available, otherwise from parent
         """
+        # Deferred: version may change per model via RequirementsManager
+        from transformers import FlaxPreTrainedModel
+
         if hasattr(self.dynamic_loader.loader, "get_static_argnames"):
             loader_static_args = self.dynamic_loader.loader.get_static_argnames()
             # For HuggingFace models, also check parent's logic for train/deterministic
