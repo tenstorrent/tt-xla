@@ -65,12 +65,31 @@ The qualitative difference is striking: v0.15 RSS **drops** during dynamo tracin
 grep "\[MEM\]" <logfile>
 ```
 
+## Binary Search Results (v0.15 base + v0.16 overlays)
+
+Starting from working v0.15 (5.2 GB), adding v0.16 files one by one:
+- v0.15 + v0.16 `compilation/` → 5.3 GB OK
+- v0.15 + v0.16 `compilation/` + `forward_context.py` → 5.9 GB OK
+- v0.15 + v0.16 `_custom_ops.py` → 5.2 GB OK
+- v0.15 + v0.16 `model_executor/models/qwen3.py` → 5.2 GB OK
+- v0.15 + v0.16 `config/compilation.py` → FAIL (cross-deps with `vllm.compilation.passes`)
+- v0.15 + v0.16 `model_executor/model_loader/` → FAIL (cross-deps with `reload` module)
+- v0.15 + v0.16 `config/` (full package) → FAIL (cross-deps)
+
+Starting from broken v0.16 (20.6 GB), swapping v0.15 files in:
+- v0.16 + v0.15 `compilation/decorators.py` → 20.8 GB NO FIX
+- v0.16 + v0.15 `compilation/wrapper.py` → 20.6 GB NO FIX
+- v0.16 + v0.15 `forward_context.py` → 20.6 GB NO FIX
+- v0.16 + v0.15 core layers (linear, layernorm, activation, rotary, logits, vocab_embed) → 20.6 GB NO FIX
+- v0.16 + v0.15 `compilation/` + `forward_context.py` + `_custom_ops.py` + `custom_op.py` → 20.6 GB NO FIX
+
+**Conclusion:** The regression is caused by interaction of multiple changes across files that can't be individually swapped due to cross-dependencies, most likely involving the `config/` package restructure.
+
 ## Next Steps
 
-1. Binary search: swap progressively larger chunks of v0.15 vllm into v0.16 to isolate the file(s)
+1. Clone vllm repo and use `git bisect` with build-from-source to find exact commit
 2. Enable `TORCH_LOGS=+dynamo` on both versions and diff the trace output
-3. Check if vllm 0.16 changed how model weights are stored (e.g., `nn.Parameter` vs tensor subclass wrapping) which affects how dynamo traces through them
-4. File upstream vllm issue with the A/B data
+3. File upstream vllm issue with the A/B data
 
 ## Key Files
 
