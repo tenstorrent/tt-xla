@@ -22,6 +22,12 @@ import time
 import pytest
 import requests
 
+# Ensure requests to localhost bypass any HTTP proxy (CI shared runners
+# route traffic through a restricted proxy that returns 403 for local URLs).
+os.environ.setdefault("NO_PROXY", "localhost")
+if "localhost" not in os.environ.get("NO_PROXY", ""):
+    os.environ["NO_PROXY"] = os.environ["NO_PROXY"] + ",localhost"
+
 MODEL = "facebook/opt-125m"
 SERVER_STARTUP_TIMEOUT = 600  # seconds (CI can be slow: model download + compilation)
 REQUEST_TIMEOUT = 120  # seconds
