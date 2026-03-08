@@ -22,15 +22,14 @@ import time
 import pytest
 import requests
 
-# Ensure requests to localhost bypass any HTTP proxy (CI shared runners
-# route traffic through a restricted proxy that returns 403 for local URLs).
-os.environ.setdefault("NO_PROXY", "localhost")
-if "localhost" not in os.environ.get("NO_PROXY", ""):
-    os.environ["NO_PROXY"] = os.environ["NO_PROXY"] + ",localhost"
-
 MODEL = "facebook/opt-125m"
 SERVER_STARTUP_TIMEOUT = 600  # seconds (CI can be slow: model download + compilation)
 REQUEST_TIMEOUT = 120  # seconds
+
+# CI shared runners route traffic through a restricted proxy that returns 403
+# for local URLs. Use a session with proxies disabled for all requests.
+_session = requests.Session()
+_session.trust_env = False
 
 # Minimal chat template for models that lack one (e.g. opt-125m).
 CHAT_TEMPLATE = "{% for message in messages %}{{ message['content'] }}{% endfor %}"
@@ -128,7 +127,7 @@ def vllm_server():
                     f"Output (last 8000 chars):\n{log_tail}"
                 )
             try:
-                resp = requests.get(health_url, timeout=5)
+                resp = _session.get(health_url, timeout=5)
                 if resp.status_code == 200:
                     print(f"vLLM server ready after {elapsed:.0f}s")
                     ready = True
@@ -201,7 +200,7 @@ def test_responses_api_basic(vllm_server, input_value):
         "max_output_tokens": 32,
     }
 
-    response = requests.post(url, json=data, timeout=REQUEST_TIMEOUT)
+    response = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
     assert (
         response.status_code == 200
     ), f"Expected 200, got {response.status_code}: {response.text}"
@@ -234,7 +233,7 @@ def test_responses_api_streaming(vllm_server):
     }
 
     collected_events = []
-    with requests.post(url, json=data, stream=True, timeout=REQUEST_TIMEOUT) as resp:
+    with _session.post(url, json=data, stream=True, timeout=REQUEST_TIMEOUT) as resp:
         assert (
             resp.status_code == 200
         ), f"Expected 200, got {resp.status_code}: {resp.text}"
@@ -285,10 +284,10 @@ def test_responses_api_deterministic(vllm_server):
         "temperature": 0.0,
     }
 
-    response1 = requests.post(url, json=data, timeout=REQUEST_TIMEOUT)
+    response1 = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
     assert response1.status_code == 200, f"Request 1 failed: {response1.text}"
 
-    response2 = requests.post(url, json=data, timeout=REQUEST_TIMEOUT)
+    response2 = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
     assert response2.status_code == 200, f"Request 2 failed: {response2.text}"
 
     text1 = get_output_text(response1.json())
@@ -316,7 +315,7 @@ def test_responses_api_instructions(vllm_server):
         "max_output_tokens": 32,
     }
 
-    response = requests.post(url, json=data, timeout=REQUEST_TIMEOUT)
+    response = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
     assert (
         response.status_code == 200
     ), f"Expected 200, got {response.status_code}: {response.text}"
@@ -342,7 +341,7 @@ def test_responses_api_top_logprobs(vllm_server):
         "include": ["message.output_text.logprobs"],
     }
 
-    response = requests.post(url, json=data, timeout=REQUEST_TIMEOUT)
+    response = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
     assert (
         response.status_code == 200
     ), f"Expected 200, got {response.status_code}: {response.text}"
