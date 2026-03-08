@@ -223,7 +223,11 @@ def compile_jax_workload_for_tt_device(
 def compile_torch_workload_for_cpu(workload: Workload) -> None:
     """Compile Torch workload for CPU using inductor backend."""
     to_compile = workload.model if workload.model is not None else workload.executable
+    print(f"\n[DEBUG][compile_torch_workload_for_cpu] CALLED", flush=True)
+    print(f"  to_compile = {type(to_compile).__name__} (using {'model' if workload.model is not None else 'executable'})", flush=True)
+    print(f"  Calling: torch.compile(to_compile, backend='inductor')", flush=True)
     workload.compiled_executable = torch.compile(to_compile, backend="inductor")
+    print(f"[DEBUG][compile_torch_workload_for_cpu] DONE — compiled_executable type={type(workload.compiled_executable).__name__}", flush=True)
 
 
 def compile_torch_workload_for_tt_device(
@@ -231,11 +235,17 @@ def compile_torch_workload_for_tt_device(
 ) -> None:
     """Compile Torch workload for TT device using tt backend."""
     to_compile = workload.model if workload.model is not None else workload.executable
+    options = torch_options if torch_options is not None else {}
+    print(f"\n[DEBUG][compile_torch_workload_for_tt_device] CALLED", flush=True)
+    print(f"  to_compile = {type(to_compile).__name__} (using {'model' if workload.model is not None else 'executable'})", flush=True)
+    print(f"  options = {options}", flush=True)
+    print(f"  Calling: torch.compile(to_compile, backend='tt', options={options})", flush=True)
     workload.compiled_executable = torch.compile(
         to_compile,
         backend="tt",
-        options=torch_options if torch_options is not None else {},
+        options=options,
     )
+    print(f"[DEBUG][compile_torch_workload_for_tt_device] DONE — compiled_executable type={type(workload.compiled_executable).__name__}", flush=True)
 
 
 def compile_jax_multichip_workload(

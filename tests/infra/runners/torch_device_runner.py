@@ -92,17 +92,22 @@ class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
 
     def __init__(self, device_connector: DeviceConnector) -> None:
+        print(f"\n[DEBUG][TorchDeviceRunner.__init__] CALLED", flush=True)
         self.training_mode = False
         super().__init__(device_connector)
 
     def set_training_mode(self, training_mode: bool = True) -> None:
+        print(f"[DEBUG][TorchDeviceRunner.set_training_mode] CALLED — training_mode={training_mode}", flush=True)
         self.training_mode = training_mode
 
     # @override
     def _run_on_device(self, workload: Workload, device: Device) -> Tensor:
+        print(f"[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device={device}, training_mode={self.training_mode}, grad_enabled={self.training_mode}", flush=True)
         # Provide a context manager to enable or disable gradient calculation.
         with torch.set_grad_enabled(self.training_mode):
-            return workload.execute()
+            result = workload.execute()
+        print(f"[DEBUG][TorchDeviceRunner._run_on_device] Execution complete", flush=True)
+        return result
 
     # @override
     def _safely_put_workload_on_device(
@@ -113,20 +118,27 @@ class TorchDeviceRunner(DeviceRunner):
         puts model if workload is carrying one on device. Returns new workload which is
         "on device".
         """
+        print(f"\n[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device={device}", flush=True)
+        print(f"[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type={type(workload.model).__name__ if workload.model else None}", flush=True)
+        print(f"[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count={len(workload.args)}, kwargs keys={list(workload.kwargs.keys())}", flush=True)
         assert workload.is_torch, "Workload must be Torch workload to put on device"
 
         args_on_device = []
         kwargs_on_device = {}
 
+        print(f"[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to {device}...", flush=True)
         args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+        print(f"[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to {device}...", flush=True)
         kwargs_on_device = tree_map(lambda x: to_device(x, device), workload.kwargs)
 
         if workload.model is not None and hasattr(workload.model, "to"):
+            print(f"[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving model ({type(workload.model).__name__}) to {device}...", flush=True)
             workload.model = workload.model.to(device)
 
             # We need to tie weights for the model after moving it to the device.
             # For torch_xla this is a known quirk. See: https://docs.pytorch.org/xla/release/r2.8/learn/troubleshoot.html#xla-tensor-quirks
             if hasattr(workload.model, "tie_weights"):
+                print(f"[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Tying weights after device move", flush=True)
                 workload.model.tie_weights()
 
         shard_specs = None

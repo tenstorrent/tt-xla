@@ -25,6 +25,30 @@ from tests.infra.utilities.filecheck_utils import (
 FILECHECK_DIR = Path(__file__).parent.parent.parent / "filecheck"
 
 
+def _debug_summarize(obj, max_depth=2):
+    """Summarize an object for debug printing without dumping huge tensors."""
+    import torch
+    if isinstance(obj, torch.Tensor):
+        return f"Tensor(shape={list(obj.shape)}, dtype={obj.dtype}, device={obj.device})"
+    elif isinstance(obj, torch.nn.Module):
+        return f"{type(obj).__name__}(params={sum(p.numel() for p in obj.parameters())})"
+    elif isinstance(obj, (list, tuple)):
+        if max_depth <= 0:
+            return f"{type(obj).__name__}(len={len(obj)})"
+        items = [_debug_summarize(x, max_depth - 1) for x in obj[:5]]
+        suffix = f"...+{len(obj)-5} more" if len(obj) > 5 else ""
+        return f"{type(obj).__name__}([{', '.join(items)}{suffix}])"
+    elif isinstance(obj, dict):
+        if max_depth <= 0:
+            return f"dict(keys={list(obj.keys())[:5]})"
+        items = {k: _debug_summarize(v, max_depth - 1) for k, v in list(obj.items())[:5]}
+        return f"dict({items})"
+    elif isinstance(obj, str):
+        return repr(obj[:100])
+    else:
+        return repr(obj)
+
+
 class BaseTester(ABC):
     """Abstract base class all testers must inherit."""
 
@@ -39,6 +63,13 @@ class BaseTester(ABC):
         custom_comparator: Optional[Callable] = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
+        print(f"\n[DEBUG][BaseTester.__init__] CALLED", flush=True)
+        print(f"  evaluator_type = {evaluator_type}", flush=True)
+        print(f"  comparison_config = {comparison_config}", flush=True)
+        print(f"  framework = {framework}", flush=True)
+        print(f"  quality_config = {quality_config}", flush=True)
+        print(f"  metric_names = {metric_names}", flush=True)
+        print(f"  metric_kwargs = {metric_kwargs}", flush=True)
         self._evaluator_type = evaluator_type
         self._comparison_config = (
             comparison_config if comparison_config is not None else ComparisonConfig()
@@ -62,6 +93,7 @@ class BaseTester(ABC):
 
         # Automatically initialize framework-specific helpers
         self._initialize_framework_specific_helpers()
+        print(f"[DEBUG][BaseTester.__init__] DONE — device_runner={type(self._device_runner).__name__}, evaluator={type(self._evaluator).__name__ if self._evaluator else None}", flush=True)
 
     def _initialize_framework_specific_helpers(self) -> None:
         """
@@ -75,15 +107,19 @@ class BaseTester(ABC):
 
         This function triggers connection to device.
         """
+        print(f"\n[DEBUG][BaseTester._initialize_framework_specific_helpers] CALLED — framework={self._framework}", flush=True)
         if self._framework is not None:
             # Creating runner will register plugin and connect the device properly.
             self._device_runner = DeviceRunnerFactory.create_runner(self._framework)
+            print(f"[DEBUG][BaseTester._initialize_framework_specific_helpers] Created device_runner: {type(self._device_runner).__name__}", flush=True)
         self._initialize_evaluator()
 
     def _initialize_evaluator(self) -> None:
         """Initialize evaluator using factory with stored params."""
+        print(f"\n[DEBUG][BaseTester._initialize_evaluator] CALLED — evaluator_type={self._evaluator_type}", flush=True)
         # Skip if quality evaluator needs lazy init (no metric_names yet)
         if self._evaluator_type == "quality" and not self._metric_names:
+            print(f"[DEBUG][BaseTester._initialize_evaluator] SKIPPED (quality evaluator, no metric_names)", flush=True)
             return
 
         self._evaluator = EvaluatorFactory.create_evaluator(
@@ -94,6 +130,7 @@ class BaseTester(ABC):
             metric_names=self._metric_names,
             metric_kwargs=self._metric_kwargs,
         )
+        print(f"[DEBUG][BaseTester._initialize_evaluator] Created evaluator: {type(self._evaluator).__name__}", flush=True)
 
     def serialize_compilation_artifacts(
         self, test_name: str, workload: Workload

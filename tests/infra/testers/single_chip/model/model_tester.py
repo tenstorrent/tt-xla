@@ -40,6 +40,12 @@ class ModelTester(BaseTester, ABC):
         custom_comparator: Optional[Callable] = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
+        print(f"\n[DEBUG][ModelTester.__init__] CALLED", flush=True)
+        print(f"  comparison_config = {comparison_config}", flush=True)
+        print(f"  run_mode = {run_mode}", flush=True)
+        print(f"  framework = {framework}", flush=True)
+        print(f"  compiler_config = {compiler_config}", flush=True)
+        print(f"  dtype_override = {dtype_override}", flush=True)
         if compiler_config is None:
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
@@ -53,6 +59,7 @@ class ModelTester(BaseTester, ABC):
             os.environ.get("DISABLE_PERF_MEASUREMENT", "0") == "1"
         )
         self._perf_measurements: list[dict[str, float]] = []
+        print(f"[DEBUG][ModelTester.__init__] disable_perf_measurement={self._disable_perf_measurement}", flush=True)
 
         super().__init__(
             evaluator_type="comparison",
@@ -61,13 +68,21 @@ class ModelTester(BaseTester, ABC):
             custom_comparator=custom_comparator,
         )
         self._initialize_components()
+        print(f"[DEBUG][ModelTester.__init__] DONE", flush=True)
 
     def _initialize_components(self) -> None:
+        print(f"\n[DEBUG][ModelTester._initialize_components] CALLED — starting 5-step initialization", flush=True)
+        print(f"[DEBUG][ModelTester._initialize_components] Step 1/5: _initialize_model()", flush=True)
         self._initialize_model()
+        print(f"[DEBUG][ModelTester._initialize_components] Step 2/5: _set_model_dtype()", flush=True)
         self._set_model_dtype()
+        print(f"[DEBUG][ModelTester._initialize_components] Step 3/5: _cache_model_inputs()", flush=True)
         self._cache_model_inputs()
+        print(f"[DEBUG][ModelTester._initialize_components] Step 4/5: _set_inputs_dtype()", flush=True)
         self._set_inputs_dtype()
+        print(f"[DEBUG][ModelTester._initialize_components] Step 5/5: _initialize_workload()", flush=True)
         self._initialize_workload()
+        print(f"[DEBUG][ModelTester._initialize_components] DONE — all 5 steps complete", flush=True)
 
     def _initialize_model(self) -> None:
         """
@@ -76,17 +91,22 @@ class ModelTester(BaseTester, ABC):
         It is also important that model is configured before it is prepacked into a
         Workload during `_initialize_workload`.
         """
+        print(f"\n[DEBUG][ModelTester._initialize_model] CALLED", flush=True)
         # Store model instance.
         self._model = self._get_model()
+        print(f"[DEBUG][ModelTester._initialize_model] Got model: type={type(self._model).__name__}", flush=True)
         # Configure it.
         self._configure_model()
+        print(f"[DEBUG][ModelTester._initialize_model] Model configured for {self._run_mode}", flush=True)
 
     def _get_shard_specs_function(self) -> Optional[Callable[[Model], ShardSpec]]:
         """Optional: returns shard specs function if required; otherwise None."""
+        print(f"[DEBUG][ModelTester._get_shard_specs_function] CALLED — returning None (base implementation)", flush=True)
         return None
 
     def _get_mesh(self) -> Optional[Mesh]:
         """Optional: returns mesh if required; otherwise None."""
+        print(f"[DEBUG][ModelTester._get_mesh] CALLED — returning None (base implementation)", flush=True)
         return None
 
     @abstractmethod
@@ -98,6 +118,7 @@ class ModelTester(BaseTester, ABC):
         """
         Configures model for inference *or* training, depending on chosen run mode.
         """
+        print(f"\n[DEBUG][ModelTester._configure_model] CALLED — run_mode={self._run_mode}", flush=True)
         if self._run_mode == RunMode.INFERENCE:
             self._configure_model_for_inference()
         else:
@@ -120,13 +141,19 @@ class ModelTester(BaseTester, ABC):
 
     def _set_model_dtype(self) -> None:
         """Sets model dtype if dtype_override is provided."""
+        print(f"[DEBUG][ModelTester._set_model_dtype] CALLED — dtype_override={self._dtype_override}", flush=True)
         if self._dtype_override is not None:
             self._apply_model_dtype()
+        else:
+            print(f"[DEBUG][ModelTester._set_model_dtype] No dtype_override, skipping", flush=True)
 
     def _set_inputs_dtype(self) -> None:
         """Sets inputs dtype if dtype_override is provided."""
+        print(f"[DEBUG][ModelTester._set_inputs_dtype] CALLED — dtype_override={self._dtype_override}", flush=True)
         if self._dtype_override is not None:
             self._apply_inputs_dtype()
+        else:
+            print(f"[DEBUG][ModelTester._set_inputs_dtype] No dtype_override, skipping", flush=True)
 
     def _apply_model_dtype(self) -> None:
         """Applies dtype to model. Base implementation does nothing."""
@@ -152,6 +179,9 @@ class ModelTester(BaseTester, ABC):
 
     def test(self, request=None) -> Tuple[ComparisonResult, ...] | None:
         """Tests the model depending on test type with which tester was configured."""
+        print(f"\n{'='*80}", flush=True)
+        print(f"[DEBUG][ModelTester.test] CALLED — run_mode={self._run_mode}", flush=True)
+        print(f"{'='*80}", flush=True)
         if self._run_mode == RunMode.INFERENCE:
             return self._test_inference(request=request)
         else:
@@ -162,16 +192,27 @@ class ModelTester(BaseTester, ABC):
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
-        self._compile_for_cpu(self._workload)
-        cpu_res = self._run_on_cpu(self._workload)
+        from tests.infra.testers.base_tester import _debug_summarize
 
+        print(f"\n[DEBUG][ModelTester._test_inference] === STEP 1: Compile for CPU ===", flush=True)
+        self._compile_for_cpu(self._workload)
+
+        print(f"\n[DEBUG][ModelTester._test_inference] === STEP 2: Run on CPU (golden reference) ===", flush=True)
+        cpu_res = self._run_on_cpu(self._workload)
+        print(f"[DEBUG][ModelTester._test_inference] CPU result: {_debug_summarize(cpu_res)}", flush=True)
+
+        print(f"\n[DEBUG][ModelTester._test_inference] === STEP 3: Compile for TT device ===", flush=True)
         self._compile_for_tt_device(self._workload)
 
         if not self._disable_perf_measurement:
+            print(f"\n[DEBUG][ModelTester._test_inference] === STEP 4: E2E Perf measurement ===", flush=True)
             e2e_perf_stats = self._test_e2e_perf()
             list.append(self._perf_measurements, e2e_perf_stats)
+            print(f"[DEBUG][ModelTester._test_inference] Perf stats: avg_time={e2e_perf_stats.get('avg_time', 'N/A'):.4f}s", flush=True)
 
+        print(f"\n[DEBUG][ModelTester._test_inference] === STEP 5: Run on TT device ===", flush=True)
         tt_res = self._run_on_tt_device(self._workload)
+        print(f"[DEBUG][ModelTester._test_inference] TT result: {_debug_summarize(tt_res)}", flush=True)
 
         if request:
             self.handle_filecheck_and_serialization(request, self._workload)
@@ -181,6 +222,7 @@ class ModelTester(BaseTester, ABC):
                 tt_res, cpu_res, self._workload.args, self._workload.kwargs
             )
             return None
+        print(f"\n[DEBUG][ModelTester._test_inference] === STEP 6: Compare TT vs CPU ===", flush=True)
         return (self._compare(tt_res, cpu_res),)
 
     def _test_e2e_perf(self) -> dict[str, float]:
@@ -214,14 +256,17 @@ class ModelTester(BaseTester, ABC):
 
     def _run_on_cpu(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on CPU."""
+        print(f"[DEBUG][ModelTester._run_on_cpu] CALLED — delegating to device_runner.run_on_cpu()", flush=True)
         return self._device_runner.run_on_cpu(compiled_workload)
 
     def _run_on_tt_device(self, compiled_workload: Workload) -> Tensor:
         """Runs workload on TT device."""
+        print(f"[DEBUG][ModelTester._run_on_tt_device] CALLED — delegating to device_runner.run_on_tt_device()", flush=True)
         return self._device_runner.run_on_tt_device(compiled_workload)
 
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """Compares device with golden output and returns the result."""
+        print(f"[DEBUG][ModelTester._compare] CALLED — comparing device output vs golden output", flush=True)
         return self._evaluator.evaluate(device_out, golden_out)
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:

@@ -35,6 +35,14 @@ class Workload:
         static_argnames: Optional[Sequence[str]] = None,
     ) -> None:
 
+        print(f"\n[DEBUG][Workload.__init__] CALLED", flush=True)
+        print(f"  framework = {framework}", flush=True)
+        print(f"  executable = {type(executable).__name__ if executable else None}", flush=True)
+        print(f"  compiled_executable = {type(compiled_executable).__name__ if compiled_executable else None}", flush=True)
+        print(f"  model = {type(model).__name__ if model else None}", flush=True)
+        print(f"  args count = {len(args) if args else 0}", flush=True)
+        print(f"  kwargs keys = {list(kwargs.keys()) if kwargs else []}", flush=True)
+
         self.framework = framework
 
         assert (
@@ -56,6 +64,7 @@ class Workload:
         # Currently needed because _safely_put_workload_on_device relies on it to avoid putting those args on device.
         # Consider reworking _safely_put_workload_on_device to eliminate the need for static_argnames in Workload.
         self.static_argnames = static_argnames or []
+        print(f"[DEBUG][Workload.__init__] DONE", flush=True)
 
     @property
     def is_jax(self) -> bool:
@@ -67,11 +76,17 @@ class Workload:
 
     def execute(self) -> Any:
         """Calls callable passing stored args and kwargs directly."""
+        print(f"[DEBUG][Workload.execute] CALLED — has compiled_executable={self.compiled_executable is not None}, has model={self.model is not None}, has executable={self.executable is not None}", flush=True)
         if self.compiled_executable is not None:
-            return self.compiled_executable(*self.args, **self.kwargs)
+            print(f"[DEBUG][Workload.execute] Using compiled_executable ({type(self.compiled_executable).__name__}) with {len(self.args)} args, {list(self.kwargs.keys())} kwargs", flush=True)
+            result = self.compiled_executable(*self.args, **self.kwargs)
+            print(f"[DEBUG][Workload.execute] DONE", flush=True)
+            return result
         elif self.model is not None:
+            print(f"[DEBUG][Workload.execute] Using model ({type(self.model).__name__})", flush=True)
             return self.model(*self.args, **self.kwargs)
         elif self.executable is not None:
+            print(f"[DEBUG][Workload.execute] Using executable ({type(self.executable).__name__})", flush=True)
             return self.executable(*self.args, **self.kwargs)
         else:
             raise ValueError(

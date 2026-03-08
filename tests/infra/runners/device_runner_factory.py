@@ -15,11 +15,15 @@ class DeviceRunnerFactory:
 
     @staticmethod
     def create_runner(framework: Framework) -> DeviceRunner:
+        print(f"[DEBUG][DeviceRunnerFactory.create_runner] CALLED -- framework={framework}", flush=True)
         connector = DeviceConnectorFactory.create_connector(framework)
+        print(f"[DEBUG][DeviceRunnerFactory.create_runner] Created connector: {type(connector).__name__}", flush=True)
 
         if framework == Framework.JAX:
             return JaxDeviceRunner(connector)
         elif framework == Framework.TORCH:
-            return TorchDeviceRunner(connector)
+            runner = TorchDeviceRunner(connector)
+            print(f"[DEBUG][DeviceRunnerFactory.create_runner] Created TorchDeviceRunner", flush=True)
+            return runner
         else:
             raise ValueError(f"Unsupported framework {framework}")
