@@ -47,6 +47,17 @@ class DynamicTorchModelTester(TorchModelTester):
             run_phase: Optional run phase (DEFAULT, LLM_DECODE, LLM_PREFILL)
             test_metadata: Optional ModelTestConfig with seq_len/batch_size for prefill
         """
+        print(f"\n{'='*80}", flush=True)
+        print(f"[DEBUG][DynamicTorchModelTester.__init__] CALLED", flush=True)
+        print(f"  run_mode = {run_mode}", flush=True)
+        print(f"  loader = {type(loader).__name__}", flush=True)
+        print(f"  comparison_config = {comparison_config}", flush=True)
+        print(f"  compiler_config = {compiler_config}", flush=True)
+        print(f"  parallelism = {parallelism}", flush=True)
+        print(f"  run_phase = {run_phase}", flush=True)
+        print(f"  test_metadata = {test_metadata}", flush=True)
+        print(f"{'='*80}", flush=True)
+
         # Create TorchDynamicLoader instance
         self.dynamic_loader = TorchDynamicLoader(loader)
         # Store parallelism for reporting/consumers
@@ -62,6 +73,7 @@ class DynamicTorchModelTester(TorchModelTester):
             run_mode=run_mode,
             parallelism=self.parallelism,
         )
+        print(f"[DEBUG][DynamicTorchModelTester.__init__] DONE", flush=True)
 
     # --- TorchModelTester interface implementations ---
 
@@ -71,7 +83,10 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Model instance loaded from the loader
         """
-        return self.dynamic_loader.load_model()
+        print(f"\n[DEBUG][DynamicTorchModelTester._get_model] CALLED — loading model via dynamic_loader", flush=True)
+        model = self.dynamic_loader.load_model()
+        print(f"[DEBUG][DynamicTorchModelTester._get_model] Loaded model: type={type(model).__name__}", flush=True)
+        return model
 
     def _get_input_activations(self):
         """Get input activations from the dynamic loader.
@@ -79,6 +94,7 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Input tensors loaded from the loader
         """
+        print(f"\n[DEBUG][DynamicTorchModelTester._get_input_activations] CALLED", flush=True)
         # Extract seq_len and batch_size from test_metadata if available
         seq_len = (
             getattr(self._test_metadata, "seq_len", None)
@@ -90,15 +106,18 @@ class DynamicTorchModelTester(TorchModelTester):
             if self._test_metadata
             else None
         )
+        print(f"[DEBUG][DynamicTorchModelTester._get_input_activations] run_phase={self.run_phase}, seq_len={seq_len}, batch_size={batch_size}", flush=True)
 
         inputs = self.dynamic_loader.load_inputs(
             run_phase=self.run_phase,
             seq_len=seq_len,
             batch_size=batch_size,
         )
+        print(f"[DEBUG][DynamicTorchModelTester._get_input_activations] Loaded inputs: type={type(inputs).__name__}", flush=True)
 
         if self.parallelism == Parallelism.DATA_PARALLEL:
             num_devices = xr.global_runtime_device_count()
+            print(f"[DEBUG][DynamicTorchModelTester._get_input_activations] DATA_PARALLEL: batching for {num_devices} devices", flush=True)
             if isinstance(inputs, collections.abc.Mapping):
                 inputs = {
                     k: self.dynamic_loader.batch_tensor(v, num_devices)
@@ -119,10 +138,14 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Shard spec function if loader supports it, None otherwise
         """
+        print(f"[DEBUG][DynamicTorchModelTester._get_shard_specs_function] CALLED — parallelism={self.parallelism}", flush=True)
         if self.parallelism == Parallelism.DATA_PARALLEL:
+            print(f"[DEBUG][DynamicTorchModelTester._get_shard_specs_function] Returning data_parallel shard spec", flush=True)
             return self.dynamic_loader.load_shard_spec_data_parallel
         else:
-            return self.dynamic_loader.get_shard_spec_function()
+            result = self.dynamic_loader.get_shard_spec_function()
+            print(f"[DEBUG][DynamicTorchModelTester._get_shard_specs_function] Returning: {'set' if result else None}", flush=True)
+            return result
 
     def _get_mesh(self):
         """Get mesh configuration from the dynamic loader if available.
@@ -130,7 +153,9 @@ class DynamicTorchModelTester(TorchModelTester):
         Returns:
             Mesh object if loader supports mesh configuration, None otherwise
         """
+        print(f"[DEBUG][DynamicTorchModelTester._get_mesh] CALLED — parallelism={self.parallelism}", flush=True)
         if self.parallelism == Parallelism.SINGLE_DEVICE:
+            print(f"[DEBUG][DynamicTorchModelTester._get_mesh] SINGLE_DEVICE — returning None", flush=True)
             return None
 
         num_devices = xr.global_runtime_device_count()
@@ -139,6 +164,7 @@ class DynamicTorchModelTester(TorchModelTester):
         else:
             mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
 
+        print(f"[DEBUG][DynamicTorchModelTester._get_mesh] mesh_shape={mesh_shape}, mesh_names={mesh_names}", flush=True)
         if mesh_shape and mesh_names:
             return get_mesh(mesh_shape, mesh_names)
         return None
@@ -148,4 +174,5 @@ class DynamicTorchModelTester(TorchModelTester):
         Unwraps model output to a single tensor.
         Calls the unpack_forward_output method of the dynamic loader.
         """
+        print(f"[DEBUG][DynamicTorchModelTester._unpack_forward_output] CALLED — output type={type(output).__name__}", flush=True)
         return self.dynamic_loader.unpack_forward_output(output)

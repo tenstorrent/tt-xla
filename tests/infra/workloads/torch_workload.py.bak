@@ -33,10 +33,6 @@ class TorchWorkload(Workload):
         shard_spec_fn: Optional[Callable] = None,
     ) -> None:
 
-        print(f"\n[DEBUG][TorchWorkload.__init__] CALLED", flush=True)
-        print(f"  model={type(model).__name__ if model else None}", flush=True)
-        print(f"  mesh={mesh}", flush=True)
-        print(f"  shard_spec_fn={'set' if shard_spec_fn else None}", flush=True)
         super().__init__(
             framework=Framework.TORCH,
             executable=executable,
@@ -49,13 +45,12 @@ class TorchWorkload(Workload):
         self.mesh = mesh
         self.shard_spec_fn = shard_spec_fn
         self._enable_xla_spmd_if_needed()
-        print(f"[DEBUG][TorchWorkload.__init__] DONE", flush=True)
 
+    # If model has shard specs and running on multichip mesh, then convert StableHLO
+    # to Shardy dialect and initialize XLA SPMD runtime.
     def _enable_xla_spmd_if_needed(self) -> None:
         has_shard_specs = self.shard_spec_fn is not None
         is_multichip = self.mesh and len(self.mesh.device_ids) > 1
-        print(f"[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs={has_shard_specs}, is_multichip={is_multichip}", flush=True)
 
         if has_shard_specs and is_multichip:
-            print(f"[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] Enabling SPMD!", flush=True)
             enable_spmd()

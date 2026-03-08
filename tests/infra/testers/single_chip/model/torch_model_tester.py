@@ -79,6 +79,13 @@ class TorchModelTester(ModelTester):
         dtype_override=None,
     ) -> None:
 
+        print(f"\n[DEBUG][TorchModelTester.__init__] CALLED", flush=True)
+        print(f"  comparison_config = {comparison_config}", flush=True)
+        print(f"  run_mode = {run_mode}", flush=True)
+        print(f"  compiler_config = {compiler_config}", flush=True)
+        print(f"  parallelism = {parallelism}", flush=True)
+        print(f"  dtype_override = {dtype_override}", flush=True)
+
         self._input_activations: Dict | Sequence[Any] = None
         self._parallelism = parallelism
         self._model_size = None
@@ -93,23 +100,30 @@ class TorchModelTester(ModelTester):
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
         if compiler_config is not None:
-            torch_xla.set_custom_compile_options(
-                compiler_config.to_torch_compile_options()
-            )
+            compile_opts = compiler_config.to_torch_compile_options()
+            print(f"[DEBUG][TorchModelTester.__init__] Setting custom compile options: {compile_opts}", flush=True)
+            torch_xla.set_custom_compile_options(compile_opts)
+        print(f"[DEBUG][TorchModelTester.__init__] DONE", flush=True)
 
     # @override
     def _configure_model(self) -> None:
-        self._device_runner.set_training_mode(self._run_mode == RunMode.TRAINING)
+        print(f"\n[DEBUG][TorchModelTester._configure_model] CALLED — run_mode={self._run_mode}", flush=True)
+        is_training = self._run_mode == RunMode.TRAINING
+        print(f"[DEBUG][TorchModelTester._configure_model] Setting training_mode={is_training} on device_runner", flush=True)
+        self._device_runner.set_training_mode(is_training)
         super()._configure_model()
         self._calculate_model_size()
 
     # @override
     def _configure_model_for_inference(self) -> None:
+        print(f"[DEBUG][TorchModelTester._configure_model_for_inference] CALLED — calling model.eval()", flush=True)
         assert isinstance(self._model, torch.nn.Module)
         self._model.eval()
+        print(f"[DEBUG][TorchModelTester._configure_model_for_inference] Model set to eval mode", flush=True)
 
     # @override
     def _configure_model_for_training(self) -> None:
+        print(f"[DEBUG][TorchModelTester._configure_model_for_training] CALLED — calling model.train()", flush=True)
         assert isinstance(self._model, torch.nn.Module)
         self._model.train()
 
@@ -117,34 +131,49 @@ class TorchModelTester(ModelTester):
         """Calculate and store the total number of parameters in the model."""
         if isinstance(self._model, torch.nn.Module):
             self._model_size = sum(p.numel() for p in self._model.parameters())
+            print(f"[DEBUG][TorchModelTester._calculate_model_size] Model size: {self._model_size} params ({self._model_size / 1e6:.2f}M)", flush=True)
             logger.debug(f"Model size: {self._model_size / 1e9}B")
         else:
+            print(f"[DEBUG][TorchModelTester._calculate_model_size] Not a torch.nn.Module, skipping", flush=True)
             logger.debug("Model is not a torch.nn.Module, skipping size calculation")
             self._model_size = None
 
     # @override
     def _cache_model_inputs(self) -> None:
         """Caches model inputs."""
+        from tests.infra.testers.base_tester import _debug_summarize
+        print(f"\n[DEBUG][TorchModelTester._cache_model_inputs] CALLED", flush=True)
         self._input_activations = self._get_input_activations()
+        print(f"[DEBUG][TorchModelTester._cache_model_inputs] Cached inputs: {_debug_summarize(self._input_activations)}", flush=True)
 
     # @override
     def _initialize_workload(self) -> None:
         """Initializes `self._workload`."""
+        from tests.infra.testers.base_tester import _debug_summarize
+        print(f"\n[DEBUG][TorchModelTester._initialize_workload] CALLED", flush=True)
         # Prepack model's forward pass and its arguments into a `Workload.`
         args = self._get_forward_method_args()
         kwargs = self._get_forward_method_kwargs()
+        print(f"[DEBUG][TorchModelTester._initialize_workload] args count={len(args)}, kwargs keys={list(kwargs.keys())}", flush=True)
+        for i, a in enumerate(args):
+            print(f"[DEBUG][TorchModelTester._initialize_workload]   arg[{i}] = {_debug_summarize(a)}", flush=True)
 
         assert (
             len(args) > 0 or len(kwargs) > 0
         ), f"Forward method args or kwargs or both must be provided"
 
+        mesh = self._get_mesh()
+        shard_spec_fn = self._get_shard_specs_function()
+        print(f"[DEBUG][TorchModelTester._initialize_workload] mesh={mesh}, shard_spec_fn={'set' if shard_spec_fn else None}", flush=True)
+
         self._workload = TorchWorkload(
             model=self._model,
             args=args,
             kwargs=kwargs,
-            mesh=self._get_mesh(),
-            shard_spec_fn=self._get_shard_specs_function(),
+            mesh=mesh,
+            shard_spec_fn=shard_spec_fn,
         )
+        print(f"[DEBUG][TorchModelTester._initialize_workload] TorchWorkload created: framework={self._workload.framework}", flush=True)
 
         if self._parallelism == Parallelism.TENSOR_PARALLEL:
             assert (
@@ -156,6 +185,7 @@ class TorchModelTester(ModelTester):
 
     # @override
     def _get_forward_method_args(self) -> Sequence[Any]:
+        print(f"[DEBUG][TorchModelTester._get_forward_method_args] CALLED — input_activations type={type(self._input_activations).__name__}", flush=True)
         if isinstance(self._input_activations, torch.Tensor):
             return [self._input_activations]
         if isinstance(self._input_activations, (tuple, list)):
@@ -164,13 +194,16 @@ class TorchModelTester(ModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Mapping[str, Any]:
+        print(f"[DEBUG][TorchModelTester._get_forward_method_kwargs] CALLED — input_activations type={type(self._input_activations).__name__}", flush=True)
         if isinstance(self._input_activations, collections.abc.Mapping):
             return {**self._input_activations}
         return {}
 
     def _compile_for_cpu(self, workload: Workload) -> None:
         """Compile Torch workload for CPU."""
+        print(f"\n[DEBUG][TorchModelTester._compile_for_cpu] CALLED — using torch.compile(backend='inductor')", flush=True)
         compile_torch_workload_for_cpu(workload)
+        print(f"[DEBUG][TorchModelTester._compile_for_cpu] DONE — compiled_executable set", flush=True)
 
     def _run_on_cpu(self, compiled_workload: Workload) -> torch.Tensor:
         """Runs workload on CPU with jax accelerator masked.
@@ -178,12 +211,15 @@ class TorchModelTester(ModelTester):
         Uses _mask_jax_accelerator because torch.compile with inductor is lazy -
         actual compilation happens during execution, not during torch.compile() call.
         """
+        print(f"[DEBUG][TorchModelTester._run_on_cpu] CALLED — masking jax accelerator, then running on CPU", flush=True)
         with _mask_jax_accelerator():
             return super()._run_on_cpu(compiled_workload)
 
     def _compile_for_tt_device(self, workload: Workload, options=None) -> None:
         """Compile Torch workload for TT device."""
+        print(f"\n[DEBUG][TorchModelTester._compile_for_tt_device] CALLED — using torch.compile(backend='tt'), options={options}", flush=True)
         compile_torch_workload_for_tt_device(workload=workload, torch_options=options)
+        print(f"[DEBUG][TorchModelTester._compile_for_tt_device] DONE — compiled_executable set for TT", flush=True)
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
         """

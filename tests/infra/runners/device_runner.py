@@ -19,25 +19,35 @@ class DeviceRunner(ABC):
     """
 
     def __init__(self, device_connector: DeviceConnector) -> None:
+        print(f"\n[DEBUG][DeviceRunner.__init__] CALLED — connector={type(device_connector).__name__}", flush=True)
         self._device_connector = device_connector
 
     def run_on_cpu(self, workload: Workload) -> Tensor:
         """Runs `workload` on CPU."""
+        print(f"\n[DEBUG][DeviceRunner.run_on_cpu] CALLED", flush=True)
         return self.run_on_device(workload, DeviceType.CPU)
 
     def run_on_tt_device(self, workload: Workload, device_num: int = 0) -> Tensor:
         """Runs `workload` on TT device."""
+        print(f"\n[DEBUG][DeviceRunner.run_on_tt_device] CALLED — device_num={device_num}", flush=True)
         return self.run_on_device(workload, DeviceType.TT, device_num)
 
     def run_on_device(
         self, workload: Workload, device_type: DeviceType, device_num: int = 0
     ) -> Tensor:
         """Orchestrates workload execution by connecting to device, transferring data, and running."""
+        print(f"[DEBUG][DeviceRunner.run_on_device] CALLED — device_type={device_type}, device_num={device_num}", flush=True)
 
         device = self._device_connector.connect_device(device_type, device_num)
+        print(f"[DEBUG][DeviceRunner.run_on_device] Connected to device: {device}", flush=True)
+
+        print(f"[DEBUG][DeviceRunner.run_on_device] Putting workload on device...", flush=True)
         device_workload = self._put_on_device(workload, device=device)
 
-        return self._run_on_device(device_workload, device)
+        print(f"[DEBUG][DeviceRunner.run_on_device] Executing workload on {device}...", flush=True)
+        result = self._run_on_device(device_workload, device)
+        print(f"[DEBUG][DeviceRunner.run_on_device] Execution complete on {device}", flush=True)
+        return result
 
     def _put_on_device(
         self,
@@ -48,6 +58,7 @@ class DeviceRunner(ABC):
         device_num: Optional[int] = 0,
     ) -> Workload:
         """Puts `workload` on device and returns it."""
+        print(f"[DEBUG][DeviceRunner._put_on_device] CALLED — device={device}", flush=True)
         device = device or self._device_connector.connect_device(
             device_type, device_num
         )

@@ -76,16 +76,32 @@ def _run_model_test_impl(
     This function contains the shared logic for both JAX and Torch tests.
     It's extracted to avoid duplication between test_all_models_jax/torch.
     """
+    print(f"\n{'#'*80}", flush=True)
+    print(f"[DEBUG][_run_model_test_impl] CALLED", flush=True)
+    print(f"  run_mode = {run_mode}", flush=True)
+    print(f"  parallelism = {parallelism}", flush=True)
+    print(f"  framework = {framework}", flush=True)
+    print(f"  run_phase = {run_phase}", flush=True)
+    print(f"  compiler_config = {compiler_config}", flush=True)
+    print(f"{'#'*80}", flush=True)
+
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
+    print(f"[DEBUG][_run_model_test_impl] loader_path = {loader_path}", flush=True)
+    print(f"[DEBUG][_run_model_test_impl] variant = {variant}, ModelLoader = {ModelLoader.__name__}", flush=True)
 
     # Ensure per-model requirements are installed, and roll back after the test
+    print(f"\n[DEBUG][_run_model_test_impl] Installing per-model requirements...", flush=True)
     with RequirementsManager.for_loader(loader_path):
 
         # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
         model_info = ModelLoader.get_model_info(variant=variant)
         print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+        print(f"[DEBUG][_run_model_test_impl] model_info.name = {model_info.name}", flush=True)
+        print(f"[DEBUG][_run_model_test_impl] model_info.group = {model_info.group}", flush=True)
+        print(f"[DEBUG][_run_model_test_impl] model_info.task = {model_info.task}", flush=True)
+        print(f"[DEBUG][_run_model_test_impl] model_info.source = {model_info.source}", flush=True)
 
         ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
@@ -102,6 +118,8 @@ def _run_model_test_impl(
             compiler_config.export_path = ir_dump_path
             compiler_config.export_model_name = model_info.name
 
+        print(f"[DEBUG][_run_model_test_impl] test_metadata.status = {test_metadata.status}", flush=True)
+
         succeeded = False
         comparison_result = None
         tester = None
@@ -112,6 +130,7 @@ def _run_model_test_impl(
             if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
                 # Framework-specific tester creation
                 if framework == Framework.TORCH:
+                    print(f"\n[DEBUG][_run_model_test_impl] Creating DynamicTorchModelTester...", flush=True)
                     tester = DynamicTorchModelTester(
                         run_mode,
                         run_phase=run_phase,
@@ -121,6 +140,7 @@ def _run_model_test_impl(
                         parallelism=parallelism,
                         test_metadata=test_metadata,
                     )
+                    print(f"[DEBUG][_run_model_test_impl] DynamicTorchModelTester created successfully", flush=True)
                 elif framework == Framework.JAX:
                     if (
                         parallelism == Parallelism.TENSOR_PARALLEL
@@ -159,10 +179,13 @@ def _run_model_test_impl(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
 
+                print(f"\n[DEBUG][_run_model_test_impl] Calling tester.test()...", flush=True)
                 comparison_result = tester.test(request=request)
+                print(f"[DEBUG][_run_model_test_impl] tester.test() returned: {comparison_result}", flush=True)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
+                print(f"[DEBUG][_run_model_test_impl] All results passed = {succeeded}", flush=True)
 
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
