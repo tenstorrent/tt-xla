@@ -21,7 +21,7 @@ from infra.utilities import (
     random_tensor,
 )
 from infra.workloads import Workload
-
+from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -64,7 +64,6 @@ class JaxModelTester(ModelTester):
 
     # @override
     def _configure_model_for_inference(self) -> None:
-        from transformers.modeling_flax_utils import FlaxPreTrainedModel
         assert isinstance(self._model, (nnx.Module, linen.Module, FlaxPreTrainedModel))
 
         if not isinstance(self._model, nnx.Module):
@@ -76,7 +75,6 @@ class JaxModelTester(ModelTester):
 
     # @override
     def _configure_model_for_training(self) -> None:
-        from transformers.modeling_flax_utils import FlaxPreTrainedModel
         assert isinstance(self._model, (nnx.Module, linen.Module, FlaxPreTrainedModel))
 
         if not isinstance(self._model, nnx.Module):
@@ -98,7 +96,7 @@ class JaxModelTester(ModelTester):
 
         By default returns existing model parameters for the HF FlaxPreTrainedModel.
         """
-        from transformers.modeling_flax_utils import FlaxPreTrainedModel
+
         if isinstance(self._model, FlaxPreTrainedModel):
             assert hasattr(self._model, "params")
             return self._model.params
@@ -160,7 +158,6 @@ class JaxModelTester(ModelTester):
         By default returns input parameters and activations for the HF
         FlaxPreTrainedModel and general nnx.Module, leaving empty dict for other type of models.
         """
-        from transformers.modeling_flax_utils import FlaxPreTrainedModel
         kwargs = {}
         if isinstance(self._model, (FlaxPreTrainedModel, nnx.Module)):
             kwargs = {
@@ -221,7 +218,6 @@ class JaxModelTester(ModelTester):
 
     def _wrapper_model(self, f):
         def model(args, kwargs):
-            from transformers.modeling_flax_utils import FlaxPreTrainedModel
             out = f(*args, **kwargs)
             if self._has_batch_norm and self._run_mode == RunMode.TRAINING:
                 out = out[0]
@@ -243,7 +239,7 @@ class JaxModelTester(ModelTester):
         6. Run pullback on CPU and TT device
         7. Compare forward results and gradients
         """
-        from transformers.modeling_flax_utils import FlaxPreTrainedModel
+
         # Wrapper to convert kwargs to args and return logits if model is HF
         is_hf_model = isinstance(self._model, FlaxPreTrainedModel)
 
