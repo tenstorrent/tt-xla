@@ -1028,7 +1028,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_1(output_file, num_layers, request):
         output_file,
         num_layers=num_layers,
         request=request,
-        batch_size=1,
+        batch_size=16,
         arch="wormhole_galaxy",
         optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
     )
