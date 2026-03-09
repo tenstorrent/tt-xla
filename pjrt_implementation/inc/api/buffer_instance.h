@@ -98,18 +98,8 @@ public:
   // Returns the unique identifier for this buffer instance.
   uint64_t getUID() const { return m_uid; }
 
-  // Returns the size of the tensor in the data type that the host expects.
-  // This is since some PJRT_Buffer_Type's do not have a supported equivalent in
-  // runtime/ttnn. And so, the true data type of the runtime tensor may be
-  // different than what the host expects, and will be casted to the hosts
-  // expected data type when copying to host, possibly leading to a different
-  // size. This function will calculate the converted runtime tensor size to be
-  // tensor_volume * expected_host_data_type_element_size
-  size_t tensorSize();
-
   // Returns the logical (untiled) size of the tensor in bytes, computed from
-  // the buffer's dimensions and data type. Unlike tensorSize(), this does not
-  // include tile padding.
+  // the buffer's dimensions and data type.
   size_t logicalTensorSize() const;
 
   // Returns a string representation of the buffer's shape in the format

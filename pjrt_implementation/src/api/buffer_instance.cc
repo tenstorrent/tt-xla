@@ -113,15 +113,6 @@ void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Memory = internal::onBufferMemory;
 }
 
-size_t BufferInstance::tensorSize() {
-  size_t tensor_volume = tt::runtime::getTensorVolume(runtimeTensor());
-
-  size_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
-      data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
-
-  return tensor_volume * dtype_element_size;
-}
-
 size_t BufferInstance::logicalTensorSize() const {
   size_t dtype_element_size = tt::runtime::utils::dataTypeElementSize(
       data_type_utils::convertPJRTToRuntimeDataType(m_data_type));
