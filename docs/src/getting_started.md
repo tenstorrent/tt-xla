@@ -37,28 +37,29 @@ To install a wheel and run an example model, do the following:
 #### Step 1. Install the Latest Wheel:
 
 ```bash
-pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+pip install --pre pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 ```
 
 #### Step 2. Run a Model:
 
-- Navigate to the section of the [TT-Forge repo that contains TT-XLA demos](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla)
+- Navigate to the [TT-XLA demos folder in the TT-Forge repo](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla) to explore all available demos.
 
-- For this walkthrough, the [demo in the **TT-Forge** repo](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/jax/gpt_demo.py) is used. In the **jax** folder, in the **requirements.txt** file, you can see that **flax** and **transformers** are necessary to run the demo. Install them:
+- For this walkthrough, the **bge3_demo.py** demo is used. It runs the BGE-M3 PyTorch text embedding model on Tenstorrent hardware. Each demo folder contains a `requirements.txt` listing its dependencies. Install the dependencies for this demo:
 
    ```bash
-   pip install flax transformers
+   pip install transformers
+   git submodule update --init --recursive
    ```
 
-- Download the [**gpt_demo.py** file ](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/jax/gpt_demo.py ) The demo you are about to run takes a piece of text and tries to predict the next word that logically follows.
+- Download the [**bge3_demo.py** file](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/pytorch/bge3_demo.py). This demo runs the BGE-M3 text embedding model and outputs the embedding shapes.
 
 - Run the model:
 
    ```bash
-   python gpt_demo.py
+   python bge3_demo.py
    ```
 
-- If all goes well you should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead.
+- If all goes well you should see the input and output embedding shapes printed to the console, confirming the model ran successfully on your Tenstorrent device.
 
 ---
 
