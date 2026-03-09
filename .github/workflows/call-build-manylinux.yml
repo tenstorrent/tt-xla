@@ -25,6 +25,21 @@ jobs:
           echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
           echo "wheel-output-dir=$(pwd)/python_package/dist" >> "$GITHUB_OUTPUT"
 
+      - name: Check Redis credentials
+        # Forks will never have secrets; don't fail the job for them, they'll just run slower
+        if: ${{ github.event.pull_request.head.repo.fork == false }}
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "On main branch, Use Redis ccache in write mode."
+            CCACHE_REMOTE_STORAGE="redis://${{ vars.REDIS_CCACHE_WRITER_USER }}:${{ secrets.REDIS_CCACHE_WRITER_PASSWORD }}@${{ vars.REDIS_CCACHE_WRITER_HOST }}:${{ vars.REDIS_CCACHE_WRITER_PORT }}/1|read-only=false"
+          else
+            echo "Not on main branch, Use Redis ccache in read-only mode."
+            CCACHE_REMOTE_STORAGE="redis://${{ vars.REDIS_CCACHE_READER_USER }}:${{ secrets.REDIS_CCACHE_READER_PASSWORD }}@${{ vars.REDIS_CCACHE_READER_HOST }}:${{ vars.REDIS_CCACHE_READER_PORT }}/1|read-only=true"
+          fi
+          echo "CCACHE_REMOTE_STORAGE=${CCACHE_REMOTE_STORAGE}" >> $GITHUB_ENV
+          echo "CCACHE_REMOTE_STORAGE: ${CCACHE_REMOTE_STORAGE}"
+
       - name: Git safe dir
         run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
 
@@ -36,8 +51,12 @@ jobs:
       - name: Build ttxla  Wheel (manylinux)
         uses: pypa/cibuildwheel@v3.3
         env:
-          CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
-          CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
+          CIBW_ENVIRONMENT: >-
+            CCACHE_REMOTE_ONLY=true
+            CCACHE_TEMPDIR=/tmp/ccache
+            CCACHE_REMOTE_STORAGE="${{ env.CCACHE_REMOTE_STORAGE }}"
+            IN_CIBW_ENV=ON
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker-image }}
           CIBW_PROJECT_REQUIRES_PYTHON: "==3.12.*"
           CIBW_SKIP: "*-musllinux_*"
         with:
