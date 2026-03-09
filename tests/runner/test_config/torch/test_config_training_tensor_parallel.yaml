@@ -31,8 +31,9 @@ test_config:
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-training:
     supported_archs: [n300-llmbox]
-    status: KNOWN_FAILURE_XFAIL
-    # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Fatal Python error: Aborted ever since test was added: https://github.com/tenstorrent/tt-xla/issues/3627"
 
   llama/causal_lm/pytorch-3.0_8B_Instruct-tensor_parallel-training:
     supported_archs: [n300-llmbox]
