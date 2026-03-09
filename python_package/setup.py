@@ -376,15 +376,15 @@ class CMakeBuildPy(build_py):
             if (install_dir / "lib").exists()
             else install_dir / "lib64"
         )
-        ld_seaerch_path = ["/lib", "/usr/lib", "/lib64", "/usr/lib64"]
+        ld_search_path = ["/lib", "/usr/lib", "/lib64", "/usr/lib64"]
         ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
         if ld_library_path:
-            ld_seaerch_path.extend(ld_library_path.split(":"))
+            ld_search_path.extend(ld_library_path.split(":"))
 
         for lib in libs:
-            # Try to find the library in LD_LIBRARY_PATH
+            # Try to find the library in ld_search_path
             lib_path = None
-            for path in ld_seaerch_path:
+            for path in ld_search_path:
                 candidate = Path(path) / lib
                 if candidate.exists():
                     lib_path = candidate
@@ -394,7 +394,7 @@ class CMakeBuildPy(build_py):
                 print(f"Copying {lib} from {lib_path} to {lib_dir}")
                 shutil.copy2(lib_path, lib_dir / lib)
             else:
-                print(f"Warning: {lib} not found in LD_LIBRARY_PATH")
+                print(f"Warning: {lib} not found in standard library paths or LD_LIBRARY_PATH")
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
