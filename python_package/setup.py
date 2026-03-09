@@ -361,6 +361,9 @@ class CMakeBuildPy(build_py):
             cwd=REPO_DIR,
         )
 
+        if self.in_ci():
+            subprocess.run("ccache -s", shell=True, cwd=REPO_DIR, capture_output=False)
+
         self._prune_install_tree(install_dir)
 
     def _prune_install_tree(self, install_dir: Path) -> None:

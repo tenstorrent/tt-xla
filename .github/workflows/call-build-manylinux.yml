@@ -30,13 +30,13 @@ jobs:
         if: ${{ github.event.pull_request.head.repo.fork == false }}
         shell: bash
         run: |
-          # if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "On main branch, Use Redis ccache in write mode."
             CCACHE_REMOTE_STORAGE="redis://${{ vars.REDIS_CCACHE_WRITER_USER }}:${{ secrets.REDIS_CCACHE_WRITER_PASSWORD }}@${{ vars.REDIS_CCACHE_WRITER_HOST }}:${{ vars.REDIS_CCACHE_WRITER_PORT }}/1|read-only=false"
-          # else
-          #   echo "Not on main branch, Use Redis ccache in read-only mode."
-          #   CCACHE_REMOTE_STORAGE="redis://${{ vars.REDIS_CCACHE_READER_USER }}:${{ secrets.REDIS_CCACHE_READER_PASSWORD }}@${{ vars.REDIS_CCACHE_READER_HOST }}:${{ vars.REDIS_CCACHE_READER_PORT }}/1|read-only=true"
-          # fi
+          else
+            echo "Not on main branch, Use Redis ccache in read-only mode."
+            CCACHE_REMOTE_STORAGE="redis://${{ vars.REDIS_CCACHE_READER_USER }}:${{ secrets.REDIS_CCACHE_READER_PASSWORD }}@${{ vars.REDIS_CCACHE_READER_HOST }}:${{ vars.REDIS_CCACHE_READER_PORT }}/1|read-only=true"
+          fi
           echo "CCACHE_REMOTE_STORAGE=${CCACHE_REMOTE_STORAGE}" >> $GITHUB_ENV
           echo "CCACHE_REMOTE_STORAGE: ${CCACHE_REMOTE_STORAGE}"
 
@@ -60,7 +60,6 @@ jobs:
           CIBW_PROJECT_REQUIRES_PYTHON: "==3.12.*"
           CIBW_SKIP: "*-musllinux_*"
           CIBW_BEFORE_BUILD: "mkdir -p /tmp/ccache && ccache -z && ccache -p"
-          CIBW_BEFORE_TEST: ccache -s
         with:
           output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
           package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
