@@ -171,9 +171,9 @@ jobs:
           ${{ inputs.sh-runner && '--sh-runner' || '' }})
 
         matrix=$(echo $result | jq -r -c '.matrix')
-        matrix_n150=$(echo $result | jq -r -c '.matrix | map(select(."runs-on" | contains("n150") and (contains("llmbox") | not)))')
-        matrix_p150=$(echo $result | jq -r -c '.matrix | map(select(."runs-on" | contains("p150")))')
-        matrix_llmbox=$(echo $result | jq -r -c '.matrix | map(select(."runs-on" | contains("llmbox")))')
+        matrix_n150=$(echo $result | jq -r -c '.matrix | map(select((."runs-on" | contains("n150") and (contains("llmbox") | not)) and (.["accuracy-testing"] != true)))')
+        matrix_p150=$(echo $result | jq -r -c '.matrix | map(select((."runs-on" | contains("p150")) and (.["accuracy-testing"] != true)))')
+        matrix_llmbox=$(echo $result | jq -r -c '.matrix | map(select((."runs-on" | contains("llmbox")) and (.["accuracy-testing"] != true)))')
         matrix_galaxy=$(echo $result | jq -r -c '.matrix | map(select(."runs-on" | contains("galaxy")))')
 
         matrix_n150_skip="false"
