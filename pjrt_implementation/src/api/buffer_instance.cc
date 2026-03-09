@@ -199,8 +199,8 @@ void BufferInstance::copyFromHost(
           tt::runtime::HostRuntime::Distributed ||
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
-
+      !::tt::runtime::utils::isSupportedDataType(runtime_data_type) || true) {
+    DLOG_F(LOG_DEBUG, "Always creating owned host tensor");
     runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
 
