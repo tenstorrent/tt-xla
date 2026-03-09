@@ -687,6 +687,7 @@ def test_min_tokens(llm, prompt):
         f"rely on the engine to ignore it."
     )
 
+
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_structured_outputs_regex(llm, prompt):
     """Test that structured output with a regex constraint is respected.
