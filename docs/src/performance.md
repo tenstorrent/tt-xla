@@ -24,7 +24,7 @@ This guide covers best practices and techniques for optimizing the performance o
 5. **[Batch Size Tuning](#5-batch-size-tuning)** - Find the optimal batch size to maximize throughput for your model
 
 For a complete working example, see the code below from `examples/pytorch/mnist_performant.py`, which demonstrates all these optimizations together.
-### Mnist peformant example:
+### Mnist performant example:
 ```python
 {{#include ../../../examples/pytorch/mnist_performant.py}}
 ```
@@ -98,7 +98,7 @@ All of the above is a one time fixed cost and all subsequent iterations of the m
 
 ## 3. Data Formats
 
-TT Hardware supports multiple lower precision data formats ([docs](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/tensor.html#data-type)). For use trough tt-xla try the following:
+TT Hardware supports multiple lower precision data formats ([docs](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/tensor.html#data-type)). For use through tt-xla try the following:
 * bfloat16
 * bfloat8_b
 
