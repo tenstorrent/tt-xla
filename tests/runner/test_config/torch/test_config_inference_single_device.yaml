@@ -920,6 +920,8 @@ test_config:
 
   qwen_3/causal_lm/pytorch-1_7B-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [testing]
+    enable_weight_bfp8_conversion: true
 
   qwen_2_5_coder/pytorch-3B-single_device-inference:
     assert_pcc: false
@@ -927,6 +929,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-0_6B-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [testing]
 
   qwen_2_5/causal_lm/pytorch-3B-single_device-inference:
     assert_pcc: false
@@ -1011,6 +1014,7 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [testing]
 
   llama/causal_lm/pytorch-3.2_3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
