@@ -15,7 +15,7 @@ from .tester import MochiVAETester
 _DRAM_OOM_SKIP_REASON = (
     "DRAM OOM: fails due to https://github.com/tenstorrent/tt-xla/issues/2973"
 )
-PCC = 0.97
+
 # ----- Fixtures -----
 
 
@@ -29,7 +29,7 @@ PCC = 0.97
                     model_info=ModelLoader.get_model_info(ModelVariant.MOCHI),
                     run_mode=RunMode.INFERENCE,
                     bringup_status=BringupStatus.PASSED,
-                    pcc=PCC,
+                    pcc=0.97,
                 ),
             ],
             id="mochi",
@@ -43,6 +43,7 @@ PCC = 0.97
                     model_info=ModelLoader.get_model_info(ModelVariant.MOCHI_TILED),
                     run_mode=RunMode.INFERENCE,
                     bringup_status=BringupStatus.FAILED_RUNTIME,
+                    pcc=0.97,
                 ),
             ],
             id="mochi_tiled",
@@ -50,9 +51,11 @@ PCC = 0.97
     ]
 )
 def inference_tester(request) -> MochiVAETester:
+    marker = request.node.get_closest_marker("record_test_properties")
+    pcc = marker.kwargs["pcc"]
     return MochiVAETester(
         request.param,
-        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=PCC)),
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=pcc)),
     )
 
 
