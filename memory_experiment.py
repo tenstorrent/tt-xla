@@ -654,6 +654,132 @@ class LargeParameterModel(nn.Module):
         return total_bytes / 1024 / 1024
 
 
+# Same shape/size as LargeParameterModel for disk-mmap variant
+_LARGE_PARAM_SHAPE = (5120, 5120)
+_LARGE_PARAM_NUM = 10
+
+
+def _write_one_param_to_disk(path, param_index):
+    """Write a single parameter tensor to a file (one 100MB tensor in RAM at a time)."""
+    data = torch.ones(_LARGE_PARAM_SHAPE[0], _LARGE_PARAM_SHAPE[1], dtype=torch.float32) * (
+        param_index + 1
+    )
+    data.numpy().tofile(path)
+    del data
+    gc.collect()
+
+
+class LargeParameterModelFromMmap(nn.Module):
+    """Same as LargeParameterModel but parameters are backed by mmap'd files.
+
+    Weights are not loaded into host memory all at once: each parameter is
+    memory-mapped from its own file (one by one during construction).
+    """
+
+    def __init__(self, weight_dir):
+        super().__init__()
+        param_tensors = []
+        numel = _LARGE_PARAM_SHAPE[0] * _LARGE_PARAM_SHAPE[1]
+        for i in range(_LARGE_PARAM_NUM):
+            path = os.path.join(weight_dir, f"param_{i}.bin")
+            if not os.path.exists(path):
+                _write_one_param_to_disk(path, i)
+            # Mmap this parameter from disk (file-backed storage; minimal host RAM)
+            t = torch.from_file(
+                path, shared=False, size=numel, dtype=torch.float32
+            ).reshape(_LARGE_PARAM_SHAPE[0], _LARGE_PARAM_SHAPE[1])
+            param_tensors.append(nn.Parameter(t))
+        self.param_tensors = nn.ParameterList(param_tensors)
+
+    def forward(self, scale_factor):
+        result = self.param_tensors[0].clone()
+        for i in range(1, len(self.param_tensors)):
+            result = result + self.param_tensors[i]
+        if isinstance(scale_factor, torch.Tensor) and scale_factor.numel() == 1:
+            scale_factor = scale_factor.item()
+        result = result * scale_factor
+        return result
+
+    def get_total_size_mb(self):
+        total_params = sum(p.numel() for p in self.parameters())
+        return (total_params * 4) / 1024 / 1024
+
+
+def test_large_parameter_model_mmap_one_by_one():
+    """Instantiate LargeParameterModel via disk mmap without loading all weights into host memory.
+
+    - Writes each of the 10 weight files to disk one by one (only one 100MB tensor in RAM at a time).
+    - Builds the model by mmapping each file one by one (torch.from_file); parameters stay file-backed.
+    - Runs forward on CPU and on TT device; takes memory snapshots.
+    """
+    print("\n" + "=" * 70)
+    print("Large Parameter Model: mmap-from-disk one-by-one (no full host load)")
+    print("=" * 70)
+
+    xr.set_device_type("TT")
+    mem_initial = print_memory_snapshot("Initial")
+
+    with tempfile.TemporaryDirectory(prefix="large_param_mmap_") as weight_dir:
+        print(f"\nWeight directory: {weight_dir}")
+
+        # Phase 1: Write each parameter to disk one by one (peak RAM ~100MB per step)
+        print("\nPhase 1: Writing 10 weight files to disk (one at a time)...")
+        for i in range(_LARGE_PARAM_NUM):
+            path = os.path.join(weight_dir, f"param_{i}.bin")
+            _write_one_param_to_disk(path, i)
+            if (i + 1) % 5 == 0 or i == 0:
+                print(f"  Written param_{i}.bin")
+        mem_after_writes = print_memory_snapshot("After writing all weight files to disk")
+
+        # Phase 2: Build model by mmapping each file one by one (no 1GB host allocation)
+        print("\nPhase 2: Building model by mmapping each weight file one by one...")
+        model = LargeParameterModelFromMmap(weight_dir)
+        model_size_mb = model.get_total_size_mb()
+        print(f"Model created: {model_size_mb:.2f} MB total (file-backed)")
+        print(f"Parameters: {sum(1 for _ in model.parameters())} tensors")
+
+        mem_after_model = print_memory_snapshot("After model built (all params mmap'd)")
+
+        # Sanity check: forward on CPU (will fault in pages from disk)
+        print("\nPhase 3: CPU forward (pages faulted in from disk as needed)...")
+        expected = sum(range(1, _LARGE_PARAM_NUM + 1)) * 2.5
+        with torch.no_grad():
+            out = model(torch.tensor(2.5))
+        actual = out[0, 0].item()
+        print(f"Expected [0,0]: {expected}, actual: {actual}")
+        assert abs(actual - expected) < 0.1, f"Expected {expected}, got {actual}"
+
+        mem_after_forward = print_memory_snapshot("After CPU forward")
+
+        # Phase 4: Move to TT device and run forward there
+        print("\nPhase 4: Moving model to TT device and running forward...")
+        device = xm.xla_device()
+        print(f"TT device: {device}")
+        device_model = model.to(device)
+        time.sleep(1)
+        mem_after_to_device = print_memory_snapshot("After moving model to TT device")
+
+        scale_input = torch.tensor(2.5)
+        with torch.no_grad():
+            output = device_model(scale_input)
+        print("Synchronizing...", flush=True)
+        torch_xla.sync()
+        mem_after_compute = print_memory_snapshot("After TT computation and sync")
+
+        result_cpu = output.cpu()
+        actual_device = result_cpu[0, 0].item()
+        print(f"\nTT device result [0,0]: {actual_device} (expected {expected})")
+        assert abs(actual_device - expected) < 0.1, (
+            f"TT device result mismatch: expected {expected}, got {actual_device}"
+        )
+        print("✓ TT device computation result is CORRECT!")
+
+    print("\n" + "=" * 70)
+    print("Summary: model instantiated via disk mmap without loading full 1GB into host RAM.")
+    print("Ran forward on CPU and on TT device.")
+    print("=" * 70)
+
+
 def test_large_parameter_model_tt_device():
     """Test large parameter model on TT device with PJRT mmap implementation.
 
