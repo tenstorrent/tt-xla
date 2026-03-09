@@ -238,7 +238,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
-            mesh_shape = (num_devices, 1)
+            # mesh_shape = (num_devices, 1)
             mesh_shape = (2, 4)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
@@ -1248,7 +1248,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     inputs_embeds=inputs_embeds,
                 )
 
+            # logger.info(f"Hidden states before selection: {hidden_states.shape}")
+            #import torch_xla
+            #spec = torch_xla._XLAC._get_xla_sharding_spec(hidden_states)
+            #logger.info(f"Hidden states sharding spec: {spec}")
+            #import torch_xla.experimental.ops.xla_sharding as XS
+            #spec = XS.get_sharding_spec(hidden_states)
+            #logger.info(f"Hidden states sharding spec: {spec}")
+            
+            # Clear existing sharding annotations before applying new ones
+            # hidden_states = xs.clear_sharding(hidden_states)
+            # hidden_states = sharding_constraint_tensor(hidden_states, self.mesh, (None, None, None))
+            # hidden_states = xs.mark_sharding(hidden_states, None, (None, None, None))
+            #xs.clear_sharding(hidden_states)
+            # spec = torch_xla._XLAC._get_xla_sharding_spec(hidden_states)
+            # logger.info(f"Hidden states sharding spec: {spec}")
+            # logger.info(f"Hidden states after clearing sharding: {hidden_states.shape}")
+            # hidden_states = xs.mark_sharding(hidden_states, self.mesh, ("batch", None, "model"))
+            # logit_indices = xs.mark_sharding(logits_indices, self.mesh, ("batch",))
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
+            # logger.info(f"Hidden states after selection: {hidden_states.shape}")
             logits = self.compute_logits(hidden_states)
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -1266,7 +1285,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            if False and (
+            if (
                 self.enable_tensor_parallel
                 and self.model.lm_head is not None
                 and isinstance(self.model.lm_head, ParallelLMHead)
@@ -1636,6 +1655,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ).to(self.device)
             indices = torch.zeros(self.max_num_reqs, dtype=torch.int32)
             indices = indices.to(self.device)
+            # indices = xs.mark_sharding(indices, self.mesh, ("batch",))
             logger.info(
                 "  -- num_tokens: %d, hsize: %d, num_seqs: %d",
                 num_tokens,
@@ -1768,10 +1788,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        return
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             self._precompile_mm_encoder()
-            self._precompile_backbone()
+            # self._precompile_backbone()
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
