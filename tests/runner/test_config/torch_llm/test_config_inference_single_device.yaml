@@ -11,11 +11,13 @@ test_config:
   falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    markers: [testing]
 
   falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-inference:
     required_pcc: 0.985 # Is 0.990 (p150) or 0.989 (n150)
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    markers: [testing]
 
   falcon/pytorch-3_7B_Base-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -29,24 +31,29 @@ test_config:
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+    markers: [testing]
 
   qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+    markers: [testing]
 
   qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845 - original test also has low pcc
+    markers: [testing]
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     required_pcc: 0.970 # Calculated: pcc=0.9717385717419725 - https://github.com/tenstorrent/tt-xla/issues/3212
     status: EXPECTED_PASSING
+    markers: [testing]
 
   qwen_2_5/causal_lm/pytorch-14B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+    markers: [testing]
 
   qwen_2_5/causal_lm/pytorch-32B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -57,6 +64,7 @@ test_config:
   gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    markers: [testing]
 
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -79,6 +87,7 @@ test_config:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    markers: [testing]
 
   llama/causal_lm/pytorch-3.1_70B-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -92,6 +101,7 @@ test_config:
   llama/causal_lm/pytorch-3.2_1B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+    markers: [testing]
 
   llama/causal_lm/pytorch-3.2_3B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
