@@ -11,8 +11,6 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
-from original_modified_model import Transformer as OriginalModifiedTransformer
-from original_modified_model import precompute_freqs_cis
 from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import failed_ttmlir_compilation
@@ -257,6 +255,7 @@ def test_deepseek_attention_decode(batch_size):
             hidden_states,  # (batch_size, 1, dim)
             start_pos,  # 32 (or prefill_seq_len)
             freqs_cis,  # (1, qk_rope_head_dim)
+            False,  # use_new_flow
             attention_mask,  # None - triggers decode path
         ],
         framework=Framework.TORCH,
@@ -285,16 +284,14 @@ def test_deepseek_attention_decode_flow_compared_to_original(batch_size):
     )
 
     modified_model = ModifiedTransformer(args)
-    original_model = OriginalModifiedTransformer(args)
     modified_model = modified_model.to(torch.bfloat16)
-    original_model = original_model.to(torch.bfloat16)
-    modified_attention = modified_model.layers[0].attn
-    original_attention = original_model.layers[0].attn
+    attention = modified_model.layers[0].attn
+
+    freqs_cis = modified_model.freqs_cis[start_pos : start_pos + decode_seq_len]
 
     hidden_states = torch.randn(
         (batch_size, decode_seq_len, args.dim), dtype=torch.bfloat16
     )
-
     kv_cache = torch.randn(
         batch_size, start_pos, args.kv_lora_rank, dtype=torch.bfloat16
     )
@@ -305,30 +302,21 @@ def test_deepseek_attention_decode_flow_compared_to_original(batch_size):
         batch_size, start_pos, args.index_head_dim, dtype=torch.bfloat16
     )
 
-    original_attention.kv_cache[:batch_size, :start_pos] = kv_cache
-    original_attention.pe_cache[:batch_size, :start_pos] = pe_cache
-    original_attention.indexer.k_cache[:batch_size, :start_pos] = k_cache
-    modified_attention.kv_cache[:batch_size, :start_pos] = kv_cache
-    modified_attention.pe_cache[:batch_size, :start_pos] = pe_cache
-    modified_attention.indexer.k_cache[:batch_size, :start_pos] = k_cache
+    attention.kv_cache[:batch_size, :start_pos] = kv_cache
+    attention.pe_cache[:batch_size, :start_pos] = pe_cache
+    attention.indexer.k_cache[:batch_size, :start_pos] = k_cache
 
-    freq_cis_original = original_model.freqs_cis[start_pos : start_pos + decode_seq_len]
-    freq_cis_modified = modified_model.freqs_cis[start_pos : start_pos + decode_seq_len]
-
-    assert torch.allclose(
-        freq_cis_original, freq_cis_modified
-    ), "freq_cis_original and freq_cis_modified are not the same"
     attention_mask = None
 
-    test_modified_output = modified_attention(
-        hidden_states, start_pos, freq_cis_modified, attention_mask
+    test_modified_output = attention(
+        hidden_states, start_pos, freqs_cis, use_new_flow=True, mask=attention_mask
     )
-    test_original_output = original_attention(
-        hidden_states, start_pos, freq_cis_original, attention_mask
+    test_original_output = attention(
+        hidden_states, start_pos, freqs_cis, use_new_flow=False, mask=attention_mask
     )
 
     pcc = compute_pcc(test_modified_output, test_original_output)
-    print(f"PCC between modified and original: {pcc.item()}")
+    print(f"PCC between modified and original: {pcc}")
 
     # Sanity check: outputs should be numerically close (not required to be exact, but at least testable for basic code correctness)
     assert torch.isfinite(
@@ -337,7 +325,7 @@ def test_deepseek_attention_decode_flow_compared_to_original(batch_size):
     assert torch.isfinite(
         test_original_output
     ).all(), "Original output contains non-finite values"
-    assert pcc > 0.99, f"PCC too low: {pcc.item()}"
+    assert pcc > 0.99, f"PCC too low: {pcc}"
 
 
 @pytest.mark.llmbox

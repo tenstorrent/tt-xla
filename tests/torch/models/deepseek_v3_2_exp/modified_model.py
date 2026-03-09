@@ -425,7 +425,7 @@ class LayerNorm(nn.Module):
 
     def forward(self, x: torch.Tensor):
         return F.layer_norm(
-            x.float(), (self.dim,), self.weight, self.bias, self.eps
+            x.float(), (self.dim,), self.weight.float(), self.bias.float(), self.eps
         ).type_as(x)
 
 
@@ -696,7 +696,7 @@ class Indexer(torch.nn.Module):
         topk_indices = index_score.topk(min(self.index_topk, end_pos), dim=-1)[1]
         # print(f"topk indices shape: {topk_indices.shape}")
 
-        return topk_indices, index_score
+        return topk_indices
 
 
 def weight_dequant(weight, scale):
@@ -790,6 +790,7 @@ class MLA(nn.Module):
         x: torch.Tensor,
         start_pos: int,
         freqs_cis: torch.Tensor,
+        use_new_flow: bool,
         mask: Optional[torch.Tensor],
     ):
         """
@@ -851,53 +852,83 @@ class MLA(nn.Module):
             scores = scores.softmax(dim=-1)
             x = torch.einsum("bsht,bthd->bshd", scores, v)
         else:  # MQA decode
-            if self.dequant_wkv_b is None and self.wkv_b.scale is not None:
-                self.dequant_wkv_b = weight_dequant(self.wkv_b.weight, self.wkv_b.scale)
-            wkv_b = (
-                self.wkv_b.weight if self.dequant_wkv_b is None else self.dequant_wkv_b
-            )
-            wkv_b = wkv_b.view(self.n_local_heads, -1, self.kv_lora_rank)
-            q_nope = torch.einsum(
-                "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
-            )
-
-            # # Add indexing logic here
-            # indexer
-            if self.indexer is not None:
-                # (bsz, 1, topk)
-                topk_indices, index_score = self.indexer(x, qr, start_pos, freqs_cis, mask)
-                # torch.set_printoptions(sci_mode=False, threshold=50, edgeitems=5)
-                # print("topk_indices", topk_indices)
-                # print("index_score", index_score)
-                gather_idx = topk_indices.squeeze(1) # (bsz, topk)
-
-                # print("original kv_cache", self.kv_cache[:bsz, :end_pos])
-                # print("original pe_cache", self.pe_cache[:bsz, :end_pos])
-                
-                # (bsz, topk, kv_lora_rank)
-                kv_sparse = self.kv_cache[:bsz, :end_pos].gather(
-                    1, gather_idx.unsqueeze(-1).expand(-1, -1, self.kv_lora_rank))
-                # print("kv_sparse", kv_sparse)
-
-                # (bsz, topk, qk_rope_head_dim)
-                pe_sparse = self.pe_cache[:bsz, :end_pos].gather(
-                    1, gather_idx.unsqueeze(-1).expand(-1, -1, self.qk_rope_head_dim))
-                # print("pe_sparse", pe_sparse)
-                
-                kv_for_attention = kv_sparse
-                pe_for_attention = pe_sparse
+            if use_new_flow:
+                x = self.modified_decode_flow(x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask)
             else:
-                kv_for_attention = self.kv_cache[:bsz, :end_pos]
-                pe_for_attention = self.pe_cache[:bsz, :end_pos]
-            scores = (
-                torch.einsum("bshc,btc->bsht", q_nope, kv_for_attention)
-                + torch.einsum("bshr,btr->bsht", q_pe, pe_for_attention)
-            ) * self.softmax_scale
-
-            scores = scores.softmax(dim=-1)
-            x = torch.einsum("bsht,btc->bshc", scores, kv_for_attention)
-            x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
+                x = self.original_decode_flow(x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask)
         x = self.wo(x.flatten(2))
+        return x
+
+    def original_decode_flow(self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask):
+        if self.dequant_wkv_b is None and self.wkv_b.scale is not None:
+            self.dequant_wkv_b = weight_dequant(self.wkv_b.weight, self.wkv_b.scale)
+        wkv_b = (
+            self.wkv_b.weight if self.dequant_wkv_b is None else self.dequant_wkv_b
+        )
+        wkv_b = wkv_b.view(self.n_local_heads, -1, self.kv_lora_rank)
+
+        q_nope = torch.einsum(
+            "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
+        )
+        scores = (
+            torch.einsum("bshc,btc->bsht", q_nope, self.kv_cache[:bsz, :end_pos])
+            + torch.einsum("bshr,btr->bsht", q_pe, self.pe_cache[:bsz, :end_pos])
+        ) * self.softmax_scale
+
+        # indexer
+        if self.indexer is not None:
+            topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+            index_mask = torch.full(
+                (bsz, 1, end_pos), float("-inf"), device=x.device
+            ).scatter_(-1, topk_indices, 0)
+            scores += index_mask.unsqueeze(2)
+
+        scores = scores.softmax(dim=-1)
+        x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
+        x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
+        return x
+
+    def modified_decode_flow(self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask):
+        if self.dequant_wkv_b is None and self.wkv_b.scale is not None:
+            self.dequant_wkv_b = weight_dequant(self.wkv_b.weight, self.wkv_b.scale)
+        wkv_b = (
+            self.wkv_b.weight if self.dequant_wkv_b is None else self.dequant_wkv_b
+        )
+        wkv_b = wkv_b.view(self.n_local_heads, -1, self.kv_lora_rank)
+
+        q_nope = torch.einsum(
+            "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
+        )
+
+        # # Add indexing logic here
+        # indexer
+        if self.indexer is not None:
+            # (bsz, 1, topk)
+            topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+            gather_idx = topk_indices.squeeze(1) # (bsz, topk)
+
+            # (bsz, topk, kv_lora_rank)
+            kv_sparse = self.kv_cache[:bsz, :end_pos].gather(
+                1, gather_idx.unsqueeze(-1).expand(-1, -1, self.kv_lora_rank))
+
+            # (bsz, topk, qk_rope_head_dim)
+            pe_sparse = self.pe_cache[:bsz, :end_pos].gather(
+                1, gather_idx.unsqueeze(-1).expand(-1, -1, self.qk_rope_head_dim))
+            
+            kv_for_attention = kv_sparse
+            pe_for_attention = pe_sparse
+        else:
+            kv_for_attention = self.kv_cache[:bsz, :end_pos]
+            pe_for_attention = self.pe_cache[:bsz, :end_pos]
+        scores = (
+            torch.einsum("bshc,btc->bsht", q_nope, kv_for_attention)
+            + torch.einsum("bshr,btr->bsht", q_pe, pe_for_attention)
+        ) * self.softmax_scale
+
+        scores = scores.softmax(dim=-1)
+        x = torch.einsum("bsht,btc->bshc", scores, kv_for_attention)
+        x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
+
         return x
 
 
