@@ -394,7 +394,9 @@ class CMakeBuildPy(build_py):
                 print(f"Copying {lib} from {lib_path} to {lib_dir}")
                 shutil.copy2(lib_path, lib_dir / lib)
             else:
-                print(f"Warning: {lib} not found in standard library paths or LD_LIBRARY_PATH")
+                print(
+                    f"Warning: {lib} not found in standard library paths or LD_LIBRARY_PATH"
+                )
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
