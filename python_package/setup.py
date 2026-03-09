@@ -337,6 +337,7 @@ class CMakeBuildPy(build_py):
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         print("Setting up CMake project...")
+        print("::endgroup::")
         print("::group::CMake build setup")
         stdout.flush()
         stderr.flush()
@@ -378,6 +379,7 @@ class CMakeBuildPy(build_py):
         print("::group::Pruning install tree")
         self._prune_install_tree(install_dir)
         print("::endgroup::")
+        print("::group::Packing the wheel")
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
