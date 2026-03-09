@@ -337,6 +337,7 @@ class CMakeBuildPy(build_py):
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         print("Setting up CMake project...")
+        print("::group::CMake build setup")
         stdout.flush()
         stderr.flush()
         subprocess.run(
@@ -346,6 +347,9 @@ class CMakeBuildPy(build_py):
             capture_output=False,
             cwd=REPO_DIR,
         )
+        print("::endgroup::")
+        print("::group::CMake build")
+        stdout.flush()
         subprocess.run(
             " ".join([*cmake_cmd, *build_command]),
             check=True,
@@ -353,6 +357,9 @@ class CMakeBuildPy(build_py):
             capture_output=False,
             cwd=REPO_DIR,
         )
+        print("::endgroup::")
+        print("::group::CMake install")
+        stdout.flush()
         subprocess.run(
             " ".join([*cmake_cmd, *install_command]),
             check=True,
@@ -360,11 +367,17 @@ class CMakeBuildPy(build_py):
             capture_output=False,
             cwd=REPO_DIR,
         )
+        print("::endgroup::")
 
         if self.in_ci():
+            print("::group::CCache stats")
+            stdout.flush()
             subprocess.run("ccache -s", shell=True, cwd=REPO_DIR, capture_output=False)
+            print("::endgroup::")
 
+        print("::group::Pruning install tree")
         self._prune_install_tree(install_dir)
+        print("::endgroup::")
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
