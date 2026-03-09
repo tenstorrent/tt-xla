@@ -275,6 +275,19 @@ class A2aSparseMLP(nn.Module):
         self.router = original_mlp.router
         self.experts = original_mlp.experts
 
+        # Pre-deinterleave fused gate/up weights so forward can use contiguous
+        # splits instead of strided [::2] / [1::2] views.
+        with torch.no_grad():
+            w = self.experts.gate_up_proj
+            gate_w = w[..., ::2].contiguous()
+            up_w = w[..., 1::2].contiguous()
+            self.experts.gate_up_proj.copy_(torch.cat([gate_w, up_w], dim=-1))
+
+            b = self.experts.gate_up_proj_bias
+            gate_b = b[..., ::2].contiguous()
+            up_b = b[..., 1::2].contiguous()
+            self.experts.gate_up_proj_bias.copy_(torch.cat([gate_b, up_b], dim=-1))
+
         if hasattr(self.experts, "gate_up_proj"):
             self.intermediate_size = self.experts.gate_up_proj.shape[-1] // 2
         else:
@@ -317,6 +330,7 @@ class A2aSparseMLP(nn.Module):
             num_devices=effective_dispatch,
             cluster_axis=self.cluster_axis,
         )
+        # print(f"dispatched: {expert_indices}, metadata: {metadata}")
         # dispatched: [1, B*dispatch_devices, S, H]
         # metadata:   [1, B*dispatch_devices, S, K]
 
@@ -338,7 +352,7 @@ class A2aSparseMLP(nn.Module):
         # 5. Expert computation
         E = self.num_experts
 
-        if getattr(self, "use_dense_matmul", False):
+        if False:
             # ===== Dense matmul path (demo-style) =====
             # No remap/sparsity needed. Dispatch already routed tokens to
             # the right devices; dense matmul computes ALL E_local experts.
@@ -369,8 +383,8 @@ class A2aSparseMLP(nn.Module):
             gate_up_out = gate_up_out + gate_up_bias
 
             # Activation
-            gate_out = gate_up_out[..., ::2]
-            up_out = gate_up_out[..., 1::2]
+            gate_out = gate_up_out[..., : self.intermediate_size]
+            up_out = gate_up_out[..., self.intermediate_size :]
             if self.activation_type == ACTIVATION_DEEPSEEK:
                 activated = F.silu(gate_out) * up_out
             else:
@@ -457,8 +471,8 @@ class A2aSparseMLP(nn.Module):
             gate_up_out = gate_up_out + gate_up_bias
 
             # Activation
-            gate_out = gate_up_out[..., ::2]
-            up_out = gate_up_out[..., 1::2]
+            gate_out = gate_up_out[..., : self.intermediate_size]
+            up_out = gate_up_out[..., self.intermediate_size :]
             if self.activation_type == ACTIVATION_DEEPSEEK:
                 activated = F.silu(gate_out) * up_out
             else:

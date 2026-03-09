@@ -25,8 +25,8 @@ test_config:
     # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
 
   gpt_oss/pytorch-20B-tensor_parallel-training:
-    supported_archs: [n300-llmbox]
-    status: KNOWN_FAILURE_XFAIL
+    supported_archs: [n300-llmbox, galaxy-wh-6u]
+    status: EXPECTED_PASSING
     # reason: "TT_FATAL: Number of rows in gradient tensor must be equal to number of indices in index tensor (embedding_backward)"
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-training:
