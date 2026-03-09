@@ -31,7 +31,11 @@ class RequirementsManager:
     - Also looks for system-requirements.txt for system packages (e.g. ffmpeg)
     """
 
-    def __init__(self, requirements_path: Optional[str]) -> None:
+    _JAX_PURGE_SKIP = frozenset({"flax", "transformers"})
+
+    def __init__(
+        self, requirements_path: Optional[str], framework: Optional[str] = None
+    ) -> None:
         self.requirements_path = (
             requirements_path
             if requirements_path and os.path.isfile(requirements_path)
@@ -46,6 +50,7 @@ class RequirementsManager:
             if os.path.isfile(sys_req_path):
                 self.system_requirements_path = sys_req_path
 
+        self._framework = framework.lower() if framework else None
         self._before_freeze: Dict[str, str] = {}
         self._after_freeze: Dict[str, str] = {}
         self._newly_installed: Set[str] = set()
@@ -54,10 +59,12 @@ class RequirementsManager:
         self._system_packages_installed: Set[str] = set()
 
     @staticmethod
-    def for_loader(loader_path: str) -> "RequirementsManager":
+    def for_loader(
+        loader_path: str, framework: Optional[str] = None
+    ) -> "RequirementsManager":
         loader_dir = os.path.dirname(os.path.abspath(loader_path))
         req_path = os.path.join(loader_dir, "requirements.txt")
-        return RequirementsManager(req_path)
+        return RequirementsManager(req_path, framework=framework)
 
     def __enter__(self) -> "RequirementsManager":
         if not self.requirements_path:
@@ -208,10 +215,31 @@ class RequirementsManager:
         After pip install or rollback, cached module objects in sys.modules may
         point to the old version's code.  Purging forces Python to re-import
         from the updated on-disk packages the next time they are imported.
+
+        For JAX, ``flax`` and ``transformers`` are excluded from purging because
+        the JAX test infrastructure imports them at module level during test
+        collection.  Purging them would create a mismatch between the old class
+        objects held by module-level variables (e.g. ``nnx.Module``) and the
+        freshly loaded ones, breaking ``isinstance`` checks.  Keeping them in
+        ``sys.modules`` preserves the same behaviour as before sys-module
+        purging was introduced — the old versions remain in memory and are used
+        consistently by both the tester and the model.
         """
         affected_normalized: Set[str] = set()
         for name in self._newly_installed | set(self._changed_versions.keys()):
             affected_normalized.add(name.lower().replace("-", "_"))
+
+        if not affected_normalized:
+            return
+
+        skip = self._JAX_PURGE_SKIP if self._framework == "jax" else frozenset()
+        if skip:
+            skipped = affected_normalized & skip
+            if skipped:
+                _dbg(
+                    f"[Requirements] JAX framework: skipping purge for {sorted(skipped)}"
+                )
+            affected_normalized = affected_normalized - skip
 
         if not affected_normalized:
             return
