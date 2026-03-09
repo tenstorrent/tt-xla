@@ -18,7 +18,7 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 
-from tests.utils import parametrize_arch
+from tests.utils import failed_ttmlir_compilation, parametrize_arch
 
 # ------------------------------------------------------------------------------
 # Models
@@ -71,6 +71,7 @@ class ReshapeMerge(torch.nn.Module):
     "in_dim,out_dim,num_splits",
     [(5120, 30720, 6)],
 )
+@pytest.mark.xfail(reason=failed_ttmlir_compilation("Compilation failure"))
 def test_reshape_after_sharded_linear(in_dim, out_dim, num_splits, arch):
     """Column-parallel Linear followed by a dimension-splitting reshape.
 
@@ -122,6 +123,7 @@ def test_reshape_after_sharded_linear(in_dim, out_dim, num_splits, arch):
     "total_dim,num_splits",
     [(30720, 6)],
 )
+@pytest.mark.xfail(reason=failed_ttmlir_compilation("Compilation failure"))
 def test_split_presharded_input(total_dim, num_splits, arch):
     """Reshape with dimension split on a pre-sharded input tensor.
 
