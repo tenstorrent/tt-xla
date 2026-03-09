@@ -178,10 +178,84 @@ Monkey-patch `record_metadata_for_reloading` to a no-op before model loading in 
 TT worker (commit ab2c8ac14). This disables the layerwise weight reloading feature
 (which TT doesn't use) and restores v0.15 memory behavior.
 
+## Standalone Repro Attempts (without TT hardware)
+
+Attempted multiple approaches to reproduce the regression without TT hardware, for
+upstream reporting. None succeeded — the regression requires the full vllm + torch_xla
+code path.
+
+### 1. CPU + eager backend
+- Loaded model via `transformers.AutoModelForCausalLM.from_pretrained`
+- Called `record_metadata_for_reloading` on it
+- `torch.compile(model, backend="eager")`, measured RSS
+- **Result: No difference.** Both with/without metadata: ~1.2 GB delta
+- **Why:** eager backend doesn't do full graph capture — dynamo doesn't
+  materialize tensor copies the way XLA does
+
+### 2. CPU + aot_eager backend
+- Same as above but with `backend="aot_eager"` (full graph capture)
+- **Result: No difference.** ~1.2 GB delta both ways
+- **Why:** even with full graph capture, CPU tensors don't trigger the
+  same reference-counting behavior as XLA lazy tensors
+
+### 3. Synthetic nn.Module + XLA
+- Built a 1.3B param transformer from plain `nn.Linear` layers
+- Manually added fake `__dict__` entries (`weight_loader` lambda, `output_dim` int)
+- Called `record_metadata_for_reloading`, compiled with `openxla`
+- **Result: No difference.** +91 MB both ways
+- **Why:** plain `torch.nn.Parameter` tensors don't have the same `__dict__`
+  structure as vllm's `BasevLLMParameter` subclasses. The fake entries (lambdas,
+  ints) don't trigger the same dynamo specialization as real vllm parameter
+  attributes (`_weight_loader` bound methods, `_output_dim`, `tp_rank`, etc.)
+
+### 4. Qwen3-0.6B via transformers + direct torch.compile + XLA
+- Loaded with `AutoModelForCausalLM.from_pretrained`, moved to XLA device
+- `torch.compile(model, backend="openxla", fullgraph=True)`
+- **Result: Hung during compilation.** XLA tried to compile the full
+  transformers forward (including `past_key_values`, attention masks, etc.)
+  as a single graph, which timed out on the TT device
+- **Why:** the TT plugin's model_runner splits the graph around attention ops
+  via vllm's `TorchCompileWithNoGuardsWrapper`. Direct `torch.compile` tries
+  to compile everything at once, which the device can't handle
+
+### 5. vllm.LLM standalone script
+- Used `vllm.LLM(model="Qwen/Qwen3-0.6B", ...)` directly
+- **Problem:** vllm spawns EngineCore as a subprocess. The monkey-patch in
+  the main process doesn't carry over to the subprocess
+- Tried `sitecustomize.py` via PYTHONPATH to patch in the subprocess, but
+  the TT plugin's own workaround in `worker.py` overrides it
+- **Result: Can't A/B test** — would need the workaround removed from the
+  plugin to demonstrate the regression
+
+### 6. In-process vllm model init (no subprocess)
+- Used `vllm.model_executor.model_loader.utils.initialize_model()` directly
+  with minimal distributed init (`gloo` backend, single rank)
+- **Successfully created model with real vllm parameter subclasses**
+  (`ModelWeightParameter` with `_output_dim`, `_input_dim`, `_weight_loader`,
+  `tp_rank`, `tp_size`)
+- Moved to XLA device, called `torch.compile(model, backend="openxla")`
+- **Result: Hung during compilation** — same issue as attempt 4. Without
+  vllm's compilation infrastructure (graph splitting, custom attention ops),
+  the full model can't compile on the TT device
+
+### Conclusion
+
+The regression requires ALL THREE of:
+1. **vllm's `BasevLLMParameter` subclasses** with populated `__dict__`
+   (not achievable with transformers or synthetic models)
+2. **torch_xla's dynamo bridge** (CPU backends show no difference)
+3. **vllm's compilation infrastructure** (direct `torch.compile` with
+   `openxla` hangs on the full model)
+
+The only reliable repro is the pytest test through the TT plugin, which
+handles all three requirements. A GPU-based repro would need someone with
+a TPU or GPU + torch_xla setup to test through vllm's full engine path.
+
 ## Next Steps
 
 1. Ship v0.16.0 uplift with the workaround
-2. File upstream vllm issue referencing PR #32133 once we have a GPU-reproducible path
+2. File upstream vllm issue — focus on "unnecessary unconditional work" angle
+   rather than requiring a non-TT repro
 3. Suggested upstream fix: make `record_metadata_for_reloading` lazy or opt-in
 
 ## Key Files
