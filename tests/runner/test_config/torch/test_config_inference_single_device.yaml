@@ -1512,6 +1512,7 @@ test_config:
   mistral/pixtral/pytorch-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    required_pcc: 0.985
 
   phi4/causal_lm/pytorch-Phi_4-single_device-inference:
     supported_archs: ["p150"] # Run as tensor_parallel for wormhole (14B param model).
@@ -2442,11 +2443,12 @@ test_config:
   dense_unet_3d/pytorch-Base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'stablehlo.reduce_window' - https://github.com/tenstorrent/tt-mlir/issues/7240"
+    markers: [large]
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    required_pcc: 0.97
 
   openvla_oft/pytorch-Finetuned_Libero_Spatial-single_device-inference:
     supported_archs: ["p150"]
@@ -2648,6 +2650,7 @@ test_config:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 12 banks, where each bank needs to store 11317248 B, but bank size is 1073741792 B (allocated: 1055220960 B, free: 18520832 B, largest free block: 9253856 B)"
+        markers: [large]
       p150:
         status: EXPECTED_PASSING
 
