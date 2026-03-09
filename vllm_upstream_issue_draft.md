@@ -59,13 +59,30 @@ loader_utils.record_metadata_for_reloading = lambda model: None
 
 This disables layerwise weight reloading capability, which is acceptable for users who don't use QeRL.
 
-## Suggested Fix
+## Suggested Fix (tested, confirmed working)
 
-Make `record_metadata_for_reloading` lazy or opt-in. The metadata is only needed when `reload_weights()` is actually called, so it could be captured on-demand at that point rather than unconditionally at model initialization. This would:
+Move `record_metadata_for_reloading(model)` from `initialize_model()` to `initialize_layerwise_reload()`, so metadata is captured on-demand when `reload_weights()` is first called rather than unconditionally at model init.
 
-1. Eliminate the overhead for all non-QeRL users
-2. Resolve the XLA memory regression
-3. Keep QeRL functionality intact (just deferred to first use)
+This is a 2-line change:
+
+**`model_executor/model_loader/utils.py`** — remove both `record_metadata_for_reloading(model)` calls from `initialize_model()`:
+```diff
+         with set_current_vllm_config(vllm_config, check_compile=True, prefix=prefix):
+             model = model_class(vllm_config=vllm_config, prefix=prefix)
+-            record_metadata_for_reloading(model)
+             return model
+```
+
+**`model_executor/model_loader/reload/layerwise.py`** — add it at the top of `initialize_layerwise_reload()`:
+```diff
+ def initialize_layerwise_reload(model: torch.nn.Module):
++    # Capture metadata on-demand rather than eagerly at model init
++    record_metadata_for_reloading(model)
++
+     # disable torchao reloading to avoid infinite recursion
+```
+
+We tested this fix on our XLA platform and confirmed it resolves the regression (3.9 GB vs 8.5 GB for Qwen3-0.6B) while preserving QeRL functionality — the metadata is just captured lazily at first use.
 
 ## Environment
 
@@ -73,4 +90,3 @@ Make `record_metadata_for_reloading` lazy or opt-in. The metadata is only needed
 - torch: 2.9.1
 - torch_xla: custom build (Tenstorrent PJRT backend)
 - Hardware: Tenstorrent QuietBox (Wormhole n300-llmbox)
-
