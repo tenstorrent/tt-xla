@@ -11,17 +11,11 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
-#include <cstring>
 #include <memory>
 #include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <thread>
-
-// POSIX includes
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
@@ -47,69 +41,6 @@
 #include "utils/utils.h"
 
 namespace tt::pjrt {
-
-// MmappedBuffer implementation
-MmappedBuffer::MmappedBuffer(const void *source_data, size_t size)
-    : m_data(nullptr), m_size(size) {
-  DLOG_F(LOG_DEBUG, "MmappedBuffer: Creating mmap for %zu bytes (%.2f MB)",
-         size, size / 1024.0 / 1024.0);
-
-  // Create anonymous mmap with MAP_PRIVATE and MAP_ANONYMOUS
-  // This allows the OS to swap pages to disk when memory pressure is high
-  m_data = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
-                  MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (m_data == MAP_FAILED) {
-    LOG_F(ERROR, "MmappedBuffer: Failed to create mmap for %zu bytes: %s",
-          size, std::strerror(errno));
-    throw std::runtime_error("Failed to create mmap buffer: " +
-                             std::string(std::strerror(errno)));
-  }
-
-  DLOG_F(LOG_DEBUG, "MmappedBuffer: Successfully created mmap at address %p, size %.2f MB",
-         m_data, size / 1024.0 / 1024.0);
-
-  // Copy data into the mmap'd region
-  std::memcpy(m_data, source_data, size);
-
-  DLOG_F(LOG_DEBUG, "MmappedBuffer: Copied %zu bytes into mmap'd region", size);
-
-  // Advise the kernel that this memory can be swapped out aggressively
-  // MADV_DONTNEED tells the kernel it can free these pages immediately if needed
-  int madvise_result = ::madvise(m_data, size, MADV_DONTNEED);
-  if (madvise_result == 0) {
-    DLOG_F(LOG_DEBUG, "MmappedBuffer: madvise(MADV_DONTNEED) successful for %p", m_data);
-  } else {
-    DLOG_F(LOG_DEBUG, "MmappedBuffer: madvise(MADV_DONTNEED) failed for %p: %s",
-           m_data, std::strerror(errno));
-  }
-}
-
-MmappedBuffer::~MmappedBuffer() {
-  if (m_data != nullptr && m_data != MAP_FAILED) {
-    DLOG_F(LOG_DEBUG, "MmappedBuffer: Destroying mmap at address %p, size %.2f MB",
-           m_data, m_size / 1024.0 / 1024.0);
-    ::munmap(m_data, m_size);
-  }
-}
-
-MmappedBuffer::MmappedBuffer(MmappedBuffer &&other) noexcept
-    : m_data(other.m_data), m_size(other.m_size) {
-  other.m_data = nullptr;
-  other.m_size = 0;
-}
-
-MmappedBuffer &MmappedBuffer::operator=(MmappedBuffer &&other) noexcept {
-  if (this != &other) {
-    if (m_data != nullptr && m_data != MAP_FAILED) {
-      ::munmap(m_data, m_size);
-    }
-    m_data = other.m_data;
-    m_size = other.m_size;
-    other.m_data = nullptr;
-    other.m_size = 0;
-  }
-  return *this;
-}
 
 std::mutex BufferInstance::s_copy_to_host_internal_mutex;
 
@@ -213,22 +144,17 @@ void BufferInstance::deleteData() {
 
   joinCopyThread();
 
-  // IMPORTANT: Destroy the borrowed tensor before the mmap'd buffer!
-  // The borrowed tensor points to memory owned by m_mmapped_buffer,
-  // so we must ensure the tensor is destroyed first.
-  if (m_pjrt_tensor) {
-    DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::deleteData - Destroying borrowed tensor", m_uid);
-    m_pjrt_tensor.reset();
-  }
-
-  // Now it's safe to destroy the mmap'd buffer
-  if (m_mmapped_buffer) {
-    DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::deleteData - Destroying mmap at address %p, size %.2f MB",
-           m_uid, m_mmapped_buffer->data(), m_mmapped_buffer->size() / 1024.0 / 1024.0);
-    m_mmapped_buffer.reset();
-  }
-
   m_data_deleted = true;
+  if (m_done_with_host_buffer_event) {
+    EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
+                                          tt_pjrt_status::kSuccess);
+
+    // TODO(mrakita): Revert.
+    // https://github.com/openxla/xla/issues/25172
+    assert(m_done_with_host_buffer_event->isIndestructible() &&
+           "Expected done_with_host_buffer_event to be indestructible");
+    delete m_done_with_host_buffer_event;
+  }
 }
 
 // Constructing buffer instance for the first time.
@@ -253,35 +179,57 @@ void BufferInstance::copyFromHost(
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
 
-  // Calculate the total size of the buffer
-  size_t buffer_size = element_size;
-  for (auto dim : shape) {
-    buffer_size *= dim;
+  tt::runtime::Tensor runtime_tensor;
+
+  // In distributed runtime, we always create owned host tensor because we
+  // cannot alias the host buffer.
+  //
+  // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
+  // we are not allowed to alias it directly, so we have to create owned host
+  // tensor which copies buffer data. In JAX this semantic is used only for
+  // copying scalars and numpy arrays, so the copy shouldn't take long. We can
+  // mark the event as ready since we don't need the original host buffer
+  // anymore.
+  //
+  // If the runtime data type which has been inferred from m_data_type is not
+  // supported by runtime/ttnn, then we must create an owned tensor as runtime
+  // must case the data inside the host buffer into a supported data type. Thus,
+  // the buffer cannot be borrowed.
+  if (::tt::runtime::getCurrentHostRuntime() ==
+          tt::runtime::HostRuntime::Distributed ||
+      host_buffer_semantics ==
+          PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
+      !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
+
+    runtime_tensor = tt::runtime::createOwnedHostTensor(
+        host_buffer, shape, strides, element_size, runtime_data_type);
+
+    // Memory is copied, we don't need host buffer anymore.
+    EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                          tt_pjrt_status::kSuccess);
   }
+  // Otherwise when input host buffer has other semantic we are allowed to alias
+  // it, so we can create borrowed host which doesn't copy any data and instead
+  // uses direct pointer to existing data. Since we are holding a pointer to the
+  // original data we can't mark the event as ready yet, so we remember it and
+  // mark it as ready once the buffer is destroyed.
+  else {
+    // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
+    // so we have to const cast here.
+    // https://github.com/tenstorrent/tt-metal/issues/20622
+    runtime_tensor = tt::runtime::createBorrowedHostTensor(
+        const_cast<void *>(host_buffer), shape, strides, element_size,
+        runtime_data_type);
 
-  DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::copyFromHost - Creating mmap for buffer size %zu bytes (%.2f MB), shape=%s",
-         m_uid, buffer_size, buffer_size / 1024.0 / 1024.0, toShapeStr().c_str());
+    // Memory is aliased, we need to hold on to host buffer until this buffer is
+    // deleted.
+    m_done_with_host_buffer_event = done_with_host_buffer_event.get();
 
-  // Create an mmap'd buffer that can be offloaded to disk by the OS
-  // This gives us memory pressure relief while maintaining data integrity
-  m_mmapped_buffer = std::make_unique<MmappedBuffer>(host_buffer, buffer_size);
-
-  DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::copyFromHost - Mmap created at address %p for %.2f MB",
-         m_uid, m_mmapped_buffer->data(), buffer_size / 1024.0 / 1024.0);
-
-  // Create a borrowed host tensor that points to the mmap'd memory
-  // The borrowed tensor doesn't own the memory, so it won't free it on destruction
-  // The mmap'd buffer will be cleaned up when this BufferInstance is destroyed
-  tt::runtime::Tensor runtime_tensor = tt::runtime::createBorrowedHostTensor(
-      m_mmapped_buffer->data(), shape, strides, element_size, runtime_data_type);
-
-  DLOG_F(LOG_DEBUG, "BufferInstance[UID=%lu]::copyFromHost - Created borrowed tensor pointing to mmap at %p",
-         m_uid, m_mmapped_buffer->data());
-
-  // Memory is copied into mmap'd region, we don't need the original host buffer anymore.
-  // Mark the event as ready immediately after the copy completes.
-  EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
-                                        tt_pjrt_status::kSuccess);
+    // TODO(mrakita): This is a major hack that we currently have to do because
+    // XLA PJRT client destroys event immediately after it sets callback on it.
+    // https://github.com/openxla/xla/issues/25172
+    m_done_with_host_buffer_event->setIndestructible();
+  }
 
   PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
 
