@@ -487,7 +487,9 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
   if (!args->dst) {
     ZoneScopedN("QueryHostBufferSize");
     DLOG_F(LOG_DEBUG, "Querying host buffer size from onBufferToHostBuffer");
+
     args->dst_size = buffer->logicalTensorSize();
+
     return nullptr;
   }
 
