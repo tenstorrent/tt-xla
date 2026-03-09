@@ -46,6 +46,8 @@ env:
   GH_TOKEN: ${{ github.token }}
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
   TT_XLA_CI: 1
+  TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
+  TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE: "/opt/tt-triage-venv/bin/python /opt/tt-triage/tools/tt-triage.py 1>&2"
 
 jobs:
   run-perf-test:
@@ -90,6 +92,7 @@ jobs:
           pytest.ini
           python_package/requirements.txt
           venv
+          third_party/CMakeLists.txt
 
     - name: Initialize submodules
       shell: bash
@@ -152,6 +155,14 @@ jobs:
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
+
+    # A temmporary step because triage isn't preinstalled in tt-xla-slim image
+    # When perf tests migrate to running in the tt-xla-base image, this can be removed
+    - name: Set up tt-triage
+      continue-on-error: true
+      shell: bash
+      run: |
+        .github/scripts/install-tt-triage.sh
 
     - name: Run benchmark
       id: run-benchmark
@@ -409,6 +420,8 @@ jobs:
           arch="blackhole"
         elif [[ "${{ matrix.build.runs-on }}" == *"llmbox"* ]]; then
           arch="wormhole_llmbox"
+        elif [[ "${{ matrix.build.runs-on }}" == *"galaxy"* ]]; then
+          arch="wormhole_galaxy"
         fi
         echo "arch=$arch" >> $GITHUB_OUTPUT
 
