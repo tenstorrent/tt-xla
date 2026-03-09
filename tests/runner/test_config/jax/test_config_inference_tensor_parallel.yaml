@@ -199,6 +199,24 @@ test_config:
     assert_pcc: false
     reason: "Severe PCC comparison failed: pcc=0.144 < 0.99 required"
 
+  llama/causal_lm/bounty_jax-Custom_1x2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Failed to convert from SHLO to TTIR module"
+
+  llama/causal_lm/bounty_jax-Custom_1x4-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Failed to convert from SHLO to TTIR module"
+
+  llama/causal_lm/bounty_jax-Custom_1x8-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Failed to convert from SHLO to TTIR module"
+    
   mamba/causal_lm/jax-mamba-370m-hf-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: KNOWN_FAILURE_XFAIL

@@ -523,7 +523,7 @@ class JaxDynamicLoader(DynamicLoader):
                 continue
 
             # Look specifically for JAX loader files
-            if os.path.basename(root) == "jax" and "loader.py" in files:
+            if os.path.basename(root) in ("jax", "bounty_jax") and "loader.py" in files:
                 loader_paths[os.path.join(root, "loader.py")] = []
 
         # Populate variants for each loader path
