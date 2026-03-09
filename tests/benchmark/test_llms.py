@@ -994,3 +994,41 @@ def test_llama_3_1_70b_tp_galaxy(output_file, num_layers, request):
         request=request,
         arch="wormhole_galaxy",
     )
+
+
+def test_gpt_oss_20b_tp_galaxy_batch_size_64(output_file, num_layers, request):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        batch_size=64,
+        arch="wormhole_galaxy",
+        optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
+    )
+
+
+def test_gpt_oss_120b_tp_galaxy_batch_size_1(output_file, num_layers, request):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        batch_size=1,
+        arch="wormhole_galaxy",
+        optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
+    )
