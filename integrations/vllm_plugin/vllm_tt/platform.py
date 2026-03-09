@@ -104,6 +104,7 @@ class TTPlatform(Platform):
         cls,
         selected_backend: "AttentionBackendEnum",
         attn_selector_config: "AttentionSelectorConfig",
+        num_heads: int | None = None,
     ) -> str:
         if attn_selector_config.use_sparse:
             raise NotImplementedError(
