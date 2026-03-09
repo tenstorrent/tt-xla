@@ -142,7 +142,15 @@ class Sampler(nn.Module):
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
     ) -> torch.Tensor:
-        # Apply bad_words mask first (sets banned tokens to -inf).
+        # Apply allowed_token_ids mask (sets disallowed tokens to -inf).
+        if not sampling_metadata.no_allowed_token_ids:
+            logits = logits + sampling_metadata.allowed_token_ids_mask
+
+        # Apply min_tokens mask (suppresses stop tokens until minimum is reached).
+        if not sampling_metadata.no_min_tokens:
+            logits = logits + sampling_metadata.min_tokens_mask
+
+        # Apply bad_words mask (sets banned tokens to -inf).
         if not sampling_metadata.no_bad_words:
             logits = self.apply_bad_words(logits, sampling_metadata.bad_words_mask)
 
