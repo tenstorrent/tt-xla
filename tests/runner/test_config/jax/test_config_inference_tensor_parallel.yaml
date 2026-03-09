@@ -37,6 +37,18 @@ test_config:
     reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
+  falcon/bounty_jax-Custom_1x2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  falcon/bounty_jax-Custom_1x4-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  falcon/bounty_jax-Custom_1x8-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   qwen_2_5/causal_lm/jax-0.5B-tensor_parallel-inference:
     supported_archs: ["n300"]
     status: EXPECTED_PASSING
@@ -201,22 +213,22 @@ test_config:
 
   llama/causal_lm/bounty_jax-Custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Failed to convert from SHLO to TTIR module"
 
   llama/causal_lm/bounty_jax-Custom_1x4-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Failed to convert from SHLO to TTIR module"
 
   llama/causal_lm/bounty_jax-Custom_1x8-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "Failed to convert from SHLO to TTIR module"
-    
+
   mamba/causal_lm/jax-mamba-370m-hf-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: KNOWN_FAILURE_XFAIL
@@ -236,6 +248,36 @@ test_config:
     supported_archs: ["n300-llmbox"]
     status: KNOWN_FAILURE_XFAIL
     reason: "error: expects input feature dimension (1536) to be a multiple of feature_group_count. Got feature_group_count = 3072. - https://github.com/tenstorrent/tt-xla/issues/3429"
+
+  mistral/causal_lm/bounty_jax-Custom_1x2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Failed to convert from SHLO to TTIR module"
+
+  mistral/causal_lm/bounty_jax-Custom_1x4-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Failed to convert from SHLO to TTIR module"
+
+  mistral/causal_lm/bounty_jax-Custom_1x8-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Failed to convert from SHLO to TTIR module"
+
+  gemma3/causal_lm/bounty_jax-Custom_1x2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  gemma3/causal_lm/bounty_jax-Custom_1x4-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  gemma3/causal_lm/bounty_jax-Custom_1x8-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
 
   phi1/causal_lm/jax-Phi_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
