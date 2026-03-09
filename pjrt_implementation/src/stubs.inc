@@ -177,3 +177,4 @@
   _STUB(PJRT_Client_Load);
   _STUB(PJRT_Device_GetAttributes);
   _STUB(PJRT_LoadedExecutable_AddressableDeviceLogicalIds);
+  _STUB(PJRT_Buffer_Bitcast);
