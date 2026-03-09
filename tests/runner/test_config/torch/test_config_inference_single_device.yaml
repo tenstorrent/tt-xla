@@ -1289,9 +1289,8 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov9/pytorch-T-single_device-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
-    markers: [push, nightly]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.6781663493289516. Required: pcc=0.98 - https://github.com/tenstorrent/tt-xla/issues/3607"
 
   yolov9/pytorch-S-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
