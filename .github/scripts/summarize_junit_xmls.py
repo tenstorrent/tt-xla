@@ -186,6 +186,7 @@ def get_columns() -> List[str]:
         "specific_test_case",
         "model_type",
         "group",
+        "weights_dtype",
         "arch",
         "bringup_status",
         "model_status",
@@ -241,6 +242,9 @@ def iter_test_records(tree: ET.ElementTree) -> Iterator[Dict]:
         # Get model_status from model_test_status field in tags (optional)
         model_test_status = record.get("model_test_status")
         record["model_status"] = normalize_model_test_status(model_test_status)
+
+        # Data type / weights_dtype: support both tag keys (e.g. "weights_dtype": "bfloat16")
+        record["weights_dtype"] = record.get("weights_dtype") or ""
 
         yield record
 
