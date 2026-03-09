@@ -8,7 +8,7 @@ import torch._dynamo.exc
 import torch_xla
 import tt_torch
 from torch.utils._python_dispatch import TorchDispatchMode
-from tt_torch.backend.backend import xla_backend
+from tt_torch.backend.backend import tt_backend
 from utils import Category
 
 # Tests that experimental compile indeed bypasses the fx->XLA retracing overhead by asserting that no fx op dispatching occurs after the first run.
@@ -25,7 +25,7 @@ class AssertingMode(TorchDispatchMode):
 
 
 def custom_backend(gm, example_inputs, options=None):
-    result = xla_backend(gm, example_inputs, options)
+    result = tt_backend(gm, example_inputs, options)
 
     class WrappedCallable:
         def __init__(self, wrapped):
