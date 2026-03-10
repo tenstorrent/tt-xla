@@ -199,10 +199,12 @@ class XLAExecutor:
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
             program = torch.export.export(self.module, tuple(args), strict=False)
 
-            # torch.export may leave erased "zombie" nodes in the graph's linked
-            # list with inconsistent prev/next pointers.  legalize_graph rebuilds
-            # the graph via the normal node iterator (which skips erased nodes),
-            # producing a clean linked list before the downstream partitioner runs.
+            # we observe that nodes in the fx graph can have inconsistent prev/next pointers.
+            # specifically, after invoking `torch.export.export` as part of torch_pass_pipeline,
+            # we observed in one case that a "placeholder=target['c_lifted_tensor_1']" node has it's successor set to "get_attr=target['_tensor_constant0']"
+            # a node which doesn't appear at all when interating over the fx graph directly(and whose successor is the real successor of the node as per the fx graph)
+            # Calling legalize_graph rebuilds the graph in topological order(from usage information), and fixes up the prev/next pointers in the process - which fixes our issue.
+            # All this is a problem because DynamoBridge Partitioner can get confused by wrong next nodes and partition the graph in a way which fails to execute.
             legalize_graph(program.graph_module)
 
             # Collect the params and constants from the exported program.
