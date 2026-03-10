@@ -20,7 +20,7 @@ on:
         required: false
         type: string
       build_types:
-        description: 'Build types with space-separated values: release, explorer, manylinux'
+        description: 'Build types with comma-separated values: release,explorer,manylinux'
         default: release
         type: string
         required: false
