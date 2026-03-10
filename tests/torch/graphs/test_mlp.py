@@ -498,7 +498,6 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
     )
 
     if arch == "llmbox":
-        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (2, num_devices // 2)
         device_ids = np.array(range(num_devices))
@@ -520,7 +519,6 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
             return shard_specs
 
     else:
-        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
         mesh = None
         get_shard_spec = None
 
@@ -528,7 +526,6 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
         mlp,
         [hidden_states],
         framework=Framework.TORCH,
-        comparison_config=comparison_config,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
