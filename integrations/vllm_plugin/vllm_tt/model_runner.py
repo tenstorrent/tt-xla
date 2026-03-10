@@ -1458,10 +1458,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 if self.enable_tensor_parallel:
                     # Apply sharding constraints to the model weights.
                     shard_model(model, self.mesh)
-                    # self.model.logits_processor
-                    from tt_torch.sharding import sharding_constraint_hook
-                    hook_forward = sharding_constraint_hook(model.logits_processor, self.mesh, (None, None))
-                    model.logits_processor.register_forward_hook(hook_forward)
+                    # from tt_torch.sharding import sharding_constraint_hook
+                    # hook_forward = sharding_constraint_hook(model.logits_processor, self.mesh, (None, None))
+                    # model.logits_processor.register_forward_hook(hook_forward)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -2027,21 +2026,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-        result = hidden_states[batch_indices, indices_do_sample, :]
-        result = sharding_constraint_tensor(result, self.mesh, (None, None))
-        return result
+        return hidden_states[batch_indices, indices_do_sample, :]
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
-        result = self.model.compute_logits(sample_hidden_states)
-        result = sharding_constraint_tensor(result, self.mesh, (None, None))
-        return result
+        return self.model.compute_logits(sample_hidden_states)
 
     # TODO(#3589): Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
-        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata, mesh: "xs.Mesh"
+        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
         """
         Sample with xla-friendly function. This function is to be traced
@@ -2059,7 +2054,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
-        out_tokens = sharding_constraint_tensor(out_tokens, mesh, (None, None))
         return out_tokens
 
     # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
