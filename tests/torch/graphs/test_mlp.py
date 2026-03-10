@@ -198,6 +198,7 @@ def test_qwen3_mlp(seq_len, variant, variant_config, arch):
 """Llama MLP test"""
 
 
+@pytest.mark.extended
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])

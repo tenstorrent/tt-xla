@@ -48,6 +48,7 @@ def get_available_variants(model_name):
 """Llama rms norm test"""
 
 
+@pytest.mark.extended
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.parametrize("seq_len", [1024])

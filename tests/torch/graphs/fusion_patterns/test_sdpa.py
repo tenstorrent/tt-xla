@@ -10,6 +10,7 @@ from utils import Category
 from tests.infra.testers.compiler_config import CompilerConfig
 
 
+@pytest.mark.extended
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)

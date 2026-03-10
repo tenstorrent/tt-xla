@@ -37,6 +37,7 @@ SEQ_LEN = 1024
 
 
 @pytest.mark.push
+@pytest.mark.extended
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
@@ -66,6 +67,7 @@ def test_llama_3_8b_sdpa(request):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.extended
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
