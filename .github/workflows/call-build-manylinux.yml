@@ -12,6 +12,10 @@ on:
         description: 'Suffix for artifact name to distinguish different builds, e.g. commit SHA'
         type: string
         required: false
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
 
 jobs:
   build-wheels:
@@ -20,6 +24,13 @@ jobs:
     runs-on: tt-ubuntu-2204-large-stable
     steps:
       - uses: actions/checkout@v4
+
+      - name: Override tt-mlir SHA mlir_override is set
+        if: ${{ inputs.mlir_override }}
+        shell: bash
+        run: |
+            # Update the CMakeLists.txt file with the new SHA
+            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
 
       - name: Set reusable strings
         id: strings

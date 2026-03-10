@@ -7,27 +7,34 @@ name: Check and Build tt-xla
 on:
   workflow_call:
     inputs:
-        mlir_override:
-          description: 'Git SHA of commit in tenstorrent/tt-mlir'
-          required: false
-          type: string
-        docker_image:
-          description: 'Docker image to use for the build'
-          required: false
-          type: string
-        docker_image_manylinux:
-          description: 'Docker image to use for the manylinux build'
-          required: false
-          type: string
-        build_types:
-          description: 'Build types with space-separated values: release, explorer, manylinux'
-          default: release
-          type: string
-          required: false
-        force_rebuild:
-          description: 'Force rebuild even if artifact exists'
-          type: boolean
-          required: false
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      docker_image:
+        description: 'Docker image to use for the build'
+        required: false
+        type: string
+      docker_image_manylinux:
+        description: 'Docker image to use for the manylinux build'
+        required: false
+        type: string
+      build_types:
+        description: 'Build types with space-separated values: release, explorer, manylinux'
+        default: release
+        type: string
+        required: false
+      force_rebuild:
+        description: 'Force rebuild even if artifact exists'
+        type: boolean
+        required: false
+    outputs:
+      artifacts_run_id:
+        description: 'Run ID of the workflow that produced the existing artifact(s)'
+        value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id }}
+      artifact_suffix:
+        description: 'Suffix added to artifact name (e.g. commit SHA) to distinguish different builds'
+        value: ${{ jobs.check-existing-artifact.outputs.artifact_suffix }}
 
 jobs:
   check-existing-artifact:
@@ -120,9 +127,10 @@ jobs:
   build-ttxla-release:
     needs: check-existing-artifact
     if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_release == 'true' }}
-    uses: ./.github/workflows/build-ttxla.yml
+    uses: ./.github/workflows/call-build-ttxla.yml
     secrets: inherit
     with:
+      mlir_override: ${{ inputs.mlir_override }}
       docker_image: ${{ inputs.docker_image }}
       build_type: release
       artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
@@ -130,9 +138,10 @@ jobs:
   build-ttxla-explorer:
     needs: check-existing-artifact
     if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_explorer == 'true' }}
-    uses: ./.github/workflows/build-ttxla.yml
+    uses: ./.github/workflows/call-build-ttxla.yml
     secrets: inherit
     with:
+      mlir_override: ${{ inputs.mlir_override }}
       docker_image: ${{ inputs.docker_image }}
       build_type: explorer
       artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
@@ -140,8 +149,9 @@ jobs:
   build-manylinux-ttxla:
     needs: check-existing-artifact
     if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_manylinux == 'true' }}
-    uses: ./.github/workflows/build-manylinux.yml
+    uses: ./.github/workflows/call-build-manylinux.yml
     secrets: inherit
     with:
+      mlir_override: ${{ inputs.mlir_override }}
       docker-image: ${{ inputs.docker_image_manylinux }}
       artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}

@@ -63,21 +63,14 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
       mlir_override: ${{ inputs.mlir_override }}
-      force_rebuild: ${{ inputs.manylinux_build }} # Force rebuild for non-manylinux build when manylinux_build is true, to ensure the artifact is available for testing.
-
-  build-manylinux-ttxla:
-    if: inputs.manylinux_build
-    needs: build-image
-    uses: ./.github/workflows/call-build-manylinux.yml
-    secrets: inherit
-    with:
-      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
 
   test:
     if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
-    needs: [ build-image, build-ttxla, build-manylinux-ttxla ]
+    needs: [ build-image, build-ttxla ]
     secrets: inherit
     with:
       test_suite: ${{ inputs.test_suite }}

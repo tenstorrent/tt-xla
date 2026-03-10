@@ -31,15 +31,8 @@ jobs:
     needs: [ build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-
-  build-ttxla-explorer:
-    uses: ./.github/workflows/call-build.yml
-    name: "Build tt-xla with explorer"
-    secrets: inherit
-    needs: [ build-image ]
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      build_type: explorer
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: release,explorer,manylinux
 
   build-ttxla-debug:
     uses: ./.github/workflows/call-build-debug.yml
@@ -48,13 +41,6 @@ jobs:
     needs: [ build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-
-  build-manylinux-ttxla:
-    needs: build-image
-    uses: ./.github/workflows/call-build-manylinux.yml
-    secrets: inherit
-    with:
-      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
 
   test:
     needs: [ build-image, build-ttxla ]

@@ -5,27 +5,27 @@ name: Build tt-xla
 on:
   workflow_call:
     inputs:
-        mlir_override:
-          description: 'Git SHA of commit in tenstorrent/tt-mlir'
-          required: false
-          type: string
-        docker_image:
-          description: 'Docker image to use for the build'
-          required: true
-          type: string
-        build_type:
-          description: 'Build type: release, explorer'
-          default: release
-          type: string
-          required: false
-        force_rebuild:
-          description: 'Force rebuild even if artifact exists'
-          type: boolean
-          required: false
-        artifact_suffix:
-          description: 'Suffix for artifact name to distinguish different builds, e.g. commit SHA'
-          type: string
-          required: false
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      docker_image:
+        description: 'Docker image to use for the build'
+        required: true
+        type: string
+      build_type:
+        description: 'Build type: release, explorer'
+        default: release
+        type: string
+        required: false
+      force_rebuild:
+        description: 'Force rebuild even if artifact exists'
+        type: boolean
+        required: false
+      artifact_suffix:
+        description: 'Suffix for artifact name to distinguish different builds, e.g. commit SHA'
+        type: string
+        required: false
 
 jobs:
   build-ttxla:
