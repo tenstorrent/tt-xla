@@ -2268,7 +2268,7 @@ test_config:
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
+    # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
 
   yolos_small/pytorch-Small-single_device-inference:
     required_pcc: 0.965
