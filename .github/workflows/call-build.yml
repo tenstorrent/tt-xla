@@ -72,6 +72,7 @@ jobs:
             build_types="${{ inputs.build_types }}"
             for build_type in $build_types; do
               echo "build_${build_type}=true" >> "$GITHUB_OUTPUT"
+              echo "Will build type: $build_type"
             done
           fi
           echo "artifact_suffix=${artifact_suffix}" >> "$GITHUB_OUTPUT"
@@ -95,6 +96,7 @@ jobs:
             fi
 
             echo "build_${build_type}=true" >> "$GITHUB_OUTPUT"
+            echo "Should build type: $build_type"
             artifact_name="xla-whl-${build_type}${{ steps.generate-name.outputs.artifact_suffix }}"
             echo "Checking for artifact: $artifact_name"
 
