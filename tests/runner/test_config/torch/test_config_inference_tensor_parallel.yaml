@@ -120,11 +120,13 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    markers: [testing]
     # bringup_status: INCORRECT_RESULT
     # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
+    # status: NOT_SUPPORTED_SKIP
+    # bringup_status: FAILED_RUNTIME
+    # reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
 
   qwen_2_5/causal_lm/pytorch-14B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -140,10 +142,12 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-Math_7B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    # bringup_status: INCORRECT_RESULT
-    # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
+    status: EXPECTED_PASSING
+    markers: [testing]
+    # # bringup_status: INCORRECT_RESULT
+    # # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
 
   # Models that need work....
 
@@ -180,9 +184,11 @@ test_config:
 
   qwen_2/causal_lm/pytorch-Qwq_32B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on n300-llmbox"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    markers: [testing]
+    # # status: NOT_SUPPORTED_SKIP
+    # # reason: "Needs bringup on n300-llmbox"
+    # # bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-72B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -192,9 +198,11 @@ test_config:
 
   qwen_3/causal_lm/pytorch-30B_A3b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on n300-llmbox"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    markers: [testing]
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "Needs bringup on n300-llmbox"
+    # bringup_status: FAILED_RUNTIME
 
   olmo3/causal_lm/pytorch-3_32b_think-tensor_parallel-inference:
     supported_archs: [n300-llmbox]

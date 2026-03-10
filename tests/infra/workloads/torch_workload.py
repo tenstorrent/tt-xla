@@ -42,6 +42,7 @@ class TorchWorkload(Workload):
             kwargs=kwargs,
             static_argnames=static_argnames,
         )
+        print("model",model)
         self.mesh = mesh
         self.shard_spec_fn = shard_spec_fn
         self._enable_xla_spmd_if_needed()
