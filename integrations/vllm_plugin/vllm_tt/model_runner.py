@@ -238,7 +238,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
-            mesh_shape = (num_devices, 1)
+            # mesh_shape = (num_devices, 1)
             mesh_shape = (2, 4)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
@@ -1255,19 +1255,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
-            logger.info(f"hidden_states: {hidden_states.shape}")
+            logger.info(f"step::0:hidden_states: {hidden_states.shape}")
 
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
-            logger.info(f"selected hidden_states: {hidden_states.shape}")
+            logger.info(f"step::1:selected_hidden_states: {hidden_states.shape}")
             # hidden_states = xs.mark_sharding(hidden_states, self.mesh, ("batch", "model"))
             logits = self.compute_logits(hidden_states)
+            logger.info(f"step::2:logits: {logits.shape}")
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
                 self.device,
                 vocab_size=self.vocab_size,
             )
+            logger.info(f"step::3:tpu_sampling_metadata:")
             if grammar_output is not None:
                 (
                     require_struct_decoding,
@@ -1277,8 +1279,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits = self.structured_decode(
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
+            logger.info(f"step::4:logits_after_structured_decoding: {logits.shape}")
 
-            if (
+            if False and (
                 self.enable_tensor_parallel
                 and self.model.lm_head is not None
                 and isinstance(self.model.lm_head, ParallelLMHead)
@@ -1286,10 +1289,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # Apply sharding constraint to logits for SPMD case.
                 # This will replicate the logits.
                 logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+            logger.info(f"step::5:logits_after_sharding_constraint: {logits.shape}")
 
             selected_token_ids = self.sample_from_logits_func(
-                logits, tpu_sampling_metadata
+                logits, tpu_sampling_metadata, self.mesh
             )
+            logger.info(f"step::6:selected_token_ids: {selected_token_ids.shape}")
+            # selected_token_ids = sharding_constraint_tensor(selected_token_ids, self.mesh, (None, None, None))
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -1299,9 +1305,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 if tpu_sampling_metadata.logprobs
                 else None
             )
+            logger.info(f"step::7:logprobs: {logprobs.logprobs.shape if logprobs is not None else None}")
+            selected_token_ids = selected_token_ids.to("cpu")
+            logger.info(f"step::7.5:selected_token_ids_after_cpu: {selected_token_ids}")
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
+            logger.info(f"step::8:selected_token_ids_after_cpu: {selected_token_ids.shape}")
 
             combined_selected_tokens.append(selected_token_ids)
             if tpu_sampling_metadata.logprobs:
@@ -1785,7 +1795,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Precompile all the subgraphs with possible input shapes.
         """
         torch._dynamo.config.dynamic_shapes = False
-        return
         with self.maybe_setup_dummy_loras(self.lora_config):
             self._precompile_mm_encoder()
             self._precompile_backbone()
@@ -2030,9 +2039,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     # TODO(#3589): Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
-        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
+        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata, mesh: "xs.Mesh"
     ) -> torch.Tensor:
         """
         Sample with xla-friendly function. This function is to be traced
@@ -2050,6 +2059,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
+        out_tokens = sharding_constraint_tensor(out_tokens, mesh, (None, None))
         return out_tokens
 
     # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
