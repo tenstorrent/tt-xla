@@ -133,9 +133,6 @@ static tt_pjrt_status launchDistributedRuntime() {
   }
 
   std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
-  if (btl_tcp_if_include) {
-    mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
-  }
   if (plm_rsh_agent) {
     mca_options["plm_rsh_agent"] = plm_rsh_agent;
   }
@@ -157,6 +154,10 @@ static tt_pjrt_status launchDistributedRuntime() {
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
           .withAllowRunAsRoot(true)
           .withMcaOptions(mca_options);
+
+  if (btl_tcp_if_include) {
+    distributed_options.multiProcessArgs->withTcpInterface(btl_tcp_if_include);
+  }
 
   if (controller_host_name) {
     distributed_options.multiProcessArgs->withControllerHostname(
