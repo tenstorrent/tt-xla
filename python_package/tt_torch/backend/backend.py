@@ -267,7 +267,18 @@ class XLAExecutor:
         if gm_has_functional_output_kind:
             # This tells torch-xla to cut the graph at only what is required to
             # compute all tensors in the `output` list.
-            torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+
+            # Two hacks to make AOTAutograd with legacy compile work:
+            # 1) Filter out non-tensor outputs (e.g. None values from aot_autograd
+            # backward graphs where some inputs don't require gradients).
+            output_tensors = [o for o in output if isinstance(o, torch.Tensor)]
+            # 2) When AOTAutograd is used, the forward graph module has no
+            # state_dict (parameters are lifted as inputs), so self.devices
+            # may be empty. Derive devices from the output tensors instead.
+            devices = self.devices
+            if not devices and output_tensors:
+                devices = list({t.device.type for t in output_tensors})
+            torch_xla._XLAC._xla_sync_multi(output_tensors, devices, wait=False)
         else:
             # Some graphs have side effects not included in graph output.
             # In these cases we must call sync() to force materialization of non-user-output
