@@ -391,7 +391,7 @@ class FlaxFalcon3Model(nn.Module):
         self.embed_tokens = nn.Embed(
             self.config.vocab_size,
             self.hidden_size,
-            embedding_init=embedding_init,
+            embedding_init=nn.with_partitioning(embedding_init, ('X', None)),
             dtype=self.dtype,
         )
         self.layers = FlaxFalcon3LayerCollection(self.config, dtype=self.dtype)
