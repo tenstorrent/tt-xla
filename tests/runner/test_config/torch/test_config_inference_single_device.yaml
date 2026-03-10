@@ -501,6 +501,7 @@ test_config:
     filechecks:
       - concatenate_heads.ttnn.mlir
       - split_query_key_value_and_split_heads.ttnn.mlir
+      - layer_norm.ttnn.mlir
     markers: [push, nightly]
 
   vit/pytorch-Large-single_device-inference:
@@ -900,6 +901,12 @@ test_config:
 
   qwen_3/causal_lm/pytorch-4B-single_device-inference:
     status: EXPECTED_PASSING
+    filechecks:
+      - concatenate_heads.ttnn.mlir
+      - split_query_key_value_and_split_heads.ttnn.mlir
+      - rms_norm.ttnn.mlir
+      - matmul_with_activation_silu.ttnn.mlir
+      - softmax.ttnn.mlir # SDPA fusion is not enabled without the optimizer, so we only check for softmax
 
   qwen_3/causal_lm/pytorch-1_7B-single_device-inference:
     status: EXPECTED_PASSING
