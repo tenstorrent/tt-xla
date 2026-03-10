@@ -43,9 +43,9 @@ jobs:
     outputs:
       artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
       artifact_suffix: ${{ steps.generate-name.outputs.artifact_suffix }}
-      build_release: ${{ steps.check-artifact.outputs.build_release }}
-      build_explorer: ${{ steps.check-artifact.outputs.build_explorer }}
-      build_manylinux: ${{ steps.check-artifact.outputs.build_manylinux }}
+      build_release: ${{ steps.generate-name.outputs.build_release || steps.check-artifact.outputs.build_release }}
+      build_explorer: ${{ steps.generate-name.outputs.build_explorer || steps.check-artifact.outputs.build_explorer }}
+      build_manylinux: ${{ steps.generate-name.outputs.build_manylinux || steps.check-artifact.outputs.build_manylinux }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,6 +68,11 @@ jobs:
             artifact_suffix=""
             echo "reusable_artifact=false" >> "$GITHUB_OUTPUT"
             echo "No reusable artifacts possible"
+            # Set build flags for all specified build types since we can't reuse artifacts
+            build_types="${{ inputs.build_types }}"
+            for build_type in $build_types; do
+              echo "build_${build_type}=true" >> "$GITHUB_OUTPUT"
+            done
           fi
           echo "artifact_suffix=${artifact_suffix}" >> "$GITHUB_OUTPUT"
 
