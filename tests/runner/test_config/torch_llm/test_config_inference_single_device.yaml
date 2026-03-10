@@ -181,6 +181,12 @@ test_config:
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_1-single_device-inference:
     status: EXPECTED_PASSING
     markers: [nightly]
+    filechecks:
+      - concatenate_heads.ttnn.mlir
+      - split_query_key_value_and_split_heads.ttnn.mlir
+      - rms_norm.ttnn.mlir
+      - matmul_with_activation_silu.ttnn.mlir
+      - softmax.ttnn.mlir # SDPA fusion is not enabled without the optimizer, so we only check for softmax
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_2-single_device-inference:
     status: EXPECTED_PASSING
