@@ -1,4 +1,4 @@
-# SamplingParams Audit — TT-XLA vLLM Plugin (updated Mar 9 2026)
+# SamplingParams Audit — TT-XLA vLLM Plugin (updated Mar 10 2026)
 
 ## Test Coverage Summary
 
@@ -36,7 +36,7 @@
 
 | Param | Status | Notes |
 |---|---|---|
-| **prompt_logprobs** | Plumbed but stubbed | `num_prompt_logprobs` tracked in `input_batch.py`/`model_runner.py`, but output always returns `None`. Not implemented in TT plugin. |
+| **prompt_logprobs** | In progress | PR #3652, issue #3651. `num_prompt_logprobs` tracked but output hardcoded to `None`. |
 | **logits_processors** | CPU callbacks | Custom callables, stored but never applied in sampler. |
 | **flat_logprobs** | Output formatting | Controls logprobs output shape. |
 | **skip_clone** / **skip_reading_prefix_cache** / **extra_args** | Internal plumbing | No user-facing behavior to test. |
@@ -62,19 +62,19 @@ Every param that executes on device has both E2E and synthetic coverage. CPU-onl
 5. ~~**Implement `min_tokens`**~~ — **DONE** (PR #3564)
 6. ~~**Verify upstream vLLM CPU-side flags**~~ (`include_stop_str_in_output`, `detokenize`, `skip_special_tokens`, `spaces_between_special_tokens`, `truncate_prompt_tokens`, `output_kind`) — **DONE** (PR #3581)
 7. ~~**Add degenerate output guard to `test_greedy_determinism`**~~ — **DONE** (PR #3581)
+8. ~~**Add TP test fixture with `ParallelLMHead`**~~ (#3590) — **DONE** — n300 fixture switched from Llama-3.2-3B (tied) to TinyLlama-1.1B (untied, `ParallelLMHead`).
 
 ## Action Items — Remaining
 
 ### Broken / stubbed params
 
-8. **Implement `prompt_logprobs`** — `num_prompt_logprobs` is tracked but output is hardcoded to `None`. Needs log_softmax computation on prompt tokens and top-k gathering.
-9. **Implement `logits_processors`** — Stored and passed to `SamplingMetadata` but never called in `sampler.py`. Needs a hook to apply custom processor callables.
+9. **Implement `prompt_logprobs`** (#3651, PR #3652) — `num_prompt_logprobs` is tracked but output is hardcoded to `None`. Needs log_softmax computation on prompt tokens and top-k gathering.
+10. **Implement `logits_processors`** — Stored and passed to `SamplingMetadata` but never called in `sampler.py`. Needs a hook to apply custom processor callables.
 
 ### Performance / correctness
 
-10. **Fix `sample_from_logits` compilation under SPMD** (#3589) — `sample_from_logits` is only compiled when `enable_tensor_parallel` is False. Under SPMD/TP mode it runs eagerly due to a correctness issue (all tokens become token_id 0 when compiled).
-11. **Fix #3464** (bf16 bool fusion) — would remove `count_tokens_ge` workaround in `sampler.py`.
-12. **Add TP test fixture with `ParallelLMHead`** (#3590) — both n300 fixtures use tied-embedding models, so the `sharding_constraint_tensor` logit replication path is never tested.
+11. **Fix `sample_from_logits` compilation under SPMD** (#3589) — `sample_from_logits` is only compiled when `enable_tensor_parallel` is False. Under SPMD/TP mode it runs eagerly due to a correctness issue (all tokens become token_id 0 when compiled).
+12. **Fix #3464** (bf16 bool fusion) — would remove `count_tokens_ge` workaround in `sampler.py`.
 
 ### Not a SamplingParam
 
