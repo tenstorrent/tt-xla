@@ -109,13 +109,15 @@ class FusionProvider(ABC):
 class RMSNormFusionProvider(FusionProvider):
     """
     Provides fusion patterns for RMS Normalization operations.
-
-    Matches two variants:
-
-    1. Llama variant (cast before mul):
+    
+    Matches patterns like LlamaRMSNorm (common case):
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + epsilon)
         return weight * hidden_states.to(input_dtype)
 
-    2. GPT-OSS variant (cast after mul):
+    There is also a GPT-OSS variant where the cast happens after multiply with weight:
         return (weight * hidden_states).to(input_dtype)
 
     Both are replaced with torch.nn.functional.rms_norm.
