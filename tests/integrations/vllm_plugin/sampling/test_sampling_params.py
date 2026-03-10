@@ -85,9 +85,12 @@ def vllm_single_device():
 
 @pytest.fixture
 def vllm_n300():
+    # TinyLlama uses tie_word_embeddings=False, so lm_head is a separate
+    # ParallelLMHead — exercises the sharding_constraint_tensor logit
+    # replication path that tied-embedding models skip. See #3590.
     return get_or_create_llm(
-        "llama_3b",
-        model="meta-llama/Llama-3.2-3B",
+        "tinyllama_1b",
+        model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         max_num_batched_tokens=128,
         max_num_seqs=1,
         max_model_len=128,
@@ -348,10 +351,14 @@ def test_output_length_controls(llm, prompt):
 def test_seed(llm, prompt):
     """Test that same seed produces same output, different seeds diverge."""
     base = {"temperature": 1.5, "top_p": 0.9, "max_tokens": 32}
+    params_same = vllm.SamplingParams(seed=42, **base)
+    # Warm-up call to stabilize engine state (prefix cache, compiled graphs)
+    # after prior tests with different sampling configs.
+    llm.generate(prompt, params_same, use_tqdm=False)
+
     outputs_same = []
     for i in range(2):
-        params = vllm.SamplingParams(seed=42, **base)
-        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].text
+        output = llm.generate(prompt, params_same, use_tqdm=False)[0].outputs[0].text
         outputs_same.append(output)
         print(f"[TESTOUT test_seed] seed=42 run {i+1}: {output[:50]}...")
     assert (
