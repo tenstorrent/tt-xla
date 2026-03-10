@@ -906,17 +906,14 @@ class MLA(nn.Module):
             # (bsz, 1, topk)
             topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
             gather_idx = topk_indices.squeeze(1) # (bsz, topk)
+            batch_idx = torch.arange(gather_idx.size(0)).view(-1, 1) # (bsz, 1)
 
-            # (bsz, topk, kv_lora_rank)
-            kv_sparse = self.kv_cache[:bsz, :end_pos].gather(
-                1, gather_idx.unsqueeze(-1).expand(-1, -1, self.kv_lora_rank))
-
-            # (bsz, topk, qk_rope_head_dim)
-            pe_sparse = self.pe_cache[:bsz, :end_pos].gather(
-                1, gather_idx.unsqueeze(-1).expand(-1, -1, self.qk_rope_head_dim))
+            orig_kv_cache = self.kv_cache[:bsz, :end_pos] # (bsz, seq_len, kv_lora_rank)
+            orig_pe_cache = self.pe_cache[:bsz, :end_pos] # (bsz, seq_len, qk_rope_head_dim)
             
-            kv_for_attention = kv_sparse
-            pe_for_attention = pe_sparse
+            # Extract only the indices specified by batch_idx and gather_idx
+            kv_for_attention = orig_kv_cache[batch_idx, gather_idx] # (bsz, topk, kv_lora_rank)
+            pe_for_attention = orig_pe_cache[batch_idx, gather_idx] # (bsz, topk, qk_rope_head_dim)
         else:
             kv_for_attention = self.kv_cache[:bsz, :end_pos]
             pe_for_attention = self.pe_cache[:bsz, :end_pos]

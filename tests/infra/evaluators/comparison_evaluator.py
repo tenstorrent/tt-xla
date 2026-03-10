@@ -51,6 +51,7 @@ class ComparisonEvaluator(Evaluator):
         _comparison_result.pcc = self._compare_pcc(
             device_output, golden_output, self._comparison_config.pcc
         )
+        print(f"PCC: {_comparison_result.pcc}")
         _comparison_result.allclose = self._compare_allclose(
             device_output, golden_output, self._comparison_config.allclose
         )

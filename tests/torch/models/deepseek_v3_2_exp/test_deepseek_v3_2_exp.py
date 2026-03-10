@@ -171,7 +171,7 @@ def test_deepseek_attention_decode(batch_size):
     xr.set_device_type("TT")
 
     # Decode-specific parameters
-    prefill_seq_len = 10  # Simulate that 32 tokens were already processed
+    prefill_seq_len = 2048  # Simulate that 32 tokens were already processed
     decode_seq_len = 1  # Generate one token at a time
     start_pos = prefill_seq_len  # Start position for the new token
 
@@ -255,7 +255,7 @@ def test_deepseek_attention_decode(batch_size):
             hidden_states,  # (batch_size, 1, dim)
             start_pos,  # 32 (or prefill_seq_len)
             freqs_cis,  # (1, qk_rope_head_dim)
-            False,  # use_new_flow
+            True,  # use_new_flow
             attention_mask,  # None - triggers decode path
         ],
         framework=Framework.TORCH,
@@ -267,11 +267,11 @@ def test_deepseek_attention_decode(batch_size):
 
 @pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
-def test_deepseek_attention_decode_flow_compared_to_original(batch_size):
+@pytest.mark.parametrize("prefill_seq_len", [32, 128, 512, 2048])
+def test_deepseek_attention_decode_flow_compared_to_original(batch_size, prefill_seq_len):
     xr.set_device_type("TT")
 
     # Decode-specific parameters
-    prefill_seq_len = 10  # Simulate that 32 tokens were already processed
     decode_seq_len = 1  # Generate one token at a time
     start_pos = prefill_seq_len  # Start position for the new token
 
