@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 from typing import Callable
 
 import numpy as np
@@ -9,6 +8,7 @@ import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+import tt_torch
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
@@ -469,12 +469,13 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
 
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
+@pytest.mark.parametrize("mlp_type", ["original", "sparse"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-def test_gpt_oss_mlp(variant, variant_config, arch):
+def test_gpt_oss_mlp(variant, variant_config, mlp_type, arch):
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant, num_layers=1)
@@ -485,6 +486,9 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
     batch_size = inputs["input_ids"].shape[0]  # 1
     seq_len = inputs["input_ids"].shape[1]  # 128 with padding
 
+    if mlp_type == "sparse":
+        tt_torch.sparse_mlp.enable_sparse_mlp(model)
+
     mlp = model.model.layers[0].mlp
 
     hidden_states = torch.randn(
@@ -494,22 +498,31 @@ def test_gpt_oss_mlp(variant, variant_config, arch):
     if arch == "llmbox":
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.97))
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (1, num_devices)
+        mesh_shape = (2, 4)
         device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+        mesh = Mesh(device_ids, mesh_shape, ("model", "batch"))
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
+            shard_specs[mlp.router.weight] = (None, "batch")
 
-            # Router weights (not sharded).
-            shard_specs[mlp.router.weight] = (None, None)
-            shard_specs[mlp.router.bias] = (None,)
+            # Both original and sparse use the same reshaped weights now
+            # Sparse: reshaped in-place to [1, E, H, inter*2] and [1, E, inter, H]
+            # Original: [E, H, inter*2] and [E, inter, H]
 
-            # Shard experts across devices.
-            shard_specs[mlp.experts.gate_up_proj] = ("model", None, None)
+            # gate_up_proj: (E, hidden, inter*2) or (1, E, hidden, inter*2) -> EP + hidden TP
+            #   - E: "model" (4-way EP)
+            #   - hidden: "batch" (2-way, K shard -> all-reduce)
+            #   - inter: None (output replicated)
+            shard_specs[mlp.experts.gate_up_proj] = ("model", "batch", None)
             shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
-            shard_specs[mlp.experts.down_proj] = ("model", None, None)
-            shard_specs[mlp.experts.down_proj_bias] = ("model", None)
+
+            # down_proj: (E, inter, hidden) or (1, E, inter, hidden) -> EP + hidden TP
+            #   - E: "model" (4-way EP)
+            #   - inter: None (input replicated)
+            #   - hidden: "batch" (2-way, output sharded)
+            shard_specs[mlp.experts.down_proj] = ("model", None, "batch")
+            shard_specs[mlp.experts.down_proj_bias] = ("model", "batch")
 
             return shard_specs
 
