@@ -69,6 +69,8 @@ class JaxComparisonEvaluator(ComparisonEvaluator):
         pcc_config: PccConfig,
         pcc_mask: PyTree | None = None,
     ) -> float:
+
+        # TODO: Once https://github.com/tenstorrent/tt-xla/issues/3641 is fixed, add support for pcc_mask, as done in TorchComparisonEvaluator.
         if pcc_mask is not None:
             warnings.warn(
                 "pcc_mask was provided to JaxComparisonEvaluator but will be ignored.",

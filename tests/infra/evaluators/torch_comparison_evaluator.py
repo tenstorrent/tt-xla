@@ -124,26 +124,22 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             if x.shape[0] != batch_size or y.shape[0] != batch_size:
                 return x, y
 
-            # Keep masking deterministic and simple for known LLM outputs:
-            # - rank-3 tensors (e.g. logits [B, S, V]) -> sequence dim is 1
-            # - rank-4 tensors (e.g. KV [B, H, S, D]) -> sequence dim is 2
-            if (
-                x.dim() == 3
-                and y.dim() == 3
-                and x.shape[1] == seq_len
-                and y.shape[1] == seq_len
-            ):
-                x_seq_first, y_seq_first = x, y
-            elif (
-                x.dim() == 4
-                and y.dim() == 4
-                and x.shape[2] == seq_len
-                and y.shape[2] == seq_len
-            ):
-                x_seq_first = x.movedim(2, 1)
-                y_seq_first = y.movedim(2, 1)
-            else:
-                return x, y
+            # Known LLM outputs:
+            # - rank-3 tensors (e.g. logits [B, S, V]) -> sequence dim is -2
+            # - rank-4 tensors (e.g. KV [B, H, S, D]) -> sequence dim is -2
+            assert (
+                x.shape == y.shape
+            ), f"pcc_mask requires matching shapes, got {x.shape} vs {y.shape}"
+            assert x.dim() in (
+                3,
+                4,
+            ), f"pcc_mask only supports rank-3 (logits) or rank-4 (KV) tensors, got rank {x.dim()} with shape {x.shape}"
+            assert (
+                x.shape[-2] == seq_len
+            ), f"dim -2 should be seq_len ({seq_len}), got {x.shape[-2]} in shape {x.shape}"
+
+            x_seq_first = x.movedim(-2, 1)
+            y_seq_first = y.movedim(-2, 1)
 
             x, y = x_seq_first[pcc_mask], y_seq_first[pcc_mask]
             return x, y
