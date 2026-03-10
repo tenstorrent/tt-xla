@@ -337,6 +337,8 @@ class CMakeBuildPy(build_py):
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         print("Setting up CMake project...")
+        print("::endgroup::")
+        print("::group::CMake build setup")
         stdout.flush()
         stderr.flush()
         subprocess.run(
@@ -345,24 +347,45 @@ class CMakeBuildPy(build_py):
             shell=True,
             capture_output=False,
             cwd=REPO_DIR,
+            env=os.environ,
         )
+        print("::endgroup::")
+        print("::group::CMake build")
+        stdout.flush()
         subprocess.run(
             " ".join([*cmake_cmd, *build_command]),
             check=True,
             shell=True,
             capture_output=False,
             cwd=REPO_DIR,
+            env=os.environ,
         )
+        print("::endgroup::")
+        print("::group::CMake install")
+        stdout.flush()
         subprocess.run(
             " ".join([*cmake_cmd, *install_command]),
             check=True,
             shell=True,
             capture_output=False,
             cwd=REPO_DIR,
+            env=os.environ,
         )
+        print("::endgroup::")
 
+        if self.in_ci():
+            print("::group::CCache stats")
+            stdout.flush()
+            subprocess.run("ccache -s", shell=True, cwd=REPO_DIR, capture_output=False)
+            print("::endgroup::")
+
+        print("::group::Add missing libs")
         self._add_missing_libs(install_dir)
+        print("::endgroup::")
+        print("::group::Pruning install tree")
         self._prune_install_tree(install_dir)
+        print("::endgroup::")
+        print("::group::Packing the wheel")
 
     def _add_missing_libs(self, install_dir: Path) -> None:
         """
