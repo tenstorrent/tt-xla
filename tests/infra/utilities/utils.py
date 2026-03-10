@@ -231,10 +231,12 @@ def compile_torch_workload_for_tt_device(
 ) -> None:
     """Compile Torch workload for TT device using tt backend."""
     to_compile = workload.model if workload.model is not None else workload.executable
+    options = torch_options if torch_options is not None else {}
+    options.setdefault("tt_legacy_compile", True)
     workload.compiled_executable = torch.compile(
         to_compile,
         backend="tt",
-        options=torch_options if torch_options is not None else {},
+        options=options,
     )
 
 
