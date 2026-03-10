@@ -68,7 +68,7 @@ class ShardingConfig:
 
     shard_strategy: Optional[ShardingStrategy]
     shard_inputs: bool
-    parallelism: Parallelism
+    parallelism: Parallelism  # Parallelism here is used for backward-compatibility.
 
 
 class ShardingConfigs:
