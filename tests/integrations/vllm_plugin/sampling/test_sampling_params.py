@@ -16,11 +16,13 @@ complementary:
   - here:      param semantics are correct in a real generation loop
 """
 
+import re
 import signal
 
 import pytest
 import vllm
 from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
+from vllm.sampling_params import RequestOutputKind, StructuredOutputsParams
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -214,6 +216,12 @@ def test_greedy_determinism(llm, prompt):
     assert (
         outputs[0] == outputs[1] == outputs[2]
     ), "Greedy sampling must be deterministic"
+
+    # Guard against degenerate output (e.g. all token_id 0 under TP).
+    token_ids = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0].token_ids
+    assert (
+        len(set(token_ids)) > 1
+    ), f"All tokens are identical ({token_ids[0]}), model is likely producing garbage"
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
@@ -562,3 +570,324 @@ def test_parameter_boundary_values(llm, prompt):
             f" {str(params)[:60]}... -> {output[:40]}..."
         )
         assert len(output) > 0, f"Boundary test {i+1} should produce output"
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_allowed_token_ids(llm, prompt):
+    """Test that allowed_token_ids constrains output to only the specified tokens.
+
+    Encodes a small set of common ASCII strings through the tokenizer to
+    obtain token IDs, then verifies that with allowed_token_ids, all
+    generated tokens are in that set.
+    """
+    tokenizer = llm.get_tokenizer()
+
+    # Use common ASCII-printable tokens that any model should have.
+    # Encode single characters to get reliable token IDs.
+    allowed_ids = set()
+    for ch in ["a", "b", "c", "d", "e", " ", ".", ",", "the", "and", "is"]:
+        ids = tokenizer.encode(ch, add_special_tokens=False)
+        allowed_ids.update(ids)
+    allowed_ids = sorted(allowed_ids)[:20]  # cap to avoid overly permissive set
+    print(f"[TESTOUT test_allowed_token_ids] allowed_ids={allowed_ids}")
+
+    params = vllm.SamplingParams(
+        temperature=0.0, max_tokens=8, allowed_token_ids=allowed_ids
+    )
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_allowed_token_ids] output: {output.text!r} "
+        f"token_ids={list(output.token_ids)}"
+    )
+
+    assert len(output.token_ids) > 0, "Should produce output with allowed_token_ids"
+    allowed_set = set(allowed_ids)
+    for tid in output.token_ids:
+        assert tid in allowed_set, (
+            f"Token {tid} not in allowed set {allowed_ids}, "
+            f"full output token_ids: {list(output.token_ids)}"
+        )
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_min_tokens(llm, prompt):
+    """Test that min_tokens suppresses stop_token_ids until the minimum is reached.
+
+    Runs a greedy baseline to find a token that appears early in the output,
+    then uses it as a stop_token_id. Without min_tokens, generation stops at
+    that token (verified by the baseline). With min_tokens set above that
+    position, generation must continue past it.
+    """
+    # Greedy baseline — find a token that appears early.
+    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0]
+    baseline_ids = list(baseline.token_ids)
+    print(
+        f"[TESTOUT test_min_tokens] baseline: {len(baseline_ids)} tokens, "
+        f"ids={baseline_ids[:8]}... text: {baseline.text[:50]}..."
+    )
+
+    assert (
+        len(baseline_ids) >= 5
+    ), f"Baseline too short ({len(baseline_ids)} tokens) to pick a stop token"
+
+    # Pick the 3rd token as a stop_token_id.
+    stop_id = baseline_ids[2]
+
+    # Verify that stop_token_id actually stops generation early.
+    stop_params = vllm.SamplingParams(
+        temperature=0.0, max_tokens=32, stop_token_ids=[stop_id]
+    )
+    stop_output = llm.generate(prompt, stop_params, use_tqdm=False)[0].outputs[0]
+    stop_len = len(stop_output.token_ids)
+    print(
+        f"[TESTOUT test_min_tokens] stop_token_ids=[{stop_id}]: "
+        f"{stop_len} tokens (should be <= 3)"
+    )
+    assert stop_len <= 3, (
+        f"stop_token_ids=[{stop_id}] should stop generation at or before "
+        f"position 3, got {stop_len} tokens"
+    )
+
+    # Now use min_tokens=8 with the same stop_token_id.
+    # min_tokens must suppress the stop token until 8 tokens are generated.
+    min_tok = 8
+    params = vllm.SamplingParams(
+        temperature=0.0,
+        min_tokens=min_tok,
+        max_tokens=32,
+        stop_token_ids=[stop_id],
+    )
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    n_tokens = len(output.token_ids)
+    print(
+        f"[TESTOUT test_min_tokens] min_tokens={min_tok}, "
+        f"stop_token_ids=[{stop_id}]: {n_tokens} tokens, "
+        f"text: {output.text[:50]}..."
+    )
+
+    assert n_tokens >= min_tok, (
+        f"With min_tokens={min_tok} and stop_token_ids=[{stop_id}], "
+        f"output must have at least {min_tok} tokens, got {n_tokens}. "
+        f"Without min_tokens, generation stopped at {stop_len} tokens — "
+        f"min_tokens enforcement is not working."
+    )
+
+    # The stop token must not appear in the first min_tokens positions.
+    # Without sampler-level suppression, the model still freely samples the
+    # stop token (the engine just doesn't halt) — so greedy decoding would
+    # produce the same token at the same position as the baseline.
+    # With suppression, the stop token's logit is -inf and cannot be sampled.
+    early_ids = list(output.token_ids[:min_tok])
+    print(f"[TESTOUT test_min_tokens] first {min_tok} token_ids: {early_ids}")
+    assert stop_id not in early_ids, (
+        f"Stop token {stop_id} was sampled at position "
+        f"{early_ids.index(stop_id)} (within first {min_tok} tokens). "
+        f"The sampler should suppress it via -inf logit masking, not just "
+        f"rely on the engine to ignore it."
+    )
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_structured_outputs_regex(llm, prompt):
+    """Test that structured output with a regex constraint is respected.
+
+    Uses a simple digit pattern so we can validate with re.fullmatch().
+    Exercises the grammar bitmask pipeline (apply_grammar_bitmask +
+    structured_decode) end-to-end.
+    """
+    pattern = r"\d{3}-\d{4}"
+    params = vllm.SamplingParams(
+        temperature=0.0,
+        max_tokens=16,
+        structured_outputs=StructuredOutputsParams(regex=pattern),
+    )
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_structured_outputs_regex] "
+        f"pattern={pattern!r} output={output.text!r}"
+    )
+
+    assert len(output.text) > 0, "Should produce output with regex constraint"
+    assert re.fullmatch(
+        pattern, output.text
+    ), f"Output {output.text!r} does not match regex {pattern!r}"
+
+
+@for_targets(single_device="nightly")
+def test_include_stop_str_in_output(llm, prompt):
+    """Test that include_stop_str_in_output controls whether stop string appears.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only — verifying our plugin doesn't break the upstream
+    behavior is sufficient; no need to cross with TP targets.
+    """
+    # Generate a baseline and pick a word from it as the stop string,
+    # guaranteeing the stop will be hit on a deterministic greedy run.
+    baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    baseline = llm.generate(prompt, baseline_params, use_tqdm=False)[0].outputs[0].text
+    words = baseline.split()
+    assert len(words) >= 3, f"Baseline too short to pick a stop word: {baseline!r}"
+    stop = words[2]
+    print(
+        f"[TESTOUT test_include_stop_str_in_output] "
+        f"baseline: {baseline!r}, stop={stop!r}"
+    )
+
+    params_exclude = vllm.SamplingParams(
+        temperature=0.0,
+        max_tokens=32,
+        stop=[stop],
+        include_stop_str_in_output=False,
+    )
+    out_exclude = llm.generate(prompt, params_exclude, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_include_stop_str_in_output] " f"exclude: {out_exclude.text!r}"
+    )
+
+    params_include = vllm.SamplingParams(
+        temperature=0.0,
+        max_tokens=32,
+        stop=[stop],
+        include_stop_str_in_output=True,
+    )
+    out_include = llm.generate(prompt, params_include, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_include_stop_str_in_output] " f"include: {out_include.text!r}"
+    )
+
+    assert stop not in out_exclude.text, (
+        f"With include=False, stop string {stop!r} should not appear "
+        f"in output: {out_exclude.text!r}"
+    )
+    assert out_include.text.endswith(stop), (
+        f"With include=True, output should end with stop string {stop!r}, "
+        f"got: {out_include.text!r}"
+    )
+
+
+@for_targets(single_device="nightly")
+def test_detokenize(llm, prompt):
+    """Test that detokenize=False suppresses text output but keeps token IDs.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only — verifying our plugin doesn't break the upstream
+    behavior is sufficient; no need to cross with TP targets.
+    """
+    params_no_detok = vllm.SamplingParams(
+        temperature=0.0, max_tokens=16, detokenize=False
+    )
+    out_no = llm.generate(prompt, params_no_detok, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_detokenize] detokenize=False: "
+        f"text={out_no.text!r} token_ids={list(out_no.token_ids)[:8]}"
+    )
+
+    params_detok = vllm.SamplingParams(temperature=0.0, max_tokens=16, detokenize=True)
+    out_yes = llm.generate(prompt, params_detok, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_detokenize] detokenize=True: "
+        f"text={out_yes.text!r} token_ids={list(out_yes.token_ids)[:8]}"
+    )
+
+    assert len(out_no.token_ids) > 0, "Should produce token IDs with detokenize=False"
+    assert (
+        out_no.text == ""
+    ), f"With detokenize=False, text should be empty, got: {out_no.text!r}"
+    assert len(out_yes.text) > 0, "With detokenize=True, text should be present"
+    assert list(out_no.token_ids) == list(
+        out_yes.token_ids
+    ), "Token IDs should be identical regardless of detokenize flag"
+
+
+@for_targets(single_device="nightly")
+def test_skip_special_tokens(llm, prompt):
+    """Test that skip_special_tokens doesn't break the pipeline.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only — verifying our plugin doesn't break the upstream
+    behavior is sufficient; no need to cross with TP targets.
+    """
+    for skip in (True, False):
+        params = vllm.SamplingParams(
+            temperature=0.0, max_tokens=16, skip_special_tokens=skip
+        )
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+        print(
+            f"[TESTOUT test_skip_special_tokens] " f"skip={skip}: {output.text[:50]!r}"
+        )
+        assert len(output.text) > 0, f"skip_special_tokens={skip} should produce output"
+
+
+@for_targets(single_device="nightly")
+def test_spaces_between_special_tokens(llm, prompt):
+    """Test that spaces_between_special_tokens doesn't crash the pipeline.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only. The behavioral difference (spacing around special
+    tokens) is tokenizer-specific and hard to assert on reliably, so this
+    test just verifies both values produce output without error.
+    """
+    for spaces in (True, False):
+        params = vllm.SamplingParams(
+            temperature=0.0,
+            max_tokens=16,
+            spaces_between_special_tokens=spaces,
+        )
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+        print(
+            f"[TESTOUT test_spaces_between_special_tokens] "
+            f"spaces={spaces}: {output.text[:50]!r}"
+        )
+        assert (
+            len(output.text) > 0
+        ), f"spaces_between_special_tokens={spaces} should produce output"
+
+
+@for_targets(single_device="nightly")
+def test_truncate_prompt_tokens(llm, prompt):
+    """Test that truncate_prompt_tokens changes the effective context.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only — verifying our plugin doesn't break the upstream
+    behavior is sufficient; no need to cross with TP targets.
+
+    With greedy decoding, fewer prompt tokens means different context and
+    therefore different output. Verifies that truncation actually takes effect.
+    """
+    full_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
+    out_full = llm.generate(prompt, full_params, use_tqdm=False)[0].outputs[0]
+
+    trunc_params = vllm.SamplingParams(
+        temperature=0.0, max_tokens=16, truncate_prompt_tokens=4
+    )
+    out_trunc = llm.generate(prompt, trunc_params, use_tqdm=False)[0].outputs[0]
+
+    print(
+        f"[TESTOUT test_truncate_prompt_tokens] "
+        f"full: {out_full.text[:50]!r} truncated: {out_trunc.text[:50]!r}"
+    )
+
+    assert len(out_full.text) > 0, "Full prompt should produce output"
+    assert len(out_trunc.text) > 0, "Truncated prompt should produce output"
+    assert list(out_full.token_ids) != list(
+        out_trunc.token_ids
+    ), "Truncated prompt should produce different output than full prompt"
+
+
+@for_targets(single_device="nightly")
+def test_output_kind(llm, prompt):
+    """Test that all output_kind values produce output without error.
+
+    CPU-only flag handled by upstream vLLM (no device graph involvement).
+    Single-device only. output_kind controls how intermediate results are
+    returned during streaming; with synchronous llm.generate() the final
+    result should be valid regardless of the setting.
+    """
+    for kind in RequestOutputKind:
+        params = vllm.SamplingParams(temperature=0.0, max_tokens=16, output_kind=kind)
+        output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+        print(f"[TESTOUT test_output_kind] {kind.name}: {output.text[:50]!r}")
+        assert (
+            len(output.token_ids) > 0
+        ), f"output_kind={kind.name} should produce token IDs"

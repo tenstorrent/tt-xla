@@ -377,9 +377,44 @@ class CMakeBuildPy(build_py):
             print("::endgroup::")
 
         print("::group::Pruning install tree")
+        self._add_missing_libs(install_dir)
         self._prune_install_tree(install_dir)
         print("::endgroup::")
         print("::group::Packing the wheel")
+
+    def _add_missing_libs(self, install_dir: Path) -> None:
+        """
+        Add any missing shared library dependencies to the install directory.
+        """
+        libs = ["libatomic.so.1"]
+
+        # Determine the correct lib directory
+        lib_dir = (
+            install_dir / "lib"
+            if (install_dir / "lib").exists()
+            else install_dir / "lib64"
+        )
+        ld_search_path = ["/lib", "/usr/lib", "/lib64", "/usr/lib64"]
+        ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
+        if ld_library_path:
+            ld_search_path.extend(ld_library_path.split(":"))
+
+        for lib in libs:
+            # Try to find the library in ld_search_path
+            lib_path = None
+            for path in ld_search_path:
+                candidate = Path(path) / lib
+                if candidate.exists():
+                    lib_path = candidate
+                    break
+
+            if lib_path:
+                print(f"Copying {lib} from {lib_path} to {lib_dir}")
+                shutil.copy2(lib_path, lib_dir / lib)
+            else:
+                print(
+                    f"Warning: {lib} not found in standard library paths or LD_LIBRARY_PATH"
+                )
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():

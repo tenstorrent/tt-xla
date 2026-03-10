@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
-from vllm.inputs import ProcessorInputs, PromptType
 from vllm.platforms.interface import Platform, PlatformEnum
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
@@ -17,6 +16,7 @@ if TYPE_CHECKING:
     from vllm.attention.selector import AttentionSelectorConfig
     from vllm.config import VllmConfig
     from vllm.config.cache import BlockSize
+    from vllm.inputs import ProcessorInputs, PromptType
     from vllm.pooling_params import PoolingParams
     from vllm.sampling_params import SamplingParams
 
@@ -258,9 +258,9 @@ class TTPlatform(Platform):
     @classmethod
     def validate_request(
         cls,
-        prompt: PromptType,
-        params: ParamsType,
-        processed_inputs: ProcessorInputs,
+        prompt: "PromptType",
+        params: "ParamsType",
+        processed_inputs: "ProcessorInputs",
     ) -> None:
         pass
 

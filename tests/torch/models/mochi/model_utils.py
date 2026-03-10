@@ -52,24 +52,3 @@ class MochiVAEWrapper(torch.nn.Module):
             if isinstance(output, tuple):
                 return output[0]
             return output
-
-
-def calculate_expected_output_shape(input_shape: tuple[int, ...]) -> tuple[int, ...]:
-    """
-    Calculate expected output shape for Mochi VAE decoder.
-    Temporal expansion: 6
-    Spatial expansion: 8x8
-
-    Args:
-        input_shape: Shape of input tensor [B, 12, t, h, w]
-
-    Returns:
-        Shape of output tensor [B, 3, T, H, W]
-    """
-    return (
-        input_shape[0],
-        3,
-        input_shape[2] * 6,
-        input_shape[3] * 8,
-        input_shape[4] * 8,
-    )

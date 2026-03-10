@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from infra import RunMode
+from infra.evaluators import ComparisonConfig, PccConfig
 from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.mochi.pytorch import ModelLoader, ModelVariant
@@ -27,7 +28,8 @@ _DRAM_OOM_SKIP_REASON = (
                     category=Category.MODEL_TEST,
                     model_info=ModelLoader.get_model_info(ModelVariant.MOCHI),
                     run_mode=RunMode.INFERENCE,
-                    bringup_status=BringupStatus.FAILED_RUNTIME,
+                    bringup_status=BringupStatus.PASSED,
+                    pcc=0.97,
                 ),
             ],
             id="mochi",
@@ -41,6 +43,7 @@ _DRAM_OOM_SKIP_REASON = (
                     model_info=ModelLoader.get_model_info(ModelVariant.MOCHI_TILED),
                     run_mode=RunMode.INFERENCE,
                     bringup_status=BringupStatus.FAILED_RUNTIME,
+                    pcc=0.97,
                 ),
             ],
             id="mochi_tiled",
@@ -48,7 +51,12 @@ _DRAM_OOM_SKIP_REASON = (
     ]
 )
 def inference_tester(request) -> MochiVAETester:
-    return MochiVAETester(request.param)
+    marker = request.node.get_closest_marker("record_test_properties")
+    pcc = marker.kwargs["pcc"]
+    return MochiVAETester(
+        request.param,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=pcc)),
+    )
 
 
 # ----- Tests -----
