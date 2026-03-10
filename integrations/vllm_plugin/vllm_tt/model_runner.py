@@ -987,7 +987,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # request in the batch. While we should not sample any token from this
         # partial request, we do so for simplicity. We will ignore the sampled
         # token from the partial request.
-        # TODO: Support prompt logprobs.
         # Indices at which we sample (positions of last token in the sequence).
         logits_indices = self.query_start_loc_cpu[1 : self.max_num_reqs + 1] - 1
         logits_indices = logits_indices.to(self.device)
@@ -1223,6 +1222,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         start_index = 0
         combined_selected_tokens: list[torch.Tensor] = []
         combined_logprobs: list[LogprobsLists] = []
+        # Per-request hidden states on CPU for prompt logprobs, keyed by
+        # batch index.  Only populated for requests that need prompt logprobs.
+        prompt_lp_hs: dict[int, torch.Tensor] = {}
 
         while start_index < self.input_batch.num_reqs:
             (
@@ -1251,6 +1253,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+
+            # Save hidden states (before position selection) for prompt
+            # logprobs.  Only extract rows for requests that actually need
+            # them, keyed by batch index, so we never copy the full
+            # [max_num_reqs, padded_seq_len, H] tensor to CPU.
+            if self.num_prompt_logprobs:
+                for i in range(start_index, end_index):
+                    req_id = self.input_batch.req_ids[i]
+                    if req_id in self.num_prompt_logprobs:
+                        local_idx = i - start_index
+                        prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
@@ -1346,9 +1359,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ), "req_ids contains None"
         req_ids = cast(list[str], self.input_batch.req_ids[:num_reqs])
 
-        prompt_logprobs_dict: dict[str, Optional[LogprobsTensors]] = {}
-        for req_id in self.input_batch.req_ids[:num_reqs]:
-            prompt_logprobs_dict[req_id] = None
+        prompt_logprobs_dict = self._get_prompt_logprobs_dict(
+            prompt_lp_hs, scheduler_output
+        )
 
         max_gen_len = selected_token_ids.shape[-1]
         if max_gen_len == 1:
@@ -2055,6 +2068,127 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logprobs=logprobTensors.logprobs,
             selected_token_ranks=logprobTensors.selected_token_ranks,
         )
+
+    def _get_prompt_logprobs_dict(
+        self,
+        prompt_lp_hs: dict[int, torch.Tensor],
+        scheduler_output: "SchedulerOutput",
+    ) -> dict[str, Optional[LogprobsTensors]]:
+        """Compute prompt logprobs on device following the GPU pattern.
+
+        For each prefilling request that has prompt_logprobs enabled, processes
+        prompt positions in batches of max_num_reqs through the existing
+        compiled ``compute_logits`` and ``gather_logprobs`` graphs so the big
+        vocab-sized tensors never leave the device.  Only the small gathered
+        result (max_num_reqs × (max_logprobs + 1)) is moved to CPU per batch.
+
+        Args:
+            prompt_lp_hs: per-request hidden states on CPU, keyed by batch
+                index.  Each value has shape [padded_seq_len, H].
+            scheduler_output: current scheduler output for num_scheduled_tokens.
+        """
+        if not self.num_prompt_logprobs:
+            return {}
+
+        in_progress = self.input_batch.in_progress_prompt_logprobs_cpu
+        result: dict[str, Optional[LogprobsTensors]] = {}
+        completed: list[str] = []
+
+        # Pre-allocate reusable CPU buffers (zeroed before each batch).
+        batch_hs_buf: Optional[torch.Tensor] = None
+        batch_tgt_buf = torch.zeros(self.max_num_reqs, 1, dtype=torch.int64)
+
+        for req_id, num_plp in self.num_prompt_logprobs.items():
+            # gather_logprobs is compiled for max_logprobs; clamp so the trim
+            # slice below never reads past the gathered columns.
+            num_plp = min(num_plp, self.model_config.max_logprobs)
+            request = self.requests[req_id]
+            num_tokens = scheduler_output.num_scheduled_tokens.get(req_id)
+            if num_tokens is None or request.prompt_token_ids is None:
+                continue
+
+            num_prompt_tokens = len(request.prompt_token_ids)
+
+            logprobs_tensors = in_progress.get(req_id)
+            if logprobs_tensors is None:
+                logprobs_tensors = LogprobsTensors.empty_cpu(
+                    num_prompt_tokens - 1, num_plp + 1
+                )
+                in_progress[req_id] = logprobs_tensors
+
+            start_idx = request.num_computed_tokens
+            start_tok = start_idx + 1
+            num_remaining = num_prompt_tokens - start_tok
+
+            if num_tokens <= num_remaining:
+                num_logits = num_tokens
+            else:
+                num_logits = num_remaining
+                completed.append(req_id)
+                result[req_id] = logprobs_tensors
+
+            if num_logits <= 0:
+                continue
+
+            req_idx = self.input_batch.req_id_to_index[req_id]
+            hs_cpu = prompt_lp_hs.get(req_idx)
+            assert hs_cpu is not None, (
+                f"req {req_id} (idx {req_idx}) not found in "
+                f"prompt_lp_hs — state inconsistency"
+            )
+            hs_cpu = hs_cpu[:num_logits, :]
+
+            # Lazily allocate the hidden-state buffer on first use so we
+            # know the dtype and hidden size from the actual hidden states.
+            if batch_hs_buf is None or batch_hs_buf.shape[-1] != hs_cpu.shape[-1]:
+                batch_hs_buf = torch.zeros(
+                    self.max_num_reqs, hs_cpu.shape[-1], dtype=hs_cpu.dtype
+                )
+
+            all_tgt_ids = request.prompt_token_ids[start_tok : start_tok + num_logits]
+
+            # Process prompt positions in batches of max_num_reqs through the
+            # existing compiled compute_logits / gather_logprobs graphs.
+            for batch_start in range(0, num_logits, self.max_num_reqs):
+                batch_end = min(batch_start + self.max_num_reqs, num_logits)
+                batch_size = batch_end - batch_start
+
+                # Fill pre-allocated hidden-state buffer, then transfer.
+                batch_hs_buf.zero_()
+                batch_hs_buf[:batch_size] = hs_cpu[batch_start:batch_end]
+                batch_hs_dev = batch_hs_buf.to(self.device)
+
+                # Compute logits on device (reuses compiled graph).
+                logits = self.compute_logits(batch_hs_dev)
+
+                # Fill pre-allocated target-token buffer, then transfer.
+                batch_tgt_buf.zero_()
+                batch_tgt_buf[:batch_size, 0] = torch.tensor(
+                    all_tgt_ids[batch_start:batch_end], dtype=torch.int64
+                )
+                batch_tgt_dev = batch_tgt_buf.to(self.device)
+
+                # Gather top-k logprobs on device (reuses compiled graph).
+                lp_tensors = self.gather_logprobs(logits, batch_tgt_dev)
+
+                # Move only the small gathered result to CPU and trim to the
+                # actual batch size and per-request num_prompt_logprobs.
+                ids_cpu = lp_tensors.logprob_token_ids.cpu()
+                lps_cpu = lp_tensors.logprobs.cpu()
+                ranks_cpu = lp_tensors.selected_token_ranks.cpu()
+
+                dest = slice(start_idx + batch_start, start_idx + batch_end)
+                logprobs_tensors.logprob_token_ids[dest] = ids_cpu[
+                    :batch_size, : num_plp + 1
+                ]
+                logprobs_tensors.logprobs[dest] = lps_cpu[:batch_size, : num_plp + 1]
+                logprobs_tensors.selected_token_ranks[dest] = ranks_cpu[:batch_size]
+
+        for req_id in completed:
+            del self.num_prompt_logprobs[req_id]
+            del in_progress[req_id]
+
+        return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def structured_decode(
