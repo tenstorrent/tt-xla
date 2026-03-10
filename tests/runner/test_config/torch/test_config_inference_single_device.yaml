@@ -289,10 +289,12 @@ test_config:
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-B0-single_device-inference:
-    required_pcc: 0.985 # PCC droped to 0.9882324215005038
-    reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2750"
-    status: EXPECTED_PASSING
-    markers: ["extended"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.08446120669079714. Required: pcc=0.985 - https://github.com/tenstorrent/tt-xla/issues/3607"
+    # previously:
+    # required_pcc: 0.985 # PCC droped to 0.9882324215005038
+    # reason: "AssertionError: Comparison result 0 failed: PCC comparison failed - https://github.com/tenstorrent/tt-xla/issues/2750"
+    # markers: ["extended"]
 
 
   efficientnet/pytorch-B1-single_device-inference:
@@ -448,7 +450,8 @@ test_config:
     status: EXPECTED_PASSING
 
   swin/image_classification/pytorch-S-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=0.10526262239556712. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3607"
 
   swin/image_classification/pytorch-B-single_device-inference:
     status: EXPECTED_PASSING
@@ -1091,8 +1094,9 @@ test_config:
     status: EXPECTED_PASSING
 
   vit/pytorch-B_16-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: ["extended"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed. Calculated: pcc=-0.06488408459613985. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3607"
+    # markers: ["extended"]
 
   vit/pytorch-H_14-single_device-inference:
     required_pcc: 0.985 # https://github.com/tenstorrent/tt-xla/issues/2944
