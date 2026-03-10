@@ -109,7 +109,7 @@ class FusionProvider(ABC):
 class RMSNormFusionProvider(FusionProvider):
     """
     Provides fusion patterns for RMS Normalization operations.
-    
+
     Matches patterns like LlamaRMSNorm (common case):
         input_dtype = hidden_states.dtype
         hidden_states = hidden_states.to(torch.float32)
