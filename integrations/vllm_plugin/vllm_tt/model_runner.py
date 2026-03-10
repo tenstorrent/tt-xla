@@ -18,6 +18,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
+from tt_torch.sharding import _partition_spec_to_sdy_sharding
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -239,6 +240,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             mesh_shape = (num_devices, 1)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
+            self._replicate_logits_sdy = _partition_spec_to_sdy_sharding(
+                self.mesh, (None, None)
+            )
+        else:
+            self._replicate_logits_sdy = None
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -1756,13 +1762,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
-            # TODO(#3589): Under SPMD, the experimental compile path
-            # constant-folds warmup inputs into the cached graph, causing
-            # sample_from_logits to always return the warmup argmax result.
-            # Skip precompilation for SPMD and let the first inference call
-            # compile lazily with real logits as genuine graph inputs.
-            if not self.enable_tensor_parallel:
-                self._precompile_sample_from_logits()
+            self._precompile_sample_from_logits()
             self._precompile_gather_logprobs()
 
     def profile_run(
@@ -1991,9 +1991,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
-        return self.model.compute_logits(sample_hidden_states)
+        logits = self.model.compute_logits(sample_hidden_states)
+        # Replicate logits for SPMD. Hooks can't reach ParallelLMHead
+        # (quant_method.apply bypasses __call__) and all_gather is a
+        # no-op (world_size=1). Must be inside the compiled graph —
+        # external sharding_constraint between compiled functions breaks.
+        if self._replicate_logits_sdy is not None:
+            logits = torch.ops.tt.sharding_constraint(
+                logits, self._replicate_logits_sdy
+            )
+        return logits
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    # TODO(#3672): Experimental compile fails under SPMD on second
+    # invocation. Use legacy compile until resolved.
+    @torch.compile(
+        backend="tt", fullgraph=True, dynamic=False, options={"tt_legacy_compile": True}
+    )
     def sample_from_logits(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:

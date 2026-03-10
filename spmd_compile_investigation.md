@@ -25,9 +25,18 @@
 
 The call `sharding_constraint_tensor(logits, mesh, (None, None))` between the compiled `compute_logits` and compiled `sample_from_logits` creates XLA lazy tensors that cause the second compiled function to produce incorrect results. The sharding_constraint custom op (`torch.ops.tt.sharding_constraint`) does NOT set XLA sharding specs on the Python tensor (verified: `_get_xla_sharding_spec()` returns `''`), but it does create an XLA IR node that interferes with the next compiled graph's execution.
 
-**This call is redundant**: `tensor_model_parallel_all_gather` inside vLLM's `LogitsProcessor._get_logits()` already replicates the logits before they leave `compute_logits`.
+**IMPORTANT**: `tensor_model_parallel_all_gather` inside vLLM's `LogitsProcessor._get_logits()` is a NO-OP under TT SPMD because world_size=1 (SPMD uses XLA sharding, not torch.distributed). The original assumption that it handles replication was wrong. The sharding constraint IS needed for ParallelLMHead models.
 
-**Fix**: Remove the external `sharding_constraint_tensor` call and the `ParallelLMHead` isinstance check.
+**Why hooks don't work for ParallelLMHead**: `LogitsProcessor._get_logits()` calls `lm_head.quant_method.apply(lm_head, hidden_states)` which bypasses `nn.Module.__call__` and therefore bypasses any registered forward hooks. VocabParallelEmbedding hooks work because the embedding layer IS called via `__call__` in the embedding path.
+
+**Fix**: Move the sharding constraint inside `compute_logits` as an explicit `torch.ops.tt.sharding_constraint` call (not a hook). This works because `compute_logits` is compiled and its graph already has the mesh definition from the model's sharded weights. The constraint becomes part of the same StableHLO graph. The external call and `ParallelLMHead` isinstance check are removed.
+
+### 3. Gibberish output for ParallelLMHead models
+**Discovered during before/after testing with coherence test.**
+
+After removing the external `sharding_constraint_tensor` (fix for cause #2) without replacing it, TinyLlama (ParallelLMHead) produced gibberish: `"competition competition competitionsweisesweise"`. Qwen3 (VocabParallelEmbedding) was fine because its sharding_constraint hook fires inside `compute_logits` via the embedding call path.
+
+**Fix**: Same as cause #2 — the sharding constraint inside `compute_logits` fixes both the external-call-between-compiled-functions issue AND the missing replication for ParallelLMHead.
 
 ## Commits (3-commit structure)
 
@@ -80,10 +89,17 @@ All passing with 3-commit version:
 
 ## Open Items
 
-- The constant-folding bug in experimental compile under SPMD should be filed as a separate issue against torch_xla or TT backend
-- `gather_logprobs` compilation under SPMD (enabled by commit 1 but not yet tested with the warmup skip — may need the same treatment)
-- Full nightly TP suite should be run to verify no regressions from removing external `sharding_constraint_tensor`
-- Before/after output quality comparison needed — TinyLlama n300 output looks like gibberish (deterministic but not coherent). Need to confirm whether this is a pre-existing model quality issue or a regression from our changes.
+1. **Skip-precompilation workaround**: We skip `_precompile_sample_from_logits` under SPMD to avoid the constant-folding bug. Should file a separate issue for the underlying bug in `torch.export` + `extract_compiled_graph`. Also need to check if `_precompile_gather_logprobs` needs the same skip.
+
+2. ~~**`gather_logprobs` under SPMD**~~: DONE — `test_logprobs[n300]` and `test_logprobs[n300_llmbox]` both pass. No precompilation skip needed for `gather_logprobs`.
+
+3. ~~**`test_logprobs` before/after results**~~: DONE — All pass with SPMD changes.
+
+4. ~~**Full push/nightly TP test suite**~~: DONE — 25/25 n300, 25/25 n300_llmbox, 31/31 single_device. No regressions.
+
+5. **Double replication perf check**: `compute_logits` now applies `sharding_constraint` for all TP models, but VocabParallelEmbedding models already replicate via their hook. Confirm no perf regression from the redundant constraint.
+
+6. **Commit cleanup for PR**: Drop debug commit, reorganize the 4 functional commits for review.
 
 ## Q&A
 
@@ -97,4 +113,20 @@ A: The constant-folding bug in `torch.export` + `extract_compiled_graph` under S
 
 **Q: Why was the external `sharding_constraint_tensor` call removed?**
 
-A: Two reasons: (1) It's redundant — `tensor_model_parallel_all_gather` inside vLLM's `LogitsProcessor._get_logits()` already replicates the logits before they leave `compute_logits`. (2) It actively breaks things — the `torch.ops.tt.sharding_constraint` custom op creates XLA lazy tensors that interfere with the next compiled function's execution, causing it to return incorrect results.
+A: It actively breaks things when placed between two `@torch.compile` functions — the `torch.ops.tt.sharding_constraint` custom op creates XLA lazy tensors that interfere with the next compiled function's execution. The replication it provided is now done inside `compute_logits` instead.
+
+**Q: Why not use a forward hook on ParallelLMHead instead of explicit code in compute_logits?**
+
+A: `LogitsProcessor._get_logits()` calls `lm_head.quant_method.apply(lm_head, hidden_states)` which bypasses `nn.Module.__call__()` and therefore any registered forward hooks. This is an upstream vLLM design choice — hooks only fire when `module()` is called directly. `VocabParallelEmbedding`'s hook works because the embedding path uses `__call__`, but the lm_head path doesn't. We'd have to patch vLLM's `LogitsProcessor` upstream to fix this.
+
+**Q: Why not rely on tensor_model_parallel_all_gather for replication?**
+
+A: Under TT's SPMD, there is only 1 process (world_size=1). The parallelism is handled by XLA SPMD sharding, not by torch.distributed. So `tensor_model_parallel_all_gather` is effectively a no-op — it checks world_size and returns the tensor unchanged. The original code knew this and used the external `sharding_constraint_tensor` for ParallelLMHead models.
+
+**Q: Does the sharding constraint inside compute_logits affect non-TP mode?**
+
+A: No. `_replicate_logits_sdy` is `None` when `enable_tensor_parallel` is False, so the `if` branch is never taken. Dynamo traces it out at compile time — the non-TP graph is identical to before.
+
+**Q: Is the sharding constraint redundant for VocabParallelEmbedding models?**
+
+A: Yes, but harmlessly so. VocabParallelEmbedding already has a sharding_constraint hook that fires via the embedding `__call__` path. The explicit constraint in `compute_logits` applies a second replication annotation on already-replicated logits. The compiler folds out the identity constraint. Both models are covered by the same code path.
