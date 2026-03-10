@@ -2360,14 +2360,13 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
             shard_specs[args[1][1]] = ("batch", None, None)  # sin
             shard_specs[args[2]] = ("batch", None, None, None)  # attention_mask
             shard_specs[attention.q_proj.weight] = ("model", "batch")
-            shard_specs[attention.q_proj.bias] = ("model", )
+            shard_specs[attention.q_proj.bias] = ("model",)
             shard_specs[attention.k_proj.weight] = ("model", "batch")
-            shard_specs[attention.k_proj.bias] = ("model", )
+            shard_specs[attention.k_proj.bias] = ("model",)
             shard_specs[attention.v_proj.weight] = ("model", "batch")
-            shard_specs[attention.v_proj.bias] = ("model", )
+            shard_specs[attention.v_proj.bias] = ("model",)
             shard_specs[attention.o_proj.weight] = ("batch", "model")
-            shard_specs[attention.o_proj.bias] = ("batch", )
-
+            shard_specs[attention.o_proj.bias] = ("batch",)
 
             return shard_specs
 
@@ -2425,13 +2424,13 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
             shard_specs[args[1][1]] = ("batch", None, None)  # sin
             shard_specs[args[2]] = ("batch", None, None, None)  # attention_mask
             shard_specs[attention.q_proj.weight] = ("model", "batch")
-            shard_specs[attention.q_proj.bias] = ("model", )
+            shard_specs[attention.q_proj.bias] = ("model",)
             shard_specs[attention.k_proj.weight] = ("model", "batch")
-            shard_specs[attention.k_proj.bias] = ("model", )
+            shard_specs[attention.k_proj.bias] = ("model",)
             shard_specs[attention.v_proj.weight] = ("model", "batch")
-            shard_specs[attention.v_proj.bias] = ("model", )
+            shard_specs[attention.v_proj.bias] = ("model",)
             shard_specs[attention.o_proj.weight] = ("batch", "model")
-            shard_specs[attention.o_proj.bias] = ("batch", )
+            shard_specs[attention.o_proj.bias] = ("batch",)
             return shard_specs
 
     else:
