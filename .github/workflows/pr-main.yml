@@ -89,9 +89,7 @@ jobs:
       test_suite: basic-test.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
-      alchemist_artifact_name: ${{ needs.build-ttxla-release.outputs.alchemist_artifact_name }}
+      artifact_suffix: ${{ needs.build-ttxla-release.outputs.artifact_suffix }}
 
   perf-benchmark-n150:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
@@ -106,7 +104,7 @@ jobs:
       test_filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
       should_build_wheel: false
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      wheel_release_artifact_name: xla-whl-release${{ needs.build-ttxla-release.outputs.artifact_suffix }}
 
   perf-benchmark-llmbox:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
@@ -121,7 +119,7 @@ jobs:
       test_filter: test_llama_3_1_70b_tp
       should_build_wheel: false
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      wheel_release_artifact_name: xla-whl-release${{ needs.build-ttxla-release.outputs.artifact_suffix }}
 
   perf-benchmark-galaxy:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
@@ -136,7 +134,7 @@ jobs:
       test_filter: test_llama_3_1_70b_tp_galaxy
       should_build_wheel: false
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      wheel_release_artifact_name: xla-whl-release${{ needs.build-ttxla-release.outputs.artifact_suffix }}
 
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -147,7 +145,7 @@ jobs:
       test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      artifact_suffix: ${{ needs.build-ttxla-release.outputs.artifact_suffix }}
 
   test_models_on_uplift:
     if: needs.inspect-changes.outputs.run-uplift-model-tests == 'true'
@@ -158,7 +156,7 @@ jobs:
       test_suite: model-test-extended.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      artifact_suffix: ${{ needs.build-ttxla-release.outputs.artifact_suffix }}
 
   test-tools:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -167,7 +165,7 @@ jobs:
     needs: [ inspect-changes, build-image, build-ttxla-release ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      wheel_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla-release.outputs.artifact_suffix }}
       artifacts_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
 
   build-docs:

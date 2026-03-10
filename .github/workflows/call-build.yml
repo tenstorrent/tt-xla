@@ -1,4 +1,4 @@
-name: Build tt-xla
+name: Check and Build tt-xla
 
 # Implements artifact caching to avoid unnecessary rebuilds.
 # Artifacts are reused only when: not a PR, no mlir_override, and exact name match exists.
@@ -8,35 +8,26 @@ on:
   workflow_call:
     inputs:
         mlir_override:
-            description: 'Git SHA of commit in tenstorrent/tt-mlir'
-            required: false
-            type: string
+          description: 'Git SHA of commit in tenstorrent/tt-mlir'
+          required: false
+          type: string
         docker_image:
-            description: 'Docker image to use for the build'
-            required: true
-            type: string
-        build_type:
-            description: 'Build type: release, explorer'
-            default: release
-            type: string
-            required: false
+          description: 'Docker image to use for the build'
+          required: false
+          type: string
+        docker_image_manylinux:
+          description: 'Docker image to use for the manylinux build'
+          required: false
+          type: string
+        build_types:
+          description: 'Build types with space-separated values: release, explorer, manylinux'
+          default: release
+          type: string
+          required: false
         force_rebuild:
-            description: 'Force rebuild even if artifact exists'
-            type: boolean
-            required: false
-    outputs:
-        wheel_artifact_name:
-            description: 'Name of the wheel artifact'
-            value: ${{ jobs.check-existing-artifact.outputs.wheel_artifact_name }}
-        wheel_release_vllm_tt_artifact_name:
-            description: 'Name of the vllm-tt plugin wheel artifact'
-            value: ${{ jobs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
-        alchemist_artifact_name:
-            description: 'Name of the alchemist library artifact'
-            value: ${{ jobs.check-existing-artifact.outputs.alchemist_artifact_name }}
-        artifacts_run_id:
-            description: 'Run ID of the artifacts'
-            value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || github.run_id }}
+          description: 'Force rebuild even if artifact exists'
+          type: boolean
+          required: false
 
 jobs:
   check-existing-artifact:
@@ -44,9 +35,10 @@ jobs:
     name: "Check for existing artifact"
     outputs:
       artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ steps.generate-name.outputs.wheel_release_vllm_tt_artifact_name }}
-      alchemist_artifact_name: ${{ steps.generate-name.outputs.alchemist_artifact_name }}
+      artifact_suffix: ${{ steps.generate-name.outputs.artifact_suffix }}
+      build_release: ${{ steps.check-artifact.outputs.build_release }}
+      build_explorer: ${{ steps.check-artifact.outputs.build_explorer }}
+      build_manylinux: ${{ steps.check-artifact.outputs.build_manylinux }}
     steps:
       - uses: actions/checkout@v4
 
@@ -54,8 +46,6 @@ jobs:
         id: generate-name
         shell: bash
         run: |
-          build_name=${{ inputs.build_type }}
-
           # Add commit SHA to artifact name only when all conditions are met:
           # - Not a pull request event
           # - Not a merge commit (has exactly 1 parent)
@@ -66,17 +56,13 @@ jobs:
                 "${{ inputs.mlir_override }}" == "" ]]; then
             artifact_suffix="-$(git rev-parse --short HEAD)"
             echo "reusable_artifact=true" >> "$GITHUB_OUTPUT"
+            echo "Reusable artifact suffix: ${artifact_suffix}"
           else
             artifact_suffix=""
             echo "reusable_artifact=false" >> "$GITHUB_OUTPUT"
+            echo "No reusable artifacts possible"
           fi
-          wheel_artifact_name="xla-whl-${build_name}${artifact_suffix}"
-          wheel_release_vllm_tt_artifact_name="vllm-tt-whl-${build_name}${artifact_suffix}"
-          alchemist_artifact_name="alchemist-lib-${build_name}${artifact_suffix}"
-          echo "wheel_artifact_name=${wheel_artifact_name}" >> "$GITHUB_OUTPUT"
-          echo "wheel_release_vllm_tt_artifact_name=${wheel_release_vllm_tt_artifact_name}" >> "$GITHUB_OUTPUT"
-          echo "alchemist_artifact_name=${alchemist_artifact_name}" >> "$GITHUB_OUTPUT"
-          echo "Generated artifact name: $wheel_artifact_name"
+          echo "artifact_suffix=${artifact_suffix}" >> "$GITHUB_OUTPUT"
 
       - name: Check if artifact exists
         if: ${{ steps.generate-name.outputs.reusable_artifact == 'true' }}
@@ -84,119 +70,78 @@ jobs:
         shell: bash
         run: |
           # Use GitHub API to check for existing artifacts
-          response=$(curl -s -H "Authorization: token ${{ github.token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=${{ steps.generate-name.outputs.wheel_artifact_name }}")
-          total_count=$(echo "$response" | jq -r '.total_count')
+          # Parse space-separated build types and check each one
+          build_types="${{ inputs.build_types }}"
+          all_exist=true
+          artifacts_run_id=""
 
-          if [ "$total_count" -gt 0 ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            # Get the download URL of the most recent artifact
-            download_url=$(echo "$response" | jq -r '.artifacts[0].archive_download_url')
-            artifacts_run_id=$(echo "$response" | jq -r '.artifacts[0].workflow_run.id')
-            echo "url=${download_url}" >> "$GITHUB_OUTPUT"
-            echo "artifacts_run_id=${artifacts_run_id}" >> "$GITHUB_OUTPUT"
-            echo "Found existing artifact: ${{ steps.generate-name.outputs.wheel_artifact_name }}"
-            echo "Artifact URL: $download_url"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "url=" >> "$GITHUB_OUTPUT"
-            echo "artifacts_run_id=" >> "$GITHUB_OUTPUT"
-            echo "No existing artifact found for: ${{ steps.generate-name.outputs.wheel_artifact_name }}"
-          fi
-
-  build-ttxla:
-    needs: check-existing-artifact
-    if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id }}
-    timeout-minutes: 120
-    runs-on: tt-ubuntu-2204-large-stable
-    name: "Build tt-xla (${{ inputs.build_type }})"
-    container:
-      image: ${{ inputs.docker_image }}
-
-    steps:
-      - name: Mark repo as safe for git
-        run: |
-            echo "Current user: $(whoami)"
-            ls -ld $(pwd)
-            git config --global --add safe.directory /__w/tt-xla/tt-xla
-            git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
-
-      - uses: actions/checkout@v4
-        with:
-            submodules: recursive
-            repository: 'tenstorrent/tt-xla'
-
-      - name: Override tt-mlir SHA mlir_override is set
-        if: ${{ inputs.mlir_override }}
-        shell: bash
-        run: |
-            # Update the CMakeLists.txt file with the new SHA
-            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
-
-      - name: Set reusable strings
-        id: strings
-        shell: bash
-        run: |
-            echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
-            echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-            echo "build-name=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
-
-      - name: ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-            create-symlink: true
-            key: "${{ steps.strings.outputs.build-name }}-build"
-
-      - name: Build the wheel
-        shell: bash
-        run: |
-            source venv/activate
-            cd ${{ steps.strings.outputs.work-dir }}/python_package
-            python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
-
-      - name: Validate build type of wheel build
-        shell: bash
-        run: |
-            source venv/activate
-            #Inspect the wheel build type on wheel file without installing the wheel
-            uv pip install wheel-inspect
-            wheel_summary=$(wheel2json ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
-            match=$(echo "$wheel_summary" | grep -oP "build-type=${{ inputs.build_type }}" || true)
-            echo "Wheel summary: $wheel_summary"
-            if [ -z "$match" ]; then
-                echo "Wheel summary does not match build type: ${{ inputs.build_type }}"
-                exit 1
+          for build_type in $build_types; do
+            # Validate build type
+            if [[ ! "$build_type" =~ ^(release|explorer|manylinux)$ ]]; then
+              echo "Invalid build type: $build_type. Must be one of: release, explorer, manylinux"
+              exit 1
             fi
 
-      - name: Upload the wheel
-        id: upload-wheel
-        uses: actions/upload-artifact@v4
-        with:
-            name: ${{ needs.check-existing-artifact.outputs.wheel_artifact_name }}
-            path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+            echo "build_${build_type}=true" >> "$GITHUB_OUTPUT"
+            artifact_name="xla-whl-${build_type}${{ steps.generate-name.outputs.artifact_suffix }}"
+            echo "Checking for artifact: $artifact_name"
 
-      - name: Upload alchemist library and templates
-        if: inputs.build_type == 'release'
-        id: upload-alchemist
-        uses: actions/upload-artifact@v4
-        with:
-            name: ${{ needs.check-existing-artifact.outputs.alchemist_artifact_name }}
-            path: |
-              ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/lib/libtt-alchemist-lib.so
-              ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/tools/tt-alchemist/templates
+            response=$(curl -s -H "Authorization: token ${{ github.token }}" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?name=${artifact_name}")
+            total_count=$(echo "$response" | jq -r '.total_count')
 
-      - name: Build vllm plugin wheel
-        if: inputs.build_type == 'release'
-        shell: bash
-        run: |
-            source venv/activate
-            cd ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin
-            python setup.py bdist_wheel $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '--code-coverage'; fi)
+            if [ "$total_count" -gt 0 ]; then
+              echo "Found existing artifact: $artifact_name"
+              # Get the run ID from the first artifact (use same run ID for all)
+              ari=$(echo "$response" | jq -r '.artifacts[0].workflow_run.id')
+              if [ -n "$artifacts_run_id" ] && [ "$artifacts_run_id" != "$ari" ]; then
+                echo "Inconsistent artifact run IDs found: $artifacts_run_id and $ari"
+                all_exist=false
+                break
+              fi
+              artifacts_run_id=$ari
+            else
+              echo "No existing artifact found for: $artifact_name"
+              all_exist=false
+              break
+            fi
+          done
 
-      - name: Upload the vllm plugin wheel
-        if: inputs.build_type == 'release'
-        id: upload-vllm-tt-wheel
-        uses: actions/upload-artifact@v4
-        with:
-            name: ${{ needs.check-existing-artifact.outputs.wheel_release_vllm_tt_artifact_name }}
-            path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
+          if [ "$all_exist" = true ] && [ -n "$artifacts_run_id" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "artifacts_run_id=${artifacts_run_id}" >> "$GITHUB_OUTPUT"
+            echo "All artifacts exist for run ID: $artifacts_run_id"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "artifacts_run_id=" >> "$GITHUB_OUTPUT"
+            echo "Not all artifacts exist, build required"
+          fi
+
+  build-ttxla-release:
+    needs: check-existing-artifact
+    if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_release == 'true' }}
+    uses: ./.github/workflows/build-ttxla.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ inputs.docker_image }}
+      build_type: release
+      artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
+
+  build-ttxla-explorer:
+    needs: check-existing-artifact
+    if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_explorer == 'true' }}
+    uses: ./.github/workflows/build-ttxla.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ inputs.docker_image }}
+      build_type: explorer
+      artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
+
+  build-manylinux-ttxla:
+    needs: check-existing-artifact
+    if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_manylinux == 'true' }}
+    uses: ./.github/workflows/build-manylinux.yml
+    secrets: inherit
+    with:
+      docker-image: ${{ inputs.docker_image_manylinux }}
+      artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
