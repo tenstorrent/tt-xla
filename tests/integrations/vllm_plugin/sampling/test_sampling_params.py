@@ -227,6 +227,29 @@ def test_greedy_determinism(llm, prompt):
     ), f"All tokens are identical ({token_ids[0]}), model is likely producing garbage"
 
 
+# Prompts all test models reliably complete under greedy sampling (#3663).
+_COHERENCE_CHECKS = [
+    ("1 + 1 =", "2"),
+    ("The opposite of up is", "down"),
+    ("Roses are red, violets are", "blue"),
+    ("To be or not to be, that is the", "question"),
+    ("Monday, Tuesday, Wednesday,", "thursday"),
+    ("January, February, March,", "april"),
+]
+
+
+@for_targets(single_device="push", n300="push", n300_llmbox="push")
+def test_output_coherence(llm):
+    """Verify model produces coherent, factually grounded output."""
+    params = vllm.SamplingParams(temperature=0.0, max_tokens=10)
+    for input_text, expected in _COHERENCE_CHECKS:
+        text = llm.generate([input_text], params, use_tqdm=False)[0].outputs[0].text
+        print(f"[TESTOUT test_output_coherence] '{input_text}' -> '{text.strip()}'")
+        assert (
+            expected.lower() in text.lower()
+        ), f"Expected '{expected}' in output for '{input_text}', got: '{text}'"
+
+
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_combined_sampling(llm, prompt):
     """Test realistic combinations of sampling parameters."""
