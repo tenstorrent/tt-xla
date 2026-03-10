@@ -347,6 +347,7 @@ class CMakeBuildPy(build_py):
             shell=True,
             capture_output=False,
             cwd=REPO_DIR,
+            env=os.environ,
         )
         print("::endgroup::")
         print("::group::CMake build")
@@ -357,6 +358,7 @@ class CMakeBuildPy(build_py):
             shell=True,
             capture_output=False,
             cwd=REPO_DIR,
+            env=os.environ,
         )
         print("::endgroup::")
         print("::group::CMake install")
@@ -367,6 +369,7 @@ class CMakeBuildPy(build_py):
             shell=True,
             capture_output=False,
             cwd=REPO_DIR,
+            env=os.environ,
         )
         print("::endgroup::")
 
@@ -376,8 +379,10 @@ class CMakeBuildPy(build_py):
             subprocess.run("ccache -s", shell=True, cwd=REPO_DIR, capture_output=False)
             print("::endgroup::")
 
-        print("::group::Pruning install tree")
+        print("::group::Add missing libs")
         self._add_missing_libs(install_dir)
+        print("::endgroup::")
+        print("::group::Pruning install tree")
         self._prune_install_tree(install_dir)
         print("::endgroup::")
         print("::group::Packing the wheel")
