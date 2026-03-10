@@ -1044,13 +1044,13 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Use the `options.devicePtr` to pass the device pointer to the optimizer in
   // order to avoid closing and reopening the device afterwards.
   // Optimizer is enabled for optimization_level >= 1
-  if (compile_options.optimization_level >= 1) {
-    tt::runtime::Device submesh_for_optim =
-        client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
-    options.devicePtr =
-        std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
-            submesh_for_optim.handle);
-  }
+  // if (compile_options.optimization_level >= 1) {
+  //   tt::runtime::Device submesh_for_optim =
+  //       client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
+  //   options.devicePtr =
+  //       std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
+  //           submesh_for_optim.handle);
+  // }
 
   // Map per-axis fabric config to mesh topology for CCL operations.
   // Compute fabric config for the compilation mesh shape directly, since the
