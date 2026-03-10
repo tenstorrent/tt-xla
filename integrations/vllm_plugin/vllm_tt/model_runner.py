@@ -1212,7 +1212,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def sample_tokens(
         self, grammar_output: "GrammarOutput | None"
     ) -> ModelRunnerOutput:
-        logger.info(f"sample token")
+        # logger.info(f"sample token")
+        # layers = get_layers_from_vllm_config(self.vllm_config, Attention)
         if self.scheduler_output is None:
             # Nothing to do (PP non-final rank case), output isn't used.
             return None  # type: ignore[return-value]
@@ -1254,8 +1255,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+            logger.info(f"hidden_states: {hidden_states.shape}")
+
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
+            logger.info(f"selected hidden_states: {hidden_states.shape}")
+            # hidden_states = xs.mark_sharding(hidden_states, self.mesh, ("batch", "model"))
             logits = self.compute_logits(hidden_states)
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -1273,7 +1278,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            if False and (
+            if (
                 self.enable_tensor_parallel
                 and self.model.lm_head is not None
                 and isinstance(self.model.lm_head, ParallelLMHead)
@@ -1443,6 +1448,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 if self.enable_tensor_parallel:
                     # Apply sharding constraints to the model weights.
                     shard_model(model, self.mesh)
+                    # self.model.logits_processor
+                    from tt_torch.sharding import sharding_constraint_hook
+                    hook_forward = sharding_constraint_hook(model.logits_processor, self.mesh, (None, None))
+                    model.logits_processor.register_forward_hook(hook_forward)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1776,6 +1785,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Precompile all the subgraphs with possible input shapes.
         """
         torch._dynamo.config.dynamic_shapes = False
+        return
         with self.maybe_setup_dummy_loras(self.lora_config):
             self._precompile_mm_encoder()
             self._precompile_backbone()
@@ -2008,11 +2018,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-        return hidden_states[batch_indices, indices_do_sample, :]
+        result = hidden_states[batch_indices, indices_do_sample, :]
+        result = sharding_constraint_tensor(result, self.mesh, (None, None))
+        return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
-        return self.model.compute_logits(sample_hidden_states)
+        result = self.model.compute_logits(sample_hidden_states)
+        result = sharding_constraint_tensor(result, self.mesh, (None, None))
+        return result
 
     # TODO(#3589): Under SPMD mode, sample_from_logits has correctness issue.
     #       Re-enable the torch.compile once the issue is fixed in torchxla.
