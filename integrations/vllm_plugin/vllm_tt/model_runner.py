@@ -18,7 +18,6 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
-from tt_torch.sharding import sharding_constraint_tensor
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -36,7 +35,6 @@ from vllm.model_executor.layers.attention.chunked_local_attention import (
 )
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
-from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.models.interfaces import (
@@ -1260,15 +1258,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            if (
-                self.enable_tensor_parallel
-                and self.model.lm_head is not None
-                and isinstance(self.model.lm_head, ParallelLMHead)
-            ):
-                # Apply sharding constraint to logits for SPMD case.
-                # This will replicate the logits.
-                logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
-
             selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
@@ -1767,7 +1756,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
-            self._precompile_sample_from_logits()
+            # TODO(#3589): Under SPMD, the experimental compile path
+            # constant-folds warmup inputs into the cached graph, causing
+            # sample_from_logits to always return the warmup argmax result.
+            # Skip precompilation for SPMD and let the first inference call
+            # compile lazily with real logits as genuine graph inputs.
+            if not self.enable_tensor_parallel:
+                self._precompile_sample_from_logits()
             self._precompile_gather_logprobs()
 
     def profile_run(
