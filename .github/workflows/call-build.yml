@@ -70,7 +70,7 @@ jobs:
             echo "No reusable artifacts possible"
             # Set build flags for all specified build types since we can't reuse artifacts
             build_types="${{ inputs.build_types }}"
-            for build_type in $build_types; do
+            for build_type in ${build_types//,/ }; do
               echo "build_${build_type}=true" >> "$GITHUB_OUTPUT"
               echo "Will build type: $build_type"
             done
@@ -88,7 +88,7 @@ jobs:
           all_exist=true
           artifacts_run_id=""
 
-          for build_type in $build_types; do
+          for build_type in ${build_types//,/ }; do
             # Validate build type
             if [[ ! "$build_type" =~ ^(release|explorer|manylinux)$ ]]; then
               echo "Invalid build type: $build_type. Must be one of: release, explorer, manylinux"
