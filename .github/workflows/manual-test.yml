@@ -56,14 +56,55 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
       dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
+  fetch-torch-xla-wheel:
+    runs-on: wormhole_b0
+    env:
+      DOCKER_CACHE_DIR: /mnt/dockercache/models/tt-ci-models-private/
+    outputs:
+      torch_xla_wheel_artifact_name: ${{ steps.set-name.outputs.artifact_name }}
+    steps:
+      - name: Fetch torch-xla wheel from cache
+        id: fetch
+        continue-on-error: true
+        run: |
+          WHEEL_NAME="torch_xla-2.9.0+git0df1f5f-cp312-cp312-linux_x86_64.whl"
+          SRC="${DOCKER_CACHE_DIR}/wheels/${WHEEL_NAME}"
+          if [[ ! -f "$SRC" ]]; then
+            echo "Wheel not found at $SRC, continuing without it"
+            echo "fetched=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          WHEELS_DIR="${RUNNER_TEMP:-/tmp}/wheels"
+          mkdir -p "$WHEELS_DIR"
+          cp "$SRC" "$WHEELS_DIR/"
+          echo "wheel_path=${WHEELS_DIR}/${WHEEL_NAME}" >> $GITHUB_OUTPUT
+          echo "fetched=true" >> $GITHUB_OUTPUT
+
+      - name: Upload torch-xla wheel artifact
+        if: steps.fetch.outputs.fetched == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: torch-xla-wheel
+          path: ${{ steps.fetch.outputs.wheel_path }}
+
+      - name: Set artifact name output
+        id: set-name
+        run: |
+          if [[ "${{ steps.fetch.outputs.fetched }}" == "true" ]]; then
+            echo "artifact_name=torch-xla-wheel" >> $GITHUB_OUTPUT
+          else
+            echo "artifact_name=" >> $GITHUB_OUTPUT
+          fi
+
   build-ttxla:
-    needs: build-image
+    needs: [ build-image, fetch-torch-xla-wheel ]
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
       force_rebuild: ${{ inputs.manylinux_build }} # Force rebuild for non-manylinux build when manylinux_build is true, to ensure the artifact is available for testing.
+      torch_xla_wheel_artifact_name: ${{ needs.fetch-torch-xla-wheel.outputs.torch_xla_wheel_artifact_name }}
 
   build-manylinux-ttxla:
     if: inputs.manylinux_build
@@ -76,7 +117,7 @@ jobs:
   test:
     if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
-    needs: [ build-image, build-ttxla, build-manylinux-ttxla ]
+    needs: [ build-image, build-ttxla, build-manylinux-ttxla, fetch-torch-xla-wheel ]
     secrets: inherit
     with:
       test_suite: ${{ inputs.test_suite }}
@@ -86,3 +127,4 @@ jobs:
       wheel_release_artifact_name: ${{ inputs.manylinux_build && 'xla-whl-manylinux' || needs.build-ttxla.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
       alchemist_artifact_name: ${{ needs.build-ttxla.outputs.alchemist_artifact_name }}
+      torch_xla_wheel_artifact_name: ${{ needs.fetch-torch-xla-wheel.outputs.torch_xla_wheel_artifact_name }}
