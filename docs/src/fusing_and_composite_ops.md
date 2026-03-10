@@ -243,12 +243,15 @@ class FusionProvider(ABC):
     @staticmethod
     @abstractmethod
     def replacement(*args, **kwargs) -> Tensor: ...
+
+    def get_patterns(self) -> List[tuple]: ...
 ```
 
 Key points:
 - `_registered_providers` collects all subclasses automatically via `__init_subclass__`
 - Subclasses must implement `name`, `pattern`, and `replacement`
 - Override `match_filter` for a single filter, or `get_match_filters` for multiple filters
+- Override `get_patterns` to return multiple `(pattern, replacement)` pairs when a provider needs to match more than one pattern variant
 - `replace_pattern()` (see full source) calls `replace_pattern_with_filters` with the provider's pattern, replacement, and filters
 
 The `run_fusion_passes` function in `passes.py` iterates over all registered providers and applies them:
@@ -261,22 +264,32 @@ The `run_fusion_passes` function in `passes.py` iterates over all registered pro
 
 ### Example: RMSNormFusionProvider
 
-The `RMSNormFusionProvider` detects the common LlamaRMSNorm pattern and replaces it with `torch.nn.functional.rms_norm`. [View full source](https://github.com/tenstorrent/tt-xla/blob/main/python_package/tt_torch/fusion_providers.py)
+The `RMSNormFusionProvider` detects two common RMSNorm pattern variants (the Llama variant where the cast happens before the weight multiply, and the GPT-OSS variant where the cast happens after) and replaces both with `torch.nn.functional.rms_norm`. It uses `get_patterns` to declare both variants. [View full source](https://github.com/tenstorrent/tt-xla/blob/main/python_package/tt_torch/fusion_providers.py)
 
 The `pattern` and `replacement` methods define what to match and what to substitute:
 
 ```python
-{{#include ../../../python_package/tt_torch/fusion_providers.py:115:140}}
+{{#include ../../../python_package/tt_torch/fusion_providers.py:128:174}}
 ```
 
 Notable details:
 - **`.add()`/`.mul()` instead of `+`/`*`**: Dynamo traces tensor operations as `call_method` nodes, not `call_function`. The pattern must match the traced form.
 - **`dtype` parameter as wildcard**: Including `dtype` as a parameter makes it match *any* value in that position, so the pattern works regardless of the cast target dtype.
 
+The `get_patterns` override declares both variants with the shared replacement:
+
+```python
+def get_patterns(self) -> List[tuple]:
+    return [
+        (self.pattern, self.replacement),
+        (self.pattern_cast_after_mul, self.replacement),
+    ]
+```
+
 The optional `match_filter` inspects each match and can reject it based on hardware constraints:
 
 ```python
-{{#include ../../../python_package/tt_torch/fusion_providers.py:142:165}}
+{{#include ../../../python_package/tt_torch/fusion_providers.py:182:205}}
 ```
 
 This filter uses `node.meta["example_value"]` to inspect tensor shapes at match time, skipping fusion when the weight dimension exceeds what the hardware currently supports.
@@ -309,7 +322,17 @@ This filter uses `node.meta["example_value"]` to inspect tensor shapes at match 
 
 5. **Optionally implement `match_filter`**: If the pattern should only match under certain conditions (tensor shapes, dtypes, etc.), override `match_filter` to inspect `match.nodes_map` and return `False` for invalid matches.
 
-6. **Write a test** in `tests/torch/ops/test_fusion_ops.py`:
+6. **For multiple pattern variants**, override `get_patterns` instead of defining a single `pattern`:
+   ```python
+   def get_patterns(self):
+       return [
+           (self.pattern, self.replacement),
+           (self.pattern_variant_b, self.replacement),
+       ]
+   ```
+   The base class `replace_pattern` will iterate over all pairs automatically.
+
+7. **Write a test** in `tests/torch/ops/test_fusion_ops.py`:
    ```python
    @pytest.mark.single_device
    @pytest.mark.push
