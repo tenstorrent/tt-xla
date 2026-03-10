@@ -126,9 +126,7 @@ class RMSNormFusionProvider(FusionProvider):
         return "rms_norm_fusion"
 
     @staticmethod
-    def pattern(
-        hidden_states: Tensor, weight: Tensor, eps: float, dtype
-    ) -> Tensor:
+    def pattern(hidden_states: Tensor, weight: Tensor, eps: float, dtype) -> Tensor:
         """
         Llama variant: cast happens before multiply with weight.
 
