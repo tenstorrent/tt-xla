@@ -9,7 +9,7 @@ All fusion provider classes are defined in this file.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, List, Type
+from typing import Callable, List, Type
 
 import torch
 from torch import Tensor
@@ -27,6 +27,9 @@ class FusionProvider(ABC):
     2. Implement the `name` property
     3. Implement the `pattern` static method (the pattern to match)
     4. Implement the `replacement` static method (the replacement function)
+
+    For providers with multiple pattern variants, override `get_patterns`
+    to return a list of (pattern, replacement) tuples instead.
 
     Optional:
     5. Implement the `match_filter` method (single match filter to apply to the pattern)
@@ -72,9 +75,15 @@ class FusionProvider(ABC):
         """Return the match filters for the provider."""
         return [self.match_filter]
 
+    def get_patterns(self) -> List[tuple]:
+        """Return (pattern, replacement) pairs. Override for multi-pattern providers."""
+        return [(self.pattern, self.replacement)]
+
     def replace_pattern(self, gm: torch.fx.GraphModule) -> int:
         """
-        Replace a pattern in the graph.
+        Replace patterns in the graph.
+
+        Iterates over all (pattern, replacement) pairs from get_patterns().
 
         Args:
             gm: The GraphModule to transform
@@ -82,13 +91,16 @@ class FusionProvider(ABC):
         Returns:
             Number of replacements made
         """
-        replaced = replace_pattern_with_filters(
-            gm,
-            self.pattern,
-            self.replacement,
-            match_filters=self.get_match_filters(),
-        )
-        return len(replaced)
+        total = 0
+        for pattern, replacement in self.get_patterns():
+            replaced = replace_pattern_with_filters(
+                gm,
+                pattern,
+                replacement,
+                match_filters=self.get_match_filters(),
+            )
+            total += len(replaced)
+        return total
 
 
 # ================================ Fusion Providers ================================
@@ -98,14 +110,15 @@ class RMSNormFusionProvider(FusionProvider):
     """
     Provides fusion patterns for RMS Normalization operations.
 
-    Matches patterns like LlamaRMSNorm:
-        input_dtype = hidden_states.dtype
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + epsilon)
+    Matches two variants:
+
+    1. Llama variant (cast before mul):
         return weight * hidden_states.to(input_dtype)
 
-    And replaces with torch.nn.functional.rms_norm
+    2. GPT-OSS variant (cast after mul):
+        return (weight * hidden_states).to(input_dtype)
+
+    Both are replaced with torch.nn.functional.rms_norm.
     """
 
     @property
@@ -113,9 +126,13 @@ class RMSNormFusionProvider(FusionProvider):
         return "rms_norm_fusion"
 
     @staticmethod
-    def pattern(hidden_states: Tensor, weight: Tensor, eps: float, dtype) -> Tensor:
+    def pattern(
+        hidden_states: Tensor, weight: Tensor, eps: float, dtype
+    ) -> Tensor:
         """
-        Pattern function for RMS normalization.
+        Llama variant: cast happens before multiply with weight.
+
+        Matches: weight * hidden_states.to(input_dtype)
 
         Note:
             Uses method calls (.add(), .mul()) instead of operators (+, *)
@@ -126,18 +143,41 @@ class RMSNormFusionProvider(FusionProvider):
         """
         hidden_fp32 = hidden_states.to(torch.float32)
         variance = hidden_fp32.pow(2).mean(-1, keepdim=True)
-        variance_eps = variance.add(eps)  # Use .add() instead of +
+        variance_eps = variance.add(eps)
         rsqrt_var = torch.rsqrt(variance_eps)
-        hidden_normalized = hidden_fp32.mul(rsqrt_var)  # Use .mul() instead of *
-        hidden_cast = hidden_normalized.to(dtype)  # dtype is a wildcard
-        return weight.mul(hidden_cast)  # Use .mul() instead of *
+        hidden_normalized = hidden_fp32.mul(rsqrt_var)
+        hidden_cast = hidden_normalized.to(dtype)
+        return weight.mul(hidden_cast)
+
+    @staticmethod
+    def pattern_cast_after_mul(
+        hidden_states: Tensor, weight: Tensor, eps: float, dtype
+    ) -> Tensor:
+        """
+        GPT-OSS variant: cast happens after multiply with weight.
+
+        Matches: (weight * hidden_states).to(input_dtype)
+        """
+        hidden_fp32 = hidden_states.to(torch.float32)
+        variance = hidden_fp32.pow(2).mean(-1, keepdim=True)
+        variance_eps = variance.add(eps)
+        rsqrt_var = torch.rsqrt(variance_eps)
+        hidden_normalized = hidden_fp32.mul(rsqrt_var)
+        result = weight.mul(hidden_normalized)
+        return result.to(dtype)
 
     @staticmethod
     def replacement(hidden_states: Tensor, weight: Tensor, eps: float, dtype) -> Tensor:
-        """Replacement function for RMS norm pattern."""
+        """Shared replacement for both RMS norm pattern variants."""
         return torch.nn.functional.rms_norm(
             hidden_states, normalized_shape=weight.shape, weight=weight, eps=eps
         )
+
+    def get_patterns(self) -> List[tuple]:
+        return [
+            (self.pattern, self.replacement),
+            (self.pattern_cast_after_mul, self.replacement),
+        ]
 
     @staticmethod
     def match_filter(match, gm: torch.fx.Graph, subgraph: torch.fx.Graph) -> bool:
