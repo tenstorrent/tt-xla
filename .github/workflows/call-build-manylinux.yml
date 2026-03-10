@@ -37,7 +37,7 @@ jobs:
         uses: pypa/cibuildwheel@v3.3
         env:
           CIBW_ENVIRONMENT: "IN_CIBW_ENV=ON"
-          CIBW_MANYLINUX_X86_64_IMAGE: ${{ inputs.docker-image }}
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker-image }}
           CIBW_PROJECT_REQUIRES_PYTHON: "==3.12.*"
           CIBW_SKIP: "*-musllinux_*"
         with:
