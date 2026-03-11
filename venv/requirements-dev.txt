@@ -28,6 +28,7 @@ pytest
 pytest-forked
 pytest-json-report
 pytest-split
+pytest-timeout
 pytorchcv
 rjieba
 sentencepiece
