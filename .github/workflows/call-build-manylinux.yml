@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 90
     runs-on: tt-ubuntu-2204-large-stable
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}

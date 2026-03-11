@@ -33,7 +33,7 @@ jobs:
       run-uplift-model-tests: ${{ steps.inspect.outputs.run-uplift-model-tests }}
       wheel-changes: ${{ steps.inspect.outputs.wheel-changes }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - uses: actions/setup-python@v5

@@ -47,7 +47,7 @@ jobs:
       build_explorer: ${{ steps.generate-name.outputs.build_explorer || steps.check-artifact.outputs.build_explorer }}
       build_manylinux: ${{ steps.generate-name.outputs.build_manylinux || steps.check-artifact.outputs.build_manylinux }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Generate artifact name
         id: generate-name
