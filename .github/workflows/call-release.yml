@@ -48,7 +48,6 @@ jobs:
       wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
       is_nightly_release: ${{ inputs.is_nightly_release }}
-      xla_sha_override: ${{ inputs.xla_sha_override }}
 
   build-release-docker:
     uses: ./.github/workflows/call-build-release-docker.yml
@@ -68,7 +67,6 @@ jobs:
     with:
       release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
       caller_workflow: ${{ github.workflow }}
-      xla_sha_override: ${{ inputs.xla_sha_override }}
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
