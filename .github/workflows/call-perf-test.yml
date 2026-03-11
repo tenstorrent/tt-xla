@@ -341,13 +341,13 @@ jobs:
 
         echo "Copy binaries"
         mkdir -p flatbuffers
-        cp ./modules/*.ttnn flatbuffers/ 2>/dev/null || echo "No .ttnn files found"
+        cp ./modules/*.ttnn flatbuffers/ 2>/dev/null
 
         echo "Run ttrt perf"
-        ttrt perf flatbuffers --ignore-version || echo "ttrt perf failed, continuing..."
+        ttrt perf flatbuffers --ignore-version
 
         echo "Write device perf to report"
-        python3 ./tests/benchmark/scripts/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }} || echo "device_perf.py failed, continuing..."
+        python3 ./tests/benchmark/scripts/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }}
 
         echo "Copy device perf CSVs"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/device_perf
