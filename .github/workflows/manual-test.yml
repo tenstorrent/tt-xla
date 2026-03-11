@@ -6,61 +6,31 @@ name: Run Test
 on:
   workflow_dispatch:
     inputs:
-      test_suite:
-        description: 'Test suite preset options or custom'
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir or branch name'
         required: true
-        type: choice
-        options:
-          - 'basic-test.json'
-          - 'basic-test-nightly.json'
-          - 'model-test-push.json'
-          - 'model-test-full.json'
-          - 'on-pr.json'
-          - 'schedule-nightly.json'
-          - 'model-test-passing.json'
-          - 'model-test-xfail.json'
-          - 'model-test-experimental.json'
-          - 'model-test-training-xfail-weekly.json'
-          - 'model-test-extended.json'
-          - 'mlir-uplift-qualification.json'
-          - 'model-test-passing-weekly.json'
-          - 'model-test-weekly.json'
-          - 'vllm-model-tests.json'
-          - 'vllm-model-tests-nightly.json'
-          - 'fusion-tests.json'
-          - 'Custom'
-      test_suite_custom:
-        description: 'Custom test suite json'
-        required: false
         type: string
-      mlir_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir'
-        required: false
-        type: string
-      manylinux_build:
-        description: 'Build and use manylinux wheel'
-        required: false
-        type: boolean
-        default: false
+
 
 permissions:
+  contents: write
+  actions: write
+  id-token: write
   packages: write
   checks: write
-
-run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
 
 jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
-      mlir_override: ${{ inputs.mlir_override }}
-      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
 
   build-ttxla:
-    needs: build-image
     uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
     secrets: inherit
+    needs: build-image
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
