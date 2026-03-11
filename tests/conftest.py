@@ -485,15 +485,20 @@ def _release_dynamo_bridge_tensors():
     from torch_xla._dynamo.dynamo_bridge import GraphInputMatcher
 
     for obj in gc.get_objects():
-        if isinstance(obj, torch.fx.GraphModule):
-            if getattr(obj, "xla_args", None) is not None:
-                obj.xla_args = None
-        if isinstance(obj, GraphInputMatcher):
-            for ref in gc.get_referrers(obj):
-                if isinstance(ref, tuple):
-                    for d in gc.get_referrers(ref):
-                        if isinstance(d, dict):
-                            d.clear()
+        try:
+            if isinstance(obj, torch.fx.GraphModule):
+                if getattr(obj, "xla_args", None) is not None:
+                    obj.xla_args = None
+
+            if isinstance(obj, GraphInputMatcher):
+                for ref in gc.get_referrers(obj):
+                    if isinstance(ref, tuple):
+                        for d in gc.get_referrers(ref):
+                            if isinstance(d, dict):
+                                d.clear()
+        except ReferenceError:
+            # Skip objects that have been garbage collected
+            continue
 
 
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
