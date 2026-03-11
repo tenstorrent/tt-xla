@@ -234,20 +234,6 @@ class FailingReasons(Enum):
         ],
     )
 
-    UNBOUND_LOCAL_ERROR = FailingReason(
-        description="UnboundLocalError: cannot access local variable",
-        checks=[
-            # E   UnboundLocalError: cannot access local variable '<name>' where it is not associated with a value
-            ExceptionCheck(
-                class_name="UnboundLocalError",
-                message=[
-                    M.contains("cannot access local variable"),
-                    M.contains("not associated with a value"),
-                ],
-            ),
-        ],
-    )
-
     # Torch split_with_sizes shape mismatch on dimension
     SPLIT_WITH_SIZES_MISMATCH = FailingReason(
         description="RuntimeError: split_with_sizes expects split_sizes to sum exactly to <size>",
@@ -565,33 +551,33 @@ class FailingReasons(Enum):
         ],
     )
 
-    ERROR_CODE_13_XLA_STEP_MARKER = FailingReason(
-        description="Error code 13 in xla_step_marker call",
-        checks=[
-            # venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:826: in extract_compiled_graph_helper
-            #     torch_xla.sync(reset_scope=False)
-            # venv/lib/python3.12/site-packages/torch_xla/torch_xla.py:87: in sync
-            #     torch_xla._XLAC._xla_step_marker(
-            # E   ValueError: Error code: 13
-            ExceptionCheck(
-                class_name="ValueError",
-                message=[
-                    M.contains("Error code: 13"),
-                ],
-                error_log=[
-                    M.any(
-                        M.contains("_xla_step_marker("),
-                        M.contains("torch_xla._XLAC._xla_step_marker"),
-                    ),
-                    M.contains("torch_xla/torch_xla.py"),
-                    M.any(
-                        M.contains("torch_xla.sync("),
-                        M.contains("torch_xla/torch_xla.py:"),
-                    ),
-                ],
-            ),
-        ],
-    )
+    # ERROR_CODE_13_XLA_STEP_MARKER = FailingReason(
+    #     description="Error code 13 in xla_step_marker call",
+    #     checks=[
+    #         # venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:826: in extract_compiled_graph_helper
+    #         #     torch_xla.sync(reset_scope=False)
+    #         # venv/lib/python3.12/site-packages/torch_xla/torch_xla.py:87: in sync
+    #         #     torch_xla._XLAC._xla_step_marker(
+    #         # E   ValueError: Error code: 13
+    #         ExceptionCheck(
+    #             class_name="ValueError",
+    #             message=[
+    #                 M.contains("Error code: 13"),
+    #             ],
+    #             error_log=[
+    #                 M.any(
+    #                     M.contains("_xla_step_marker("),
+    #                     M.contains("torch_xla._XLAC._xla_step_marker"),
+    #                 ),
+    #                 M.contains("torch_xla/torch_xla.py"),
+    #                 M.any(
+    #                     M.contains("torch_xla.sync("),
+    #                     M.contains("torch_xla/torch_xla.py:"),
+    #                 ),
+    #             ],
+    #         ),
+    #     ],
+    # )
 
     OUT_OF_MEMORY = FailingReason(
         description="Out of memory error",
