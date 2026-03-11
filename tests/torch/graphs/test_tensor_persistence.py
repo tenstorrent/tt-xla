@@ -764,8 +764,8 @@ def test_output_sharding_simple_propagation():
     assert input_f_shard_spec == output_f_shard_spec
     assert input_g_shard_spec == output_g_shard_spec
     
-
-def test_simple_sharded_addition():
+@pytest.mark.parametrize("mesh_shape", [(1, 16), (2, 8)])
+def test_simple_sharded_addition(mesh_shape):
     """
     Test scenario: Create two tensors on a 1x8 mesh, shard them along the
     "8" dimension (model axis), and add them together.
@@ -781,7 +781,7 @@ def test_simple_sharded_addition():
     xr.set_device_type("TT")
     setup_spmd()
     device = torch_xla.device()
-    mesh = create_device_mesh((2, 8))
+    mesh = create_device_mesh(mesh_shape)
 
     # Create 1024x4096 tensors - the 4096 dimension will be sharded across 8 devices
     a = torch.randn(1024, 4096, dtype=torch.float32).to(device)
