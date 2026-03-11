@@ -101,8 +101,8 @@ static tt_pjrt_status launchDistributedRuntime() {
   // eg. tests/torch/multi_host/experimental/remote_docker.sh
   const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
   // Network interface name for MPI (eg. cnx1, enp10s0f1np1)
-  const char *btl_tcp_if_include =
-      std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
+  const char *tt_distributed_tcp_iface =
+      std::getenv("TT_DISTRIBUTED_TCP_IFACE");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -155,8 +155,9 @@ static tt_pjrt_status launchDistributedRuntime() {
           .withAllowRunAsRoot(true)
           .withMcaOptions(mca_options);
 
-  if (btl_tcp_if_include) {
-    distributed_options.multiProcessArgs->withTcpInterface(btl_tcp_if_include);
+  if (tt_distributed_tcp_iface) {
+    distributed_options.multiProcessArgs->withTcpInterface(
+        tt_distributed_tcp_iface);
   }
 
   if (controller_host_name) {
