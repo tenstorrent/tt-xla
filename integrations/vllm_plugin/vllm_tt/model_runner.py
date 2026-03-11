@@ -36,6 +36,7 @@ from vllm.model_executor.layers.attention.chunked_local_attention import (
 )
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
+from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.models.interfaces import (
@@ -240,6 +241,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             mesh_shape = (num_devices, 1)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
+        self._needs_logit_replication = False
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -1434,6 +1436,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        if self.enable_tensor_parallel:
+            self._needs_logit_replication = isinstance(
+                self.model.lm_head, ParallelLMHead
+            )
+
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
@@ -1991,7 +1998,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # (quant_method.apply bypasses __call__) and all_gather is a
         # no-op (world_size=1). Must be inside the compiled graph —
         # external sharding_constraint between compiled functions breaks.
-        if self.enable_tensor_parallel:
+        if self._needs_logit_replication:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
