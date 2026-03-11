@@ -109,15 +109,15 @@ jobs:
               # Get the run ID from the first artifact (use same run ID for all)
               ari=$(echo "$response" | jq -r '.artifacts[0].workflow_run.id')
               if [ -n "$artifacts_run_id" ] && [ "$artifacts_run_id" != "$ari" ]; then
-                echo "Inconsistent artifact run IDs found: $artifacts_run_id and $ari"
+                echo "Inconsistent artifact run IDs found: $artifacts_run_id and ${build_type} runid: $ari"
                 all_exist=false
-                break
+              else
+                echo "${build_type} artifact found on run ID: $ari"
+                artifacts_run_id=$ari
               fi
-              artifacts_run_id=$ari
             else
               echo "No existing artifact found for: $artifact_name"
               all_exist=false
-              break
             fi
           done
 
