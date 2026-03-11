@@ -12,6 +12,7 @@ on:
       - "On weekly training"
       - "Performance Benchmark"
       - "On nightly Experimental"
+      - "On nightly lb-blackhole"
       - "Run Test Single"
       - "Run Test"
     types:
