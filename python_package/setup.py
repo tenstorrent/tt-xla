@@ -315,6 +315,7 @@ class CMakeBuildPy(build_py):
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
+            "-DTT_USE_SYSTEM_SFPI=ON",
         ]
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
