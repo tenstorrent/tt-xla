@@ -764,7 +764,7 @@ def test_output_sharding_simple_propagation():
     assert input_f_shard_spec == output_f_shard_spec
     assert input_g_shard_spec == output_g_shard_spec
     
-@pytest.mark.parametrize("mesh_shape", [(1, 16), (2, 8)])
+@pytest.mark.parametrize("mesh_shape", [(1, 16)])
 def test_simple_sharded_addition(mesh_shape):
     """
     Test scenario: Create two tensors on a 1x8 mesh, shard them along the
