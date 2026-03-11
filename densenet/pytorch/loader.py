@@ -32,6 +32,12 @@ try:
     import torchvision
     from .src.utils import op_norm
 
+    # Patch the installed torchxrayvision op_norm with our XLA-compatible version
+    # (uses torch.where instead of boolean mask indexing to avoid dynamo graph breaks)
+    import torchxrayvision.models as _xrv_models
+
+    _xrv_models.op_norm = op_norm
+
     XRAY_AVAILABLE = True
 except ImportError:
     XRAY_AVAILABLE = False
