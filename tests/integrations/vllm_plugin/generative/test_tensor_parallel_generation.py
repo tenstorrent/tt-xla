@@ -2,10 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import pytest
-
 import vllm
-
-from conftest import check_host_memory  # isort: skip
+from conftest import check_host_memory
 
 
 @pytest.mark.push
