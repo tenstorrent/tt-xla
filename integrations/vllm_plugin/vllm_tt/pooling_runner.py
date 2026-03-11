@@ -96,6 +96,7 @@ from .logger import tt_init_logger
 from .overrides import replace_modules
 from .platform import TTConfig
 from .vllm_distributed_utils import shard_model
+from .vllm_utils import torch_dynamo_jax_compatibility
 
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
@@ -1492,9 +1493,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             layer_name: attn_metadata for layer_name in layer_names
         }
 
-        with self.maybe_select_dummy_loras(
-            self.lora_config, np.array([num_tokens], dtype=np.int32)
-        ), set_forward_context(per_layer_attn_metadata, self.vllm_config, 0):
+        with (
+            torch_dynamo_jax_compatibility(),
+            self.maybe_select_dummy_loras(
+                self.lora_config, np.array([num_tokens], dtype=np.int32)
+            ),
+            set_forward_context(per_layer_attn_metadata, self.vllm_config, 0),
+        ):
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
