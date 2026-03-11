@@ -19,7 +19,7 @@ import torch
 _MESH_IDX_PREFIX = "mesh_idx_"
 
 
-def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
+def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str:
     """
     Convert a partition_spec to an sdy.sharding string.
 
@@ -32,6 +32,9 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
         partition_spec = ("batch", None, None)
         mesh.axis_names = ("batch", "model")
         → '#sdy.sharding_per_value<[<@mesh, [{"mesh_idx_0"}, {}, {}]>]>'
+
+        With unreduced=["model"]:
+        → '#sdy.sharding_per_value<[<@mesh, [{"mesh_idx_0"}, {}, {}], unreduced={"mesh_idx_1"}>]>'
     """
     dim_shardings = []
     for axis in partition_spec:
@@ -50,13 +53,45 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec) -> str:
         elif isinstance(axis, int):
             if mesh.mesh_shape[axis] > 1:
                 dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+            dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+        elif isinstance(axis, (list, tuple)):
+            # Compound sharding: ("model", "batch") → single dim sharded on both axes
+            axis_refs = []
+            for ax_name in axis:
+                if isinstance(ax_name, str):
+                    try:
+                        axis_idx = mesh.axis_names.index(ax_name)
+                        axis_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
+                    except ValueError:
+                        pass
+                elif isinstance(ax_name, int):
+                    axis_refs.append(f'"{_MESH_IDX_PREFIX}{ax_name}"')
+            if axis_refs:
+                dim_shardings.append("{" + ", ".join(axis_refs) + "}")
             else:
                 dim_shardings.append("{}")
         else:
             dim_shardings.append("{}")
 
     dims_str = ", ".join(dim_shardings)
-    return f"#sdy.sharding_per_value<[<@mesh, [{dims_str}]>]>"
+
+    # Build unreduced axes string if specified
+    unreduced_str = ""
+    if unreduced:
+        unreduced_refs = []
+        for ax in unreduced:
+            if isinstance(ax, str):
+                try:
+                    axis_idx = mesh.axis_names.index(ax)
+                    unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
+                except ValueError:
+                    pass
+            elif isinstance(ax, int):
+                unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{ax}"')
+        if unreduced_refs:
+            unreduced_str = f", unreduced={{{', '.join(unreduced_refs)}}}"
+
+    return f"#sdy.sharding_per_value<[<@mesh, [{dims_str}]{unreduced_str}>]>"
 
 
 def sharding_constraint_hook(module, mesh, partition_spec):
@@ -108,7 +143,7 @@ def sharding_constraint_hook(module, mesh, partition_spec):
     return hook
 
 
-def sharding_constraint_tensor(input, mesh, partition_spec):
+def sharding_constraint_tensor(input, mesh, partition_spec, unreduced=None):
     """
     Apply a sharding constraint to a tensor.
 
@@ -120,6 +155,9 @@ def sharding_constraint_tensor(input, mesh, partition_spec):
         mesh: The mesh object describing device topology
         partition_spec: A tuple specifying how each dimension should be sharded.
             Use axis names (e.g., "batch", "model") or None for replicated dimensions.
+        unreduced: Optional list of axis names/indices that have partial sums.
+            Shardy will insert all-reduce on these axes when the tensor is consumed
+            by an op that requires full values.
 
     Returns:
         torch.Tensor: The tensor with the sharding constraint applied
@@ -133,6 +171,9 @@ def sharding_constraint_tensor(input, mesh, partition_spec):
         >>> from tt_torch import sharding_constraint_tensor
         >>> mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
         >>> updated_tensor = sharding_constraint_tensor(input_tensor, mesh, (None, None, None))
+
+        Mark tensor as having partial sums on "model" axis:
+        >>> partial_tensor = sharding_constraint_tensor(tensor, mesh, (None, None, None), unreduced=["model"])
     """
     if not isinstance(input, torch.Tensor):
         raise TypeError(f"Expected torch.Tensor, got {type(input).__name__}")
@@ -146,7 +187,7 @@ def sharding_constraint_tensor(input, mesh, partition_spec):
     if not hasattr(mesh, "axis_names"):
         raise ValueError("mesh must have 'axis_names' attribute")
 
-    # Convert to sdy.sharding string at hook creation time
-    sdy_sharding = _partition_spec_to_sdy_sharding(mesh, partition_spec)
+    # Convert to sdy.sharding string
+    sdy_sharding = _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced)
 
     return torch.ops.tt.sharding_constraint(input, sdy_sharding)

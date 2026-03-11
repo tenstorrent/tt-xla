@@ -39,7 +39,12 @@ def get_distributed_worker_path():
     "model_variant",
     [
         "llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference",
-        "gpt_oss/pytorch-20B-tensor_parallel-inference",
+        pytest.param(
+            "gpt_oss/pytorch-20B-tensor_parallel-inference",
+            marks=pytest.mark.skip(
+                reason="Reduce scatter op hang issue on model - tracked by issue https://github.com/tenstorrent/tt-xla/issues/3650"
+            ),
+        ),
     ],
 )
 def test_multihost_models(model_variant):
