@@ -82,13 +82,13 @@ def get_bevformer_v2_model(variant_str):
         },
     }
 
-    if variant_str == "bevformerv2-r50-t1-base":
+    if variant_str == "v2_R50_T1_Base":
         frames = base_config["frames"]
         group_detr = None
         pts_bbox_head_type = "BEVFormerHead"
         self_attn_type = "MultiheadAttention"
 
-    elif variant_str == "bevformerv2-r50-t1":
+    elif variant_str == "v2_R50_T1":
         base_config["frames"] = (0,)
         base_config["group_detr"] = 11
         base_config["ida_aug_conf"] = {
@@ -103,7 +103,7 @@ def get_bevformer_v2_model(variant_str):
         pts_bbox_head_type = "BEVFormerHead_GroupDETR"
         self_attn_type = "GroupMultiheadAttention"
 
-    elif variant_str == "bevformerv2-r50-t2":
+    elif variant_str == "v2_R50_T2":
         base_config["frames"] = (
             -1,
             0,
@@ -121,7 +121,7 @@ def get_bevformer_v2_model(variant_str):
         pts_bbox_head_type = "BEVFormerHead_GroupDETR"
         self_attn_type = "GroupMultiheadAttention"
 
-    elif variant_str == "bevformerv2-r50-t8":
+    elif variant_str == "v2_R50_T8":
         base_config["frames"] = (-7, -6, -5, -4, -3, -2, -1, 0)
         base_config["group_detr"] = 11
         base_config["ida_aug_conf"] = {
