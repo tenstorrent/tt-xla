@@ -312,6 +312,7 @@ def get_static_cache_decode_inputs(
     *,
     tokenizer,
     config,
+    model,
     batch_size: int = 1,
     max_cache_len: int = 128,
     dtype: Optional[torch.dtype] = None,
@@ -338,13 +339,28 @@ def get_static_cache_decode_inputs(
 
     token_id = get_simple_decode_token_id(tokenizer, config)
     input_ids = torch.full((batch_size, 1), fill_value=token_id, dtype=torch.long)
+    prefill_len = max_cache_len - 1
+    prefill_input_ids = torch.full(
+        (batch_size, prefill_len),
+        token_id,
+        dtype=torch.long,
+        device=device,
+    )
+
+    with torch.no_grad():
+        outputs = model(
+            input_ids=prefill_input_ids,
+            past_key_values=static_cache,
+            use_cache=True,
+        )
+    past_key_values = outputs.past_key_values
 
     pos = (max_cache_len - 1) if cache_position is None else int(cache_position)
     cache_position_t = torch.tensor([pos], dtype=torch.long)
 
     inputs = {
         "input_ids": input_ids,
-        "past_key_values": static_cache,
+        "past_key_values": past_key_values,
         "cache_position": cache_position_t,
         "use_cache": True,
     }
