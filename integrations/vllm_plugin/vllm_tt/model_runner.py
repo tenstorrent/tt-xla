@@ -36,7 +36,6 @@ from vllm.model_executor.layers.attention.chunked_local_attention import (
 )
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
-from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.models.interfaces import (
@@ -443,16 +442,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.supports_mm_inputs
             else None
         )
-
-        if not self.enable_tensor_parallel:
-            self.sample_from_logits_func = torch.compile(
-                self.sample_from_logits,
-                backend="tt",
-                fullgraph=True,
-                dynamic=False,
-            )
-        else:
-            self.sample_from_logits_func = self.sample_from_logits
 
         # For passing scheduler_output between successive
         # execute_model() and sample_tokens() calls.
@@ -1270,18 +1259,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            if (
-                self.enable_tensor_parallel
-                and self.model.lm_head is not None
-                and isinstance(self.model.lm_head, ParallelLMHead)
-            ):
-                # Apply sharding constraint to logits for SPMD case.
-                # This will replicate the logits.
-                logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
-
-            selected_token_ids = self.sample_from_logits_func(
-                logits, tpu_sampling_metadata
-            )
+            selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -1730,7 +1708,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             with self.maybe_select_dummy_loras(
                 self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
             ):
-                self.sample_from_logits_func(dummy_logits, sampling_metadata)
+                self.sample_from_logits(dummy_logits, sampling_metadata)
 
         # NOTE: the seeded sampling path (no_generators=False, q_samples
         # present) compiles a separate graph variant due to the q_samples
@@ -2008,11 +1986,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
-        return self.model.compute_logits(sample_hidden_states)
+        logits = self.model.compute_logits(sample_hidden_states)
+        # Replicate logits for SPMD. Hooks can't reach ParallelLMHead
+        # (quant_method.apply bypasses __call__) and all_gather is a
+        # no-op (world_size=1). Must be inside the compiled graph —
+        # external sharding_constraint between compiled functions breaks.
+        if self.enable_tensor_parallel:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+        return logits
 
-    # TODO(#3589): Under SPMD mode, sample_from_logits has correctness issue.
-    #       Re-enable the torch.compile once the issue is fixed in torchxla.
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    # TODO(#3672): Experimental compile fails under SPMD on second
+    # invocation. Use legacy compile until resolved.
+    @torch.compile(
+        backend="tt", fullgraph=True, dynamic=False, options={"tt_legacy_compile": True}
+    )
     def sample_from_logits(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
@@ -2034,7 +2021,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
         return out_tokens
 
-    # @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def gather_logprobs(
         self, logits: torch.Tensor, sampled_tokens: torch.Tensor
     ) -> LogprobsTensors:
