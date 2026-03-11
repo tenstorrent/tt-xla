@@ -11,6 +11,7 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
+from modified_model import MLARunType
 from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import failed_ttmlir_compilation
@@ -180,12 +181,16 @@ def test_deepseek_attention_decode(batch_size):
         q_lora_rank=3072,
         max_batch_size=batch_size,
         max_seq_len=prefill_seq_len * 2,
-        # index_topk=16
+        index_topk=255
     )
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
     attention = model.layers[0].attn
+
+    attention.run_type = MLARunType.TOPK_SUPPLIED
+    attention.topk_indices = torch.randint(0, args.index_topk+1, (batch_size, 1, args.index_topk), dtype=torch.int64)
+
 
     # Create decode input: single token only
     hidden_states = torch.randn(

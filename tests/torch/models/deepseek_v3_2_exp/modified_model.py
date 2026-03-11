@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from enum import Enum
 import math
 from dataclasses import dataclass
 from typing import Literal, Optional, Tuple
@@ -720,6 +721,11 @@ def weight_dequant(weight, scale):
     )
     return weight
 
+class MLARunType(Enum):
+    STAGE_1 = "stage_1"
+    STAGE_2 = "stage_2"
+    TOPK_SUPPLIED = "topk_supplied"
+    FULL = "full"
 
 class MLA(nn.Module):
     """
@@ -740,6 +746,8 @@ class MLA(nn.Module):
 
     def __init__(self, args: ModelArgs, haddamard_matrix):
         super().__init__()
+        self.run_type = MLARunType.FULL
+        self.topk_indices = None
         self.dim = args.dim
         self.n_heads = args.n_heads
         self.n_local_heads = args.n_heads // world_size
@@ -828,6 +836,10 @@ class MLA(nn.Module):
             )
         self.kv_cache[:bsz, start_pos:end_pos] = kv
         self.pe_cache[:bsz, start_pos:end_pos] = k_pe.squeeze(2)
+
+        if self.run_type == MLARunType.STAGE_1:
+            return self.kv_cache[:bsz, start_pos:end_pos], self.pe_cache[:bsz, start_pos:end_pos]
+
         if mask is not None:  # MHA prefill
             q = torch.cat([q_nope, q_pe], dim=-1)
             kv = self.wkv_b(kv)
@@ -854,6 +866,8 @@ class MLA(nn.Module):
         else:  # MQA decode
             if use_new_flow:
                 x = self.modified_decode_flow(x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask)
+                if self.run_type == MLARunType.STAGE_1 or self.run_type == MLARunType.STAGE_2:
+                    return x
             else:
                 x = self.original_decode_flow(x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask)
         x = self.wo(x.flatten(2))
@@ -900,11 +914,19 @@ class MLA(nn.Module):
             "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
         )
 
+        if self.run_type == MLARunType.STAGE_2:
+            return q_nope
+
         # # Add indexing logic here
         # indexer
         if self.indexer is not None:
-            # (bsz, 1, topk)
-            topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+            if self.run_type == MLARunType.TOPK_SUPPLIED:
+                print("TOPK_SUPPLIED")
+                assert self.topk_indices is not None, "topk_indices must be supplied when run_type is TOPK_SUPPLIED"
+                topk_indices = self.topk_indices
+            else:
+                # (bsz, 1, topk)
+                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
             gather_idx = topk_indices.squeeze(1) # (bsz, topk)
             batch_idx = torch.arange(gather_idx.size(0)).view(-1, 1) # (bsz, 1)
 
