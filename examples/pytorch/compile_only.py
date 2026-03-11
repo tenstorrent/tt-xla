@@ -45,6 +45,43 @@ def main(system_desc_path: str):
     print("To run on hardware: ttrt run output/model.ttnn")
 
 
+def test_compile_only():
+    """Save system descriptor from current hardware, then compile in compile-only mode."""
+    import subprocess
+    import tempfile
+
+    from ttxla_tools import save_system_descriptor_to_disk
+
+    # Initialize PJRT with real hardware to obtain the system descriptor
+    xr.set_device_type("TT")
+    xm.xla_device()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        desc_prefix = os.path.join(tmpdir, "sys_desc")
+        save_system_descriptor_to_disk(desc_prefix)
+        desc_path = f"{desc_prefix}_system_desc.ttsys"
+        assert os.path.exists(desc_path)
+
+        # Run main() in a fresh subprocess so enable_compile_only() takes effect
+        # before the PJRT client initializes.
+        proc = subprocess.run(
+            [sys.executable, __file__, desc_path],
+            capture_output=True,
+            text=True,
+            cwd=tmpdir,
+        )
+
+        assert proc.returncode == 0, (
+            f"compile_only failed:\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+        )
+
+        # Verify compilation artifacts were created
+        output_dir = os.path.join(tmpdir, "output")
+        assert os.path.exists(os.path.join(output_dir, "model_ttir.mlir"))
+        assert os.path.exists(os.path.join(output_dir, "model_ttnn.mlir"))
+        assert os.path.exists(os.path.join(output_dir, "model.ttnn"))
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <system_desc_path>")
