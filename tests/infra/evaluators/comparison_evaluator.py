@@ -66,7 +66,7 @@ class ComparisonEvaluator(Evaluator):
         # Check if any comparison failed and optionally assert
         if self._comparison_config.assert_on_failure:
             ComparisonEvaluator._assert_on_results(_comparison_result)
-
+        print("comparison_result: ", _comparison_result)
         return _comparison_result
 
     def _evaluate_results(
