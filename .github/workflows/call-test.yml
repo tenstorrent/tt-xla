@@ -334,12 +334,13 @@ jobs:
           uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
           uv pip freeze
         fi
-        # Set pytest timeout to 1 minute less than job timeout (converted to seconds)
-        PYTEST_TIMEOUT=$(( (${{ steps.collect-tests.outputs.timeout-minutes }} - 1) * 60 ))
+        # Set pytest timeout to 5 minutes less than job timeout (converted to seconds)
+        # Using thread method which is more reliable for interrupting C/C++ code
+        PYTEST_TIMEOUT=$(( (${{ steps.collect-tests.outputs.timeout-minutes }} - 5) * 60 ))
         echo "Pytest timeout: $PYTEST_TIMEOUT seconds"
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --timeout=$PYTEST_TIMEOUT \
-               --timeout-method=signal \
+               --timeout-method=thread \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
                --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
