@@ -1076,6 +1076,7 @@ def all_to_all_combine(
     input_tensor: torch.Tensor,
     expert_metadata: torch.Tensor,
     expert_mapping: torch.Tensor,
+    expert_locals: torch.Tensor,
     num_devices: int = 1,
     cluster_axis: int = 0,
     num_experts_per_tok: int = 2,
@@ -1138,9 +1139,6 @@ def all_to_all_combine(
         )
 
     elif device.type == "cpu":
-        # CPU fallback: dispatch repeats tokens D times, so BD = B * D.
-        # Combine reverses this by taking only the first B entries (all
-        # D copies are identical on CPU since dispatch just replicates).
         B_local = BD // num_devices
         metadata_indices = expert_metadata[0]  # [BD, S, K]
 
@@ -1176,6 +1174,7 @@ def all_to_all_combine_fake(
     input_tensor: torch.Tensor,
     expert_metadata: torch.Tensor,
     expert_mapping: torch.Tensor,
+    expert_locals: torch.Tensor,
     num_devices: int = 1,
     cluster_axis: int = 0,
     num_experts_per_tok: int = 2,
