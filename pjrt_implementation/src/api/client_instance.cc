@@ -323,7 +323,7 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
-  LOG_F(WARNING, "[JAMES] Override Setting fabric config to FABRIC_2D at start of populateDevices before getting system descriptor");
+  LOG_F(WARNING, "[JAMES] Override Setting fabric config to FABRIC_2D at start of populateDevices before getting system descriptor ~ 1x16 mesh");
   tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
   m_system_descriptor = tt::runtime::getCurrentSystemDesc();
 
