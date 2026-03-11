@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import vllm
+from conftest import check_host_memory
 
 
 @pytest.mark.push
@@ -68,6 +69,8 @@ def test_tensor_parallel_generation_llmbox_small(
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
 
+    check_host_memory(model_name)
+
 
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
@@ -106,3 +109,5 @@ def test_tensor_parallel_generation_llmbox_large(
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
+
+    check_host_memory(model_name)
