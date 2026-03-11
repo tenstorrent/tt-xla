@@ -1689,13 +1689,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info(
             "  -- num_seqs: %d, vocab_size: %d", self.max_num_reqs, self.vocab_size
         )
-        dummy_logits = torch.zeros(
-            (self.max_num_reqs, self.vocab_size),
-            dtype=self._hidden_states_dtype,
-        ).to(self.device)
         # The first dimension of dummy_logits cannot be mark_dynamic
         # because some operations in the sampler require it to be static.
         for all_greedy in [False, True]:
+            # Fresh tensor per iteration — reusing across SPMD compilations
+            # causes stale tensor IDs that misclassify inputs as constants (#3672).
+            dummy_logits = torch.zeros(
+                (self.max_num_reqs, self.vocab_size),
+                dtype=self._hidden_states_dtype,
+            ).to(self.device)
             generate_params_if_all_greedy = not all_greedy
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -1995,11 +1997,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
-    # TODO(#3672): Experimental compile fails under SPMD on second
-    # invocation. Use legacy compile until resolved.
-    @torch.compile(
-        backend="tt", fullgraph=True, dynamic=False, options={"tt_legacy_compile": True}
-    )
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
