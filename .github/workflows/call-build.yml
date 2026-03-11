@@ -24,6 +24,10 @@ on:
             description: 'Force rebuild even if artifact exists'
             type: boolean
             required: false
+        torch_xla_wheel_artifact_name:
+            description: 'Name of the torch-xla wheel artifact (from current run)'
+            required: false
+            type: string
     outputs:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
@@ -125,6 +129,13 @@ jobs:
         with:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'
+
+      - name: Download torch-xla wheel into dist
+        if: ${{ inputs.torch_xla_wheel_artifact_name != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.torch_xla_wheel_artifact_name }}
+          path: dist
 
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}
