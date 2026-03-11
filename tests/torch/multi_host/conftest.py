@@ -51,10 +51,10 @@ class MultihostConfiguration:
             Maps to: TT_DISTRIBUTED_PLM_RSH_AGENT (via script_dir / remote_script_name)
             Default: "remote_docker.sh"
 
-        btl_tcp_if_include: The network interface name to use for MPI byte transport
-            layer (BTL) TCP communication between hosts. This controls which network
-            interface MPI uses for inter-host data transfer.
-            Maps to: TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE
+        tt_distributed_tcp_iface: The network interface name to use for MPI byte
+            transport layer (BTL) TCP communication between hosts. This controls which
+            network interface MPI uses for inter-host data transfer.
+            Maps to: TT_DISTRIBUTED_TCP_IFACE
 
             "cnx1" for aus galaxies
             "enp10s0f1np1" for quietboxes
@@ -63,7 +63,7 @@ class MultihostConfiguration:
     rank_binding: str
     controller_host_name: str
     hosts_list: str
-    btl_tcp_if_include: str
+    tt_distributed_tcp_iface: str
     remote_script_name: str = "remote_docker.sh"
 
 
@@ -73,19 +73,19 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         rank_binding="quad_galaxy",
         controller_host_name="g05glx01",
         hosts_list="g05glx01,g05glx02,g05glx03,g05glx04",
-        btl_tcp_if_include="cnx1",
+        tt_distributed_tcp_iface="cnx1",
     ),
     "dual_galaxy": MultihostConfiguration(
         rank_binding="dual_galaxy",
         controller_host_name="g14glx03",
         hosts_list="g14glx03,g14glx04",
-        btl_tcp_if_include="cnx1",
+        tt_distributed_tcp_iface="cnx1",
     ),
     "dual_bh_quietbox": MultihostConfiguration(
         rank_binding="dual_bh_quietbox",
         controller_host_name="forge-qbae-01",
         hosts_list="forge-qbae-01,forge-qbae-02",
-        btl_tcp_if_include="enp10s0f1np1",
+        tt_distributed_tcp_iface="enp10s0f1np1",
     ),
 }
 
@@ -173,7 +173,7 @@ def setup_distributed_env():
             "TT_DISTRIBUTED_WORKER_PATH": get_distributed_worker_path(),
             "TT_DISTRIBUTED_RANK_BINDING": topo.rank_binding,
             "TT_DISTRIBUTED_CONTROLLER_HOST_NAME": topo.controller_host_name,
-            "TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE": topo.btl_tcp_if_include,
+            "TT_DISTRIBUTED_TCP_IFACE": topo.tt_distributed_tcp_iface,
             "TT_DISTRIBUTED_HOSTS_LIST": topo.hosts_list,
         }
 
