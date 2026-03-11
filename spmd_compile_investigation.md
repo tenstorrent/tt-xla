@@ -78,6 +78,74 @@ All passing with 3-commit version:
 - `debug_spmd_argmax_large.py` — Vocab size variations (32000 vs 151936)
 - `debug_spmd_sharding_spec.py` — Verified sharding specs on tensors after various operations
 
+## Debug Session 2 (2026-03-11) — Issue #3672
+
+### Hypothesis 1: Sharding retrace causes misclassification (DISPROVED)
+
+**Theory**: `_mark_unsharded_args_replicated` is called AFTER `extract_compiled_graph` in `_call_experimental_compile`. This creates a sharding mismatch ('') vs ('replicated') that triggers `dynamo_bridge.optimized_mod` to retrace. During retrace, `_xla_mark_sharding` mutates tensor IR, causing `_get_tensors_xla_device_data_node` to return new tensor IDs that don't match `xla_args_tensor_ids`, misclassifying inputs as constants.
+
+**Fix attempted**: Moved `_mark_unsharded_args_replicated()` before `extract_compiled_graph()` in `backend.py` (commit `8f934ae85`).
+
+**Result**: FAILED. Both `test_greedy_determinism[n300]` and `test_output_coherence[n300]` still fail with all-token-0 output.
+
+### Key finding: Standalone repro DOES NOT reproduce the bug
+
+`debug_spmd_constant_fold.py` tests 4 scenarios under SPMD with `torch.compile(backend="tt")`:
+1. Experimental compile: warmup with zeros, then real data → **PASS**
+2. Legacy compile: warmup with zeros, then real data → **PASS**
+3. Experimental compile: no warmup → **PASS**
+4. Experimental compile: pre-mark REPLICATED → **PASS**
+
+All pass! The bug is **specific to the vLLM pipeline context**, not a generic SPMD + experimental compile issue. Something in the full vLLM `model_runner.py` flow (multiple compiled functions, prior precompilations, dynamo method tracing, XLA state accumulation) triggers the constant-folding that standalone scripts don't.
+
+### Remaining hypotheses
+
+1. **Prior precompilations pollute XLA state**: `_precompile_backbone()`, `_precompile_compute_logits()` etc. run before `_precompile_sample_from_logits()`. They may leave global XLA state (tensor ID counters, pending IR, SPMD configs) that affects subsequent `extract_compiled_graph` calls.
+
+2. **Bound method `self` capture**: `sample_from_logits` is a bound method. Dynamo captures `self` and extracts attributes. Under SPMD, the captured state may interfere with tensor ID matching in `GraphInputMatcher`.
+
+3. **FX graph structure differs from standalone**: The dynamo-traced FX graph for the full `sample_from_logits` (with XLASupportedSamplingMetadata guards) may produce a different graph structure than a simple argmax, affecting how `extract_compiled_graph` handles inputs.
+
+4. **Interaction between compiled functions**: The logits tensor flows from `compute_logits` (compiled) → external code → `sample_from_logits` (compiled). Even during precompilation (which uses fresh `torch.zeros`), the XLA runtime state from compiling `compute_logits` may affect `sample_from_logits` compilation.
+
+### Instrumentation results: Root cause identified
+
+Added `TT_DEBUG_COMPILE=1` logging to `_call_experimental_compile` and monkey-patched `GraphInputMatcher.__init__`. Ran `test_greedy_determinism[n300]`.
+
+**Smoking gun** — the greedy `sample_from_logits` compilation (single arg `[1, 32000]`):
+
+```
+arg[0]: tid=55693 shape=[1, 32000] spec='{replicated}'
+params_and_consts count: 0
+xla_args_tensor_ids (inputs): {55693}
+tensor_id_to_arg_idx: {55693: 0}
+graph_input_tensor_ids: [56001]          ← DIFFERENT tensor ID!
+graph_input[0]: tid=56001 cls=CONSTANT   ← MISCLASSIFIED AS CONSTANT
+```
+
+The input tensor has `tid=55693` before tracing, but `_get_tensors_xla_device_data_node` returns `tid=56001` after tracing. The mismatch causes `GraphInputMatcher` to classify the input as a constant, baking the dummy zeros value forever.
+
+**Why the standalone test doesn't reproduce**: In the standalone script, the tensor is freshly created, moved to device, and there's no prior compilation history. In the vLLM pipeline, `tid=55693` was reused from a prior compilation (the non-greedy path). The tensor has accumulated SPMD sharding annotations and been through `torch_xla.sync()` multiple times, which changes the underlying device data node's tensor ID while the XLATensor object retains the old ID.
+
+**Why pre-marking REPLICATED doesn't fix it**: The pre-mark adds a sharding constraint IR node to the tensor. When `extract_graph_helper` calls `torch_xla.sync()` (line 826 of dynamo_bridge.py), this materializes the sharding constraint, creating a NEW device data node with a new tensor ID (56001). But `_xla_get_tensor_id` on the XLATensor object still returns the old ID (55693). This is the fundamental tensor ID mismatch.
+
+### Fix: fresh dummy tensors per precompile iteration (VERIFIED)
+
+**Root cause**: `_precompile_sample_from_logits` created ONE `dummy_logits` tensor and reused it across both loop iterations (non-greedy and greedy). The non-greedy compilation triggers `_mark_unsharded_args_replicated` on the tensor. This calls `_xla_mark_sharding`, which wraps the tensor's DeviceData IR node in a sharding constraint. When the greedy compilation then runs `extract_graph_helper`, the `torch_xla.sync()` at the start materializes the sharding constraint, creating a NEW DeviceData node with a new tensor ID (56001). But `_xla_get_tensor_id()` on the XLATensor object still returns the old ID (55693). `GraphInputMatcher` sees the mismatch and classifies the input as a constant.
+
+**Fix applied**:
+- `model_runner.py`: Move `dummy_logits = torch.zeros(...)` inside the loop so each compilation iteration gets a fresh tensor with no accumulated SPMD state.
+- `backend.py`: Revert the pre-mark REPLICATED (it adds sharding IR before compile, which makes the problem worse for any tensor that already has sharding).
+- `model_runner.py`: Remove `tt_legacy_compile: True` workaround from `sample_from_logits`.
+
+**Test results**:
+- `test_greedy_determinism[n300]` — **PASSED** (was: all-token-0)
+- `test_output_coherence[n300]` — **PASSED** (was: empty output)
+
+**Assessment**: This is a proper fix for the immediate issue — the model_runner was incorrectly reusing a tensor across multiple `extract_compiled_graph` calls. Each compilation should get clean inputs. However, there is an underlying torch_xla bug: `_xla_get_tensor_id()` returns a stale ID after `_xla_mark_sharding()` + `sync()`. This means the backend (`_call_experimental_compile`) doesn't protect against this pattern. If other code reuses tensors across SPMD compilations, the same bug will surface.
+
+**Upstream issue to file**: torch_xla `_xla_get_tensor_id` should return a consistent ID after `_xla_mark_sharding` + `torch_xla.sync()`. The XLATensor object's ID and the underlying DeviceData node's tensor ID diverge, which breaks the `GraphInputMatcher` invariant that these IDs are the same.
+
 ## Open Items
 
 - The constant-folding bug in experimental compile under SPMD should be filed as a separate issue against torch_xla or TT backend
