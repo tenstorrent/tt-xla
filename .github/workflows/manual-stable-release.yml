@@ -1,0 +1,44 @@
+name: Manual stable release
+
+on:
+  workflow_dispatch:
+    inputs:
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir or branch name'
+        required: true
+        type: string
+
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+  packages: write
+  checks: write
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      xla_sha_override: ${{ inputs.xla_sha_override }}
+
+  build-ttxla:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
+
+  release:
+    uses: ./.github/workflows/call-release.yml
+    needs: [ build-ttxla ]
+    secrets: inherit
+    with:
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+      is_nightly_release: false
+      xla_sha_override: ${{ inputs.xla_sha_override }}

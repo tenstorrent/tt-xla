@@ -24,6 +24,11 @@ on:
         type: boolean
         required: false
         default: false
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
     outputs:
       release_tag:
         description: 'Release tag'
@@ -38,6 +43,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.xla_sha_override }}
 
       - name: Set tag
         shell: bash
