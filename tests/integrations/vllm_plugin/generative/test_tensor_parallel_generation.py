@@ -106,3 +106,67 @@ def test_tensor_parallel_generation_llmbox_large(
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.galaxy
+@pytest.mark.parametrize(
+    ["model_name", "enable_const_eval", "experimental_enable_weight_bfp8_conversion"],
+    [
+        pytest.param("mistralai/Pixtral-Large-Instruct-2411", True, True),
+    ],
+)
+def test_tensor_parallel_generation_mistral_small(
+    model_name: str,
+    enable_const_eval: bool,
+    experimental_enable_weight_bfp8_conversion: bool,
+):
+    image_url = "https://huggingface.co/datasets/patrickvonplaten/random_img/resolve/main/europe.png"
+
+    user_text = (
+        "Which of the depicted countries has the best food? Which the second and third and fourth? Name the country, its color on the map and one its city that is visible on the map, but is not the capital. Make absolutely sure to only name a city that can be seen on the map.",
+    )
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_text},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        },
+    ]
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+
+    llm_args = {
+        "model": model_name,
+        "limit_mm_per_prompt": {"image": 1},
+        "max_num_batched_tokens": 3025,
+        "max_num_seqs": 1,
+        "max_model_len": 512,
+        "gpu_memory_utilization": 0.01,
+        "additional_config": {
+            "enable_const_eval": enable_const_eval,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+    # print("llm", llm)
+
+    completion = llm.chat(messages, sampling_params=sampling_params)
+    print("completion", completion)
+    # vLLM chat returns OpenAI-style completion: choices[0].message.content
+    if hasattr(completion, "choices") and completion.choices:
+        output_text = completion.choices[0].message.content
+    elif (
+        isinstance(completion, list)
+        and completion
+        and hasattr(completion[0], "content")
+    ):
+        output_text = completion[0].content
+    else:
+        output_text = str(completion)
+    print(f"prompt: {user_text[:80]}..., output: {output_text}")
