@@ -23,6 +23,10 @@ on:
         description: 'Name of the alchemist library artifact'
         required: false
         type: string
+      torch_xla_wheel_artifact_name:
+        description: 'Name of the torch-xla wheel artifact (from current run)'
+        required: false
+        type: string
       test_suite:
         description: 'Test suite preset options or custom'
         required: true
@@ -130,6 +134,7 @@ jobs:
         echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
         echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
         echo "alchemist_artifact_name=${{ inputs.alchemist_artifact_name }}" >> "$GITHUB_OUTPUT"
+        echo "torch_xla_wheel_artifact_name=${{ inputs.torch_xla_wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
         echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
 
         # Precompute forge models detection as a reusable output
@@ -138,6 +143,13 @@ jobs:
         else
           echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Download torch-xla wheel into dist
+      if: ${{ inputs.torch_xla_wheel_artifact_name != '' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.torch_xla_wheel_artifact_name }}
+        path: dist
 
     - name: Download and install wheels
       shell: bash
@@ -160,7 +172,7 @@ jobs:
         echo "Downloaded wheel files:"
         ls -la wheels
 
-        echo "=== Installing wheel ==="
+        echo "=== Installing wheels ==="
         source venv/activate
         uv pip install wheels/*.whl
 

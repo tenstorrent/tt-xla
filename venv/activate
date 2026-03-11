@@ -27,6 +27,16 @@ else
   $PIP install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
   $PIP install -r python_package/requirements.txt
+  $PIP uninstall torch-xla || true
+
+  mkdir -p dist
+  if [ -f dist/torch_xla-2.9.0+git0df1f5f-cp312-cp312-linux_x86_64.whl ]; then
+    echo "Installing torch-xla wheel from dist torch==2.10.0"
+    $PIP install dist/torch_xla-2.9.0+git0df1f5f-cp312-cp312-linux_x86_64.whl
+  else
+    echo "torch-xla wheel not found in dist"
+    exit 1
+  fi
   # Install dev/test requirements
   $PIP install -r venv/requirements-dev.txt
 fi
