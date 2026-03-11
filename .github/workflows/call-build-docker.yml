@@ -71,7 +71,7 @@ jobs:
             echo "Docker image already exists: $DOCKER_CI_IMAGE"
             echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
             echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"
-            echo "docker-image-manylinux=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-ubuntu-24-04/-cibuildwheel-manylinux-2-34/')" >> "$GITHUB_OUTPUT"
+            echo "docker-image-manylinux=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-ubuntu-22-04/-cibuildwheel-manylinux-2-34/')" >> "$GITHUB_OUTPUT"
           else
             echo "Docker image does not exist, proceeding to build"
           fi
@@ -115,7 +115,7 @@ jobs:
           echo "DOCKER_CI_IMAGE $DOCKER_CI_IMAGE"
           echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
           echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"
-          echo "docker-image-manylinux=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-ubuntu-24-04/-cibuildwheel-manylinux-2-34/')" >> "$GITHUB_OUTPUT"
+          echo "docker-image-manylinux=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-ubuntu-22-04/-cibuildwheel-manylinux-2-34/')" >> "$GITHUB_OUTPUT"
 
   set-latest-tag:
     needs: [check-if-docker-exist, build-image]

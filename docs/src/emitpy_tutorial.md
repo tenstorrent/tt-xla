@@ -24,7 +24,7 @@ For complete conceptual overview and all options, see the [Code Generation Guide
 Before starting, ensure you have:
 
 - [ ] Access to Tenstorrent hardware (via IRD or physical device) - jump to [Step 1](#step-1-reserve-hardware-and-start-docker-container)
-- [ ] TT-XLA Docker image: `ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-24-04:latest` - jump to [Step 2](#step-2-clone-and-setup-tt-xla)
+- [ ] TT-XLA Docker image: `ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-22-04:latest` - jump to [Step 2](#step-2-clone-and-setup-tt-xla)
 
 ---
 
@@ -35,7 +35,7 @@ Before starting, ensure you have:
 Reserve Tenstorrent hardware with the TT-XLA Docker image:
 
 ```bash
-ird reserve --docker-image ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-24-04:latest [additional ird options]
+ird reserve --docker-image ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-22-04:latest [additional ird options]
 ```
 
 > **Tip:** The `[additional ird options]` should include your typical IRD configuration like architecture, number of chips, etc.
