@@ -22,18 +22,8 @@ jobs:
     secrets: inherit
 
   inspect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
-      run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
-      run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
-      only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
-      run-uplift-model-tests: ${{ steps.inspect.outputs.run-uplift-model-tests }}
-      wheel-changes: ${{ steps.inspect.outputs.wheel-changes }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/inspect-changes
-        id: inspect
+    uses: ./.github/workflows/call-inspect-changes.yml
+    secrets: inherit
 
   build-image:
     needs: [ inspect-changes ]
