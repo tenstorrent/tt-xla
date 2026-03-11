@@ -31,7 +31,7 @@ on:
     outputs:
       artifacts_run_id:
         description: 'Run ID of the workflow that produced the existing artifact(s)'
-        value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id }}
+        value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || github.run_id }}
       artifact_suffix:
         description: 'Suffix added to artifact name (e.g. commit SHA) to distinguish different builds'
         value: ${{ jobs.check-existing-artifact.outputs.artifact_suffix }}
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "Check for existing artifact"
     outputs:
-      artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id || github.run_id }}
+      artifacts_run_id: ${{ steps.check-artifact.outputs.artifacts_run_id }}
       artifact_suffix: ${{ steps.generate-name.outputs.artifact_suffix }}
       build_release: ${{ steps.generate-name.outputs.build_release || steps.check-artifact.outputs.build_release }}
       build_explorer: ${{ steps.generate-name.outputs.build_explorer || steps.check-artifact.outputs.build_explorer }}
