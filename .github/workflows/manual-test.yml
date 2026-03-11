@@ -28,6 +28,7 @@ on:
           - 'vllm-model-tests.json'
           - 'vllm-model-tests-nightly.json'
           - 'fusion-tests.json'
+          - 'basic-test-lb-blackhole.json'
           - 'model-test-passing-lb-blackhole.json'
           - 'model-test-xfail-lb-blackhole.json'
           - 'Custom'
