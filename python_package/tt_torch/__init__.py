@@ -2,6 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# Apply JAX compatibility patches globally to fix TorchDynamo errors
+from .utils import apply_jax_compatibility_patches
+
+# Apply patches globally
+apply_jax_compatibility_patches()
+
 # Import module so "tt" backend is registered
 import tt_torch.backend.backend
 
