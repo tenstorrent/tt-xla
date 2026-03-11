@@ -28,6 +28,11 @@ on:
         description: 'Force rebuild even if artifact exists'
         type: boolean
         required: false
+      xla_sha_override:
+          description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+          required: false
+          type: string
+          default: ${{ github.sha }}
     outputs:
       artifacts_run_id:
         description: 'Run ID of the workflow that produced the existing artifact(s)'
@@ -48,6 +53,8 @@ jobs:
       build_manylinux: ${{ steps.generate-name.outputs.build_manylinux || steps.check-artifact.outputs.build_manylinux }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.xla_sha_override }}
 
       - name: Generate artifact name
         id: generate-name
