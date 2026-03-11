@@ -185,10 +185,12 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-72B_Instruct-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on galaxy"
-    bringup_status: FAILED_RUNTIME
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+
+  qwen_2_5/causal_lm/pytorch-72B-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-30B_A3b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
