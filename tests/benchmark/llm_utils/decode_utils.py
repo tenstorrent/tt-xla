@@ -28,6 +28,32 @@ from transformers.cache_utils import StaticCache
 ReadLogitsFn = Callable[[object], torch.Tensor]
 
 
+class LLMDecodeWrapper(torch.nn.Module):
+    """Wraps an LLM to perform post-processing (argmax, cache update) on device.
+
+    By keeping argmax and cache_position increment inside the compiled graph,
+    intermediate tensors stay on device between decode steps, eliminating
+    costly device-to-host round-trips for input_ids and cache_position.
+    """
+
+    def __init__(self, model: torch.nn.Module, read_logits_fn: ReadLogitsFn):
+        super().__init__()
+        self.model = model
+        self.read_logits_fn = read_logits_fn
+
+    def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
+        output = self.model(
+            input_ids=input_ids,
+            past_key_values=past_key_values,
+            cache_position=cache_position,
+            use_cache=use_cache,
+        )
+        logits = self.read_logits_fn(output)
+        next_token_ids = logits[:, -1].argmax(dim=-1).unsqueeze(-1)
+        next_cache_position = cache_position[-1:] + 1
+        return next_token_ids, next_cache_position, logits
+
+
 def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> None:
     """Ensure determinism-relevant flags are set."""
     assert model.training is False, "Model must be in eval mode"
@@ -159,43 +185,62 @@ def generate_and_benchmark(
 
     batch_size = input_args["input_ids"].shape[0]
 
-    output_tokens: list[list[str]] = []
+    # When read_logits_fn is None, the model is an LLMDecodeWrapper that
+    # returns (next_token_ids, next_cache_position, logits) and keeps
+    # intermediate tensors on device between decode steps.
+    on_device = read_logits_fn is None
+
     output_logits: list[torch.Tensor] = []
     iteration_times: list[int] = []
+
+    # Pre-place teacher forcing tokens on device to avoid per-step transfers.
+    gt_device = None
+    if on_device and ground_truth_tokens is not None:
+        gt_device = (
+            ground_truth_tokens[:max_tokens_to_generate]
+            .view(-1, 1, 1)
+            .expand(-1, batch_size, 1)
+            .contiguous()
+            .to(device)
+        )
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             start = time.perf_counter_ns()
 
-            output = model(**input_args)
-            logits = read_logits_fn(output).to("cpu")
-            output_logits.append(logits)
+            if on_device:
+                next_token_ids, next_cache_position, logits = model(**input_args)
+                output_logits.append(logits)
 
-            # Greedy decoding: argmax on last position (no sampling/temperature/top_p)
-            next_token_ids = logits[:, -1].argmax(dim=-1)
+                if ground_truth_tokens is not None:
+                    del next_token_ids  # Free unused on-device prediction
+                    input_args["input_ids"] = gt_device[step]
+                else:
+                    input_args["input_ids"] = next_token_ids
 
-            # Autoregressive path
-            if ground_truth_tokens is None:
-                output_text = [
-                    tokenizer.decode(token_id) for token_id in next_token_ids
-                ]
-                output_tokens.append(output_text)
-
-            # Next token: ground truth (teacher forcing) or predicted (autoregressive)
-            if ground_truth_tokens is not None:
-                next_tok_host = ground_truth_tokens[step : step + 1].view(
-                    1, 1
-                )  # CPU [1,1]
-                input_args["input_ids"] = (
-                    next_tok_host.expand(batch_size, 1).contiguous().to(device)
-                )
+                input_args["cache_position"] = next_cache_position
             else:
-                input_args["input_ids"] = next_token_ids.unsqueeze(-1).to(device)
+                output = model(**input_args)
+                logits = read_logits_fn(output).to("cpu")
+                output_logits.append(logits)
 
-            # Advance cache_position: take last position, add 1.
-            # reshape(-1)[-1:] normalizes from [prefill_len] to [1] on step 0.
-            host_cache_pos = input_args["cache_position"].to("cpu").reshape(-1)[-1:]
-            input_args["cache_position"] = (host_cache_pos + 1).to(device)
+                # Greedy decoding: argmax on last position
+                next_token_ids = logits[:, -1].argmax(dim=-1)
+
+                if ground_truth_tokens is not None:
+                    next_tok_host = ground_truth_tokens[step : step + 1].view(
+                        1, 1
+                    )  # CPU [1,1]
+                    input_args["input_ids"] = (
+                        next_tok_host.expand(batch_size, 1).contiguous().to(device)
+                    )
+                else:
+                    input_args["input_ids"] = next_token_ids.unsqueeze(-1).to(device)
+
+                # Advance cache_position: take last position, add 1.
+                # reshape(-1)[-1:] normalizes from [prefill_len] to [1] on step 0.
+                host_cache_pos = input_args["cache_position"].to("cpu").reshape(-1)[-1:]
+                input_args["cache_position"] = (host_cache_pos + 1).to(device)
 
             end = time.perf_counter_ns()
             iteration_times.append(end - start)
@@ -205,8 +250,14 @@ def generate_and_benchmark(
                     f"took {iteration_times[-1] / 1e6:.04} ms"
                 )
 
-    if verbose:
-        print("Output tokens:", output_tokens)
+    # Transfer logits from device to CPU after the loop so the transfer
+    # cost is not included in per-iteration timing.
+    if on_device:
+        start_transfer = time.perf_counter_ns()
+        output_logits = [logits.to("cpu") for logits in output_logits]
+        transfer_ms = (time.perf_counter_ns() - start_transfer) / 1e6
+        if verbose:
+            print(f"Transferring all logits to CPU took {transfer_ms:.04} ms")
 
     return output_logits, iteration_times
 

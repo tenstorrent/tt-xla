@@ -16,6 +16,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import transformers
 from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
+from llm_utils.decode_utils import LLMDecodeWrapper
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
@@ -387,10 +388,14 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
-    # Compile model
-    compiled_model = torch.compile(model, backend="tt")
+    # Wrap model for on-device post-processing (argmax + cache_position update)
+    wrapped_model = LLMDecodeWrapper(model, read_logits_fn)
+    wrapped_model.eval()
 
-    # Warmup run
+    # Compile the wrapped model
+    compiled_model = torch.compile(wrapped_model, backend="tt")
+
+    # Warmup run (on-device path: read_logits_fn is baked into the wrapper)
     print("Warming up...")
     warmup_tokens = min(MIN_STEPS, max_tokens_to_generate)
     _, _ = generate_and_benchmark(
@@ -398,7 +403,6 @@ def benchmark_llm_torch_xla(
         input_args,
         device,
         warmup_tokens,
-        read_logits_fn=read_logits_fn,
         tokenizer=tokenizer,
         verbose=False,
     )
@@ -425,7 +429,6 @@ def benchmark_llm_torch_xla(
         input_args,
         device,
         max_tokens_to_generate,
-        read_logits_fn=read_logits_fn,
         tokenizer=tokenizer,
         verbose=True,
         ground_truth_tokens=ground_truth_for_benchmark,
