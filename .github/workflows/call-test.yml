@@ -322,6 +322,49 @@ jobs:
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
+    - name: Debug device access
+      if: matrix.build.runs-on == 'lb-blackhole'
+      shell: bash
+      run: |
+        echo "=== Runner info ==="
+        hostname
+        uname -a
+
+        echo "=== Device access ==="
+        ls -la /dev/tenstorrent* || echo "No /dev/tenstorrent devices found"
+
+        echo "=== Hugepages ==="
+        ls -la /dev/hugepages/ 2>/dev/null | head -5 || echo "No hugepages"
+        ls -la /dev/hugepages-1G/ 2>/dev/null | head -5 || echo "No hugepages-1G"
+        cat /proc/meminfo | grep -i huge || true
+
+        echo "=== Environment ==="
+        env | grep -iE "TT|TTMLIR|PJRT|XLA" | sort || true
+
+        echo "=== Toolchain ==="
+        ls -la /opt/ttmlir-toolchain/ 2>/dev/null | head -10 || echo "No toolchain dir"
+
+        echo "=== Python smoke test ==="
+        source venv/activate
+        python -c "
+        import sys
+        print(f'Python: {sys.version}')
+        try:
+            import jax
+            print(f'JAX version: {jax.__version__}')
+            print(f'JAX devices: {jax.devices()}')
+        except Exception as e:
+            print(f'JAX device init failed: {e}')
+        try:
+            from jax._src.lib import xla_client
+            print(f'XLA client plugins: {xla_client._get_local_backends()}')
+        except Exception as e:
+            print(f'XLA client failed: {e}')
+        " || echo "Python smoke test crashed"
+
+        echo "=== TT-SMI (if available) ==="
+        tt-smi -s 2>/dev/null || echo "tt-smi not available"
+
     - name: Run tests
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
