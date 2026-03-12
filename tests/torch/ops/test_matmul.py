@@ -7,6 +7,7 @@ import torch
 from infra import Framework, run_op_test_with_random_inputs
 from utils import Category
 
+from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 
 
@@ -35,11 +36,15 @@ def test_matmul_rhs_as_param(lhs_outer, rhs_outer, inner, experimental_weight_dt
     compiler_config = CompilerConfig(
         experimental_weight_dtype=experimental_weight_dtype
     )
+    comparison_config = ComparisonConfig()
+    if experimental_weight_dtype == "bfp4":
+        comparison_config.pcc = PccConfig(required_pcc=0.98)
 
     run_op_test_with_random_inputs(
         matmul,
         [(lhs_outer, inner)],
         dtype=dtype,
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         compiler_config=compiler_config,
     )

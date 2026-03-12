@@ -978,6 +978,12 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat8;
   } else if (compile_options.experimental_weight_dtype == "bfp4") {
     options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat4;
+  } else if (!compile_options.experimental_weight_dtype.empty()) {
+    LOG_F(ERROR,
+          "Unknown experimental_weight_dtype: '%s'. Valid values: 'bfp8', "
+          "'bfp4'.",
+          compile_options.experimental_weight_dtype.c_str());
+    return tt_pjrt_status::kUnimplemented;
   }
 
   // Set compute kernel config options if provided

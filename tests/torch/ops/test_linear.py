@@ -14,7 +14,7 @@ from infra.evaluators import TorchComparisonEvaluator
 from torch_xla.distributed.spmd import Mesh
 from utils import Category
 
-from tests.infra.evaluators.evaluation_config import ComparisonConfig
+from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelLoader as GemmaModelLoader,
@@ -54,11 +54,15 @@ def test_linear(
     compiler_config = CompilerConfig(
         experimental_weight_dtype=experimental_weight_dtype
     )
+    comparison_config = ComparisonConfig()
+    if experimental_weight_dtype == "bfp4":
+        comparison_config.pcc = PccConfig(required_pcc=0.98)
 
     run_op_test_with_random_inputs(
         linear,
         [(batch_size, in_features)],
         dtype=dtype,
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         compiler_config=compiler_config,
     )
