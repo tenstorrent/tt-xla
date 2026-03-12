@@ -43,8 +43,8 @@ static std::string getRankBindingPath(const std::string &metal_home) {
        "tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml"},
       {"dual_bh_quietbox",
        "tests/scale_out/4x_bh_quietbox/rank_bindings/2x4.yaml"},
-       {"dual_t3k",
-      "tests/tt_metal/distributed/config/dual_t3k_rank_bindings.yaml"},
+      {"dual_t3k", "tests/tt_metal/distributed/config/"
+                   "dual_t3k_1x16_experimental_bigmesh_rank_bindings.yaml"},
       {"dual_galaxy",
        "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
       {"quad_galaxy",
@@ -326,6 +326,13 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 
 tt_pjrt_status ClientInstance::populateDevices() {
 
+  // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
+  // or else querying system desc will fail in metal init due to fabric init
+  // bugs
+  if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
+  }
   m_system_descriptor = tt::runtime::getCurrentSystemDesc();
 
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
@@ -450,6 +457,14 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
   // Distributed uses FABRIC_1D for now.
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
+
+    // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
+    if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
+        std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+      return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_2D,
+                                           {}};
+    }
+
     uint32_t num_devices = 1;
     for (auto dim : mesh_shape) {
       num_devices *= dim;
