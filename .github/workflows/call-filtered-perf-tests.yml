@@ -56,23 +56,26 @@ jobs:
       matrix: ${{ steps.set-perf-benchmarks.outputs.matrix }}
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 1
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
 
     - name: Filter Matrix
       id: set-perf-benchmarks
       shell: bash
       run: |
-        echo '${{ inputs.adv_filter }}' > /tmp/adv_filter.json
-        if ! jq empty /tmp/adv_filter.json 2>/dev/null; then
+        echo '${{ inputs.adv_filter }}' > adv_filter.json
+        if ! jq empty adv_filter.json 2>/dev/null; then
           echo "Error: Invalid JSON in adv_filter input"
           exit 1
         fi
 
         result=$(python .github/scripts/filter-test-matrix.py \
           .github/workflows/perf-bench-matrix.json \
-          /tmp/adv_filter.json \
+          adv_filter.json \
           ${{ inputs.sh-runner && '--sh-runner' || '' }})
 
         matrix=$(echo $result | jq -r -c '.matrix')
