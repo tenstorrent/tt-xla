@@ -118,6 +118,16 @@ on:
         required: false
         type: string
         default: ""
+      adv_filter:
+        description: "Advanced filter to filter the tests. This is a string that will be passed to the filter-test-matrix.py script. It allows for more complex filtering logic. Example: --adv-filter 'lambda test: \"resn\" in test[\"name\"] and test[\"runs-on\"] == \"n150\"'"
+        required: false
+        type: string
+        default: '[
+            "accuracy-testing": false,
+            { "runs-on": "n150", "filter": "resn" },
+            { "runs-on": "llmbox", "accuracy-testing": true },
+            { "runs-on": "galaxy" }
+          ]'
 
 permissions:
   packages: write
@@ -164,6 +174,12 @@ jobs:
       id: set-perf-benchmarks
       shell: bash
       run: |
+        echo '${{ inputs.adv_filter }}' > /tmp/adv_filter.json
+        if ! jq empty /tmp/adv_filter.json 2>/dev/null; then
+          echo "Error: Invalid JSON in adv_filter input"
+          exit 1
+        fi
+
         result=$(python .github/scripts/filter-test-matrix.py \
           .github/workflows/perf-bench-matrix.json \
           tt-xla \
