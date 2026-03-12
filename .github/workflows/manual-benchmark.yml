@@ -121,7 +121,7 @@ jobs:
     needs: [set-inputs, build]
     if: ${{ !cancelled() && needs.set-inputs.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     secrets: inherit
-    uses: ./.github/workflows/call-perf-test.yml
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
       adv_filter: ${{ needs.set-inputs.outputs.filter }}
       docker_image: ${{ inputs.docker_image }}
