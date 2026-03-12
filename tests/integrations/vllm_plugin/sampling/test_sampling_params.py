@@ -953,10 +953,13 @@ def test_truncate_prompt_tokens(llm, prompt):
     full_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
     out_full = llm.generate(prompt, full_params, use_tqdm=False)[0].outputs[0]
 
-    trunc_params = vllm.SamplingParams(
-        temperature=0.0, max_tokens=16, truncate_prompt_tokens=4
-    )
-    out_trunc = llm.generate(prompt, trunc_params, use_tqdm=False)[0].outputs[0]
+    trunc_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
+    out_trunc = llm.generate(
+        prompt,
+        trunc_params,
+        use_tqdm=False,
+        tokenization_kwargs={"truncate_prompt_tokens": 4},
+    )[0].outputs[0]
 
     print(
         f"[TESTOUT test_truncate_prompt_tokens] "
