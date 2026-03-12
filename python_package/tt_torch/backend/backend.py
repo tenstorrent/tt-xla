@@ -352,7 +352,7 @@ def tt_backend(
     options: dict[str, bool] | None = None,
 ):
     use_aot_autograd = (
-        bool(options.get("tt_use_aot_autograd", False)) if options else False
+        bool(options.get("tt_use_aot_autograd", True)) if options else True
     )
     if use_aot_autograd:
         return aot_backend(gm, example_inputs, options)
