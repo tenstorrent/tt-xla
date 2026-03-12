@@ -61,7 +61,10 @@ class ModelLoader(ForgeModel):
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
-            model = model.to(dtype_override)
+            # Temporary FP32 workaround: BF16 can trigger a known WH matmul/fp32-dest-acc accuracy issue
+            # Remove once https://github.com/tenstorrent/tt-metal/issues/39518 is resolved.
+            print("NOTE: dtype_override ignored")
+            # model = model.to(dtype_override)
 
         return model
 
@@ -81,7 +84,10 @@ class ModelLoader(ForgeModel):
 
         # Only convert dtype if explicitly requested
         if dtype_override is not None:
-            inputs = inputs.to(dtype_override)
+            # Temporary FP32 workaround: BF16 can trigger a known WH matmul/fp32-dest-acc accuracy issue
+            # Remove once https://github.com/tenstorrent/tt-metal/issues/39518 is resolved.
+            print("NOTE: dtype_override ignored")
+            # inputs = inputs.to(dtype_override)
 
         # Add batch dimension
         inputs = inputs.repeat_interleave(batch_size, dim=0)
