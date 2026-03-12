@@ -58,7 +58,8 @@ def filter_matrix_adv(matrix, adv_filter):
             for runner in target_runners:
                 if runner not in runner_conditions:
                     print(
-                        f"Error: Runner '{runner}' specified in filter JSON does not exist in the matrix"
+                        f"Error: Runner '{runner}' specified in filter JSON does not exist in the matrix",
+                        file=sys.stderr,
                     )
                     sys.exit(1)
                 runner_conditions[runner]["skip"] = False
@@ -78,9 +79,6 @@ def filter_matrix_adv(matrix, adv_filter):
                 ]
             if condition.get("skip") is not None:
                 runner_conditions[runner]["skip"] = condition["skip"]
-
-    print("Condition matrix:")
-    print(json.dumps(runner_conditions, indent=2))
 
     # Filter the matrix based on the constructed runner conditions
     filtered_matrix = []
@@ -134,8 +132,6 @@ def main():
 
         matrix = flatten_matrix(data)
         filtered = filter_matrix_adv(matrix, adv_filter)
-        print("Filtered matrix:")
-        print(json.dumps(filtered, indent=2))
 
         update_runners(filtered, args.sh_runner)
 
