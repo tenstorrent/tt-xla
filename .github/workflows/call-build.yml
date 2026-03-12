@@ -29,10 +29,10 @@ on:
         type: boolean
         required: false
       xla_sha_override:
-          description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
-          required: false
-          type: string
-          default: ${{ github.sha }}
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
     outputs:
       artifacts_run_id:
         description: 'Run ID of the workflow that produced the existing artifact(s)'
@@ -148,6 +148,7 @@ jobs:
       docker_image: ${{ inputs.docker_image }}
       build_type: release
       artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
 
   build-ttxla-explorer:
     needs: check-existing-artifact
@@ -159,6 +160,7 @@ jobs:
       docker_image: ${{ inputs.docker_image }}
       build_type: explorer
       artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
 
   build-manylinux-ttxla:
     needs: check-existing-artifact
@@ -169,3 +171,4 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
       docker-image: ${{ inputs.docker_image_manylinux }}
       artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
