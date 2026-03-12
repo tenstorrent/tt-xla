@@ -489,10 +489,7 @@ def _release_dynamo_bridge_tensors():
             if isinstance(obj, torch.fx.GraphModule):
                 if getattr(obj, "xla_args", None) is not None:
                     obj.xla_args = None
-        except ReferenceError:
-            # Skip objects that have been garbage collected
-            continue
-        try:
+
             if isinstance(obj, GraphInputMatcher):
                 for ref in gc.get_referrers(obj):
                     if isinstance(ref, tuple):
