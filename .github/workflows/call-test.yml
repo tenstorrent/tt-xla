@@ -338,6 +338,12 @@ jobs:
         # Using thread method which is more reliable for interrupting C/C++ code
         PYTEST_TIMEOUT=$(( (${{ steps.collect-tests.outputs.timeout-minutes }} - 5) * 60 ))
         echo "Pytest timeout: $PYTEST_TIMEOUT seconds"
+        
+        # Verbose output
+        export LOGGER_TYPES=All
+        export LOGGER_LEVEL=TRACE 
+        export LOGURU_LEVEL=TRACE
+
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --timeout=$PYTEST_TIMEOUT \
                --timeout-method=thread \
