@@ -32,6 +32,22 @@ from third_party.tt_forge_models.config import Parallelism
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
+@dataclass(frozen=True)
+class _FailingReasonValue:
+    description: str
+
+
+@dataclass(frozen=True)
+class RuntimeFailingReason:
+    """
+    Lightweight enum-like wrapper so callers can do:
+      failing_reason.value.description
+    while we store a runtime-generated string.
+    """
+
+    value: _FailingReasonValue
+
+
 # Optional hint that selects a non-default execution/input-loading phase.
 # Today this is only used to distinguish LLM prefill vs decode; in the future it may
 # be extended to other model families (e.g., vision) if they need phase-specific inputs.
@@ -229,6 +245,13 @@ def update_test_metadata_for_exception(
     except Exception:
         message = repr(exc)
 
+    # Preserve the real Python exception type for tagging/reporting when no
+    # structured failing-reason enum matches.
+    try:
+        setattr(test_metadata, "runtime_exception_class", type(exc).__name__)
+    except Exception:
+        pass
+
     # Find failing reason by raised exception
     exception_reason = FailingReasonsFinder.find_reason_by_exception(
         exc, stdout=stdout, stderr=stderr
@@ -258,8 +281,37 @@ def update_test_metadata_for_exception(
     runtime_reason = detailed_error if detailed_error else message
 
     setattr(test_metadata, "runtime_reason", runtime_reason)
-    setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+    # Store failing_reason in an enum-like shape so callers can print
+    # `failing_reason.value.description` without type checks.
+    setattr(
+        test_metadata,
+        "failing_reason",
+        RuntimeFailingReason(value=_FailingReasonValue(description=runtime_reason)),
+    )
+    # Preserve the enum classification separately for reporting/triage.
+    # If the classifier can't map the exception, avoid recording a misleading
+    # UNCLASSIFIED enum; downstream will fall back to the runtime text.
+    failing_reason_enum = exception_reason.failing_reasons
+    try:
+        if (
+            failing_reason_enum is not None
+            and getattr(failing_reason_enum, "name", None) == "UNCLASSIFIED"
+        ):
+            failing_reason_enum = None
+    except Exception:
+        # Be defensive: if anything odd happens, prefer "no enum" over UNCLASSIFIED.
+        failing_reason_enum = None
+
+    setattr(test_metadata, "failing_reason_enum", failing_reason_enum)
     setattr(test_metadata, "failing_reason_summary", exception_reason.summary)
+    from loguru import logger
+
+    # Log both: classification enum (may be UNCLASSIFIED) and the runtime text we print in conftest.
+    logger.info(
+        f"Failing reason enum: {failing_reason_enum if failing_reason_enum is not None else runtime_reason}"
+    )
+    logger.info(f"Failing reason text: {runtime_reason}")
+    logger.info(f"Failing reason summary: {exception_reason.summary}")
 
 
 # This is needed for combination of pytest-forked and using ruamel.yaml
@@ -509,20 +561,42 @@ def record_model_test_properties(
 
     reason = ""
     arch = getattr(test_metadata, "arch", None)
-    failing_reason = getattr(test_metadata, "failing_reason", None)
+    failing_reason_value = getattr(test_metadata, "failing_reason", None)
+    failing_reason_enum = getattr(test_metadata, "failing_reason_enum", None)
     failing_reason_summary = getattr(test_metadata, "failing_reason_summary", None)
     config_bringup_status = getattr(test_metadata, "bringup_status", None)
+    failing_reason_text = None
+
+    # Normalize failing reason:
+    # - enum (legacy): use as classification enum
+    # - RuntimeFailingReason-like: use .value.description as text; classification comes from failing_reason_enum
+    if isinstance(failing_reason_value, Enum):
+        failing_reason_enum = failing_reason_value
+    elif (
+        failing_reason_value is not None
+        and hasattr(failing_reason_value, "value")
+        and hasattr(getattr(failing_reason_value, "value"), "description")
+    ):
+        try:
+            failing_reason_text = (
+                str(
+                    getattr(getattr(failing_reason_value, "value"), "description")
+                ).strip()
+                or None
+            )
+        except Exception:
+            failing_reason_text = None
 
     if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
         bringup_status = config_bringup_status
         reason = getattr(test_metadata, "reason", "")
         # Record a standardized failing reason for skipped-not-supported tests
-        failing_reason = FailingReasons.find_by_description(
+        failing_reason_enum = FailingReasons.find_by_description(
             "Model is not supported (skipped)"
         )
-        if failing_reason is not None:
+        if failing_reason_enum is not None:
             try:
-                setattr(test_metadata, "failing_reason", failing_reason)
+                setattr(test_metadata, "failing_reason", failing_reason_enum)
             except Exception as e:
                 assert False, f"Failed to set failing_reason on test_metadata: {e}"
 
@@ -538,12 +612,12 @@ def record_model_test_properties(
             bringup_status = processed_status
             reason = processed_reason
             if not comparison_config.pcc.enabled:
-                failing_reason = FailingReasons.find_by_description(
+                failing_reason_enum = FailingReasons.find_by_description(
                     "Test marked w/ INCORRECT_RESULT. PCC check disabled."
                 )
-                if failing_reason is not None:
+                if failing_reason_enum is not None:
                     try:
-                        setattr(test_metadata, "failing_reason", failing_reason)
+                        setattr(test_metadata, "failing_reason", failing_reason_enum)
                     except Exception as e:
                         assert (
                             False
@@ -578,18 +652,43 @@ def record_model_test_properties(
         "model_test_status": str(test_metadata.status),
         "failing_reason": (
             {
-                "name": failing_reason.name,
-                "description": failing_reason.value.description,
-                "component": failing_reason.value.component_checker_description,
+                "name": failing_reason_enum.name,
+                "description": (
+                    failing_reason_text
+                    if failing_reason_text
+                    else (
+                        failing_reason_summary
+                        if (
+                            failing_reason_summary
+                            and (
+                                failing_reason_enum.name == "UNCLASSIFIED"
+                                or getattr(
+                                    failing_reason_enum.value, "is_fallback", False
+                                )
+                            )
+                        )
+                        else failing_reason_enum.value.description
+                    )
+                ),
+                "component": failing_reason_enum.value.component_checker_description,
                 "summary": failing_reason_summary,
             }
-            if failing_reason
-            else {
-                "name": None,
-                "description": None,
-                "component": None,
-                "summary": None,
-            }
+            if failing_reason_enum
+            else (
+                {
+                    "name": getattr(test_metadata, "runtime_exception_class", None),
+                    "description": failing_reason_text,
+                    "component": None,
+                    "summary": failing_reason_summary,
+                }
+                if failing_reason_text
+                else {
+                    "name": None,
+                    "description": None,
+                    "component": None,
+                    "summary": None,
+                }
+            )
         ),
         "parallelism": str(parallelism),
         "arch": arch,
