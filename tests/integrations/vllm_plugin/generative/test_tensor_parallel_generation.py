@@ -1,9 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
+
 import pytest
-import vllm
 from conftest import check_host_memory
+
+import vllm
+
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
 
 @pytest.mark.push
@@ -128,7 +133,7 @@ def test_tensor_parallel_generation_mistral_small(
     enable_const_eval: bool,
     experimental_enable_weight_bfp8_conversion: bool,
 ):
-    image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
+    image_url = f"file://{os.path.join(ASSETS_DIR, 'test_battle_scene.png')}"
 
     user_text = "What action do you think I should take in this situation? "
     messages = [
@@ -145,6 +150,7 @@ def test_tensor_parallel_generation_mistral_small(
     llm_args = {
         "model": model_name,
         "limit_mm_per_prompt": {"image": 1},
+        "allowed_local_media_path": ASSETS_DIR,
         "max_num_batched_tokens": 3025,
         "max_num_seqs": 1,
         "max_model_len": 512,
