@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       xla_sha_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir or branch name'
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
         required: true
         type: string
 
@@ -35,6 +35,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
       build_types: release
+      xla_sha_override: ${{ inputs.xla_sha_override }}
 
   release:
     uses: ./.github/workflows/call-release.yml

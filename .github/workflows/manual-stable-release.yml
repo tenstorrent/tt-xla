@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       xla_sha_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir or branch name'
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
         required: true
         type: string
 
