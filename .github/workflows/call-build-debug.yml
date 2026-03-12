@@ -107,10 +107,10 @@ jobs:
         if: success() || failure()
         shell: bash
         run: |
-            lcov --directory ${{ steps.strings.outputs.build-output-dir }} --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
-            lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+            lcov --directory ${{ steps.strings.outputs.build-output-dir }} --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh --ignore-errors inconsistent,corrupt
+            lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info --ignore-errors inconsistent,corrupt
             sed -i 's|SF:${{ steps.strings.outputs.work-dir }}/pjrt_implementation/src/|SF:src/|' coverage.info
-            lcov --list coverage.info
+            lcov --list coverage.info --ignore-errors inconsistent,corrupt
 
       - name: Upload coverage report to Codecov
         if: success() || failure()
