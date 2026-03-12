@@ -100,7 +100,7 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
 
   qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING

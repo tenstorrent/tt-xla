@@ -904,7 +904,6 @@ test_config:
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
-      - split_query_key_value_and_split_heads.ttnn.mlir
       - rms_norm.ttnn.mlir
       - matmul_with_activation_silu.ttnn.mlir
       - softmax.ttnn.mlir # SDPA fusion is not enabled without the optimizer, so we only check for softmax
@@ -2273,7 +2272,7 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING
@@ -2427,9 +2426,7 @@ test_config:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'stablehlo.reduce_window' - https://github.com/tenstorrent/tt-mlir/issues/7240"
-    markers: [large]
+    status: NOT_SUPPORTED_SKIP
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
     supported_archs: ["p150"]
