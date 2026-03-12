@@ -1,0 +1,36 @@
+/localdev/kmabee/tt-xla/venv/lib/python3.12/site-packages/mistral_common/protocol/instruct/messages.py:74: FutureWarning: ImageChunk has moved to 'mistral_common.protocol.instruct.chunk'. It will be removed from 'mistral_common.protocol.instruct.messages' in 1.10.0.
+  warnings.warn(msg, FutureWarning)
+2026-03-12 19:28:54.982 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+/localdev/kmabee/tt-xla/python_package/tt_torch/torch_overrides.py:22: UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at /pytorch/torch/csrc/utils/tensor_new.cpp:253.)
+  return func(*args, **(kwargs or {}))
+Tokenizing with Mistral tokenizer...
+Prompt length: 296 tokens, pixel_values: torch.Size([1, 3, 392, 532]), image_sizes: tensor([[392, 532]])
+Loading model (bfloat16, CPU) — this will take a few minutes...
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  10%|█         | 1/10 [00:00<00:02,  4.33it/s]Fetching 10 files: 100%|██████████| 10/10 [00:00<00:00, 35.72it/s]
+Loading checkpoint shards:   0%|          | 0/10 [00:00<?, ?it/s]Loading checkpoint shards:  20%|██        | 2/10 [00:00<00:00, 19.36it/s]Loading checkpoint shards: 100%|██████████| 10/10 [00:00<00:00, 52.45it/s]Loading checkpoint shards: 100%|██████████| 10/10 [00:00<00:00, 47.53it/s]
+The attention mask and the pad token id were not set. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+Setting `pad_token_id` to `eos_token_id`:2 for open-end generation.
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+/localdev/kmabee/tt-xla/venv/lib/python3.12/site-packages/mistral_common/tokens/tokenizers/tekken.py:489: FutureWarning: Using the tokenizer's special token policy (SpecialTokenPolicy.IGNORE) is deprecated. It will be removed in 1.10.0. Please pass a special token policy explicitly. Future default will be SpecialTokenPolicy.IGNORE.
+  warnings.warn(
+Model loaded in 1.5s
+Generating 128 tokens on CPU — this will be slow...
+Generation took 151.0s (1.2s/token)
+
+=== Generated only ===
+In this situation, you have a few options to choose from:
+
+1. **FIGHT**: You can choose to engage in a battle with the wild Pidgey using your Pikachu. Given that your Pikachu is at full health (83/83 HP), you have a good chance of winning the battle.
+
+2. **POKÉMON**: You can switch to a different Pokémon from your team if you think another Pokémon might be more effective against the wild Pidgey.
+
+3. **BAG**: You can use an item from your bag. This could include items like Potions to heal
+
+=== Full output ===
+What action do you think I should take in this situation? In this situation, you have a few options to choose from:
+
+1. **FIGHT**: You can choose to engage in a battle with the wild Pidgey using your Pikachu. Given that your Pikachu is at full health (83/83 HP), you have a good chance of winning the battle.
+
+2. **POKÉMON**: You can switch to a different Pokémon from your team if you think another Pokémon might be more effective against the wild Pidgey.
+
+3. **BAG**: You can use an item from your bag. This could include items like Potions to heal

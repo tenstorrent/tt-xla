@@ -1,0 +1,32 @@
+/localdev/kmabee/tt-xla/venv/lib/python3.12/site-packages/mistral_common/protocol/instruct/messages.py:74: FutureWarning: ImageChunk has moved to 'mistral_common.protocol.instruct.chunk'. It will be removed from 'mistral_common.protocol.instruct.messages' in 1.10.0.
+  warnings.warn(msg, FutureWarning)
+2026-03-12 19:33:05.764 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+/localdev/kmabee/tt-xla/python_package/tt_torch/torch_overrides.py:22: UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at /pytorch/torch/csrc/utils/tensor_new.cpp:253.)
+  return func(*args, **(kwargs or {}))
+Tokenizing with Mistral tokenizer...
+Prompt length: 296 tokens, pixel_values: torch.Size([1, 3, 392, 532]), image_sizes: tensor([[392, 532]])
+Loading model (bfloat16, CPU) — this will take a few minutes...
+Loading checkpoint shards:   0%|          | 0/10 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 10/10 [00:00<00:00, 142.60it/s]
+The following generation flags are not valid and may be ignored: ['temperature']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+The attention mask and the pad token id were not set. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+Setting `pad_token_id` to `eos_token_id`:2 for open-end generation.
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+/localdev/kmabee/tt-xla/venv/lib/python3.12/site-packages/mistral_common/tokens/tokenizers/tekken.py:489: FutureWarning: Using the tokenizer's special token policy (SpecialTokenPolicy.IGNORE) is deprecated. It will be removed in 1.10.0. Please pass a special token policy explicitly. Future default will be SpecialTokenPolicy.IGNORE.
+  warnings.warn(
+Model loaded in 0.8s
+Generating 128 tokens on CPU — this will be slow...
+Generation took 139.5s (1.1s/token)
+
+=== Generated only ===
+In this situation, you have a few options to consider:
+
+1. **Fight**: You can choose to engage in battle with the Pidgey using your Pikachu. Given that your Pikachu is at full health (83/83 HP) and is a higher level (Lv. 42) compared to the Pidgey (Lv. 17), you likely have a significant advantage in this battle. This could be a good opportunity to gain experience points and potentially capture the Pidgey if you wish.
+
+2. **Bag**: This option typically allows you to use items from
+
+=== Full output ===
+What action do you think I should take in this situation? In this situation, you have a few options to consider:
+
+1. **Fight**: You can choose to engage in battle with the Pidgey using your Pikachu. Given that your Pikachu is at full health (83/83 HP) and is a higher level (Lv. 42) compared to the Pidgey (Lv. 17), you likely have a significant advantage in this battle. This could be a good opportunity to gain experience points and potentially capture the Pidgey if you wish.
+
+2. **Bag**: This option typically allows you to use items from
