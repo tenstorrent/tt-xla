@@ -11,8 +11,7 @@ import torch_xla.runtime as xr
 from functorch.compile import make_boxed_func
 from torch._decomp import get_decompositions as get_aten_decompositions
 from torch._dynamo import register_backend
-from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
-from torch._guards import detect_fake_mode
+from torch._dynamo.backends.common import aot_autograd
 from torch.fx.experimental.proxy_tensor import make_fx
 from torch.fx.passes.tools_common import legalize_graph
 from torch_xla.distributed.spmd import ShardingType
@@ -227,28 +226,12 @@ def torch_pass_pipeline(
             "dynamo_flat_name_to_original_fqn", {}
         )
 
-        # Re-trace the graph module with decompositions applied.  Detect the
-        # existing FakeTensorMode from dynamo's example_inputs so that we
-        # re-use it instead of creating a conflicting one.
-        fake_mode = detect_fake_mode(example_inputs)
-        if fake_mode is not None:
-            compiled_graph = make_fx(
-                gm, decomposition_table=decompositions
-            )(*example_inputs)
-        else:
-            compiled_graph = make_fx(
-                gm, decomposition_table=decompositions, tracing_mode="fake"
-            )(*example_inputs)
-
-        # make_fx may replace real parameters with FakeTensors; restore them.
-        for name in list(compiled_graph._parameters):
-            real = gm._parameters.get(name)
-            if real is not None:
-                compiled_graph._parameters[name] = real
-        for name in list(compiled_graph._buffers):
-            real = gm._buffers.get(name)
-            if real is not None:
-                compiled_graph._buffers[name] = real
+        # Re-trace the graph module with decompositions applied.
+        # Dynamo provides real tensors as example_inputs, so tracing_mode="real"
+        # is safe and avoids FakeTensor complications with parameters.
+        compiled_graph = make_fx(
+            gm, decomposition_table=decompositions, tracing_mode="real"
+        )(*example_inputs)
 
         input_type_map, name_map, has_output_mutations = (
             _classify_from_module_state(
@@ -475,7 +458,6 @@ def aot_backend(
         )
     )
 
-    @fake_tensor_unsupported  # see https://github.com/tenstorrent/tt-xla/issues/3572
     def fw_compiler_boxed(fw_gm, fw_example_inputs):
         # Build input classification from the captured module info.
         # AOTAutograd has already applied decompositions, so torch_pass_pipeline
