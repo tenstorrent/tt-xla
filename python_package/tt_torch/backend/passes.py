@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import operator
 import re
 
 import torch
@@ -78,6 +79,48 @@ def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
         gm.recompile()
 
 
+def _get_used_output_indices(node: torch.fx.Node) -> frozenset:
+    """Return frozenset of output indices consumed by live getitem users of node."""
+    used = set()
+    for user in node.users:
+        if (
+            user.op == "call_function"
+            and user.target is operator.getitem
+            and isinstance(user.args[1], int)
+            and len(user.users) > 0
+        ):
+            used.add(user.args[1])
+    return frozenset(used)
+
+
+def _replace_multi_output_op(gm, node, output_variants):
+    """Select the correct composite variant for a multi-output op and rewire the graph."""
+    used_indices = _get_used_output_indices(node)
+    replacement_fn = output_variants.get(used_indices)
+    if replacement_fn is None:  # fallback to most-outputs variant
+        fallback_key = max(output_variants.keys(), key=len)
+        replacement_fn = output_variants[fallback_key]
+
+    node.target = replacement_fn
+
+    # Collect all getitem children of this node
+    getitem_nodes = [
+        u
+        for u in list(node.users.keys())
+        if u.op == "call_function" and u.target is operator.getitem
+    ]
+
+    # For single-output replacement, redirect the live getitem's users to point
+    # directly at the composite node, then erase all getitems
+    if len(used_indices) == 1:
+        used_idx = next(iter(used_indices))
+        for gi in getitem_nodes:
+            if gi.args[1] == used_idx:
+                gi.replace_all_uses_with(node)
+        for gi in getitem_nodes:
+            gm.graph.erase_node(gi)
+
+
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
@@ -91,10 +134,14 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
        - node.target is a string like "some_module"
        - Replaced by creating new call_function node (composite function) with get_attr for parameters
     """
-    for node in gm.graph.nodes:
+    for node in list(gm.graph.nodes):  # snapshot to allow mid-loop erasure
         if node.op == "call_function":
             if node.target in composite_ops.replacements:
-                node.target = composite_ops.replacements[node.target]
+                replacement = composite_ops.replacements[node.target]
+                if isinstance(replacement, dict):
+                    _replace_multi_output_op(gm, node, replacement)
+                else:
+                    node.target = replacement
 
         elif node.op == "call_module":
             module = gm.get_submodule(node.target)

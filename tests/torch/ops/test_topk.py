@@ -53,3 +53,70 @@ def test_topk_indices(input_shape: tuple, k: int):
     run_op_test_with_random_inputs(
         model, [input_shape], dtype=torch.float32, framework=Framework.TORCH
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    torch_op_name="torch.topk",
+)
+@pytest.mark.parametrize(
+    ["input_shape", "k"],
+    [
+        ((1, 10), 5),
+        ((1, 20), 5),
+        ((1, 30), 5),
+        ((1, 40), 5),
+    ],
+)
+def test_topk_values(input_shape: tuple, k: int):
+    """Test topk operation returning only values."""
+
+    class TopKValues(torch.nn.Module):
+        def __init__(self, k):
+            super().__init__()
+            self.k = k
+
+        def forward(self, x):
+            return torch.topk(x, self.k)[0]
+
+    model = TopKValues(k)
+
+    run_op_test_with_random_inputs(
+        model, [input_shape], dtype=torch.float32, framework=Framework.TORCH
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    torch_op_name="torch.topk",
+)
+@pytest.mark.parametrize(
+    ["input_shape", "k"],
+    [
+        ((1, 10), 5),
+        ((1, 20), 5),
+        ((1, 30), 5),
+        ((1, 40), 5),
+    ],
+)
+def test_topk_both(input_shape: tuple, k: int):
+    """Test topk operation returning both values and indices."""
+
+    class TopKBoth(torch.nn.Module):
+        def __init__(self, k):
+            super().__init__()
+            self.k = k
+
+        def forward(self, x):
+            values, indices = torch.topk(x, self.k)
+            return values + indices.float()
+
+    model = TopKBoth(k)
+
+    run_op_test_with_random_inputs(
+        model, [input_shape], dtype=torch.float32, framework=Framework.TORCH
+    )
