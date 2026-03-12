@@ -340,7 +340,7 @@ jobs:
         echo "Pytest timeout: $PYTEST_TIMEOUT seconds"
         
         # Verbose output
-        LOGGER_TYPES=All LOGGER_LEVEL=TRACE LOGURU_LEVEL=TRACE python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+        TTXLA_LOGGER_LEVEL=DEBUG LOGGER_TYPES=All LOGGER_LEVEL=TRACE LOGURU_LEVEL=TRACE TT_METAL_LOGGER_LEVEL=DEBUG python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --timeout=$PYTEST_TIMEOUT \
                --timeout-method=thread \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
