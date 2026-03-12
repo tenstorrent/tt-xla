@@ -107,7 +107,7 @@ jobs:
           echo ',{"filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
         fi
         echo "]" >> adv_filter.json
-        filter=$(cat adv_filter.json | jq -r -c '.matrix')
+        filter=$(cat adv_filter.json | jq -r -c '.')
         echo "filter=$filter" >> $GITHUB_OUTPUT
 
         # Set up the summary for the job
