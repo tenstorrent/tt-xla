@@ -92,7 +92,7 @@ class ModelLoader(ForgeModel):
     def _load_pipeline(
         self,
         dtype_override: Optional[torch.dtype] = None,
-        device_map: str = "cpu",
+        device_map: Optional[str] = None,
         low_cpu_mem_usage: bool = True,
         extra_pipe_kwargs: Optional[Dict[str, Any]] = None,
     ) -> DiffusionPipeline:
@@ -123,7 +123,7 @@ class ModelLoader(ForgeModel):
         self,
         *,
         dtype_override: Optional[torch.dtype] = None,
-        device_map: str = "cpu",
+        device_map: Optional[str] = None,
         low_cpu_mem_usage: bool = True,
         extra_pipe_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
