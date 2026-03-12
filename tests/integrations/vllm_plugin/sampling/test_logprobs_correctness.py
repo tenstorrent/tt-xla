@@ -324,3 +324,75 @@ def test_gather_logprobs_topk_indices_are_exact():
                 f"got {actual} (bfloat16 rounding: "
                 f"{expected} → {int(torch.tensor(expected, dtype=torch.bfloat16).item())})"
             )
+
+
+# ---------------------------------------------------------------------------
+# prompt logprobs: gather_logprobs used with prompt (next-token) targets
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.push
+def test_gather_logprobs_prompt_target_token_at_index_zero():
+    """When used for prompt logprobs, the target (next) token must be at column 0."""
+    torch.manual_seed(10)
+    seq_len, vocab = 8, 500
+    # Simulate prompt: logits at position i predict token at position i+1.
+    logits = torch.randn(seq_len - 1, vocab)
+    prompt_tokens = torch.randint(0, vocab, (seq_len,))
+    target_tokens = prompt_tokens[1:]  # tokens being predicted
+
+    lp = Sampler().compute_logprobs(logits)
+    result = Sampler().gather_logprobs(lp, num_logprobs=3, token_ids=target_tokens)
+
+    for i in range(seq_len - 1):
+        assert result.logprob_token_ids[i, 0].item() == target_tokens[i].item(), (
+            f"position {i}: expected target token {target_tokens[i].item()} "
+            f"at index 0, got {result.logprob_token_ids[i, 0].item()}"
+        )
+
+
+@pytest.mark.push
+def test_gather_logprobs_prompt_logprob_values():
+    """Prompt logprobs: log-prob at column 0 must match the target token's actual logprob."""
+    torch.manual_seed(11)
+    seq_len, vocab = 6, 200
+    logits = torch.randn(seq_len - 1, vocab)
+    prompt_tokens = torch.randint(0, vocab, (seq_len,))
+    target_tokens = prompt_tokens[1:]
+
+    lp = Sampler().compute_logprobs(logits)
+    result = Sampler().gather_logprobs(lp, num_logprobs=3, token_ids=target_tokens)
+
+    for i in range(seq_len - 1):
+        expected = lp[i, target_tokens[i]].item()
+        actual = result.logprobs[i, 0].item()
+        assert abs(actual - expected) < 1e-5, (
+            f"position {i}: logprob {actual:.6f} != expected {expected:.6f} "
+            f"for target token {target_tokens[i].item()}"
+        )
+
+
+@pytest.mark.push
+@pytest.mark.parametrize("vocab_size", [32000, 128256])
+def test_gather_logprobs_prompt_sequence(vocab_size):
+    """End-to-end prompt logprobs on a full sequence at production vocab sizes."""
+    torch.manual_seed(12)
+    seq_len = 16
+    logits = torch.randn(seq_len - 1, vocab_size)
+    prompt_tokens = torch.randint(0, vocab_size, (seq_len,))
+    target_tokens = prompt_tokens[1:]
+
+    sampler = Sampler()
+    lp = sampler.compute_logprobs(logits)
+    result = sampler.gather_logprobs(lp, num_logprobs=5, token_ids=target_tokens)
+
+    assert result.logprob_token_ids.shape == (seq_len - 1, 6)
+    assert result.logprobs.shape == (seq_len - 1, 6)
+    assert result.selected_token_ranks.shape == (seq_len - 1,)
+    assert result.logprob_token_ids.dtype == torch.int32
+    assert result.selected_token_ranks.dtype == torch.int32
+    assert (result.logprobs <= 0).all()
+    assert (result.selected_token_ranks >= 1).all()
+
+    # Target tokens at column 0.
+    assert torch.equal(result.logprob_token_ids[:, 0], target_tokens.to(torch.int32))
