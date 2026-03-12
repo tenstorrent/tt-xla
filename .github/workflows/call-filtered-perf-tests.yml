@@ -78,7 +78,8 @@ jobs:
           adv_filter.json \
           ${{ inputs.sh-runner && '--sh-runner' || '' }})
 
-        matrix=$(echo $result | jq -r -c '.matrix')
+        echo $result
+        matrix=$(echo $result | jq -r -c '.')
         echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   run-perf-benchmarks:
