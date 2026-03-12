@@ -566,8 +566,6 @@ test_config:
 
   phi2/causal_lm/pytorch-Phi_2-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.98
-    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   phi2/causal_lm/pytorch-Phi_2_Pytdml-single_device-inference:
     status: EXPECTED_PASSING
