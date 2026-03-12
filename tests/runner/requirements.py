@@ -35,6 +35,8 @@ class RequirementsManager:
     # JAX test infra imports flax/transformers at module level; purging them
     # from sys.modules would break isinstance checks between old class objects
     # held by module-level variables (e.g. nnx.Module) and freshly loaded ones.
+    # Entries must be import names (e.g. "PIL", not "Pillow"), since they are
+    # compared against resolved import names in _purge_stale_modules.
     _JAX_PURGE_SKIP = frozenset({"flax", "transformers"})
 
     def __init__(
