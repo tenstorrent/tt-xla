@@ -1270,10 +1270,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
+            lm_head = getattr(self.model, "lm_head", None)
             if (
                 self.enable_tensor_parallel
-                and self.model.lm_head is not None
-                and isinstance(self.model.lm_head, ParallelLMHead)
+                and lm_head is not None
+                and isinstance(lm_head, ParallelLMHead)
             ):
                 # Apply sharding constraint to logits for SPMD case.
                 # This will replicate the logits.
