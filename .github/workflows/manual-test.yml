@@ -34,8 +34,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      mlir_override: ${{ inputs.mlir_override }}
-      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+      build_types: release
 
   release:
     uses: ./.github/workflows/call-release.yml
