@@ -205,6 +205,9 @@ def insert_argument_type_markers(
 
     get_attr_target_type_dict = {}
     placeholder_target_type_dict = {}
+    # Maps from the same keys to clean (demangled) names.
+    get_attr_clean_name = {}
+    placeholder_clean_name = {}
     for in_spec in input_signature:
         type_str = None
         if in_spec.kind == InputKind.USER_INPUT:
@@ -229,10 +232,21 @@ def insert_argument_type_markers(
         else:
             assert False, f"Unexpected input kind: {in_spec.kind}"
 
+        # For clean names: spec.target is the original FQN (already clean) for
+        # params/buffers from both torch.export and the synthetic AOT signature.
+        # Fall back to demangling arg.name for user inputs.
+        if in_spec.target is not None:
+            clean = in_spec.target
+        else:
+            clean = _demangle_name(in_spec.arg.name, normalized_fqn_lookup)
+
         if in_spec.target is not None:
             get_attr_target_type_dict[in_spec.target] = type_str
-        else:
-            placeholder_target_type_dict[in_spec.arg.name] = type_str
+            get_attr_clean_name[in_spec.target] = clean
+        # Always also index by arg.name so that placeholder nodes (used in the
+        # AOTAutograd path where all inputs are placeholders) can be matched.
+        placeholder_target_type_dict[in_spec.arg.name] = type_str
+        placeholder_clean_name[in_spec.arg.name] = clean
 
     for input_node in input_nodes:
         users = list(input_node.users.keys())
@@ -240,15 +254,15 @@ def insert_argument_type_markers(
             continue
 
         argument_type = None
+        clean_name = None
         if input_node.target in get_attr_target_type_dict:
             argument_type = get_attr_target_type_dict[input_node.target]
+            clean_name = get_attr_clean_name[input_node.target]
         elif input_node.name in placeholder_target_type_dict:
             argument_type = placeholder_target_type_dict[input_node.name]
+            clean_name = placeholder_clean_name[input_node.name]
         else:
             continue
-
-        mangled_name = input_node.target if input_node.target else input_node.name
-        clean_name = _demangle_name(mangled_name, normalized_fqn_lookup)
 
         with gm.graph.inserting_after(input_node):
             new_input = gm.graph.create_node(
@@ -305,25 +319,6 @@ def bypass_redundant_getitem(gm):
     return gm
 
 
-def run_shape_prop(gm, example_inputs):
-    """
-    Propagates shape and dtype information through the graph.
-    """
-    shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
-    if shape_prop.fake_mode is not None:
-        fake_args = [
-            (
-                shape_prop.fake_mode.from_tensor(act, static_shapes=True)
-                if isinstance(act, torch.Tensor)
-                else act
-            )
-            for act in example_inputs
-        ]
-    else:
-        fake_args = example_inputs
-    shape_prop.run(*fake_args)
-
-
 def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     """
     Removes casting of nodes to float32 unless they were explicitly set by the user.
@@ -331,7 +326,6 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     user may have specified a different dtype.
     Also removes redundant casts.
     """
-    removed_non_redundant_casts = False
     for node in gm.graph.nodes:
         if (
             node.op == "call_function"
@@ -342,23 +336,19 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
                 node.meta["original_aten"]._name != "aten::_to_copy"
                 and node.args[1] == torch.float32
             )
-            is_redundant_cast = (
-                "tensor_meta" in node.args[0].meta
-                and node.args[0].meta["tensor_meta"].dtype == node.args[1]
-            )
+            node_meta = node.args[0].meta
+            if "tensor_meta" in node_meta:
+                is_redundant_cast = node_meta["tensor_meta"].dtype == node.args[1]
+            elif "val" in node_meta and isinstance(node_meta["val"], torch.Tensor):
+                is_redundant_cast = node_meta["val"].dtype == node.args[1]
+            else:
+                is_redundant_cast = False
 
             if is_unwanted_dtype_promotion or is_redundant_cast:
                 node.replace_all_uses_with(node.args[0])
-                removed_non_redundant_casts |= is_unwanted_dtype_promotion
 
     gm.graph.eliminate_dead_code()
     gm.graph.lint()
-
-    if removed_non_redundant_casts:
-        # if non redundant nodes were removed, re-propagate shape and dtype and re-run pass to remove redundant casts
-        run_shape_prop(gm, example_inputs)
-        gm = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
-
     return gm
 
 
