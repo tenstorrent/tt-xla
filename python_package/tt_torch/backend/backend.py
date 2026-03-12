@@ -14,7 +14,7 @@ from torch._decomp import get_decompositions as get_aten_decompositions
 from torch._dynamo import register_backend
 from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
 from torch.export import ExportedProgram
-from torch.export.graph_signature import InputKind, OutputKind
+from torch.export.graph_signature import InputKind
 from torch.fx.passes.tools_common import legalize_graph
 from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
@@ -26,6 +26,7 @@ from .metadata_propagation import (
     extract_nodes_info,
 )
 from .passes import (
+    build_classification_from_signature,
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
@@ -36,6 +37,44 @@ from .passes import (
 )
 
 
+def _classify_inputs_for_aot(
+    gm: torch.fx.GraphModule,
+    param_names: list[str],
+    buffer_names: list[str],
+    flat_name_to_original_fqn: dict[str, str],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Classify inputs for the AOTAutograd path using captured module info.
+
+    AOTAutograd lifts all parameters and buffers as function arguments
+    (placeholders) in the forward graph.  The ordering convention is:
+    parameters first (in named_parameters() order), then buffers
+    (in named_buffers() order), then user inputs.
+    """
+    placeholders = [n for n in gm.graph.nodes if n.op == "placeholder"]
+    num_params = len(param_names)
+    num_buffers = len(buffer_names)
+
+    input_type_map: dict[str, str] = {}
+    name_map: dict[str, str] = {}
+
+    for i, node in enumerate(placeholders):
+        if i < num_params:
+            input_type_map[node.name] = "parameter"
+            mangled = param_names[i]
+            name_map[node.name] = flat_name_to_original_fqn.get(mangled, mangled)
+        elif i < num_params + num_buffers:
+            # AOTAutograd functionalises mutations, so buffers in the forward
+            # graph are never mutated in-place — safe to mark as constant.
+            input_type_map[node.name] = "constant"
+            mangled = buffer_names[i - num_params]
+            name_map[node.name] = flat_name_to_original_fqn.get(mangled, mangled)
+        else:
+            input_type_map[node.name] = "input"
+            name_map[node.name] = node.name
+
+    return input_type_map, name_map
+
+
 # This function runs a series of passes on a torch GraphModule.
 # The passes here may be necessary (depending on the model) to
 # convert a GraphModule into a form which tt-mlir can compile/execute.
@@ -43,7 +82,23 @@ def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
-) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, dict[str, str]]:
+    input_classification: tuple[dict[str, str], dict[str, str], bool] | None = None,
+) -> Tuple[torch.fx.GraphModule, bool, dict[str, str]]:
+    """Run the torch FX pass pipeline.
+
+    Args:
+        gm: The graph module to transform.
+        example_inputs: Example inputs for the graph module.
+        options: Backend options.
+        input_classification: Pre-built (input_type_map, name_map, has_output_mutations)
+            tuple. When provided (AOTAutograd path), decompositions are skipped
+            (assumed to have been applied by AOTAutograd already). When None
+            (non-AOT path), torch.export is used to apply decompositions and
+            build the classification from its graph signature.
+
+    Returns:
+        (compiled_graph, has_output_mutations, node_info)
+    """
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
@@ -63,27 +118,39 @@ def torch_pass_pipeline(
     if enable_composite_ops:
         handle_composite_ops(gm)
 
-    decompositions = populate_decompositions()
+    if input_classification is not None:
+        # AOTAutograd path: decompositions already applied, classification provided.
+        compiled_graph = gm
+        input_type_map, name_map, has_output_mutations = input_classification
+    else:
+        # Non-AOTAutograd path: use torch.export for decompositions and to
+        # derive the input classification from the export graph signature.
+        decompositions = populate_decompositions()
 
-    program = torch.export.export(
-        gm,
-        tuple(example_inputs),
-        strict=False,
-    )
-    program = program.run_decompositions(decompositions)
+        program = torch.export.export(
+            gm,
+            tuple(example_inputs),
+            strict=False,
+        )
+        program = program.run_decompositions(decompositions)
 
-    compiled_graph = program.module()
-    # When torch.compile traces a model, it flattens the module hierarchy and
-    # mangles parameter names (e.g., "model.layers.0.weight" becomes something
-    # like "L__self___model_layers___0___weight"). Dynamo stores a reverse
-    # mapping in GraphModule.meta so we can recover the original names. We pass
-    # this to insert_argument_type_markers so that MLIR argument names (ttir.name)
-    # match the original model's state_dict keys.
-    flat_name_to_original_fqn = compiled_graph.meta.get(
-        "dynamo_flat_name_to_original_fqn", {}
-    )
+        compiled_graph = program.module()
+        # When torch.compile traces a model, it flattens the module hierarchy
+        # and mangles parameter names (e.g., "model.layers.0.weight" becomes
+        # something like "L__self___model_layers___0___weight"). Dynamo stores
+        # a reverse mapping in GraphModule.meta so we can recover the original
+        # names for MLIR argument names (ttir.name).
+        flat_name_to_original_fqn = compiled_graph.meta.get(
+            "dynamo_flat_name_to_original_fqn", {}
+        )
+        input_type_map, name_map, has_output_mutations = (
+            build_classification_from_signature(
+                program.graph_signature, flat_name_to_original_fqn
+            )
+        )
+
     compiled_graph = insert_argument_type_markers(
-        compiled_graph, program.graph_signature, flat_name_to_original_fqn
+        compiled_graph, input_type_map, name_map
     )
     compiled_graph = bypass_dtype_promotion_and_redundant_cast(
         compiled_graph, example_inputs
@@ -98,7 +165,7 @@ def torch_pass_pipeline(
     # Extract metadata from FX nodes in order to inject them into locs
     node_info = extract_nodes_info(compiled_graph)
 
-    return compiled_graph, program.graph_signature, node_info
+    return compiled_graph, has_output_mutations, node_info
 
 
 def _mark_unsharded_args_replicated(args: Tuple[torch.Tensor]) -> None:
@@ -132,12 +199,12 @@ class XLAExecutor:
     def __init__(
         self,
         module: torch.fx.GraphModule,
-        signature: torch.export.ExportGraphSignature,
+        has_output_mutations: bool,
         node_info: dict[str, str],
         legacy_compile_enabled: bool,
     ):
         self.module = module
-        self.signature = signature
+        self.has_output_mutations = has_output_mutations
         self.node_info = node_info
         # Inject metadata if xla debug is enabled and node_info is not empty
         # We need xla debug to be enabled in order for torch-xla to inject metadata
@@ -257,14 +324,8 @@ class XLAExecutor:
                 output = interp.run(*args)
         else:
             output = self.module(*args)
-        gm_has_functional_output_kind: bool = True
 
-        for el in self.signature.output_specs:
-            if el.kind is not OutputKind.USER_OUTPUT:
-                gm_has_functional_output_kind = False
-                break
-
-        if gm_has_functional_output_kind:
+        if not self.has_output_mutations:
             # This tells torch-xla to cut the graph at only what is required to
             # compute all tensors in the `output` list.
 
@@ -293,9 +354,10 @@ def fw_compiler(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
+    input_classification: tuple[dict[str, str], dict[str, str], bool] | None = None,
 ):
-    module, graph_signature, node_info = torch_pass_pipeline(
-        gm, example_inputs, options
+    module, has_output_mutations, node_info = torch_pass_pipeline(
+        gm, example_inputs, options, input_classification
     )
 
     legacy_compile = False
@@ -309,7 +371,7 @@ def fw_compiler(
         if "tt_legacy_compile" in options:
             legacy_compile = bool(options["tt_legacy_compile"])
 
-    return XLAExecutor(module, graph_signature, node_info, legacy_compile)
+    return XLAExecutor(module, has_output_mutations, node_info, legacy_compile)
 
 
 def aot_backend(
@@ -323,6 +385,17 @@ def aot_backend(
     # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3549
     gm = rewrite_adaptive_avgpool_to_mean(gm)
 
+    # Capture parameter/buffer names and the FQN mapping from the original
+    # module *before* AOTAutograd lifts them into flat placeholder inputs.
+    # AOTAutograd orders the lifted inputs as: params, buffers, user inputs.
+    param_names = [name for name, _ in gm.named_parameters()]
+    buffer_names = [name for name, _ in gm.named_buffers()]
+    flat_name_to_original_fqn = gm.meta.get("dynamo_flat_name_to_original_fqn", {})
+
+    # Merge all decompositions so that AOTAutograd applies them during
+    # tracing — this eliminates the need for torch.export in
+    # torch_pass_pipeline for the AOT path.
+    aot_decompositions = populate_decompositions()
     # There is a well known bug in our stack that stablehlo.batch_norm_training doesn't shard properly in multichip scenarios.
     # TorchXLA uses stablehlo.batch_norm_training for it's implementation of torch layernorm,
     # but that gets decomposed by decompositions inside torch_pass_pipeline anyway so we don't observe it.
@@ -330,15 +403,28 @@ def aot_backend(
     # conversion happens before the fx module ever reaches us.
     # So we manually decompose batch norm early inside aot_autograd to avoid the bug. This could be a perf pitfall.
     # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3533
-    aot_decompositions = get_aten_decompositions(
-        [
-            torch.ops.aten._native_batch_norm_legit.no_stats,
-        ]
+    aot_decompositions.update(
+        get_aten_decompositions(
+            [
+                torch.ops.aten._native_batch_norm_legit.no_stats,
+            ]
+        )
     )
 
     @fake_tensor_unsupported  # see https://github.com/tenstorrent/tt-xla/issues/3572
-    def fw_compiler_boxed(gm, example_inputs):
-        return make_boxed_func(fw_compiler(gm, example_inputs, options))
+    def fw_compiler_boxed(fw_gm, fw_example_inputs):
+        # Build input classification from the captured module info.
+        # AOTAutograd has already applied decompositions, so torch_pass_pipeline
+        # will skip torch.export entirely when classification is provided.
+        input_type_map, name_map = _classify_inputs_for_aot(
+            fw_gm, param_names, buffer_names, flat_name_to_original_fqn
+        )
+        # AOTAutograd functionalises mutations — the forward graph has only
+        # user outputs (no buffer mutation outputs).
+        classification = (input_type_map, name_map, False)
+        return make_boxed_func(
+            fw_compiler(fw_gm, fw_example_inputs, options, classification)
+        )
 
     return aot_autograd(
         fw_compiler=fw_compiler_boxed, decompositions=aot_decompositions
@@ -352,7 +438,7 @@ def tt_backend(
     options: dict[str, bool] | None = None,
 ):
     use_aot_autograd = (
-        bool(options.get("tt_use_aot_autograd", False)) if options else False
+        bool(options.get("tt_use_aot_autograd", True)) if options else True
     )
     if use_aot_autograd:
         return aot_backend(gm, example_inputs, options)

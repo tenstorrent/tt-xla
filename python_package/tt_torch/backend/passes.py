@@ -105,33 +105,33 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     gm.graph.lint()
 
 
-def insert_argument_type_markers(
-    gm: torch.fx.GraphModule,
+def build_classification_from_signature(
     graph_signature,
-    flat_name_to_original_fqn: dict = None,
-) -> torch.fx.GraphModule:
+    flat_name_to_original_fqn: dict,
+) -> tuple[dict[str, str], dict[str, str], bool]:
+    """Build input classification from torch.export graph signature.
 
-    if flat_name_to_original_fqn is None:
-        flat_name_to_original_fqn = {}
-
+    Returns:
+        input_type_map: maps node key (target for get_attr, name for placeholder) to
+                        argument type ("input", "parameter", or "constant").
+        name_map: maps the same node keys to clean (demangled) names.
+        has_output_mutations: True if any output is not a USER_OUTPUT.
+    """
     normalized_fqn_lookup = _build_normalized_fqn_lookup(flat_name_to_original_fqn)
 
-    input_nodes = gm.graph.find_nodes(op="get_attr") + gm.graph.find_nodes(
-        op="placeholder"
-    )
-    input_signature = graph_signature.input_specs
-    output_signature = graph_signature.output_specs
+    input_type_map = {}
+    name_map = {}
 
-    # Keep track of buffers which are mutated as we do not want these arguments to be hoisted into a consteval graph.
+    # Detect mutated buffers from output specs.
     mutated_buffer_targets = set()
-    for out_spec in output_signature:
+    has_output_mutations = False
+    for out_spec in graph_signature.output_specs:
         if out_spec.kind == OutputKind.BUFFER_MUTATION:
             mutated_buffer_targets.add(out_spec.target)
+        if out_spec.kind != OutputKind.USER_OUTPUT:
+            has_output_mutations = True
 
-    get_attr_target_type_dict = {}
-    placeholder_target_type_dict = {}
-    for in_spec in input_signature:
-        type_str = None
+    for in_spec in graph_signature.input_specs:
         if in_spec.kind == InputKind.USER_INPUT:
             type_str = "input"
         # We do not model these argument types in tt-mlir. To avoid graph transformations that would
@@ -143,37 +143,51 @@ def insert_argument_type_markers(
         elif in_spec.kind == InputKind.CONSTANT_TENSOR:
             type_str = "constant"
         # If a buffer is mutated, we do not want to hoist the argument into a consteval graph.
-        # This is because the argument will be mutated in place, and we do not want to used the cached
+        # This is because the argument will be mutated in place, and we do not want to use the cached
         # version of the input from the first iteration of the graph. If it is not mutated then we can
         # mark it as a constant.
         elif in_spec.kind == InputKind.BUFFER:
-            if in_spec.target in mutated_buffer_targets:
-                type_str = "input"
-            else:
-                type_str = "constant"
+            type_str = "input" if in_spec.target in mutated_buffer_targets else "constant"
         else:
             assert False, f"Unexpected input kind: {in_spec.kind}"
 
-        if in_spec.target is not None:
-            get_attr_target_type_dict[in_spec.target] = type_str
-        else:
-            placeholder_target_type_dict[in_spec.arg.name] = type_str
+        # get_attr nodes have a target, placeholder nodes have arg.name
+        key = in_spec.target if in_spec.target is not None else in_spec.arg.name
+        input_type_map[key] = type_str
+        name_map[key] = _demangle_name(key, normalized_fqn_lookup)
+
+    return input_type_map, name_map, has_output_mutations
+
+
+def insert_argument_type_markers(
+    gm: torch.fx.GraphModule,
+    input_type_map: dict[str, str],
+    name_map: dict[str, str],
+) -> torch.fx.GraphModule:
+    """Insert tt.mark_argument_attributes nodes after each input node.
+
+    Args:
+        gm: The graph module to transform.
+        input_type_map: maps node key (target for get_attr, name for placeholder)
+                        to argument type ("input", "parameter", or "constant").
+        name_map: maps the same node keys to clean (demangled) original names.
+    """
+    input_nodes = gm.graph.find_nodes(op="get_attr") + gm.graph.find_nodes(
+        op="placeholder"
+    )
 
     for input_node in input_nodes:
         users = list(input_node.users.keys())
         if len(users) == 0:
             continue
 
-        argument_type = None
-        if input_node.target in get_attr_target_type_dict:
-            argument_type = get_attr_target_type_dict[input_node.target]
-        elif input_node.name in placeholder_target_type_dict:
-            argument_type = placeholder_target_type_dict[input_node.name]
-        else:
+        # Use target for get_attr nodes, name for placeholder nodes.
+        key = input_node.target if input_node.op == "get_attr" else input_node.name
+        argument_type = input_type_map.get(key)
+        if argument_type is None:
             continue
 
-        mangled_name = input_node.target if input_node.target else input_node.name
-        clean_name = _demangle_name(mangled_name, normalized_fqn_lookup)
+        clean_name = name_map.get(key, key)
 
         with gm.graph.inserting_after(input_node):
             new_input = gm.graph.create_node(
@@ -194,7 +208,7 @@ def insert_argument_type_markers(
                 continue
             user.replace_input_with(input_node, new_input)
 
-    _validate_demangling(gm, flat_name_to_original_fqn)
+    _validate_demangling(gm, name_map)
 
     return gm
 
