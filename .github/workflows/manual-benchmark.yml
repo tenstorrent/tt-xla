@@ -123,7 +123,7 @@ on:
         required: false
         type: string
         default: '[
-            "accuracy-testing": false,
+            { "accuracy-testing": false },
             { "runs-on": "n150", "filter": "resn" },
             { "runs-on": "llmbox", "accuracy-testing": true },
             { "runs-on": "galaxy" }
