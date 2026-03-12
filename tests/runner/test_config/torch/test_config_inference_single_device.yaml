@@ -216,7 +216,8 @@ test_config:
     status: EXPECTED_PASSING
 
   densenet/pytorch-121_Xray-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
+    # status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
 
   distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad-single_device-inference:
     status: EXPECTED_PASSING
@@ -2189,8 +2190,9 @@ test_config:
     markers: [large]
 
   detr/segmentation/pytorch-ResNet50_Backbone_Panoptic-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
   panoptic_segmentation/pytorch-ResNet101_Backbone_3x_COCO-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
