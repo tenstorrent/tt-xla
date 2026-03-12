@@ -18,7 +18,7 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
     This works around an XLA + FunctionalTensorMode incompatibility where inplace_view
     ops (aten.as_strided_ inside adaptive pooling) are re-executed under no_dispatch()
     for metadata fixup, causing dispatch to XLA's kernel on wrapper subclass tensors
-    that XLA can't handle. See docs/aot_autograd_xla_inplace_view_bug.md for details.
+    that XLA can't handle.
     """
     graph = gm.graph
     modified = False
