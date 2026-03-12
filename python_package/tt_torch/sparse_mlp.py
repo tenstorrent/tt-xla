@@ -317,6 +317,96 @@ class A2aSparseMLP(nn.Module):
         mapping = build_expert_mapping(num_experts, num_devices)
         self.register_buffer("expert_mapping", mapping)
 
+    @staticmethod
+    def _is_expert_signature_error(exc: TypeError) -> bool:
+        """Return True when TypeError is caused by forward signature mismatch."""
+        msg = str(exc)
+        signature_markers = (
+            "_forward_unimplemented",
+            "unexpected keyword argument",
+            "required positional argument",
+            "positional arguments but",
+        )
+        return any(marker in msg for marker in signature_markers)
+
+    def _forward_cpu_fused_experts(
+        self,
+        hidden_states: torch.Tensor,
+        router_scores: torch.Tensor,
+        router_indices: torch.Tensor,
+    ) -> torch.Tensor:
+        """CPU fallback using fused expert weights, independent of expert.forward API."""
+        required = ("gate_up_proj", "down_proj")
+        missing = [name for name in required if not hasattr(self.experts, name)]
+        if missing:
+            raise RuntimeError(
+                "A2aSparseMLP CPU fallback requires either experts.forward(hidden_states, "
+                "router_indices=..., routing_weights=...) or fused expert tensors "
+                f"{required}. Missing: {missing}"
+            )
+
+        batch_size, seq_len, hidden_size = hidden_states.shape
+        bs = batch_size * seq_len
+
+        flat_hidden = hidden_states.reshape(bs, hidden_size)
+        flat_indices = router_indices.reshape(bs, -1).to(torch.long)
+        flat_scores = router_scores.reshape(bs, -1)
+
+        # Handle both full score matrices [BS, E] and pre-gathered top-k [BS, K].
+        if flat_scores.shape[1] == flat_indices.shape[1]:
+            topk_weights = flat_scores
+        else:
+            topk_weights = torch.gather(flat_scores, dim=-1, index=flat_indices)
+
+        gate_up_weight = self.experts.gate_up_proj[flat_indices]  # [BS, K, H, 2I]
+        gate_up_out = torch.einsum("bh,bkhi->bki", flat_hidden, gate_up_weight)
+        if hasattr(self.experts, "gate_up_proj_bias"):
+            gate_up_out = gate_up_out + self.experts.gate_up_proj_bias[flat_indices]
+
+        activated = _moe_activation(
+            gate_up_out, self.activation_type, self.alpha, self.limit
+        )
+
+        down_weight = self.experts.down_proj[flat_indices]  # [BS, K, I, H]
+        down_out = torch.einsum("bki,bkih->bkh", activated, down_weight)
+        if hasattr(self.experts, "down_proj_bias"):
+            down_out = down_out + self.experts.down_proj_bias[flat_indices]
+
+        output = (down_out * topk_weights.to(down_out.dtype).unsqueeze(-1)).sum(dim=1)
+        return output.view(batch_size, seq_len, hidden_size).to(hidden_states.dtype)
+
+    def _forward_cpu_experts(
+        self,
+        hidden_states: torch.Tensor,
+        router_scores: torch.Tensor,
+        router_indices: torch.Tensor,
+    ) -> torch.Tensor:
+        """Run CPU experts with flexible API matching, then fallback to fused tensors."""
+        expert_call_patterns = (
+            lambda: self.experts(
+                hidden_states,
+                router_indices=router_indices,
+                routing_weights=router_scores,
+            ),
+            lambda: self.experts(hidden_states, router_indices, router_scores),
+        )
+
+        for call in expert_call_patterns:
+            try:
+                routed_out = call()
+                if isinstance(routed_out, tuple):
+                    routed_out = routed_out[0]
+                return routed_out
+            except NotImplementedError:
+                continue
+            except TypeError as exc:
+                if not self._is_expert_signature_error(exc):
+                    raise
+
+        return self._forward_cpu_fused_experts(
+            hidden_states, router_scores, router_indices
+        )
+
     def forward(self, hidden_states):
         batch_size, seq_len, hidden_size = hidden_states.shape
         K = self.num_experts_per_tok
@@ -329,10 +419,8 @@ class A2aSparseMLP(nn.Module):
         # expert implementation. The custom sparse custom-op path is intended
         # for XLA/TT execution and can materialize larger temporary tensors on CPU.
         if hidden_states.device.type == "cpu":
-            routed_out = self.experts(
-                hidden_states,
-                router_indices=router_indices,
-                routing_weights=router_scores,
+            routed_out = self._forward_cpu_experts(
+                hidden_states, router_scores, router_indices
             )
             return routed_out, router_scores
 
@@ -496,7 +584,7 @@ class A2aSparseMLP(nn.Module):
         if seq_len == 1:
             topk_weights = topk_weights.view(batch_size, K)
             topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)  # [K, B, 1]
-            output = (combined.squeeze(1) * topk_weights).sum(dim=0)  # [B, H]
+            output = (combined.squeeze(2) * topk_weights).sum(dim=0)  # [B, H]
             output = output.unsqueeze(1)  # [B, 1, H]
         else:
             topk_weights = topk_weights.view(batch_size, seq_len, K)
