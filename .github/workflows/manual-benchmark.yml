@@ -224,6 +224,11 @@ jobs:
         echo "matrix_llmbox_skip=$matrix_llmbox_skip" >> $GITHUB_OUTPUT
         echo "matrix_galaxy_skip=$matrix_galaxy_skip" >> $GITHUB_OUTPUT
 
+        echo "matrix_n150=$matrix_n150"
+        echo "matrix_p150=$matrix_p150"
+        echo "matrix_llmbox=$matrix_llmbox"
+        echo "matrix_galaxy=$matrix_galaxy"
+
         # Set up the summary for the job
         echo "### Perf benchmarks inputs" >> $GITHUB_STEP_SUMMARY
         echo "Test filter: ${{ inputs.test_filter }}" >> $GITHUB_STEP_SUMMARY
