@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+name: Builder Integration Test (call)
+
+# Reads tests/integrations/tt_mlir_builder/builder_tests.json to build the
+# test matrix. Each entry specifies which device to run on and the full
+# argument list to pass to run_test_op_by_op.py. For every entry the job:
+#   1. Builds tt-xla from source (Debug + Python bindings).
+#   2. Runs ttrt query --save-artifacts to capture device descriptors.
+#   3. Drives run_test_op_by_op.py with the given args, which serializes
+#      the MLIR and feeds it into load_split_and_execute.
+#
+# To add more builder tests, append entries to
+# .github/workflows/test-matrix-presets/builder-integration-tests.json.
+# Required fields:
+#   "runs-on"  – hardware runner (n150, wormhole_b0, n300, …)
+#   "name"     – short label used in job name and artifact filename
+#   "tests"    – list of test IDs / names passed as positional args
+# Optional fields (mirror run_test_op_by_op.py flags):
+#   "source"        – "llm" | "models"  (--source)
+#   "target"        – list of "stablehlo" | "ttir" | "ttnn"  (--target, repeatable)
+#   "artifacts-dir" – path to scan for MLIR files  (--artifacts-dir)
+#   "no-run"        – true to skip running tests, only collect existing files  (--no-run)
+#
+# Examples:
+#   { "runs-on": "n150",        "name": "test_add",   "tests": ["tests/torch/ops/test_add.py::test_add"] }
+#   { "runs-on": "wormhole_b0", "name": "llama_ttir", "tests": ["test_llama_3_2_1b"], "source": "llm", "target": ["ttir"] }
+#   { "runs-on": "n150",        "name": "resnet",     "tests": ["pytorch_resnet50-inference-single_device"], "source": "models" }
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for build and test'
+        required: true
+        type: string
+
+env:
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1 – read the JSON matrix from the repo
+  # ---------------------------------------------------------------------------
+  read-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.read.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read builder_tests.json
+        id: read
+        shell: bash
+        run: |
+          matrix=$(jq -c '.' .github/workflows/test-matrix-presets/builder-integration-tests.json)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Loaded matrix:"
+          echo "$matrix" | jq '.'
+
+  # ---------------------------------------------------------------------------
+  # Job 2 – one job per matrix entry, running on the device it specifies
+  # ---------------------------------------------------------------------------
+  run-test:
+    needs: read-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.read-matrix.outputs.matrix) }}
+
+    timeout-minutes: 180
+    runs-on: ["${{ matrix.build.runs-on }}", "in-service"]
+
+    # Keep job name in sync with the fetch-job-id step below
+    name: "builder ${{ matrix.build.name }} (${{ matrix.build.runs-on }}, ${{ strategy.job-index }})"
+
+    container:
+      image: ${{ inputs.docker_image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          repository: 'tenstorrent/tt-xla'
+
+      - name: Fetch job ID
+        id: fetch-job-id
+        uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+        with:
+          job_name: "builder ${{ matrix.build.name }} (${{ matrix.build.runs-on }}, ${{ strategy.job-index }})"
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+          echo "test-log=builder-integration-${{ matrix.build.name }}-${{ steps.fetch-job-id.outputs.job_id }}.log" >> "$GITHUB_OUTPUT"
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+          key: "builder-integration-debug-${{ matrix.build.runs-on }}"
+
+      - name: Build with CMake (debug + Python bindings)
+        shell: bash
+        run: |
+          source venv/activate
+          cmake -G Ninja -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+          cmake --build ${{ steps.strings.outputs.build-output-dir }}
+
+      - name: Query TT hardware and save device artifacts
+        shell: bash
+        run: |
+          source venv/activate
+          ttrt query --save-artifacts
+
+      - name: Run builder integration test
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HOME: /mnt/dockercache/huggingface
+        shell: bash
+        run: |
+          source venv/activate
+
+          # Build the argument list from explicit JSON fields.
+          # Positional test IDs come first, then any optional flags.
+          mapfile -t CMD < <(echo '${{ toJson(matrix.build.tests) }}' | jq -r '.[]')
+
+          # --source (optional)
+          source_val=$(echo '${{ toJson(matrix.build) }}' | jq -r '.source // empty')
+          [[ -n "$source_val" ]] && CMD+=(--source "$source_val")
+
+          # --target (optional, repeatable list)
+          mapfile -t targets < <(echo '${{ toJson(matrix.build) }}' | jq -r '.target[]? // empty')
+          for t in "${targets[@]}"; do CMD+=(--target "$t"); done
+
+          # --artifacts-dir (optional)
+          artifacts_dir=$(echo '${{ toJson(matrix.build) }}' | jq -r '."artifacts-dir" // empty')
+          [[ -n "$artifacts_dir" ]] && CMD+=(--artifacts-dir "$artifacts_dir")
+
+          # --no-run (optional boolean)
+          no_run=$(echo '${{ toJson(matrix.build) }}' | jq -r '."no-run" // false')
+          [[ "$no_run" == "true" ]] && CMD+=(--no-run)
+
+          echo "Running: python tests/integrations/tt_mlir_builder/run_test_op_by_op.py ${CMD[*]}"
+          python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
+            "${CMD[@]}" \
+            2>&1 | tee ${{ steps.strings.outputs.test-log }}
+          exit "${PIPESTATUS[0]}"
+
+      - name: Upload test log
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-integration-log-${{ matrix.build.runs-on }}-${{ matrix.build.name }}-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+          path: ${{ steps.strings.outputs.test-log }}
