@@ -61,11 +61,11 @@ jobs:
         with:
           python-version: 3.12
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Download wheels
         shell: bash
