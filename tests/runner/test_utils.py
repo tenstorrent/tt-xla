@@ -31,6 +31,11 @@ from third_party.tt_forge_models.config import Parallelism
 
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
+import subprocess
+from pathlib import Path
+
+from ttxla_tools.logging import logger
+
 
 # Optional hint that selects a non-default execution/input-loading phase.
 # Today this is only used to distinguish LLM prefill vs decode; in the future it may
@@ -880,3 +885,40 @@ def create_benchmark_result(
         with open(output_path, "w") as file:
             json.dump(benchmark_results, file, indent=2)
             print(f"Benchmark results saved to {output_path}")
+
+
+def get_commit(repo_path):
+    repo_path = Path(repo_path).resolve()
+    if not repo_path.is_dir():
+        return "N/A (path not present)"
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=os.fspath(repo_path),
+            text=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        return "Not a git repository"
+
+
+def log_commit_hashes(repo_path):
+    repo_path = Path(repo_path)
+    logger.debug("tt-xla commit: {}", get_commit(repo_path))
+    logger.debug(
+        "tt-mlir commit: {}",
+        get_commit(repo_path / "third_party" / "tt-mlir" / "src" / "tt-mlir"),
+    )
+    logger.debug(
+        "tt-metal commit: {}",
+        get_commit(
+            repo_path
+            / "third_party"
+            / "tt-mlir"
+            / "src"
+            / "tt-mlir"
+            / "third_party"
+            / "tt-metal"
+            / "src"
+            / "tt-metal"
+        ),
+    )
