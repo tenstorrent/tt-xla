@@ -279,6 +279,18 @@ test_config:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
 
+  mixtral/causal_lm/bounty_jax-Custom_1x2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  mixtral/causal_lm/bounty_jax-Custom_1x4-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  mixtral/causal_lm/bounty_jax-Custom_1x8-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   phi1/causal_lm/jax-Phi_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
