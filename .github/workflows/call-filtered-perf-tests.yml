@@ -79,7 +79,7 @@ jobs:
           ${{ inputs.sh-runner && '--sh-runner' || '' }})
 
         echo $result
-        matrix=$(echo $result | jq -r -c '.')
+        matrix=$(echo $result | jq -r -c '.matrix')
         echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   run-perf-benchmarks:
