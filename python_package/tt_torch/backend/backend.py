@@ -113,9 +113,7 @@ def _classify_from_module_state(
                     input_type_map[node.target] = "input"
                 else:
                     input_type_map[node.target] = "constant"
-            name_map[node.target] = _demangle_name(
-                node.target, normalized_fqn_lookup
-            )
+            name_map[node.target] = _demangle_name(node.target, normalized_fqn_lookup)
         elif node.op == "placeholder":
             input_type_map[node.name] = "input"
             name_map[node.name] = _demangle_name(node.name, normalized_fqn_lookup)
@@ -139,9 +137,7 @@ def _lift_get_attr_to_placeholders(
         return gm, ()
 
     # Find insertion point: before the first existing placeholder.
-    first_placeholder = next(
-        (n for n in gm.graph.nodes if n.op == "placeholder"), None
-    )
+    first_placeholder = next((n for n in gm.graph.nodes if n.op == "placeholder"), None)
 
     tensors: list[torch.Tensor] = []
     for ga_node in get_attr_nodes:
@@ -222,9 +218,7 @@ def torch_pass_pipeline(
         # a reverse mapping in GraphModule.meta so we can recover the original
         # names for MLIR argument names (ttir.name).
         # Grab this before make_fx, as it creates a fresh GraphModule.
-        flat_name_to_original_fqn = gm.meta.get(
-            "dynamo_flat_name_to_original_fqn", {}
-        )
+        flat_name_to_original_fqn = gm.meta.get("dynamo_flat_name_to_original_fqn", {})
 
         # Re-trace the graph module with decompositions applied.
         # Dynamo provides real tensors as example_inputs, so tracing_mode="real"
@@ -233,10 +227,8 @@ def torch_pass_pipeline(
             gm, decomposition_table=decompositions, tracing_mode="real"
         )(*example_inputs)
 
-        input_type_map, name_map, has_output_mutations = (
-            _classify_from_module_state(
-                compiled_graph, flat_name_to_original_fqn
-            )
+        input_type_map, name_map, has_output_mutations = _classify_from_module_state(
+            compiled_graph, flat_name_to_original_fqn
         )
 
     compiled_graph = insert_argument_type_markers(
