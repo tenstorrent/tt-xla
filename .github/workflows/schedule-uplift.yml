@@ -21,7 +21,7 @@ jobs:
       TT_MLIR_SUBMODULE_PATH: third_party/tt-mlir
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           fetch-depth: 0

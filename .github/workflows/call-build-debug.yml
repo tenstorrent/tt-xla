@@ -18,7 +18,7 @@ jobs:
     runs-on: tt-ubuntu-2204-large-stable
     name: "Build tt-xla (debug)"
     container:
-      image: ${{ inputs.docker_image }}
+      image: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker_image }}
 
     steps:
       - name: Mark repo as safe for git
@@ -28,7 +28,7 @@ jobs:
             git config --global --add safe.directory /__w/tt-xla/tt-xla
             git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'

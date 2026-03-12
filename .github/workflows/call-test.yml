@@ -11,18 +11,15 @@ on:
         description: 'Run ID of the artifacts (release)'
         required: true
         type: string
-      wheel_release_artifact_name:
-        description: 'Name of the wheel artifact (release)'
-        required: true
-        type: string
-      wheel_release_vllm_tt_artifact_name:
-        description: 'Name of the wheel artifact (release vllm-tt)'
+      artifact_suffix:
+        description: 'Suffix for the artifact name'
         required: false
         type: string
-      alchemist_artifact_name:
-        description: 'Name of the alchemist library artifact'
+      wheel_build:
+        description: 'Build to use for testing, e.g. release, manylinux'
         required: false
         type: string
+        default: release
       test_suite:
         description: 'Test suite preset options or custom'
         required: true
@@ -95,7 +92,7 @@ jobs:
           echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
         fi
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: recursive
         sparse-checkout: |
@@ -127,9 +124,16 @@ jobs:
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
         echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
-        echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
-        echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
-        echo "alchemist_artifact_name=${{ inputs.alchemist_artifact_name }}" >> "$GITHUB_OUTPUT"
+        # Override wheel_build to release if matrix.build.require is 'release' or 'alchemist'
+        if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" ]]; then
+          echo "wheel_build=release" >> "$GITHUB_OUTPUT"
+        else
+          echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
+        fi
+        echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
+        echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        echo "wheel_release_vllm_tt_artifact_name=vllm-tt-whl-release${{inputs.artifact_suffix}}" >> "$GITHUB_OUTPUT"
+        echo "alchemist_artifact_name=alchemist-lib-release${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
         echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
 
         # Precompute forge models detection as a reusable output
@@ -165,6 +169,7 @@ jobs:
         uv pip install wheels/*.whl
 
     - name: Download and setup alchemist library
+      if: ${{ matrix.build.require == 'alchemist' }}
       shell: bash
       run: |
         if [[ -n "${{ steps.strings.outputs.alchemist_artifact_name }}" ]]; then
@@ -386,7 +391,7 @@ jobs:
     needs: [ generate-matrix-test, run-tests ]
     if: success() || failure()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Process test summary
         continue-on-error: true
         shell: bash
