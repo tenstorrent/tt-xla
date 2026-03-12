@@ -182,8 +182,7 @@ jobs:
 
         result=$(python .github/scripts/filter-test-matrix.py \
           .github/workflows/perf-bench-matrix.json \
-          tt-xla \
-          ${{ inputs.test_filter && format('--test-filter "{0}"', inputs.test_filter) || '' }} \
+          /tmp/adv_filter.json \
           ${{ inputs.sh-runner && '--sh-runner' || '' }})
 
         matrix=$(echo $result | jq -r -c '.matrix')
