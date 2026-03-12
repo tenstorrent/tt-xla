@@ -37,15 +37,13 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
       build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
 
-  test:
-    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
-    uses: ./.github/workflows/call-test.yml
-    needs: [ build-image, build-ttxla ]
+  release:
+    uses: ./.github/workflows/call-release.yml
+    needs: [ build-ttxla ]
     secrets: inherit
     with:
-      test_suite: ${{ inputs.test_suite }}
-      test_suite_custom: ${{ inputs.test_suite_custom }}
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_release_artifact_name: xla-whl-manylinux${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_release_vllm_tt_artifact_name: vllm-tt-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      is_nightly_release: true
+      xla_sha_override: ${{ inputs.xla_sha_override }}
