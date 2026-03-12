@@ -22,9 +22,13 @@ from datasets import load_dataset
 from torchvision import transforms
 import torchvision.models as models
 from torchvision.models.detection.anchor_utils import DefaultBoxGenerator
+from torchvision.models.detection.ssd import SSD
 from ...ssd300_vgg16.pytorch.src.utils import (
     patched_grid_default_boxes,
     patched_forward,
+)
+from ...ssdlite320_mobilenetv3.pytorch.src.utils import (
+    patched_SSD_forward,
 )
 
 
@@ -54,6 +58,8 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
+        self.image_sizes = (320, 320)
+        self.original_image_sizes = (320, 320)
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -92,6 +98,7 @@ class ModelLoader(ForgeModel):
         # instead of defaulting to CPU - https://github.com/tenstorrent/tt-xla/issues/3335
         DefaultBoxGenerator._grid_default_boxes = patched_grid_default_boxes
         DefaultBoxGenerator.forward = patched_forward
+        SSD.forward = patched_SSD_forward
 
         # Get the pretrained model name from the instance's variant config
         model_name = self._variant_config.pretrained_model_name
@@ -100,16 +107,17 @@ class ModelLoader(ForgeModel):
         if model_name == "ssdlite320_mobilenet_v3_large":
             weights = models.detection.SSDLite320_MobileNet_V3_Large_Weights.DEFAULT
             model = models.detection.ssdlite320_mobilenet_v3_large(weights=weights)
+            self.model = model
         else:
             raise ValueError(f"Unsupported model variant: {model_name}")
 
-        model.eval()
+        self.model.eval()
 
         if dtype_override is not None:
             print("NOTE: dtype_override ignored - batched_nms lacks BFloat16 support")
         #     model = model.to(dtype_override)
 
-        return model
+        return self.model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the SSDLite320 MobileNetV3 model with this instance's variant settings.
@@ -146,3 +154,13 @@ class ModelLoader(ForgeModel):
             # inputs = inputs.to(dtype_override)
 
         return inputs
+
+    def postprocess_detections(self, outputs):
+        head_outputs, anchors = outputs
+        detections = self.model.postprocess_detections(
+            head_outputs, anchors, [self.image_sizes]
+        )
+        detections = self.model.transform.postprocess(
+            detections, [self.image_sizes], [self.original_image_sizes]
+        )
+        return detections
