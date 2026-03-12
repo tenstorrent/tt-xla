@@ -28,7 +28,7 @@ jobs:
             git config --global --add safe.directory /__w/tt-xla/tt-xla
             git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'

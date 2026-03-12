@@ -31,7 +31,7 @@ jobs:
       test-matrix-hash: ${{ steps.generate-test-matrix.outputs.test-matrix-hash }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Create temp file if string test_suite
         shell: bash
