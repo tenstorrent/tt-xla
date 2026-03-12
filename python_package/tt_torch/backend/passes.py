@@ -4,7 +4,6 @@
 import re
 
 import torch
-from torch.export.graph_signature import InputKind, OutputKind
 from tt_torch import composite_ops
 from tt_torch.fusion_providers import FusionProvider
 from ttxla_tools.logging import logger
@@ -103,60 +102,6 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
                 composite_ops.replacements[module_type](gm, node, module)
 
     gm.graph.lint()
-
-
-def build_classification_from_signature(
-    graph_signature,
-    flat_name_to_original_fqn: dict,
-) -> tuple[dict[str, str], dict[str, str], bool]:
-    """Build input classification from torch.export graph signature.
-
-    Returns:
-        input_type_map: maps node key (target for get_attr, name for placeholder) to
-                        argument type ("input", "parameter", or "constant").
-        name_map: maps the same node keys to clean (demangled) names.
-        has_output_mutations: True if any output is not a USER_OUTPUT.
-    """
-    normalized_fqn_lookup = _build_normalized_fqn_lookup(flat_name_to_original_fqn)
-
-    input_type_map = {}
-    name_map = {}
-
-    # Detect mutated buffers from output specs.
-    mutated_buffer_targets = set()
-    has_output_mutations = False
-    for out_spec in graph_signature.output_specs:
-        if out_spec.kind == OutputKind.BUFFER_MUTATION:
-            mutated_buffer_targets.add(out_spec.target)
-        if out_spec.kind != OutputKind.USER_OUTPUT:
-            has_output_mutations = True
-
-    for in_spec in graph_signature.input_specs:
-        if in_spec.kind == InputKind.USER_INPUT:
-            type_str = "input"
-        # We do not model these argument types in tt-mlir. To avoid graph transformations that would
-        # impact how these inputs are handled (i.e. consteval), we will mark them as "input".
-        elif in_spec.kind in [InputKind.TOKEN, InputKind.CUSTOM_OBJ]:
-            type_str = "input"
-        elif in_spec.kind == InputKind.PARAMETER:
-            type_str = "parameter"
-        elif in_spec.kind == InputKind.CONSTANT_TENSOR:
-            type_str = "constant"
-        # If a buffer is mutated, we do not want to hoist the argument into a consteval graph.
-        # This is because the argument will be mutated in place, and we do not want to use the cached
-        # version of the input from the first iteration of the graph. If it is not mutated then we can
-        # mark it as a constant.
-        elif in_spec.kind == InputKind.BUFFER:
-            type_str = "input" if in_spec.target in mutated_buffer_targets else "constant"
-        else:
-            assert False, f"Unexpected input kind: {in_spec.kind}"
-
-        # get_attr nodes have a target, placeholder nodes have arg.name
-        key = in_spec.target if in_spec.target is not None else in_spec.arg.name
-        input_type_map[key] = type_str
-        name_map[key] = _demangle_name(key, normalized_fqn_lookup)
-
-    return input_type_map, name_map, has_output_mutations
 
 
 def insert_argument_type_markers(

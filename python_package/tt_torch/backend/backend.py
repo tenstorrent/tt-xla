@@ -5,7 +5,6 @@ import os
 from typing import Tuple
 
 import torch
-import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 import torch_xla.runtime as xr
@@ -13,8 +12,8 @@ from functorch.compile import make_boxed_func
 from torch._decomp import get_decompositions as get_aten_decompositions
 from torch._dynamo import register_backend
 from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
-from torch.export import ExportedProgram
-from torch.export.graph_signature import InputKind
+from torch._guards import detect_fake_mode
+from torch.fx.experimental.proxy_tensor import make_fx
 from torch.fx.passes.tools_common import legalize_graph
 from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
@@ -26,7 +25,8 @@ from .metadata_propagation import (
     extract_nodes_info,
 )
 from .passes import (
-    build_classification_from_signature,
+    _build_normalized_fqn_lookup,
+    _demangle_name,
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
@@ -75,6 +75,96 @@ def _classify_inputs_for_aot(
     return input_type_map, name_map
 
 
+def _classify_from_module_state(
+    gm: torch.fx.GraphModule,
+    flat_name_to_original_fqn: dict[str, str],
+) -> tuple[dict[str, str], dict[str, str], bool]:
+    """Classify inputs from module state for the non-AOTAutograd path.
+
+    In this path the module still has its parameters and buffers as
+    attributes (get_attr nodes). Placeholders are user inputs.
+    """
+    normalized_fqn_lookup = _build_normalized_fqn_lookup(flat_name_to_original_fqn)
+    params = dict(gm.named_parameters())
+    buffers = dict(gm.named_buffers())
+
+    # Detect mutated buffers: look for copy_ ops whose destination is a buffer.
+    mutated_buffers: set[str] = set()
+    for node in gm.graph.nodes:
+        if (
+            node.op == "call_function"
+            and node.target == torch.ops.aten.copy_.default
+            and node.args
+        ):
+            dest = node.args[0]
+            if dest.op == "get_attr" and dest.target in buffers:
+                mutated_buffers.add(dest.target)
+
+    has_output_mutations = bool(mutated_buffers)
+
+    input_type_map: dict[str, str] = {}
+    name_map: dict[str, str] = {}
+
+    for node in gm.graph.nodes:
+        if node.op == "get_attr":
+            if node.target in params:
+                input_type_map[node.target] = "parameter"
+            elif node.target in buffers:
+                if node.target in mutated_buffers:
+                    input_type_map[node.target] = "input"
+                else:
+                    input_type_map[node.target] = "constant"
+            name_map[node.target] = _demangle_name(
+                node.target, normalized_fqn_lookup
+            )
+        elif node.op == "placeholder":
+            input_type_map[node.name] = "input"
+            name_map[node.name] = _demangle_name(node.name, normalized_fqn_lookup)
+
+    return input_type_map, name_map, has_output_mutations
+
+
+def _lift_get_attr_to_placeholders(
+    gm: torch.fx.GraphModule,
+) -> tuple[torch.fx.GraphModule, tuple[torch.Tensor, ...]]:
+    """Lift get_attr (parameter/buffer) nodes to placeholder inputs.
+
+    Modifies *gm* in-place.  New placeholders are prepended before existing
+    ones so the calling convention becomes ``(params..., user_inputs...)``.
+
+    Returns the tuple of real tensors that correspond to the new placeholders,
+    in the same order.
+    """
+    get_attr_nodes = gm.graph.find_nodes(op="get_attr")
+    if not get_attr_nodes:
+        return gm, ()
+
+    # Find insertion point: before the first existing placeholder.
+    first_placeholder = next(
+        (n for n in gm.graph.nodes if n.op == "placeholder"), None
+    )
+
+    tensors: list[torch.Tensor] = []
+    for ga_node in get_attr_nodes:
+        tensor = getattr(gm, ga_node.target)
+        if tensor.device.type != "xla":
+            logger.warning(
+                f"Lifting non-XLA tensor to placeholder: {ga_node.target}. "
+                "Force moving to XLA."
+            )
+            tensor = tensor.to(torch.device("xla"))
+        tensors.append(tensor)
+
+        with gm.graph.inserting_before(first_placeholder):
+            new_ph = gm.graph.placeholder(f"lifted_{ga_node.target}")
+
+        ga_node.replace_all_uses_with(new_ph)
+        gm.graph.erase_node(ga_node)
+
+    gm.recompile()
+    return gm, tuple(tensors)
+
+
 # This function runs a series of passes on a torch GraphModule.
 # The passes here may be necessary (depending on the model) to
 # convert a GraphModule into a form which tt-mlir can compile/execute.
@@ -93,8 +183,8 @@ def torch_pass_pipeline(
         input_classification: Pre-built (input_type_map, name_map, has_output_mutations)
             tuple. When provided (AOTAutograd path), decompositions are skipped
             (assumed to have been applied by AOTAutograd already). When None
-            (non-AOT path), torch.export is used to apply decompositions and
-            build the classification from its graph signature.
+            (non-AOT path), make_fx is used to apply decompositions and
+            inputs are classified from the module's parameter/buffer state.
 
     Returns:
         (compiled_graph, has_output_mutations, node_info)
@@ -123,29 +213,46 @@ def torch_pass_pipeline(
         compiled_graph = gm
         input_type_map, name_map, has_output_mutations = input_classification
     else:
-        # Non-AOTAutograd path: use torch.export for decompositions and to
-        # derive the input classification from the export graph signature.
+        # Non-AOTAutograd path: apply decompositions via make_fx and classify
+        # inputs from the module's own parameter/buffer state.
         decompositions = populate_decompositions()
 
-        program = torch.export.export(
-            gm,
-            tuple(example_inputs),
-            strict=False,
-        )
-        program = program.run_decompositions(decompositions)
-
-        compiled_graph = program.module()
         # When torch.compile traces a model, it flattens the module hierarchy
         # and mangles parameter names (e.g., "model.layers.0.weight" becomes
         # something like "L__self___model_layers___0___weight"). Dynamo stores
         # a reverse mapping in GraphModule.meta so we can recover the original
         # names for MLIR argument names (ttir.name).
-        flat_name_to_original_fqn = compiled_graph.meta.get(
+        # Grab this before make_fx, as it creates a fresh GraphModule.
+        flat_name_to_original_fqn = gm.meta.get(
             "dynamo_flat_name_to_original_fqn", {}
         )
+
+        # Re-trace the graph module with decompositions applied.  Detect the
+        # existing FakeTensorMode from dynamo's example_inputs so that we
+        # re-use it instead of creating a conflicting one.
+        fake_mode = detect_fake_mode(example_inputs)
+        if fake_mode is not None:
+            compiled_graph = make_fx(
+                gm, decomposition_table=decompositions
+            )(*example_inputs)
+        else:
+            compiled_graph = make_fx(
+                gm, decomposition_table=decompositions, tracing_mode="fake"
+            )(*example_inputs)
+
+        # make_fx may replace real parameters with FakeTensors; restore them.
+        for name in list(compiled_graph._parameters):
+            real = gm._parameters.get(name)
+            if real is not None:
+                compiled_graph._parameters[name] = real
+        for name in list(compiled_graph._buffers):
+            real = gm._buffers.get(name)
+            if real is not None:
+                compiled_graph._buffers[name] = real
+
         input_type_map, name_map, has_output_mutations = (
-            build_classification_from_signature(
-                program.graph_signature, flat_name_to_original_fqn
+            _classify_from_module_state(
+                compiled_graph, flat_name_to_original_fqn
             )
         )
 
@@ -224,46 +331,6 @@ class XLAExecutor:
         self.params_and_consts = None
         self.compiled_graph = None
 
-    # Extract the param and consts from the exported program.
-    def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
-        sig = ep.graph_signature
-
-        # Export keeps a state dict for lifted params/buffers and a const dict for lifted constants.
-        state = ep.state_dict
-        constants = ep.constants
-
-        # Map from placeholder name -> tensor.
-        total_args = tuple()
-        encountered_user_input = False
-        for spec in sig.input_specs:
-            # Kinds: CUSTOM_OBJ and TOKEN haven't been tested.
-            # USER_INPUT will not exist in state_dict, it is passed in from the outside.
-            if spec.kind == InputKind.USER_INPUT:
-                encountered_user_input = True
-                continue
-
-            assert (
-                not encountered_user_input
-            ), "We expect user inputs to be last in the list of inputs."
-
-            assert spec.target is not None, f"Spec target is None for spec {spec}"
-            if spec.kind == InputKind.CONSTANT_TENSOR:
-                arg = constants[spec.target]
-            else:
-                arg = state[spec.target]  # Handles: PARAMETER, BUFFER
-            if arg.device.type != "xla":
-                if spec.kind != InputKind.CONSTANT_TENSOR:
-                    logger.warning(
-                        f"Found an argument on non-XLA device which was not a lifted constant: {spec.target}. "
-                        "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
-                    )
-                arg = arg.to(
-                    torch.device("xla")
-                )  # Maybe it makes sense to modify the ep to avoid multiple moves of constants?
-            total_args += (arg,)
-
-        return total_args
-
     def _call_experimental_compile(self, *args):
         # Move any CPU tensors in args to XLA. Some model attributes (e.g.
         # detection grid tensors in YOLOP) are not registered buffers, so
@@ -280,27 +347,24 @@ class XLAExecutor:
             moved_args.append(arg)
         args = tuple(moved_args)
         if self.compiled_graph is None:
-            # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
-            # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
-            program = torch.export.export(self.module, tuple(args), strict=False)
+            # bridge.extract_compiled_graph needs all inputs (params + user)
+            # as placeholders in the graph and as a flat tensor tuple.
+            # Lift any remaining get_attr nodes (params/buffers) to
+            # placeholders so they become part of the flat input list.
+            self.module, self.params_and_consts = _lift_get_attr_to_placeholders(
+                self.module
+            )
 
-            # we observe that nodes in the fx graph can have inconsistent prev/next pointers.
-            # specifically, after invoking `torch.export.export` as part of torch_pass_pipeline,
-            # we observed in one case that a "placeholder=target['c_lifted_tensor_1']" node has it's successor set to "get_attr=target['_tensor_constant0']"
-            # a node which doesn't appear at all when interating over the fx graph directly(and whose successor is the real successor of the node as per the fx graph)
-            # Calling legalize_graph rebuilds the graph in topological order(from usage information), and fixes up the prev/next pointers in the process - which fixes our issue.
-            # All this is a problem because DynamoBridge Partitioner can get confused by wrong next nodes and partition the graph in a way which fails to execute.
-            legalize_graph(program.graph_module)
-
-            # Collect the params and constants from the exported program.
-            self.params_and_consts = self._build_params_and_consts(program)
+            # Rebuild the graph in topological order to fix up prev/next
+            # pointers that can confuse the DynamoBridge Partitioner.
+            legalize_graph(self.module)
 
             # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
             # This helps us avoid tracing the graph on the subsequent model execution. On the next
             # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
             # without any tracing.
             self.compiled_graph = bridge.extract_compiled_graph(
-                program.graph_module, self.params_and_consts + args
+                self.module, self.params_and_consts + args
             )
 
         full_args = self.params_and_consts + args
