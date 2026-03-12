@@ -51,8 +51,8 @@ jobs:
           tag="${{ inputs.release_tag }}"
           commit="${{ inputs.xla_sha_override }}"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # git config user.name "github-actions[bot]"
+          # git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           if git ls-remote --tags origin "refs/tags/$tag" | grep -q "$tag"; then
             echo "Remote tag $tag already exists"
