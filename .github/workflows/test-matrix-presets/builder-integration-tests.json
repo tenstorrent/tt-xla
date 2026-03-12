@@ -1,0 +1,7 @@
+[
+  {
+    "runs-on": "n150",
+    "name": "test_add",
+    "tests": ["tests/torch/ops/test_add.py::test_add"]
+  }
+]
