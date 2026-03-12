@@ -92,7 +92,7 @@ jobs:
           echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
         fi
 
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
         sparse-checkout: |
@@ -391,7 +391,7 @@ jobs:
     needs: [ generate-matrix-test, run-tests ]
     if: success() || failure()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
       - name: Process test summary
         continue-on-error: true
         shell: bash
