@@ -462,7 +462,7 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
   std::cout << "[FABRIC CONFIG] computeFabricConfig - mesh_shape: ["
             << shape_str << "]" << std::endl;
 
-  // Distributed uses FABRIC_2D (overridden from FABRIC_1D).
+  // Distributed uses FABRIC_1D (overridden from FABRIC_1D).
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
 
@@ -478,28 +478,28 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
       num_devices *= dim;
     }
     tt::runtime::FabricConfig global =
-        num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_2D
+        num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
                         : tt::runtime::FabricConfig::DISABLED;
 
     std::cout << "[FABRIC CONFIG] DISTRIBUTED MODE: num_devices=" << num_devices
               << ", fabric_config=" << tt::runtime::flatbuffer::EnumNameFabricConfig(global)
-              << " (OVERRIDDEN to FABRIC_2D, NOT using tt::runtime::computeMeshFabricConfig)"
+              << " (OVERRIDDEN to FABRIC_1D, NOT using tt::runtime::computeMeshFabricConfig)"
               << std::endl;
 
     return tt::runtime::MeshFabricConfig{global, {}};
   }
 
   // Non-distributed mode: log that we're NOT using the runtime computation
-  std::cout << "[FABRIC CONFIG] NON-DISTRIBUTED MODE: OVERRIDING to use FABRIC_2D "
+  std::cout << "[FABRIC CONFIG] NON-DISTRIBUTED MODE: OVERRIDING to use FABRIC_1D "
             << "instead of tt::runtime::computeMeshFabricConfig" << std::endl;
 
-  // Override: Always use FABRIC_2D for multi-device, DISABLED for single device
+  // Override: Always use FABRIC_1D for multi-device, DISABLED for single device
   uint32_t num_devices = 1;
   for (auto dim : mesh_shape) {
     num_devices *= dim;
   }
   tt::runtime::FabricConfig global =
-      num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_2D
+      num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
                       : tt::runtime::FabricConfig::DISABLED;
 
   std::cout << "[FABRIC CONFIG] OVERRIDE RESULT: num_devices=" << num_devices
