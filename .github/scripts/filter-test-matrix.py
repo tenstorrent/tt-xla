@@ -133,7 +133,7 @@ def main():
             adv_filter = json.load(f)
 
         matrix = flatten_matrix(data)
-        filtered = filter_matrix_adv(matrix, args.project_filter, adv_filter)
+        filtered = filter_matrix_adv(matrix, adv_filter)
         print("Filtered matrix:")
         print(json.dumps(filtered, indent=2))
 
