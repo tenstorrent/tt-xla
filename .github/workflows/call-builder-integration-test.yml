@@ -3,13 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 name: Builder Integration Test (call)
 
-# Reads tests/integrations/tt_mlir_builder/builder_tests.json to build the
-# test matrix. Each entry specifies which device to run on and the full
-# argument list to pass to run_test_op_by_op.py. For every entry the job:
-#   1. Builds tt-xla from source (Debug + Python bindings).
-#   2. Runs ttrt query --save-artifacts to capture device descriptors.
-#   3. Drives run_test_op_by_op.py with the given args, which serializes
-#      the MLIR and feeds it into load_split_and_execute.
+# Three-job pipeline:
+#   read-matrix  – reads .github/workflows/test-matrix-presets/builder-integration-tests.json
+#   build        – builds tt-xla once (Debug + Python bindings) on a large CPU runner,
+#                  uploads the build directory as a shared artifact
+#   run-test     – matrix of hardware jobs; each downloads the shared build,
+#                  runs ttrt query --save-artifacts, then drives run_test_op_by_op.py
+#
+# read-matrix and build run in parallel; run-test waits for both.
 #
 # To add more builder tests, append entries to
 # .github/workflows/test-matrix-presets/builder-integration-tests.json.
@@ -43,7 +44,7 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1 – read the JSON matrix from the repo
+  # Job 1a – read the JSON matrix from the repo (runs in parallel with build)
   # ---------------------------------------------------------------------------
   read-matrix:
     runs-on: ubuntu-latest
@@ -52,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read builder_tests.json
+      - name: Read builder-integration-tests.json
         id: read
         shell: bash
         run: |
@@ -62,16 +63,63 @@ jobs:
           echo "$matrix" | jq '.'
 
   # ---------------------------------------------------------------------------
+  # Job 1b – build once on a large CPU runner (runs in parallel with read-matrix)
+  # ---------------------------------------------------------------------------
+  build:
+    timeout-minutes: 120
+    runs-on: tt-ubuntu-2204-large-stable
+    name: "Build tt-xla (builder integration)"
+
+    container:
+      image: ${{ inputs.docker_image }}
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          repository: 'tenstorrent/tt-xla'
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+          key: "builder-integration-debug"
+
+      - name: Build with CMake (debug + Python bindings)
+        shell: bash
+        run: |
+          source venv/activate
+          cmake -G Ninja -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+          cmake --build build
+
+      - name: Archive build directory
+        shell: bash
+        run: tar -czf builder-integration-build.tar.gz build/
+
+      - name: Upload build archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-integration-build-${{ github.run_id }}
+          path: builder-integration-build.tar.gz
+
+  # ---------------------------------------------------------------------------
   # Job 2 – one job per matrix entry, running on the device it specifies
   # ---------------------------------------------------------------------------
   run-test:
-    needs: read-matrix
+    needs: [read-matrix, build]
     strategy:
       fail-fast: false
       matrix:
         build: ${{ fromJson(needs.read-matrix.outputs.matrix) }}
 
-    timeout-minutes: 180
+    timeout-minutes: 60
     runs-on: ["${{ matrix.build.runs-on }}", "in-service"]
 
     # Keep job name in sync with the fetch-job-id step below
@@ -109,23 +157,16 @@ jobs:
         id: strings
         shell: bash
         run: |
-          echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
           echo "test-log=builder-integration-${{ matrix.build.name }}-${{ steps.fetch-job-id.outputs.job_id }}.log" >> "$GITHUB_OUTPUT"
 
-      - name: ccache
-        uses: hendrikmuhs/ccache-action@v1.2
+      - name: Download build archive
+        uses: actions/download-artifact@v4
         with:
-          create-symlink: true
-          key: "builder-integration-debug-${{ matrix.build.runs-on }}"
+          name: builder-integration-build-${{ github.run_id }}
 
-      - name: Build with CMake (debug + Python bindings)
+      - name: Extract build archive
         shell: bash
-        run: |
-          source venv/activate
-          cmake -G Ninja -B build \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
-          cmake --build ${{ steps.strings.outputs.build-output-dir }}
+        run: tar -xzf builder-integration-build.tar.gz
 
       - name: Query TT hardware and save device artifacts
         shell: bash
