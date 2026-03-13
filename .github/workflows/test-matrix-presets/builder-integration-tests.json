@@ -3,5 +3,16 @@
     "runs-on": "n150",
     "name": "test_add",
     "tests": ["tests/torch/ops/test_add.py::test_add"]
+  },
+  {
+    "runs-on": "p150",
+    "name": "test_add",
+    "tests": ["tests/torch/ops/test_add.py::test_add"]
+  },
+  { "runs-on": "n150",
+    "name": "llama_ttir",
+    "tests": ["test_llama_3_2_1b"],
+    "source": "llm",
+    "target": ["ttir"]
   }
 ]
