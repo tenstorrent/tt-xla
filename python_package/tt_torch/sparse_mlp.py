@@ -310,13 +310,20 @@ class A2aSparseMLP(nn.Module):
         # 3. Dispatch: route tokens to devices along cluster_axis
         # BD = B * dispatch_devices (devices along the dispatch axis)
         effective_dispatch = self.dispatch_devices
-        dispatched, metadata = torch.ops.tt.all_to_all_dispatch(
-            x,
-            expert_indices,
-            self.expert_mapping,
-            num_devices=effective_dispatch,
-            cluster_axis=self.cluster_axis,
-        )
+        if effective_dispatch <= 1:
+            # Single-device path: bypass all_to_all_dispatch.
+            # Shardy propagation can't handle tuple-returning custom calls, so we
+            # skip the op and manually produce the expected output shapes.
+            dispatched = x.transpose(0, 1)  # [1, B, S, H]
+            metadata = expert_indices.transpose(0, 1)  # [1, B, S, K]
+        else:
+            dispatched, metadata = torch.ops.tt.all_to_all_dispatch(
+                x,
+                expert_indices,
+                self.expert_mapping,
+                num_devices=effective_dispatch,
+                cluster_axis=self.cluster_axis,
+            )
         # dispatched: [1, B*dispatch_devices, S, H]
         # metadata:   [1, B*dispatch_devices, S, K]
 
@@ -611,37 +618,54 @@ class A2aSparseMLP(nn.Module):
                 down_out = down_out.permute(3, 0, 2, 1, 4).contiguous()
                 down_out = down_out.view(E, BD, seq_len, hidden_size)
 
-        # Combine: gather expert outputs back along cluster_axis
+        # Combine and weighted sum
         decode_mode = dim_b == 1 and not split_seq
-        combined = torch.ops.tt.all_to_all_combine(
-            down_out,
-            metadata,
-            self.expert_mapping,
-            num_devices=effective_dispatch,
-            cluster_axis=self.cluster_axis,
-            num_experts_per_tok=K,
-            output_shard_dim=2 if decode_mode else 1,
-        )
-
-        # Weighted sum
-        # Workaround: avoid torch.gather (TTNN scatter-based lowering has issues
-        # for large seq_len). Instead, use einsum with one-hot mask.
         E = self.num_experts
-        # Build one-hot: [B*S, K, E] where one_hot[n, k, e] = 1 if indices[n,k] == e
-        expert_range = torch.arange(E, device=router_scores.device)  # [E]
-        one_hot = (router_indices.unsqueeze(-1) == expert_range).to(
-            router_scores.dtype
-        )  # [B*S, K, E]
-        topk_weights = torch.einsum("nke,ne->nk", one_hot, router_scores)  # [B*S, K]
-        if seq_len == 1:
-            topk_weights = topk_weights.view(batch_size, K)
-            topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)  # [K, B, 1]
-            output = (combined.squeeze(1) * topk_weights).sum(dim=0)  # [B, H]
-            output = output.unsqueeze(1)  # [B, 1, H]
+
+        if effective_dispatch <= 1:
+            # Single-device path: bypass all_to_all_combine.
+            # down_out is [E, BD=B, S, H] (or [E, B, 1, H] in decode mode).
+            # Weighted sum directly using router_scores (zero for non-selected experts).
+            rs = (
+                router_scores.view(batch_size, seq_len, E)
+                .permute(2, 0, 1)
+                .unsqueeze(-1)
+            )
+            # rs: [E, B, S, 1]
+            output = (down_out * rs).sum(dim=0)  # [B, S, H]
         else:
-            topk_weights = topk_weights.view(batch_size, seq_len, K)
-            topk_weights = topk_weights.permute(2, 0, 1).unsqueeze(-1)  # [K, B, S, 1]
-            output = (combined * topk_weights).sum(dim=0)  # [B, S, H]
+            combined = torch.ops.tt.all_to_all_combine(
+                down_out,
+                metadata,
+                self.expert_mapping,
+                num_devices=effective_dispatch,
+                cluster_axis=self.cluster_axis,
+                num_experts_per_tok=K,
+                output_shard_dim=2 if decode_mode else 1,
+            )
+
+            # Weighted sum
+            # Workaround: avoid torch.gather (TTNN scatter-based lowering has issues
+            # for large seq_len). Instead, use einsum with one-hot mask.
+            # Build one-hot: [B*S, K, E] where one_hot[n, k, e] = 1 if indices[n,k] == e
+            expert_range = torch.arange(E, device=router_scores.device)  # [E]
+            one_hot = (router_indices.unsqueeze(-1) == expert_range).to(
+                router_scores.dtype
+            )  # [B*S, K, E]
+            topk_weights = torch.einsum(
+                "nke,ne->nk", one_hot, router_scores
+            )  # [B*S, K]
+            if seq_len == 1:
+                topk_weights = topk_weights.view(batch_size, K)
+                topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)  # [K, B, 1]
+                output = (combined.squeeze(1) * topk_weights).sum(dim=0)  # [B, H]
+                output = output.unsqueeze(1)  # [B, 1, H]
+            else:
+                topk_weights = topk_weights.view(batch_size, seq_len, K)
+                topk_weights = topk_weights.permute(2, 0, 1).unsqueeze(
+                    -1
+                )  # [K, B, S, 1]
+                output = (combined * topk_weights).sum(dim=0)  # [B, S, H]
 
         return output.to(hidden_states.dtype), router_scores
 
@@ -962,6 +986,131 @@ def create_a2a_from_deepseek_v3_moe(
             Defaults to num_devices when None (single-axis dispatch).
     """
     adapter = DeepseekV3MoEToA2AAdapter(moe_module)
+    a2a_mlp = A2aSparseMLP(
+        adapter,
+        num_experts=config.n_routed_experts,
+        num_experts_per_tok=config.num_experts_per_tok,
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+        config=config,
+        activation_type=ACTIVATION_DEEPSEEK,
+        dispatch_devices=dispatch_devices,
+    )
+    shared_experts = getattr(moe_module, "shared_experts", None)
+    return A2aSparseMLPWithSharedExperts(a2a_mlp, shared_experts)
+
+
+class Glm4MoEToA2AAdapter(nn.Module):
+    """
+    Adapter that converts Glm4MoeMoE to A2aSparseMLP-compatible interface.
+
+    Glm4MoeMoE has:
+    - gate (Glm4MoeTopkRouter): returns (topk_indices, topk_weights)
+    - experts: ModuleList of Glm4MoeMLP with separate gate_proj, up_proj, down_proj (bias=False)
+    - shared_experts: a single Glm4MoeMLP with larger intermediate size
+
+    A2aSparseMLP expects:
+    - router: returns (scores [B*S, E], indices [B*S, K])
+    - experts: gate_up_proj [E, H, inter*2], down_proj [E, inter, H], and bias tensors
+    """
+
+    class RouterAdapter(nn.Module):
+        """Wraps Glm4MoeTopkRouter to return (scores, indices) for A2aSparseMLP."""
+
+        def __init__(self, gate: nn.Module, n_experts: int):
+            super().__init__()
+            self.gate = gate
+            self.n_experts = n_experts
+
+        def forward(self, hidden_states):
+            topk_idx, topk_weight = self.gate(hidden_states)
+            bsz_seq = topk_idx.shape[0]
+            scores = torch.zeros(
+                bsz_seq,
+                self.n_experts,
+                dtype=topk_weight.dtype,
+                device=topk_weight.device,
+            )
+            scores.scatter_(1, topk_idx, topk_weight)
+            return scores, topk_idx
+
+    class StackedExperts(nn.Module):
+        """Stacks Glm4MoeMLP experts into fused gate_up_proj / down_proj tensors."""
+
+        def __init__(self, expert_list):
+            super().__init__()
+            experts_list = list(expert_list)
+            first = experts_list[0]
+            hidden_size = first.hidden_size
+            inter = first.intermediate_size
+
+            gate_up_list = []
+            down_list = []
+            for exp in experts_list:
+                # gate_proj.weight [inter, H], up_proj.weight [inter, H]
+                # interleave into [H, inter*2] with gate at even, up at odd indices
+                gate_up = torch.empty(
+                    hidden_size,
+                    inter * 2,
+                    dtype=exp.gate_proj.weight.dtype,
+                    device=exp.gate_proj.weight.device,
+                )
+                gate_up[:, 0::2] = exp.gate_proj.weight.T
+                gate_up[:, 1::2] = exp.up_proj.weight.T
+                gate_up_list.append(gate_up)
+                # down_proj.weight [H, inter] -> transpose to [inter, H]
+                down_list.append(exp.down_proj.weight.T)
+
+            num_experts = len(gate_up_list)
+            gate_up_proj = torch.stack(gate_up_list, dim=0)  # [E, H, inter*2]
+            down_proj = torch.stack(down_list, dim=0)  # [E, inter, H]
+
+            self.gate_up_proj = nn.Parameter(gate_up_proj)
+            self.down_proj = nn.Parameter(down_proj)
+            # GLM4 MoE experts use bias=False — provide zero biases for interface compat
+            self.gate_up_proj_bias = nn.Parameter(
+                torch.zeros(
+                    num_experts,
+                    inter * 2,
+                    dtype=gate_up_proj.dtype,
+                    device=gate_up_proj.device,
+                )
+            )
+            self.down_proj_bias = nn.Parameter(
+                torch.zeros(
+                    num_experts,
+                    hidden_size,
+                    dtype=down_proj.dtype,
+                    device=down_proj.device,
+                )
+            )
+
+    def __init__(self, moe_module):
+        super().__init__()
+        self.router = self.RouterAdapter(
+            moe_module.gate, moe_module.config.n_routed_experts
+        )
+        self.experts = self.StackedExperts(moe_module.experts)
+
+
+def create_a2a_from_glm4_moe(
+    moe_module,
+    config,
+    num_devices: int = 8,
+    cluster_axis: int = 0,
+    dispatch_devices: Optional[int] = None,
+) -> "A2aSparseMLPWithSharedExperts":
+    """
+    Create an A2aSparseMLP from a Glm4MoeMoE module.
+
+    Args:
+        moe_module: Glm4MoeMoE instance
+        config: Glm4MoeConfig (must have n_routed_experts, num_experts_per_tok, hidden_size)
+        num_devices: Total mesh devices (for expert_mapping D dimension)
+        cluster_axis: Mesh axis for dispatch/combine (0=rows, 1=cols)
+        dispatch_devices: Devices along cluster_axis. Defaults to num_devices.
+    """
+    adapter = Glm4MoEToA2AAdapter(moe_module)
     a2a_mlp = A2aSparseMLP(
         adapter,
         num_experts=config.n_routed_experts,
