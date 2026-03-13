@@ -237,9 +237,11 @@ def benchmark_vllm(
         optimization_level=config.additional_config.get("optimization_level", 0),
         program_cache_enabled=True,
         trace_enabled=False,
-        enable_weight_bfp8_conversion=config.additional_config.get(
+        experimental_weight_dtype="bfp8"
+        if config.additional_config.get(
             "experimental_enable_weight_bfp8_conversion", False
-        ),
+        )
+        else "",
         model_info=full_model_name,
         display_name=display_name,
         torch_xla_enabled=True,
