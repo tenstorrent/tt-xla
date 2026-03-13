@@ -94,7 +94,7 @@ def filter_matrix_adv(matrix, adv_filter):
             conditions = runner_conditions[runner]
             if conditions["skip"]:
                 continue
-            if "filter" in conditions:
+            if "filter" in conditions and conditions["filter"]:
                 if not any(
                     f in item.get("name", "").lower() for f in conditions["filter"]
                 ):
