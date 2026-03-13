@@ -139,6 +139,7 @@ jobs:
           --name ${{ inputs.wheel_artifact_name }}
 
         echo "=== Installing wheel ==="
+        source venv/activate
         pip install wheels/*.whl
 
     - name: Install system dependencies
@@ -150,6 +151,7 @@ jobs:
     - name: Install Python dependencies
       shell: bash
       run: |
+        source venv/activate
         pip install ${{ matrix.build.pyreq }}
         pip install torchvision==0.24.0+cpu --index-url https://download.pytorch.org/whl/cpu
 
@@ -158,11 +160,11 @@ jobs:
 
     # A temmporary step because triage isn't preinstalled in tt-xla-slim image
     # When perf tests migrate to running in the tt-xla-base image, this can be removed
-    - name: Set up tt-triage
-      continue-on-error: true
-      shell: bash
-      run: |
-        .github/scripts/install-tt-triage.sh
+    # - name: Set up tt-triage
+    #   continue-on-error: true
+    #   shell: bash
+    #   run: |
+    #     .github/scripts/install-tt-triage.sh
 
     - name: Run benchmark
       id: run-benchmark
@@ -175,6 +177,7 @@ jobs:
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
+        source venv/activate
         pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build['accuracy-testing'] && '--accuracy-testing' || '' }} ${{ matrix.build['batch-size'] && format('--batch-size {0}', matrix.build['batch-size']) || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report
@@ -279,6 +282,7 @@ jobs:
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
       shell: bash
       run: |
+        source venv/activate
         mlir_sha=$(python .github/scripts/get_description_field_from_wheel.py "pjrt-plugin-tt" "tt-mlir-commit")
         echo "Found tt-mlir-commit: $mlir_sha"
 
