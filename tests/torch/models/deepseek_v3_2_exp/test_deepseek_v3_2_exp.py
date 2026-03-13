@@ -252,10 +252,16 @@ def test_deepseek_complex_rotary_emb():
 
 @pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
-def test_deepseek_attention_prefill(batch_size):
+@pytest.mark.parametrize("seq_len", [32, 64, 128])
+def test_deepseek_attention_prefill(batch_size, seq_len):
     xr.set_device_type("TT")
-    seq_len = 32
-    args = ModelArgs(n_layers=1, max_batch_size=batch_size, max_seq_len=seq_len * 2)
+    args = ModelArgs(
+        n_layers=1,
+        q_lora_rank=3072,
+        max_batch_size=batch_size,
+        max_seq_len=seq_len * 2,
+        index_topk=16,
+    )
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
@@ -264,6 +270,21 @@ def test_deepseek_attention_prefill(batch_size):
     hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
     # Prefill branch expects mask shape (bsz, seqlen, seqlen) for index_mask += mask
     attention_mask = torch.zeros(batch_size, seq_len, seq_len, dtype=torch.bfloat16)
+
+    # Create a (batch_size, seq_len, index_topk) tensor of valid indices.
+    # Each entry along the last axis contains values from 0 to seq_len-1, in random order per batch/position.
+    topk_indices = torch.stack(
+        [
+            torch.stack(
+                [torch.randperm(seq_len)[: args.index_topk] for _ in range(seq_len)]
+            ).unsqueeze(1)
+            for _ in range(batch_size)
+        ]
+    ).squeeze(
+        2
+    )  # shape: (batch_size, seq_len, index_topk)
+
+    attention.prepopulated_topk_indices = topk_indices
 
     freqs_cis = model.freqs_cis[0:seq_len]
 
@@ -300,7 +321,7 @@ def test_deepseek_attention_prefill(batch_size):
         return shard_specs
 
     comparison_config = ComparisonConfig(
-        pcc=PccConfig(enabled=True, required_pcc=0.95),
+        pcc=PccConfig(enabled=True, required_pcc=0.99),
     )
 
     run_graph_test(
@@ -320,11 +341,13 @@ def test_deepseek_attention_prefill(batch_size):
 
 @pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
-def test_deepseek_indexer(batch_size):
+@pytest.mark.parametrize("seq_len", [32, 128, 512])
+def test_deepseek_indexer(batch_size, seq_len):
     xr.set_device_type("TT")
 
-    seq_len = 32
-    args = ModelArgs(n_layers=1, max_batch_size=batch_size, max_seq_len=seq_len * 2)
+    args = ModelArgs(
+        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
+    )
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
@@ -381,7 +404,7 @@ def test_deepseek_indexer(batch_size):
         return shard_specs
 
     comparison_config = ComparisonConfig(
-        pcc=PccConfig(enabled=True, required_pcc=0.95),
+        pcc=PccConfig(enabled=True, required_pcc=0.99),
     )
 
     run_graph_test(

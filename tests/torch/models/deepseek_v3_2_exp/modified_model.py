@@ -757,10 +757,9 @@ class MLA(nn.Module):
             torch.zeros(args.max_batch_size, args.max_seq_len, self.qk_rope_head_dim),
             persistent=False,
         )
-        self.dequant_wkv_b = None
-
         # Preset topk indices tensor. Only used for testing.
-        self.prepopulated_topk_indices = None
+        self.register_buffer("prepopulated_topk_indices", None, persistent=False)
+        self.dequant_wkv_b = None
 
     def forward(
         self,
@@ -819,7 +818,10 @@ class MLA(nn.Module):
 
             # indexer
             if self.indexer is not None:
-                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+                if self.prepopulated_topk_indices is not None:
+                    topk_indices = self.prepopulated_topk_indices
+                else:
+                    topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
                 index_mask = torch.full(
                     (bsz, seqlen, seqlen), float("-inf"), device=x.device
                 ).scatter_(-1, topk_indices, 0)
