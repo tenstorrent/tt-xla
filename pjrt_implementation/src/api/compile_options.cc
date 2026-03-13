@@ -59,6 +59,9 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options,
                                 "codegen_try_recover_structure")
           .value_or(options.codegen_try_recover_structure);
+  options.codegen_split_files =
+      internal::parseBoolOption(compile_options, "codegen_split_files")
+          .value_or(options.codegen_split_files);
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);

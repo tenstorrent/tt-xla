@@ -112,6 +112,9 @@ struct CompileOptions {
   // useful when generating code.
   bool codegen_try_recover_structure = false;
 
+  // Enables splitting codegen output into separate files.
+  bool codegen_split_files = false;
+
   // Output file path for TTNN performance metrics.
   // If empty, metrics will be saved to the "perf_metrics" directory with a
   // default name.
