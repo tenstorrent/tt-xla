@@ -64,50 +64,22 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
-  perf-benchmark-n150:
+  perf-benchmark:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
     needs: [ inspect-changes, build-image, build-ttxla ]
-    uses: ./.github/workflows/manual-benchmark.yml
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
     secrets: inherit
     with:
-      runs-on-filter: n150
+      adv_filter: '[
+        { "accuracy-testing": false },
+        { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
+        { "runs-on": "n300-llmbox", "filter": ["llama_3_1_70b_tp"] },
+        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp_galaxy"] } ]'
       sh-runner: false
       skip-device-perf: true
       perf_regression_check: false
-      test_filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
-      should_build_wheel: false
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
-
-  perf-benchmark-llmbox:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
-    needs: [ inspect-changes, build-image, build-ttxla ]
-    uses: ./.github/workflows/manual-benchmark.yml
-    secrets: inherit
-    with:
-      runs-on-filter: n300-llmbox
-      sh-runner: false
-      skip-device-perf: true
-      perf_regression_check: false
-      test_filter: test_llama_3_1_70b_tp
-      should_build_wheel: false
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
-
-  perf-benchmark-galaxy:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
-    needs: [ inspect-changes, build-image, build-ttxla ]
-    uses: ./.github/workflows/manual-benchmark.yml
-    secrets: inherit
-    with:
-      runs-on-filter: galaxy-wh-6u
-      sh-runner: false
-      skip-device-perf: true
-      perf_regression_check: false
-      test_filter: test_llama_3_1_70b_tp_galaxy
-      should_build_wheel: false
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -159,14 +131,12 @@ jobs:
       - test_forge_models_push
       - test_models_on_uplift
       - test-tools
-      - perf-benchmark-n150
-      - perf-benchmark-llmbox
-      - perf-benchmark-galaxy
+      - perf-benchmark
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, build-manylinux-ttxla, test, test_forge_models_push, build-docs, test_models_on_uplift, test-tools, perf-benchmark-n150, perf-benchmark-llmbox, perf-benchmark-galaxy
+        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, build-manylinux-ttxla, test, test_forge_models_push, build-docs, test_models_on_uplift, test-tools, perf-benchmark
         jobs: ${{ toJSON(needs) }}

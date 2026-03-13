@@ -1,0 +1,99 @@
+name: Perf Tests filtered (call)
+
+on:
+  workflow_call:
+    inputs:
+      adv_filter:
+        description: "Advanced JSON filter for selecting benchmarks to run"
+        required: true
+        type: string
+      sh-runner:
+        description: "Use shared runner"
+        required: false
+        type: boolean
+        default: false
+      docker_image:
+        description: "Docker image to use"
+        required: false
+        type: string
+        default: 'ghcr.io/tenstorrent/tt-xla-slim:nightly-latest'
+      artifact_run_id:
+        description: "Run ID to download wheel artifact from"
+        required: false
+        type: string
+        default: ''
+      wheel_artifact_name:
+        description: "Name of the wheel artifact"
+        required: false
+        type: string
+        default: ''
+      use_docker_wheel:
+        description: "Use wheel from docker instead of building a new one"
+        required: false
+        type: boolean
+        default: false
+      skip-device-perf:
+        description: "Skip device performance measurement"
+        required: false
+        type: boolean
+        default: false
+      perf_regression_check:
+        description: "Enable perf metrics regression testing"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  packages: write
+  checks: write
+  contents: write
+  id-token: write
+  actions: write
+
+jobs:
+  filter-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-perf-benchmarks.outputs.matrix }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 1
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Filter Matrix
+      id: set-perf-benchmarks
+      shell: bash
+      run: |
+        echo '${{ inputs.adv_filter }}' > adv_filter.json
+        if ! jq empty adv_filter.json 2>/dev/null; then
+          echo "Error: Invalid JSON in adv_filter input"
+          exit 1
+        fi
+
+        result=$(python .github/scripts/filter-test-matrix.py \
+          .github/workflows/perf-bench-matrix.json \
+          adv_filter.json \
+          ${{ inputs.sh-runner && '--sh-runner' || '' }})
+
+        echo $result
+        matrix=$(echo $result | jq -r -c '.matrix')
+        echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  run-perf-benchmarks:
+    needs: filter-tests
+    if: ${{ !cancelled() && needs.filter-tests.result == 'success' }}
+    secrets: inherit
+    uses: ./.github/workflows/call-perf-test.yml
+    with:
+      matrix: ${{ needs.filter-tests.outputs.matrix }}
+      docker_image: ${{ inputs.docker_image }}
+      artifact_run_id: ${{ inputs.artifact_run_id }}
+      wheel_artifact_name: ${{ inputs.wheel_artifact_name }}
+      use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
+      skip-device-perf: ${{ inputs.skip-device-perf || false }}
+      perf_regression_check: ${{ inputs.perf_regression_check || false }}
+      sh-runner: ${{ inputs.sh-runner || false }}
