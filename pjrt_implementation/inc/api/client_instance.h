@@ -122,7 +122,7 @@ public:
   }
 
   // Computes the fabric config for the given mesh shape.
-  // OVERRIDDEN: Always uses FABRIC_1D for multi-device configurations,
+  // OVERRIDDEN: Always uses FABRIC_2D for multi-device configurations,
   // NOT using tt::runtime::computeMeshFabricConfig.
   tt::runtime::MeshFabricConfig
   computeFabricConfig(const std::vector<uint32_t> &meshShape);
