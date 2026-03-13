@@ -78,7 +78,9 @@ def filter_matrix_adv(matrix, adv_filter):
                         f.lower() for f in filter_value
                     )
                 else:
-                    runner_conditions[runner]["filter"].append(filter_value.lower())
+                    runner_conditions[runner]["filter"].extend(
+                        f.lower() for f in filter_value.split(",")
+                    )
             if condition.get("accuracy-testing") is not None:
                 runner_conditions[runner]["accuracy-testing"] = condition[
                     "accuracy-testing"
