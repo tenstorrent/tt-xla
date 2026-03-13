@@ -189,25 +189,6 @@ def bypass_redundant_getitem(gm):
     return gm
 
 
-def run_shape_prop(gm, example_inputs):
-    """
-    Propagates shape and dtype information through the graph.
-    """
-    shape_prop = torch.fx.passes.shape_prop.ShapeProp(gm)
-    if shape_prop.fake_mode is not None:
-        fake_args = [
-            (
-                shape_prop.fake_mode.from_tensor(act, static_shapes=True)
-                if isinstance(act, torch.Tensor)
-                else act
-            )
-            for act in example_inputs
-        ]
-    else:
-        fake_args = example_inputs
-    shape_prop.run(*fake_args)
-
-
 def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     """
     Removes casting of nodes to float32 unless they were explicitly set by the user.
@@ -215,7 +196,6 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     user may have specified a different dtype.
     Also removes redundant casts.
     """
-    removed_non_redundant_casts = False
     for node in gm.graph.nodes:
         if (
             node.op == "call_function"
@@ -226,23 +206,19 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
                 node.meta["original_aten"]._name != "aten::_to_copy"
                 and node.args[1] == torch.float32
             )
-            is_redundant_cast = (
-                "tensor_meta" in node.args[0].meta
-                and node.args[0].meta["tensor_meta"].dtype == node.args[1]
-            )
+            node_meta = node.args[0].meta
+            if "tensor_meta" in node_meta:
+                is_redundant_cast = node_meta["tensor_meta"].dtype == node.args[1]
+            elif "val" in node_meta and isinstance(node_meta["val"], torch.Tensor):
+                is_redundant_cast = node_meta["val"].dtype == node.args[1]
+            else:
+                is_redundant_cast = False
 
             if is_unwanted_dtype_promotion or is_redundant_cast:
                 node.replace_all_uses_with(node.args[0])
-                removed_non_redundant_casts |= is_unwanted_dtype_promotion
 
     gm.graph.eliminate_dead_code()
     gm.graph.lint()
-
-    if removed_non_redundant_casts:
-        # if non redundant nodes were removed, re-propagate shape and dtype and re-run pass to remove redundant casts
-        run_shape_prop(gm, example_inputs)
-        gm = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
-
     return gm
 
 

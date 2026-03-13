@@ -12,6 +12,7 @@ from functorch.compile import make_boxed_func
 from torch._decomp import get_decompositions as get_aten_decompositions
 from torch._dynamo import register_backend
 from torch._dynamo.backends.common import aot_autograd
+from torch._dynamo.utils import detect_fake_mode
 from torch.fx.experimental.proxy_tensor import make_fx
 from torch.fx.passes.tools_common import legalize_graph
 from torch_xla.distributed.spmd import ShardingType
@@ -464,9 +465,24 @@ def aot_backend(
             fw_compiler(fw_gm, fw_example_inputs, options, classification)
         )
 
-    return aot_autograd(
-        fw_compiler=fw_compiler_boxed, decompositions=aot_decompositions
-    )(gm, example_inputs)
+    # Dynamo creates FakeTensorMode(allow_non_fake_inputs=False) and stores it in
+    # TracingContext.  aot_module_simplified retrieves it via detect_fake_mode and
+    # uses it for all graph tracing.  Real tensor constants in the graph (e.g. empty
+    # initialiser tensors in models like Qwen3) then hit "Please convert all Tensors
+    # to FakeTensors first".  Temporarily enable allow_non_fake_inputs so those
+    # constants are handled as FakeTensors instead of raising.
+    _active_fake_mode = detect_fake_mode([])
+    _saved_allow = None
+    if _active_fake_mode is not None and not _active_fake_mode.allow_non_fake_inputs:
+        _saved_allow = False
+        _active_fake_mode.allow_non_fake_inputs = True
+    try:
+        return aot_autograd(
+            fw_compiler=fw_compiler_boxed, decompositions=aot_decompositions
+        )(gm, example_inputs)
+    finally:
+        if _saved_allow is not None:
+            _active_fake_mode.allow_non_fake_inputs = _saved_allow
 
 
 @register_backend(name="tt")
