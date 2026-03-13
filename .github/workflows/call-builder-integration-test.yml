@@ -67,7 +67,6 @@ jobs:
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          create-symlink: true
           key: "builder-integration-debug"
           update-package-index: true
 
@@ -77,7 +76,9 @@ jobs:
           source venv/activate
           cmake -G Ninja -B build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build
 
       - name: Archive build directory
