@@ -793,8 +793,8 @@ def test_simple_sharded_addition(mesh_shape):
     expected_output = a_cpu + b_cpu
 
     # Shard along the second dimension (4096) which maps to "model" axis (8 devices)
-    xs.mark_sharding(a, mesh, (None, "model"))
-    xs.mark_sharding(b, mesh, (None, "model"))
+    xs.mark_sharding(a, mesh, ("model", None))
+    xs.mark_sharding(b, mesh, ("model", None))
 
     # Get input shard specs
     input_a_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(a)
