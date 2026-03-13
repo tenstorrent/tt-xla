@@ -27,7 +27,6 @@ jobs:
 
   run-p150-perf-benchmarks:
     needs: [build-image, build-ttxla]
-    if: ${{ needs.filter-tests.outputs.matrix_p150_skip == 'false' }}
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
@@ -39,7 +38,6 @@ jobs:
 
   run-n150-accuracy-benchmarks:
     needs: [build-image, build-ttxla]
-    if: ${{ needs.filter-tests.outputs.matrix_n150_accuracy_skip == 'false' }}
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
