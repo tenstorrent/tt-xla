@@ -98,6 +98,17 @@ jobs:
     with:
       release_tag: ${{ needs.release.outputs.release_tag }}
 
+  perf-benchmark:
+    needs: 
+      - build-ttxla
+    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+    secrets: inherit
+    with:
+      project: tt-xla
+      run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      run_id_source: tt-xla
+      ref: main
+
   fail-notify:
     if: always()
     needs:
