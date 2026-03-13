@@ -86,7 +86,7 @@ jobs:
       matrix: ${{ needs.filter-tests.outputs.matrix_p150 }}
       docker_image: "ghcr.io/tenstorrent/tt-xla-slim:nightly-latest"
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
       use_docker_wheel: true
 
   run-n150-accuracy-benchmarks:
@@ -98,7 +98,7 @@ jobs:
       matrix: ${{ needs.filter-tests.outputs.matrix_n150_accuracy }}
       docker_image: "ghcr.io/tenstorrent/tt-xla-slim:nightly-latest"
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
       sh-runner: true
 
   fail-notify:

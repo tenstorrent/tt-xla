@@ -700,3 +700,103 @@ def test_min_tokens(device, vocab_size):
         f"With EOS suppressed, next-best token 100 should be selected, "
         f"got {actual.item()}"
     )
+
+
+# ---------------------------------------------------------------------------
+# prompt logprobs: gather_logprobs with prompt (next-token) targets on device
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+def test_prompt_logprobs_gather(device, vocab_size):
+    """On-device prompt logprobs: gather pipeline with next-token targets.
+
+    Simulates the prompt logprobs pattern: for a prompt of N tokens, compute
+    logprobs at positions 0..N-2 with target tokens 1..N-1. Validates shapes,
+    dtypes, value ranges, and that each target token appears at column 0.
+
+    Uses batch_size=8 to exercise multi-position batches (typical prompt
+    lengths exceed max_num_reqs and are processed in batches).
+    """
+    batch_size = 8
+    torch.manual_seed(42)
+    logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
+    # Simulate prompt: target tokens are the "next" tokens being predicted.
+    prompt_tokens = torch.randint(0, vocab_size, (batch_size + 1,))
+    target_tokens = prompt_tokens[1:].to(torch.int32)
+
+    compiled_fn = torch.compile(run_logprobs_pipeline, backend="tt", dynamic=False)
+    ids_dev, lp_dev, ranks_dev = compiled_fn(
+        logits_cpu.to(device), target_tokens.to(device)
+    )
+    ids = ids_dev.cpu()
+    lp = lp_dev.cpu()
+    ranks = ranks_dev.cpu()
+
+    num_logprobs = 5
+    assert ids.shape == (batch_size, num_logprobs + 1)
+    assert lp.shape == (batch_size, num_logprobs + 1)
+    assert ranks.shape == (batch_size,)
+
+    assert ids.dtype == torch.int32
+    assert ranks.dtype == torch.int32
+    assert (lp <= 0).all(), "Log-probabilities must be <= 0"
+    assert (ids >= 0).all() and (ids < vocab_size).all()
+    assert (ranks >= 1).all(), "Token ranks must be >= 1"
+
+    # Target (next prompt) token must appear at column 0.
+    for i in range(batch_size):
+        assert ids[i, 0].item() == target_tokens[i].item(), (
+            f"position {i}: target token {target_tokens[i].item()} "
+            f"must be at column 0, got {ids[i, 0].item()}"
+        )
+
+    # Top-k log-probs (columns 1..) must be sorted descending.
+    topk_lp = lp[:, 1:]
+    diffs = topk_lp[:, :-1] - topk_lp[:, 1:]
+    assert (diffs >= -1e-4).all(), "Top-k log-probs must be sorted descending"
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_prompt_logprobs_known_target(device):
+    """On-device prompt logprobs: known target token must have highest logprob.
+
+    Constructs logits where a specific token dominates, then uses that token
+    as the target. The target must appear at column 0 with rank 1 and its
+    logprob must be close to 0 (near-certain prediction).
+    """
+    vocab_size = 128256
+    batch_size = 4
+    # Use token IDs exactly representable in bfloat16 to avoid index
+    # rounding in the gather op (see tt-mlir#7205).
+    dominant_tokens = [0, 64, 128, 256]
+
+    logits = torch.full((batch_size, vocab_size), -10.0)
+    for i, tok in enumerate(dominant_tokens):
+        logits[i, tok] = 10.0  # overwhelmingly likely
+
+    target_tokens = torch.tensor(dominant_tokens, dtype=torch.int32)
+
+    compiled_fn = torch.compile(run_logprobs_pipeline, backend="tt", dynamic=False)
+    ids_dev, lp_dev, ranks_dev = compiled_fn(
+        logits.to(device), target_tokens.to(device)
+    )
+    ids = ids_dev.cpu()
+    lp = lp_dev.cpu()
+    ranks = ranks_dev.cpu()
+
+    for i, tok in enumerate(dominant_tokens):
+        assert (
+            ids[i, 0].item() == tok
+        ), f"row {i}: target {tok} must be at column 0, got {ids[i, 0].item()}"
+        assert (
+            ranks[i].item() == 1
+        ), f"row {i}: dominant target must have rank 1, got {ranks[i].item()}"
+        # logprob should be close to 0 (near-certain)
+        assert lp[i, 0].item() > -0.1, (
+            f"row {i}: dominant token logprob {lp[i, 0].item():.4f} "
+            f"should be close to 0"
+        )
