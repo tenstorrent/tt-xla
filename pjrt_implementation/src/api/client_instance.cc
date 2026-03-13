@@ -333,7 +333,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
       std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
     tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
   }
-  
+
   const char *system_desc_override = std::getenv("TT_COMPILE_ONLY_SYSTEM_DESC");
   if (system_desc_override != nullptr) {
     LOG_F(INFO, "Loading system descriptor from path: %s",

@@ -24,8 +24,6 @@ XFAIL_FILES: dict[str, str] = {
     "pytorch/gpt_oss_20b.py": "Gpt-oss example requires llmbox or galaxy",
     "jax/codegen/cpp/resnet.py": "FlaxResNetModel removed in transformers 5.x",
     "jax/codegen/python/resnet.py": "FlaxResNetModel removed in transformers 5.x",
-    "jax/compile_only.py": "compile_only example requires a system descriptor path",
-    "pytorch/compile_only.py": "compile_only example requires a system descriptor path",
 }
 
 
