@@ -32,6 +32,7 @@ from tests.runner.test_utils import (
     find_dumped_ir_files,
     get_input_shape_info,
     get_xla_device_arch,
+    log_commit_hashes,
     record_model_test_properties,
     update_test_metadata_for_exception,
 )
@@ -78,6 +79,9 @@ def _run_model_test_impl(
     """
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
+
+    # Log the commit hash of the tt-xla, tt-mlir, and tt-metal repositories
+    log_commit_hashes(PROJECT_ROOT)
 
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path):
