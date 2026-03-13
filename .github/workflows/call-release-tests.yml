@@ -29,7 +29,7 @@ jobs:
       sh-runner: false
       skip-device-perf: false
       use_docker_wheel: true
-      perf_regression_check: true,
+      perf_regression_check: true
       adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
 
   demo-tests:
