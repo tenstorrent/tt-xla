@@ -10,6 +10,7 @@ from transformers import Cache, DynamicCache, EncoderDecoderCache
 
 from .comparison_evaluator import ComparisonEvaluator
 from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
+from loguru import logger
 
 
 class TorchComparisonEvaluator(ComparisonEvaluator):
@@ -117,6 +118,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
 
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
+        logger.info("flat_pccs={}",flat_pccs)
         filtered_pccs = [pcc for pcc in flat_pccs if pcc is not None]
         pcc = min(filtered_pccs)
         return float(pcc)

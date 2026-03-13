@@ -1936,7 +1936,7 @@ test_config:
 
   centernet/pytorch-Dla2x_Coco-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/2990
+    # required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/2990
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
