@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Built-in modules
+import copy
 import os
 import socket
 import sys
@@ -322,19 +323,10 @@ def benchmark_llm_torch_xla(
     if max_output_tokens is None:
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
+    # Keep CPU model copy for post-benchmark teacher-forced PCC calculation
+    cpu_model = None
     if not accuracy_testing:
-        cpu_logits, _ = generate_and_benchmark(
-            model,
-            input_args,
-            torch.device("cpu"),
-            1,
-            read_logits_fn=read_logits_fn,
-            tokenizer=tokenizer,
-            verbose=False,
-        )
-        # Only one output makes sense to compare.
-        cpu_logits = cpu_logits[0]
+        cpu_model = copy.deepcopy(model)
 
     # Transfer model and inputs to device
     input_args = construct_inputs(
@@ -442,6 +434,42 @@ def benchmark_llm_torch_xla(
             logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits
         ]
 
+    # Teacher-forced CPU golden generation for PCC (runs after device benchmark)
+    cpu_logits = None
+    if not accuracy_testing:
+        # Extract device-predicted token IDs from benchmark output
+        device_token_ids = torch.tensor(
+            [logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits]
+        )
+
+        # Construct fresh CPU inputs for teacher-forced golden generation
+        cpu_input_args = construct_inputs(
+            tokenizer,
+            cpu_model.config,
+            batch_size,
+            max_cache_len,
+            input_prompt=custom_input_prompt,
+        )
+
+        # Run CPU teacher-forced generation using device tokens as ground truth
+        print(
+            "\nRunning CPU golden generation "
+            f"(teacher-forced, {max_output_tokens} steps)..."
+        )
+        cpu_logits, _ = generate_and_benchmark(
+            cpu_model,
+            cpu_input_args,
+            torch.device("cpu"),
+            max_output_tokens,
+            read_logits_fn=read_logits_fn,
+            tokenizer=tokenizer,
+            verbose=False,
+            ground_truth_tokens=device_token_ids,
+        )
+
+        # Free CPU model memory
+        del cpu_model
+
     ttft_ns = iteration_times[0]
     ttft_ms = ttft_ns / 1e6
 
@@ -518,9 +546,27 @@ def benchmark_llm_torch_xla(
             ]
         )
     else:
-        # Check PCC
-        pcc_value = compute_pcc(
-            output_logits[0][0], cpu_logits[0], required_pcc=required_pcc
+        # Per-step PCC comparison (teacher-forced across all decode steps)
+        print(
+            f"\nComputing per-step PCC "
+            f"({len(output_logits)} decode steps, teacher-forced)..."
+        )
+        min_pcc = 1.0
+        min_pcc_step = 0
+        for step_idx in range(len(output_logits)):
+            step_pcc = compute_pcc(output_logits[step_idx][0], cpu_logits[step_idx][0])
+            if step_pcc < min_pcc:
+                min_pcc = step_pcc
+                min_pcc_step = step_idx
+            assert step_pcc >= required_pcc, (
+                f"PCC comparison failed at decode step {step_idx}. "
+                f"PCC={step_pcc:.6f}, Required={required_pcc}"
+            )
+        pcc_value = min_pcc
+        print(
+            f"PCC check: All {len(output_logits)} decode steps passed. "
+            f"Min PCC={min_pcc:.6f} (step {min_pcc_step}), "
+            f"Required={required_pcc}"
         )
         print("PCC verification passed with PCC={:.6f}".format(pcc_value))
 
