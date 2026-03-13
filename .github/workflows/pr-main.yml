@@ -131,9 +131,7 @@ jobs:
       - test_forge_models_push
       - test_models_on_uplift
       - test-tools
-      - perf-benchmark-n150
-      - perf-benchmark-llmbox
-      - perf-benchmark-galaxy
+      - perf-benchmark
       - build-docs
     runs-on: Ubuntu-latest
     steps:
