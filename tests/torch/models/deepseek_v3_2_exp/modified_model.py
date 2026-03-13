@@ -895,46 +895,29 @@ class MLA(nn.Module):
         self.register_buffer("hadamard_matrix", haddamard_matrix, persistent=False)
         self.dequant_wkv_b = None
 
+        # Preset topk indices tensor. Only used for testing.
+        self.prepopulated_topk_indices = None
+
     def forward(
         self,
         x: torch.Tensor,
         start_pos: int,
         freqs_cis: torch.Tensor,
         mask: Optional[torch.Tensor],
-        past_key_value: Cache,
-        cache_position: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
+        use_optimized_decode_flow: bool = True,
     ):
-        """MLA forward with two paths.
-
-        1. Legacy int path (``cache_position is None``): writes to the
-           ``past_key_value`` cache layer via int-slice and runs the MHA
-           prefill branch or the MQA decode branch inline.
-
-        2. Cache path (``cache_position is not None``): writes to the same
-           cache layer via ``index_copy_`` and runs attention against the
-           full ``max_cache_len``, gated by the additive ``attention_mask``.
-           Used by ``test_deepseek_v3_1_decode_static_cache``.
         """
-        if cache_position is not None:
-            # Cache path doesn't consume start_pos / mask — guard against silent
-            # misuse (e.g., caller leaving stale legacy args on a cache call).
-            assert (
-                start_pos == 0 and mask is None
-            ), "cache path ignores start_pos/mask; pass cache_position+attention_mask only"
-            return self._forward_with_cache(
-                x,
-                freqs_cis,
-                cache_position,
-                attention_mask,
-                past_key_value,
-            )
-        assert (
-            attention_mask is None
-        ), "legacy path ignores attention_mask; pass mask (causal triangle) instead"
-        cache_layer = past_key_value.layers[self.layer_idx]
-        kv_cache = cache_layer.compressed_kv
-        pe_cache = cache_layer.k_pe
+        Forward pass for the Multi-Head Latent Attention (MLA) Layer.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim).
+            start_pos (int): Starting position in the sequence for caching.
+            freqs_cis (torch.Tensor): Precomputed complex exponential values for rotary embeddings.
+            mask (Optional[torch.Tensor]): Mask tensor to exclude certain positions from attention.
+
+        Returns:
+            torch.Tensor: Output tensor with the same shape as the input.
+        """
         bsz, seqlen, _ = x.size()
         end_pos = start_pos + seqlen
         qr = self.q_norm(self.wq_a(x))
@@ -994,118 +977,78 @@ class MLA(nn.Module):
             q_nope = torch.einsum(
                 "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
             )
-            scores = (
-                torch.einsum("bshc,btc->bsht", q_nope, kv_cache[:bsz, 0, :end_pos])
-                + torch.einsum("bshr,btr->bsht", q_pe, pe_cache[:bsz, 0, :end_pos])
-            ) * self.softmax_scale
 
-            # indexer
-            if self.indexer is not None:
-                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
-                index_mask = torch.full(
-                    (bsz, 1, end_pos), float("-inf"), device=x.device
-                ).scatter_(-1, topk_indices, 0)
-                scores += index_mask.unsqueeze(2)
-
-            scores = scores.softmax(dim=-1)
-            x = torch.einsum("bsht,btc->bshc", scores, kv_cache[:bsz, 0, :end_pos])
+            if use_optimized_decode_flow:
+                x = self.modified_decode_flow(x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b)
+            else:
+                x = self.original_decode_flow(x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b)
+            # Expand from latent
             x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
         x = self.wo(x.flatten(2))
         return x
 
-    def _forward_with_cache(
-        self,
-        x: torch.Tensor,
-        freqs_cis_step: torch.Tensor,
-        cache_position: torch.Tensor,
-        attention_mask: torch.Tensor,
-        past_key_value: Cache,
-    ) -> torch.Tensor:
-        """Cache-path MLA forward using the HF ``Cache`` passed in.
-
-        Writes are tensor-indexed (`index_copy_`), so this is safe under
-        `torch.compile` + `torch_xla` SPMD — no Python-int specialization, no
-        per-step recompile. Reads span the full `max_cache_len`; the additive
-        `attention_mask` masks positions beyond `cache_position.max()`.
-
-        Cache layers are shaped `(B, 1, T, D)` — the leading unit dim is
-        vestigial (MLA caches a single shared latent across heads), but
-        TT-MLIR legalizes `stablehlo.scatter` on the 4D layout while the
-        logically-equivalent 3D `(B, T, D)` form currently fails TTIR
-        legalization.
+    def original_decode_flow(self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b):
         """
-        assert (
-            attention_mask is not None
-        ), "cache path requires attention_mask; additive (B, 1, S, max_cache_len) mask"
-        # TODO(deepseek-v3.2): indexer is not yet wired through the cache path.
-        # The legacy int path runs it; skipping silently here would diverge.
-        assert (
-            self.indexer is None
-        ), "cache path does not yet support the v3.2 indexer — use the legacy path"
-        bsz, seqlen, _ = x.size()
+        Original decode flow of the MLA forward pass as presented in Deepseek's original
+        implementation.
 
-        qr = self.q_norm(self.wq_a(x))
-        q = self.wq_b(qr)
-        q = q.view(bsz, seqlen, self.n_local_heads, self.qk_head_dim)
-        q_nope, q_pe = torch.split(
-            q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
-        )
-        q_pe = apply_rotary_emb(q_pe, freqs_cis_step)
-
-        kv = self.wkv_a(x)
-        kv, k_pe = torch.split(kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
-        kv = self.kv_norm(kv)  # (B, seqlen, kv_lora_rank)
-        k_pe = apply_rotary_emb(
-            k_pe.unsqueeze(2), freqs_cis_step
-        )  # (B, seqlen, 1, qk_rope_head_dim)
-
-        if self.dtype == "fp8":
-            kv_fp8, kv_scale = act_quant(kv, block_size, self.scale_fmt)
-            kv = (
-                (kv_fp8.view(-1, block_size).float() * kv_scale.view(-1, 1))
-                .to(kv.dtype)
-                .view_as(kv)
-            )
-
-        # HF-style cache update. index_copy_ runs inside
-        # MLAStaticLayerModule.update on a 4D cache sharded only on batch dim;
-        # kv/k_pe are unsqueezed on dim 1 to match (B, 1, seqlen, D).
-        compressed_kv_full, k_pe_full = past_key_value.update(
-            kv.unsqueeze(1),
-            k_pe.squeeze(2).unsqueeze(1),
-            self.layer_idx,
-            {"cache_position": cache_position},
-        )
-        kv_full = compressed_kv_full.squeeze(1)
-        pe_full = k_pe_full.squeeze(1)
-
-        if self.dequant_wkv_b is None and self.wkv_b.scale is not None:
-            self.dequant_wkv_b = weight_dequant(self.wkv_b.weight, self.wkv_b.scale)
-        wkv_b = self.wkv_b.weight if self.dequant_wkv_b is None else self.dequant_wkv_b
-        wkv_b = wkv_b.view(self.n_local_heads, -1, self.kv_lora_rank)
-
-        q_nope_latent = torch.einsum(
-            "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
-        )  # (B, seqlen, n_heads, kv_lora_rank)
-
+        It performs the full attention computation using the entire cached kv and pe
+        caches and then applies the Top-K indexer.
+        """
         scores = (
-            torch.einsum("bshc,btc->bsht", q_nope_latent, kv_full)
-            + torch.einsum("bshr,btr->bsht", q_pe, pe_full)
-        ) * self.softmax_scale  # (B, seqlen, n_heads, max_cache_len)
+            torch.einsum("bshc,btc->bsht", q_nope, self.kv_cache[:bsz, :end_pos])
+            + torch.einsum("bshr,btr->bsht", q_pe, self.pe_cache[:bsz, :end_pos])
+        ) * self.softmax_scale
 
-        # attention_mask: (B, 1, seqlen, max_cache_len) -> (B, seqlen, 1, max_cache_len)
-        scores = scores + attention_mask.permute(0, 2, 1, 3)
+        # indexer
+        if self.indexer is not None:
+            if self.prepopulated_topk_indices is not None:
+                topk_indices = self.prepopulated_topk_indices
+            else:
+                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+            index_mask = torch.full(
+                (bsz, 1, end_pos), float("-inf"), device=x.device
+            ).scatter_(-1, topk_indices, 0)
+            scores += index_mask.unsqueeze(2)
+
         scores = scores.softmax(dim=-1)
+        x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
+        return x
 
-        attn_latent = torch.einsum(
-            "bsht,btc->bshc", scores, kv_full
-        )  # (B, seqlen, n_heads, kv_lora_rank)
-        attn_out = torch.einsum(
-            "bshc,hdc->bshd", attn_latent, wkv_b[:, -self.v_head_dim :]
-        )  # (B, seqlen, n_heads, v_head_dim)
+    def modified_decode_flow(self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b):
+        """
+        More optimal decode flow for the MLA forward pass.
 
-        return self.wo(attn_out.flatten(2))
+        The key difference here is to run the indexer first, and only use the top K
+        indices of the cached kv and pe for the attention computation.
+        """
+        if self.indexer is not None:
+            if self.prepopulated_topk_indices is not None:
+                topk_indices = self.prepopulated_topk_indices
+            else:
+                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask) # (bsz, 1, topk)
+            gather_idx = topk_indices.squeeze(1) # (bsz, topk)
+            # batch_idx = torch.arange(gather_idx.size(0)).view(-1, 1) # (bsz, 1)
+            kv_index = gather_idx.unsqueeze(-1).expand(-1, -1, self.kv_cache.size(-1)) # (bsz, topk, kv_lora_rank)
+            pe_index = gather_idx.unsqueeze(-1).expand(-1, -1, self.pe_cache.size(-1)) # (bsz, topk, qk_rope_head_dim)
 
+            orig_kv_cache = self.kv_cache[:bsz, :end_pos] # (bsz, seq_len, kv_lora_rank)
+            orig_pe_cache = self.pe_cache[:bsz, :end_pos] # (bsz, seq_len, qk_rope_head_dim)
+
+            # Extract only the indices specified by batch_idx and gather_idx
+            kv_for_attention = torch.gather(orig_kv_cache, dim=1, index=kv_index) # (bsz, topk, kv_lora_rank)
+            pe_for_attention = torch.gather(orig_pe_cache, dim=1, index=pe_index) # (bsz, topk, qk_rope_head_dim)
+        else:
+            kv_for_attention = self.kv_cache[:bsz, :end_pos]
+            pe_for_attention = self.pe_cache[:bsz, :end_pos]
+        scores = (
+            torch.einsum("bshc,btc->bsht", q_nope, kv_for_attention)
+            + torch.einsum("bshr,btr->bsht", q_pe, pe_for_attention)
+        ) * self.softmax_scale
+
+        scores = scores.softmax(dim=-1)
+        x = torch.einsum("bsht,btc->bshc", scores, kv_for_attention)
+        return x
 
 class MLP(nn.Module):
     """
