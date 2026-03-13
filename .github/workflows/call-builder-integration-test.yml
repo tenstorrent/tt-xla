@@ -30,7 +30,6 @@ name: Builder Integration Test (call)
 #   { "runs-on": "n150",        "name": "resnet",     "tests": ["pytorch_resnet50-inference-single_device"], "source": "models" }
 
 on:
-  push:
   workflow_call:
     inputs:
       docker_image:
