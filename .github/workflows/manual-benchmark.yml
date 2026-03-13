@@ -61,7 +61,7 @@ on:
         description: "Wheel artifact name to download (used when should_build_wheel=false)"
         required: false
         type: string
-        default: ""
+        default: "xla-whl-release"
 
 permissions:
   packages: write
