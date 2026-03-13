@@ -315,6 +315,24 @@ def copy_default(
     return src_converted.expand(dst.shape).clone()
 
 
+def complex_add(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if not input.is_complex() or not other.is_complex():
+        return NotImplemented
+    real = torch.real(input) + torch.real(other)
+    imag = torch.imag(input) + torch.imag(other)
+    stacked = torch.stack([real, imag], dim=-1)
+    return torch.view_as_complex(stacked)
+
+
+def complex_mul(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if not input.is_complex() or not other.is_complex():
+        return NotImplemented
+    real = torch.real(input) * torch.real(other) - torch.imag(input) * torch.imag(other)
+    imag = torch.real(input) * torch.imag(other) + torch.imag(input) * torch.real(other)
+    stacked = torch.stack([real, imag], dim=-1)
+    return torch.view_as_complex(stacked)
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -344,8 +362,10 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
+        aten.add.Tensor: complex_add,
         aten.copy.default: copy_default,
         aten.matmul.default: matmul,
+        aten.mul.Tensor: complex_mul,
         aten.dot.default: dot,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
