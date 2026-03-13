@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       docker_image:
-        description: 'Docker image to use'
+        description: 'Docker image to use change'
         required: false
         type: string
         default: 'ghcr.io/tenstorrent/tt-xla-slim:nightly-latest'
