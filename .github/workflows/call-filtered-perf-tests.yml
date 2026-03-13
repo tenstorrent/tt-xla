@@ -14,7 +14,7 @@ on:
         default: false
       docker_image:
         description: "Docker image to use"
-        required: true
+        required: false
         type: string
         default: 'ghcr.io/tenstorrent/tt-xla-slim:nightly-latest'
       artifact_run_id:
