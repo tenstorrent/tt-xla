@@ -90,7 +90,7 @@ def benchmark_resnet_jax(
     optimization_level=1,
     program_cache_enabled=False,
     trace_enabled=False,
-    enable_weight_bfp8_conversion=False,
+    experimental_weight_dtype="",
     required_pcc=0.97,
 ):
     """
@@ -109,7 +109,7 @@ def benchmark_resnet_jax(
         optimization_level: tt-mlir optimization level for compilation
         program_cache_enabled: Whether to enable program cache
         trace_enabled: Whether to enable tracing
-        enable_weight_bfp8_conversion: Whether to enable weight BFP8 conversion
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
         required_pcc: Minimum PCC threshold for output validation
 
     Returns:
@@ -232,7 +232,7 @@ def benchmark_resnet_jax(
         optimization_level=optimization_level,
         program_cache_enabled=program_cache_enabled,
         trace_enabled=trace_enabled,
-        enable_weight_bfp8_conversion=enable_weight_bfp8_conversion,
+        experimental_weight_dtype=experimental_weight_dtype,
         model_info=model_info,
         torch_xla_enabled=False,
         device_name=socket.gethostname(),

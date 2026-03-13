@@ -196,7 +196,7 @@ def benchmark_llm_torch_xla(
     task,
     data_format,
     input_sequence_length,
-    enable_weight_bfp8_conversion,
+    experimental_weight_dtype,
     experimental_enable_permute_matmul_fusion,
     ttnn_perf_metrics_output_file,
     read_logits_fn,
@@ -227,7 +227,7 @@ def benchmark_llm_torch_xla(
         task: Task type
         data_format: Data precision format
         input_sequence_length: Length of input sequence for generation context
-        enable_weight_bfp8_conversion: Whether to enable bfp8 weight conversion
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         read_logits_fn: Callback function to extract logits from model output
@@ -379,7 +379,7 @@ def benchmark_llm_torch_xla(
         "export_model_name": export_model_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
-        "experimental_enable_weight_bfp8_conversion": enable_weight_bfp8_conversion,
+        "experimental_weight_dtype": experimental_weight_dtype,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
     }
     if fp32_dest_acc_en is not None:
@@ -547,7 +547,7 @@ def benchmark_llm_torch_xla(
         optimization_level=optimization_level,
         program_cache_enabled=True,
         trace_enabled=trace_enabled,
-        enable_weight_bfp8_conversion=enable_weight_bfp8_conversion,
+        experimental_weight_dtype=experimental_weight_dtype,
         model_info=full_model_name,
         display_name=display_name,
         torch_xla_enabled=True,
