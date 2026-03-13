@@ -12,6 +12,11 @@ on:
         type: boolean
         required: false
         default: false
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
 
 permissions:
   contents: write
@@ -45,17 +50,17 @@ jobs:
         with:
           python-version: 3.12
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Build wheel from template
         shell: bash
         run: |
           export VERSION_TAG=${{ inputs.release_tag }}
-          pip install wheel
+          pip install wheel setuptools
           python ./.github/scripts/forge-wheel-setup.py bdist_wheel --dist-dir ./
 
       - name: Publish wheels to PyPI
@@ -64,11 +69,11 @@ jobs:
           pip install s3pypi
 
           echo "Uploading wheel to the pypi bucket"
-          if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
-            s3pypi upload tt_forge*.whl --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
-          else
-            s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
-          fi
+          # if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+          #   s3pypi upload tt_forge*.whl --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+          # else
+          #   s3pypi upload tt_forge*.whl --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+          # fi
 
       - name: Build & push Docker image
         shell: bash
@@ -77,7 +82,7 @@ jobs:
           set -eo pipefail
 
           project="tt-forge"
-          commit_tag="${{ github.sha }}"
+          commit_tag="${{ inputs.xla_sha_override }}"
           version_tag="${{ inputs.release_tag }}"
           latest_tag="latest"
           if [[ "$version_tag" == *dev* ]]; then

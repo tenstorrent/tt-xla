@@ -45,5 +45,13 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_release_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_release_vllm_tt_artifact_name: vllm-tt-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
-      is_nightly_release: true
+      is_nightly_release: false
+      xla_sha_override: ${{ inputs.xla_sha_override }}
+
+  release-forge:
+    uses: ./.github/workflows/call-forge-release.yml
+    needs: [ release ]
+    secrets: inherit
+    with:
+      release_tag: ${{ needs.release.outputs.release_tag }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
