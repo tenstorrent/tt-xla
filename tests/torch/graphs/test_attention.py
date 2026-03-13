@@ -2337,7 +2337,7 @@ def test_eager_batched_attention():
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-@parametrize_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox", "galaxy"])
 def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     xr.set_device_type("TT")
 
@@ -2346,11 +2346,11 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     config._attn_implementation = "sdpa"
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
     batch_size = 1
-    if arch == "llmbox":
-        batch_size = 2
+    if arch in ("llmbox", "galaxy"):
+        batch_size = 2 if arch == "llmbox" else 4
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (batch_size, num_devices // batch_size)
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
@@ -2400,7 +2400,7 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-@parametrize_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox", "galaxy"])
 def test_gpt_oss_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")
 
@@ -2410,11 +2410,11 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
     batch_size = 1
 
-    if arch == "llmbox":
-        batch_size = 2
+    if arch == ("llmbox", "galaxy"):
+        batch_size = 2 if arch == "llmbox" else 4
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (batch_size, num_devices // batch_size)
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
