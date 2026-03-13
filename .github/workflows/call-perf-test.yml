@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: ''
+      vllm_tt_artifact_name:
+        description: "Name of the vllm-tt plugin wheel artifact"
+        required: false
+        type: string
+        default: ''
       use_docker_wheel:
         description: "Use wheel from docker instead of building a new one"
         required: false
@@ -137,6 +142,14 @@ jobs:
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ inputs.wheel_artifact_name }}
+
+        if [[ "${{ matrix.build.vllm }}" == "true" ]]; then
+          echo "=== Downloading vllm-tt wheel ==="
+          gh run download ${{ inputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ inputs.vllm_tt_artifact_name }}
+        fi
 
         echo "=== Installing wheel ==="
         pip install wheels/*.whl
