@@ -293,7 +293,8 @@ jobs:
       if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
       shell: bash
       run: |
-        pip install pyyaml
+        source venv/activate
+        uv pip install pyyaml
         python3 tests/runner/validate_test_config.py
 
     - name: Collect Tests
