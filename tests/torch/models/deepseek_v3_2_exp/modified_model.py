@@ -759,12 +759,16 @@ class MLA(nn.Module):
         )
         self.dequant_wkv_b = None
 
+        # Preset topk indices tensor. Only used for testing.
+        self.prepopulated_topk_indices = None
+
     def forward(
         self,
         x: torch.Tensor,
         start_pos: int,
         freqs_cis: torch.Tensor,
         mask: Optional[torch.Tensor],
+        use_optimized_decode_flow: bool = True,
     ):
         """
         Forward pass for the Multi-Head Latent Attention (MLA) Layer.
@@ -834,23 +838,93 @@ class MLA(nn.Module):
             q_nope = torch.einsum(
                 "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
             )
-            scores = (
-                torch.einsum("bshc,btc->bsht", q_nope, self.kv_cache[:bsz, :end_pos])
-                + torch.einsum("bshr,btr->bsht", q_pe, self.pe_cache[:bsz, :end_pos])
-            ) * self.softmax_scale
 
-            # indexer
-            if self.indexer is not None:
-                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
-                index_mask = torch.full(
-                    (bsz, 1, end_pos), float("-inf"), device=x.device
-                ).scatter_(-1, topk_indices, 0)
-                scores += index_mask.unsqueeze(2)
-
-            scores = scores.softmax(dim=-1)
-            x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
+            if use_optimized_decode_flow:
+                x = self.modified_decode_flow(
+                    x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+                )
+            else:
+                x = self.original_decode_flow(
+                    x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+                )
+            # Expand from latent
             x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
         x = self.wo(x.flatten(2))
+        return x
+
+    def original_decode_flow(
+        self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+    ):
+        """
+        Original decode flow of the MLA forward pass as presented in Deepseek's original
+        implementation.
+
+        It performs the full attention computation using the entire cached kv and pe
+        caches and then applies the Top-K indexer.
+        """
+        scores = (
+            torch.einsum("bshc,btc->bsht", q_nope, self.kv_cache[:bsz, :end_pos])
+            + torch.einsum("bshr,btr->bsht", q_pe, self.pe_cache[:bsz, :end_pos])
+        ) * self.softmax_scale
+
+        # indexer
+        if self.indexer is not None:
+            if self.prepopulated_topk_indices is not None:
+                topk_indices = self.prepopulated_topk_indices
+            else:
+                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+            index_mask = torch.full(
+                (bsz, 1, end_pos), float("-inf"), device=x.device
+            ).scatter_(-1, topk_indices, 0)
+            scores += index_mask.unsqueeze(2)
+
+        scores = scores.softmax(dim=-1)
+        x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
+        return x
+
+    def modified_decode_flow(
+        self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+    ):
+        """
+        More optimal decode flow for the MLA forward pass.
+
+        The key difference here is to run the indexer first, and only use the top K
+        indices of the cached kv and pe for the attention computation.
+        """
+        if self.indexer is not None:
+            if self.prepopulated_topk_indices is not None:
+                topk_indices = self.prepopulated_topk_indices
+            else:
+                topk_indices = self.indexer(
+                    x, qr, start_pos, freqs_cis, mask
+                )  # (bsz, 1, topk)
+            gather_idx = topk_indices.squeeze(1)  # (bsz, topk)
+            batch_idx = torch.arange(gather_idx.size(0)).view(-1, 1)  # (bsz, 1)
+
+            orig_kv_cache = self.kv_cache[
+                :bsz, :end_pos
+            ]  # (bsz, seq_len, kv_lora_rank)
+            orig_pe_cache = self.pe_cache[
+                :bsz, :end_pos
+            ]  # (bsz, seq_len, qk_rope_head_dim)
+
+            # Extract only the indices specified by batch_idx and gather_idx
+            kv_for_attention = orig_kv_cache[
+                batch_idx, gather_idx
+            ]  # (bsz, topk, kv_lora_rank)
+            pe_for_attention = orig_pe_cache[
+                batch_idx, gather_idx
+            ]  # (bsz, topk, qk_rope_head_dim)
+        else:
+            kv_for_attention = self.kv_cache[:bsz, :end_pos]
+            pe_for_attention = self.pe_cache[:bsz, :end_pos]
+        scores = (
+            torch.einsum("bshc,btc->bsht", q_nope, kv_for_attention)
+            + torch.einsum("bshr,btr->bsht", q_pe, pe_for_attention)
+        ) * self.softmax_scale
+
+        scores = scores.softmax(dim=-1)
+        x = torch.einsum("bsht,btc->bshc", scores, kv_for_attention)
         return x
 
 

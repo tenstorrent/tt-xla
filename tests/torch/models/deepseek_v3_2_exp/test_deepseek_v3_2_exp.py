@@ -9,6 +9,7 @@ import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+from benchmark.utils import compute_pcc
 from huggingface_hub import hf_hub_download
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
@@ -763,3 +764,63 @@ def test_deepseek_v3_2_full_sparse_moe():
 
     print(f"[output] TT  tokens: {tokenizer.decode(tt_tokens[0].tolist())}")
     print(f"[output] CPU tokens: {tokenizer.decode(cpu_tokens[0].tolist())}")
+
+
+@pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
+@pytest.mark.parametrize("prefill_seq_len", [32, 128, 512, 2048])
+def test_dsa_optimized_decode_flow_compared_to_original(batch_size, prefill_seq_len):
+    """
+    This test compares the optimized decode flow with the original reference flow provided
+    by Deepseek. It is run only on CPU.
+    """
+    decode_seq_len = 1  # Generate one token at a time
+    start_pos = prefill_seq_len  # Start position for the new token
+
+    args = ModelArgs(
+        n_layers=1,
+        q_lora_rank=3072,
+        max_batch_size=batch_size,
+        max_seq_len=prefill_seq_len * 2,
+        index_topk=16,
+    )
+
+    modified_model = ModifiedTransformer(args)
+    modified_model = modified_model.to(torch.bfloat16)
+    attention = modified_model.layers[0].attn
+
+    freqs_cis = modified_model.freqs_cis[start_pos : start_pos + decode_seq_len]
+
+    hidden_states = torch.randn(
+        (batch_size, decode_seq_len, args.dim), dtype=torch.bfloat16
+    )
+    kv_cache = torch.randn(
+        batch_size, start_pos, args.kv_lora_rank, dtype=torch.bfloat16
+    )
+    pe_cache = torch.randn(
+        batch_size, start_pos, args.qk_rope_head_dim, dtype=torch.bfloat16
+    )
+    k_cache = torch.randn(
+        batch_size, start_pos, args.index_head_dim, dtype=torch.bfloat16
+    )
+    end_pos = start_pos + decode_seq_len
+    topk_indices = torch.stack(
+        [torch.randperm(end_pos)[: args.index_topk] for _ in range(batch_size)]
+    ).unsqueeze(
+        1
+    )  # (batch_size, 1, index_topk)
+
+    attention.prepopulated_topk_indices = topk_indices
+    attention.kv_cache[:batch_size, :start_pos] = kv_cache
+    attention.pe_cache[:batch_size, :start_pos] = pe_cache
+    attention.indexer.k_cache[:batch_size, :start_pos] = k_cache
+
+    test_modified_output = attention(
+        hidden_states, start_pos, freqs_cis, mask=None, use_optimized_decode_flow=True
+    )
+    test_original_output = attention(
+        hidden_states, start_pos, freqs_cis, mask=None, use_optimized_decode_flow=False
+    )
+
+    pcc = compute_pcc(test_modified_output, test_original_output)
+
+    assert pcc > 0.99, f"PCC too low: {pcc}"
