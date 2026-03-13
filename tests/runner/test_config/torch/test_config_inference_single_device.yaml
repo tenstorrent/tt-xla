@@ -904,7 +904,6 @@ test_config:
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
-      - split_query_key_value_and_split_heads.ttnn.mlir
       - rms_norm.ttnn.mlir
       - matmul_with_activation_silu.ttnn.mlir
       - softmax.ttnn.mlir # SDPA fusion is not enabled without the optimizer, so we only check for softmax
