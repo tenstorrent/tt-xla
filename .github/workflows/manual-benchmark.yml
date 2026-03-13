@@ -104,7 +104,7 @@ jobs:
           echo '{"runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": false }' >> adv_filter.json
         fi
         if [ -n "${{ inputs.test_filter }}" ]; then
-          echo ',{"filter": "filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
+          echo ',{"filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
         fi
         echo "]" >> adv_filter.json
         filter=$(cat adv_filter.json | jq -r -c '.')
