@@ -16,6 +16,7 @@ on:
         description: "Docker image to use"
         required: true
         type: string
+        default: 'ghcr.io/tenstorrent/tt-xla-slim:nightly-latest'
       artifact_run_id:
         description: "Run ID to download wheel artifact from"
         required: false
