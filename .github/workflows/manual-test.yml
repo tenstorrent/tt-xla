@@ -50,6 +50,13 @@ permissions:
 run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
 
 jobs:
+  testing:
+    runs-on: mlir-p150-1
+    steps:
+      - name: logging
+        shell: bash
+        run: |
+          echo "working"
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
