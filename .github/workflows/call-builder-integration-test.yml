@@ -4,11 +4,13 @@
 name: Builder Integration Test (call)
 
 # Three-job pipeline:
-#   read-matrix  – reads .github/workflows/test-matrix-presets/builder-integration-tests.json
-#   build        – builds tt-xla once (Debug + Python bindings) on a large CPU runner,
-#                  uploads the build directory as a shared artifact
-#   run-test     – matrix of hardware jobs; each downloads the shared build,
-#                  runs ttrt query --save-artifacts, then drives run_test_op_by_op.py
+#   read-matrix  – reads builder-integration-tests.json; groups entries by
+#                  "runs-on" so all tests for the same device share one job
+#   build        – builds tt-xla once (Debug + Python bindings) on a large CPU
+#                  runner and uploads the build directory as a shared artifact
+#   run-test     – one job per device; downloads the shared build, runs
+#                  ttrt query --save-artifacts, then iterates over every test
+#                  assigned to that device in sequence
 #
 # read-matrix and build run in parallel; run-test waits for both.
 #
@@ -52,13 +54,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read builder-integration-tests.json
+      - name: Read and group builder-integration-tests.json by device
         id: read
         shell: bash
         run: |
-          matrix=$(jq -c '.' .github/workflows/test-matrix-presets/builder-integration-tests.json)
+          # Group flat test entries by "runs-on" so all tests for the same
+          # device are bundled into one matrix job.
+          # Each grouped entry: { "runs-on": "n150", "test-configs": [ {name, tests, ...}, ... ] }
+          matrix=$(jq -c '
+            [group_by(."runs-on")[] |
+              {
+                "runs-on": .[0]."runs-on",
+                "test-configs": [.[] | del(."runs-on")]
+              }
+            ]
+          ' .github/workflows/test-matrix-presets/builder-integration-tests.json)
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "Loaded matrix:"
+          echo "Grouped matrix:"
           echo "$matrix" | jq '.'
 
   # ---------------------------------------------------------------------------
@@ -122,10 +134,10 @@ jobs:
     runs-on: ["${{ matrix.build.runs-on }}", "in-service"]
 
     # Keep job name in sync with the fetch-job-id step below
-    name: "builder ${{ matrix.build.name }} (${{ matrix.build.runs-on }}, ${{ strategy.job-index }})"
+    name: "builder ${{ matrix.build.runs-on }} (${{ strategy.job-index }})"
 
     container:
-      image: ${{ inputs.docker_image || 'ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest' }}
+      image: ${{ inputs.docker_image }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
@@ -150,13 +162,7 @@ jobs:
         id: fetch-job-id
         uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
         with:
-          job_name: "builder ${{ matrix.build.name }} (${{ matrix.build.runs-on }}, ${{ strategy.job-index }})"
-
-      - name: Set reusable strings
-        id: strings
-        shell: bash
-        run: |
-          echo "test-log=builder-integration-${{ matrix.build.name }}-${{ steps.fetch-job-id.outputs.job_id }}.log" >> "$GITHUB_OUTPUT"
+          job_name: "builder ${{ matrix.build.runs-on }} (${{ strategy.job-index }})"
 
       - name: Download build archive
         uses: actions/download-artifact@v4
@@ -173,7 +179,7 @@ jobs:
           source venv/activate
           ttrt query --save-artifacts
 
-      - name: Run builder integration test
+      - name: Run all builder integration tests for this device
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_HOME: /mnt/dockercache/huggingface
@@ -181,35 +187,56 @@ jobs:
         run: |
           source venv/activate
 
-          # Build the argument list from explicit JSON fields.
-          # Positional test IDs come first, then any optional flags.
-          mapfile -t CMD < <(echo '${{ toJson(matrix.build.tests) }}' | jq -r '.[]')
+          # build_cmd <config-json> — constructs the argument list for one test config
+          build_cmd() {
+            local cfg="$1"
+            local -n _cmd=$2
 
-          # --source (optional)
-          source_val=$(echo '${{ toJson(matrix.build) }}' | jq -r '.source // empty')
-          [[ -n "$source_val" ]] && CMD+=(--source "$source_val")
+            mapfile -t _cmd < <(echo "$cfg" | jq -r '.tests[]')
 
-          # --target (optional, repeatable list)
-          mapfile -t targets < <(echo '${{ toJson(matrix.build) }}' | jq -r '.target[]? // empty')
-          for t in "${targets[@]}"; do CMD+=(--target "$t"); done
+            local src; src=$(echo "$cfg" | jq -r '.source // empty')
+            [[ -n "$src" ]] && _cmd+=(--source "$src")
 
-          # --artifacts-dir (optional)
-          artifacts_dir=$(echo '${{ toJson(matrix.build) }}' | jq -r '."artifacts-dir" // empty')
-          [[ -n "$artifacts_dir" ]] && CMD+=(--artifacts-dir "$artifacts_dir")
+            mapfile -t _targets < <(echo "$cfg" | jq -r '.target[]? // empty')
+            for t in "${_targets[@]}"; do _cmd+=(--target "$t"); done
 
-          # --no-run (optional boolean)
-          no_run=$(echo '${{ toJson(matrix.build) }}' | jq -r '."no-run" // false')
-          [[ "$no_run" == "true" ]] && CMD+=(--no-run)
+            local adir; adir=$(echo "$cfg" | jq -r '."artifacts-dir" // empty')
+            [[ -n "$adir" ]] && _cmd+=(--artifacts-dir "$adir")
 
-          echo "Running: python tests/integrations/tt_mlir_builder/run_test_op_by_op.py ${CMD[*]}"
-          python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
-            "${CMD[@]}" \
-            2>&1 | tee ${{ steps.strings.outputs.test-log }}
-          exit "${PIPESTATUS[0]}"
+            local norun; norun=$(echo "$cfg" | jq -r '."no-run" // false')
+            [[ "$norun" == "true" ]] && _cmd+=(--no-run)
+          }
 
-      - name: Upload test log
+          FAILED=()
+          configs='${{ toJson(matrix.build['test-configs']) }}'
+          count=$(echo "$configs" | jq 'length')
+
+          for i in $(seq 0 $((count - 1))); do
+            cfg=$(echo "$configs" | jq -c ".[$i]")
+            name=$(echo "$cfg" | jq -r '.name')
+
+            echo ""
+            echo "========================================================"
+            echo "[$((i+1))/$count] $name"
+            echo "========================================================"
+
+            build_cmd "$cfg" CMD
+            echo "Running: python tests/integrations/tt_mlir_builder/run_test_op_by_op.py ${CMD[*]}"
+
+            python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
+              "${CMD[@]}" \
+              2>&1 | tee "${name}.log" || FAILED+=("$name")
+          done
+
+          if [[ ${#FAILED[@]} -gt 0 ]]; then
+            echo ""
+            echo "FAILED tests: ${FAILED[*]}"
+            exit 1
+          fi
+
+      - name: Upload test logs
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: builder-integration-log-${{ matrix.build.runs-on }}-${{ matrix.build.name }}-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
-          path: ${{ steps.strings.outputs.test-log }}
+          name: builder-integration-logs-${{ matrix.build.runs-on }}-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+          path: "*.log"
