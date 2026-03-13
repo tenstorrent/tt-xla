@@ -29,6 +29,7 @@ name: Builder Integration Test (call)
 #   { "runs-on": "n150",        "name": "resnet",     "tests": ["pytorch_resnet50-inference-single_device"], "source": "models" }
 
 on:
+  push:
   workflow_call:
     inputs:
       docker_image:
@@ -77,7 +78,7 @@ jobs:
     name: "builder ${{ matrix.build.name }} (${{ matrix.build.runs-on }}, ${{ strategy.job-index }})"
 
     container:
-      image: ${{ inputs.docker_image }}
+      image: ${{ inputs.docker_image || 'ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest' }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
