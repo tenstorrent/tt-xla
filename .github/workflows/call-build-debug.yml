@@ -18,7 +18,7 @@ jobs:
     runs-on: tt-ubuntu-2204-large-stable
     name: "Build tt-xla (debug)"
     container:
-      image: ${{ inputs.docker_image }}
+      image: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker_image }}
 
     steps:
       - name: Mark repo as safe for git
