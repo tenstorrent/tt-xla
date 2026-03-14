@@ -216,7 +216,7 @@ test_config:
     status: EXPECTED_PASSING
 
   densenet/pytorch-121_Xray-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
 
   distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad-single_device-inference:
     status: EXPECTED_PASSING

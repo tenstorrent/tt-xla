@@ -78,6 +78,7 @@ else()
           -DTTMLIR_ENABLE_TESTS=OFF
           -DTTMLIR_ENABLE_TOOLS=${TTXLA_ENABLE_TOOLS}
           -DTTMLIR_ENABLE_DOCS=OFF
+          -DTT_USE_SYSTEM_SFPI=${TT_USE_SYSTEM_SFPI}
         GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON

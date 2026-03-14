@@ -21,38 +21,16 @@ jobs:
       ref: main
       project-filter: tt-xla
 
-  perf-benchmark-n150:
-    uses: ./.github/workflows/manual-benchmark.yml
+  perf-benchmark:
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
     secrets: inherit
     with:
       docker_image: ${{ inputs.release_docker_image }}
-      runs-on-filter: n150
       sh-runner: false
       skip-device-perf: false
       use_docker_wheel: true
       perf_regression_check: true
-
-  perf-benchmark-llmbox:
-    uses: ./.github/workflows/manual-benchmark.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ inputs.release_docker_image }}
-      runs-on-filter: n300-llmbox
-      sh-runner: false
-      skip-device-perf: false
-      use_docker_wheel: true
-      perf_regression_check: true
-
-  perf-benchmark-galaxy:
-    uses: ./.github/workflows/manual-benchmark.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ inputs.release_docker_image }}
-      runs-on-filter: galaxy-wh-6u
-      sh-runner: false
-      skip-device-perf: false
-      use_docker_wheel: true
-      perf_regression_check: true
+      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
 
   demo-tests:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
@@ -66,9 +44,7 @@ jobs:
     if: always()
     needs:
       - basic-tests
-      - perf-benchmark-n150
-      - perf-benchmark-llmbox
-      - perf-benchmark-galaxy
+      - perf-benchmark
       - demo-tests
     runs-on: ubuntu-latest
     outputs:

@@ -42,8 +42,9 @@ struct CompileOptions {
   // and user should provide and get tensors of common dtype.
   bool enable_bfp8_conversion = false;
 
-  // Enables experimental BFP8 weight conversion in MLIR.
-  bool experimental_enable_weight_bfp8_conversion = false;
+  // Target dtype for weight conversion in matmul and linear operations.
+  // Valid values: "bfp8", "bfp4". Empty string disables.
+  std::string experimental_weight_dtype = "";
 
   // Override math fidelity for all ttnn operations exposing compute kernel
   // config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".

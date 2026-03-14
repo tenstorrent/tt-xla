@@ -227,6 +227,29 @@ def test_greedy_determinism(llm, prompt):
     ), f"All tokens are identical ({token_ids[0]}), model is likely producing garbage"
 
 
+# Prompts all test models reliably complete under greedy sampling (#3663).
+_COHERENCE_CHECKS = [
+    ("1 + 1 =", "2"),
+    ("The opposite of up is", "down"),
+    ("Roses are red, violets are", "blue"),
+    ("To be or not to be, that is the", "question"),
+    ("Monday, Tuesday, Wednesday,", "thursday"),
+    ("January, February, March,", "april"),
+]
+
+
+@for_targets(single_device="push", n300="push", n300_llmbox="push")
+def test_output_coherence(llm):
+    """Verify model produces coherent, factually grounded output."""
+    params = vllm.SamplingParams(temperature=0.0, max_tokens=10)
+    for input_text, expected in _COHERENCE_CHECKS:
+        text = llm.generate([input_text], params, use_tqdm=False)[0].outputs[0].text
+        print(f"[TESTOUT test_output_coherence] '{input_text}' -> '{text.strip()}'")
+        assert (
+            expected.lower() in text.lower()
+        ), f"Expected '{expected}' in output for '{input_text}', got: '{text}'"
+
+
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_combined_sampling(llm, prompt):
     """Test realistic combinations of sampling parameters."""
@@ -314,6 +337,71 @@ def test_logprobs(llm, prompt):
                         f"token {token_idx}, id {token_id}: "
                         f"rank {lp_entry.rank} must be >= 1"
                     )
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_prompt_logprobs(llm, prompt):
+    """Test that prompt_logprobs are returned with correct structure and values.
+
+    For each prompt token (except the first), vLLM should return a dict
+    mapping token IDs to Logprob entries. The dict at position i contains
+    the log-probabilities the model assigned at position i when predicting
+    the next token. The actual prompt token at position i+1 must appear
+    in the dict.
+    """
+    prompt_logprobs_values = [1, 5]
+
+    for num_plp in prompt_logprobs_values:
+        params = vllm.SamplingParams(
+            temperature=0.0, prompt_logprobs=num_plp, max_tokens=4
+        )
+        result = llm.generate(prompt, params, use_tqdm=False)[0]
+        plp = result.prompt_logprobs
+
+        print(
+            f"[TESTOUT test_prompt_logprobs] prompt_logprobs={num_plp}: "
+            f"has_plp={plp is not None}, "
+            f"n_entries={len(plp) if plp else 0}, "
+            f"text={result.outputs[0].text[:30]}..."
+        )
+
+        assert (
+            plp is not None
+        ), f"prompt_logprobs must not be None when prompt_logprobs={num_plp}"
+
+        # First entry is always None (no prediction for the first token).
+        assert plp[0] is None, "First prompt_logprobs entry must be None"
+
+        prompt_token_ids = result.prompt_token_ids
+        assert len(plp) == len(prompt_token_ids), (
+            f"prompt_logprobs length {len(plp)} != "
+            f"prompt token count {len(prompt_token_ids)}"
+        )
+
+        for pos in range(1, len(plp)):
+            lp_dict = plp[pos]
+            assert lp_dict is not None, f"prompt_logprobs[{pos}] must not be None"
+            assert len(lp_dict) >= num_plp, (
+                f"position {pos}: expected >= {num_plp} logprob entries, "
+                f"got {len(lp_dict)}"
+            )
+
+            # The actual prompt token at this position must be in the dict.
+            actual_token = prompt_token_ids[pos]
+            assert actual_token in lp_dict, (
+                f"position {pos}: actual prompt token {actual_token} "
+                f"must appear in logprobs dict, got keys {list(lp_dict.keys())}"
+            )
+
+            for token_id, lp_entry in lp_dict.items():
+                assert lp_entry.logprob <= 0.0, (
+                    f"position {pos}, token {token_id}: "
+                    f"logprob {lp_entry.logprob:.4f} must be <= 0"
+                )
+                assert lp_entry.rank >= 1, (
+                    f"position {pos}, token {token_id}: "
+                    f"rank {lp_entry.rank} must be >= 1"
+                )
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")

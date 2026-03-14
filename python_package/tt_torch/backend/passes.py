@@ -10,6 +10,53 @@ from tt_torch.fusion_providers import FusionProvider
 from ttxla_tools.logging import logger
 
 
+def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Rewrite call_module nodes targeting AdaptiveAvgPool1d/2d with output_size=1/(1,1)
+    to use torch.mean instead.
+
+    This works around an XLA + FunctionalTensorMode incompatibility where inplace_view
+    ops (aten.as_strided_ inside adaptive pooling) are re-executed under no_dispatch()
+    for metadata fixup, causing dispatch to XLA's kernel on wrapper subclass tensors
+    that XLA can't handle.
+    """
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if node.op == "call_module" and isinstance(node.target, str):
+            target_module = gm.get_submodule(node.target)
+            if isinstance(target_module, torch.nn.AdaptiveAvgPool1d):
+                output_size = target_module.output_size
+                if output_size == 1 or output_size == (1,) or output_size == [1]:
+                    with graph.inserting_after(node):
+                        mean_node = graph.call_function(
+                            torch.mean,
+                            args=(node.args[0],),
+                            kwargs={"dim": [-1], "keepdim": True},
+                        )
+                        node.replace_all_uses_with(mean_node)
+                        graph.erase_node(node)
+                        modified = True
+            elif isinstance(target_module, torch.nn.AdaptiveAvgPool2d):
+                output_size = target_module.output_size
+                if output_size == 1 or output_size == (1, 1) or output_size == [1, 1]:
+                    with graph.inserting_after(node):
+                        mean_node = graph.call_function(
+                            torch.mean,
+                            args=(node.args[0],),
+                            kwargs={"dim": [-2, -1], "keepdim": True},
+                        )
+                        node.replace_all_uses_with(mean_node)
+                        graph.erase_node(node)
+                        modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
 def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
     """
     Run all registered fusion passes on a GraphModule.
