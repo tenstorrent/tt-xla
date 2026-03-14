@@ -16,7 +16,7 @@
 </div>
 <br>
 
-Run **PyTorch** and **JAX** models on Tenstorrent hardware. Use `torch.compile()` or `jax.jit()` and TT-XLA handles the rest — compiling your model through [TT-MLIR](https://github.com/tenstorrent/tt-mlir) and executing it on Tenstorrent accelerators. Supports single-chip and multi-chip configurations via the [PJRT](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) interface.
+Run **PyTorch** and **JAX** models on Tenstorrent hardware. Use `torch.compile()` or `jax.jit()` and TT-XLA handles the rest, compiling your model through [TT-MLIR](https://github.com/tenstorrent/tt-mlir) and executing it on Tenstorrent accelerators. Supports single-chip and multi-chip configurations via the [PJRT](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) interface.
 
 > **Part of the [TT-Forge](https://github.com/tenstorrent/tt-forge) AI compiler ecosystem.**
 
@@ -32,18 +32,15 @@ pip install torchvision
 
 ```python
 import torch
-import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
-from tt_torch.backend.backend import xla_backend
+import torch_xla
 from torchvision.models import resnet50, ResNet50_Weights
 
 # Set device to Tenstorrent
-xr.set_device_type("TT")
-device = xm.xla_device()
+device = torch_xla.xla_device()
 
 # Load ResNet-50
 model = resnet50(weights=ResNet50_Weights.DEFAULT).to(torch.bfloat16).eval()
-compiled_model = torch.compile(model, backend=xla_backend)
+compiled_model = torch.compile(model, backend="openxla")
 compiled_model = compiled_model.to(device)
 
 # Run inference on Tenstorrent
@@ -62,13 +59,6 @@ See the full [Getting Started Guide](docs/src/getting_started.md) for Docker, bu
 - [Getting Started / How to Run a Model](docs/src/getting_started.md)
 - [Demos](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla) — Ready-to-run models (ResNet, GPT-2, OPT, ALBERT, and more)
 - [Benchmarks](https://github.com/tenstorrent/tt-forge/tree/main/benchmark/tt-xla) — Performance benchmarks
-
------
-# Supported Hardware
-| Device | Configurations |
-|--------|---------------|
-| **Wormhole** | N150 (single-chip), N300 (dual-chip) |
-| **Blackhole** | P150B |
 
 -----
 # Related Tenstorrent Projects
