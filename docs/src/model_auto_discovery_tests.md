@@ -223,7 +223,8 @@ pytest -q -m n300_llmbox --arch n300-llmbox tests/runner/test_models.py
 
 - Push/PR: A small, fast subset runs on each pull request (e.g., tests marked `push`). This provides quick signal without large queues.
 - Nightly: The broad model matrix (inference/training across supported parallelism) runs nightly and reports to the Superset dashboard. Tests are selected via markers and `tests/runner/test_config/*` statuses/arch tags like `ModelTestStatus.EXPECTED_PASSING`
-- Experimental nightly: New or experimental models not yet promoted/tagged in `tests/runner/test_config/*` (typically `unspecified`) run separately. These do not report to Superset until promoted with proper status/markers.
+- Experimental nightly: New or experimental models not yet promoted/tagged in `tests/runner/test_config/*` (typically `unspecified`) run separately. The default CI preset explicitly excludes tests carrying the direct `vulcan` group marker (`and not vulcan`) so Vulcan-targeted models stay out of scheduled experimental selection unless a preset is intentionally widened. These do not report to Superset until promoted with proper status/markers.
+- Vulcan promotion lane: once a Vulcan-tagged model is validated and marked `EXPECTED_PASSING` in native `test_config` YAML, the dedicated preset `model-test-vulcan-passing.json` can be used to schedule only `vulcan and expected_passing and single_device and inference` cases on `n150` / `p150` without widening the default nightly or experimental presets.
 
 ## Adding a new model to run in Nightly CI
 
