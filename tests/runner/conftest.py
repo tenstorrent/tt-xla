@@ -32,8 +32,8 @@ def _get_model_group_from_item(item):
     if test_entry is None:
         # Try test_entry_and_phase (for test_llms_torch which uses tuple parametrization)
         test_entry_and_phase = item.callspec.params.get("test_entry_and_phase")
-        if test_entry_and_phase is not None:
-            test_entry, _ = test_entry_and_phase  # Unpack tuple
+        if isinstance(test_entry_and_phase, tuple) and len(test_entry_and_phase) == 2:
+            test_entry, _ = test_entry_and_phase
 
     if test_entry is None:
         return None
@@ -78,6 +78,42 @@ def test_metadata(request) -> ModelTestConfig:
     meta = getattr(request.node, "_test_meta", None)
     assert meta is not None, f"No ModelTestConfig attached for {request.node.nodeid}"
     return meta
+
+
+def _normalize_group_marker_name(model_group) -> str:
+    return str(model_group).lower().replace("-", "_")
+
+
+def _apply_model_group_markers(item, model_group, config_markers):
+    """Apply direct group markers and default schedule markers for a model group.
+
+    Returns the marker names added to support direct unit testing of the policy.
+    """
+    if model_group is None:
+        return []
+
+    added_markers = []
+    group_marker = _normalize_group_marker_name(model_group)
+    item.add_marker(getattr(pytest.mark, group_marker))
+    added_markers.append(group_marker)
+
+    has_schedule_marker = any(m in config_markers for m in ("nightly", "weekly"))
+    if has_schedule_marker:
+        return added_markers
+
+    model_group_type = type(model_group)
+    red_group = getattr(model_group_type, "RED", None)
+    priority_group = getattr(model_group_type, "PRIORITY", None)
+    generality_group = getattr(model_group_type, "GENERALITY", None)
+
+    if model_group in (red_group, priority_group):
+        item.add_marker(pytest.mark.nightly)
+        added_markers.append("nightly")
+    elif model_group == generality_group:
+        item.add_marker(pytest.mark.weekly)
+        added_markers.append("weekly")
+
+    return added_markers
 
 
 def pytest_collection_modifyitems(config, items):
@@ -129,29 +165,13 @@ def pytest_collection_modifyitems(config, items):
         for marker_name in config_markers:
             item.add_marker(getattr(pytest.mark, marker_name))
 
-        # Apply default nightly/weekly marker based on ModelGroup if not already specified in config.
-        # RED and PRIORITY models run nightly, GENERALITY models run weekly.
-        # Config markers take precedence and can override this default behavior.
+        # Apply model-group markers and default schedule markers.
+        # Direct group markers are always added (for example `-m red` or `-m vulcan`).
+        # Schedule markers remain policy-driven: RED/PRIORITY default to nightly,
+        # GENERALITY defaults to weekly, and any other group gets no default schedule marker.
+        # Config markers still take precedence and can override the default schedule.
         model_group = _get_model_group_from_item(item)
-        if model_group is not None:
-            # Get enum members from the same class to avoid import path identity issues
-            ModelGroup = type(model_group)
-
-            # Add "red" marker for RED models to enable filtering like: -m red
-            if model_group == ModelGroup.RED:
-                item.add_marker(pytest.mark.red)
-
-            # Apply schedule markers if not already specified in config
-            has_schedule_marker = any(
-                m in config_markers for m in ("nightly", "weekly")
-            )
-            if not has_schedule_marker:
-                if model_group in (ModelGroup.RED, ModelGroup.PRIORITY):
-                    # RED and PRIORITY models run nightly
-                    item.add_marker(pytest.mark.nightly)
-                else:
-                    # GENERALITY models run weekly
-                    item.add_marker(pytest.mark.weekly)
+        _apply_model_group_markers(item, model_group, config_markers)
 
         # Apply marker based on bringup_status to enable filtering like: -m incorrect_result
         bringup_status = getattr(meta, "bringup_status", None)
