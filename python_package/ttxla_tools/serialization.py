@@ -135,7 +135,9 @@ def _read_tt_mlir_version(repo_root: Path) -> str | None:
 
 def build_proof_metadata(output_prefix: str, *, test_name: str | None = None) -> dict:
     repo_root = _repo_root()
-    tt_forge_models_root = _resolve_submodule_root(repo_root / "third_party" / "tt_forge_models")
+    tt_forge_models_root = _resolve_submodule_root(
+        repo_root / "third_party" / "tt_forge_models"
+    )
     timestamp = datetime.now(timezone.utc).isoformat()
 
     metadata = {
@@ -152,15 +154,23 @@ def build_proof_metadata(output_prefix: str, *, test_name: str | None = None) ->
     }
 
     if tt_forge_models_root is not None and tt_forge_models_root.exists():
-        metadata["tt_forge_models_commit"] = _run_git(["rev-parse", "HEAD"], tt_forge_models_root)
-        metadata["tt_forge_models_branch"] = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], tt_forge_models_root)
+        metadata["tt_forge_models_commit"] = _run_git(
+            ["rev-parse", "HEAD"], tt_forge_models_root
+        )
+        metadata["tt_forge_models_branch"] = _run_git(
+            ["rev-parse", "--abbrev-ref", "HEAD"], tt_forge_models_root
+        )
         forge_status = _run_git(["status", "--porcelain"], tt_forge_models_root)
-        metadata["tt_forge_models_dirty"] = bool(forge_status) if forge_status is not None else None
+        metadata["tt_forge_models_dirty"] = (
+            bool(forge_status) if forge_status is not None else None
+        )
 
     return metadata
 
 
-def save_proof_metadata_to_disk(output_prefix: str, *, test_name: str | None = None) -> str:
+def save_proof_metadata_to_disk(
+    output_prefix: str, *, test_name: str | None = None
+) -> str:
     """Persist provenance metadata for a serialized proof artifact bundle."""
     dirname = os.path.dirname(output_prefix)
     if dirname:

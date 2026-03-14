@@ -4,7 +4,10 @@
 
 from enum import Enum
 
-from tests.runner.conftest import _apply_model_group_markers, _normalize_group_marker_name
+from tests.runner.conftest import (
+    _apply_model_group_markers,
+    _normalize_group_marker_name,
+)
 
 
 class FakeModelGroup(Enum):
