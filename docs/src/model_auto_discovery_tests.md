@@ -84,7 +84,9 @@ tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8
 ```bash
 pytest -q -k "qwen_2_5_vl/pytorch-3b_instruct" tests/runner/test_models.py
 pytest -q -m "training and tensor_parallel" tests/runner/test_models.py
+pytest -q --collect-only -m vulcan tests/runner/test_models.py |& tee collect_vulcan.log
 ```
+- Model-group markers are applied directly from `ModelInfo.group`, so once `tt-forge-models` loaders set `group=vulcan`, operators can use `-m vulcan` for collect-only or targeted runs.
 
 Take a look at `model-test-passing.json` and related `.json` files inside `.github/workflows/test-matrix-presets` for seeing how filtering works for CI jobs.
 
@@ -264,7 +266,7 @@ git commit -m "Uplift tt-forge-models submodule to <version> to include <model>"
 - `tests/runner/test_models.py`: main parametrized pytest runner
 - `tests/runner/test_utils.py`: discovery, IDs, `DynamicTorchModelTester`
 - `tests/runner/requirements.py`: per-model requirements context manager
-- `tests/runner/conftest.py`: config attachment, markers, `--arch`, config validation
+- `tests/runner/conftest.py`: config attachment, direct model-group markers (for example `red`, `generality`, `vulcan`), default schedule markers, `--arch`, config validation
 - `tests/runner/test_config/*.yaml`: YAML test config files (source of truth)
 - `tests/runner/test_config/config_loader.py`: loads/merges/validates YAML into Python at runtime
 - `third_party/tt_forge_models/config.py`: `Parallelism` and model metadata
