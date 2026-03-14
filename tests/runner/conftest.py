@@ -32,8 +32,8 @@ def _get_model_group_from_item(item):
     if test_entry is None:
         # Try test_entry_and_phase (for test_llms_torch which uses tuple parametrization)
         test_entry_and_phase = item.callspec.params.get("test_entry_and_phase")
-        if test_entry_and_phase is not None:
-            test_entry, _ = test_entry_and_phase  # Unpack tuple
+        if isinstance(test_entry_and_phase, tuple) and len(test_entry_and_phase) == 2:
+            test_entry, _ = test_entry_and_phase
 
     if test_entry is None:
         return None
