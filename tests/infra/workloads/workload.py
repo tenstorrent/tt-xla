@@ -13,6 +13,7 @@ from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities import Framework, Mesh, Model
 from tt_jax import serialize_compiled_artifacts_to_disk
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+from ttxla_tools import save_proof_metadata_to_disk
 
 
 class Workload:
@@ -121,3 +122,5 @@ class Workload:
             raise ValueError(
                 f"Unsupported framework for serialization: {self.framework}"
             )
+
+        save_proof_metadata_to_disk(output_prefix)

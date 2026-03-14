@@ -56,7 +56,7 @@ def test_my_model(request):
 ```
 
 The test infrastructure automatically:
-- Serializes compilation artifacts to disk
+- Serializes compilation artifacts to disk, including a `*_metadata.json` provenance sidecar for proof runs
 - Runs FileCheck with the specified pattern files
 - Validates results and fails the test if patterns don't match
 

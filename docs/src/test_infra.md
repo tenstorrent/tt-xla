@@ -137,7 +137,7 @@ def test_my_model(model_tester: MyModelTester, request):
     model_tester.test(request=request)
 ```
 
-Artifacts are written to `output_artifact/<sanitized_test_name>/`.
+Artifacts are written with the prefix `output_artifact/<sanitized_test_name>` and include serialized IR files such as `*_ttir.mlir`, `*_ttnn.mlir`, `.ttnn`, plus a provenance sidecar `*_metadata.json` recording the test name, timestamp, `tt-xla` commit, pinned `tt-forge-models` revision, and `TT_MLIR_VERSION`.
 
 ### Running FileCheck
 

@@ -2,10 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from __future__ import annotations
+
 import io
+import json
 import os
+import re
 import shutil
+import subprocess
 import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
 
 
 def parse_executable(executable_io: io.BytesIO):
@@ -91,6 +98,90 @@ def parse_executable(executable_io: io.BytesIO):
     flatbuffer_binary = executable_io.read(size_flatbuffer)
 
     return ttir_mlir, ttnn_mlir, flatbuffer_binary
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _run_git(args: list[str], cwd: Path) -> str | None:
+    try:
+        return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
+def _resolve_submodule_root(path: Path) -> Path | None:
+    toplevel = _run_git(["rev-parse", "--show-toplevel"], path)
+    superproject = _run_git(["rev-parse", "--show-superproject-working-tree"], path)
+    if not toplevel or not superproject:
+        return None
+
+    resolved = Path(toplevel).resolve()
+    if resolved != path.resolve():
+        return None
+
+    return resolved
+
+
+def _read_tt_mlir_version(repo_root: Path) -> str | None:
+    cmake_path = repo_root / "third_party" / "CMakeLists.txt"
+    if not cmake_path.exists():
+        return None
+
+    match = re.search(r'set\(TT_MLIR_VERSION "([^"]+)"\)', cmake_path.read_text())
+    return match.group(1) if match else None
+
+
+def build_proof_metadata(output_prefix: str, *, test_name: str | None = None) -> dict:
+    repo_root = _repo_root()
+    tt_forge_models_root = _resolve_submodule_root(
+        repo_root / "third_party" / "tt_forge_models"
+    )
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    metadata = {
+        "output_prefix": output_prefix,
+        "test_name": test_name or Path(output_prefix).name,
+        "timestamp_utc": timestamp,
+        "tt_xla_commit": _run_git(["rev-parse", "HEAD"], repo_root),
+        "tt_xla_branch": _run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_root),
+        "tt_xla_dirty": bool(_run_git(["status", "--porcelain"], repo_root)),
+        "tt_mlir_version": _read_tt_mlir_version(repo_root),
+        "tt_forge_models_commit": None,
+        "tt_forge_models_branch": None,
+        "tt_forge_models_dirty": None,
+    }
+
+    if tt_forge_models_root is not None and tt_forge_models_root.exists():
+        metadata["tt_forge_models_commit"] = _run_git(
+            ["rev-parse", "HEAD"], tt_forge_models_root
+        )
+        metadata["tt_forge_models_branch"] = _run_git(
+            ["rev-parse", "--abbrev-ref", "HEAD"], tt_forge_models_root
+        )
+        forge_status = _run_git(["status", "--porcelain"], tt_forge_models_root)
+        metadata["tt_forge_models_dirty"] = (
+            bool(forge_status) if forge_status is not None else None
+        )
+
+    return metadata
+
+
+def save_proof_metadata_to_disk(
+    output_prefix: str, *, test_name: str | None = None
+) -> str:
+    """Persist provenance metadata for a serialized proof artifact bundle."""
+    dirname = os.path.dirname(output_prefix)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+
+    metadata_path = f"{output_prefix}_metadata.json"
+    metadata = build_proof_metadata(output_prefix, test_name=test_name)
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2, sort_keys=True)
+        f.write("\n")
+    return metadata_path
 
 
 # TODO: When the temp file mechanism (m_cached_system_descriptor_path) is removed,
