@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import warnings
 from typing import Dict, Optional, Set, Tuple
 
 # Debug flag: set TT_XLA_REQS_DEBUG=1 to see detailed output
@@ -38,6 +39,9 @@ class RequirementsManager:
     # Entries must be import names (e.g. "PIL", not "Pillow"), since they are
     # compared against resolved import names in _purge_stale_modules.
     _JAX_PURGE_SKIP = frozenset({"flax", "transformers"})
+
+    # Top-level directory names in RECORD that are not importable packages.
+    _RECORD_SKIP = frozenset({"__pycache__", "bin", "share"})
 
     def __init__(
         self, requirements_path: Optional[str], framework: Optional[str] = None
@@ -173,7 +177,11 @@ class RequirementsManager:
                 try:
                     self._pip_uninstall(to_remove)
                 except Exception as e:
-                    _dbg(f"[Requirements] __exit__: uninstall failed: {e}")
+                    warnings.warn(
+                        f"[Requirements] __exit__: uninstall failed: {e}",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
 
             if self._changed_versions:
                 _dbg(
@@ -192,7 +200,11 @@ class RequirementsManager:
                         restore_file = f.name
                     self._pip_install_requirements(restore_file)
                 except Exception as e:
-                    _dbg(f"[Requirements] __exit__: version restore failed: {e}")
+                    warnings.warn(
+                        f"[Requirements] __exit__: version restore failed: {e}",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
                 finally:
                     if restore_file and os.path.isfile(restore_file):
                         os.unlink(restore_file)
@@ -260,7 +272,6 @@ class RequirementsManager:
             # Fallback: scan RECORD (pip's installed-file manifest) for
             # top-level package dirs/modules.  Needed when top_level.txt is
             # absent (e.g. scikit-image ships RECORD but no top_level.txt).
-            _RECORD_SKIP = {"__pycache__", "bin", "share"}
             if dist.files:
                 names = set()
                 for f in dist.files:
@@ -274,7 +285,7 @@ class RequirementsManager:
                     # Package directory (e.g. "skimage/__init__.py" → "skimage")
                     elif (
                         len(parts) > 1
-                        and parts[0] not in _RECORD_SKIP
+                        and parts[0] not in RequirementsManager._RECORD_SKIP
                         and not parts[0].endswith((".dist-info", ".data"))
                         and parts[0].replace("_", "").isalnum()
                     ):
