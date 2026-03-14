@@ -772,14 +772,14 @@ test_config:
     reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "ImportError due to RequirementsManager in-process package swap causing stale sys.modules (transformers version skew) - https://github.com/tenstorrent/tt-xla/issues/3315 https://github.com/tenstorrent/tt-xla/issues/3317"
-    bringup_status: FAILED_RUNTIME
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7923736013936152. Required: pcc=0.99."
 
   pi_0/pytorch-pi0_base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "ImportError due to RequirementsManager in-process package swap causing stale sys.modules (transformers version skew) - https://github.com/tenstorrent/tt-xla/issues/3315 https://github.com/tenstorrent/tt-xla/issues/3317"
-    bringup_status: FAILED_RUNTIME
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError:PCC comparison failed. Calculated: pcc=0.9835311599617622. Required: pcc=0.99."
 
   opt/qa/pytorch-1.3b-single_device-inference:
     assert_pcc: false
