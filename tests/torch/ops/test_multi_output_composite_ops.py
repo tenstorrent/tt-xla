@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import operator
+from unittest.mock import patch
 
-import pytest
 import torch
 from tt_torch.backend.passes import handle_composite_ops
 from tt_torch.composite_ops import (
+    composite_gelu,
     composite_topk,
     composite_topk_indices,
     composite_topk_values,
@@ -49,7 +50,24 @@ class _TopKValues(torch.nn.Module):
 class _TopKBoth(torch.nn.Module):
     def forward(self, x):
         v, i = torch.topk(x, 3)
-        return v + i.float()
+        return v, i
+
+
+class _GeluModel(torch.nn.Module):
+    def forward(self, x):
+        return torch.nn.functional.gelu(x, approximate="tanh")
+
+
+def test_handle_composite_ops_gelu_no_multi_output():
+    x = torch.randn(1, 10)
+    gm = _capture_via_compile(_GeluModel(), x)
+    with patch("tt_torch.backend.passes._replace_multi_output_op") as mock_replace:
+        handle_composite_ops(gm)
+        mock_replace.assert_not_called()
+    targets = _call_function_targets(gm)
+    assert composite_gelu in targets
+    assert torch.nn.functional.gelu not in targets
+    assert operator.getitem not in targets
 
 
 def test_handle_composite_ops_selects_indices():
@@ -80,6 +98,7 @@ def test_handle_composite_ops_selects_both():
     gm = _capture_via_compile(_TopKBoth(), x)
     handle_composite_ops(gm)
     targets = _call_function_targets(gm)
+    print(targets)
     assert composite_topk in targets
     assert composite_topk_values not in targets
     assert composite_topk_indices not in targets
