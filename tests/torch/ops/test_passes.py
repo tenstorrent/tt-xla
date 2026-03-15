@@ -6,9 +6,12 @@ import operator
 
 import pytest
 import torch
-
 from tt_torch.backend.passes import handle_composite_ops
-from tt_torch.composite_ops import composite_topk, composite_topk_indices, composite_topk_values
+from tt_torch.composite_ops import (
+    composite_topk,
+    composite_topk_indices,
+    composite_topk_values,
+)
 
 
 def _capture_via_compile(model, *args):
