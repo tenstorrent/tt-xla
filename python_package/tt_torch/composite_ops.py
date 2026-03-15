@@ -249,6 +249,12 @@ def replace_layer_norm_module(
 Dictionary holding replacement composite functions for torch functions and modules.
 Maps torch API calls and module types to composite implementations.
 Used for call_function and call_module nodes where node.target is a function reference or module type.
+
+When the node.target is a torch function returning just a single output, we use the
+composite function directly.
+
+When the node.target is a torch function returning multiple outputs, we use a dictionary
+of composite functions, keyed by the frozenset of output indices used.
 """
 replacements = {
     # function replacements

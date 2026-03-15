@@ -113,7 +113,7 @@ def test_topk_both(input_shape: tuple, k: int):
 
         def forward(self, x):
             values, indices = torch.topk(x, self.k)
-            return values + indices.float()
+            return values, indices
 
     model = TopKBoth(k)
 
