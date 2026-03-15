@@ -908,7 +908,6 @@ class MLA(nn.Module):
         self.register_buffer("prepopulated_topk_indices", None, persistent=False)
         self.dequant_wkv_b = None
 
-
     def forward(
         self,
         x: torch.Tensor,
@@ -993,15 +992,21 @@ class MLA(nn.Module):
             )
 
             if use_optimized_decode_flow:
-                x = self.modified_decode_flow(x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b)
+                x = self.modified_decode_flow(
+                    x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+                )
             else:
-                x = self.original_decode_flow(x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b)
+                x = self.original_decode_flow(
+                    x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+                )
             # Expand from latent
             x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
         x = self.wo(x.flatten(2))
         return x
 
-    def original_decode_flow(self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b):
+    def original_decode_flow(
+        self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+    ):
         """
         Original decode flow of the MLA forward pass as presented in Deepseek's original
         implementation.
@@ -1029,7 +1034,9 @@ class MLA(nn.Module):
         x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
         return x
 
-    def modified_decode_flow(self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b):
+    def modified_decode_flow(
+        self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+    ):
         """
         More optimal decode flow for the MLA forward pass.
 
@@ -1046,8 +1053,12 @@ class MLA(nn.Module):
             kv_index = gather_idx.unsqueeze(-1).expand(-1, -1, self.kv_cache.size(-1)) # (bsz, topk, kv_lora_rank)
             pe_index = gather_idx.unsqueeze(-1).expand(-1, -1, self.pe_cache.size(-1)) # (bsz, topk, qk_rope_head_dim)
 
-            orig_kv_cache = self.kv_cache[:bsz, :end_pos] # (bsz, seq_len, kv_lora_rank)
-            orig_pe_cache = self.pe_cache[:bsz, :end_pos] # (bsz, seq_len, qk_rope_head_dim)
+            orig_kv_cache = self.kv_cache[
+                :bsz, :end_pos
+            ]  # (bsz, seq_len, kv_lora_rank)
+            orig_pe_cache = self.pe_cache[
+                :bsz, :end_pos
+            ]  # (bsz, seq_len, qk_rope_head_dim)
 
             # Extract only the indices specified by batch_idx and gather_idx
             kv_for_attention = torch.gather(orig_kv_cache, dim=1, index=kv_index) # (bsz, topk, kv_lora_rank)
@@ -1063,6 +1074,7 @@ class MLA(nn.Module):
         scores = scores.softmax(dim=-1)
         x = torch.einsum("bsht,btc->bshc", scores, kv_for_attention)
         return x
+
 
 class MLP(nn.Module):
     """
