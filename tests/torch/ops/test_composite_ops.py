@@ -294,6 +294,78 @@ def test_composite_layer_norm(use_weight, use_bias, batch_size, seq_len, embeddi
 
 @pytest.mark.single_device
 @pytest.mark.parametrize(["input_shape", "k"], [((1, 10), 5), ((1, 40), 5)])
+def test_composite_topk_indices(input_shape, k):
+    class TopK(torch.nn.Module):
+        def __init__(self, k):
+            super().__init__()
+            self.k = k
+
+        def forward(self, x):
+            return composite_topk_indices(x, self.k)
+
+    options = {"tt_enable_composite_ops": False}
+    input = torch.randn(*input_shape)
+
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            TopK(k),
+            [input],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(["input_shape", "k"], [((1, 10), 5), ((1, 40), 5)])
+def test_composite_topk_values(input_shape, k):
+    class TopK(torch.nn.Module):
+        def __init__(self, k):
+            super().__init__()
+            self.k = k
+
+        def forward(self, x):
+            return composite_topk_values(x, self.k)
+
+    options = {"tt_enable_composite_ops": False}
+    input = torch.randn(*input_shape)
+
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            TopK(k),
+            [input],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(["input_shape", "k"], [((1, 10), 5), ((1, 40), 5)])
+def test_composite_topk_both(input_shape, k):
+    class TopK(torch.nn.Module):
+        def __init__(self, k):
+            super().__init__()
+            self.k = k
+
+        def forward(self, x):
+            return composite_topk(x, self.k)
+
+    options = {"tt_enable_composite_ops": False}
+    input = torch.randn(*input_shape)
+
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            TopK(k),
+            [input],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(["input_shape", "k"], [((1, 10), 5), ((1, 40), 5)])
 def test_patched_topk_indices(input_shape, k):
     """torch.topk patched — only indices output consumed → composite_topk_indices selected."""
 
@@ -354,7 +426,7 @@ def test_patched_topk_both(input_shape, k):
 
         def forward(self, x):
             values, indices = torch.topk(x, self.k)
-            return values + indices.float()
+            return values, indices
 
     options = {"tt_enable_composite_ops": True}
     input = torch.randn(*input_shape)

@@ -126,6 +126,7 @@ def composite_layer_norm(
 
     return output
 
+
 def composite_topk(
     input: Tensor,
     k: int,
@@ -183,6 +184,7 @@ def composite_topk_indices(
     _, indices = torch.topk(input, k, dim, largest, sorted)
     indices = builder.mark_outputs(indices)
     return indices
+
 
 ################# module replacements #################
 
@@ -256,8 +258,8 @@ replacements = {
     torch.nn.functional.layer_norm: composite_layer_norm,
     torch.topk: {
         frozenset({0, 1}): composite_topk,
-        frozenset({0}):    composite_topk_values,
-        frozenset({1}):    composite_topk_indices,
+        frozenset({0}): composite_topk_values,
+        frozenset({1}): composite_topk_indices,
     },
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
