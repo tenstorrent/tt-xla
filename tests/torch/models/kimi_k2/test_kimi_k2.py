@@ -23,6 +23,7 @@ from .modeling_deepseek import (
     DeepseekV3Attention,
     DeepseekV3DecoderLayer,
     DeepseekV3ForCausalLM,
+    DeepseekV3Model,
     DeepseekV3MoE,
 )
 from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Attention
@@ -407,6 +408,153 @@ def test_kimi_k2_layer_sparse_moe():
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
+    )
+
+
+def test_kimi_k2_full():
+    """Test full Kimi K2 model (DeepseekV3Model) with A2aSparseMLP on (2,4) mesh."""
+
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    num_devices_total = xr.global_runtime_device_count()
+
+    # Load full Kimi K2 config from JSON file
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    config = DeepseekV3Config.from_json_file(config_path)
+    config._attn_implementation = "eager"
+    if num_devices_total == 8:
+        config.num_hidden_layers = 2  # Need 2+ so layer_idx=1 exists and is MoE
+    use_cache = True
+    config.use_cache = use_cache
+
+    model = DeepseekV3Model(config)
+    model = model.to(torch.bfloat16)
+
+    # Replace all MoE MLP layers with A2aSparseMLP
+    # With first_k_dense_replace=1 and moe_layer_freq=1:
+    #   Layer 0: Dense MLP (layer_idx < first_k_dense_replace), skip
+    #   Layer 1+: MoE, replace with A2aSparseMLP
+    mesh_shape = (2, 4)
+    if num_devices_total == 32:
+        mesh_shape = (8, 4)
+    elif num_devices_total == 64:
+        mesh_shape = (8, 8)
+
+    enable_sparse_mlp(
+        model,
+        mesh=mesh_shape,
+        cluster_axis=0,
+        config=config,
+    )
+
+    model.eval()
+
+    max_cache_len = 1024
+    batch_size = 64
+    seq_len = 1
+    input_ids = torch.randint(0, config.vocab_size, (batch_size, seq_len))
+    attention_mask = torch.rand(batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16)
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    position_ids = torch.arange(seq_len).unsqueeze(0)
+    static_cache = MLACache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+
+    device_ids = np.array(range(num_devices_total))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+
+    def get_shard_spec(model, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = ("_axis_1", None)
+        shard_specs[args[1]] = ("_axis_1", None, None, None)
+
+        # Cache shard specs per layer
+        for layer_idx in range(config.num_hidden_layers):
+            shard_specs[args[3][layer_idx][0]] = ("_axis_1", None, None, None)
+            shard_specs[args[3][layer_idx][1]] = ("_axis_1", None, None, None)
+
+        # Embedding
+        shard_specs[model.embed_tokens.weight] = (None, "_axis_0")
+
+        # Per-layer sharding
+        for decoder_layer in model.layers:
+            # Attention weights
+            shard_specs[decoder_layer.self_attn.q_b_proj.weight] = ("_axis_0", None)
+            shard_specs[decoder_layer.self_attn.kv_b_proj.weight] = ("_axis_0", None)
+            shard_specs[decoder_layer.self_attn.o_proj.weight] = (None, "_axis_0")
+            shard_specs[decoder_layer.self_attn.q_a_proj.weight] = (None, "_axis_0")
+            shard_specs[decoder_layer.self_attn.kv_a_proj_with_mqa.weight] = (
+                None,
+                "_axis_0",
+            )
+
+            # MLP sharding (MoE or dense)
+            mlp_wrapper = decoder_layer.mlp
+            if hasattr(mlp_wrapper, "mlp"):
+                # A2aSparseMLP: experts compound-sharded (axis_0, axis_1)
+                mlp = mlp_wrapper.mlp
+                shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
+                shard_specs[mlp.experts.gate_up_proj] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
+                )
+                shard_specs[mlp.experts.down_proj] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
+                )
+                shard_specs[mlp.experts.gate_up_proj_bias] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                )
+                shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
+
+                # Shared experts
+                shared = getattr(mlp_wrapper, "shared_experts", None)
+                if shared is not None:
+                    shard_specs[shared.gate_proj.weight] = (None, "_axis_0")
+                    shard_specs[shared.up_proj.weight] = (None, "_axis_0")
+                    shard_specs[shared.down_proj.weight] = ("_axis_0", None)
+            else:
+                # Dense MLP
+                shard_specs[mlp_wrapper.gate_proj.weight] = ("_axis_1", "_axis_0")
+                shard_specs[mlp_wrapper.up_proj.weight] = ("_axis_1", "_axis_0")
+                shard_specs[mlp_wrapper.down_proj.weight] = ("_axis_0", "_axis_1")
+
+            # LayerNorm
+            shard_specs[decoder_layer.input_layernorm.weight] = ("_axis_0",)
+            shard_specs[decoder_layer.post_attention_layernorm.weight] = ("_axis_0",)
+
+        # Final norm
+        shard_specs[model.norm.weight] = ("_axis_0",)
+
+        return shard_specs
+
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.99),
+    )
+
+    run_graph_test(
+        model,
+        [
+            input_ids,
+            attention_mask,
+            position_ids,
+            static_cache,
+            None,
+            cache_positions,
+            use_cache,
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=comparison_config,
     )
 
 

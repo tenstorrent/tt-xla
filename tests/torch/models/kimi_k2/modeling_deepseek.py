@@ -1444,7 +1444,13 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
             use_legacy_cache = not isinstance(past_key_values, Cache)
             if use_legacy_cache:
                 past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-            past_key_values_length = past_key_values.get_usable_length(seq_length)
+            # For static caches (e.g. MLACache), use max_cache_shape so the
+            # attention mask covers the full pre-allocated KV length.
+            max_shape = past_key_values.get_max_cache_shape()
+            if max_shape is not None and max_shape > 0:
+                past_key_values_length = max_shape - seq_length
+            else:
+                past_key_values_length = past_key_values.get_seq_length()
 
         if position_ids is None:
             device = input_ids.device if input_ids is not None else inputs_embeds.device
