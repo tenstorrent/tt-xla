@@ -6391,6 +6391,14 @@ class MapTR(MVXTwoStageDetector):
         img_metas[0][0]["can_bus"][-1] = 0
         img_metas[0][0]["can_bus"][:3] = 0
 
+        # Convert can_bus from numpy to a tensor on the model's device so that
+        # the compiled graph fragment for simple_test receives a properly placed
+        # tensor instead of a CPU tensor (which breaks XLA graph partitioning).
+        _dev = next(self.parameters()).device
+        img_metas[0][0]["can_bus"] = torch.as_tensor(
+            img_metas[0][0]["can_bus"], dtype=torch.float64
+        ).to(_dev)
+
         new_prev_bev, bbox_results = self.simple_test(
             img_metas[0],
             img[0],

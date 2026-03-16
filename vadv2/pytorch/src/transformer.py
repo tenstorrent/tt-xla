@@ -705,12 +705,25 @@ class BEVFormerEncoder(nn.Module):
             ref_2d = ref_2d.repeat(bs, 1, 1).unsqueeze(2)
             return ref_2d
 
+    # XLA/TT compatibility: under torch.compile, img_meta["lidar2img"] may be (or
+    # contain) device tensors. np.asarray() cannot convert device tensors to numpy;
+    # it raises "can't convert xla:0 device type tensor to numpy". We convert via
+    # CPU first using _to_numpy() so inference works with the TT backend.
+    @staticmethod
+    def _to_numpy(x):
+        """Convert to numpy, moving tensor to CPU first (for XLA/device tensors)."""
+        if isinstance(x, torch.Tensor):
+            return x.detach().cpu().numpy()
+        if isinstance(x, (list, tuple)):
+            return np.array([BEVFormerEncoder._to_numpy(t) for t in x])
+        return np.asarray(x)
+
     # This function must use fp32!!!
     def point_sampling(self, reference_points, pc_range, img_metas):
 
         lidar2img = []
         for img_meta in img_metas:
-            lidar2img.append(img_meta["lidar2img"])
+            lidar2img.append(self._to_numpy(img_meta["lidar2img"]))
         lidar2img = np.asarray(lidar2img)
         lidar2img = reference_points.new_tensor(lidar2img)  # (B, N, 4, 4)
         reference_points = reference_points.clone()
@@ -766,7 +779,10 @@ class BEVFormerEncoder(nn.Module):
         if TORCH_VERSION >= "1.8":
             bev_mask = torch.nan_to_num(bev_mask)
         else:
-            bev_mask = bev_mask.new_tensor(np.nan_to_num(bev_mask.numpy()))
+            # XLA/TT: .numpy() on device tensor fails; use .detach().cpu().numpy()
+            bev_mask = bev_mask.new_tensor(
+                np.nan_to_num(bev_mask.detach().cpu().numpy())
+            )
 
         reference_points_cam = reference_points_cam.permute(2, 1, 3, 0, 4)
         bev_mask = bev_mask.permute(2, 1, 3, 0, 4).squeeze(-1)
