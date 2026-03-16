@@ -91,9 +91,7 @@ test_config:
 
   albert/masked_lm/pytorch-Base_v2-data_parallel-inference:
     supported_archs: [n300]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   yolov6/pytorch-L-data_parallel-inference:
     supported_archs: [n300]
@@ -1134,7 +1132,6 @@ test_config:
   mamba/pytorch-790M_HF-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-    assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
   mobilenetv3/pytorch-Large_100-data_parallel-inference:
     supported_archs: [n300]
