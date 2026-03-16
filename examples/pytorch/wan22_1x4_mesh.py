@@ -2,338 +2,378 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Wan 2.2 T2V (Text-to-Video) generation on a 1×4 Tenstorrent device mesh.
+Wan 2.1 T2V (Text-to-Video) generation on a single Tenstorrent device.
 
-All three pipeline components run on TT hardware through torch.compile:
-  - Text encoder  (UMT5)             → torch.compile(backend="tt"), replicated
-  - Transformer   (WanTransformer3D) → torch.compile(backend="tt"), tensor-parallel
-  - VAE           (AutoencoderKLWan) → torch.compile(backend="tt"), replicated
+Each pipeline stage runs as a **separate process** to get a clean device state
+(tt-metal segfaults when running 3+ compiled programs sequentially on the same
+device). Intermediate results are saved/loaded via .pt files in wan_artifacts/.
 
-The diffusers WanPipeline.__call__ drives the full denoising loop (including
-expand_timesteps handling, cache_context CFG, UniPC scheduler, etc.). We only
-need to plug in the compiled, sharded transformer and compiled VAE/text_encoder.
+Usage — run each stage separately:
+    python wan22_1x4_mesh.py --stage encode --small
+    python wan22_1x4_mesh.py --stage denoise --small --num_inference_steps 2
+    python wan22_1x4_mesh.py --stage decode --small
 
-Usage:
-    python examples/pytorch/wan22_1x4_mesh.py
-    python examples/pytorch/wan22_1x4_mesh.py --prompt "A panda surfing in Tokyo"
-    python examples/pytorch/wan22_1x4_mesh.py --output out.mp4 --num_frames 21
+Or run all stages sequentially (each in its own process):
+    python wan22_1x4_mesh.py --stage all --small --num_inference_steps 2
+
+Configuration matches the validated per-component tests in
+tests/torch/models/wan/.
 
 Requirements:
-    pip install diffusers transformers accelerate imageio imageio-ffmpeg pillow
+    pip install diffusers transformers accelerate imageio imageio-ffmpeg
 """
 
 import argparse
 import os
 import time
 
-import numpy as np
 import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.spmd as xs
-import torch_xla.runtime as xr
-from diffusers import DiffusionPipeline
-from diffusers.utils import export_to_video
-from torch_xla.distributed.spmd import Mesh
+import torch.nn as nn
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-# Wan 2.1 T2V 1.3B — lighter model for 1×4 mesh; 5B crashes PJRT argument-attr
-# pass with 300 sharded weights (SmallVector overflow in PopulateArgumentAttrsFromTTMark).
-# Note: Wan 2.2 does not have a 1.3B T2V variant; the smallest available is Wan 2.1 1.3B.
 MODEL_ID = "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
 
-# WAN temporal constraint: num_frames = 1 + 4*N  (N >= 0).
-# This gives latent_frames = (num_frames - 1) // 4 + 1 after 4× temporal compression.
-DEFAULT_NUM_FRAMES = 21  # 1 + 4*5  →  6 latent frames
+DEFAULT_NUM_FRAMES = 5
 DEFAULT_HEIGHT = 480
 DEFAULT_WIDTH = 832
 DEFAULT_FPS = 16
 
+SMALL_HEIGHT = 64
+SMALL_WIDTH = 64
 
-# ---------------------------------------------------------------------------
-# SPMD / mesh setup
-# ---------------------------------------------------------------------------
+VAE_SCALE_TEMPORAL = 4
+VAE_SCALE_SPATIAL = 8
+LATENT_CHANNELS = 16
 
-
-def setup_spmd() -> None:
-    """Enable SPMD mode required for multi-device execution."""
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-    xr.use_spmd()
-    print("[setup] SPMD mode enabled.")
-
-
-def create_mesh(num_devices: int) -> Mesh:
-    """
-    Create a 1×N tensor-parallel mesh.
-
-    axis 'batch'  — unused (batch dims replicated across all devices).
-    axis 'model'  — slices attention heads and MLP hidden dims.
-    """
-    device_ids = np.arange(num_devices)
-    mesh = Mesh(device_ids, (1, num_devices), ("batch", "model"))
-    print(f"[setup] Created 1×{num_devices} tensor-parallel mesh.")
-    return mesh
+ARTIFACTS_DIR = "wan_artifacts"
+ENC_PATH = os.path.join(ARTIFACTS_DIR, "encoder_hidden_states.pt")
+LATENTS_PATH = os.path.join(ARTIFACTS_DIR, "latents.pt")
+VIDEO_PATH = os.path.join(ARTIFACTS_DIR, "video.pt")
 
 
 # ---------------------------------------------------------------------------
-# Transformer weight sharding
+# Transformer sin/cos workaround
 # ---------------------------------------------------------------------------
 
 
-def _shard_attention(attn, mesh: Mesh, count: list) -> None:
-    """Column-then-row parallel sharding for a single attention module."""
-    for name in ("to_q", "to_k", "to_v"):
-        proj = getattr(attn, name, None)
-        if proj is not None and hasattr(proj, "weight"):
-            xs.mark_sharding(proj.weight, mesh, ("model", None))
-            count[0] += 1
-    to_out = getattr(attn, "to_out", None)
-    if to_out is not None:
-        out_linear = (
-            to_out[0] if isinstance(to_out, (list, torch.nn.ModuleList)) else to_out
+class WanTransformerNoSinCos(nn.Module):
+    """Avoids sin/cos on device (Blackhole SFPI compiler bug).
+    Pre-computed timestep embedding is passed in instead of raw timestep."""
+
+    def __init__(self, transformer):
+        super().__init__()
+        self.transformer = transformer
+
+    def forward(self, hidden_states, timestep_emb, encoder_hidden_states):
+        t = self.transformer
+        batch_size, _, num_frames, height, width = hidden_states.shape
+        p_t, p_h, p_w = t.config.patch_size
+        ppf, pph, ppw = num_frames // p_t, height // p_h, width // p_w
+
+        rotary_emb = t.rope(hidden_states)
+        hidden_states = t.patch_embedding(hidden_states).flatten(2).transpose(1, 2)
+
+        ce = t.condition_embedder
+        dt = next(iter(ce.time_embedder.parameters())).dtype
+        if timestep_emb.dtype != dt and dt != torch.int8:
+            timestep_emb = timestep_emb.to(dt)
+        temb = ce.time_embedder(timestep_emb).type_as(encoder_hidden_states)
+        timestep_proj = ce.time_proj(ce.act_fn(temb))
+        encoder_hidden_states = ce.text_embedder(encoder_hidden_states)
+        timestep_proj = timestep_proj.unflatten(1, (6, -1))
+
+        for block in t.blocks:
+            hidden_states = block(
+                hidden_states, encoder_hidden_states, timestep_proj, rotary_emb
+            )
+
+        shift, scale = (t.scale_shift_table.to(temb.device) + temb.unsqueeze(1)).chunk(
+            2, dim=1
         )
-        if hasattr(out_linear, "weight"):
-            xs.mark_sharding(out_linear.weight, mesh, (None, "model"))
-            count[0] += 1
-
-
-def _shard_ff(ff, mesh: Mesh, count: list) -> None:
-    """Column-then-row parallel sharding for a feed-forward module."""
-    net = getattr(ff, "net", None)
-    if net is None:
-        return
-    # Gate+up: net[0] may be a GEGLU wrapper (.proj) or a direct Linear.
-    gate_up = net[0] if len(net) > 0 else None
-    if gate_up is not None:
-        if hasattr(gate_up, "proj") and hasattr(gate_up.proj, "weight"):
-            xs.mark_sharding(gate_up.proj.weight, mesh, ("model", None))
-            count[0] += 1
-        elif hasattr(gate_up, "weight"):
-            xs.mark_sharding(gate_up.weight, mesh, ("model", None))
-            count[0] += 1
-    # Down projection
-    down = net[2] if len(net) > 2 else None
-    if down is not None and hasattr(down, "weight"):
-        xs.mark_sharding(down.weight, mesh, (None, "model"))
-        count[0] += 1
-
-
-def shard_transformer(transformer: torch.nn.Module, mesh: Mesh) -> None:
-    """
-    Tensor-parallel sharding for WanTransformer3DModel.
-
-    Strategy (column-then-row parallel):
-      Q/K/V and MLP gate+up → shard output features  ("model", None)
-      O   and MLP down      → shard input  features  (None, "model")
-
-    The SPMD compiler inserts AllReduce collectives automatically.
-    """
-    blocks = getattr(transformer, "transformer_blocks", None) or getattr(
-        transformer, "blocks", None
-    )
-    if blocks is None:
-        print("[shard] WARNING: transformer blocks not found; no weight sharding.")
-        return
-
-    count = [0]
-    for block in blocks:
-        # Self-attention
-        for attr in ("attn1", "attn", "self_attn"):
-            attn = getattr(block, attr, None)
-            if attn is not None:
-                _shard_attention(attn, mesh, count)
-                break
-        # Cross-attention (text conditioning)
-        for attr in ("attn2", "cross_attn"):
-            attn = getattr(block, attr, None)
-            if attn is not None:
-                _shard_attention(attn, mesh, count)
-                break
-        # Feed-forward MLP
-        ff = getattr(block, "ff", None) or getattr(block, "ffn", None)
-        if ff is not None:
-            _shard_ff(ff, mesh, count)
-
-    print(
-        f"[shard] Marked {count[0]} weight tensors for "
-        f"{len(list(mesh.device_ids))}-way tensor parallelism."
-    )
+        hidden_states = (
+            t.norm_out(hidden_states.float()) * (1 + scale.to(hidden_states.device))
+            + shift.to(hidden_states.device)
+        ).type_as(hidden_states)
+        hidden_states = t.proj_out(hidden_states)
+        hidden_states = hidden_states.reshape(
+            batch_size, ppf, pph, ppw, p_t, p_h, p_w, -1
+        )
+        hidden_states = hidden_states.permute(0, 7, 1, 4, 2, 5, 3, 6)
+        return hidden_states.flatten(6, 7).flatten(4, 5).flatten(2, 3)
 
 
 # ---------------------------------------------------------------------------
-# Main pipeline runner
+# Stage 1: Text encoding
 # ---------------------------------------------------------------------------
 
 
-def run_wan22(
-    prompt: str,
-    negative_prompt: str = "",
-    output_path: str = "wan22_output.mp4",
-    num_frames: int = DEFAULT_NUM_FRAMES,
-    height: int = DEFAULT_HEIGHT,
-    width: int = DEFAULT_WIDTH,
-    num_inference_steps: int = 20,
-    guidance_scale: float = 5.0,
-    seed: int = 42,
-    dtype: torch.dtype = torch.bfloat16,
-) -> None:
+def stage_encode(prompt, max_length):
+    import torch_xla
+    import torch_xla.runtime as xr
+    from transformers import AutoTokenizer, UMT5EncoderModel
 
-    assert (num_frames - 1) % 4 == 0, (
-        f"num_frames must satisfy 1 + 4*N (got {num_frames}). "
-        "Valid values: 5, 9, 13, 17, 21, 25, 49, 81, ..."
-    )
+    print("=" * 70)
+    print("STAGE 1: TEXT ENCODER (UMT5-XXL)")
+    print("=" * 70)
 
-    # ---- Device and SPMD initialisation ----
     xr.set_device_type("TT")
-    setup_spmd()
-
-    num_devices = xr.global_runtime_device_count()
-    print(f"[init] {num_devices} TT device(s) found.")
     device = torch_xla.device()
-    mesh = create_mesh(num_devices)
 
-    torch_xla.set_custom_compile_options({"optimization_level": 1})
-
-    # ---- Load full pipeline on CPU ----
-    print(f"\n[load] Loading {MODEL_ID} ...")
-    pipeline = DiffusionPipeline.from_pretrained(
-        MODEL_ID,
-        torch_dtype=dtype,
-        low_cpu_mem_usage=True,
-    )
-    # Put models in eval mode individually (DiffusionPipeline has no .eval())
-    pipeline.text_encoder.eval()
-    pipeline.transformer.eval()
-    pipeline.vae.eval()
-
-    # WAN 2.2 uses expand_timesteps=True: per-token timestep [B, seq_len] whose
-    # shape is determined at runtime, causing XLA dynamic-shape compilation failures.
-    # Disable it so the transformer receives a static scalar timestep [B] instead.
-    pipeline.register_to_config(expand_timesteps=False)
-
-    # ---- Move and compile: text encoder ----
-    # text_encoder must be on the XLA device so that pipeline._execution_device
-    # returns the TT device and all tensors (latents, timesteps, ...) are routed there.
-    # We move it to device; torch.compile is attempted but T5 can be tricky with dynamo,
-    # so we fall back to eager XLA execution if compilation isn't required.
-    print("[compile] Moving text_encoder to TT device...")
-    pipeline.text_encoder = pipeline.text_encoder.to(device)
-
-    # ---- Move and compile: transformer (no sharding) ----
-    print("[compile] Moving transformer to TT device (no sharding)...")
-    pipeline.transformer = pipeline.transformer.to(device)
-    print("[compile] Compiling transformer with torch.compile(backend='tt')...")
-    pipeline.transformer = torch.compile(
-        pipeline.transformer,
-        backend="tt",
-        options={"tt_legacy_compile": True},
-    )
-
-    # ---- Move and compile: VAE ----
-    print("[compile] Moving VAE to TT device and compiling...")
-    pipeline.vae = pipeline.vae.to(device)
-    pipeline.vae = torch.compile(
-        pipeline.vae,
-        backend="tt",
-        options={"tt_legacy_compile": True},
-    )
-
-    # ---- Run full pipeline via diffusers __call__ ----
-    # The WanPipeline handles:
-    #   • T5 text encoding (CPU)
-    #   • latent initialisation (48-ch, UniPC scheduler)
-    #   • expand_timesteps=True per-token timestep preparation
-    #   • cache_context CFG (two forward passes per step)
-    #   • VAE decode + video_processor postprocessing
-    print(
-        f"\n[run] Generating {num_frames} frames @ {height}×{width}, "
-        f"{num_inference_steps} steps, guidance={guidance_scale}"
-    )
-    print(f"[run] Prompt: '{prompt}'")
-
-    generator = torch.Generator().manual_seed(seed)
     t0 = time.time()
-
-    output = pipeline(
-        prompt=prompt,
-        negative_prompt=negative_prompt if negative_prompt else None,
-        height=height,
-        width=width,
-        num_frames=num_frames,
-        num_inference_steps=num_inference_steps,
-        guidance_scale=guidance_scale,
-        generator=generator,
-        output_type="pil",
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, subfolder="tokenizer")
+    text_encoder = UMT5EncoderModel.from_pretrained(
+        MODEL_ID, subfolder="text_encoder", torch_dtype=torch.float32
     )
+    text_encoder.eval()
+    print(
+        f"[load] {sum(p.numel() for p in text_encoder.parameters()) / 1e9:.2f}B params in {time.time() - t0:.1f}s"
+    )
+
+    text_inputs = tokenizer(
+        prompt,
+        padding="max_length",
+        max_length=max_length,
+        truncation=True,
+        return_attention_mask=True,
+        return_tensors="pt",
+    )
+    print(f"[input] '{prompt}' → {text_inputs.input_ids.shape}")
+
+    text_encoder = text_encoder.to(device)
+    compiled = torch.compile(text_encoder, backend="tt")
+
+    t0 = time.time()
+    with torch.no_grad():
+        output = compiled(
+            input_ids=text_inputs.input_ids.to(device),
+            attention_mask=text_inputs.attention_mask.to(device),
+        )
+    torch_xla.sync(wait=True)
+    print(f"[run] {time.time() - t0:.1f}s")
+
+    result = output.last_hidden_state.cpu()
+    print(f"[result] {result.shape}, NaN: {result.isnan().any().item()}")
+
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+    torch.save(result, ENC_PATH)
+    print(f"[save] {ENC_PATH}")
+
+
+# ---------------------------------------------------------------------------
+# Stage 2: Denoising loop
+# ---------------------------------------------------------------------------
+
+
+def stage_denoise(num_frames, height, width, num_inference_steps, seed):
+    import torch_xla
+    import torch_xla.runtime as xr
+    from diffusers import UniPCMultistepScheduler, WanTransformer3DModel
+    from diffusers.models.embeddings import get_timestep_embedding
+
+    print("=" * 70)
+    print("STAGE 2: TRANSFORMER DENOISING LOOP")
+    print("=" * 70)
+
+    enc = torch.load(ENC_PATH, weights_only=True)
+    print(f"[load] encoder_hidden_states: {enc.shape}")
+
+    xr.set_device_type("TT")
+    device = torch_xla.device()
+
+    t0 = time.time()
+    transformer = WanTransformer3DModel.from_pretrained(
+        MODEL_ID, subfolder="transformer", torch_dtype=torch.float32
+    )
+    transformer.eval()
+    freq_dim = transformer.config.freq_dim
+    print(
+        f"[load] {sum(p.numel() for p in transformer.parameters()) / 1e9:.2f}B params in {time.time() - t0:.1f}s"
+    )
+
+    scheduler = UniPCMultistepScheduler.from_pretrained(MODEL_ID, subfolder="scheduler")
+
+    nlf = (num_frames - 1) // VAE_SCALE_TEMPORAL + 1
+    lh, lw = height // VAE_SCALE_SPATIAL, width // VAE_SCALE_SPATIAL
+    print(f"[input] latents: [1, {LATENT_CHANNELS}, {nlf}, {lh}, {lw}]")
+
+    latents = torch.randn(
+        1,
+        LATENT_CHANNELS,
+        nlf,
+        lh,
+        lw,
+        generator=torch.Generator().manual_seed(seed),
+        dtype=torch.float32,
+    )
+
+    wrapper = WanTransformerNoSinCos(transformer)
+    wrapper.eval()
+    wrapper = wrapper.to(device)
+    compiled = torch.compile(wrapper, backend="tt")
+
+    scheduler.set_timesteps(num_inference_steps)
+    enc_dev = enc.to(device)
+
+    t0 = time.time()
+    for i, t_val in enumerate(scheduler.timesteps):
+        st = time.time()
+        t_tensor = t_val.unsqueeze(0) if t_val.dim() == 0 else t_val
+        te = get_timestep_embedding(
+            t_tensor.cpu(), freq_dim, flip_sin_to_cos=True, downscale_freq_shift=0
+        )
+
+        with torch.no_grad():
+            pred = compiled(latents.to(device), te.to(device), enc_dev)
+        torch_xla.sync(wait=True)
+
+        latents = scheduler.step(pred.cpu(), t_val, latents, return_dict=False)[0]
+        print(
+            f"  step {i+1}/{num_inference_steps} (t={t_val.item():.1f}) — {time.time()-st:.1f}s"
+        )
 
     elapsed = time.time() - t0
-    print(
-        f"[run] Completed in {elapsed:.1f}s  "
-        f"({elapsed / num_inference_steps:.2f}s/step)"
-    )
+    print(f"[run] {elapsed:.1f}s total ({elapsed/num_inference_steps:.1f}s/step)")
+    print(f"[result] {latents.shape}, NaN: {latents.isnan().any().item()}")
 
-    # ---- Save video ----
-    frames = output.frames[0]  # list of PIL Images
-    from pathlib import Path
-
-    out = str(Path(output_path).with_suffix(".mp4"))
-    export_to_video(frames, out, fps=DEFAULT_FPS)
-    print(f"\n[output] Saved {len(frames)} frames @ {DEFAULT_FPS} fps → {out}")
-    print(f"         Duration: {len(frames) / DEFAULT_FPS:.1f}s")
+    torch.save(latents, LATENTS_PATH)
+    print(f"[save] {LATENTS_PATH}")
 
 
 # ---------------------------------------------------------------------------
-# Entry point
+# Stage 3: VAE decode
 # ---------------------------------------------------------------------------
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Wan 2.2 T2V on 1×4 Tenstorrent mesh — transformer + VAE on device"
+def stage_decode():
+    import torch_xla
+    import torch_xla.runtime as xr
+    from diffusers import AutoencoderKLWan
+
+    print("=" * 70)
+    print("STAGE 3: VAE DECODE")
+    print("=" * 70)
+
+    latents = torch.load(LATENTS_PATH, weights_only=True)
+    print(f"[load] latents: {latents.shape}")
+
+    xr.set_device_type("TT")
+    device = torch_xla.device()
+
+    vae = AutoencoderKLWan.from_pretrained(
+        MODEL_ID, subfolder="vae", torch_dtype=torch.float32
+    )
+    vae.eval()
+    print(f"[load] VAE: {sum(p.numel() for p in vae.parameters()) / 1e6:.1f}M params")
+
+    lm = torch.tensor(vae.config.latents_mean).view(1, LATENT_CHANNELS, 1, 1, 1)
+    ls = torch.tensor(vae.config.latents_std).view(1, LATENT_CHANNELS, 1, 1, 1)
+    latents = latents / ls + lm
+
+    decoder = vae.decoder.to(device)
+    compiled = torch.compile(decoder, backend="tt")
+
+    t0 = time.time()
+    with torch.no_grad():
+        video = compiled(latents.to(device))
+    torch_xla.sync(wait=True)
+    print(f"[run] {time.time() - t0:.1f}s")
+
+    if isinstance(video, tuple):
+        video = video[0]
+    video_cpu = video.cpu()
+    print(f"[result] {video_cpu.shape}, NaN: {video_cpu.isnan().any().item()}")
+
+    torch.save(video_cpu, VIDEO_PATH)
+    print(f"[save] {VIDEO_PATH}")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Wan 2.1 T2V — isolated stages")
+    parser.add_argument(
+        "--stage", required=True, choices=["encode", "denoise", "decode", "all"]
     )
     parser.add_argument(
-        "--prompt",
-        default=(
-            "An astronaut riding a horse through a vivid colorful nebula, "
-            "cinematic slow motion, detailed, 8k"
-        ),
+        "--prompt", default="A cat sitting on a windowsill watching rain"
     )
-    parser.add_argument("--negative_prompt", default="")
-    parser.add_argument(
-        "--output",
-        default="wan22_output.mp4",
-        help="Output video path.",
-    )
-    parser.add_argument(
-        "--num_frames",
-        type=int,
-        default=DEFAULT_NUM_FRAMES,
-        help="Output video frame count.  Must equal 1 + 4*N (e.g. 5, 9, 21, 49, 81).",
-    )
+    parser.add_argument("--output", default="wan21_output.mp4")
+    parser.add_argument("--num_frames", type=int, default=DEFAULT_NUM_FRAMES)
     parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
     parser.add_argument("--num_inference_steps", type=int, default=20)
-    parser.add_argument("--guidance_scale", type=float, default=5.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
-        "--dtype",
-        default="bfloat16",
-        choices=["bfloat16", "float32"],
+        "--small", action="store_true", help="Use test-size dims (64x64)."
     )
     args = parser.parse_args()
 
-    run_wan22(
-        prompt=args.prompt,
-        negative_prompt=args.negative_prompt,
-        output_path=args.output,
-        num_frames=args.num_frames,
-        height=args.height,
-        width=args.width,
-        num_inference_steps=args.num_inference_steps,
-        guidance_scale=args.guidance_scale,
-        seed=args.seed,
-        dtype=torch.bfloat16 if args.dtype == "bfloat16" else torch.float32,
-    )
+    if args.small:
+        args.height = SMALL_HEIGHT
+        args.width = SMALL_WIDTH
+    max_length = 32 if args.small else 226
+
+    assert (
+        args.num_frames - 1
+    ) % 4 == 0, f"num_frames must be 1 + 4*N (got {args.num_frames})"
+
+    if args.stage == "all":
+        import sys
+
+        base = f"{sys.executable} {__file__}"
+        flags = f"--num_frames {args.num_frames} --height {args.height} --width {args.width}"
+        flags += f" --num_inference_steps {args.num_inference_steps} --seed {args.seed}"
+        if args.small:
+            flags += " --small"
+
+        total_t0 = time.time()
+        for stage in ["encode", "denoise", "decode"]:
+            extra = f' --prompt "{args.prompt}"' if stage == "encode" else ""
+            cmd = f"{base} --stage {stage} {flags}{extra}"
+            print(f"\n>>> {cmd}\n")
+            rc = os.system(cmd)
+            if rc != 0:
+                print(f"Stage '{stage}' failed (exit {rc})")
+                return
+
+        if os.path.exists(VIDEO_PATH):
+            video = torch.load(VIDEO_PATH, weights_only=True)
+            video = (video.clamp(-1, 1) + 1) / 2
+            video = (video[0].permute(1, 2, 3, 0).numpy() * 255).astype("uint8")
+            from pathlib import Path
+
+            out = str(Path(args.output).with_suffix(".mp4"))
+            try:
+                import PIL.Image
+                from diffusers.utils import export_to_video
+
+                frames = [PIL.Image.fromarray(video[i]) for i in range(video.shape[0])]
+                export_to_video(frames, out, fps=DEFAULT_FPS)
+            except ImportError:
+                import imageio
+
+                imageio.mimwrite(out, video, fps=DEFAULT_FPS)
+            print(f"\n[output] {video.shape[0]} frames → {out}")
+
+        print(f"[total] {time.time() - total_t0:.1f}s")
+        print("DONE")
+        return
+
+    if args.stage == "encode":
+        stage_encode(args.prompt, max_length)
+    elif args.stage == "denoise":
+        stage_denoise(
+            args.num_frames,
+            args.height,
+            args.width,
+            args.num_inference_steps,
+            args.seed,
+        )
+    elif args.stage == "decode":
+        stage_decode()
+
+
+if __name__ == "__main__":
+    main()

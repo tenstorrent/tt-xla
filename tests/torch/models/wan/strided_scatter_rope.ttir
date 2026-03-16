@@ -1,0 +1,128 @@
+// Minimal TTIR repro: combined stride-2 gather pattern causes compilation hang.
+//
+// Source: diffusers apply_rotary_emb (WanAttnProcessor2_0)
+//   query[:, :, :, ::2] = cos_part
+//   query[:, :, :, 1::2] = sin_part
+//
+// The two ttir.gather ops (lines ~45 and ~65) produce tensor<1x3120x12x128xf32>
+// by gathering from tensor<1x3120x12x64xf32> using tensor<128x1xi64> indices.
+// When combined with the where-based scatter, the TTNN lowering hangs.
+//
+// At seq_len=512 this compiles in <1s. At seq_len=3120 it hangs indefinitely.
+//
+// To test: ttmlir-opt --ttir-to-ttnn-backend-pipeline this_file.ttir
+//
+module @strided_scatter_rope attributes {ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @strided_scatter_rope attributes {ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+      // %arg0 = cos_freqs: [1, 3120, 1, 128]
+      // %arg1 = qk_combined: [1, 3120, 12, 64, 2]  (real/imag interleaved)
+      // %arg2 = sin_freqs: [1, 3120, 1, 128]
+      // %arg3 = scalar bool (unused mask flag)
+      func.func @main(
+        %arg0: tensor<1x3120x1x128xf32> {ttcore.argument_type = #ttcore.argument_type<input>},
+        %arg1: tensor<1x3120x12x64x2xf32> {ttcore.argument_type = #ttcore.argument_type<input>},
+        %arg2: tensor<1x3120x1x128xf32> {ttcore.argument_type = #ttcore.argument_type<input>},
+        %arg3: tensor<i1> {ttcore.argument_type = #ttcore.argument_type<input>}
+      ) -> tensor<1x3120x12x128xf32> {
+
+        // Index constants for stride-2 gather: [0, 1, 2, ..., 127] and [-0.5, 0, 0.5, 1, ...]
+        %idx_even = "ttir.constant"() <{value = dense<"0x000000000000003F0000803F0000C03F0000004000002040000040400000604000008040000090400000A0400000B0400000C0400000D0400000E0400000F0400000004100000841000010410000184100002041000028410000304100003841000040410000484100005041000058410000604100006841000070410000784100008041000084410000884100008C4100009041000094410000984100009C410000A0410000A4410000A8410000AC410000B0410000B4410000B8410000BC410000C0410000C4410000C8410000CC410000D0410000D4410000D8410000DC410000E0410000E4410000E8410000EC410000F0410000F4410000F8410000FC41000000420000024200000442000006420000084200000A4200000C4200000E42000010420000124200001442000016420000184200001A4200001C4200001E42000020420000224200002442000026420000284200002A4200002C4200002E42000030420000324200003442000036420000384200003A4200003C4200003E42000040420000424200004442000046420000484200004A4200004C4200004E42000050420000524200005442000056420000584200005A4200005C4200005E42000060420000624200006442000066420000684200006A4200006C4200006E42000070420000724200007442000076420000784200007A4200007C4200007E42"> : tensor<128xf32>}> : () -> tensor<128xf32>
+        %mask_odd = "ttir.constant"() <{value = dense<"0x55555555555555555555555555555555"> : tensor<128xi1>}> : () -> tensor<128xi1>
+        %c64 = "ttir.constant"() <{value = dense<64> : tensor<128xi64>}> : () -> tensor<128xi64>
+        %c63 = "ttir.constant"() <{value = dense<63> : tensor<128xi64>}> : () -> tensor<128xi64>
+        %idx_odd = "ttir.constant"() <{value = dense<"0x000000BF000000000000003F0000803F0000C03F0000004000002040000040400000604000008040000090400000A0400000B0400000C0400000D0400000E0400000F0400000004100000841000010410000184100002041000028410000304100003841000040410000484100005041000058410000604100006841000070410000784100008041000084410000884100008C4100009041000094410000984100009C410000A0410000A4410000A8410000AC410000B0410000B4410000B8410000BC410000C0410000C4410000C8410000CC410000D0410000D4410000D8410000DC410000E0410000E4410000E8410000EC410000F0410000F4410000F8410000FC41000000420000024200000442000006420000084200000A4200000C4200000E42000010420000124200001442000016420000184200001A4200001C4200001E42000020420000224200002442000026420000284200002A4200002C4200002E42000030420000324200003442000036420000384200003A4200003C4200003E42000040420000424200004442000046420000484200004A4200004C4200004E42000050420000524200005442000056420000584200005A4200005C4200005E42000060420000624200006442000066420000684200006A4200006C4200006E42000070420000724200007442000076420000784200007A4200007C42"> : tensor<128xf32>}> : () -> tensor<128xf32>
+        %c0 = "ttir.constant"() <{value = dense<0> : tensor<128xi64>}> : () -> tensor<128xi64>
+        %zeros = "ttir.constant"() <{value = dense<0.000000e+00> : tensor<1x3120x12x128xf32>}> : () -> tensor<1x3120x12x128xf32>
+        %mask_even = "ttir.constant"() <{value = dense<"0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"> : tensor<128xi1>}> : () -> tensor<128xi1>
+        %mask_all = "ttir.constant"() <{value = dense<"0xFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"> : tensor<128xi1>}> : () -> tensor<128xi1>
+
+        // Build scatter masks from arg3 (boolean flag)
+        %9 = "ttir.reshape"(%arg3) <{shape = [1 : i32]}> : (tensor<i1>) -> tensor<1xi1>
+        %10 = "ttir.broadcast"(%9) <{broadcast_dimensions = array<i64: 128>}> : (tensor<1xi1>) -> tensor<128xi1>
+        %11 = "ttir.logical_and"(%10, %mask_all) : (tensor<128xi1>, tensor<128xi1>) -> tensor<128xi1>
+        %12 = "ttir.logical_and"(%11, %mask_even) : (tensor<128xi1>, tensor<128xi1>) -> tensor<128xi1>
+        %13 = "ttir.reshape"(%12) <{shape = [1 : i32, 1 : i32, 1 : i32, 128 : i32]}> : (tensor<128xi1>) -> tensor<1x1x1x128xi1>
+        %14 = "ttir.reshape"(%12) <{shape = [1 : i32, 128 : i32]}> : (tensor<128xi1>) -> tensor<1x128xi1>
+        %15 = "ttir.reshape"(%14) <{shape = [1 : i32, 1 : i32, 1 : i32, 128 : i32]}> : (tensor<1x128xi1>) -> tensor<1x1x1x128xi1>
+        %16 = "ttir.broadcast"(%15) <{broadcast_dimensions = array<i64: 1, 3120, 12, 1>}> : (tensor<1x1x1x128xi1>) -> tensor<1x3120x12x128xi1>
+        %17 = "ttir.logical_not"(%13) : (tensor<1x1x1x128xi1>) -> tensor<1x1x1x128xi1>
+        %18 = "ttir.reshape"(%17) <{shape = [1 : i32, 128 : i32]}> : (tensor<1x1x1x128xi1>) -> tensor<1x128xi1>
+        %19 = "ttir.reshape"(%18) <{shape = [1 : i32, 1 : i32, 1 : i32, 128 : i32]}> : (tensor<1x128xi1>) -> tensor<1x1x1x128xi1>
+        %20 = "ttir.broadcast"(%19) <{broadcast_dimensions = array<i64: 1, 3120, 12, 1>}> : (tensor<1x1x1x128xi1>) -> tensor<1x3120x12x128xi1>
+
+        // Extract real/imag from qk_combined
+        %21 = "ttir.slice_static"(%arg1) <{begins = [0:i32,0:i32,0:i32,0:i32,0:i32], ends = [1:i32,3120:i32,12:i32,64:i32,1:i32], step = [1:i32,1:i32,1:i32,1:i32,1:i32]}> : (tensor<1x3120x12x64x2xf32>) -> tensor<1x3120x12x64x1xf32>
+        %x_real = "ttir.reshape"(%21) <{shape = [1:i32, 3120:i32, 12:i32, 64:i32]}> : (tensor<1x3120x12x64x1xf32>) -> tensor<1x3120x12x64xf32>
+
+        // Stride-2 read of cos_freqs → half_dim
+        %23 = "ttir.slice_static"(%arg0) <{begins = [0:i32,0:i32,0:i32,1:i32], ends = [1:i32,3120:i32,1:i32,128:i32], step = [1:i32,1:i32,1:i32,2:i32]}> : (tensor<1x3120x1x128xf32>) -> tensor<1x3120x1x64xf32>
+        %24 = "ttir.reshape"(%23) <{shape = [1:i32, 3120:i32, 64:i32]}> : (tensor<1x3120x1x64xf32>) -> tensor<1x3120x64xf32>
+        %25 = "ttir.reshape"(%24) <{shape = [1:i32, 3120:i32, 1:i32, 64:i32]}> : (tensor<1x3120x64xf32>) -> tensor<1x3120x1x64xf32>
+        %cos_half = "ttir.broadcast"(%25) <{broadcast_dimensions = array<i64: 1, 1, 12, 1>}> : (tensor<1x3120x1x64xf32>) -> tensor<1x3120x12x64xf32>
+
+        // x_real * cos (part of rotary embedding)
+        %rot1 = "ttir.multiply"(%x_real, %cos_half) : (tensor<1x3120x12x64xf32>, tensor<1x3120x12x64xf32>) -> tensor<1x3120x12x64xf32>
+
+        %28 = "ttir.slice_static"(%arg1) <{begins = [0:i32,0:i32,0:i32,0:i32,1:i32], ends = [1:i32,3120:i32,12:i32,64:i32,2:i32], step = [1:i32,1:i32,1:i32,1:i32,1:i32]}> : (tensor<1x3120x12x64x2xf32>) -> tensor<1x3120x12x64x1xf32>
+        %x_imag = "ttir.reshape"(%28) <{shape = [1:i32, 3120:i32, 12:i32, 64:i32]}> : (tensor<1x3120x12x64x1xf32>) -> tensor<1x3120x12x64xf32>
+
+        // Stride-2 read of sin_freqs → half_dim
+        %30 = "ttir.slice_static"(%arg2) <{begins = [0:i32,0:i32,0:i32,0:i32], ends = [1:i32,3120:i32,1:i32,128:i32], step = [1:i32,1:i32,1:i32,2:i32]}> : (tensor<1x3120x1x128xf32>) -> tensor<1x3120x1x64xf32>
+        %31 = "ttir.reshape"(%30) <{shape = [1:i32, 3120:i32, 64:i32]}> : (tensor<1x3120x1x64xf32>) -> tensor<1x3120x64xf32>
+        %32 = "ttir.reshape"(%31) <{shape = [1:i32, 3120:i32, 1:i32, 64:i32]}> : (tensor<1x3120x64xf32>) -> tensor<1x3120x1x64xf32>
+        %sin_half = "ttir.broadcast"(%32) <{broadcast_dimensions = array<i64: 1, 1, 12, 1>}> : (tensor<1x3120x1x64xf32>) -> tensor<1x3120x12x64xf32>
+
+        // x_imag * sin
+        %rot2 = "ttir.multiply"(%x_imag, %sin_half) : (tensor<1x3120x12x64xf32>, tensor<1x3120x12x64xf32>) -> tensor<1x3120x12x64xf32>
+
+        // cos_part = x_real*cos + x_imag*sin
+        %cos_part = "ttir.add"(%rot1, %rot2) : (tensor<1x3120x12x64xf32>, tensor<1x3120x12x64xf32>) -> tensor<1x3120x12x64xf32>
+
+        // *** PROBLEMATIC OP 1: gather to interleave cos_part into even positions ***
+        %36 = "ttir.floor"(%idx_odd) : (tensor<128xf32>) -> tensor<128xf32>
+        %37 = "ttir.typecast"(%36) <{conservative_folding = false}> : (tensor<128xf32>) -> tensor<128xi64>
+        %38 = "ttir.clamp_tensor"(%37, %c0, %c63) : (tensor<128xi64>, tensor<128xi64>, tensor<128xi64>) -> tensor<128xi64>
+        %39 = "ttir.lt"(%38, %c0) : (tensor<128xi64>, tensor<128xi64>) -> tensor<128xi1>
+        %40 = "ttir.add"(%38, %c64) : (tensor<128xi64>, tensor<128xi64>) -> tensor<128xi64>
+        %41 = "ttir.where"(%39, %40, %38) : (tensor<128xi1>, tensor<128xi64>, tensor<128xi64>) -> tensor<128xi64>
+        %42 = "ttir.reshape"(%41) <{shape = [128:i32, 1:i32]}> : (tensor<128xi64>) -> tensor<128x1xi64>
+        %gather1 = "ttir.gather"(%cos_part, %42) <{collapsed_slice_dims = array<i64: 3>, index_vector_dim = 1 : si64, indices_are_sorted = false, offset_dims = array<i64: 0, 1, 2>, operand_batching_dims = array<i64>, slice_sizes = array<i64: 1, 3120, 12, 1>, start_index_map = array<i64: 3>, start_indices_batching_dims = array<i64>}> : (tensor<1x3120x12x64xf32>, tensor<128x1xi64>) -> tensor<1x3120x12x128xf32>
+        %44 = "ttir.where"(%20, %zeros, %gather1) : (tensor<1x3120x12x128xi1>, tensor<1x3120x12x128xf32>, tensor<1x3120x12x128xf32>) -> tensor<1x3120x12x128xf32>
+
+        // Build mask for odd positions
+        %45 = "ttir.logical_and"(%10, %mask_odd) : (tensor<128xi1>, tensor<128xi1>) -> tensor<128xi1>
+        %46 = "ttir.reshape"(%45) <{shape = [1:i32, 1:i32, 1:i32, 128:i32]}> : (tensor<128xi1>) -> tensor<1x1x1x128xi1>
+        %47 = "ttir.reshape"(%45) <{shape = [1:i32, 128:i32]}> : (tensor<128xi1>) -> tensor<1x128xi1>
+        %48 = "ttir.reshape"(%47) <{shape = [1:i32, 1:i32, 1:i32, 128:i32]}> : (tensor<1x128xi1>) -> tensor<1x1x1x128xi1>
+        %49 = "ttir.broadcast"(%48) <{broadcast_dimensions = array<i64: 1, 3120, 12, 1>}> : (tensor<1x1x1x128xi1>) -> tensor<1x3120x12x128xi1>
+        %50 = "ttir.logical_not"(%46) : (tensor<1x1x1x128xi1>) -> tensor<1x1x1x128xi1>
+        %51 = "ttir.reshape"(%50) <{shape = [1:i32, 128:i32]}> : (tensor<1x1x1x128xi1>) -> tensor<1x128xi1>
+        %52 = "ttir.reshape"(%51) <{shape = [1:i32, 1:i32, 1:i32, 128:i32]}> : (tensor<1x128xi1>) -> tensor<1x1x1x128xi1>
+        %53 = "ttir.broadcast"(%52) <{broadcast_dimensions = array<i64: 1, 3120, 12, 1>}> : (tensor<1x1x1x128xi1>) -> tensor<1x3120x12x128xi1>
+
+        // sin_part = x_real*sin - x_imag*cos
+        %54 = "ttir.multiply"(%x_real, %sin_half) : (tensor<1x3120x12x64xf32>, tensor<1x3120x12x64xf32>) -> tensor<1x3120x12x64xf32>
+        %55 = "ttir.multiply"(%x_imag, %cos_half) : (tensor<1x3120x12x64xf32>, tensor<1x3120x12x64xf32>) -> tensor<1x3120x12x64xf32>
+        %sin_part = "ttir.subtract"(%54, %55) : (tensor<1x3120x12x64xf32>, tensor<1x3120x12x64xf32>) -> tensor<1x3120x12x64xf32>
+
+        // *** PROBLEMATIC OP 2: gather to interleave sin_part into odd positions ***
+        %57 = "ttir.floor"(%idx_even) : (tensor<128xf32>) -> tensor<128xf32>
+        %58 = "ttir.typecast"(%57) <{conservative_folding = false}> : (tensor<128xf32>) -> tensor<128xi64>
+        %59 = "ttir.clamp_tensor"(%58, %c0, %c63) : (tensor<128xi64>, tensor<128xi64>, tensor<128xi64>) -> tensor<128xi64>
+        %60 = "ttir.lt"(%59, %c0) : (tensor<128xi64>, tensor<128xi64>) -> tensor<128xi1>
+        %61 = "ttir.add"(%59, %c64) : (tensor<128xi64>, tensor<128xi64>) -> tensor<128xi64>
+        %62 = "ttir.where"(%60, %61, %59) : (tensor<128xi1>, tensor<128xi64>, tensor<128xi64>) -> tensor<128xi64>
+        %63 = "ttir.reshape"(%62) <{shape = [128:i32, 1:i32]}> : (tensor<128xi64>) -> tensor<128x1xi64>
+        %gather2 = "ttir.gather"(%sin_part, %63) <{collapsed_slice_dims = array<i64: 3>, index_vector_dim = 1 : si64, indices_are_sorted = false, offset_dims = array<i64: 0, 1, 2>, operand_batching_dims = array<i64>, slice_sizes = array<i64: 1, 3120, 12, 1>, start_index_map = array<i64: 3>, start_indices_batching_dims = array<i64>}> : (tensor<1x3120x12x64xf32>, tensor<128x1xi64>) -> tensor<1x3120x12x128xf32>
+        %65 = "ttir.where"(%53, %zeros, %gather2) : (tensor<1x3120x12x128xi1>, tensor<1x3120x12x128xf32>, tensor<1x3120x12x128xf32>) -> tensor<1x3120x12x128xf32>
+
+        // Combine even and odd positions via masked where
+        %66 = "ttir.where"(%49, %65, %zeros) : (tensor<1x3120x12x128xi1>, tensor<1x3120x12x128xf32>, tensor<1x3120x12x128xf32>) -> tensor<1x3120x12x128xf32>
+        %result = "ttir.where"(%16, %44, %66) : (tensor<1x3120x12x128xi1>, tensor<1x3120x12x128xf32>, tensor<1x3120x12x128xf32>) -> tensor<1x3120x12x128xf32>
+
+        return %result : tensor<1x3120x12x128xf32>
+      }
+    }
+  }
+}
