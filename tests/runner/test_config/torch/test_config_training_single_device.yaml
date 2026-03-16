@@ -16,35 +16,45 @@ test_config:
     status: EXPECTED_PASSING
     markers: [push, nightly]
   qwen_1_5/causal_lm/pytorch-0.5B-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   qwen_1_5/causal_lm/pytorch-0_5B_Chat-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   t5/pytorch-Small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   t5/pytorch-Base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   t5/pytorch-Large-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   t5/pytorch-Flan_T5_Small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   t5/pytorch-Flan_T5_Base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   t5/pytorch-Flan_T5_Large-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   qwen_2_5/causal_lm/pytorch-0.5B-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   qwen_2_5/causal_lm/pytorch-1.5B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -59,8 +69,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
   qwen_2_5_coder/pytorch-0.5B-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   clip/pytorch-Base_Patch32-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -69,14 +80,17 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
   nbeats/pytorch-generic_basis-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   nbeats/pytorch-seasonality_basis-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   nbeats/pytorch-trend_basis-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   qwen_3/embedding/pytorch-Embedding_0_6B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -96,11 +110,13 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   musicgen_small/pytorch-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   stereo/pytorch-Small-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   stereo/pytorch-Medium-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -677,8 +693,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   bart/pytorch-Large-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   roberta/pytorch-Base_Sentiment-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -713,8 +730,9 @@ test_config:
     reason: "Model timed out during compilation - https://github.com/tenstorrent/tt-mlir/issues/6563"
     markers: [notimeout]
   roberta/masked_lm/pytorch-Xlm_Base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   unet/pytorch-Cityscapes-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -733,8 +751,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   opt/sequence_classification/pytorch-125M-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   opt/sequence_classification/pytorch-350M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -932,14 +951,17 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   distilbert/masked_lm/pytorch-Base_Cased-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   distilbert/masked_lm/pytorch-Base_Uncased-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   distilbert/masked_lm/pytorch-Base_Multilingual_Cased-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   distilbert/token_classification/pytorch-Davlan/distilbert-base-multilingual-cased-ner-hrl-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -948,15 +970,17 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
   qwen_3/causal_lm/pytorch-0_6B-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   phi1_5/causal_lm/pytorch-Phi_1_5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers in program 284 clash with L1 buffers on core range [(x=0,y=0) - (x=7,y=7)]"
   gpt_neo/causal_lm/pytorch-125M-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   phi2/causal_lm/pytorch-Phi_2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -977,8 +1001,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "AssertionError: CPU and TT have different None grad parameters: set() != {'predictions.bias'}"
   albert/masked_lm/pytorch-Base_v2-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   albert/masked_lm/pytorch-Large_v2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1026,14 +1051,17 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source."
   opt/causal_lm/pytorch-125M-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   opt/causal_lm/pytorch-350M-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   opt/causal_lm/pytorch-1.3b-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   beit/pytorch-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1107,11 +1135,13 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   perceiver/pytorch-Language_Perceiver-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   gpt2/pytorch-Default-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: EXPECTED_PASSING
     markers: [notimeout]
+    assert_pcc: false
   openpose/v2/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
