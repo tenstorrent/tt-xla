@@ -246,16 +246,22 @@ jobs:
             # ttrt is a Python package (build/python_packages/ttrt), not a compiled binary.
             # venv/activate adds build/bin to PATH, so create a wrapper script there so
             # the test job can call `ttrt` as a command after sourcing venv/activate.
+            # We call __main__.py directly (not `python3 -m ttrt`) to avoid the Docker
+            # image's pre-installed ttrt (which may lack __main__.py) shadowing our version.
             mkdir -p "${TTMLIR_BUILD}/bin"
             cat > "${TTMLIR_BUILD}/bin/ttrt" <<'WRAPPER'
             #!/usr/bin/env bash
-            exec python3 -m ttrt "$@"
+            SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+            exec python3 "${SCRIPT_DIR}/../python_packages/ttrt/__main__.py" "$@"
             WRAPPER
             chmod +x "${TTMLIR_BUILD}/bin/ttrt"
 
             # Archive bin/ttrt wrapper, python_packages/, and runtime/python/ —
             # the three paths venv/activate wires into PATH / PYTHONPATH.
-            tar -czf builder-bindings.tar.gz \
+            # --dereference (-h): follow symlinks and store actual file content.
+            # python_packages/ is full of symlinks into the tt-mlir source tree;
+            # without this flag the symlinks land dangling in the test job.
+            tar -czhf builder-bindings.tar.gz \
               -C "${TTMLIR_BUILD}" \
               bin/ttrt \
               python_packages \
