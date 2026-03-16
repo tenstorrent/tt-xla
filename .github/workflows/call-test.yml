@@ -97,6 +97,8 @@ jobs:
         submodules: recursive
         sparse-checkout: |
           .github/scripts
+          .gitmodules
+          .test_durations
           pjrt_implementation
           third_party/pjrt_c_api
           pytest.ini
@@ -300,7 +302,6 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        git checkout HEAD -- .test_durations
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
         python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
         cat collected_tests.txt
