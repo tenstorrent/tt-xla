@@ -217,8 +217,15 @@ def torch_pass_pipeline(
         # All params/buffers are already lifted as placeholders in args.
         compiled_graph = gm
         graph_signature = aot_graph_signature
-        flat_name_to_original_fqn = {}
         params_and_consts = ()
+        # Build a mapping from placeholder arg names (e.g. "primals_0") to
+        # clean FQNs (e.g. "layers.0.weight") so that _demangle_name in
+        # insert_argument_type_markers can resolve AOT placeholder names.
+        flat_name_to_original_fqn = {
+            spec.arg.name: spec.target
+            for spec in aot_graph_signature.input_specs
+            if spec.target is not None
+        }
     else:
         # Non-AOTAutograd path: use torch.export for decompositions.
         decompositions = populate_decompositions()
