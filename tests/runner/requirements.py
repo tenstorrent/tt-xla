@@ -33,12 +33,12 @@ class RequirementsManager:
     - Also looks for system-requirements.txt for system packages (e.g. ffmpeg)
     """
 
-    # JAX test infra imports flax/transformers at module level; purging them
-    # from sys.modules would break isinstance checks between old class objects
-    # held by module-level variables (e.g. nnx.Module) and freshly loaded ones.
+    # JAX test infra imports flax at module level; purging it from sys.modules
+    # would break isinstance checks between old class objects held by
+    # module-level variables (e.g. nnx.Module) and freshly loaded ones.
     # Entries must be import names (e.g. "PIL", not "Pillow"), since they are
     # compared against resolved import names in _purge_stale_modules.
-    _JAX_PURGE_SKIP = frozenset({"flax", "transformers"})
+    _JAX_PURGE_SKIP = frozenset({"flax"})
 
     # Top-level directory names in RECORD that are not importable packages.
     _RECORD_SKIP = frozenset({"__pycache__", "bin", "share"})
@@ -314,14 +314,11 @@ class RequirementsManager:
         point to the old version's code.  Purging forces Python to re-import
         from the updated on-disk packages the next time they are imported.
 
-        For JAX, ``flax`` and ``transformers`` are excluded from purging because
-        the JAX test infrastructure imports them at module level during test
-        collection.  Purging them would create a mismatch between the old class
-        objects held by module-level variables (e.g. ``nnx.Module``) and the
-        freshly loaded ones, breaking ``isinstance`` checks.  Keeping them in
-        ``sys.modules`` preserves the same behaviour as before sys-module
-        purging was introduced — the old versions remain in memory and are used
-        consistently by both the tester and the model.
+        For JAX, ``flax`` is excluded from purging because the JAX test
+        infrastructure imports it at module level during test collection.
+        Purging it would create a mismatch between the old class objects held
+        by module-level variables (e.g. ``nnx.Module``) and the freshly loaded
+        ones, breaking ``isinstance`` checks.
         """
         affected_normalized: Set[str] = set()
         for name in self._newly_installed | set(self._changed_versions.keys()):
@@ -523,52 +520,3 @@ class RequirementsManager:
             return result.returncode == 0
         except Exception:
             return False
-
-    def _clear_module_cache(self) -> None:
-        """Clear cached modules for packages that were installed/changed.
-
-        This ensures that when modules are imported again, they use the new
-        package versions rather than cached versions from before installation.
-        """
-        if not (self._newly_installed or self._changed_versions):
-            return
-
-        packages_to_clear = set(self._newly_installed) | set(
-            self._changed_versions.keys()
-        )
-        modules_to_remove = []
-
-        _dbg(
-            f"[Requirements] _clear_module_cache: clearing cache for {sorted(packages_to_clear)}"
-        )
-
-        for module_name, module in sys.modules.items():
-            if module is None:
-                continue
-
-            for package in packages_to_clear:
-                if module_name == package or module_name.startswith(package + "."):
-                    # Skip flax modules - we don't want to clear them as it breaks isinstance checks
-                    if not (
-                        module_name.startswith("flax")
-                        or module_name.startswith("jax")
-                        and module_name.startswith("torch")
-                    ):
-                        modules_to_remove.append(module_name)
-                    break
-
-        # Remove the modules from cache
-        for module_name in modules_to_remove:
-            _dbg(f"[Requirements] _clear_module_cache: removing {module_name}")
-            del sys.modules[module_name]
-
-        # Clear Python's internal import path caches
-        if modules_to_remove:
-            import importlib
-
-            importlib.invalidate_caches()
-            _dbg(f"[Requirements] _clear_module_cache: invalidated import caches")
-
-        _dbg(
-            f"[Requirements] _clear_module_cache: removed {len(modules_to_remove)} modules from cache"
-        )
