@@ -60,18 +60,18 @@ jobs:
       wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
 
-  # release-tests:
-  #   uses: ./.github/workflows/call-release-tests.yml
-  #   needs: [ build-release-docker ]
-  #   secrets: inherit
-  #   with:
-  #     release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
-  #     caller_workflow: ${{ github.workflow }}
+  release-tests:
+    uses: ./.github/workflows/call-release-tests.yml
+    needs: [ build-release-docker ]
+    secrets: inherit
+    with:
+      release_docker_image: ${{ needs.build-release-docker.outputs.docker_image }}
+      caller_workflow: ${{ github.workflow }}
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
     if: ${{ always() && needs.publish-release-wheel.result == 'success' && needs.build-release-docker.result == 'success' }}
-    needs: [ publish-release-wheel, build-release-docker ]
+    needs: [ publish-release-wheel, build-release-docker, release-tests ]
     secrets: inherit
     with:
       release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}

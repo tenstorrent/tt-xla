@@ -87,7 +87,7 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag }}
           generate_release_notes: true
-          draft: true
+          draft: false
           prerelease: false
           body: |
             Install via pypi
