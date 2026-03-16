@@ -3537,7 +3537,7 @@ class Petr3D(MVXTwoStageDetector):
                 img_meta.update(input_shape=input_shape)
             if img.dim() == 5:
                 if img.size(0) == 1 and img.size(1) != 1:
-                    img.squeeze_()
+                    img = img.squeeze(0)
                 else:
                     B, N, C, H, W = img.size()
                     img = img.view(B * N, C, H, W)
@@ -4028,8 +4028,15 @@ class PETRHead(AnchorFreeHead):
         input_img_h, input_img_w, _ = img_metas[0]["pad_shape"][0]
         masks = x.new_ones((batch_size, num_cams, input_img_h, input_img_w))
         for img_id in range(batch_size):
+            shapes = img_metas[img_id]["img_shape"]
+            n_shapes = len(shapes)
             for cam_id in range(num_cams):
-                img_h, img_w, _ = img_metas[img_id]["img_shape"][cam_id]
+                # When img_shape has fewer entries than num_cams (e.g. single shape), reuse the first
+                shape_idx = min(cam_id, n_shapes - 1) if n_shapes > 0 else 0
+                if n_shapes == 0:
+                    img_h, img_w = input_img_h, input_img_w
+                else:
+                    img_h, img_w, _ = shapes[shape_idx]
                 masks[img_id, cam_id, :img_h, :img_w] = 0
         x = self.input_proj(x.flatten(0, 1))
         x = x.view(batch_size, num_cams, *x.shape[-3:])
