@@ -45,5 +45,5 @@ jobs:
       sh-runner: false
       skip-device-perf: true
       perf_regression_check: false
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}

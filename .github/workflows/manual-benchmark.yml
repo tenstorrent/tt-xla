@@ -120,8 +120,8 @@ jobs:
     with:
       adv_filter: ${{ needs.set-inputs.outputs.filter }}
       docker_image: ${{ inputs.docker_image }}
-      artifact_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
-      wheel_artifact_name: ${{ inputs.should_build_wheel && format('xla-whl-release{0}',needs.build.outputs.artifact_suffix) || inputs.wheel_release_artifact_name }}
+      artifact_release_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
+      artifact_suffix: ${{ inputs.should_build_wheel && needs.build.outputs.artifact_suffix || '' }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}

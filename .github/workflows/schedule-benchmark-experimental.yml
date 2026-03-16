@@ -31,8 +31,8 @@ jobs:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
       adv_filter: '[ {"runs-on": "p150", "accuracy-testing": false} ]'
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   run-n150-accuracy-benchmarks:
     needs: [build-image, build-ttxla]
@@ -40,8 +40,8 @@ jobs:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
       adv_filter: '[ {"runs-on": "n150", "accuracy-testing": true} ]'
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       sh-runner: true
 
   fail-notify:
