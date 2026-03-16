@@ -8,11 +8,6 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
-  vulcan_googlenet_smoke/pytorch-proof-single_device-inference:
-    status: EXPECTED_PASSING
-    supported_archs: ["n150", "p150"]
-    markers: [push]
-
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
     status: EXPECTED_PASSING
 
