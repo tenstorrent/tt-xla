@@ -70,6 +70,7 @@ jobs:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     secrets: inherit
     with:
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       adv_filter: '[
         { "accuracy-testing": false },
         { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
