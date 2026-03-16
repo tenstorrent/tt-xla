@@ -33,18 +33,24 @@ add_dependencies(bundle-tracy tt-mlir)
 add_dependencies(bundle-ttnn tt-mlir)
 
 # Fix RPATH of _ttnn.so to find shared libraries in pjrt_plugin_tt/lib at runtime (wheel installation).
-find_program(PATCHELF patchelf REQUIRED)
+# Skipped when TTMLIR_ENABLE_BINDINGS_PYTHON=ON because the Python bindings build places
+# _ttnn.so in a different directory structure that doesn't match this glob, and the debug
+# wheel produced in that configuration is used for builder integration tests (not production),
+# where direct ttnn Python operations are not exercised.
+if(NOT TTMLIR_ENABLE_BINDINGS_PYTHON)
+  find_program(PATCHELF patchelf REQUIRED)
 
-install(CODE "
-  file(GLOB_RECURSE TTNN_SO_FILES \"${CMAKE_CURRENT_SOURCE_DIR}/build/lib*/pjrt_plugin_tt/**/_ttnn.so\")
-  if(TTNN_SO_FILES)
-    list(GET TTNN_SO_FILES 0 TTNN_SO_SOURCE)
-    message(STATUS \"Fixing RPATH for _ttnn.so: \${TTNN_SO_SOURCE}\")
-    execute_process(
-      COMMAND \"${PATCHELF}\" --add-rpath \"\$ORIGIN/../../pjrt_plugin_tt/lib\" \"\${TTNN_SO_SOURCE}\"
-      COMMAND_ERROR_IS_FATAL ANY
-    )
-  else()
-    message(FATAL_ERROR \"Could not find _ttnn.so to patch RPATH in ${CMAKE_CURRENT_SOURCE_DIR}/build/\")
-  endif()
-")
+  install(CODE "
+    file(GLOB_RECURSE TTNN_SO_FILES \"${CMAKE_CURRENT_SOURCE_DIR}/build/lib*/pjrt_plugin_tt/**/_ttnn.so\")
+    if(TTNN_SO_FILES)
+      list(GET TTNN_SO_FILES 0 TTNN_SO_SOURCE)
+      message(STATUS \"Fixing RPATH for _ttnn.so: \${TTNN_SO_SOURCE}\")
+      execute_process(
+        COMMAND \"${PATCHELF}\" --add-rpath \"\$ORIGIN/../../pjrt_plugin_tt/lib\" \"\${TTNN_SO_SOURCE}\"
+        COMMAND_ERROR_IS_FATAL ANY
+      )
+    else()
+      message(FATAL_ERROR \"Could not find _ttnn.so to patch RPATH in ${CMAKE_CURRENT_SOURCE_DIR}/build/\")
+    endif()
+  ")
+endif()
