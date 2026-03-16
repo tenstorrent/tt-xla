@@ -180,26 +180,29 @@ jobs:
             create-symlink: true
             key: "${{ steps.strings.outputs.build-name }}-build"
 
+      - name: Build with Python bindings
+        if: inputs.enable_python_bindings == true
+        shell: bash
+        run: |
+            source venv/activate
+            # Build BEFORE setup.py so that tt-mlir is compiled with Python
+            # bindings from the start (ExternalProject_Add won't rebuild if
+            # the flag is added afterward). cmake caches TTMLIR_ENABLE_BINDINGS_PYTHON=ON
+            # so setup.py's subsequent cmake reconfigure inherits it.
+            # python_package/CMakeLists.txt skips the _ttnn.so RPATH patchelf
+            # step when TTMLIR_ENABLE_BINDINGS_PYTHON=ON, allowing cmake --install
+            # to complete successfully.
+            cmake -G Ninja -B build \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+            cmake --build build
+
       - name: Build the wheel
         shell: bash
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
             python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
-
-      - name: Build Python bindings
-        if: inputs.enable_python_bindings == true
-        shell: bash
-        run: |
-            source venv/activate
-            # Run AFTER setup.py so cmake --install has already completed with a
-            # clean configuration (no Python bindings in the cache). Adding
-            # TTMLIR_ENABLE_BINDINGS_PYTHON here only adds new build targets to
-            # the existing build; it does not re-run cmake --install, which avoids
-            # the _ttnn.so RPATH error caused by enabling bindings during install.
-            cmake -G Ninja -B build \
-              -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
-            cmake --build build
 
       - name: Validate build type of wheel build
         shell: bash
