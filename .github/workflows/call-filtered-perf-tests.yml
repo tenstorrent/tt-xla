@@ -19,7 +19,7 @@ on:
         default: 'ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest'
       artifact_release_run_id:
         description: 'Run ID of the artifacts (release)'
-        required: true
+        required: false
         type: string
       artifact_suffix:
         description: 'Suffix for the artifact name'
