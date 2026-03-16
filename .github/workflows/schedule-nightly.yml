@@ -82,6 +82,7 @@ jobs:
 
   perf-benchmark:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
+    needs: [ build-image, build-ttxla ]
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
