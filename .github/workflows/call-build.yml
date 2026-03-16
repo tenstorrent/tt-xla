@@ -256,8 +256,22 @@ jobs:
             WRAPPER
             chmod +x "${TTMLIR_BUILD}/bin/ttrt"
 
-            # Archive bin/ttrt wrapper, python_packages/, and runtime/python/ —
-            # the three paths venv/activate wires into PATH / PYTHONPATH.
+            # ttrt/__init__.py calls importlib.metadata.version('ttrt'), which requires
+            # dist-info metadata that only exists after a pip install.  The test job has
+            # a fresh venv, so we create a minimal dist-info here and restore it there.
+            source venv/activate
+            TTRT_VERSION=$(python3 -c \
+              "from importlib.metadata import version; print(version('ttrt'))" \
+              2>/dev/null || echo "0.0.0")
+            DIST_INFO_DIR="${TTMLIR_BUILD}/dist-info/ttrt-${TTRT_VERSION}.dist-info"
+            mkdir -p "${DIST_INFO_DIR}"
+            printf "Metadata-Version: 2.1\nName: ttrt\nVersion: %s\n" "${TTRT_VERSION}" \
+              > "${DIST_INFO_DIR}/METADATA"
+            printf "Wheel-Version: 1.0\nGenerator: ttxla-ci\nRoot-Is-Purelib: true\nTag: py3-none-any\n" \
+              > "${DIST_INFO_DIR}/WHEEL"
+            touch "${DIST_INFO_DIR}/RECORD"
+
+            # Archive bin/ttrt wrapper, python_packages/, runtime/python/, and dist-info/.
             # --dereference (-h): follow symlinks and store actual file content.
             # python_packages/ is full of symlinks into the tt-mlir source tree;
             # without this flag the symlinks land dangling in the test job.
@@ -265,7 +279,8 @@ jobs:
               -C "${TTMLIR_BUILD}" \
               bin/ttrt \
               python_packages \
-              runtime/python
+              runtime/python \
+              dist-info
 
       - name: Upload bindings artifact
         if: inputs.enable_python_bindings == true

@@ -189,6 +189,22 @@ jobs:
           tar -xzf bindings/builder-bindings.tar.gz \
             -C third_party/tt-mlir/src/tt-mlir/build
 
+          # ttrt/__init__.py calls importlib.metadata.version('ttrt'), which needs
+          # dist-info metadata in the venv's site-packages.  Copy the dist-info
+          # that was captured in the build job into this venv.
+          source venv/activate
+          python3 - <<'EOF'
+          import site, shutil, glob, os
+          dist_infos = glob.glob(
+              "third_party/tt-mlir/src/tt-mlir/build/dist-info/*.dist-info"
+          )
+          site_packages = site.getsitepackages()[0]
+          for di in dist_infos:
+              dest = os.path.join(site_packages, os.path.basename(di))
+              shutil.copytree(di, dest, dirs_exist_ok=True)
+              print(f"Restored {os.path.basename(di)} → {site_packages}")
+          EOF
+
       - name: Query TT hardware and save device artifacts
         shell: bash
         run: |
