@@ -130,9 +130,6 @@ def insert_argument_type_markers(
 
     get_attr_target_type_dict = {}
     placeholder_target_type_dict = {}
-    # Maps from the same keys to clean (demangled) names.
-    get_attr_clean_name = {}
-    placeholder_clean_name = {}
     for in_spec in input_signature:
         type_str = None
         if in_spec.kind == InputKind.USER_INPUT:
@@ -157,21 +154,11 @@ def insert_argument_type_markers(
         else:
             assert False, f"Unexpected input kind: {in_spec.kind}"
 
-        # For clean names: spec.target is the original FQN (already clean) for
-        # params/buffers from both torch.export and the synthetic AOT signature.
-        # Fall back to demangling arg.name for user inputs.
-        if in_spec.target is not None:
-            clean = in_spec.target
-        else:
-            clean = _demangle_name(in_spec.arg.name, normalized_fqn_lookup)
-
         if in_spec.target is not None:
             get_attr_target_type_dict[in_spec.target] = type_str
-            get_attr_clean_name[in_spec.target] = clean
         # Always also index by arg.name so that placeholder nodes (used in the
         # AOTAutograd path where all inputs are placeholders) can be matched.
         placeholder_target_type_dict[in_spec.arg.name] = type_str
-        placeholder_clean_name[in_spec.arg.name] = clean
 
     for input_node in input_nodes:
         users = list(input_node.users.keys())
@@ -179,15 +166,15 @@ def insert_argument_type_markers(
             continue
 
         argument_type = None
-        clean_name = None
         if input_node.target in get_attr_target_type_dict:
             argument_type = get_attr_target_type_dict[input_node.target]
-            clean_name = get_attr_clean_name[input_node.target]
         elif input_node.name in placeholder_target_type_dict:
             argument_type = placeholder_target_type_dict[input_node.name]
-            clean_name = placeholder_clean_name[input_node.name]
         else:
             continue
+
+        mangled_name = input_node.target if input_node.target else input_node.name
+        clean_name = _demangle_name(mangled_name, normalized_fqn_lookup)
 
         with gm.graph.inserting_after(input_node):
             new_input = gm.graph.create_node(
