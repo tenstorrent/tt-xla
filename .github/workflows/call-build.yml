@@ -27,10 +27,11 @@ on:
         enable_python_bindings:
             description: |
               Build with MLIR Python bindings enabled.
-              Seeds the cmake cache with -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON and
-              -DCMAKE_BUILD_TYPE=Debug before setup.py runs so that both values
-              persist through setup.py's cmake reconfiguration step.
-              Also uploads a "builder-bindings-*" artifact containing
+              setup.py runs first (clean cmake, no Python bindings in cache) so
+              that cmake --install completes without errors. Afterward, cmake is
+              reconfigured with -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON and rebuilt
+              to add the binding targets without re-running cmake --install.
+              Uploads a "builder-bindings-*" artifact containing
               bin/ttrt, python_packages/, and runtime/python/ from the
               tt-mlir build tree (these are the paths venv/activate adds to
               PATH and PYTHONPATH).
@@ -179,25 +180,26 @@ jobs:
             create-symlink: true
             key: "${{ steps.strings.outputs.build-name }}-build"
 
-      - name: Seed cmake cache (Python bindings + Debug build type)
-        if: inputs.enable_python_bindings == true
-        shell: bash
-        run: |
-            source venv/activate
-            # Seed the cmake cache before setup.py runs. cmake caches variables
-            # across re-configurations, so when setup.py later re-runs cmake
-            # with its own flags it inherits these values.
-            cmake -G Ninja -B build \
-              -DCMAKE_BUILD_TYPE=Debug \
-              -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
-            cmake --build build
-
       - name: Build the wheel
         shell: bash
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
             python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
+
+      - name: Build Python bindings
+        if: inputs.enable_python_bindings == true
+        shell: bash
+        run: |
+            source venv/activate
+            # Run AFTER setup.py so cmake --install has already completed with a
+            # clean configuration (no Python bindings in the cache). Adding
+            # TTMLIR_ENABLE_BINDINGS_PYTHON here only adds new build targets to
+            # the existing build; it does not re-run cmake --install, which avoids
+            # the _ttnn.so RPATH error caused by enabling bindings during install.
+            cmake -G Ninja -B build \
+              -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+            cmake --build build
 
       - name: Validate build type of wheel build
         shell: bash
