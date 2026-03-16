@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import re
 from typing import Tuple
 
 import torch
@@ -34,6 +35,8 @@ from .metadata_propagation import (
     extract_nodes_info,
 )
 from .passes import (
+    _build_normalized_fqn_lookup,
+    _normalize_fx_name,
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
@@ -77,13 +80,38 @@ def _build_aot_graph_signature(
     num_params = len(param_names)
     num_buffers = len(buffer_names)
 
+    # Build a normalized lookup from flat_name_to_original_fqn so we can
+    # match param/buffer names even when the mangling differs (e.g.
+    # named_parameters() includes "_modules" segments that Dynamo omits).
+    normalized_fqn_lookup = _build_normalized_fqn_lookup(flat_name_to_original_fqn)
+
+    def _resolve_fqn(mangled: str) -> str:
+        """Resolve a mangled param/buffer name to its clean FQN."""
+        # Direct lookup first.
+        result = flat_name_to_original_fqn.get(mangled)
+        if result is not None:
+            return result
+        # Normalized lookup (collapses underscores, strips prefixes).
+        normalized = _normalize_fx_name(mangled)
+        result = normalized_fqn_lookup.get(normalized)
+        if result is not None:
+            return result
+        # named_parameters() includes "_modules" in the path for ModuleList
+        # children, but Dynamo's flat_name_to_original_fqn keys omit it.
+        # Strip "_modules" segments and retry.
+        stripped = re.sub(r"_modules_", "_", normalized)
+        result = normalized_fqn_lookup.get(stripped)
+        if result is not None:
+            return result
+        return mangled
+
     input_specs = []
     mutated_buffer_targets = set()
 
     for i, node in enumerate(placeholders):
         if i < num_params:
             mangled = param_names[i]
-            target = flat_name_to_original_fqn.get(mangled, mangled)
+            target = _resolve_fqn(mangled)
             input_specs.append(
                 InputSpec(
                     kind=InputKind.PARAMETER,
@@ -93,7 +121,7 @@ def _build_aot_graph_signature(
             )
         elif i < num_params + num_buffers:
             mangled = buffer_names[i - num_params]
-            target = flat_name_to_original_fqn.get(mangled, mangled)
+            target = _resolve_fqn(mangled)
             is_mutated = fw_metadata.input_info[i].mutates_data
             input_specs.append(
                 InputSpec(
