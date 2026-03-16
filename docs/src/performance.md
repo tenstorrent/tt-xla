@@ -26,7 +26,7 @@ This guide covers best practices and techniques for optimizing the performance o
 For a complete working example, see the code below from `examples/pytorch/mnist_performant.py`, which demonstrates all these optimizations together.
 ### Mnist performant example:
 ```python
-{{#include ../../../examples/pytorch/mnist_performant.py}}
+{{#include ../../examples/pytorch/mnist_performant.py}}
 ```
 
 Let's break down each performance optimization in detail.
