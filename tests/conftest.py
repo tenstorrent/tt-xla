@@ -21,6 +21,16 @@ import torch_xla.runtime as xr
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 
+# Compatibility shim: transformers v5 renamed is_flash_attn_greater_or_equal_2_10 to
+# is_flash_attn_greater_or_equal(version_str). Cached model code (trust_remote_code)
+# may still reference the old name.
+import transformers.utils as _transformers_utils
+
+if not hasattr(_transformers_utils, "is_flash_attn_greater_or_equal_2_10"):
+    from transformers.utils import is_flash_attn_greater_or_equal as _is_fa_geq
+
+    _transformers_utils.is_flash_attn_greater_or_equal_2_10 = lambda: _is_fa_geq("2.10")
+
 from third_party.tt_forge_models.config import ModelInfo
 
 

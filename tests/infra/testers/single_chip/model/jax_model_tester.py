@@ -21,8 +21,6 @@ from infra.utilities import (
     random_tensor,
 )
 from infra.workloads import Workload
-from transformers.modeling_flax_utils import FlaxPreTrainedModel
-
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .model_tester import ModelTester, RunMode
@@ -64,7 +62,7 @@ class JaxModelTester(ModelTester):
 
     # @override
     def _configure_model_for_inference(self) -> None:
-        assert isinstance(self._model, (nnx.Module, linen.Module, FlaxPreTrainedModel))
+        assert isinstance(self._model, (nnx.Module, linen.Module))
 
         if not isinstance(self._model, nnx.Module):
             # TODO find another way to do this since model.eval() does not exist, maybe
@@ -75,7 +73,7 @@ class JaxModelTester(ModelTester):
 
     # @override
     def _configure_model_for_training(self) -> None:
-        assert isinstance(self._model, (nnx.Module, linen.Module, FlaxPreTrainedModel))
+        assert isinstance(self._model, (nnx.Module, linen.Module))
 
         if not isinstance(self._model, nnx.Module):
             # TODO find another way to do this since model.train() does not exist, maybe
@@ -94,11 +92,11 @@ class JaxModelTester(ModelTester):
         """
         Returns input parameters.
 
-        By default returns existing model parameters for the HF FlaxPreTrainedModel.
+        By default returns existing model parameters for the HF Flax models (linen.Module
+        with a params attribute).
         """
 
-        if isinstance(self._model, FlaxPreTrainedModel):
-            assert hasattr(self._model, "params")
+        if isinstance(self._model, linen.Module) and hasattr(self._model, "params"):
             return self._model.params
         elif isinstance(self._model, nnx.Module):
             return nnx.split(self._model)[1]
@@ -155,11 +153,12 @@ class JaxModelTester(ModelTester):
         """
         Returns keyword arguments for model's forward pass.
 
-        By default returns input parameters and activations for the HF
-        FlaxPreTrainedModel and general nnx.Module, leaving empty dict for other type of models.
+        By default returns input parameters and activations for HF Flax models
+        (linen.Module with params) and general nnx.Module, leaving empty dict for other type of models.
         """
         kwargs = {}
-        if isinstance(self._model, (FlaxPreTrainedModel, nnx.Module)):
+        is_hf_flax_model = isinstance(self._model, linen.Module) and hasattr(self._model, "params")
+        if is_hf_flax_model or isinstance(self._model, nnx.Module):
             kwargs = {
                 "params": self._input_parameters,
                 **self._input_activations,
@@ -221,7 +220,7 @@ class JaxModelTester(ModelTester):
             out = f(*args, **kwargs)
             if self._has_batch_norm and self._run_mode == RunMode.TRAINING:
                 out = out[0]
-            if isinstance(self._model, FlaxPreTrainedModel):
+            if isinstance(self._model, linen.Module) and hasattr(self._model, "params"):
                 out = out.logits
             return out
 
@@ -241,7 +240,7 @@ class JaxModelTester(ModelTester):
         """
 
         # Wrapper to convert kwargs to args and return logits if model is HF
-        is_hf_model = isinstance(self._model, FlaxPreTrainedModel)
+        is_hf_model = isinstance(self._model, linen.Module) and hasattr(self._model, "params")
 
         # Create partial with static args
         partial_executable = jax.tree_util.Partial(
