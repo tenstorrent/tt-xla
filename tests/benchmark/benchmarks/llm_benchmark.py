@@ -469,6 +469,22 @@ def benchmark_llm_torch_xla(
         else -1
     )
 
+    print_benchmark_results(
+        model_title=full_model_name,
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        date=metadata["date"],
+        machine_name=metadata["machine_name"],
+        total_time=decode_total_time,
+        total_samples=decode_total_tokens,
+        samples_per_sec=tokens_per_second,
+        batch_size=batch_size,
+        data_format=data_format,
+        input_sequence_length=input_sequence_length,
+        ttft_ms=ttft_ms,
+    )
+
     evaluation_score = 0.0
     custom_measurements = [
         {
@@ -478,14 +494,14 @@ def benchmark_llm_torch_xla(
         },
     ]
 
-    # Validation: PCC or Token Accuracy (compute before printing)
-    top1_accuracy = None
-    top5_accuracy = None
-    pcc_value = None
-
     if accuracy_testing:
         # Compute token accuracy from predictions (after generation completes)
         top1_accuracy, top5_accuracy = token_accuracy.compute_accuracy(predicted_tokens)
+        print(
+            "Token accuracy: TOP1={:.2f}%, TOP5={:.2f}%".format(
+                top1_accuracy * 100, top5_accuracy * 100
+            )
+        )
 
         # Store accuracy scores
         evaluation_score = top1_accuracy  # Use TOP1 as primary score
@@ -506,26 +522,7 @@ def benchmark_llm_torch_xla(
         pcc_value = compute_pcc(
             output_logits[0][0], cpu_logits[0], required_pcc=required_pcc
         )
-
-    print_benchmark_results(
-        model_title=full_model_name,
-        full_model_name=full_model_name,
-        model_type=model_type,
-        dataset_name=dataset_name,
-        date=metadata["date"],
-        machine_name=metadata["machine_name"],
-        total_time=decode_total_time,
-        total_samples=decode_total_tokens,
-        samples_per_sec=tokens_per_second,
-        evaluation_score=evaluation_score,
-        batch_size=batch_size,
-        data_format=data_format,
-        input_sequence_length=input_sequence_length,
-        ttft_ms=ttft_ms,
-        top1_accuracy=top1_accuracy,
-        top5_accuracy=top5_accuracy,
-        pcc_value=pcc_value,
-    )
+        print("PCC verification passed with PCC={:.6f}".format(pcc_value))
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()
