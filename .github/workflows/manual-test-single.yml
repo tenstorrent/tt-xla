@@ -31,7 +31,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: release
+      build_types: release,manylinux
       xla_sha_override: ${{ inputs.xla_sha_override }}
 
   release:
