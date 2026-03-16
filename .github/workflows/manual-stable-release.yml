@@ -1,3 +1,5 @@
+name: Stable version release
+
 on:
   workflow_dispatch:
     inputs:
