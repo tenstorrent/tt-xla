@@ -1057,6 +1057,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
   options.meshTopology = fabricConfigToMeshTopology(
       client_instance->computeFabricConfig(devices_mesh_shape));
+  options.nocDmaHangWorkaroundsEnabled = true;
+
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);

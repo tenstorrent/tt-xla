@@ -21,6 +21,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenize
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.sparse_mlp import enable_sparse_mlp
 from utils import (
     build_xla_export_name,
     compute_pcc,
@@ -208,6 +209,7 @@ def benchmark_llm_torch_xla(
     accuracy_testing: bool = False,
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
+    inject_custom_moe: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -350,6 +352,8 @@ def benchmark_llm_torch_xla(
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
+        if inject_custom_moe:
+            enable_sparse_mlp(model, mesh.mesh_shape, cluster_axis=0)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
