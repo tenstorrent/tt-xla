@@ -93,7 +93,6 @@ jobs:
       docker_image: ${{ inputs.docker_image }}
       artifact_run_id: ${{ inputs.artifact_run_id }}
       wheel_artifact_name: ${{ inputs.wheel_artifact_name }}
-      use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}

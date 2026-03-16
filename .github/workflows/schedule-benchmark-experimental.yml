@@ -33,7 +33,6 @@ jobs:
       adv_filter: '[ {"runs-on": "p150", "accuracy-testing": false} ]'
       artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
-      use_docker_wheel: true
 
   run-n150-accuracy-benchmarks:
     needs: [build-image, build-ttxla]
