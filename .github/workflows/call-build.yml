@@ -162,13 +162,13 @@ jobs:
       artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
 
-  # build-manylinux-ttxla:
-  #   needs: check-existing-artifact
-  #   if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_manylinux == 'true' }}
-  #   uses: ./.github/workflows/call-build-manylinux.yml
-  #   secrets: inherit
-  #   with:
-  #     mlir_override: ${{ inputs.mlir_override }}
-  #     docker-image: ${{ inputs.docker_image_manylinux }}
-  #     artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
-  #     xla_sha_override: ${{ inputs.xla_sha_override }}
+  build-manylinux-ttxla:
+    needs: check-existing-artifact
+    if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_manylinux == 'true' }}
+    uses: ./.github/workflows/call-build-manylinux.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+      docker-image: ${{ inputs.docker_image_manylinux }}
+      artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
