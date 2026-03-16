@@ -166,6 +166,19 @@ void BufferInstance::copyFromHost(
 
   assert(data_type == m_data_type && "m_data_type and data_type do not match");
 
+  {
+    std::string shape_str = "[";
+    for (size_t i = 0; i < num_dims; ++i) {
+      shape_str += std::to_string(dims[i]);
+      if (i + 1 < num_dims) shape_str += ", ";
+    }
+    shape_str += "]";
+    LOG_F(INFO,
+          "BufferInstance::copyFromHost uid=%lu dtype=%d shape=%s",
+          static_cast<unsigned long>(m_uid), static_cast<int>(m_data_type),
+          shape_str.c_str());
+  }
+
   m_pjrt_tensor.reset();
 
   ::tt::target::DataType runtime_data_type =

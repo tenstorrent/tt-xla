@@ -429,6 +429,8 @@ def test_kimi_k2_full():
     config.use_cache = use_cache
 
     model = DeepseekV3Model(config)
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"[JAMES] Total model parameters for kimi k2 models {total_params:,} with 2 layers")
     model = model.to(torch.bfloat16)
 
     # Replace all MoE MLP layers with A2aSparseMLP
