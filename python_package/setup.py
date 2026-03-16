@@ -316,6 +316,8 @@ class CMakeBuildPy(build_py):
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
         ]
+        if os.environ.get("TTMLIR_ENABLE_BINDINGS_PYTHON") == "ON":
+            cmake_args.append("-DTTMLIR_ENABLE_BINDINGS_PYTHON=ON")
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
 

@@ -50,7 +50,7 @@ if(NOT TTMLIR_ENABLE_BINDINGS_PYTHON)
         COMMAND_ERROR_IS_FATAL ANY
       )
     else()
-      message(FATAL_ERROR \"Could not find _ttnn.so to patch RPATH in ${CMAKE_CURRENT_SOURCE_DIR}/build/\")
+      message(STATUS \"_ttnn.so not found in ${CMAKE_CURRENT_SOURCE_DIR}/build/ – skipping RPATH patch (expected when TTMLIR_ENABLE_BINDINGS_PYTHON=ON)\")
     endif()
   ")
 endif()

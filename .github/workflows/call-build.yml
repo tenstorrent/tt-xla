@@ -199,6 +199,8 @@ jobs:
 
       - name: Build the wheel
         shell: bash
+        env:
+            TTMLIR_ENABLE_BINDINGS_PYTHON: ${{ inputs.enable_python_bindings && 'ON' || '' }}
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
