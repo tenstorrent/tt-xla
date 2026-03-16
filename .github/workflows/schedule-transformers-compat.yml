@@ -7,7 +7,7 @@ name: Transformers Compatibility Check
 on:
   push:
     branches:
-      - aknezevic/hf_uplift  # TODO: Remove before merging to main
+      - jazpur/aknezevic/hf_uplift  # TODO: Remove before merging to main
   schedule:
     - cron: '0 6 * * *'  # Daily at 06:00 UTC
   workflow_dispatch:
@@ -100,6 +100,7 @@ jobs:
           .test_durations
           pjrt_implementation
           third_party/pjrt_c_api
+          third_party/tt_forge_models
           pytest.ini
           python_package/requirements.txt
           integrations/vllm_plugin/requirements-vllm-plugin.txt
@@ -130,7 +131,7 @@ jobs:
         gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
-          --name ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+          --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
         echo "Downloaded wheel files:"
         ls -la wheels
 
@@ -150,6 +151,7 @@ jobs:
         uv pip uninstall transformers
         TRANSFORMERS_REF="${{ inputs.transformers_ref || 'main' }}"
         echo "Installing transformers from git ref: $TRANSFORMERS_REF"
+        echo "TRANSFORMERS_REF=$TRANSFORMERS_REF" >> $GITHUB_ENV
         uv pip install "transformers @ git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"
 
         NEW_VERSION=$(python -c "import transformers; print(transformers.__version__)")
@@ -245,6 +247,21 @@ jobs:
         git checkout -b "$BRANCH_NAME"
         echo "Created branch: $BRANCH_NAME"
 
+    - name: Bring over extraction script from triggering branch
+      if: steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: git checkout ${{ github.sha }} -- .github/scripts/extract_transformers_failure_context.py
+
+    - name: Extract failure context
+      if: steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: |
+        source venv/activate
+        python .github/scripts/extract_transformers_failure_context.py \
+          "." \
+          "." \
+          failure_context.txt
+
     - name: Build Claude Code prompt
       if: steps.run-tests.outcome == 'failure'
       shell: bash
@@ -265,7 +282,7 @@ jobs:
         ${{ env.FULL_TEST_CMD }}
         PROMPT_CMD
 
-        cat >> claude_prompt.txt << 'PROMPT_TAIL'
+        cat >> claude_prompt.txt << PROMPT_TAIL
 
         ## Instructions
         1. Analyze the failures to identify which transformers API changes caused them.
@@ -276,11 +293,15 @@ jobs:
         5. After making fixes, you MUST re-run the FULL test command above (not just --collect-only).
            Run the exact test command provided and wait for it to complete.
            If it still fails, analyze the new error and iterate until the tests pass.
-        6. Do NOT consider your task complete until you have run the full test suite and it passes.
+        6. Do NOT consider your task complete until you have run the full test suite and either:
+           - All tests pass, or
+           - All remaining failures are not related to API changes from the latest transformers version, or
+           - You've run the full test suite ten times and tests still fail.
 
         ## Rules
-        - Do NOT modify files under third_party/ (these are external submodules).
-        - Do NOT modify venv/requirements-dev.txt or change the pinned transformers version.
+        - Do NOT modify files under third_party/ (these are external submodules), EXCEPT for third_party/tt_forge_models.
+        - ONLY modify venv/requirements-dev.txt to change the pinned transformers version to:
+          - $TRANSFORMERS_REF
         - Keep changes minimal and focused on compatibility.
         PROMPT_TAIL
 
@@ -312,7 +333,7 @@ jobs:
         echo "Changed files:"
         echo "$CHANGED_FILES"
 
-        SUBMODULE_FILES=$(echo "$CHANGED_FILES" | grep "^third_party/" || true)
+        SUBMODULE_FILES=$(echo "$CHANGED_FILES" | grep "^third_party/" | grep -v "^third_party/tt_forge_models" || true)
         if [ -n "$SUBMODULE_FILES" ]; then
           echo "Reverting changes to third_party/ submodules:"
           echo "$SUBMODULE_FILES"
@@ -419,22 +440,22 @@ jobs:
       pr-url: ${{ steps.create-pr.outputs.pr_url }}
 
   # ── Job 5: Notify via Slack ────────────────────────────────────────────
-  notify:
-    if: always()
-    needs:
-      - test-and-fix
-      - create-pr
-    runs-on: ubuntu-latest
+  # notify:
+  #   if: always()
+  #   needs:
+  #     - test-and-fix
+  #     - create-pr
+  #   runs-on: ubuntu-latest
 
-    steps:
-    - name: Determine outcome and send notification
-      uses: slackapi/slack-github-action@v1.26.0
-      with:
-        payload: |
-          {
-            "text": "${{ needs.test-and-fix.result == 'success' && (needs.test-and-fix.outputs.has-fix == 'true' && format('Transformers compat: Tests failed, Claude Code auto-fix PR created: {0}', needs.create-pr.outputs.pr-url) || 'Transformers compat: All model tests pass with latest transformers — no compat issues') || 'Transformers compat: Tests failed, Claude Code could not produce a fix' }} | <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Workflow Run>",
-            "channel": "C08GYB57C8M",
-            "unfurl_links": false, "unfurl_media": false
-          }
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
+  #   steps:
+  #   - name: Determine outcome and send notification
+  #     uses: slackapi/slack-github-action@v1.26.0
+  #     with:
+  #       payload: |
+  #         {
+  #           "text": "${{ needs.test-and-fix.result == 'success' && (needs.test-and-fix.outputs.has-fix == 'true' && format('Transformers compat: Tests failed, Claude Code auto-fix PR created: {0}', needs.create-pr.outputs.pr-url) || 'Transformers compat: All model tests pass with latest transformers — no compat issues') || 'Transformers compat: Tests failed, Claude Code could not produce a fix' }} | <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Workflow Run>",
+  #           "channel": "C08GYB57C8M",
+  #           "unfurl_links": false, "unfurl_media": false
+  #         }
+  #     env:
+  #       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
