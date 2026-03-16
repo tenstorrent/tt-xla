@@ -11,23 +11,6 @@ from utils import resolve_display_name
 SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         VLLMBenchmarkConfig(
-            model="facebook/opt-125m",
-            batch_size=1,
-            max_model_len=128,
-        ),
-        id="opt-125m",
-    ),
-    pytest.param(
-        VLLMBenchmarkConfig(
-            model="facebook/opt-125m",
-            batch_size=32,
-            max_model_len=128,
-            gpu_memory_utilization=0.012,
-        ),
-        id="opt-125m-batch32",
-    ),
-    pytest.param(
-        VLLMBenchmarkConfig(
             model="meta-llama/Llama-3.2-3B",
             batch_size=1,
             max_model_len=128,

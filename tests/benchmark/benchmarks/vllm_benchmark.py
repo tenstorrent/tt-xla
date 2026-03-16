@@ -64,12 +64,12 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
 def _extract_metrics(
     outputs: List[vllm.RequestOutput],
     batch_size: int,
-) -> Tuple[float, float, int, float]:
+) -> Tuple[float, int, float, float]:
     """
-    Extract per-request metrics and return aggregated values.
+    Extract per-request metrics and return aggregated per-user values.
 
     Returns:
-        (avg_ttft_ms, tokens_per_second, decode_total_tokens, decode_total_time)
+        (avg_ttft_ms, tokens_per_user, decode_total_time, tokens_per_sec_per_user)
     """
     ttft_values = []
     total_gen_tokens = 0
@@ -99,14 +99,16 @@ def _extract_metrics(
     avg_ttft_ms = sum(ttft_values) / len(ttft_values) if ttft_values else 0.0
 
     decode_total_tokens = total_gen_tokens - batch_size
+    tokens_per_user = decode_total_tokens // batch_size
+
     first_token_times = [o.metrics.first_token_ts for o in outputs]
     last_token_times = [o.metrics.last_token_ts for o in outputs]
     decode_total_time = max(last_token_times) - min(first_token_times)
-    tokens_per_second = (
-        (decode_total_tokens / decode_total_time) if decode_total_time > 0 else 0.0
+    tokens_per_sec_per_user = (
+        (tokens_per_user / decode_total_time) if decode_total_time > 0 else 0.0
     )
 
-    return avg_ttft_ms, tokens_per_second, decode_total_tokens, decode_total_time
+    return avg_ttft_ms, tokens_per_user, decode_total_time, tokens_per_sec_per_user
 
 
 def _get_device_info(
@@ -184,7 +186,7 @@ def benchmark_vllm(
     _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
     _assert_no_preemptions(llm)
 
-    avg_ttft_ms, tokens_per_second, decode_total_tokens, decode_total_time = (
+    avg_ttft_ms, tokens_per_user, decode_total_time, tokens_per_sec_per_user = (
         _extract_metrics(outputs, config.batch_size)
     )
 
@@ -210,8 +212,8 @@ def benchmark_vllm(
         date=metadata["date"],
         machine_name=metadata["machine_name"],
         total_time=decode_total_time,
-        total_samples=decode_total_tokens,
-        samples_per_sec=tokens_per_second,
+        total_samples=tokens_per_user,
+        samples_per_sec=tokens_per_sec_per_user,
         evaluation_score=evaluation_score,
         batch_size=config.batch_size,
         data_format="bfloat16",
@@ -231,7 +233,7 @@ def benchmark_vllm(
         loop_count=1,
         data_format="bfloat16",
         total_time=decode_total_time,
-        total_samples=decode_total_tokens,
+        total_samples=tokens_per_user,
         evaluation_score=evaluation_score,
         custom_measurements=custom_measurements,
         optimization_level=config.additional_config.get("optimization_level", 0),
