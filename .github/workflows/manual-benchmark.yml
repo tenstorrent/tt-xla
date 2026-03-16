@@ -57,11 +57,11 @@ on:
         required: false
         type: string
         default: ""
-      wheel_release_artifact_name:
-        description: "Wheel artifact name to download (used when should_build_wheel=false)"
+      manylinux_build:
+        description: 'Build and use manylinux wheel'
         required: false
-        type: string
-        default: "xla-whl-release"
+        type: boolean
+        default: false
 
 permissions:
   packages: write
@@ -77,6 +77,7 @@ jobs:
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
+      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
   build:
     needs: docker-build
@@ -86,6 +87,8 @@ jobs:
     with:
       mlir_override: ${{ inputs.mlir_override }}
       docker_image: ${{ needs.docker-build.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.docker-build.outputs.docker-image-manylinux }}
+      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
 
   set-inputs:
     runs-on: ubuntu-latest
@@ -131,6 +134,7 @@ jobs:
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
+      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
 
   fail-notify:
     if: always()
