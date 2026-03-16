@@ -241,11 +241,22 @@ jobs:
         if: inputs.enable_python_bindings == true
         shell: bash
         run: |
-            # Archive the three paths venv/activate adds to PATH and PYTHONPATH:
-            #   PATH      ← build/bin/ttrt
-            #   PYTHONPATH ← build/python_packages/ and build/runtime/python/
+            TTMLIR_BUILD=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build
+
+            # ttrt is a Python package (build/python_packages/ttrt), not a compiled binary.
+            # venv/activate adds build/bin to PATH, so create a wrapper script there so
+            # the test job can call `ttrt` as a command after sourcing venv/activate.
+            mkdir -p "${TTMLIR_BUILD}/bin"
+            cat > "${TTMLIR_BUILD}/bin/ttrt" <<'WRAPPER'
+            #!/usr/bin/env bash
+            exec python3 -m ttrt "$@"
+            WRAPPER
+            chmod +x "${TTMLIR_BUILD}/bin/ttrt"
+
+            # Archive bin/ttrt wrapper, python_packages/, and runtime/python/ —
+            # the three paths venv/activate wires into PATH / PYTHONPATH.
             tar -czf builder-bindings.tar.gz \
-              -C ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build \
+              -C "${TTMLIR_BUILD}" \
               bin/ttrt \
               python_packages \
               runtime/python
