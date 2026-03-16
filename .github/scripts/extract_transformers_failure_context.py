@@ -90,7 +90,10 @@ def extract_errors_from_logs(logs_dir):
                     seen.add(key)
                     unique.append(chunk)
             excerpts.append(
-                {"log_file": os.path.basename(os.path.dirname(log_file)), "errors": unique[:30]}
+                {
+                    "log_file": os.path.basename(os.path.dirname(log_file)),
+                    "errors": unique[:30],
+                }
             )
 
     return excerpts
