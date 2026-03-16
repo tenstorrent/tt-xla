@@ -53,6 +53,7 @@ jobs:
             tag="$VERSION.$nightly_release_suffix"
           fi
 
+          tag="0.1.0.dev0005"
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Set up Python
@@ -60,11 +61,11 @@ jobs:
         with:
           python-version: 3.12
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Download wheels
         shell: bash
@@ -104,9 +105,10 @@ jobs:
 
           echo "Uploading wheels to the pypi bucket"
           for wheel_file in wheel/*.whl; do
-            if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
-              s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
-            else
-              s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
-            fi
+            echo "dummy upload: $wheel_file"
+            # if [ "${{ inputs.should_overwrite_release }}" == "true" ]; then
+            #   s3pypi upload "$wheel_file" --put-root-index --force --bucket ${{ secrets.PYPI_BUCKET }}
+            # else
+            #   s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
+            # fi
           done
