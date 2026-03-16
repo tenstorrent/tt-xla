@@ -7,7 +7,7 @@ name: Transformers Compatibility Check
 on:
   push:
     branches:
-      - aknezevic/hf_uplift  # TODO: Remove before merging to main
+      - jazpur/aknezevic/hf_uplift  # TODO: Remove before merging to main
   schedule:
     - cron: '0 6 * * *'  # Daily at 06:00 UTC
   workflow_dispatch:
@@ -130,7 +130,7 @@ jobs:
         gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
-          --name ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+          --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
         echo "Downloaded wheel files:"
         ls -la wheels
 
@@ -245,6 +245,16 @@ jobs:
         git checkout -b "$BRANCH_NAME"
         echo "Created branch: $BRANCH_NAME"
 
+    - name: Extract failure context
+      if: steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: |
+        source venv/activate
+        python .github/scripts/extract_transformers_failure_context.py \
+          "." \
+          "." \
+          failure_context.txt
+
     - name: Build Claude Code prompt
       if: steps.run-tests.outcome == 'failure'
       shell: bash
@@ -276,7 +286,9 @@ jobs:
         5. After making fixes, you MUST re-run the FULL test command above (not just --collect-only).
            Run the exact test command provided and wait for it to complete.
            If it still fails, analyze the new error and iterate until the tests pass.
-        6. Do NOT consider your task complete until you have run the full test suite and it passes.
+        6. Do NOT consider your task complete until you have run the full test suite and either:
+           - All tests pass, or
+           - All remaining failures are not related to API changes from the latest transformers version.
 
         ## Rules
         - Do NOT modify files under third_party/ (these are external submodules).
