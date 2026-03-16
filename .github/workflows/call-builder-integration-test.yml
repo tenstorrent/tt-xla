@@ -4,13 +4,34 @@
 name: Builder Integration Test (call)
 
 # Three-job pipeline (sequential):
-#   build        – builds tt-xla once (Debug + Python bindings) on a large CPU
-#                  runner and uploads the build directory as a shared artifact
+#   build        – builds tt-xla once on a large CPU runner and uploads two
+#                  artifacts:
+#                    • pjrt_plugin_tt wheel  (installed on the test runner)
+#                    • tt-mlir bindings tar  (ttrt binary + MLIR Python packages)
 #   read-matrix  – reads builder-integration-tests.json; groups entries by
 #                  "runs-on" so all tests for the same device share one job
-#   run-test     – one job per device; downloads the shared build, runs
+#   run-test     – one job per device; installs the wheel, restores the
+#                  bindings to the path venv/activate expects, runs
 #                  ttrt query --save-artifacts, then iterates over every test
-#                  assigned to that device in sequence
+#
+# Why two artifacts instead of one big tar?
+#   cmake --build produces ttrt and the MLIR Python bindings inside the
+#   tt-mlir submodule build tree at:
+#     third_party/tt-mlir/src/tt-mlir/build/bin/ttrt
+#     third_party/tt-mlir/src/tt-mlir/build/python_packages/
+#     third_party/tt-mlir/src/tt-mlir/build/runtime/python/
+#   venv/activate adds these to PATH/PYTHONPATH at lines 40 and 13.
+#   Archiving the entire tt-mlir build would be multi-GB; we archive only
+#   the three subdirectories that venv/activate actually references.
+#   The compiled .so files are portable because both the build runner and
+#   test runners use the same Docker image with the toolchain at
+#   /opt/ttmlir-toolchain (added to LD_LIBRARY_PATH by venv/activate).
+#
+# cmake cache note:
+#   We run cmake with -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON before setup.py.
+#   cmake caches this value in build/CMakeCache.txt. When setup.py later
+#   re-runs cmake (with its own flags), the cached value persists and Python
+#   bindings remain enabled for the incremental rebuild.
 #
 # To add more builder tests, append entries to
 # .github/workflows/test-matrix-presets/builder-integration-tests.json.
@@ -43,59 +64,22 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1 – build once on a large CPU runner
+  # Job 1 – build on a large CPU runner, upload wheel + bindings
   # ---------------------------------------------------------------------------
   build:
-    timeout-minutes: 120
-    runs-on: tt-ubuntu-2204-large-stable
-    name: "Build tt-xla (builder integration)"
-
-    container:
-      image: ${{ inputs.docker_image }}
-
-    steps:
-      - name: Mark repo as safe for git
-        run: |
-          git config --global --add safe.directory /__w/tt-xla/tt-xla
-          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          repository: 'tenstorrent/tt-xla'
-
-      - name: ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: "builder-integration-debug"
-          update-package-index: true
-
-      - name: Build with CMake (debug + Python bindings)
-        shell: bash
-        run: |
-          source venv/activate
-          cmake -G Ninja -B build \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-          cmake --build build
-
-      - name: Archive build directory
-        shell: bash
-        run: tar -czf builder-integration-build.tar.gz build/
-
-      - name: Upload build archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: builder-integration-build-${{ github.run_id }}
-          path: builder-integration-build.tar.gz
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ inputs.docker_image }}
+      build_type: debug
+      enable_python_bindings: true
 
   # ---------------------------------------------------------------------------
-  # Job 2 – read the JSON matrix (after build succeeds)
+  # Job 2 – read and group the JSON matrix
   # ---------------------------------------------------------------------------
   read-matrix:
     needs: [build]
+    # build is a workflow_call job; its outputs are accessible via needs.build.outputs.*
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.read.outputs.matrix }}
@@ -125,7 +109,7 @@ jobs:
   # Job 3 – one job per device, running all its tests in sequence
   # ---------------------------------------------------------------------------
   run-test:
-    needs: [read-matrix, build]
+    needs: [build, read-matrix]
     strategy:
       fail-fast: false
       matrix:
@@ -156,7 +140,10 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          # No submodules needed — build artifacts come from the build job.
+          # venv/activate only needs the directory structure to exist, which
+          # we create below when restoring the bindings artifact.
+          submodules: false
           repository: 'tenstorrent/tt-xla'
 
       - name: Fetch job ID
@@ -165,14 +152,42 @@ jobs:
         with:
           job_name: "builder ${{ matrix.build.runs-on }} (${{ strategy.job-index }})"
 
-      - name: Download build archive
+      - name: Download wheel
         uses: actions/download-artifact@v4
         with:
-          name: builder-integration-build-${{ github.run_id }}
+          name: ${{ needs.build.outputs.wheel_artifact_name }}
+          path: wheels
+          # artifacts_run_id points to the run that produced the artifacts —
+          # either the current run (fresh build) or a previous run (cache hit).
+          # Without this, download-artifact only searches the current run and
+          # fails on cache hits because build-ttxla was skipped.
+          run-id: ${{ needs.build.outputs.artifacts_run_id }}
+          github-token: ${{ github.token }}
 
-      - name: Extract build archive
+      - name: Install wheel
         shell: bash
-        run: tar -xzf builder-integration-build.tar.gz
+        run: |
+          source venv/activate
+          uv pip install wheels/*.whl
+
+      - name: Download tt-mlir bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.bindings_artifact_name }}
+          path: bindings
+          run-id: ${{ needs.build.outputs.artifacts_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Restore bindings to expected path
+        shell: bash
+        run: |
+          # venv/activate sets:
+          #   PATH      += third_party/tt-mlir/src/tt-mlir/build/bin
+          #   PYTHONPATH += third_party/tt-mlir/src/tt-mlir/build/python_packages
+          #   PYTHONPATH += third_party/tt-mlir/src/tt-mlir/build/runtime/python
+          mkdir -p third_party/tt-mlir/src/tt-mlir/build
+          tar -xzf bindings/builder-bindings.tar.gz \
+            -C third_party/tt-mlir/src/tt-mlir/build
 
       - name: Query TT hardware and save device artifacts
         shell: bash
@@ -188,7 +203,8 @@ jobs:
         run: |
           source venv/activate
 
-          # build_cmd <config-json> — constructs the argument list for one test config
+          # build_cmd <config-json> <nameref> — fills the named array with
+          # the argument list for run_test_op_by_op.py
           build_cmd() {
             local cfg="$1"
             local -n _cmd=$2

@@ -16,7 +16,7 @@ on:
             required: true
             type: string
         build_type:
-            description: 'Build type: release, explorer'
+            description: 'Build type: release, debug, codecov, explorer'
             default: release
             type: string
             required: false
@@ -24,6 +24,19 @@ on:
             description: 'Force rebuild even if artifact exists'
             type: boolean
             required: false
+        enable_python_bindings:
+            description: |
+              Build with MLIR Python bindings enabled.
+              Seeds the cmake cache with -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON and
+              -DCMAKE_BUILD_TYPE=Debug before setup.py runs so that both values
+              persist through setup.py's cmake reconfiguration step.
+              Also uploads a "builder-bindings-*" artifact containing
+              bin/ttrt, python_packages/, and runtime/python/ from the
+              tt-mlir build tree (these are the paths venv/activate adds to
+              PATH and PYTHONPATH).
+            type: boolean
+            required: false
+            default: false
     outputs:
         wheel_artifact_name:
             description: 'Name of the wheel artifact'
@@ -34,6 +47,9 @@ on:
         alchemist_artifact_name:
             description: 'Name of the alchemist library artifact'
             value: ${{ jobs.check-existing-artifact.outputs.alchemist_artifact_name }}
+        bindings_artifact_name:
+            description: 'Name of the tt-mlir bindings artifact (only set when enable_python_bindings=true)'
+            value: ${{ jobs.check-existing-artifact.outputs.bindings_artifact_name }}
         artifacts_run_id:
             description: 'Run ID of the artifacts'
             value: ${{ jobs.check-existing-artifact.outputs.artifacts_run_id || github.run_id }}
@@ -47,6 +63,7 @@ jobs:
       wheel_artifact_name: ${{ steps.generate-name.outputs.wheel_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ steps.generate-name.outputs.wheel_release_vllm_tt_artifact_name }}
       alchemist_artifact_name: ${{ steps.generate-name.outputs.alchemist_artifact_name }}
+      bindings_artifact_name: ${{ steps.generate-name.outputs.bindings_artifact_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +72,9 @@ jobs:
         shell: bash
         run: |
           build_name=${{ inputs.build_type }}
+          if [[ "${{ inputs.enable_python_bindings }}" == "true" ]]; then
+            build_name="${build_name}-bindings"
+          fi
 
           # Add commit SHA to artifact name only when all conditions are met:
           # - Not a pull request event
@@ -73,9 +93,14 @@ jobs:
           wheel_artifact_name="xla-whl-${build_name}${artifact_suffix}"
           wheel_release_vllm_tt_artifact_name="vllm-tt-whl-${build_name}${artifact_suffix}"
           alchemist_artifact_name="alchemist-lib-${build_name}${artifact_suffix}"
+          bindings_artifact_name=""
+          if [[ "${{ inputs.enable_python_bindings }}" == "true" ]]; then
+            bindings_artifact_name="builder-bindings-${build_name}${artifact_suffix}"
+          fi
           echo "wheel_artifact_name=${wheel_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "wheel_release_vllm_tt_artifact_name=${wheel_release_vllm_tt_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "alchemist_artifact_name=${alchemist_artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "bindings_artifact_name=${bindings_artifact_name}" >> "$GITHUB_OUTPUT"
           echo "Generated artifact name: $wheel_artifact_name"
 
       - name: Check if artifact exists
@@ -114,6 +139,13 @@ jobs:
       image: ${{ inputs.docker_image }}
 
     steps:
+      - name: Validate inputs
+        run: |
+            if [[ "${{ inputs.enable_python_bindings }}" == "true" && "${{ inputs.build_type }}" != "debug" ]]; then
+              echo "Error: enable_python_bindings=true requires build_type=debug (got '${{ inputs.build_type }}')"
+              exit 1
+            fi
+
       - name: Mark repo as safe for git
         run: |
             echo "Current user: $(whoami)"
@@ -146,6 +178,19 @@ jobs:
         with:
             create-symlink: true
             key: "${{ steps.strings.outputs.build-name }}-build"
+
+      - name: Seed cmake cache (Python bindings + Debug build type)
+        if: inputs.enable_python_bindings == true
+        shell: bash
+        run: |
+            source venv/activate
+            # Seed the cmake cache before setup.py runs. cmake caches variables
+            # across re-configurations, so when setup.py later re-runs cmake
+            # with its own flags it inherits these values.
+            cmake -G Ninja -B build \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+            cmake --build build
 
       - name: Build the wheel
         shell: bash
@@ -184,6 +229,26 @@ jobs:
             path: |
               ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/lib/libtt-alchemist-lib.so
               ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/tools/tt-alchemist/templates
+
+      - name: Archive tt-mlir bindings
+        if: inputs.enable_python_bindings == true
+        shell: bash
+        run: |
+            # Archive the three paths venv/activate adds to PATH and PYTHONPATH:
+            #   PATH      ← build/bin/ttrt
+            #   PYTHONPATH ← build/python_packages/ and build/runtime/python/
+            tar -czf builder-bindings.tar.gz \
+              -C ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build \
+              bin/ttrt \
+              python_packages \
+              runtime/python
+
+      - name: Upload bindings artifact
+        if: inputs.enable_python_bindings == true
+        uses: actions/upload-artifact@v4
+        with:
+            name: ${{ needs.check-existing-artifact.outputs.bindings_artifact_name }}
+            path: builder-bindings.tar.gz
 
       - name: Build vllm plugin wheel
         if: inputs.build_type == 'release'
