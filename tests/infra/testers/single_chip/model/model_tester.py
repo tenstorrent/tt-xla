@@ -171,6 +171,8 @@ class ModelTester(BaseTester, ABC):
 
         tt_res = self._run_on_tt_device(self._workload)
 
+        self._print_outputs(cpu_res, tt_res)
+
         if request:
             self.handle_filecheck_and_serialization(request, self._workload)
 
@@ -216,6 +218,27 @@ class ModelTester(BaseTester, ABC):
     def _compare(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
         """Compares device with golden output and returns the result."""
         return self._evaluator.evaluate(device_out, golden_out)
+
+    @staticmethod
+    def _print_outputs(cpu_res: Tensor, tt_res: Tensor) -> None:
+        """Prints CPU and TT device outputs for manual comparison."""
+        from torch.utils._pytree import tree_flatten
+
+        cpu_leaves, _ = tree_flatten(cpu_res)
+        tt_leaves, _ = tree_flatten(tt_res)
+
+        print("\n" + "=" * 80)
+        print("OUTPUT COMPARISON")
+        print("=" * 80)
+        for i, (cpu_leaf, tt_leaf) in enumerate(zip(cpu_leaves, tt_leaves)):
+            print(
+                f"\n--- Leaf {i} | shape: {cpu_leaf.shape} | dtype: {cpu_leaf.dtype} ---"
+            )
+            print(f"CPU : {cpu_leaf}")
+            print(f"TT  : {tt_leaf}")
+            diff = (cpu_leaf.float() - tt_leaf.float()).abs()
+            print(f"Diff: max={diff.max().item():.6e}, mean={diff.mean().item():.6e}")
+        print("=" * 80 + "\n")
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         """
