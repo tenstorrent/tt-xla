@@ -8,9 +8,15 @@ Performance benchmarks for TT-XLA across LLMs, vision models, and encoder models
 # Activate the environment
 source venv/activate
 
-# Run a single benchmark
+# n150 — single-chip models
 pytest -svv tests/benchmark/test_llms.py::test_llama_3_2_1b
 pytest -svv tests/benchmark/test_vision.py::test_resnet50
+
+# LLMBOX / QB — tensor-parallel models
+pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp
+
+# Galaxy
+pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy
 ```
 
 ## Useful CLI Options
@@ -114,3 +120,7 @@ def test_new_model(
 ```
 
 Vision and encoder tests follow the same pattern — import the existing `ModelLoader`, pick a variant, and call `test_vision()` or `test_encoder()`.
+
+### Adding the test to CI
+
+In order for a new test to run in CI, it needs to be added to `.github/workflows/perf-bench-matrix.json`.
