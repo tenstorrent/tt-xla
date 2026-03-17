@@ -328,11 +328,11 @@ class A2aSparseMLP(nn.Module):
         # for XLA/TT execution and can materialize larger temporary tensors on CPU.
         if hidden_states.device.type == "cpu":
             routed_out = self.experts(
-                hidden_states,
-                router_indices=router_indices,
-                routing_weights=router_scores,
+                hidden_states.view(batch_size * seq_len, hidden_size),
+                top_k_index=router_indices.view(batch_size * seq_len, K),
+                top_k_weights=router_scores.view(batch_size * seq_len, K),
             )
-            return routed_out, router_scores
+            return routed_out.view(batch_size, seq_len, hidden_size), router_scores
 
         # 2. Reshape for dispatch: tt-metal expects [B, 1, S, H] format
         x = hidden_states.view(batch_size, 1, seq_len, hidden_size)
