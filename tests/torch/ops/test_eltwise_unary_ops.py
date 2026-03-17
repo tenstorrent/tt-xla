@@ -527,9 +527,9 @@ def test_reciprocal():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.xfail(
-    reason="error: failed to legalize operation 'stablehlo.round_nearest_even' "
-    "https://github.com/tenstorrent/tt-xla/issues/1441"
+@pytest.mark.skip(
+    reason="error: failed to legalize operation 'stablehlo.round_nearest_even', "
+    "corrupts device state on Blackhole. https://github.com/tenstorrent/tt-xla/issues/1441"
 )
 def test_round():
     class Round(torch.nn.Module):

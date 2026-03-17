@@ -36,9 +36,24 @@ from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random
     ],
     ids=lambda val: f"{val}",
 )
-@pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
 @pytest.mark.parametrize(
-    "optimization_level", [0, 1], ids=["opt_level_0", "opt_level_1"]
+    "optimization_level, format",
+    [
+        pytest.param(0, "float32", id="opt_level_0-float32"),
+        pytest.param(0, "bfloat16", id="opt_level_0-bfloat16"),
+        pytest.param(0, "bfp8", id="opt_level_0-bfp8"),
+        pytest.param(1, "float32", id="opt_level_1-float32"),
+        pytest.param(1, "bfloat16", id="opt_level_1-bfloat16"),
+        pytest.param(
+            1,
+            "bfp8",
+            id="opt_level_1-bfp8",
+            marks=pytest.mark.skip(
+                reason="conv2d BFP8 with optimizer not supported on Blackhole, "
+                "corrupts device state. https://github.com/tenstorrent/tt-xla/issues/1441"
+            ),
+        ),
+    ],
 )
 def test_conv2d(
     request,
@@ -53,10 +68,6 @@ def test_conv2d(
     optimization_level: int,
 ):
     device = xm.xla_device()
-    device_kind = xm.xla_device_kind(device)
-    device_str = str(device_kind)
-    if device_str == "Blackhole" and format == "bfp8" and optimization_level > 0:
-        pytest.xfail(f"conv2d BFP8 with optimizer not supported on {device_str}")
 
     def conv2d(img: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.conv2d(img, weight, stride=1, padding=1)

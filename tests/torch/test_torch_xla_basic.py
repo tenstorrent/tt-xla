@@ -179,21 +179,34 @@ eager_failing_unary_ops = {
     torch.sqrt,
 }
 
-# Create eager version with xfail markers for failing ops
-eltwise_unary_ops_eager = [
-    (
-        pytest.param(
+# Operations that corrupt device state on Blackhole when run under --forked
+eager_skip_ops = {
+    torch.conj_physical,
+    torch.digamma,
+}
+
+
+def _mark_eager_op(op):
+    if op in eager_skip_ops:
+        return pytest.param(
+            op,
+            marks=pytest.mark.skip(
+                reason="Corrupts device state on Blackhole under --forked",
+            ),
+        )
+    if op in eager_failing_unary_ops:
+        return pytest.param(
             op,
             marks=pytest.mark.xfail(
                 strict=True,
                 reason="PCC comparison failed see issue https://github.com/tenstorrent/tt-xla/issues/1555",
             ),
         )
-        if op in eager_failing_unary_ops
-        else op
-    )
-    for op in eltwise_unary_ops
-]
+    return op
+
+
+# Create eager version with xfail/skip markers
+eltwise_unary_ops_eager = [_mark_eager_op(op) for op in eltwise_unary_ops]
 
 
 @pytest.mark.push
