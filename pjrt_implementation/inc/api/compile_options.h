@@ -33,15 +33,6 @@ struct CompileOptions {
   // Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
   int optimization_level = 0;
 
-  // Enables automatic MLIR graph conversion into block fp8 format. This is
-  // supported only when the graph is in bfloat16 format, to avoid loss in
-  // precision. Final graph will have input and output nodes in bfloat16 and
-  // everything else in bfp8. Essentially adding type casts at the beginning and
-  // in the end of the graph, while all intermediate results are in bfp8. This
-  // bfloat16 wrapping is done because block formats are TT hardware specific,
-  // and user should provide and get tensors of common dtype.
-  bool enable_bfp8_conversion = false;
-
   // Target dtype for weight conversion in matmul and linear operations.
   // Valid values: "bfp8", "bfp4". Empty string disables.
   std::string experimental_weight_dtype = "";
