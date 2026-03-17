@@ -379,17 +379,34 @@ class LidarCenterNet(nn.Module):
         pred_wp, _, _, _, _ = self.forward_gru(fused_features, target_point)
 
         preds = self.head(features[0])
+        return pred_wp, preds
+
+    def postprocess(self, preds):
+        """Postprocess head predictions into rotated bounding boxes.
+
+        This is separated from forward() so it does not run inside the
+        compiled graph tested by the model-test infrastructure.
+
+        Args:
+            preds: Tuple of head prediction tensors from forward().
+
+        Returns:
+            list: Rotated bounding boxes in local metric coordinates.
+        """
+        T = get_lidar_to_bevimage_transform(dtype=torch.float32)
+        T_inv = torch.linalg.inv(T)
+
         results = self.head.get_bboxes(
             preds[0], preds[1], preds[2], preds[3], preds[4], preds[5], preds[6]
         )
         bboxes, _ = results[0]
         rotated_bboxes = []
         for bbox in bboxes.detach():
-            bbox = self.get_bbox_local_metric(bbox)
+            bbox = self.get_bbox_local_metric(bbox, T_inv)
             rotated_bboxes.append(bbox)
-        return pred_wp, rotated_bboxes
+        return rotated_bboxes
 
-    def get_bbox_local_metric(self, bbox):
+    def get_bbox_local_metric(self, bbox, T_inv):
         x, y, w, h, yaw, speed, brake, confidence = bbox
         # Preserve dtype and device from input bbox
         bbox_dtype = x.dtype
@@ -397,18 +414,7 @@ class LidarCenterNet(nn.Module):
         w = w / 2 / 8
         h = h / 2 / 8
 
-        T = get_lidar_to_bevimage_transform(dtype=bbox_dtype, device=bbox_device)
-
-        # torch.linalg.inv doesn't support Low precision dtypes, convert input to float32
-        orig_dtype = T.dtype
-        if orig_dtype != torch.float32:
-            T = T.float()
-
-        T_inv = torch.linalg.inv(T)
-
-        # Convert output back to original dtype
-        if orig_dtype != torch.float32:
-            T_inv = T_inv.to(orig_dtype)
+        T_inv = T_inv.to(dtype=bbox_dtype, device=bbox_device)
 
         center = torch.stack(
             [x, y, torch.tensor(1.0, dtype=bbox_dtype, device=bbox_device)]
