@@ -29,12 +29,61 @@ from transformers.cache_utils import StaticCache
 ReadLogitsFn = Callable[[object], torch.Tensor]
 
 
-class LLMDecodeWrapper(torch.nn.Module):
-    """Wraps an LLM to perform post-processing (argmax, cache update) on device.
+def _fast_argmax(last_logits: torch.Tensor) -> torch.Tensor:
+    """Argmax without ttnn.argmax or ttnn.sort — uses only max, compare, iota.
 
-    By keeping argmax and cache_position increment inside the compiled graph,
-    intermediate tensors stay on device between decode steps, eliminating
+    The ttnn.argmax kernel is single-core (~104 ms for 131K vocab on Wormhole)
+    and ttnn.sort fails to compile for this pattern.  This implementation
+    avoids both by computing argmax as:
+
+      1. ``max`` reduction to find the row-wise maximum value  (ttnn.max)
+      2. element-wise ``eq`` to build a boolean mask of matching positions
+      3. multiply mask by a position vector (iota) and ``max``-reduce to
+         recover the index of the (last) matching position
+
+    All three stages use ops that are well-supported and potentially
+    multi-core on Wormhole, unlike ttnn.argmax.
+
+    Works identically for single-chip and multi-chip (TP) models.
+
+    Args:
+        last_logits: ``[batch, vocab_size]`` logits for the last position.
+
+    Returns:
+        ``[batch, 1]`` token IDs (the argmax indices).
+    """
+    B, V = last_logits.shape
+
+    # Stage 1: row-wise max value (ttnn.max — no index tracking, fast)
+    row_max = last_logits.max(dim=-1, keepdim=True).values  # [B, 1]
+
+    # Stage 2: boolean mask where logit equals the row max
+    mask = last_logits == row_max  # [B, V]
+
+    # Stage 3: recover the index from the mask.
+    # Multiply mask by a 1-based position vector [1, 2, …, V] so that
+    # token-0 maps to 1.0 (not 0.0 which is indistinguishable from
+    # non-matching).  A final max-reduce gives the (last) matching
+    # 1-based index per row; subtract 1 to get the 0-based token ID.
+    # float32 is required because bfloat16 cannot represent positions
+    # above ~256 exactly.
+    positions = torch.arange(1, V + 1, device=last_logits.device, dtype=torch.float32)
+    masked_positions = mask.to(torch.float32) * positions.unsqueeze(0)  # [B, V]
+    next_token_ids = (masked_positions.max(dim=-1).values - 1.0).to(torch.int64)
+
+    return next_token_ids.unsqueeze(-1)  # [B, 1]
+
+
+class LLMDecodeWrapper(torch.nn.Module):
+    """Wraps an LLM to perform post-processing (token selection, cache update) on device.
+
+    By keeping token selection and cache_position increment inside the compiled
+    graph, intermediate tensors stay on device between decode steps, eliminating
     costly device-to-host round-trips for input_ids and cache_position.
+
+    Token selection uses a max-compare-iota pattern instead of ttnn.argmax
+    (which is single-core and ~100x slower for large vocabularies) or
+    ttnn.sort/topk (which has compilation issues with current tt-mlir).
 
     Args:
         model: The LLM to wrap.
@@ -64,7 +113,7 @@ class LLMDecodeWrapper(torch.nn.Module):
             use_cache=use_cache,
         )
         logits = self.read_logits_fn(output)
-        next_token_ids = logits[:, -1].argmax(dim=-1).unsqueeze(-1)
+        next_token_ids = _fast_argmax(logits[:, -1])
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
             return next_token_ids, next_cache_position, logits
