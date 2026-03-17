@@ -170,6 +170,7 @@ test_config:
     status: EXPECTED_PASSING
 
   minicpm_o_2_6/pytorch-Default-single_device-inference:
+    supported_archs: ["p150"]
     status: NOT_SUPPORTED_SKIP
     reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
 
@@ -874,11 +875,6 @@ test_config:
 
   qwen_1_5/causal_lm/pytorch-0_5B_Chat-single_device-inference:
     status: EXPECTED_PASSING
-
-  qwen_2_5_vl/pytorch-72B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
 
   qwen_2_5_vl/pytorch-3B_Instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
