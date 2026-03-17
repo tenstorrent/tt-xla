@@ -72,7 +72,6 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
             **tokenizer_kwargs,
         )
         # Ensure padding token is set
@@ -90,7 +89,6 @@ class ModelLoader(ForgeModel):
             pretrained_model_name,
             use_cache=False,
             torch_dtype=model_dtype,
-            trust_remote_code=True,
             **kwargs,
         )
         model.eval()

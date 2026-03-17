@@ -68,7 +68,7 @@ class ModelLoader(ForgeModel):
     def _ensure_tokenizer(self):
         if self.tokenizer is None:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name, trust_remote_code=True
+                self._variant_config.pretrained_model_name,
             )
             if self.tokenizer.pad_token is None:
                 self.tokenizer.add_special_tokens({"pad_token": "[PAD]"})
@@ -76,10 +76,10 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         self._ensure_tokenizer()
 
-        model_kwargs = {"trust_remote_code": True, "use_cache": False}
+        model_kwargs = {"use_cache": False}
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                self._variant_config.pretrained_model_name, trust_remote_code=True
+                self._variant_config.pretrained_model_name,
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config

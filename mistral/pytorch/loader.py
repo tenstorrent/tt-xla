@@ -311,7 +311,7 @@ class ModelLoader(ForgeModel):
                 "image_sizes": image_sizes,
             }
         else:
-            inputs = self.tokenizer.encode_plus(test_input, return_tensors="pt")
+            inputs = self.tokenizer(test_input, return_tensors="pt")
 
         if (
             hasattr(self.model.config, "sliding_window")

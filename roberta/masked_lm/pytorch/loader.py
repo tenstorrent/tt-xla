@@ -128,7 +128,7 @@ class ModelLoader(ForgeModel):
         test_input = "The capital of France is <mask>."
 
         # Tokenize input
-        inputs = self.tokenizer.encode_plus(test_input, return_tensors="pt")
+        inputs = self.tokenizer(test_input, return_tensors="pt")
 
         # Add batch dimension
         for key in inputs:

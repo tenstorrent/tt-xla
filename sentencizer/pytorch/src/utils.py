@@ -34,7 +34,7 @@ from zipfile import ZipFile, is_zipfile
 import requests
 import torch
 from filelock import FileLock
-from huggingface_hub import HfApi, HfFolder, snapshot_download
+from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.file_download import http_get
 from huggingface_hub.utils import (
     EntryNotFoundError,
@@ -1142,7 +1142,7 @@ def get_from_cache(
     if isinstance(use_auth_token, str):
         headers["authorization"] = f"Bearer {use_auth_token}"
     elif use_auth_token:
-        token = HfFolder.get_token()
+        token = HfApi().token
         if token is None:
             raise EnvironmentError(
                 "You specified use_auth_token=True, but a huggingface token was not found."

@@ -148,7 +148,7 @@ class ModelLoader(ForgeModel):
 
         # Tokenize input
         self.tokenizer.padding_side = "right"
-        inputs = self.tokenizer.encode_plus(
+        inputs = self.tokenizer(
             test_input,
             return_tensors="pt",
             max_length=32,

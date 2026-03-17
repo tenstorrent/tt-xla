@@ -116,9 +116,28 @@ class ModelLoader(ForgeModel):
         mesh_shape = (1, num_devices)
         return mesh_shape, ("batch", "model")
 
+    @staticmethod
+    def _get_language_model(model):
+        """Get the language_model sub-module, handling nested model wrapping."""
+        if hasattr(model, "language_model"):
+            return model.language_model
+        if hasattr(model, "model") and hasattr(model.model, "language_model"):
+            return model.model.language_model
+        raise AttributeError("Cannot find language_model on the model")
+
+    @staticmethod
+    def _get_vision_tower(model):
+        """Get the vision_tower sub-module, handling nested model wrapping."""
+        if hasattr(model, "vision_tower"):
+            return model.vision_tower
+        if hasattr(model, "model") and hasattr(model.model, "vision_tower"):
+            return model.model.vision_tower
+        raise AttributeError("Cannot find vision_tower on the model")
+
     def load_shard_spec(self, model):
         shard_specs = {}
-        for layer in model.language_model.layers:
+        language_model = self._get_language_model(model)
+        for layer in language_model.layers:
             shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
             shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
@@ -128,7 +147,8 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
-        for layer in model.vision_tower.transformer.layers:
+        vision_tower = self._get_vision_tower(model)
+        for layer in vision_tower.transformer.layers:
             shard_specs[layer.feed_forward.up_proj.weight] = ("model", "batch")
             shard_specs[layer.feed_forward.gate_proj.weight] = ("model", "batch")
             shard_specs[layer.feed_forward.down_proj.weight] = ("batch", "model")

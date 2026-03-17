@@ -234,8 +234,8 @@ class PrismaticForConditionalGeneration(PrismaticPreTrainedModel):
     def set_decoder(self, decoder: nn.Module) -> None:
         self.language_model.set_decoder(decoder)
 
-    def tie_weights(self) -> None:
-        self.language_model.tie_weights()
+    def tie_weights(self, **kwargs) -> None:
+        self.language_model.tie_weights(**kwargs)
 
     def resize_token_embeddings(
         self,

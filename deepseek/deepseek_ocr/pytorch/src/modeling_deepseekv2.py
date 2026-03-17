@@ -32,14 +32,10 @@ from transformers.modeling_outputs import (
     CausalLMOutputWithPast,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.pytorch_utils import (
-    ALL_LAYERNORM_LAYERS,
-    is_torch_greater_or_equal_than_1_13,
-)
+from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.utils import (
     logging,
 )
-from transformers.utils.import_utils import is_torch_fx_available
 
 from .configuration_deepseek_v2 import DeepseekV2Config
 
@@ -47,11 +43,9 @@ from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
 )  # Needed to compute position embeddings
 
-if is_torch_fx_available():
-    if not is_torch_greater_or_equal_than_1_13:
-        import torch.fx
+import torch.fx
 
-    _prepare_4d_causal_attention_mask = torch.fx.wrap(_prepare_4d_causal_attention_mask)
+_prepare_4d_causal_attention_mask = torch.fx.wrap(_prepare_4d_causal_attention_mask)
 
 
 logger = logging.get_logger(__name__)

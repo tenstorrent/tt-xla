@@ -58,14 +58,13 @@ class ModelLoader(ForgeModel):
     def _ensure_tokenizer(self):
         if self.tokenizer is None:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name, trust_remote_code=True
+                self._variant_config.pretrained_model_name,
             )
 
     def load_model(self, *, dtype_override=None, **kwargs):
         self._ensure_tokenizer()
         model = Phi3ForTokenClassification.from_pretrained(
             self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
             use_cache=False,
             **kwargs,
         )

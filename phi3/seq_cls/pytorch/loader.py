@@ -58,7 +58,7 @@ class ModelLoader(ForgeModel):
     def _ensure_tokenizer(self):
         if self.tokenizer is None:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name, trust_remote_code=True
+                self._variant_config.pretrained_model_name,
             )
             # Set pad token if not already set (PHI models often need this)
             if self.tokenizer.pad_token is None:
@@ -76,7 +76,6 @@ class ModelLoader(ForgeModel):
 
         model = Phi3ForSequenceClassification.from_pretrained(
             self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
             config=cfg,
             **kwargs,
         )

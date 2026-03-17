@@ -8,7 +8,7 @@ MaskFormer Swin-B model loader implementation for segmentation tasks.
 import torch
 from PIL import Image
 from typing import Optional
-from transformers import MaskFormerFeatureExtractor, MaskFormerForInstanceSegmentation
+from transformers import MaskFormerImageProcessor, MaskFormerForInstanceSegmentation
 
 from ...base import ForgeModel
 from ...config import (
@@ -87,7 +87,7 @@ class ModelLoader(ForgeModel):
             The loaded feature extractor instance
         """
         # Load the feature extractor
-        self.feature_extractor = MaskFormerFeatureExtractor.from_pretrained(
+        self.feature_extractor = MaskFormerImageProcessor.from_pretrained(
             self._variant_config.pretrained_model_name
         )
 

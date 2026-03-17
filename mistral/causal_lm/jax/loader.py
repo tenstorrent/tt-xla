@@ -123,7 +123,7 @@ class ModelLoader(ForgeModel):
         Returns:
             model: The loaded model instance
         """
-        from transformers import FlaxMistralForCausalLM, MistralConfig
+        from transformers import MistralConfig
         from easydel import AutoEasyDeLModelForCausalLM
 
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -156,6 +156,8 @@ class ModelLoader(ForgeModel):
         elif self._variant == ModelVariant.V0_1_TINY:
             # Load the model using HF for v0.1 tiny variant as there are some errors with this variant using EasyDeL
             # https://github.com/tenstorrent/tt-xla/issues/2770
+            from transformers import FlaxMistralForCausalLM
+
             model = FlaxMistralForCausalLM.from_pretrained(
                 pretrained_model_name, **model_kwargs
             )

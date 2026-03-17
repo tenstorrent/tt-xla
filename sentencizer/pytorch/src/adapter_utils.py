@@ -46,9 +46,9 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import ModuleUtilsMixin
 from transformers.models.xlm_roberta.modeling_xlm_roberta import (
     XLMRobertaOutput,
-    XLMRobertaSdpaSelfAttention,
     XLMRobertaSelfAttention,
     XLMRobertaSelfOutput,
+    eager_attention_forward,
 )
 from transformers.pytorch_utils import Conv1D
 from transformers.utils import cached_file
@@ -5553,7 +5553,7 @@ class BertModelAdaptersMixin(
             yield i, layer
 
 
-# Copied from transformers.models.roberta.modeling_roberta.RobertaSelfAttention with Roberta->XLMRoberta
+# Rewritten for transformers 5.x unified attention API
 class XLMRobertaSelfAttentionWithAdapters(
     BertSelfAttentionAdaptersMixin, XLMRobertaSelfAttention
 ):
@@ -5561,237 +5561,65 @@ class XLMRobertaSelfAttentionWithAdapters(
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.FloatTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        encoder_hidden_states: Optional[torch.FloatTensor] = None,
-        encoder_attention_mask: Optional[torch.FloatTensor] = None,
-        past_key_value: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        output_attentions: Optional[bool] = False,
+        past_key_values=None,
+        cache_position=None,
         **kwargs,
     ) -> Tuple[torch.Tensor]:
+        from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+        from transformers.cache_utils import EncoderDecoderCache
+
         attention_mask = prefix_attention_mask(attention_mask)  # type: ignore
 
-        mixed_query_layer = self.query(hidden_states)
+        input_shape = hidden_states.shape[:-1]
+        hidden_shape = (*input_shape, -1, self.attention_head_size)
 
-        # If this is instantiated as a cross-attention module, the keys
-        # and values come from an encoder; the attention mask needs to be
-        # such that the encoder's padding tokens are not attended to.
-        is_cross_attention = encoder_hidden_states is not None
+        query_layer = self.query(hidden_states).view(*hidden_shape).transpose(1, 2)
+        key_layer = self.key(hidden_states).view(*hidden_shape).transpose(1, 2)
+        value_layer = self.value(hidden_states).view(*hidden_shape).transpose(1, 2)
 
-        if is_cross_attention and past_key_value is not None:
-            # reuse k,v, cross_attentions
-            key_layer = past_key_value[0]
-            value_layer = past_key_value[1]
-            attention_mask = encoder_attention_mask
-        elif is_cross_attention:
-            key_layer = self._transpose_for_scores(self.key(encoder_hidden_states))
-            value_layer = self._transpose_for_scores(self.value(encoder_hidden_states))
-            attention_mask = encoder_attention_mask
-        elif past_key_value is not None:
-            key_layer = self._transpose_for_scores(self.key(hidden_states))
-            value_layer = self._transpose_for_scores(self.value(hidden_states))
-            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
-            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
-        else:
-            key_layer = self._transpose_for_scores(self.key(hidden_states))
-            value_layer = self._transpose_for_scores(self.value(hidden_states))
+        if past_key_values is not None:
+            current_past_key_values = past_key_values
+            if isinstance(past_key_values, EncoderDecoderCache):
+                current_past_key_values = past_key_values.self_attention_cache
+            key_layer, value_layer = current_past_key_values.update(
+                key_layer,
+                value_layer,
+                self.layer_idx,
+                {"cache_position": cache_position},
+            )
 
-        query_layer = self._transpose_for_scores(mixed_query_layer)
-        # >>> START AH Changes <<<
+        # >>> AH: adapter parallel alignment <<<
         query_layer, key_layer, value_layer = match_attn_matrices_for_parallel(
             query_layer, key_layer, value_layer
         )
         (attention_mask,) = adjust_tensors_for_parallel(query_layer, attention_mask)
-        # >>> END AH Changes <<<
 
-        use_cache = past_key_value is not None
-        if self.is_decoder:
-            past_key_value = (key_layer, value_layer)
-
-        # >>> START AH Changes <<<
+        # >>> AH: prefix tuning <<<
         key_layer, value_layer, attention_mask = self.prefix_tuning(
             key_layer, value_layer, hidden_states, attention_mask
         )
         (query_layer,) = adjust_tensors_for_parallel(key_layer, query_layer)
-        # >>> END AH Changes <<<
 
-        # Take the dot product between "query" and "key" to get the raw attention scores.
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
-
-        if (
-            self.position_embedding_type == "relative_key"
-            or self.position_embedding_type == "relative_key_query"
-        ):
-            query_length, key_length = query_layer.shape[2], key_layer.shape[2]
-            if use_cache:
-                position_ids_l = torch.tensor(
-                    key_length - 1, dtype=torch.long, device=hidden_states.device
-                ).view(-1, 1)
-            else:
-                position_ids_l = torch.arange(
-                    query_length, dtype=torch.long, device=hidden_states.device
-                ).view(-1, 1)
-            position_ids_r = torch.arange(
-                key_length, dtype=torch.long, device=hidden_states.device
-            ).view(1, -1)
-            distance = position_ids_l - position_ids_r
-
-            positional_embedding = self.distance_embedding(
-                distance + self.max_position_embeddings - 1
-            )
-            positional_embedding = positional_embedding.to(
-                dtype=query_layer.dtype
-            )  # fp16 compatibility
-
-            if self.position_embedding_type == "relative_key":
-                relative_position_scores = torch.einsum(
-                    "bhld,lrd->bhlr", query_layer, positional_embedding
-                )
-                attention_scores = attention_scores + relative_position_scores
-            elif self.position_embedding_type == "relative_key_query":
-                relative_position_scores_query = torch.einsum(
-                    "bhld,lrd->bhlr", query_layer, positional_embedding
-                )
-                relative_position_scores_key = torch.einsum(
-                    "bhrd,lrd->bhlr", key_layer, positional_embedding
-                )
-                attention_scores = (
-                    attention_scores
-                    + relative_position_scores_query
-                    + relative_position_scores_key
-                )
-
-        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        if attention_mask is not None:
-            # Apply the attention mask is (precomputed for all layers in XLMRobertaModel forward() function)
-            attention_scores = attention_scores + attention_mask
-
-        # Normalize the attention scores to probabilities.
-        attention_probs = nn.functional.softmax(attention_scores, dim=-1)
-
-        # This is actually dropping out entire tokens to attend to, which might
-        # seem a bit unusual, but is taken from the original Transformer paper.
-        attention_probs = self.dropout(attention_probs)
-
-        # Mask heads if we want to
-        if head_mask is not None:
-            attention_probs = attention_probs * head_mask
-
-        context_layer = torch.matmul(attention_probs, value_layer)
-
-        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
-        context_layer = context_layer.view(new_context_layer_shape)
-
-        outputs = (
-            (context_layer, attention_probs) if output_attentions else (context_layer,)
+        attention_interface = ALL_ATTENTION_FUNCTIONS.get_interface(
+            self.config._attn_implementation,
+            eager_attention_forward,
         )
 
-        if self.is_decoder:
-            outputs = outputs + (past_key_value,)
-        return outputs
-
-
-class XLMRobertaSdpaSelfAttentionWithAdapters(
-    BertSelfAttentionAdaptersMixin, XLMRobertaSdpaSelfAttention
-):
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        encoder_hidden_states: Optional[torch.FloatTensor] = None,
-        encoder_attention_mask: Optional[torch.FloatTensor] = None,
-        past_key_value: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        output_attentions: Optional[bool] = False,
-        **kwargs,
-    ) -> Tuple[torch.Tensor]:
-        # >>> START AH Changes <<<
-        attention_mask = prefix_attention_mask(attention_mask, [2, 3])  # type: ignore
-        # >>> END AH Changes <<<
-
-        if (
-            self.position_embedding_type != "absolute"
-            or output_attentions
-            or head_mask is not None
-        ):
-            return super().forward(
-                hidden_states,
-                attention_mask,
-                head_mask,
-                encoder_hidden_states,
-                encoder_attention_mask,
-                past_key_value,
-                output_attentions,
-            )
-
-        bsz, tgt_len, _ = hidden_states.size()
-
-        query_layer = self._transpose_for_scores(self.query(hidden_states))
-
-        # If this is instantiated as a cross-attention module, the keys and values come from an encoder; the attention
-        # mask needs to be such that the encoder's padding tokens are not attended to.
-        is_cross_attention = encoder_hidden_states is not None
-
-        current_states = encoder_hidden_states if is_cross_attention else hidden_states
-        attention_mask = (
-            encoder_attention_mask if is_cross_attention else attention_mask
-        )
-
-        # Check `seq_length` of `past_key_value` == `len(current_states)` to support prefix tuning
-        if (
-            is_cross_attention
-            and past_key_value
-            and past_key_value[0].shape[2] == current_states.shape[1]
-        ):
-            key_layer, value_layer = past_key_value
-        else:
-            key_layer = self._transpose_for_scores(self.key(current_states))
-            value_layer = self._transpose_for_scores(self.value(current_states))
-            if past_key_value is not None and not is_cross_attention:
-                key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
-                value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
-
-        # >>> START AH Changes <<<
-        query_layer, key_layer, value_layer = match_attn_matrices_for_parallel(
-            query_layer, key_layer, value_layer
-        )
-        (attention_mask,) = adjust_tensors_for_parallel(query_layer, attention_mask)
-        # >>> END AH Changes <<<
-
-        if self.is_decoder:
-            past_key_value = (key_layer, value_layer)
-
-        # >>> START AH Changes <<<
-        key_layer, value_layer, attention_mask = self.prefix_tuning(
-            key_layer, value_layer, hidden_states, attention_mask
-        )
-        (query_layer,) = adjust_tensors_for_parallel(key_layer, query_layer)
-        bsz = query_layer.size(0)
-        is_causal = (
-            True
-            if self.is_decoder
-            and not is_cross_attention
-            and attention_mask is None
-            and tgt_len > 1
-            else False
-        )
-
-        attn_output = torch.nn.functional.scaled_dot_product_attention(
+        attn_output, attn_weights = attention_interface(
+            self,
             query_layer,
             key_layer,
             value_layer,
-            attn_mask=attention_mask,
-            dropout_p=self.dropout_prob if self.training else 0.0,
-            is_causal=is_causal,
+            attention_mask,
+            dropout=0.0 if not self.training else self.dropout.p,
+            scaling=self.scaling,
+            **kwargs,
         )
+        attn_output = attn_output.reshape(*input_shape, -1).contiguous()
+        return attn_output, attn_weights
 
-        attn_output = attn_output.transpose(1, 2)
-        attn_output = attn_output.reshape(bsz, tgt_len, self.all_head_size)
-
-        outputs = (attn_output,)
-        if self.is_decoder:
-            outputs = outputs + (past_key_value,)
-        return outputs
+    # XLMRobertaSdpaSelfAttentionWithAdapters removed: transformers 5.x unified attention
+    # into XLMRobertaSelfAttention. XLMRobertaSelfAttentionWithAdapters handles all cases now.
 
 
 # Copied from transformers.models.roberta.modeling_roberta.RobertaSelfOutput with Roberta->XLMRoberta
@@ -5847,8 +5675,7 @@ def replace_xlm_roberta_with_adapters(module: nn.Module) -> None:
     elif module.__class__.__module__.startswith("transformers.models"):
         # Static mapping for XLM-RoBERTa classes
         class_mapping = {
-            "XLMRobertaSelfAttention": XLMRobertaSelfAttentionWithAdapters,  # MISSING - ADD THIS!
-            "XLMRobertaSdpaSelfAttention": XLMRobertaSdpaSelfAttentionWithAdapters,
+            "XLMRobertaSelfAttention": XLMRobertaSelfAttentionWithAdapters,
             "XLMRobertaSelfOutput": XLMRobertaSelfOutputWithAdapters,
             "XLMRobertaOutput": XLMRobertaOutputWithAdapters,
         }

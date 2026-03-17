@@ -5,7 +5,6 @@
 PHI2 model loader implementation for causal language modeling using EasyDL/JAX.
 """
 from typing import Optional
-from transformers import AutoTokenizer
 
 from ....config import (
     ModelInfo,
@@ -126,6 +125,8 @@ class ModelLoader(ForgeModel):
         else:
             # Default to 8 for single device too, for consistency
             batch_size = 8
+
+        from transformers import AutoTokenizer
 
         tokenizer_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
