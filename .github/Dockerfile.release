@@ -22,9 +22,11 @@ RUN apt-get update && \
     ssh \
     unzip
 
+RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
+
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3.12 python3.12-dev python3.12-venv python3-pip && \
-    python3.12 -m pip install --no-cache-dir --break-system-packages --ignore-installed --upgrade pip setuptools wheel
+    python3.12 -m pip install --no-cache-dir --ignore-installed --upgrade pip setuptools wheel
 
 # Install system dependencies
 RUN apt-get update && \
