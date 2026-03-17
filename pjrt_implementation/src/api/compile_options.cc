@@ -18,9 +18,6 @@ CompileOptions CompileOptions::parse(
   options.optimization_level =
       internal::parseIntOption(compile_options, "optimization_level")
           .value_or(options.optimization_level);
-  options.enable_bfp8_conversion =
-      internal::parseBoolOption(compile_options, "enable_bfp8_conversion")
-          .value_or(options.enable_bfp8_conversion);
   options.experimental_weight_dtype =
       internal::parseStringOption(compile_options, "experimental_weight_dtype")
           .value_or(options.experimental_weight_dtype);
