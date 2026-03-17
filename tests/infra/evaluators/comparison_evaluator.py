@@ -54,7 +54,7 @@ class ComparisonEvaluator(Evaluator):
         _comparison_result.allclose = self._compare_allclose(
             device_output, golden_output, self._comparison_config.allclose
         )
-        print(f"Comparison results: {_comparison_result.pcc}")
+
         # Check if output is single-element (PCC undefined, force atol check)
         is_single_element = self._is_single_element(device_output)
 
