@@ -786,9 +786,21 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             super().__init__()
             self.gate = gate
             self.n_experts = n_experts
+            # DeepseekV3 MoEGate returns (topk_idx, topk_weight)
+            # Other gates (e.g. deepseek_v3_2_exp Gate) return (weights, indices)
+            self._gate_returns_idx_first = hasattr(gate, "n_routed_experts")
 
         def forward(self, hidden_states):
-            topk_idx, topk_weight = self.gate(hidden_states)
+            # Some gates (e.g. DeepseekV3 MoEGate) flatten internally,
+            # others expect 2D input. Flatten here to be safe.
+            orig_shape = hidden_states.shape
+            if hidden_states.dim() == 3:
+                hidden_states = hidden_states.view(-1, orig_shape[-1])
+            out1, out2 = self.gate(hidden_states)
+            if self._gate_returns_idx_first:
+                topk_idx, topk_weight = out1, out2
+            else:
+                topk_weight, topk_idx = out1, out2
             bsz_seq = topk_idx.shape[0]
             # Build sparse scores so gather(scores, indices) gives topk_weight
             scores = torch.zeros(
@@ -801,7 +813,25 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             return scores, topk_idx
 
     class StackedExperts(nn.Module):
-        """Stacks DeepseekV3MLP experts into gate_up_proj, down_proj format."""
+        """Stacks MoE experts into gate_up_proj, down_proj format.
+
+        Supports two expert layouts:
+        - DeepseekV3MLP: gate_proj, up_proj, down_proj
+        - DeepseekV3-2 Expert: w1 (gate), w3 (up), w2 (down)
+        """
+
+        @staticmethod
+        def _get_expert_layers(exp):
+            """Return (gate_layer, up_layer, down_layer) from an expert module."""
+            if hasattr(exp, "gate_proj"):
+                return exp.gate_proj, exp.up_proj, exp.down_proj
+            elif hasattr(exp, "w1"):
+                return exp.w1, exp.w3, exp.w2
+            else:
+                raise ValueError(
+                    f"Expert {type(exp).__name__} has neither gate_proj/up_proj/down_proj "
+                    "nor w1/w3/w2 attributes."
+                )
 
         def __init__(self, expert_list):
             super().__init__()
@@ -809,23 +839,25 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             if not experts_list:
                 experts_list = list(expert_list)
             first = experts_list[0]
-            hidden_size = first.gate_proj.in_features
-            inter = first.gate_proj.out_features
+            gate_layer, _, _ = self._get_expert_layers(first)
+            hidden_size = gate_layer.in_features
+            inter = gate_layer.out_features
 
             gate_up_list = []
             down_list = []
             for exp in experts_list:
-                # gate_proj.weight [inter, H], up_proj.weight [inter, H] -> interleave [H, inter*2]
+                g, u, d = self._get_expert_layers(exp)
+                # gate.weight [inter, H], up.weight [inter, H] -> interleave [H, inter*2]
                 gate_up = torch.empty(
                     hidden_size,
                     inter * 2,
-                    dtype=exp.gate_proj.weight.dtype,
-                    device=exp.gate_proj.weight.device,
+                    dtype=g.weight.dtype,
+                    device=g.weight.device,
                 )
-                gate_up[:, 0::2] = exp.gate_proj.weight.T
-                gate_up[:, 1::2] = exp.up_proj.weight.T
+                gate_up[:, 0::2] = g.weight.T
+                gate_up[:, 1::2] = u.weight.T
                 gate_up_list.append(gate_up)
-                down_list.append(exp.down_proj.weight.T)
+                down_list.append(d.weight.T)
 
             num_experts = len(gate_up_list)
             gate_up_proj = torch.stack(gate_up_list, dim=0)
@@ -851,16 +883,20 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
 
     def __init__(self, moe_module):
         super().__init__()
-        self.router = self.RouterAdapter(
-            moe_module.gate, moe_module.gate.n_routed_experts
-        )
+        n_experts = getattr(moe_module.gate, "n_routed_experts", None)
+        if n_experts is None:
+            # Fallback: infer from experts list or gate weight shape
+            n_experts = len([e for e in moe_module.experts if e is not None])
+            if n_experts == 0:
+                n_experts = len(list(moe_module.experts))
+        self.router = self.RouterAdapter(moe_module.gate, n_experts)
         experts_list = [e for e in moe_module.experts if e is not None]
         if not experts_list:
             experts_list = list(moe_module.experts)
-        if len(experts_list) != moe_module.gate.n_routed_experts:
+        if len(experts_list) != n_experts:
             raise ValueError(
                 "DeepseekV3MoEToA2AAdapter requires ep_size=1 (all experts on one process). "
-                f"Got {len(experts_list)} experts, expected {moe_module.gate.n_routed_experts}."
+                f"Got {len(experts_list)} experts, expected {n_experts}."
             )
         self.experts = self.StackedExperts(experts_list)
 
@@ -901,10 +937,16 @@ def create_a2a_from_deepseek_v3_moe(
             Defaults to num_devices when None (single-axis dispatch).
     """
     adapter = DeepseekV3MoEToA2AAdapter(moe_module)
+    num_experts = getattr(config, "n_routed_experts", None) or getattr(
+        config, "num_local_experts", len(list(moe_module.experts))
+    )
+    num_experts_per_tok = getattr(config, "num_experts_per_tok", None) or getattr(
+        config, "n_activated_experts", 6
+    )
     a2a_mlp = A2aSparseMLP(
         adapter,
-        num_experts=config.n_routed_experts,
-        num_experts_per_tok=config.num_experts_per_tok,
+        num_experts=num_experts,
+        num_experts_per_tok=num_experts_per_tok,
         num_devices=num_devices,
         cluster_axis=cluster_axis,
         config=config,
@@ -926,8 +968,8 @@ def _is_moe_mlp(module: nn.Module) -> bool:
     if any(pattern in module_name for pattern in moe_patterns):
         return True
 
-    # Check if module has router and experts attributes (common MoE pattern)
-    has_router = hasattr(module, "router")
+    # Check if module has router/gate and experts attributes (common MoE pattern)
+    has_router = hasattr(module, "router") or hasattr(module, "gate")
     has_experts = hasattr(module, "experts")
 
     return has_router and has_experts
@@ -993,13 +1035,7 @@ def enable_sparse_mlp(
         if not should_replace:
             return False
 
-        module_type_name = type(module).__name__.lower()
-
-        if (
-            "deepseek" in module_type_name
-            and hasattr(module, "gate")
-            and hasattr(module, "experts")
-        ):
+        if hasattr(module, "gate") and hasattr(module, "experts"):
             sparse_mlp = create_a2a_from_deepseek_v3_moe(
                 moe_module=module,
                 config=config,
