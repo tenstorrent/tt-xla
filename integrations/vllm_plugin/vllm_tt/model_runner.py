@@ -1284,6 +1284,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
+            logger.info(
+                "sample_from_logits output: shape=%s (input logits shape=%s)",
+                selected_token_ids.shape,
+                logits.shape,
+            )
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
 
             combined_selected_tokens.append(selected_token_ids)

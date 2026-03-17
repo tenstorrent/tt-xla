@@ -329,6 +329,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
+  LOG_F(INFO, "PJRT copyToHost: shape=%s size=%zu bytes", toShapeStr().c_str(),
+        logicalTensorSize());
+
   m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
     try {
       ZoneScopedN("CopyToHostThread");
