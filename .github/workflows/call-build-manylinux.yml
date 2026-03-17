@@ -16,6 +16,11 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
 
 jobs:
   build-wheels:
@@ -24,6 +29,8 @@ jobs:
     runs-on: tt-ubuntu-2204-large-stable
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.xla_sha_override }}
 
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}

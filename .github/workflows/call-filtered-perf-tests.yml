@@ -16,17 +16,20 @@ on:
         description: "Docker image to use"
         required: false
         type: string
-        default: 'ghcr.io/tenstorrent/tt-xla-slim:nightly-latest'
-      artifact_run_id:
-        description: "Run ID to download wheel artifact from"
+        default: 'ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest'
+      artifact_release_run_id:
+        description: 'Run ID of the artifacts (release)'
         required: false
         type: string
-        default: ''
-      wheel_artifact_name:
-        description: "Name of the wheel artifact"
+      artifact_suffix:
+        description: 'Suffix for the artifact name'
         required: false
         type: string
-        default: ''
+      wheel_build:
+        description: 'Build to use for testing, e.g. release, manylinux'
+        required: false
+        type: string
+        default: release
       use_docker_wheel:
         description: "Use wheel from docker instead of building a new one"
         required: false
@@ -91,9 +94,10 @@ jobs:
     with:
       matrix: ${{ needs.filter-tests.outputs.matrix }}
       docker_image: ${{ inputs.docker_image }}
-      artifact_run_id: ${{ inputs.artifact_run_id }}
-      wheel_artifact_name: ${{ inputs.wheel_artifact_name }}
-      use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
+      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+      artifact_suffix: ${{ inputs.artifact_suffix }}
+      wheel_build: ${{ inputs.wheel_build }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
+      use_docker_wheel: ${{ inputs.use_docker_wheel || false }}

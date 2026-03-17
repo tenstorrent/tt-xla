@@ -19,6 +19,11 @@ on:
         description: 'Wheel version override value'
         type: string
         required: false
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
     outputs:
       docker_image:
         description: 'Built and pushed docker image'
@@ -101,7 +106,7 @@ jobs:
           set -eo pipefail
 
           project="tt-xla"
-          docker_tag="${{ github.sha }}"
+          docker_tag="${{ inputs.xla_sha_override }}"
 
           .github/build-release-docker-image.sh $project $docker_tag | tee docker.log
 

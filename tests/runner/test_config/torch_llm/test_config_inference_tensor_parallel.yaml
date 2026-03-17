@@ -11,7 +11,6 @@ test_config:
   falcon/pytorch-3_10B_Base-llm_decode-seq_1-batch_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
-    required_pcc: 0.977 # https://github.com/tenstorrent/tt-xla/issues/3180
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -78,7 +77,6 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-8B-llm_decode-seq_1-batch_1-tensor_parallel-inference:
-    required_pcc: 0.985 # https://github.com/tenstorrent/tt-xla/issues/2942
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
 
