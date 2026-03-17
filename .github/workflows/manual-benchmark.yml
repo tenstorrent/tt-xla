@@ -11,7 +11,7 @@ on:
         description: 'Docker image to use'
         required: false
         type: string
-        default: 'ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest'
+        default: 'ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-24-04:latest'
       test_filter:
         description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
         required: false
