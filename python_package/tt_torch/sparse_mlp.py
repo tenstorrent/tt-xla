@@ -786,17 +786,18 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             super().__init__()
             self.gate = gate
             self.n_experts = n_experts
-            # DeepseekV3 MoEGate returns (topk_idx, topk_weight)
-            # Other gates (e.g. deepseek_v3_2_exp Gate) return (weights, indices)
+            # Deepseek-style MoEGate returns (topk_idx, topk_weight) and expects
+            # 3D [batch, seq, hidden] input, flattening internally. Other gates
+            # (e.g. deepseek_v3_2_exp Gate) return (weights, indices) and operate
+            # on a flattened 2D [batch * seq, hidden] input.
             self._gate_returns_idx_first = hasattr(gate, "n_routed_experts")
 
         def forward(self, hidden_states):
-            # Some gates (e.g. DeepseekV3 MoEGate) flatten internally,
-            # others expect 2D input. Flatten here to be safe.
-            orig_shape = hidden_states.shape
-            if hidden_states.dim() == 3:
-                hidden_states = hidden_states.view(-1, orig_shape[-1])
-            out1, out2 = self.gate(hidden_states)
+            gate_input = hidden_states
+            if hidden_states.dim() == 3 and not self._gate_returns_idx_first:
+                gate_input = hidden_states.view(-1, hidden_states.shape[-1])
+
+            out1, out2 = self.gate(gate_input)
             if self._gate_returns_idx_first:
                 topk_idx, topk_weight = out1, out2
             else:

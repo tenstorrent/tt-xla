@@ -114,7 +114,6 @@ void PjrtTensor::move_to_host() noexcept {
   ZoneScoped;
   std::vector<tt::runtime::Tensor> tensors =
       tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
-
   assert(tensors.size() == m_shards.size() || tensors.size() == 1);
   m_runtime_tensor = std::move(tensors[0]);
 

@@ -890,7 +890,7 @@ def sparse_matmul(
         # Detect MoE format [BD, S, E, inter] vs canonical [A, E, M, K].
         # Use sparsity dim: canonical has A == sparsity.shape[2] (reduced),
         # MoE format has BD != reduced. This works even when S == E_global.
-        if input_tensor_a.dim() == 4 and input_tensor_a.shape[0] != sparsity.shape[2]:
+        if input_tensor_a.dim() == 4 and input_tensor_a.shape[1] != E_experts:
             BD, S, _, _ = input_tensor_a.shape
             _moe_shape = (BD, S)
 

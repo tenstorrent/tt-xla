@@ -369,6 +369,9 @@ def test_deepseek_v3_2_full_sparse_moe():
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
+    # head is intentionally float32 in the original model (logits computed in fp32),
+    # but model.to(bf16) converts it. Restore to float32 to match forward's .float() call.
+    model.head = model.head.to(torch.float32)
 
     mesh_shape = (2, 4)
     enable_sparse_mlp(
