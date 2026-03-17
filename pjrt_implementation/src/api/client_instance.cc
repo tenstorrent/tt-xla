@@ -455,6 +455,15 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 tt::runtime::MeshFabricConfig
 ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
   // Distributed uses FABRIC_1D for now.
+    // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
+  if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_2D,
+                                          {}};
+  }
+
+
+
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
 
