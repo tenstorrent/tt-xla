@@ -328,6 +328,16 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   joinCopyThread();
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+  const size_t logical_tensor_size = logicalTensorSize();
+
+  // Empty tensors have nothing to copy. Skip memcpy to avoid null-pointer
+  // failures for zero-sized buffers.
+  if (logical_tensor_size == 0) {
+    EventInstance::markAsReadyAndCallback(event.get(),
+                                          tt_pjrt_status::kSuccess);
+    *out_copy_done_event = event.release();
+    return tt_pjrt_status::kSuccess;
+  }
 
   m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
     try {
@@ -336,7 +346,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
       m_pjrt_tensor->move_to_host();
 
-      assert(logicalTensorSize() <= host_buffer_size &&
+      assert(logical_tensor_size <= host_buffer_size &&
              "Host buffer is too small.");
       tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
                           rt_data_type);

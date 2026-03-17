@@ -2189,15 +2189,15 @@ test_config:
 
   panoptic_segmentation/pytorch-ResNet101_Backbone_3x_COCO-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
+    reason: "Fatal Python error: Floating-point exception (https://github.com/tenstorrent/tt-xla/issues/3775)"
 
   panoptic_segmentation/pytorch-ResNet50_Backbone_1x_COCO-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
+    reason: "Fatal Python error: Floating-point exception (https://github.com/tenstorrent/tt-xla/issues/3775)"
 
   panoptic_segmentation/pytorch-ResNet50_Backbone_3x_COCO-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
+    reason: "Fatal Python error: Floating-point exception (https://github.com/tenstorrent/tt-xla/issues/3775)"
 
   sam/pytorch-Vit_Huge-single_device-inference:
     status: EXPECTED_PASSING
