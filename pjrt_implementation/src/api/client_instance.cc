@@ -48,7 +48,7 @@ static std::string getRankBindingPath(const std::string &metal_home) {
       {"dual_galaxy",
        "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
       {"quad_galaxy",
-       "tests/tt_metal/distributed/config/quad_galaxy_rank_bindings.yaml"},
+       "tests/tt_metal/distributed/config/32x4_quad_bh_galaxy_rank_bindings.yaml"},
   };
 
   const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
