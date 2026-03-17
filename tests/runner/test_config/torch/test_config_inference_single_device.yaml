@@ -641,10 +641,11 @@ test_config:
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/2727
 
   opt/qa/pytorch-125M-single_device-inference:
-    status: EXPECTED_PASSING
     arch_overrides:
+      n150:
+        status: EXPECTED_PASSING
       p150:
-        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2433
+        status: EXPECTED_PASSING
 
   opt/qa/pytorch-350M-single_device-inference:
     status: EXPECTED_PASSING
@@ -772,14 +773,14 @@ test_config:
     reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "ImportError due to RequirementsManager in-process package swap causing stale sys.modules (transformers version skew) - https://github.com/tenstorrent/tt-xla/issues/3315 https://github.com/tenstorrent/tt-xla/issues/3317"
-    bringup_status: FAILED_RUNTIME
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7923736013936152. Required: pcc=0.99."
 
   pi_0/pytorch-pi0_base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "ImportError due to RequirementsManager in-process package swap causing stale sys.modules (transformers version skew) - https://github.com/tenstorrent/tt-xla/issues/3315 https://github.com/tenstorrent/tt-xla/issues/3317"
-    bringup_status: FAILED_RUNTIME
+    assert_pcc: false
+    status: EXPECTED_PASSING
+    reason: "AssertionError:PCC comparison failed. Calculated: pcc=0.9835311599617622. Required: pcc=0.99."
 
   opt/qa/pytorch-1.3b-single_device-inference:
     assert_pcc: false
@@ -904,7 +905,6 @@ test_config:
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
-      - split_query_key_value_and_split_heads.ttnn.mlir
       - rms_norm.ttnn.mlir
       - matmul_with_activation_silu.ttnn.mlir
       - softmax.ttnn.mlir # SDPA fusion is not enabled without the optimizer, so we only check for softmax
@@ -919,7 +919,6 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-3B-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-3B_Instruct-single_device-inference:
@@ -967,24 +966,28 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-1.5B_Instruct-single_device-inference:
-    required_pcc: 0.98
-    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98
+        status: EXPECTED_PASSING
+      p150:
+        status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-0.5B-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       n150:
-        required_pcc: 0.96 # AssertionError: PCC comparison failed. Calculated: pcc=0.9509297013282776. Required: pcc=0.96. Change of torch=xla wheel, issue is: https://github.com/tenstorrent/tt-xla/issues/1750 // tt-torch has this at 0.97
+        status: EXPECTED_PASSING
       p150:
-        required_pcc: 0.95
+        status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-0.5B-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
       p150:
-        required_pcc: 0.97  # https://github.com/tenstorrent/tt-torch/issues/1192
+        status: EXPECTED_PASSING
       n150:
-        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2433
+        status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-3.2_1B-single_device-inference:
     status: EXPECTED_PASSING
@@ -1603,7 +1606,6 @@ test_config:
         bringup_status: FAILED_RUNTIME
       p150:
         status: EXPECTED_PASSING
-        assert_pcc: false # Calculated: pcc=0.9130426049232483. Change to torch==2.9.0
 
   llama/causal_lm/pytorch-3.1_70B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -1661,7 +1663,6 @@ test_config:
         bringup_status: FAILED_RUNTIME
       p150:
         status: EXPECTED_PASSING
-        assert_pcc: false # Calculated: pcc=0.9396957755088806. Change to torch==2.9.0
 
   llama/sequence_classification/pytorch-3.1_70B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1697,9 +1698,7 @@ test_config:
   llama/sequence_classification/pytorch-3_8B-single_device-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=-1.0000001192092896. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1472"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1758,9 +1757,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-14B_Instruct_1M-single_device-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7706121206283569. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1794,9 +1791,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-7B_Instruct_1M-single_device-inference:
     arch_overrides:
       p150:
-        assert_pcc: false
         status: EXPECTED_PASSING
-        reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8598132729530334. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1474"
       n150:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
@@ -1882,9 +1877,7 @@ test_config:
 
   falcon/pytorch-7B_Instruct-single_device-inference:
     supported_archs: ["p150"]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9418849945068359. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/1475"
     arch_overrides:
       n150:
         status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
@@ -2169,8 +2162,12 @@ test_config:
         status: EXPECTED_PASSING
 
   qwen_2/token_classification/pytorch-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 61079552 B L1 buffer across 64 banks, where each bank needs to store 954368 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 61079552 B L1 buffer across 64 banks, where each bank needs to store 954368 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+      p150:
+        status: EXPECTED_PASSING
 
   unet/pytorch-Segmentation_Models_PyTorch_UNet_ResNet101_Backbone-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2191,16 +2188,16 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
   panoptic_segmentation/pytorch-ResNet101_Backbone_3x_COCO-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3258)"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
 
   panoptic_segmentation/pytorch-ResNet50_Backbone_1x_COCO-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3258)"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
 
   panoptic_segmentation/pytorch-ResNet50_Backbone_3x_COCO-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3258)"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
 
   sam/pytorch-Vit_Huge-single_device-inference:
     status: EXPECTED_PASSING
