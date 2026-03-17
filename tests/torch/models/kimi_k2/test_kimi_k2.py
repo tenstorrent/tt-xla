@@ -454,7 +454,9 @@ def test_kimi_k2_full():
     batch_size = 64
     seq_len = 1
     input_ids = torch.randint(0, config.vocab_size, (batch_size, seq_len))
-    attention_mask = torch.rand(batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16)
+    attention_mask = torch.rand(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
     cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
     position_ids = torch.arange(seq_len).unsqueeze(0)
     static_cache = MLACache(

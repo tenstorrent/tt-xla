@@ -1040,7 +1040,12 @@ def sparse_matmul_fake(
     _moe_shape = None
     if not is_input_a_sparse and is_input_b_sparse:
         if input_tensor_a.dim() == 4 and input_tensor_a.shape[0] == 1:
+            # A2aSparseMLP dispatch layout: [1, BD, S, H]
             _, BD, S, _ = input_tensor_a.shape
+            _moe_shape = (BD, S)
+        elif input_tensor_a.dim() == 4 and input_tensor_a.shape[2] == 1:
+            # SparseMLP / A2aSparseStackedMlp layout: [BD, S, 1, H]
+            BD, S, _, _ = input_tensor_a.shape
             _moe_shape = (BD, S)
     elif is_input_a_sparse and not is_input_b_sparse:
         if input_tensor_a.dim() == 4 and input_tensor_a.shape[1] != E:
