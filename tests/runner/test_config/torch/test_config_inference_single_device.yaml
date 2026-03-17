@@ -2684,3 +2684,12 @@ test_config:
 
   llama/sequence_classification/pytorch-3.1_405B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-inference:
+    status: EXPECTED_PASSING
+
+  gemma3/causal_lm/pytorch-270M_Instruct-single_device-inference:
+    status: EXPECTED_PASSING
+
+  gemma3/causal_lm/pytorch-1B_Instruct-single_device-inference:
+    status: EXPECTED_PASSING
