@@ -218,7 +218,8 @@ test_config:
 
   swin/image_classification/pytorch-S-data_parallel-inference:
     supported_archs: [n300]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTroch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3723"
 
   mlp_mixer/pytorch-Mixer_S16_224-data_parallel-inference:
     supported_archs: [n300]
