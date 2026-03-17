@@ -85,16 +85,15 @@ def create_wrapper_redirector(
             # Load from pjrt_plugin_tt/lib/ instead of _original/ directory
             import pjrt_plugin_tt
 
-            shared_lib_path = (
-                Path(pjrt_plugin_tt.__file__).parent / "lib" / ext_filename
-            )
-
-            if shared_lib_path.exists():
-                return ModuleSpec(
-                    fullname,
-                    ExtensionFileLoader(fullname, str(shared_lib_path)),
-                    origin=str(shared_lib_path),
-                )
+            shared_lib_dir = Path(pjrt_plugin_tt.__file__).parent
+            for subdir in ("lib", "lib64"):
+                shared_lib_path = shared_lib_dir / subdir / ext_filename
+                if shared_lib_path.exists():
+                    return ModuleSpec(
+                        fullname,
+                        ExtensionFileLoader(fullname, str(shared_lib_path)),
+                        origin=str(shared_lib_path),
+                    )
 
             # Fallback to original location for editable installs
             ext_path = original_path / ext_filename
