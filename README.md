@@ -76,7 +76,7 @@ When adding a new model to the repository, follow these guidelines:
 7. Use the standardized enum values from `config.py`:
    - `ModelSource` - Use `HUGGING_FACE` for HuggingFace models, `TORCHVISION` for TorchVision models, etc.
    - `ModelTask` - Use standardized task enums like `NLP_CAUSAL_LM`, `CV_IMAGE_CLS`, `AUDIO_ASR`, etc.
-   - `ModelGroup` - Use `RED` for customer requested models, `GENERALITY` for others
+   - `ModelGroup` - Use `RED` for customer requested models, `GENERALITY` for broad coverage, `PRIORITY` for priority coverage, and `VULCAN` for Vulcan-generated loaders.
 
 8. Always use a dedicated `ModelVariant` enum class with a `DEFAULT_VARIANT` class attribute:
    ```python

@@ -22,6 +22,7 @@ class ModelGroup(StrEnum):
     GENERALITY = "generality"
     RED = "red"
     PRIORITY = "priority"
+    VULCAN = "vulcan"
 
 
 class ModelTask(StrEnum):
