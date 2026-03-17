@@ -203,67 +203,79 @@ def pytest_runtest_logreport(report):
     """
     # Only process failed crash reports (when="???") or failed call-phase reports
     # that have no tags yet (normal failures are handled by record_model_test_properties).
-    if report.when == "???" and not report.passed:
-        if not any(key == "tags" for key, _ in report.user_properties):
-            item = _item_by_nodeid.get(report.nodeid)
-            if item is not None and hasattr(item, "callspec") and hasattr(item, "_test_meta"):
-                meta = item._test_meta
-                params = item.callspec.params
+    if report.when != "???" or report.passed:
+        yield
+        return
 
-                # Resolve test_entry (regular: "test_entry"; LLM: "test_entry_and_phase")
-                test_entry = params.get("test_entry")
-                run_phase = RunPhase.DEFAULT
-                if test_entry is None:
-                    test_entry_and_phase = params.get("test_entry_and_phase")
-                    if test_entry_and_phase is not None:
-                        test_entry, run_phase = test_entry_and_phase
+    if any(key == "tags" for key, _ in report.user_properties):
+        yield
+        return
 
-                if test_entry is not None:
-                    variant, ModelLoader = test_entry.variant_info
-                    model_info = ModelLoader.get_model_info(variant=variant)
+    item = _item_by_nodeid.get(report.nodeid)
+    if item is None or not hasattr(item, "callspec") or not hasattr(item, "_test_meta"):
+        yield
+        return
 
-                    run_mode = params.get("run_mode")
-                    parallelism = params.get("parallelism")
-                    weights_dtype = (
-                        "bfp8"
-                        if getattr(meta, "enable_weight_bfp8_conversion", False)
-                        else "bfloat16"
-                    )
+    meta = item._test_meta
+    params = item.callspec.params
 
-                    tags = {
-                        "test_name": str(item.originalname),
-                        "specific_test_case": str(item.name),
-                        "category": str(Category.MODEL_TEST),
-                        "model_name": str(model_info.name),
-                        "model_info": model_info.to_report_dict(),
-                        "run_mode": str(run_mode) if run_mode is not None else None,
-                        "run_phase": str(run_phase),
-                        "parallelism": str(parallelism) if parallelism is not None else None,
-                        "bringup_status": str(BringupStatus.UNKNOWN),
-                        "model_test_status": str(meta.status),
-                        "arch": getattr(meta, "arch", None),
-                        "seq_len": getattr(meta, "seq_len", None),
-                        "batch_size": getattr(meta, "batch_size", None),
-                        "weights_dtype": weights_dtype,
-                        "failing_reason": {
-                            "name": None,
-                            "description": None,
-                            "component": None,
-                            "summary": None,
-                        },
-                        "guidance": [],
-                    }
+    # Resolve test_entry (regular: "test_entry"; LLM: "test_entry_and_phase")
+    test_entry = params.get("test_entry")
+    run_phase = RunPhase.DEFAULT
+    if test_entry is None:
+        test_entry_and_phase = params.get("test_entry_and_phase")
+        if test_entry_and_phase is not None:
+            test_entry, run_phase = test_entry_and_phase
 
-                    report.user_properties.append(("tags", _to_marshal_safe(tags)))
-                    report.user_properties.append(("owner", "tt-xla"))
-                    if hasattr(model_info, "group") and model_info.group is not None:
-                        report.user_properties.append(("group", str(model_info.group)))
+    if test_entry is None:
+        yield
+        return
 
-                    # pytest-junitxml writes user_properties only when finalize() is
-                    # called, which happens on teardown reports. Crash reports (when="???")
-                    # never produce a teardown, so finalize() is never triggered.
-                    # Re-classifying as "teardown" causes junitxml to call finalize(report)
-                    # and write our properties. The crash message in longrepr is preserved.
-                    report.when = "teardown"
+    variant, ModelLoader = test_entry.variant_info
+    model_info = ModelLoader.get_model_info(variant=variant)
+
+    run_mode = params.get("run_mode")
+    parallelism = params.get("parallelism")
+    weights_dtype = (
+        "bfp8"
+        if getattr(meta, "enable_weight_bfp8_conversion", False)
+        else "bfloat16"
+    )
+
+    tags = {
+        "test_name": str(item.originalname),
+        "specific_test_case": str(item.name),
+        "category": str(Category.MODEL_TEST),
+        "model_name": str(model_info.name),
+        "model_info": model_info.to_report_dict(),
+        "run_mode": str(run_mode) if run_mode is not None else None,
+        "run_phase": str(run_phase),
+        "parallelism": str(parallelism) if parallelism is not None else None,
+        "bringup_status": str(BringupStatus.UNKNOWN),
+        "model_test_status": str(meta.status),
+        "arch": getattr(meta, "arch", None),
+        "seq_len": getattr(meta, "seq_len", None),
+        "batch_size": getattr(meta, "batch_size", None),
+        "weights_dtype": weights_dtype,
+        "failing_reason": {
+            "name": None,
+            "description": None,
+            "component": None,
+            "summary": None,
+        },
+        "guidance": [],
+    }
+
+    report.user_properties.append(("tags", _to_marshal_safe(tags)))
+    report.user_properties.append(("owner", "tt-xla"))
+    if hasattr(model_info, "group") and model_info.group is not None:
+        report.user_properties.append(("group", str(model_info.group)))
+
+    # pytest-junitxml writes user_properties only when finalize() is
+    # called, which happens on teardown reports. Crash reports (when="???")
+    # never produce a teardown, so finalize() is never triggered.
+    # Re-classifying as "teardown" causes junitxml to call finalize(report)
+    # and write our properties. The crash message in longrepr is preserved.
+    report.when = "teardown"
 
     yield  # All other hooks (including junitxml) run here with the modified report
