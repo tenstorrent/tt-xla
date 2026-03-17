@@ -1,0 +1,274 @@
+name: Multi-host Test - Dual T3K (call)
+
+# Reusable workflow for running multi-host tests on a dual T3000 setup.
+#
+# This workflow differs from call-test.yml in that it cannot use GitHub Actions'
+# built-in container: field because the containers must be launched with
+# --network=host for MPI inter-host communication. Instead, this workflow:
+#   1. Runs on a bare-metal multi-host-t3000 runner
+#   2. Manually launches Docker containers with --network=host on all hosts
+#   3. Installs the wheel artifact inside the controller container
+#   4. Runs pytest inside the controller container
+#
+# Environment variables for distributed execution (TT_DISTRIBUTED_*) are set
+# automatically by the configure_topology pytest fixture in the test's conftest,
+# using the "dual_t3k" topology from tests/torch/multi_host/conftest.py.
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use (full registry path)'
+        required: true
+        type: string
+      artifact_release_run_id:
+        description: 'Run ID of the build artifacts to download'
+        required: true
+        type: string
+      artifact_suffix:
+        description: 'Suffix for the artifact name'
+        required: false
+        type: string
+      wheel_build:
+        description: 'Build type to use for testing, e.g. release, manylinux'
+        required: false
+        type: string
+        default: release
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+
+jobs:
+  run-multihost-tests:
+    runs-on:
+      - multi-host-t3000
+      - in-service
+
+    name: "test multihost-dualt3k-basic"
+
+    steps:
+    - name: Mark repo as safe for git
+      run: git config --global --add safe.directory /__w/tt-xla/tt-xla
+
+    - name: Log disk space
+      run: df -h
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        sparse-checkout: |
+          .github/scripts
+          .gitmodules
+          pytest.ini
+          python_package/requirements.txt
+          tests
+          venv
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_multihost_dualt3k.xml" >> "$GITHUB_OUTPUT"
+        echo "test_log_path=pytest_multihost_dualt3k.log" >> "$GITHUB_OUTPUT"
+
+    - name: Download wheel artifact
+      shell: bash
+      run: |
+        echo "=== Downloading wheel artifact ==="
+        echo "Downloading from run: ${{ inputs.artifact_release_run_id }} name: ${{ steps.strings.outputs.wheel_artifact_name }}"
+        gh run download ${{ inputs.artifact_release_run_id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        echo "Downloaded wheel files:"
+        ls -la wheels
+
+    - name: Pre-check and cleanup existing containers
+      shell: bash
+      run: |
+        mpirun --hostfile /etc/mpirun/hostfile \
+          --mca btl_tcp_if_exclude docker0,lo \
+          --tag-output \
+          bash -c '
+            if docker ps -a --filter name=multihost-poc --format "{{.Names}}" | grep -q multihost-poc; then
+              echo "$(hostname): Stopping existing multihost-poc container..."
+              docker stop multihost-poc || true
+              docker rm multihost-poc || true
+              echo "$(hostname): Cleaned up existing container"
+            else
+              echo "$(hostname): No existing containers found"
+            fi
+          '
+
+    - name: Start SSH agent on controller
+      shell: bash
+      run: |
+        eval $(ssh-agent -s)
+        ssh-add /home/ubuntu/.ssh/id_rsa_multihost
+        echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" > /tmp/ssh_agent_env
+        echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> /tmp/ssh_agent_env
+        echo "SSH agent started with PID $SSH_AGENT_PID"
+
+    - name: Start container on controller
+      shell: bash
+      run: |
+        source /tmp/ssh_agent_env
+
+        DOCKER_CMD="docker run --pull=always --rm -d \
+          --name multihost-poc \
+          --privileged \
+          --pid=host \
+          --network=host \
+          --device /dev/tenstorrent \
+          -v /dev/hugepages:/dev/hugepages \
+          -v /dev/hugepages-1G:/dev/hugepages-1G \
+          -v /etc/udev/rules.d:/etc/udev/rules.d \
+          -v /lib/modules:/lib/modules \
+          -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+          -v /mnt/dockercache:/mnt/dockercache \
+          -v /etc/mpirun:/etc/mpirun:ro"
+
+        if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+          echo "SSH agent forwarding enabled: $SSH_AUTH_SOCK"
+          DOCKER_CMD="$DOCKER_CMD -v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
+        else
+          echo "Warning: SSH_AUTH_SOCK not available — skipping SSH agent forwarding"
+        fi
+
+        DOCKER_CMD="$DOCKER_CMD \
+          -v ${{ github.workspace }}:/workspace \
+          -w /workspace \
+          --hostname mpirun-host \
+          ${{ inputs.docker_image }} \
+          sleep infinity"
+
+        CONTAINER_ID=$(eval $DOCKER_CMD)
+        if [ -z "$CONTAINER_ID" ]; then
+          echo "ERROR: Failed to start controller container"
+          exit 1
+        fi
+        echo "Controller container started: $CONTAINER_ID"
+
+    - name: Start containers on worker hosts via mpirun
+      shell: bash
+      run: |
+        mpirun --hostfile /etc/mpirun/hostfile \
+          --mca btl_tcp_if_exclude docker0,lo \
+          --tag-output \
+          bash -c '
+            if docker ps --filter name=multihost-poc --format "{{.Names}}" | grep -q multihost-poc; then
+              echo "$(hostname): Container already running (controller), skipping"
+            else
+              CONTAINER_ID=$(docker run --pull=always --rm -d \
+                --name multihost-poc \
+                --privileged \
+                --pid=host \
+                --network=host \
+                --device /dev/tenstorrent \
+                -v /etc/mpirun:/etc/mpirun:ro \
+                -v /dev/hugepages:/dev/hugepages \
+                -v /dev/hugepages-1G:/dev/hugepages-1G \
+                -v /etc/udev/rules.d:/etc/udev/rules.d \
+                -v /lib/modules:/lib/modules \
+                -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+                -v /mnt/dockercache:/mnt/dockercache \
+                -v ${{ github.workspace }}:/workspace \
+                -w /workspace \
+                ${{ inputs.docker_image }} \
+                sleep infinity)
+              if [ -z "$CONTAINER_ID" ]; then
+                echo "$(hostname): ERROR: Failed to start worker container"
+                exit 1
+              fi
+              echo "$(hostname): Worker container started: $CONTAINER_ID"
+            fi
+          '
+
+    - name: Make remote_docker.sh executable in controller container
+      shell: bash
+      run: |
+        docker exec multihost-poc chmod +x \
+          /workspace/tests/torch/multi_host/experimental/remote_docker.sh
+        echo "remote_docker.sh is executable"
+
+    - name: Install wheel in controller container
+      shell: bash
+      run: |
+        docker exec multihost-poc bash -c '
+          cd /workspace
+          source venv/activate
+
+          WHEEL_PATH=$(find wheels -name "*.whl" | head -n 1)
+          if [ -z "$WHEEL_PATH" ]; then
+            echo "ERROR: No wheel file found in wheels/"
+            exit 1
+          fi
+
+          echo "Installing wheel: $WHEEL_PATH"
+          uv pip install "$WHEEL_PATH"
+          echo "Wheel installation complete"
+        '
+
+    - name: Run tests
+      timeout-minutes: 60
+      shell: bash
+      run: |
+        docker exec multihost-poc bash -c '
+          cd /workspace
+          source venv/activate
+
+          export TTXLA_LOGGER_LEVEL=DEBUG
+          export TT_METAL_LOGGER_LEVEL=DEBUG
+          export TT_METAL_LOGGER_TYPES=Fabric,Always
+
+          pytest -svv \
+            tests/torch/multi_host/experimental/test_multihost_basic.py \
+            -k "dual_t3k" \
+            --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
+            2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
+        '
+
+    - name: Upload Test Log
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-log-multihost-dualt3k-${{ github.run_id }}
+        path: ${{ steps.strings.outputs.test_log_path }}
+
+    - name: Upload Test Report
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: test-reports-multihost-dualt3k-${{ github.run_attempt }}.${{ github.run_id }}
+        path: ${{ steps.strings.outputs.test_report_path }}
+
+    - name: Fix workspace permissions
+      if: always()
+      shell: bash
+      run: |
+        docker run --rm \
+          -v "${{ github.workspace }}:/workspace" \
+          ${{ inputs.docker_image }} \
+          chown -R "$(id -u):$(id -g)" /workspace || true
+        echo "Workspace ownership restored"
+
+    - name: Cleanup
+      if: always()
+      shell: bash
+      run: |
+        mpirun --hostfile /etc/mpirun/hostfile \
+          --mca btl_tcp_if_exclude docker0,lo \
+          --tag-output \
+          bash -c '
+            docker stop multihost-poc || true
+            docker rm multihost-poc || true
+            if [ -f /tmp/ssh_agent_env ]; then
+              source /tmp/ssh_agent_env
+              kill $SSH_AGENT_PID || true
+              rm -f /tmp/ssh_agent_env
+            fi
+            echo "$(hostname): Cleanup complete"
+          '
