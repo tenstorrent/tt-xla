@@ -1556,11 +1556,6 @@ test_config:
   glpn_kitti/pytorch-single_device-inference:
     status: EXPECTED_PASSING
 
-  stable_diffusion_1_4/pytorch-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs or takes forever to run - not known to be compile clean anyways."
-    bringup_status: FAILED_FE_COMPILATION
-
   boltz2/pytorch-Default-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs or takes forever to run"
