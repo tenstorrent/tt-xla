@@ -11,7 +11,7 @@
       "df": "bfloat16",
       "lp": 128,
       "ts": "na",
-      "libreq": "libgl1-mesa-glx libglib2.0-0",
+      "libreq": "libgl1 libglib2.0-0",
       "skip-ttir-dump": false,
       "skip-ttnn-dump": false,
       "skip-device-perf": false
