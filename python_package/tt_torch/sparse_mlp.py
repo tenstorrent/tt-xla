@@ -315,24 +315,24 @@ class A2aSparseMLP(nn.Module):
         K = self.num_experts_per_tok
 
         # 1. Router
-        # GptOssTopKRouter returns (router_logits, router_scores, router_indices):
-        #   router_out[0]: raw logits [B, S, E]  — needed for fused_remap path
-        #   router_out[1]: softmax(top_k_logits) compact probs [B, S, top_k]
-        #   router_out[-1]: top-k indices [B, S, top_k]
-        router_out = self.router(hidden_states)
-        router_logits = router_out[0]  # [B, S, E] raw logits (for fused_remap)
-        router_scores = router_out[1]  # [B, S, top_k] compact softmax probabilities
-        router_indices = router_out[-1]  # [B, S, top_k] compact indices
+        # GptOssTopKRouter returns (router_logits, router_scores, router_indices).
+        # Router must receive 2D [B*S, H] input because its softmax uses dim=1,
+        # which must correspond to the hidden dimension (not sequence).
+        hidden_flat = hidden_states.view(batch_size * seq_len, hidden_size)
+        router_out = self.router(hidden_flat)
+        router_logits = router_out[0].view(batch_size, seq_len, -1)  # [B, S, E]
+        router_scores = router_out[1].view(batch_size, seq_len, K)  # [B, S, top_k]
+        router_indices = router_out[-1].view(batch_size, seq_len, K)  # [B, S, top_k]
         # Keep CPU golden path memory-efficient by delegating to the original
         # expert implementation. The custom sparse custom-op path is intended
         # for XLA/TT execution and can materialize larger temporary tensors on CPU.
         if hidden_states.device.type == "cpu":
             routed_out = self.experts(
-                hidden_states,
-                router_indices=router_indices,
-                routing_weights=router_scores,
+                hidden_states.view(batch_size * seq_len, hidden_size),
+                top_k_index=router_indices.view(batch_size * seq_len, K),
+                top_k_weights=router_scores.view(batch_size * seq_len, K),
             )
-            return routed_out, router_scores
+            return routed_out.view(batch_size, seq_len, hidden_size), router_scores
 
         # 2. Reshape for dispatch: tt-metal expects [B, 1, S, H] format
         x = hidden_states.view(batch_size, 1, seq_len, hidden_size)
