@@ -35,6 +35,7 @@
 #include "api/device_instance.h"
 #include "api/error_instance.h"
 #include "api/memory_instance.h"
+#include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
 #include "utils/status.h"
@@ -316,6 +317,16 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
 
+  // throw std::runtime_error("Throwing error.");
+
+  // TT_ASSERT(false && logicalTensorSize() <= host_buffer_size,
+  //           "Host buffer is too small. %uz", logicalTensorSize());
+
+  TT_ASSERT(false && logicalTensorSize() <= host_buffer_size,
+            "Host buffer is too small. %uz", host_buffer_size, 1, 2);
+
+  // LOG_F(ERROR, "Copy to host buffer failed with error: %s");
+
   // TODO(acolic): Copying in a separate thread is left to match previous
   // behavior. Check whether it is needed: it does not make much sense to
   // create new thread for each shard, because tensors are moved once from
@@ -336,8 +347,10 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
       m_pjrt_tensor->move_to_host();
 
-      assert(logicalTensorSize() <= host_buffer_size &&
-             "Host buffer is too small.");
+      // assert(logicalTensorSize() <= host_buffer_size &&
+      //        "Host buffer is too small.");
+      TT_ASSERT(logicalTensorSize() <= host_buffer_size,
+                "Host buffer is too small.");
       tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
                           rt_data_type);
 
