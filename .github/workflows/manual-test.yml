@@ -42,6 +42,10 @@ on:
         required: false
         type: boolean
         default: false
+      docker_image_override:
+        description: 'Optional Docker image to use (skips build-image when set)'
+        required: false
+        type: string
 
 permissions:
   packages: write
@@ -51,6 +55,7 @@ run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
 
 jobs:
   build-image:
+    if: inputs.docker_image_override == ''
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
@@ -59,11 +64,12 @@ jobs:
 
   build-ttxla:
     needs: build-image
+    if: always() && (needs.build-image.result == 'success' || (needs.build-image.result == 'skipped' && inputs.docker_image_override != ''))
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      docker_image: ${{ inputs.docker_image_override || needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ inputs.docker_image_override || needs.build-image.outputs.docker-image-manylinux }}
       mlir_override: ${{ inputs.mlir_override }}
       build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
 
@@ -75,7 +81,7 @@ jobs:
     with:
       test_suite: ${{ inputs.test_suite }}
       test_suite_custom: ${{ inputs.test_suite_custom }}
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      docker_image: ${{ inputs.docker_image_override || needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
