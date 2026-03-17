@@ -391,28 +391,27 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
-    # Wrap model for on-device post-processing (argmax + cache_position update)
-    wrapped_model = LLMDecodeWrapper(model, read_logits_fn)
-    wrapped_model.eval()
+    # === PERFORMANCE BENCHMARK (no logits returned - avoids OOM) ===
+    perf_wrapper = LLMDecodeWrapper(model, read_logits_fn, return_logits=False)
+    perf_wrapper.eval()
+    compiled_perf = torch.compile(perf_wrapper, backend="tt")
 
-    # Compile the wrapped model
-    compiled_model = torch.compile(wrapped_model, backend="tt")
-
-    # Warmup run (on-device path: read_logits_fn is baked into the wrapper)
+    # Warmup run
     print("Warming up...")
     warmup_tokens = min(MIN_STEPS, max_output_tokens)
     _, _ = generate_and_benchmark(
-        compiled_model,
+        compiled_perf,
         input_args,
         device,
         warmup_tokens,
         tokenizer=tokenizer,
         verbose=False,
+        collect_logits=False,
     )
 
     tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the actual benchmark run
+    # Reconstruct inputs for the perf benchmark run
     input_args = construct_inputs(
         tokenizer,
         model.config,
@@ -424,19 +423,56 @@ def benchmark_llm_torch_xla(
     )
     input_args = transfer_to_device(input_args, device)
 
-    # Run benchmark once
-    print(f"\nStarting benchmark...")
+    # Run perf benchmark - timing only, no logits
+    print(f"\nStarting performance benchmark...")
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
-    output_logits, iteration_times = generate_and_benchmark(
-        compiled_model,
+    _, iteration_times = generate_and_benchmark(
+        compiled_perf,
         input_args,
         device,
         max_output_tokens,
         tokenizer=tokenizer,
         verbose=True,
         ground_truth_tokens=ground_truth_for_benchmark,
+        collect_logits=False,
+    )
+
+    # === ACCURACY BENCHMARK (logits moved to CPU each step - avoids OOM) ===
+    accuracy_wrapper = LLMDecodeWrapper(model, read_logits_fn, return_logits=True)
+    accuracy_wrapper.eval()
+    compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
+
+    # Always run all steps — PCC currently uses only prefill logits but all
+    # output_logits are collected for future per-step PCC validation.
+    accuracy_steps = max_output_tokens
+
+    # Reconstruct inputs for accuracy run
+    input_args = construct_inputs(
+        tokenizer,
+        model.config,
+        batch_size,
+        max_cache_len,
+        past_key_values=input_args["past_key_values"],
+        input_prompt=custom_input_prompt,
+        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+    )
+    input_args = transfer_to_device(input_args, device)
+
+    print(
+        f"\nStarting accuracy benchmark "
+        f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
+    )
+    output_logits, _ = generate_and_benchmark(
+        compiled_accuracy,
+        input_args,
+        device,
+        accuracy_steps,
+        tokenizer=tokenizer,
+        verbose=False,
+        ground_truth_tokens=ground_truth_for_benchmark,
+        collect_logits=True,
     )
 
     # Post-processing: derive predicted tokens for accuracy testing
