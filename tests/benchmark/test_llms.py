@@ -1126,7 +1126,6 @@ def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
         max_output_tokens=max_output_tokens,
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
-        optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
     )
 
 
@@ -1149,7 +1148,6 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=1,
-        optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
     )
 
 
