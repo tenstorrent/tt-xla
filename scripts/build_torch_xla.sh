@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 #
 # Build PyTorch + PyTorch-XLA (Tenstorrent fork) from source
 # and integrate into tt-xla's venv.
