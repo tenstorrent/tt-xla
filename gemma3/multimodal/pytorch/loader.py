@@ -23,6 +23,7 @@ from ....config import (
 )
 from ....base import ForgeModel
 from ....tools.utils import cast_input_to_type, get_file
+from PIL import Image
 
 
 class ModelVariant(StrEnum):

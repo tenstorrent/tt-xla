@@ -88,7 +88,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         # Instruct and larger models are RED, others generality
-        if any(x in variant.value for x in ["it", "7b", "9b", "27b"]):
+        if any(x in variant.value for x in ["IT", "7B", "9B", "27B"]):
             group = ModelGroup.RED
         else:
             group = ModelGroup.GENERALITY

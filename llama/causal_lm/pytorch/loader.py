@@ -179,7 +179,7 @@ class ModelLoader(ForgeModel):
                     ]
                 )
             )
-            or "70b" in variant.value
+            or "70B" in variant.value
             or variant == ModelVariant.LLAMA_3_1_405B
         ):
             group = ModelGroup.RED
