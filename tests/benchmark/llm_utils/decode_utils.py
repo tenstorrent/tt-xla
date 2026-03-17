@@ -35,12 +35,26 @@ class LLMDecodeWrapper(torch.nn.Module):
     By keeping argmax and cache_position increment inside the compiled graph,
     intermediate tensors stay on device between decode steps, eliminating
     costly device-to-host round-trips for input_ids and cache_position.
+
+    Args:
+        model: The LLM to wrap.
+        read_logits_fn: Function to extract logits from model output.
+        return_logits: If True, forward() returns (next_token_ids, next_cache_position, logits).
+            If False, returns (next_token_ids, next_cache_position) only, avoiding
+            logit accumulation on device which can cause OOM. The flag is traced
+            at torch.compile time, producing different compiled graphs.
     """
 
-    def __init__(self, model: torch.nn.Module, read_logits_fn: ReadLogitsFn):
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        read_logits_fn: ReadLogitsFn,
+        return_logits: bool = True,
+    ):
         super().__init__()
         self.model = model
         self.read_logits_fn = read_logits_fn
+        self.return_logits = return_logits
 
     def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
         output = self.model(
@@ -52,7 +66,9 @@ class LLMDecodeWrapper(torch.nn.Module):
         logits = self.read_logits_fn(output)
         next_token_ids = logits[:, -1].argmax(dim=-1).unsqueeze(-1)
         next_cache_position = cache_position[-1:] + 1
-        return next_token_ids, next_cache_position, logits
+        if self.return_logits:
+            return next_token_ids, next_cache_position, logits
+        return next_token_ids, next_cache_position
 
 
 def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> None:
@@ -147,6 +163,7 @@ def generate_and_benchmark(
     tokenizer: Optional[object] = None,
     verbose: bool = True,
     ground_truth_tokens: Optional[torch.Tensor] = None,
+    collect_logits: bool = True,
 ) -> tuple[list[torch.Tensor], list[int]]:
     """Unified decode loop for benchmarks, accuracy testing, and reference generation.
 
@@ -170,10 +187,16 @@ def generate_and_benchmark(
         verbose: Print per-iteration timing and decoded tokens
         ground_truth_tokens: 1D tensor of ground truth token IDs for teacher forcing.
                            None = autoregressive mode.
+        collect_logits: Whether to collect logits during on-device execution.
+            True: Model must return (next_token_ids, next_cache_position, logits)
+                  and logits are moved to CPU each step (for PCC/accuracy).
+            False: Model must return (next_token_ids, next_cache_position) only
+                  (for performance benchmarking without OOM risk).
+            Ignored when read_logits_fn is provided (off-device path).
 
     Returns:
         (output_logits, iteration_times)
-        - output_logits: List of logit tensors per step
+        - output_logits: List of logit tensors per step (empty if collect_logits=False)
         - iteration_times: List of iteration times in nanoseconds
     """
 
@@ -211,8 +234,11 @@ def generate_and_benchmark(
             start = time.perf_counter_ns()
 
             if on_device:
-                next_token_ids, next_cache_position, logits = model(**input_args)
-                output_logits.append(logits)
+                if collect_logits:
+                    next_token_ids, next_cache_position, logits = model(**input_args)
+                    output_logits.append(logits.to("cpu"))
+                else:
+                    next_token_ids, next_cache_position = model(**input_args)
 
                 if ground_truth_tokens is not None:
                     del next_token_ids  # Free unused on-device prediction
@@ -252,15 +278,6 @@ def generate_and_benchmark(
                     f"Iteration\t{step}/{max_tokens_to_generate}\t"
                     f"took {iteration_times[-1] / 1e6:.04} ms"
                 )
-
-    # Transfer logits from device to CPU after the loop so the transfer
-    # cost is not included in per-iteration timing.
-    if on_device:
-        start_transfer = time.perf_counter_ns()
-        output_logits = [logits.to("cpu") for logits in output_logits]
-        transfer_ms = (time.perf_counter_ns() - start_transfer) / 1e6
-        if verbose:
-            print(f"Transferring all logits to CPU took {transfer_ms:.04} ms")
 
     return output_logits, iteration_times
 
