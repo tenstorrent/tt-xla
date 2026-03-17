@@ -10,6 +10,10 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir or branch name'
         required: false
         type: string
+      mlir_ci_image:
+        description: 'Optional tt-mlir CI image or tag to use as base for tt-xla image build (e.g. ghcr.io/.../tt-mlir-ci-ubuntu-22-04:tag or just dt-xxx)'
+        required: false
+        type: string
       xla_sha_override:
         description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
         required: false
@@ -51,6 +55,8 @@ jobs:
           ref: ${{ inputs.xla_sha_override }}
       - name: Check if Docker image already exists
         id: check
+        env:
+          MLIR_DOCKER_TAG_OVERRIDE: ${{ inputs.mlir_ci_image }}
         shell: bash
         run: |
           if [ -z "${{ inputs.mlir_override }}" ]; then
@@ -105,6 +111,8 @@ jobs:
 
       - name: Build Docker images and output the image name
         id: build
+        env:
+          MLIR_DOCKER_TAG_OVERRIDE: ${{ inputs.mlir_ci_image }}
         shell: bash
         run: |
           # Output the image name

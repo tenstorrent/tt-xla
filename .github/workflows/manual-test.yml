@@ -37,13 +37,17 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      mlir_ci_image:
+        description: 'Optional tt-mlir CI image or tag to use as base when building tt-xla image (e.g. ghcr.io/.../tt-mlir-ci-ubuntu-22-04:tag or dt-xxx)'
+        required: false
+        type: string
       manylinux_build:
         description: 'Build and use manylinux wheel'
         required: false
         type: boolean
         default: false
       docker_image_override:
-        description: 'Optional Docker image to use (skips build-image when set)'
+        description: 'Optional Docker image to use (skips build-image when set). Use tt-mlir CI image or tt-xla CI image; used for both build and test.'
         required: false
         type: string
 
@@ -60,6 +64,7 @@ jobs:
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
+      mlir_ci_image: ${{ inputs.mlir_ci_image }}
       dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
   build-ttxla:

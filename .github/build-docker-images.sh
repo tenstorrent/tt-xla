@@ -13,35 +13,45 @@ if [[ "$3" == "--check-only" ]]; then
     CHECK_ONLY=true
 fi
 
-# Get tt-mlir and ensure the required docker image exists
-TT_MLIR_PATH=.tmp/tt-mlir
-cwd=$(pwd)
-if [ ! -d $TT_MLIR_PATH ]; then
-    git clone https://github.com/tenstorrent/tt-mlir.git $TT_MLIR_PATH --quiet
-fi
-cd $TT_MLIR_PATH
-git fetch --quiet
-git checkout $tt_mlir_sha --quiet
-
-
-if [ -f ".github/get-docker-tag.sh" ]; then
-    MLIR_DOCKER_TAG=$(.github/get-docker-tag.sh)
-else
-    echo "ERROR: No get-docker-tag.sh found in tt-mlir"
-    exit 1
-fi
-
-echo "Ensure tt-mlir docker images with tag: $MLIR_DOCKER_TAG exist"
-if ! ./.github/build-docker-images.sh $dockbuild --check-only; then
-    if [ "$CHECK_ONLY" = false ]; then
-        echo -e "\033[31mDocker image does not exist.\033[0m"
-        echo -e "\033[31mYou should build tt-mlir docker image for sha $tt_mlir_sha first, and then rerun the tt-xla workflow.\033[0m"
-        exit 9
+# Optional: use a specific tt-mlir image/tag instead of deriving from tt_mlir_sha
+if [ -n "${MLIR_DOCKER_TAG_OVERRIDE:-}" ]; then
+    # If value looks like a full image reference (e.g. ghcr.io/.../tt-mlir-ci-ubuntu-22-04:dt-xxx), use the tag part only
+    if [[ "$MLIR_DOCKER_TAG_OVERRIDE" == *":"* ]]; then
+        MLIR_DOCKER_TAG="${MLIR_DOCKER_TAG_OVERRIDE##*:}"
+    else
+        MLIR_DOCKER_TAG="$MLIR_DOCKER_TAG_OVERRIDE"
     fi
-    echo -e "\033[31mtt-mlir docker image does not exist (check-only mode)\033[0m"
-fi
+    echo "Using tt-mlir image tag override: $MLIR_DOCKER_TAG"
+else
+    # Get tt-mlir and ensure the required docker image exists
+    TT_MLIR_PATH=.tmp/tt-mlir
+    cwd=$(pwd)
+    if [ ! -d $TT_MLIR_PATH ]; then
+        git clone https://github.com/tenstorrent/tt-mlir.git $TT_MLIR_PATH --quiet
+    fi
+    cd $TT_MLIR_PATH
+    git fetch --quiet
+    git checkout $tt_mlir_sha --quiet
 
-cd $cwd
+    if [ -f ".github/get-docker-tag.sh" ]; then
+        MLIR_DOCKER_TAG=$(.github/get-docker-tag.sh)
+    else
+        echo "ERROR: No get-docker-tag.sh found in tt-mlir"
+        exit 1
+    fi
+
+    echo "Ensure tt-mlir docker images with tag: $MLIR_DOCKER_TAG exist"
+    if ! ./.github/build-docker-images.sh $dockbuild --check-only; then
+        if [ "$CHECK_ONLY" = false ]; then
+            echo -e "\033[31mDocker image does not exist.\033[0m"
+            echo -e "\033[31mYou should build tt-mlir docker image for sha $tt_mlir_sha first, and then rerun the tt-xla workflow.\033[0m"
+            exit 9
+        fi
+        echo -e "\033[31mtt-mlir docker image does not exist (check-only mode)\033[0m"
+    fi
+
+    cd $cwd
+fi
 
 # Compute the hash of the Dockerfile
 DOCKER_TAG=$(./.github/get-docker-tag.sh "$MLIR_DOCKER_TAG")
