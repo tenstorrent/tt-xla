@@ -11,16 +11,19 @@ on:
         description: "Docker image to use"
         required: true
         type: string
-      artifact_run_id:
-        description: "Run ID to download wheel artifact from"
+      artifact_release_run_id:
+        description: 'Run ID of the artifacts (release)'
         required: false
         type: string
-        default: ''
-      wheel_artifact_name:
-        description: "Name of the wheel artifact"
+      artifact_suffix:
+        description: 'Suffix for the artifact name'
         required: false
         type: string
-        default: ''
+      wheel_build:
+        description: 'Build to use for testing, e.g. release, manylinux'
+        required: false
+        type: string
+        default: release
       use_docker_wheel:
         description: "Use wheel from docker instead of building a new one"
         required: false
@@ -133,12 +136,13 @@ jobs:
       shell: bash
       run: |
         echo "=== Downloading wheel ==="
-        gh run download ${{ inputs.artifact_run_id }} \
+        gh run download ${{ inputs.artifact_release_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
-          --name ${{ inputs.wheel_artifact_name }}
+          --name xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}
 
         echo "=== Installing wheel ==="
+        source venv/activate
         pip install wheels/*.whl
 
     - name: Install system dependencies
@@ -150,19 +154,12 @@ jobs:
     - name: Install Python dependencies
       shell: bash
       run: |
+        source venv/activate
         pip install ${{ matrix.build.pyreq }}
         pip install torchvision==0.24.0+cpu --index-url https://download.pytorch.org/whl/cpu
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
-
-    # A temmporary step because triage isn't preinstalled in tt-xla-slim image
-    # When perf tests migrate to running in the tt-xla-base image, this can be removed
-    - name: Set up tt-triage
-      continue-on-error: true
-      shell: bash
-      run: |
-        .github/scripts/install-tt-triage.sh
 
     - name: Run benchmark
       id: run-benchmark
@@ -175,6 +172,7 @@ jobs:
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
+        source venv/activate
         pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build['accuracy-testing'] && '--accuracy-testing' || '' }} ${{ matrix.build['batch-size'] && format('--batch-size {0}', matrix.build['batch-size']) || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report
@@ -279,6 +277,7 @@ jobs:
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
       shell: bash
       run: |
+        source venv/activate
         mlir_sha=$(python .github/scripts/get_description_field_from_wheel.py "pjrt-plugin-tt" "tt-mlir-commit")
         echo "Found tt-mlir-commit: $mlir_sha"
 

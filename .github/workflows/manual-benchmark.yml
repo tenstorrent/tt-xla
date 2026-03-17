@@ -11,7 +11,7 @@ on:
         description: 'Docker image to use'
         required: false
         type: string
-        default: 'ghcr.io/tenstorrent/tt-xla-slim:nightly-latest'
+        default: 'ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest'
       test_filter:
         description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
         required: false
@@ -57,11 +57,11 @@ on:
         required: false
         type: string
         default: ""
-      wheel_release_artifact_name:
-        description: "Wheel artifact name to download (used when should_build_wheel=false)"
+      manylinux_build:
+        description: 'Build and use manylinux wheel'
         required: false
-        type: string
-        default: "xla-whl-release"
+        type: boolean
+        default: false
 
 permissions:
   packages: write
@@ -72,20 +72,23 @@ permissions:
 
 jobs:
   docker-build:
-    if: ${{ !inputs.use_docker_wheel && inputs.should_build_wheel }}
+    if: ${{ inputs.should_build_wheel }}
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
+      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
   build:
     needs: docker-build
-    if: ${{ !inputs.use_docker_wheel && inputs.should_build_wheel }}
+    if: ${{ inputs.should_build_wheel }}
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
       docker_image: ${{ needs.docker-build.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.docker-build.outputs.docker-image-manylinux }}
+      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
 
   set-inputs:
     runs-on: ubuntu-latest
@@ -125,12 +128,13 @@ jobs:
     with:
       adv_filter: ${{ needs.set-inputs.outputs.filter }}
       docker_image: ${{ inputs.docker_image }}
-      artifact_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
-      wheel_artifact_name: ${{ inputs.should_build_wheel && format('xla-whl-release{0}',needs.build.outputs.artifact_suffix) || inputs.wheel_release_artifact_name }}
+      artifact_release_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
+      artifact_suffix: ${{ inputs.should_build_wheel && needs.build.outputs.artifact_suffix || '' }}
       use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       perf_regression_check: ${{ inputs.perf_regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
+      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
 
   fail-notify:
     if: always()

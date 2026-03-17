@@ -70,6 +70,7 @@ jobs:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     secrets: inherit
     with:
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       adv_filter: '[
         { "accuracy-testing": false },
         { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
@@ -78,8 +79,8 @@ jobs:
       sh-runner: false
       skip-device-perf: true
       perf_regression_check: false
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'

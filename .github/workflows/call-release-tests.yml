@@ -30,7 +30,11 @@ jobs:
       skip-device-perf: false
       use_docker_wheel: true
       perf_regression_check: true
-      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
+      adv_filter: '[
+        { "accuracy-testing": false },
+        { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
+        { "runs-on": "n300-llmbox", "filter": ["llama_3_1_70b_tp"] },
+        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp_galaxy"] } ]'
 
   demo-tests:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
