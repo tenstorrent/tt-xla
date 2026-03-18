@@ -898,8 +898,8 @@ jobs:
             echo "  TT_DISTRIBUTED_RANK_BINDING: $TT_DISTRIBUTED_RANK_BINDING"
             echo ""
 
-            echo "Running test: test_simple_sharded_addition"
-            pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
+            echo "Running test: llama 1x16"
+            python examples/pytorch/llama.py
           '
 
           echo ""
