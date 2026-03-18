@@ -768,7 +768,7 @@ def test_output_sharding_simple_propagation():
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.llmbox
-@pytest.mark.xfail()
+@pytest.mark.skip(reason="Next test in the sequence will fail if this one fails")
 def test_uneven_sharding_simple_add():
     """
     Test that sharding a tensor whose dim is not divisible by the number of
