@@ -1222,11 +1222,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 num_reqs,
                 end_index,
             ) = self._prepare_inputs(scheduler_output, start_index)
+            total_scheduled = scheduler_output.total_num_scheduled_tokens
+            phase = "prefill" if total_scheduled > num_reqs else "decode"
+            logger.info(
+                f"[tt-debug] {phase}: num_reqs={num_reqs}, "
+                f"total_scheduled_tokens={total_scheduled}, "
+                f"start_index={start_index}, end_index={end_index}"
+            )
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
             torch_xla.sync(wait=False)
             # Run the decoder
+            _t0 = time.perf_counter()
             with (
                 set_forward_context(
                     attn_metadata,
@@ -1247,6 +1255,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
             # [max_num_reqs, padded_seq_len, H] tensor to CPU.
+            _t_forward = time.perf_counter() - _t0
+            logger.info(f"[tt-debug] {phase} model forward: {_t_forward:.4f}s")
+
             if self.num_prompt_logprobs:
                 for i in range(start_index, end_index):
                     req_id = self.input_batch.req_ids[i]
@@ -1272,6 +1283,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
+            _t_sample = time.perf_counter()
             selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
@@ -1285,6 +1297,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
+            logger.info(
+                f"[tt-debug] {phase} sampling: {time.perf_counter() - _t_sample:.4f}s, "
+                f"selected_tokens={selected_token_ids.tolist()}"
+            )
 
             combined_selected_tokens.append(selected_token_ids)
             if tpu_sampling_metadata.logprobs:
