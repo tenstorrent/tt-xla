@@ -526,22 +526,6 @@ jobs:
           echo "Smoketest complete"
           echo ""
 
-      - name: Serialize system descriptor
-        run: |
-          echo "=== Serializing system descriptor ==="
-          echo ""
-
-          docker exec multihost-poc bash -c '
-            cd /workspace
-            source venv/activate
-            mkdir -p system_descriptor
-            python .github/scripts/save_system_descriptor.py system_descriptor/tt_system
-          '
-
-          echo ""
-          echo "System descriptor serialized"
-          echo ""
-
       - name: Upload system descriptor artifact
         uses: actions/upload-artifact@v6
         with:
@@ -929,7 +913,11 @@ jobs:
             pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
 
             # echo "Running llama test"
-            # python examples/pytorch/llama.py
+            python examples/pytorch/llama.py
+
+            echo "Saving system descriptor after llama run in distributed context..."
+            mkdir -p system_descriptor
+            python .github/scripts/save_system_descriptor.py system_descriptor/tt_system
 
             echo "Running test: gptoss 120b dualt3k 1x16"
             pytest -svv tests/benchmark/test_llms.py::test_gpt_oss_120b_tp
