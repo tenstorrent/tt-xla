@@ -119,6 +119,7 @@ jobs:
         echo "Runs-on filter: ${{ inputs.runs-on-filter }}" >> $GITHUB_STEP_SUMMARY
         echo "Skip device perf: ${{ inputs.skip-device-perf }}" >> $GITHUB_STEP_SUMMARY
         echo "Perf regression check: ${{ inputs.perf_regression_check }}" >> $GITHUB_STEP_SUMMARY
+        echo "Wheel type: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}" >> $GITHUB_STEP_SUMMARY
 
   run-perf-benchmarks:
     needs: [set-inputs, build]
