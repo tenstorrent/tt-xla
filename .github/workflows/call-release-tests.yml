@@ -26,7 +26,7 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ inputs.release_docker_image }}
-      sh-runner: false
+      sh-runner: true
       skip-device-perf: false
       use_docker_wheel: true
       perf_regression_check: true
