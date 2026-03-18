@@ -892,6 +892,7 @@ jobs:
             export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
             export TT_METAL_LOGGER_LEVEL=DEBUG
             export TT_METAL_LOGGER_TYPES=Fabric,Always
+            export TT_RUNTIME_USING_DUALT3K=1
 
             echo ""
             echo "Environment configured:"
