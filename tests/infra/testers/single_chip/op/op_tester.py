@@ -48,7 +48,6 @@ class OpTester(BaseTester):
             compiler_config = CompilerConfig()
         self._compiler_config = compiler_config
         self._torch_options = torch_options if torch_options is not None else {}
-        self._custom_comparator = custom_comparator
         self._enable_perf_measurement = (
             os.environ.get("ENABLE_OP_TEST_PERF_MEASUREMENT", "0") == "1"
         )
@@ -58,6 +57,7 @@ class OpTester(BaseTester):
             evaluator_type="comparison",
             comparison_config=comparison_config,
             framework=framework,
+            custom_comparator=custom_comparator,
         )
 
     def test(self, workload: Workload, request=None) -> None:
@@ -76,7 +76,7 @@ class OpTester(BaseTester):
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
         if self._custom_comparator is not None:
-            self._custom_comparator(tt_res, cpu_res, workload.args)
+            self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
         else:
             self._evaluator.evaluate(tt_res, cpu_res)
 
@@ -192,6 +192,7 @@ def run_op_test(
     mesh: Optional[Mesh] = None,
     shard_spec_fn: Optional[Callable] = None,
     request=None,
+    custom_comparator: Optional[Callable] = None,
 ) -> None:
     """
     Tests `op` with `inputs` by running it on TT device and CPU and comparing the
@@ -199,7 +200,12 @@ def run_op_test(
     """
     if compiler_config is None:
         compiler_config = CompilerConfig()
-    tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
+    tester = OpTester(
+        comparison_config,
+        framework,
+        compiler_config=compiler_config,
+        custom_comparator=custom_comparator,
+    )
     if framework == Framework.TORCH:
         workload = TorchWorkload(
             model=op, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn

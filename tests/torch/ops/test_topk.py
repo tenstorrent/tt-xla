@@ -9,11 +9,11 @@ from infra import Framework, run_op_test_with_random_inputs
 from utils import Category
 
 
-def topk_indices_comparator(device_output, golden_output, inputs):
+def topk_indices_comparator(device_output, golden_output, args, kwargs):
     """Comparator for topk operation returning indices only."""
     device_indices = device_output
     golden_indices = golden_output
-    input_tensor = inputs[0]
+    input_tensor = args[0]
 
     # Move device outputs from XLA to CPU for comparison
     device_indices = device_indices.cpu()
@@ -35,11 +35,11 @@ def topk_indices_comparator(device_output, golden_output, inputs):
     assert cos_sim > 0.99, f"Cosine similarity: {cos_sim.item()} (required > 0.99)"
 
 
-def topk_both_comparator(device_output, golden_output, inputs):
+def topk_both_comparator(device_output, golden_output, args, kwargs):
     """Comparator for topk operation returning both values and indices."""
     device_values, device_indices = device_output
     golden_values, _ = golden_output
-    input_tensor = inputs[0]
+    input_tensor = args[0]
 
     # Move device outputs from XLA to CPU for comparison
     device_values = device_values.cpu()

@@ -37,6 +37,7 @@ class ModelTester(BaseTester, ABC):
         framework: Framework,
         compiler_config: CompilerConfig = None,
         dtype_override=None,
+        custom_comparator: Optional[Callable] = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
         if compiler_config is None:
@@ -57,6 +58,7 @@ class ModelTester(BaseTester, ABC):
             evaluator_type="comparison",
             comparison_config=comparison_config,
             framework=framework,
+            custom_comparator=custom_comparator,
         )
         self._initialize_components()
 
@@ -148,14 +150,14 @@ class ModelTester(BaseTester, ABC):
         """
         return "__call__"
 
-    def test(self, request=None) -> Tuple[ComparisonResult, ...]:
+    def test(self, request=None) -> Tuple[ComparisonResult, ...] | None:
         """Tests the model depending on test type with which tester was configured."""
         if self._run_mode == RunMode.INFERENCE:
             return self._test_inference(request=request)
         else:
             return self._test_training()
 
-    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...]:
+    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...] | None:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
@@ -174,7 +176,12 @@ class ModelTester(BaseTester, ABC):
         if request:
             self.handle_filecheck_and_serialization(request, self._workload)
 
-        return (self._compare(tt_res, cpu_res),)
+        if self._custom_comparator is not None:
+            self._custom_comparator(
+                tt_res, cpu_res, self._workload.args, self._workload.kwargs
+            )
+            return None
+        return (self._compare(tt_res, cpu_res, self._workload),)
 
     def _test_e2e_perf(self) -> dict[str, float]:
         warmup_iters_count = 3
