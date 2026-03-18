@@ -898,8 +898,8 @@ jobs:
             echo "  TT_DISTRIBUTED_RANK_BINDING: $TT_DISTRIBUTED_RANK_BINDING"
             echo ""
 
-            echo "Running test: llama 1x16"
-            python examples/pytorch/llama.py
+            echo "Running test: gptoss 120b dualt3k 1x16"
+            pytest -svv tests/benchmark/test_llms.py::test_gpt_oss_120b_tp
           '
 
           echo ""

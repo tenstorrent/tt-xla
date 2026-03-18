@@ -1165,7 +1165,8 @@ def test_gpt_oss_20b_tp_batch_size_1(
     )
 
 def _gpt_oss_120b_mesh_config_fn(model_loader, num_devices):
-    return (4, num_devices // 4), ("batch", "model")
+    print("[JAMES]Using 1x16 mesh for GPT-OSS 120B on dualt3k")
+    return (1, 16), ("batch", "model")
 
 
 def _gpt_oss_120b_shard_spec_fn(model_loader, model):
