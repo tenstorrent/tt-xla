@@ -10,5 +10,6 @@
 - [Code Generation](./getting_started_codegen.md)
     - [Tutorial: Generate Python Code from Your Model](./emitpy_tutorial.md)
     - [Troubleshooting](./troubleshooting_codegen.md)
+- [Building PyTorch XLA from Source](./torch_xla_build.md)
 - [Tools](./tools.md)
     - [Explorer](./tt_explorer.md)
