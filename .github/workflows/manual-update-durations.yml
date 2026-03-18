@@ -526,6 +526,29 @@ jobs:
           echo "Smoketest complete"
           echo ""
 
+      - name: Serialize system descriptor
+        run: |
+          echo "=== Serializing system descriptor ==="
+          echo ""
+
+          docker exec multihost-poc bash -c '
+            cd /workspace
+            source venv/activate
+            mkdir -p system_descriptor
+            python .github/scripts/save_system_descriptor.py system_descriptor/tt_system
+          '
+
+          echo ""
+          echo "System descriptor serialized"
+          echo ""
+
+      - name: Upload system descriptor artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: tt-system-descriptor
+          path: ${{ github.workspace }}/system_descriptor/
+          if-no-files-found: warn
+
       - name: Install build dependencies for tt-metal
         if: ${{ inputs.test_metal }}
         run: |
