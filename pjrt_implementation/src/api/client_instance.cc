@@ -285,10 +285,10 @@ PJRT_Error *ClientInstance::initialize() {
 
   if (distributed_runtime) {
     
-    if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
-    std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
-  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
-}
+//     if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
+//     std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+//   tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
+// }
     tt_pjrt_status launch_result = launchDistributedRuntime();
     if (!tt_pjrt_status_is_ok(launch_result)) {
       return *ErrorInstance::makeError(launch_result).release();
