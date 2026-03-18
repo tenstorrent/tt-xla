@@ -1,0 +1,64 @@
+2026-03-18 07:40:42.185 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0 -- /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.13', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.35', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'anyio': '4.12.1', 'split': '0.11.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, anyio-4.12.1, split-0.11.0, forked-1.6.0
+collecting ... collected 1 item
+
+tests/torch/models/pi_0/test_pi_0_paligemma_forward.py::test_pi0_paligemma_forward[lerobot_pi0_libero_base] WARNING:root:No accelerated backend detected. Using default cpu, this will be slow.
+WARNING:lerobot.configs.policies:Device 'cuda' is not available. Switching to 'cpu'.
+WARNING:root:No accelerated backend detected. Using default cpu, this will be slow.
+WARNING:lerobot.configs.policies:Device 'cuda' is not available. Switching to 'cpu'.
+WARNING:root:Vision embedding key might need handling: model.paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.bias
+WARNING:root:Vision embedding key might need handling: model.paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.weight
+2026-03-18 07:42:39.183906: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+The PI0 model is a direct port of the OpenPI implementation. 
+This implementation follows the original OpenPI structure for compatibility. 
+Original implementation: https://github.com/Physical-Intelligence/openpi
+Loading model from: lerobot/pi0_libero_base
+✓ Loaded state dict from model.safetensors
+Remapped 6 state dict keys
+Warning: Could not remap state dict keys: Error(s) in loading state_dict for PI0Policy:
+	Missing key(s) in state_dict: "model.paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight". 
+	Unexpected key(s) in state_dict: "model.normalize_inputs.buffer_observation_state.mean", "model.normalize_inputs.buffer_observation_state.std", "model.normalize_targets.buffer_action.mean", "model.normalize_targets.buffer_action.std", "model.unnormalize_outputs.buffer_action.mean", "model.unnormalize_outputs.buffer_action.std". 
+filtered_pccs are  [tensor(0.9816, dtype=torch.float64), tensor(0.9984, dtype=torch.float64), tensor(0.9962, dtype=torch.float64), tensor(0.9946, dtype=torch.float64), tensor(0.9943, dtype=torch.float64), tensor(0.9925, dtype=torch.float64), tensor(0.9923, dtype=torch.float64), tensor(0.9915, dtype=torch.float64), tensor(0.9904, dtype=torch.float64), tensor(0.9890, dtype=torch.float64), tensor(0.9879, dtype=torch.float64), tensor(0.9878, dtype=torch.float64), tensor(0.9859, dtype=torch.float64), tensor(0.9854, dtype=torch.float64), tensor(0.9839, dtype=torch.float64), tensor(0.9832, dtype=torch.float64), tensor(0.9825, dtype=torch.float64), tensor(0.9803, dtype=torch.float64), tensor(0.9787, dtype=torch.float64), tensor(1.0000, dtype=torch.float64), tensor(0.9980, dtype=torch.float64), tensor(0.9971, dtype=torch.float64), tensor(0.9959, dtype=torch.float64), tensor(0.9955, dtype=torch.float64), tensor(0.9938, dtype=torch.float64), tensor(0.9935, dtype=torch.float64), tensor(0.9923, dtype=torch.float64), tensor(0.9917, dtype=torch.float64), tensor(0.9900, dtype=torch.float64), tensor(0.9896, dtype=torch.float64), tensor(0.9884, dtype=torch.float64), tensor(0.9875, dtype=torch.float64), tensor(0.9867, dtype=torch.float64), tensor(0.9845, dtype=torch.float64), tensor(0.9843, dtype=torch.float64), tensor(0.9836, dtype=torch.float64), tensor(0.9828, dtype=torch.float64)]
+filtered_pccs length is  37
+FAILED
+
+=================================== FAILURES ===================================
+_____________ test_pi0_paligemma_forward[lerobot_pi0_libero_base] ______________
+tests/torch/models/pi_0/test_pi_0_paligemma_forward.py:70: in test_pi0_paligemma_forward
+    run_op_test(wrapper, inputs, framework=Framework.TORCH)
+tests/infra/testers/single_chip/op/op_tester.py:204: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:76: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:68: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.978668438276214. Required: pcc=0.99.
+------------------------------ Captured log call -------------------------------
+WARNING  root:utils.py:52 No accelerated backend detected. Using default cpu, this will be slow.
+WARNING  lerobot.configs.policies:policies.py:86 Device 'cuda' is not available. Switching to 'cpu'.
+WARNING  root:utils.py:52 No accelerated backend detected. Using default cpu, this will be slow.
+WARNING  lerobot.configs.policies:policies.py:86 Device 'cuda' is not available. Switching to 'cpu'.
+WARNING  root:modeling_pi0.py:1120 Vision embedding key might need handling: model.paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.bias
+WARNING  root:modeling_pi0.py:1120 Vision embedding key might need handling: model.paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.weight
+=============================== warnings summary ===============================
+tests/torch/models/pi_0/test_pi_0_paligemma_forward.py::test_pi0_paligemma_forward[lerobot_pi0_libero_base]
+  /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/tests/conftest.py:489: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/pi_0/test_pi_0_paligemma_forward.py::test_pi0_paligemma_forward[lerobot_pi0_libero_base]
+  /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/tests/conftest.py:493: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/pi_0/test_pi_0_paligemma_forward.py::test_pi0_paligemma_forward[lerobot_pi0_libero_base] - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.978668438276214. Required: pcc=0.99.
+================== 1 failed, 2 warnings in 133.26s (0:02:13) ===================

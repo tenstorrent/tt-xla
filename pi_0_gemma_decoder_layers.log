@@ -1,0 +1,40 @@
+2026-03-18 07:38:04.456 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0 -- /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.13', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.35', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'anyio': '4.12.1', 'split': '0.11.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, anyio-4.12.1, split-0.11.0, forked-1.6.0
+collecting ... collected 1 item
+
+tests/torch/models/pi_0/test_pi_0_gemma_decoder_layers.py::test_gemma_decoder_layers[pi0_base-18] WARNING:root:No accelerated backend detected. Using default cpu, this will be slow.
+WARNING:lerobot.configs.policies:Device 'cuda' is not available. Switching to 'cpu'.
+WARNING:root:No accelerated backend detected. Using default cpu, this will be slow.
+WARNING:lerobot.configs.policies:Device 'cuda' is not available. Switching to 'cpu'.
+WARNING:root:Vision embedding key might need handling: paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.bias
+WARNING:root:Vision embedding key might need handling: paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.weight
+2026-03-18 07:38:57.726587: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+The PI0 model is a direct port of the OpenPI implementation. 
+This implementation follows the original OpenPI structure for compatibility. 
+Original implementation: https://github.com/Physical-Intelligence/openpi
+Loading model from: lerobot/pi0_base
+✓ Loaded state dict from model.safetensors
+Remapped 777 state dict keys
+Warning: Could not remap state dict keys: Error(s) in loading state_dict for PI0Policy:
+	Missing key(s) in state_dict: "model.paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight". 
+filtered_pccs are  [tensor(0.9996, dtype=torch.float64), tensor(1.0000, dtype=torch.float64), tensor(0.9999, dtype=torch.float64), tensor(0.9998, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(1.0000, dtype=torch.float64), tensor(0.9998, dtype=torch.float64), tensor(0.9998, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9997, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9996, dtype=torch.float64), tensor(0.9994, dtype=torch.float64), tensor(0.9995, dtype=torch.float64), tensor(0.9994, dtype=torch.float64), tensor(0.9996, dtype=torch.float64)]
+filtered_pccs length is  37
+PASSED
+
+=============================== warnings summary ===============================
+tests/torch/models/pi_0/test_pi_0_gemma_decoder_layers.py::test_gemma_decoder_layers[pi0_base-18]
+  /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/tests/conftest.py:489: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/pi_0/test_pi_0_gemma_decoder_layers.py::test_gemma_decoder_layers[pi0_base-18]
+  /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/tests/conftest.py:493: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================== 1 passed, 2 warnings in 64.48s (0:01:04) ===================

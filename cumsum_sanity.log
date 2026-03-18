@@ -1,0 +1,41 @@
+2026-03-18 06:22:38.441 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0 -- /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.13', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.35', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'anyio': '4.12.1', 'split': '0.11.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, anyio-4.12.1, split-0.11.0, forked-1.6.0
+collecting ... collected 4 items
+
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_prefix_att_masks 2026-03-18 06:24:01.239309: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+filtered_pccs are  [1.0]
+filtered_pccs length is  1
+PASSED
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_prefix_pad_masks filtered_pccs are  [1.0]
+filtered_pccs length is  1
+PASSED
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_float_suffix_att_masks filtered_pccs are  [1.0]
+filtered_pccs length is  1
+PASSED
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_suffix_pad_masks filtered_pccs are  [1.0]
+filtered_pccs length is  1
+PASSED
+
+=============================== warnings summary ===============================
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_prefix_att_masks
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_prefix_pad_masks
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_float_suffix_att_masks
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_suffix_pad_masks
+  /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/tests/conftest.py:489: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_prefix_att_masks
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_prefix_pad_masks
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_float_suffix_att_masks
+tests/torch/ops/test_cumsum_sanity.py::test_cumsum_bool_suffix_pad_masks
+  /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/tests/conftest.py:493: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 4 passed, 8 warnings in 58.91s ========================

@@ -1,0 +1,42 @@
+2026-03-18 08:15:05.466 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0 -- /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.13', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.35', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'anyio': '4.12.1', 'split': '0.11.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, anyio-4.12.1, split-0.11.0, forked-1.6.0
+collecting ... collected 1 item
+
+tests/torch/models/pi_0/test_gemma_norm.py::test_gemma_norm[lerobot_pi0_libero_base] WARNING:root:No accelerated backend detected. Using default cpu, this will be slow.
+WARNING:lerobot.configs.policies:Device 'cuda' is not available. Switching to 'cpu'.
+WARNING:root:No accelerated backend detected. Using default cpu, this will be slow.
+WARNING:lerobot.configs.policies:Device 'cuda' is not available. Switching to 'cpu'.
+WARNING:root:Vision embedding key might need handling: model.paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.bias
+WARNING:root:Vision embedding key might need handling: model.paligemma_with_expert.paligemma.model.vision_tower.vision_model.embeddings.patch_embedding.weight
+2026-03-18 08:15:49.565908: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-03-18 08:15:49.839577: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+The PI0 model is a direct port of the OpenPI implementation. 
+This implementation follows the original OpenPI structure for compatibility. 
+Original implementation: https://github.com/Physical-Intelligence/openpi
+Loading model from: lerobot/pi0_libero_base
+✓ Loaded state dict from model.safetensors
+Remapped 6 state dict keys
+Warning: Could not remap state dict keys: Error(s) in loading state_dict for PI0Policy:
+	Missing key(s) in state_dict: "model.paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight". 
+	Unexpected key(s) in state_dict: "model.normalize_inputs.buffer_observation_state.mean", "model.normalize_inputs.buffer_observation_state.std", "model.normalize_targets.buffer_action.mean", "model.normalize_targets.buffer_action.std", "model.unnormalize_outputs.buffer_action.mean", "model.unnormalize_outputs.buffer_action.std". 
+filtered_pccs are  [1.0]
+filtered_pccs length is  1
+PASSED
+
+=============================== warnings summary ===============================
+tests/torch/models/pi_0/test_gemma_norm.py::test_gemma_norm[lerobot_pi0_libero_base]
+  /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/tests/conftest.py:489: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/pi_0/test_gemma_norm.py::test_gemma_norm[lerobot_pi0_libero_base]
+  /proj_sw/user_dev/akannan_new/17_mr_bgd/tt-xla/tests/conftest.py:493: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 1 passed, 2 warnings in 39.26s ========================
