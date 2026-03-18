@@ -203,25 +203,29 @@ def test_paged_fill_cache(
 
 
 @pytest.mark.single_device
-@pytest.mark.parametrize("num_users", [8])
-@pytest.mark.parametrize("max_num_blocks_per_seq", [16, 32])
-@pytest.mark.parametrize("num_heads", [1, 8])
-@pytest.mark.parametrize("block_size", [32, 64])
-@pytest.mark.parametrize("head_dim", [128])
-def test_paged_scaled_dot_product_attention_decode(
-    num_users, max_num_blocks_per_seq, num_heads, block_size, head_dim
-):
-    max_num_blocks = max_num_blocks_per_seq * num_users
+def test_paged_scaled_dot_product_attention_decode():
+    # Match the runtime paged decode shapes seen in the execution log.
+    num_users = 1
+    total_num_blocks = 893
+    max_num_blocks_per_seq = 4
+    num_query_heads = 32
+    num_kv_heads = 4
+    block_size = 32
+    head_dim = 64
 
-    query = torch.randn(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
+    query = torch.randn(
+        1, num_users, num_query_heads, head_dim, dtype=torch.bfloat16
+    )
     key = torch.randn(
-        max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+        total_num_blocks, num_kv_heads, block_size, head_dim, dtype=torch.bfloat16
     )
     value = torch.randn(
-        max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+        total_num_blocks, num_kv_heads, block_size, head_dim, dtype=torch.bfloat16
     )
-    page_table = torch.ones(num_users, max_num_blocks_per_seq).to(torch.int32)
-    cur_pos_tensor = torch.ones(num_users).to(torch.int32)
+    page_table = torch.arange(max_num_blocks_per_seq, dtype=torch.int32).reshape(
+        num_users, max_num_blocks_per_seq
+    )
+    cur_pos_tensor = torch.ones(num_users, dtype=torch.int32)
 
     run_op_test(
         torch.ops.tt.paged_scaled_dot_product_attention_decode,

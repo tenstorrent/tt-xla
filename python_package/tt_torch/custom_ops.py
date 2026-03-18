@@ -139,7 +139,7 @@ def scaled_dot_product_attention(
     value: torch.Tensor,
     attn_mask: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
 
     assert (
@@ -227,7 +227,7 @@ def scaled_dot_product_attention(
     value: torch.Tensor,
     attn_mask: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -245,7 +245,7 @@ def scaled_dot_product_attention_decode(
     attn_mask: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
 
     assert (
@@ -342,7 +342,7 @@ def scaled_dot_product_attention_decode_fake(
     attn_mask: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -699,7 +699,7 @@ def paged_scaled_dot_product_attention_decode(
     attn_mask: torch.Tensor = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
     device = query.device
 
@@ -741,10 +741,11 @@ def paged_scaled_dot_product_attention_decode(
             frontend_attributes=attrs,
         )
     elif device.type == "cpu":
-        # Select the proper key and value blocks based on the page table
+        # Select the proper key and value blocks based on the page table.
         block_size = key.shape[-2]
-        num_heads = key.shape[-3]
+        num_kv_heads = key.shape[-3]
         num_users = cur_pos_tensor.shape[0]
+        num_query_heads = query.shape[-2]
         head_size = key.shape[-1]
 
         num_blocks_per_user = page_table.shape[1]
@@ -752,10 +753,10 @@ def paged_scaled_dot_product_attention_decode(
         causal_mask = torch.zeros(num_users, max_seq_len, dtype=query.dtype)
 
         new_key = torch.zeros(
-            num_users, num_heads, max_seq_len, head_size, dtype=query.dtype
+            num_users, num_kv_heads, max_seq_len, head_size, dtype=query.dtype
         )
         new_value = torch.zeros(
-            num_users, num_heads, max_seq_len, head_size, dtype=query.dtype
+            num_users, num_kv_heads, max_seq_len, head_size, dtype=query.dtype
         )
 
         for i in range(num_users):
@@ -770,10 +771,10 @@ def paged_scaled_dot_product_attention_decode(
 
             # Select the proper key and value blocks based on the current position
             user_key = user_key.reshape(
-                num_heads, block_size * num_blocks_per_user, head_size
+                num_kv_heads, block_size * num_blocks_per_user, head_size
             )
             user_value = user_value.reshape(
-                num_heads, block_size * num_blocks_per_user, head_size
+                num_kv_heads, block_size * num_blocks_per_user, head_size
             )
 
             new_key[i] = user_key
@@ -781,7 +782,7 @@ def paged_scaled_dot_product_attention_decode(
 
             causal_mask[i, cur_pos_tensor[i] + 1 :] = float("-inf")
 
-        query = query.reshape(num_users, num_heads, 1, head_size)
+        query = query.reshape(num_users, num_query_heads, 1, head_size)
 
         attn_mask = (
             causal_mask.reshape(num_users, 1, 1, max_seq_len)
@@ -789,14 +790,19 @@ def paged_scaled_dot_product_attention_decode(
             else attn_mask
         )
 
-        key = key.repeat_interleave(query.size(-3) // key.size(-3), -3)
-        value = value.repeat_interleave(query.size(-3) // value.size(-3), -3)
+        assert (
+            num_query_heads % num_kv_heads == 0
+        ), "query heads must be divisible by kv heads."
+        if num_query_heads != num_kv_heads:
+            repeat_factor = num_query_heads // num_kv_heads
+            new_key = new_key.repeat_interleave(repeat_factor, 1)
+            new_value = new_value.repeat_interleave(repeat_factor, 1)
         scale = 1 / head_size**0.5 if scale is None else scale
         attn_weight = query @ new_key.transpose(-2, -1) * scale
         attn_weight += attn_mask
         attn_weight = torch.softmax(attn_weight, dim=-1)
         out = attn_weight @ new_value
-        return out.reshape(1, num_users, num_heads, head_size)
+        return out.reshape(1, num_users, num_query_heads, head_size)
 
     else:
         raise ValueError(f"Unsupported device type: {device.type}")
@@ -812,7 +818,7 @@ def paged_scaled_dot_product_attention_decode_fake(
     attention_mask: torch.Tensor = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
