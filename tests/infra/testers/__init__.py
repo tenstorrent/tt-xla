@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .base_tester import BaseTester
 from .multichip import (
     run_jax_multichip_graph_test_with_random_inputs,
     run_jax_multichip_op_test_with_random_inputs,
@@ -18,3 +17,4 @@ from .single_chip import (
     run_op_test,
     run_op_test_with_random_inputs,
 )
+from .tester import Tester

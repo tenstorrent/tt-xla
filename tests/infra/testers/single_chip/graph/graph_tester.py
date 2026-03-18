@@ -14,30 +14,7 @@ from infra.workloads.workload import Workload
 from jax._src.typing import DTypeLike
 
 from tests.infra.testers.compiler_config import CompilerConfig
-
-from ..op.op_tester import OpTester
-
-
-class GraphTester(OpTester):
-    """
-    Specific single chip tester for graphs.
-
-    Currently same as OpTester.
-    """
-
-    def __init__(
-        self,
-        comparison_config: ComparisonConfig = ComparisonConfig(),
-        framework: Framework = Framework.JAX,
-        compiler_config: CompilerConfig = None,
-        torch_options: dict = None,
-    ) -> None:
-        super().__init__(
-            comparison_config=comparison_config,
-            framework=framework,
-            compiler_config=compiler_config,
-            torch_options=torch_options,
-        )
+from tests.infra.testers.tester import Tester
 
 
 def run_graph_test(
@@ -54,7 +31,7 @@ def run_graph_test(
     Tests `graph` with `inputs` by running it on TT device and CPU and comparing the
     results based on `comparison_config`.
     """
-    tester = GraphTester(comparison_config, framework, torch_options=torch_options)
+    tester = Tester(framework, comparison_config, torch_options=torch_options)
     if framework == Framework.TORCH:
         workload = TorchWorkload(
             model=graph, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn
@@ -77,5 +54,5 @@ def run_graph_test_with_random_inputs(
     Tests `graph` with random inputs by running it on TT device and CPU and comparing
     the results based on `comparison_config`.
     """
-    tester = GraphTester(comparison_config, framework, torch_options=torch_options)
+    tester = Tester(framework, comparison_config, torch_options=torch_options)
     tester.test_with_random_inputs(graph, input_shapes, dtype=dtype, request=request)

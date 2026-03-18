@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
-import os
 from contextlib import contextmanager
 from typing import Any, Dict, Mapping, Sequence, Set, Tuple
 
@@ -29,18 +28,12 @@ from .model_tester import ModelTester, RunMode
 
 @contextmanager
 def _mask_jax_accelerator():
-    """Temporarily hide jax accelerator to avoid inductor issues with no-tensor-input graphs.
-
-    When torchax is imported (via torch_xla's mark_sharding), it registers 'jax' as a PyTorch
-    accelerator. This causes inductor to fail when compiling graphs with no tensor inputs,
-    as it tries to call torch.accelerator.current_device_index() which isn't supported for jax.
-    """
+    """Temporarily hide jax accelerator to avoid inductor issues with no-tensor-input graphs."""
     original_fn = torch.accelerator.is_available
 
     def masked_is_available():
         try:
             acc = torch.accelerator.current_accelerator()
-            # current_accelerator() returns device(type='jax'), need to check .type
             if acc and acc.type == "jax":
                 return False
         except RuntimeError:
@@ -91,7 +84,6 @@ class TorchModelTester(ModelTester):
             dtype_override,
         )
         # Set custom compile options if provided.
-        # Use explicit API for passing compiler options.
         if compiler_config is not None:
             torch_xla.set_custom_compile_options(
                 compiler_config.to_torch_compile_options()
@@ -114,7 +106,6 @@ class TorchModelTester(ModelTester):
         self._model.train()
 
     def _calculate_model_size(self) -> None:
-        """Calculate and store the total number of parameters in the model."""
         if isinstance(self._model, torch.nn.Module):
             self._model_size = sum(p.numel() for p in self._model.parameters())
             logger.debug(f"Model size: {self._model_size / 1e9}B")
@@ -124,19 +115,16 @@ class TorchModelTester(ModelTester):
 
     # @override
     def _cache_model_inputs(self) -> None:
-        """Caches model inputs."""
         self._input_activations = self._get_input_activations()
 
     # @override
     def _initialize_workload(self) -> None:
-        """Initializes `self._workload`."""
-        # Prepack model's forward pass and its arguments into a `Workload.`
         args = self._get_forward_method_args()
         kwargs = self._get_forward_method_kwargs()
 
         assert (
             len(args) > 0 or len(kwargs) > 0
-        ), f"Forward method args or kwargs or both must be provided"
+        ), "Forward method args or kwargs or both must be provided"
 
         self._workload = TorchWorkload(
             model=self._model,
@@ -169,38 +157,21 @@ class TorchModelTester(ModelTester):
         return {}
 
     def _compile_for_cpu(self, workload: Workload) -> None:
-        """Compile Torch workload for CPU."""
         compile_torch_workload_for_cpu(workload)
 
     def _run_on_cpu(self, compiled_workload: Workload) -> torch.Tensor:
-        """Runs workload on CPU with jax accelerator masked.
-
-        Uses _mask_jax_accelerator because torch.compile with inductor is lazy -
-        actual compilation happens during execution, not during torch.compile() call.
-        """
         with _mask_jax_accelerator():
             return super()._run_on_cpu(compiled_workload)
 
     def _compile_for_tt_device(self, workload: Workload, options=None) -> None:
-        """Compile Torch workload for TT device."""
         compile_torch_workload_for_tt_device(workload=workload, torch_options=options)
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
-        """
-        Unwraps model output to a single tensor.
-        In base case, we assume the output is a single tensor.
-        """
         return output
 
     def _extract_grads(
         self, model: torch.nn.Module
     ) -> Tuple[Dict[str, torch.Tensor], Set[str]]:
-        """
-        Extracts gradients from a model and returns a dictionary of gradients and a dictionary of None gradients.
-        """
-        # TODO: Right now, we only extract gradients for parameters that have a gradient.
-        # In the future, we should extract gradients for all parameters that require grad is True.
-        #
         existing_grads = {
             name: p.grad.clone()
             for name, p in model.named_parameters()
@@ -214,12 +185,6 @@ class TorchModelTester(ModelTester):
         return existing_grads, none_grads
 
     def mark_gradient_sharding(self, model: torch.nn.Module):
-        """Apply sharding to gradients based on parameter shard specs.
-
-        For tensor parallel training, gradients must be sharded identically to parameters.
-        This method marks gradient tensors with the same shard specs as their parameters.
-        """
-
         assert (
             self._workload.shard_spec_fn is not None
         ), "Shard spec function must be provided for tensor parallel training"
@@ -227,7 +192,6 @@ class TorchModelTester(ModelTester):
             self._workload.mesh is not None
         ), "Mesh must be provided for tensor parallel training"
 
-        # Get shard specs from the model
         shard_specs = self._workload.shard_spec_fn(self._model)
         assert (
             shard_specs is not None
@@ -245,8 +209,6 @@ class TorchModelTester(ModelTester):
             )
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
-        # Initialize XLA computation client to properly set up autograd engine device queues
-        # before any backward passes. See: https://github.com/pytorch/xla/issues/4174
         torch_xla._XLAC._init_computation_client()
 
         # Run forward on CPU
@@ -254,10 +216,8 @@ class TorchModelTester(ModelTester):
         cpu_res = self._run_on_cpu(self._workload)
         cpu_res = self._unpack_forward_output(cpu_res)
 
-        # Generate random gradient
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)
 
-        # Create and run backward on CPU
         cpu_backward_workload = Workload(
             framework=self._framework,
             executable=cpu_res.backward,
@@ -272,7 +232,6 @@ class TorchModelTester(ModelTester):
         # Run forward on TT
         compile_options = {"tt_experimental_compile": False}
 
-        # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
         if self._parallelism == Parallelism.TENSOR_PARALLEL:
             compile_options["tt_enable_torch_fx_fusion_pass"] = False
 
@@ -280,10 +239,8 @@ class TorchModelTester(ModelTester):
         tt_res = self._run_on_tt_device(self._workload)
         tt_res = self._unpack_forward_output(tt_res)
 
-        # Force graph break so we can differentiate between forward and backward
         torch_xla.sync(wait=True)
 
-        # Run backward on TT
         tt_backward_workload = Workload(
             framework=self._framework,
             executable=tt_res.backward,
@@ -295,8 +252,6 @@ class TorchModelTester(ModelTester):
         if self._parallelism == Parallelism.TENSOR_PARALLEL:
             self.mark_gradient_sharding(self._model)
 
-        # TODO: Adding explicit sync to ensure view of gradients are not computed without reason
-        # https://github.com/tenstorrent/tt-xla/issues/1466
         wanted_grads = [p.grad for p in self._model.parameters() if p.grad is not None]
         torch_xla._XLAC._xla_sync_multi(
             wanted_grads,
@@ -313,13 +268,10 @@ class TorchModelTester(ModelTester):
         forward_result = self._compare(tt_res, cpu_res)
         backward_result = self._compare(tt_grads, cpu_grads)
 
-        # Only the first result is recorded in the report properties,
-        # and only want to report on the backward result
         return backward_result, forward_result
 
     # @override
     def _apply_model_dtype(self) -> None:
-        """Applies dtype_override to the model."""
         if hasattr(self._model, "to"):
             self._model = self._model.to(self._dtype_override)
         else:
@@ -327,15 +279,12 @@ class TorchModelTester(ModelTester):
 
     # @override
     def _apply_inputs_dtype(self) -> None:
-        """Applies dtype_override to inputs, only casting float tensors."""
         self._input_activations = self._cast_tensors_to_dtype(
             self._input_activations, self._dtype_override
         )
 
     def _cast_tensors_to_dtype(self, obj, dtype):
-        """Recursively cast float tensors in a nested structure to the given dtype."""
         if isinstance(obj, torch.Tensor):
-            # Only cast floating point tensors, leave integer tensors unchanged
             if obj.dtype.is_floating_point:
                 return obj.to(dtype)
             return obj

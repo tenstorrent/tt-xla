@@ -4,178 +4,21 @@
 
 from __future__ import annotations
 
-import os
-import re
-import time
 from typing import Callable, Optional, Sequence
 
 import torch
-import torch_xla
 from infra.evaluators import ComparisonConfig
-from infra.utilities import (
-    Framework,
-    Mesh,
-    Tensor,
-    compile_jax_workload_for_cpu,
-    compile_jax_workload_for_tt_device,
-    compile_torch_workload_for_cpu,
-    compile_torch_workload_for_tt_device,
-    random_tensor,
-    sanitize_test_name,
-)
+from infra.utilities import Framework, Mesh, Tensor
 from infra.workloads import Workload
 from infra.workloads.torch_workload import TorchWorkload
 from jax._src.typing import DTypeLike
 
 from tests.infra.testers.compiler_config import CompilerConfig
+from tests.infra.testers.tester import Tester
 
-from ...base_tester import BaseTester
-
-
-class OpTester(BaseTester):
-    """Specific single chip tester for ops."""
-
-    def __init__(
-        self,
-        comparison_config: ComparisonConfig = ComparisonConfig(),
-        framework: Framework = Framework.JAX,
-        compiler_config: CompilerConfig = None,
-        torch_options: dict = None,
-    ) -> None:
-        """Protected constructor for subclasses to use."""
-        if compiler_config is None:
-            compiler_config = CompilerConfig()
-        self._compiler_config = compiler_config
-        self._torch_options = torch_options if torch_options is not None else {}
-        self._enable_perf_measurement = (
-            os.environ.get("ENABLE_OP_TEST_PERF_MEASUREMENT", "0") == "1"
-        )
-        self._perf_measurements: list[dict[str, float]] = []
-        self._workload: Optional[Workload] = None
-        super().__init__(
-            evaluator_type="comparison",
-            comparison_config=comparison_config,
-            framework=framework,
-        )
-
-    def test(self, workload: Workload, request=None) -> None:
-        """
-        Runs test by running `workload` on TT device and CPU and comparing the results.
-        """
-        cpu_workload = workload
-        if self._framework == Framework.JAX:
-            compile_jax_workload_for_cpu(cpu_workload)
-        else:
-            compile_torch_workload_for_cpu(cpu_workload)
-        cpu_res = self._device_runner.run_on_cpu(cpu_workload)
-
-        tt_workload = workload
-        self._compile_for_tt_device(tt_workload)
-        tt_res = self._device_runner.run_on_tt_device(tt_workload)
-
-        self._evaluator.evaluate(tt_res, cpu_res)
-
-        if self._enable_perf_measurement:
-            self._test_e2e_perf(tt_workload)
-
-        if request:
-            self.handle_filecheck_and_serialization(request, tt_workload)
-
-    def _test_e2e_perf(self, workload: Workload) -> None:
-        warmup_iters_count = 3
-        perf_iters_count = 2
-
-        # warmup runs
-        for _ in range(warmup_iters_count):
-            _ = self._device_runner.run_on_tt_device(workload)
-
-        # e2e perf
-        perf_times = []
-        for _ in range(perf_iters_count):
-            iter_start = time.perf_counter_ns()
-            tt_res = self._device_runner.run_on_tt_device(workload)
-            iter_end = time.perf_counter_ns()
-            perf_times.append(iter_end - iter_start)
-
-        tt_total_time = sum(perf_times)
-        avg_time = tt_total_time / perf_iters_count
-        self.print_e2e_perf_stats(perf_times, avg_time, tt_total_time)
-
-    @staticmethod
-    def print_e2e_perf_stats(
-        perf_times: list[float], avg_time: float, total_time: float
-    ) -> None:
-        print("====================================================================")
-        print(f"| BENCHMARK:  ")
-        print("--------------------------------------------------------------------")
-        total_iter = len(perf_times)
-        for i, perf_time in enumerate(perf_times, 1):
-            print(f"| Iteration {i}/{total_iter}: {perf_time / 1e6:.04} ms")
-        print(f"| e2e_perf-avg_time: {avg_time / 1e6:.04} ms")
-        print(f"| e2e_perf-total_time: {total_time / 1e6:.04} ms")
-        print("====================================================================")
-
-    def _compile_for_tt_device(self, workload: Workload) -> None:
-        """
-        Compiles executable carried in `workload` based on framework.
-        """
-        if self._framework == Framework.JAX:
-            compile_jax_workload_for_tt_device(
-                workload, self._compiler_config.to_jax_compiler_options()
-            )
-        else:
-            # Must set torch compiler options before compiling for TT device
-            if self._compiler_config is not None:
-                torch_xla.set_custom_compile_options(
-                    self._compiler_config.to_torch_compile_options()
-                )
-            compile_torch_workload_for_tt_device(workload, self._torch_options)
-
-    def test_with_random_inputs(
-        self,
-        f: Callable,
-        input_shapes: Sequence[tuple],
-        minval: float = 0.0,
-        maxval: float = 1.0,
-        dtype: str | DTypeLike | torch.dtype = "float32",
-        request=None,
-    ) -> None:
-        """
-        Tests `f` by running it with random inputs in range [`minval`, `maxval`) on
-        TT device and CPU and comparing the results.
-        """
-        inputs = [
-            random_tensor(
-                shape,
-                minval=minval,
-                maxval=maxval,
-                dtype=dtype,
-                framework=self._framework,
-            )
-            for shape in input_shapes
-        ]
-        workload = Workload(framework=self._framework, executable=f, args=inputs)
-        self.test(workload, request=request)
-
-    def serialize_on_device(self, workload: Workload, output_prefix: str) -> None:
-        """
-        Serializes a workload on TT device with proper compiler configuration.
-
-        Args:
-            workload: The workload to serialize
-            output_prefix: Base path and filename prefix for output files
-        """
-        if self._framework == Framework.JAX:
-            compiler_options = self._compiler_config.to_jax_compiler_options()
-        elif self._framework == Framework.TORCH:
-            compiler_options = self._compiler_config.to_torch_compile_options()
-            self._compile_for_tt_device(workload)
-        else:
-            compiler_options = None
-
-        self._device_runner.serialize_on_device(
-            workload, output_prefix, compiler_options=compiler_options
-        )
+# Keep OpTester as an alias for backward compatibility during migration.
+# It is functionally identical to Tester.
+OpTester = Tester
 
 
 def run_op_test(
@@ -194,7 +37,7 @@ def run_op_test(
     """
     if compiler_config is None:
         compiler_config = CompilerConfig()
-    tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
+    tester = Tester(framework, comparison_config, compiler_config=compiler_config)
     if framework == Framework.TORCH:
         workload = TorchWorkload(
             model=op, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn
@@ -222,9 +65,9 @@ def run_op_test_with_random_inputs(
     """
     if compiler_config is None:
         compiler_config = CompilerConfig()
-    tester = OpTester(
-        comparison_config,
+    tester = Tester(
         framework,
+        comparison_config,
         compiler_config=compiler_config,
         torch_options=torch_options,
     )

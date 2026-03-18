@@ -13,16 +13,6 @@ from infra.utilities import ShardingMode, enable_shardy
 from ..op.jax_multichip_op_tester import JaxMultichipOpTester
 
 
-class JaxMultichipGraphTester(JaxMultichipOpTester):
-    """
-    Specific multichip tester for graphs.
-
-    Currently same as JaxMultichipOpTester.
-    """
-
-    pass
-
-
 def run_jax_multichip_graph_test_with_random_inputs(
     executable: Callable,
     input_shapes: Sequence[tuple],
@@ -44,7 +34,7 @@ def run_jax_multichip_graph_test_with_random_inputs(
     True, otherwise it uses GSPMD.
     """
     with enable_shardy(use_shardy):
-        tester = JaxMultichipGraphTester(
+        tester = JaxMultichipOpTester(
             in_specs, out_specs, mesh_shape, axis_names, comparison_config
         )
         tester.test_with_random_inputs(
