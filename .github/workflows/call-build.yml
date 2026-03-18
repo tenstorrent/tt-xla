@@ -271,21 +271,26 @@ jobs:
               > "${DIST_INFO_DIR}/WHEEL"
             touch "${DIST_INFO_DIR}/RECORD"
 
+            # tt-metal/ is required by pjrt_plugin_tt.setup_tt_metal_home() at import
+            # time; the wheel may not contain it when built with TTMLIR_ENABLE_BINDINGS_PYTHON=ON.
+            # Pre-copy with cp -rL so that all symlinks are dereferenced into real files
+            # before tar runs.  Using -h (--dereference) in tar instead would cause a race:
+            # tar lists the directory then reads each file, and cmake-generated files like
+            # compile_commands.json can be atomically replaced between those two steps.
+            TTMLIR_INSTALL=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install
+            cp -rL "${TTMLIR_INSTALL}/tt-metal" "${TTMLIR_BUILD}/tt-metal"
+
             # Archive bin/ttrt wrapper, python_packages/, runtime/python/, dist-info/,
-            # and tt-metal/ from the tt-mlir install tree.
+            # and the tt-metal snapshot — all from TTMLIR_BUILD so a single -C suffices.
             # --dereference (-h): follow symlinks and store actual file content.
             # python_packages/ is full of symlinks into the tt-mlir source tree;
             # without this flag the symlinks land dangling in the test job.
-            # tt-metal/ is required by pjrt_plugin_tt.setup_tt_metal_home() at import
-            # time; the wheel may not contain it when built with TTMLIR_ENABLE_BINDINGS_PYTHON=ON.
-            TTMLIR_INSTALL=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install
             tar -czhf builder-bindings.tar.gz \
               -C "${TTMLIR_BUILD}" \
               bin/ttrt \
               python_packages \
               runtime/python \
               dist-info \
-              -C "${TTMLIR_INSTALL}" \
               tt-metal
 
       - name: Upload bindings artifact
