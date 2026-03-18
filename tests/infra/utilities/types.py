@@ -13,7 +13,18 @@ from flax import linen, nnx
 from jaxtyping import PyTree as jax_pytree
 from torch.utils._pytree import PyTree as torch_pytree
 from torch_xla.distributed.spmd import Mesh
-from transformers import FlaxPreTrainedModel
+try:
+    from transformers import FlaxPreTrainedModel
+except ImportError:
+    # FlaxPreTrainedModel was removed in transformers 5.x. Define a stub
+    # that inherits from linen.Module so isinstance checks still work for
+    # any custom Flax models that previously subclassed it.
+    from flax import linen as _linen
+
+    class FlaxPreTrainedModel(_linen.Module):
+        """Compatibility stub replacing transformers.FlaxPreTrainedModel."""
+
+        pass
 
 # Convenience alias. Used to jointly represent tensors from different frameworks.
 Tensor = Union[jax.Array, torch.Tensor]

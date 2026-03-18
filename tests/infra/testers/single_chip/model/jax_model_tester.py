@@ -21,7 +21,7 @@ from infra.utilities import (
     random_tensor,
 )
 from infra.workloads import Workload
-from transformers.modeling_flax_utils import FlaxPreTrainedModel
+from infra.utilities.types import FlaxPreTrainedModel
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
