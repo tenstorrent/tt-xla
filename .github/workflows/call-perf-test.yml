@@ -88,13 +88,14 @@ jobs:
 
     - uses: actions/checkout@v6
       with:
+        sparse-checkout-cone-mode: false
         sparse-checkout: |
-          .github
-          tests/benchmark
-          third_party
+          .github/*
+          tests/benchmark/*
+          third_party/*
           pytest.ini
           python_package/requirements.txt
-          venv
+          venv/*
           third_party/CMakeLists.txt
 
     - name: Initialize submodules
