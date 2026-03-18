@@ -287,10 +287,10 @@ PJRT_Error *ClientInstance::initialize() {
   LOG_F(INFO, "[JAMES] distributed_runtime: %d, using_dualt3k: %d", distributed_runtime, using_dualt3k);
 
   if (distributed_runtime) {
-    if (using_dualt3k) {
-      LOG_F(INFO, "[JAMES] Using dualt3k, setting fabric config to FABRIC_1D");
-      tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
-    }
+    // if (using_dualt3k) {
+    //   LOG_F(INFO, "[JAMES] Using dualt3k, setting fabric config to FABRIC_2D");
+    //   tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
+    // }
     tt_pjrt_status launch_result = launchDistributedRuntime();
     if (!tt_pjrt_status_is_ok(launch_result)) {
       return *ErrorInstance::makeError(launch_result).release();
