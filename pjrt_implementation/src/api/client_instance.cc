@@ -108,6 +108,8 @@ static tt_pjrt_status launchDistributedRuntime() {
   // Network interface name for MPI (eg. cnx1, enp10s0f1np1)
   const char *tt_distributed_tcp_iface =
       std::getenv("TT_DISTRIBUTED_TCP_IFACE");
+  // Path to an MPI rankfile
+  const char *rank_file_path = std::getenv("TT_DISTRIBUTED_RANK_FILE_PATH");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -169,6 +171,10 @@ static tt_pjrt_status launchDistributedRuntime() {
   if (tt_distributed_tcp_iface) {
     distributed_options.multiProcessArgs->withTcpInterface(
         tt_distributed_tcp_iface);
+  }
+
+  if (rank_file_path) {
+    distributed_options.multiProcessArgs->withRankFilePath(rank_file_path);
   }
 
   if (controller_host_name) {
