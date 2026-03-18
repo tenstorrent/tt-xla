@@ -1,0 +1,4 @@
+[
+    { "runs-on": "n150",               "name": "run_vllm_n150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "nightly and single_device" },
+    { "runs-on": "p150",               "name": "run_vllm_p150_tests",   "dir": "./tests/integrations/vllm_plugin",        "test-mark": "nightly and single_device" }
+]
