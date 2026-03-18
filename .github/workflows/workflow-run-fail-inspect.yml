@@ -336,13 +336,13 @@ jobs:
           git config --global --add safe.directory /__w/tt-xla/tt-xla
           git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Download test to run
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: ${{ matrix.build.runs-on }}-test-to-run
 
@@ -527,7 +527,7 @@ jobs:
           fi
 
       - name: Upload bisect result
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: ${{ steps.bisect.outputs.found == 'true' }}
         with:
           name: bisect-result-${{ matrix.build.run_no }}-${{ matrix.build.runs-on }}

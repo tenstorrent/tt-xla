@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 90
     runs-on: tt-ubuntu-2204-large-stable
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.xla_sha_override }}
 
@@ -88,7 +88,7 @@ jobs:
           config-file: "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml"
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: xla-whl-manylinux${{ inputs.artifact_suffix }}
           path: ${{ steps.strings.outputs.wheel-output-dir }}/*.whl

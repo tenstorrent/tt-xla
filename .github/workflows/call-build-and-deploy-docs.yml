@@ -32,7 +32,7 @@ jobs:
       MDBOOK_VERSION: 0.4.36
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
         fetch-depth: 0
@@ -62,7 +62,7 @@ jobs:
 
     - name: Setup Pages
       id: pages
-      uses: actions/configure-pages@v5
+      uses: actions/configure-pages@v6
 
     - name: Build Docs
       shell: bash
@@ -73,7 +73,7 @@ jobs:
         cmake --build build -- docs
 
     - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@v4
       with:
         path: ./build/docs/book
 
