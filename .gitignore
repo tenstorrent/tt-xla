@@ -34,6 +34,7 @@ bindist/
 
 # temporary files
 ._bringup_stage.txt
+temp/
 
 # Bisect artifacts
 .bisect-run/
