@@ -169,6 +169,7 @@ def setup_model_and_tokenizer(
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
+    model.config.num_hidden_layers = 2
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
