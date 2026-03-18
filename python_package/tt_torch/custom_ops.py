@@ -983,6 +983,97 @@ def sparse_matmul_fake(
     )
 
 
+@sparse_matmul.register_setup_context
+def sparse_matmul_setup_context(ctx, inputs, output):
+    (
+        input_tensor_a,
+        input_tensor_b,
+        sparsity,
+        nnz,
+        is_input_a_sparse,
+        is_input_b_sparse,
+    ) = inputs
+    ctx.save_for_backward(input_tensor_a, input_tensor_b, sparsity)
+    ctx.nnz = nnz
+    ctx.is_input_a_sparse = is_input_a_sparse
+    ctx.is_input_b_sparse = is_input_b_sparse
+
+
+@sparse_matmul.register_autograd
+def sparse_matmul_autograd(ctx, grad_output):
+    """
+    Backward for sparse_matmul.
+
+    For C = A @ B (per-expert, gated by sparsity mask):
+      dA = dC @ B^T  (with same sparsity)
+      dB = A^T @ dC  (with same sparsity)
+      d(sparsity) = None (non-differentiable mask)
+
+    Returns gradients for: (input_tensor_a, input_tensor_b, sparsity, nnz,
+                            is_input_a_sparse, is_input_b_sparse)
+    """
+    input_a, input_b, sparsity = ctx.saved_tensors
+    is_input_a_sparse = ctx.is_input_a_sparse
+    is_input_b_sparse = ctx.is_input_b_sparse
+
+    grad_a = torch.zeros_like(input_a)
+    grad_b = torch.zeros_like(input_b)
+
+    if is_input_a_sparse and is_input_b_sparse:
+        # Mode 1: [1, E, M, K] @ [1, E, K, N] -> [1, E, M, N]
+        E = input_b.shape[1]
+        for e in range(E):
+            if sparsity[0, 0, 0, e] > 0:
+                # dA[0,e] = dC[0,e] @ B[0,e]^T: [M,N] @ [N,K] -> [M,K]
+                grad_a[0, e] = torch.matmul(
+                    grad_output[0, e], input_b[0, e].transpose(-2, -1)
+                )
+                # dB[0,e] = A[0,e]^T @ dC[0,e]: [K,M] @ [M,N] -> [K,N]
+                grad_b[0, e] = torch.matmul(
+                    input_a[0, e].transpose(-2, -1), grad_output[0, e]
+                )
+
+    elif not is_input_a_sparse and is_input_b_sparse:
+        # Mode 2: [A, B, M, K] @ [1, E, K, N] -> [A, B, 1, E, M, N]
+        E = input_b.shape[1]
+        for e in range(E):
+            mask_e = sparsity[:, :, 0, e]  # [A, B]
+            if mask_e.any():
+                mask_expanded = mask_e.unsqueeze(-1).unsqueeze(-1)
+                # dA += dC[:,:,0,e] @ B[0,e]^T * mask: [A,B,M,N]@[N,K] -> [A,B,M,K]
+                grad_a += (
+                    torch.matmul(
+                        grad_output[:, :, 0, e], input_b[0, e].transpose(-2, -1)
+                    )
+                    * mask_expanded
+                )
+                # dB[0,e] = sum_{a,b} (A * mask)^T @ dC: [K,M]@[M,N] -> [K,N]
+                masked_a = input_a * mask_expanded  # [A, B, M, K]
+                grad_b[0, e] = torch.matmul(
+                    masked_a.transpose(-2, -1), grad_output[:, :, 0, e]
+                ).sum(dim=(0, 1))
+
+    elif is_input_a_sparse and not is_input_b_sparse:
+        # Mode 3: [A, E, M, K] @ [1, E, K, N] -> [A, E, M, N]
+        E = input_b.shape[1]
+        for e in range(E):
+            mask_e = sparsity[0, 0, :, e]  # [A]
+            if mask_e.any():
+                mask_expanded = mask_e.unsqueeze(-1).unsqueeze(-1)
+                # dA[:,e] = dC[:,e] @ B[0,e]^T * mask: [A,M,N]@[N,K] -> [A,M,K]
+                grad_a[:, e] = (
+                    torch.matmul(grad_output[:, e], input_b[0, e].transpose(-2, -1))
+                    * mask_expanded
+                )
+                # dB[0,e] = sum_a (A * mask)^T @ dC: [K,M]@[M,N] -> [K,N]
+                masked_a = input_a[:, e] * mask_expanded  # [A, M, K]
+                grad_b[0, e] = torch.matmul(
+                    masked_a.transpose(-2, -1), grad_output[:, e]
+                ).sum(dim=0)
+
+    return grad_a, grad_b, None, None, None, None
+
+
 @torch.library.custom_op(
     "tt::all_to_all_dispatch", mutates_args=[], device_types=["xla", "cpu"]
 )
@@ -1197,6 +1288,307 @@ def all_to_all_combine_fake(
         )
 
 
+### All-to-all backward ops ################################################
+
+
+@torch.library.custom_op(
+    "tt::all_to_all_combine_backward",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def all_to_all_combine_backward(
+    grad_output: torch.Tensor,
+    expert_metadata: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+    num_experts_per_tok: int = 2,
+    output_shard_dim: int = 1,
+) -> torch.Tensor:
+    """
+    Backward pass for all_to_all_combine: reconstruct expert-side gradients.
+
+    Args:
+        grad_output: Gradient of combine output. Shape depends on output_shard_dim:
+            - output_shard_dim=1: [K, B, S, H]
+            - output_shard_dim=2: [K, S, B, H]
+        expert_metadata: Routing metadata from dispatch [1, B*D, S, K], int64
+        expert_mapping: One-hot expert-to-device mapping [1, 1, E, D], int64
+        num_devices: Number of devices along dispatch axis (D)
+        cluster_axis: Mesh axis (0=rows, 1=cols)
+        num_experts_per_tok: Number of selected experts per token (K)
+        output_shard_dim: Dimension index for the BD shard dimension (1 or 2)
+
+    Returns:
+        grad_input: Gradient for combine's input tensor [E_local, BD, S, H]
+                    or [E_local, S, BD, H] depending on output_shard_dim.
+    """
+    device = grad_output.device
+    K = num_experts_per_tok
+
+    if device.type == "xla":
+        if output_shard_dim == 1:
+            _, BD, S, H = (
+                expert_metadata.shape[0],
+                expert_metadata.shape[1],
+                expert_metadata.shape[2],
+                grad_output.shape[-1],
+            )
+            B = BD // num_devices
+        else:
+            B = grad_output.shape[2]
+            S = grad_output.shape[1]
+            H = grad_output.shape[-1]
+            BD = B * num_devices
+
+        E = expert_mapping.shape[2]
+        E_local = E // expert_mapping.shape[3]
+
+        if output_shard_dim == 1:
+            output_shape = [E_local, BD, S, H]
+        else:
+            output_shape = [E_local, S, BD, H]
+
+        frontend_attributes = {
+            "cluster_axis": str(cluster_axis),
+        }
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [grad_output, expert_metadata, expert_mapping],
+            "tt.all_to_all_combine_backward",
+            [output_shape],
+            [grad_output.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif device.type == "cpu":
+        E = expert_mapping.shape[2]
+        if output_shard_dim == 1:
+            B = grad_output.shape[1]
+            S = grad_output.shape[2]
+            H = grad_output.shape[3]
+            BD = B * num_devices
+            grad_input = torch.zeros(
+                E, BD, S, H, dtype=grad_output.dtype, device=device
+            )
+            for b in range(B):
+                for s in range(S):
+                    for k in range(K):
+                        expert_id = expert_metadata[0, b, s, k].item()
+                        if 0 <= expert_id < E:
+                            grad_input[expert_id, b, s] = grad_output[k, b, s]
+        else:
+            S = grad_output.shape[1]
+            B = grad_output.shape[2]
+            H = grad_output.shape[3]
+            BD = B * num_devices
+            grad_input = torch.zeros(
+                E, S, BD, H, dtype=grad_output.dtype, device=device
+            )
+            for b in range(B):
+                for s in range(S):
+                    for k in range(K):
+                        expert_id = expert_metadata[0, b, s, k].item()
+                        if 0 <= expert_id < E:
+                            grad_input[expert_id, s, b] = grad_output[k, s, b]
+
+        return grad_input
+
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@all_to_all_combine_backward.register_fake
+def all_to_all_combine_backward_fake(
+    grad_output: torch.Tensor,
+    expert_metadata: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+    num_experts_per_tok: int = 2,
+    output_shard_dim: int = 1,
+) -> torch.Tensor:
+    E = expert_mapping.shape[2]
+    E_local = E // expert_mapping.shape[3]
+
+    if output_shard_dim == 1:
+        BD = expert_metadata.shape[1]
+        S = expert_metadata.shape[2]
+        H = grad_output.shape[-1]
+        return torch.zeros(
+            [E_local, BD, S, H],
+            dtype=grad_output.dtype,
+            device=grad_output.device,
+        )
+    else:
+        S = grad_output.shape[1]
+        B = grad_output.shape[2]
+        BD = B * num_devices
+        H = grad_output.shape[-1]
+        return torch.zeros(
+            [E_local, S, BD, H],
+            dtype=grad_output.dtype,
+            device=grad_output.device,
+        )
+
+
+@torch.library.custom_op(
+    "tt::all_to_all_dispatch_backward",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def all_to_all_dispatch_backward(
+    grad_output: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+) -> torch.Tensor:
+    """
+    Backward pass for all_to_all_dispatch: route gradients back to token positions.
+
+    Args:
+        grad_output: Gradient of dispatch output [1, B*D, S, H], bfloat16
+        expert_indices: Selected expert IDs per token [B, 1, S, K], int64
+        expert_mapping: One-hot expert-to-device mapping [1, 1, E, D], int64
+        num_devices: Number of devices along dispatch axis (D)
+        cluster_axis: Mesh axis (0=rows, 1=cols)
+
+    Returns:
+        grad_input: Gradient for dispatch's input tensor [B, 1, S, H]
+    """
+    device = grad_output.device
+    _, BD, S, H = grad_output.shape
+    B = expert_indices.shape[0]
+
+    if device.type == "xla":
+        output_shape = [B, 1, S, H]
+        frontend_attributes = {
+            "cluster_axis": str(cluster_axis),
+        }
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [grad_output, expert_indices, expert_mapping],
+            "tt.all_to_all_dispatch_backward",
+            [output_shape],
+            [grad_output.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif device.type == "cpu":
+        # CPU fallback: dispatch replicated tokens D times, so backward
+        # averages or sums the gradient contributions from each row.
+        num_rows = BD // B
+        expected = torch.zeros(1, B, S, H, dtype=grad_output.dtype, device=device)
+        grad_by_row = grad_output.view(1, num_rows, B, S, H)
+
+        # Build routing mask
+        rows = (
+            expert_mapping.shape[2] // (expert_mapping.shape[3] // num_devices)
+            if num_devices > 1
+            else 1
+        )
+        for row in range(num_rows):
+            expected += grad_by_row[:, row]
+
+        return expected.permute(1, 0, 2, 3).contiguous()
+
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@all_to_all_dispatch_backward.register_fake
+def all_to_all_dispatch_backward_fake(
+    grad_output: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+) -> torch.Tensor:
+    B = expert_indices.shape[0]
+    S = grad_output.shape[2]
+    H = grad_output.shape[3]
+    return torch.zeros([B, 1, S, H], dtype=grad_output.dtype, device=grad_output.device)
+
+
+### Autograd for forward all-to-all ops ####################################
+
+
+@all_to_all_combine.register_autograd
+def all_to_all_combine_autograd(ctx, grad_output):
+    """
+    Backward for all_to_all_combine: dispatches to all_to_all_combine_backward.
+    Returns gradients for: (input_tensor, expert_metadata, expert_mapping,
+                            num_devices, cluster_axis, num_experts_per_tok,
+                            output_shard_dim)
+    """
+    expert_metadata, expert_mapping = ctx.saved_tensors
+    num_devices = ctx.num_devices
+    cluster_axis = ctx.cluster_axis
+    num_experts_per_tok = ctx.num_experts_per_tok
+    output_shard_dim = ctx.output_shard_dim
+
+    grad_input = torch.ops.tt.all_to_all_combine_backward(
+        grad_output,
+        expert_metadata,
+        expert_mapping,
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+        num_experts_per_tok=num_experts_per_tok,
+        output_shard_dim=output_shard_dim,
+    )
+
+    return grad_input, None, None, None, None, None, None
+
+
+@all_to_all_combine.register_setup_context
+def all_to_all_combine_setup_context(ctx, inputs, output):
+    (
+        input_tensor,
+        expert_metadata,
+        expert_mapping,
+        num_devices,
+        cluster_axis,
+        num_experts_per_tok,
+        output_shard_dim,
+    ) = inputs
+    ctx.save_for_backward(expert_metadata, expert_mapping)
+    ctx.num_devices = num_devices
+    ctx.cluster_axis = cluster_axis
+    ctx.num_experts_per_tok = num_experts_per_tok
+    ctx.output_shard_dim = output_shard_dim
+
+
+@all_to_all_dispatch.register_autograd
+def all_to_all_dispatch_autograd(ctx, dispatched_grad, metadata_grad):
+    """
+    Backward for all_to_all_dispatch: dispatches to all_to_all_dispatch_backward.
+    Returns gradients for: (input_tensor, expert_indices, expert_mapping,
+                            num_devices, cluster_axis)
+    """
+    expert_indices, expert_mapping = ctx.saved_tensors
+    num_devices = ctx.num_devices
+    cluster_axis = ctx.cluster_axis
+
+    grad_input = torch.ops.tt.all_to_all_dispatch_backward(
+        dispatched_grad,
+        expert_indices,
+        expert_mapping,
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+    )
+
+    return grad_input, None, None, None, None
+
+
+@all_to_all_dispatch.register_setup_context
+def all_to_all_dispatch_setup_context(ctx, inputs, output):
+    input_tensor, expert_indices, expert_mapping, num_devices, cluster_axis = inputs
+    ctx.save_for_backward(expert_indices, expert_mapping)
+    ctx.num_devices = num_devices
+    ctx.cluster_axis = cluster_axis
+
+
 @torch.library.custom_op(
     "tt::moe_expert_token_remap", mutates_args=[], device_types=["xla", "cpu"]
 )
@@ -1298,6 +1690,52 @@ def moe_expert_token_remap_fake(
         device=topk_tensor.device,
     )
     return mapping, reduced
+
+
+@moe_expert_token_remap.register_setup_context
+def moe_expert_token_remap_setup_context(ctx, inputs, output):
+    topk_tensor, expert_mapping, expert_metadata, reduction_size = inputs
+    ctx.save_for_backward(expert_mapping, expert_metadata)
+    ctx.topk_shape = topk_tensor.shape
+    ctx.reduction_size = reduction_size
+
+
+@moe_expert_token_remap.register_autograd
+def moe_expert_token_remap_autograd(ctx, grad_mapping, grad_reduced):
+    """
+    Backward for moe_expert_token_remap.
+
+    Forward: topk_tensor[D, B, S, E] -> mapping[1, B, S, E], reduced[1, 1, R, E]
+
+    The mapping output copies routing scores from topk_tensor at positions
+    selected by expert_metadata. The backward reverses this: for each
+    (d, b, s, k) that was routed to expert e, propagate grad_mapping[0, b, s, e]
+    back to grad_topk[d, b, s, e].
+
+    The reduced output is a binary indicator (non-differentiable).
+
+    Returns gradients for: (topk_tensor, expert_mapping, expert_metadata,
+                            reduction_size)
+    """
+    expert_mapping, expert_metadata = ctx.saved_tensors
+    D, B, S, E = ctx.topk_shape
+
+    grad_topk = torch.zeros(
+        D, B, S, E, dtype=grad_mapping.dtype, device=grad_mapping.device
+    )
+
+    K = expert_metadata.shape[-1]
+    for d in range(D):
+        for b in range(B):
+            for s in range(S):
+                for k in range(K):
+                    global_expert = expert_metadata[d, b, s, k].item()
+                    if 0 <= global_expert < E:
+                        grad_topk[d, b, s, global_expert] = grad_mapping[
+                            0, b, s, global_expert
+                        ]
+
+    return grad_topk, None, None, None
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow
