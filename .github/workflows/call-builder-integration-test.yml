@@ -205,6 +205,18 @@ jobs:
               print(f"Restored {os.path.basename(di)} → {site_packages}")
           EOF
 
+          # pjrt_plugin_tt/__init__.py calls setup_tt_metal_home() which looks for
+          # tt-metal in the installed wheel (pjrt_plugin_tt/tt-metal) or the source
+          # tree.  Neither is reliable in the split build/test workflow, so we
+          # explicitly point it at the tt-metal we extracted from the bindings archive.
+          TT_METAL_DIR="$(pwd)/third_party/tt-mlir/src/tt-mlir/build/tt-metal"
+          if [ -d "${TT_METAL_DIR}" ]; then
+            echo "TT_METAL_RUNTIME_ROOT=${TT_METAL_DIR}" >> "$GITHUB_ENV"
+            echo "Set TT_METAL_RUNTIME_ROOT=${TT_METAL_DIR}"
+          else
+            echo "WARNING: tt-metal not found at ${TT_METAL_DIR} – setup_tt_metal_home() will attempt fallbacks"
+          fi
+
       - name: Query TT hardware and save device artifacts
         shell: bash
         run: |

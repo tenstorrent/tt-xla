@@ -271,16 +271,22 @@ jobs:
               > "${DIST_INFO_DIR}/WHEEL"
             touch "${DIST_INFO_DIR}/RECORD"
 
-            # Archive bin/ttrt wrapper, python_packages/, runtime/python/, and dist-info/.
+            # Archive bin/ttrt wrapper, python_packages/, runtime/python/, dist-info/,
+            # and tt-metal/ from the tt-mlir install tree.
             # --dereference (-h): follow symlinks and store actual file content.
             # python_packages/ is full of symlinks into the tt-mlir source tree;
             # without this flag the symlinks land dangling in the test job.
+            # tt-metal/ is required by pjrt_plugin_tt.setup_tt_metal_home() at import
+            # time; the wheel may not contain it when built with TTMLIR_ENABLE_BINDINGS_PYTHON=ON.
+            TTMLIR_INSTALL=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install
             tar -czhf builder-bindings.tar.gz \
               -C "${TTMLIR_BUILD}" \
               bin/ttrt \
               python_packages \
               runtime/python \
-              dist-info
+              dist-info \
+              -C "${TTMLIR_INSTALL}" \
+              tt-metal
 
       - name: Upload bindings artifact
         if: inputs.enable_python_bindings == true
