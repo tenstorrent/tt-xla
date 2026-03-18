@@ -305,9 +305,15 @@ ModuleBuilder::buildModule(
 
   std::vector<int64_t> result_presharded = collectResultPresharded(mlir_module);
 
-  status = runCompilerStableHLOPipeline(mlir_module, result_presharded,
-                                        compile_options.export_path,
-                                        compile_options.export_model_name);
+  const std::optional<tt::runtime::Device> &parent_mesh =
+      client_instance->parentMesh();
+  std::optional<std::vector<uint32_t>> current_mesh_shape =
+      parent_mesh ? std::make_optional(tt::runtime::getMeshShape(*parent_mesh))
+                  : std::nullopt;
+
+  status = runCompilerStableHLOPipeline(
+      mlir_module, result_presharded, compile_options.export_path,
+      compile_options.export_model_name, current_mesh_shape);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -372,6 +378,14 @@ ModuleBuilder::buildModule(
                                  ttnn_mlir);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
+  }
+
+  // tt-xla creates 1D mesh by default, so if compiler determines a different
+  // mesh shape, we need to update the mesh in the client instance to match the
+  // compiler determined mesh shape.
+  if (current_mesh_shape.has_value() &&
+      current_mesh_shape.value() != mesh_shape) {
+    client_instance->getOrCreateMeshDevice(mesh_shape);
   }
 
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
@@ -807,7 +821,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<int64_t> &result_presharded,
     const std::optional<std::string> &export_path,
-    const std::string &model_name) {
+    const std::string &model_name,
+    const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
@@ -825,10 +840,13 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   printModule(mlir_module, export_path, "shlo_compiler", model_name);
 
   if (!tt_pjrt_status_is_ok(
-          frontend_passes::setProperSdyMeshAttributeInSpmdMode(mlir_module))) {
+          frontend_passes::setProperSdyMeshAttributeInSpmdMode(
+              mlir_module, current_mesh_shape))) {
     LOG_F(ERROR, "Failed to set proper sdy.mesh attribute in SPMD mode");
     return tt_pjrt_status::kInternal;
   }
+
+  printModule(mlir_module, export_path, "shlo_set_mesh_attr", model_name);
 
   return tt_pjrt_status::kSuccess;
 }
