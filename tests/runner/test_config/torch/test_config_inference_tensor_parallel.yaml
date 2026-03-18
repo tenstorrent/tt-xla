@@ -220,3 +220,8 @@ test_config:
   solar-10_7B/causal_lm/pytorch-10_7B_Instruct_v1.0-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+
+  qwen_3_5/pytorch-Qwen/Qwen3.5-27B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    markers: [testing]
