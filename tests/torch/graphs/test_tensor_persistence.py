@@ -763,7 +763,8 @@ def test_output_sharding_simple_propagation():
     assert input_e_shard_spec == output_e_shard_spec
     assert input_f_shard_spec == output_f_shard_spec
     assert input_g_shard_spec == output_g_shard_spec
-    
+
+
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.llmbox
@@ -773,10 +774,11 @@ def test_uneven_sharding_simple_add():
     Test that sharding a tensor whose dim is not divisible by the number of
     devices causes a failure during execution of a simple add operation.
     """
+
     class SimpleAdd(torch.nn.Module):
         def forward(self, x):
             return x + 1
-    
+
     xr.set_device_type("TT")
     setup_spmd()
     device = torch_xla.device()
@@ -788,6 +790,6 @@ def test_uneven_sharding_simple_add():
     # 17 is not divisible by 8 (or any typical device count > 1)
     tensor = torch.randn(17, 32, dtype=torch.float32).to(device)
     xs.mark_sharding(tensor, mesh, ("model", None))
-    
+
     result = run_model_on_device(SimpleAdd(), [tensor])
     print(f"result: {result}")
