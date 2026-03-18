@@ -46,7 +46,7 @@ jobs:
       docker-image-manylinux: ${{ steps.check.outputs.docker-image-manylinux }}
       tt-mlir-sha: ${{ steps.check.outputs.tt-mlir-sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.xla_sha_override }}
       - name: Check if Docker image already exists
@@ -87,7 +87,7 @@ jobs:
       - name: Fix workspace permissions issue
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.xla_sha_override }}
       - name: Verify third_party directory
