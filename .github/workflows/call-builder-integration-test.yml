@@ -228,16 +228,16 @@ jobs:
             mapfile -t _cmd < <(echo "$cfg" | jq -r '.tests[]')
 
             local src; src=$(echo "$cfg" | jq -r '.source // empty')
-            [[ -n "$src" ]] && _cmd+=(--source "$src")
+            if [[ -n "$src" ]]; then _cmd+=(--source "$src"); fi
 
             mapfile -t _targets < <(echo "$cfg" | jq -r '.target[]? // empty')
             for t in "${_targets[@]}"; do _cmd+=(--target "$t"); done
 
             local adir; adir=$(echo "$cfg" | jq -r '."artifacts-dir" // empty')
-            [[ -n "$adir" ]] && _cmd+=(--artifacts-dir "$adir")
+            if [[ -n "$adir" ]]; then _cmd+=(--artifacts-dir "$adir"); fi
 
             local norun; norun=$(echo "$cfg" | jq -r '."no-run" // false')
-            [[ "$norun" == "true" ]] && _cmd+=(--no-run)
+            if [[ "$norun" == "true" ]]; then _cmd+=(--no-run); fi
           }
 
           FAILED=()
