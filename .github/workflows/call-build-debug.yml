@@ -28,7 +28,7 @@ jobs:
             git config --global --add safe.directory /__w/tt-xla/tt-xla
             git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'
@@ -80,14 +80,14 @@ jobs:
 
       - name: Upload test log
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-log-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
           path: ${{ steps.strings.outputs.build-output-dir }}/ctest.log
 
       - name: Upload test report
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
             name: test-reports-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
             path: ${{ steps.strings.outputs.build-output-dir }}/${{ steps.strings.outputs.test-report-name }}

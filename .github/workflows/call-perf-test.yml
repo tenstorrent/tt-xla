@@ -86,7 +86,7 @@ jobs:
           echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
         fi
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         sparse-checkout: |
           .github
@@ -201,7 +201,7 @@ jobs:
 
     - name: Upload StableHLO MLIR
       id: upload-stablehlo-mlir
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: (success() || failure()) && !matrix.build.skip-stablehlo-dump
       with:
         name: ${{ steps.dump-stablehlo.outputs.artifact_name }}
@@ -233,7 +233,7 @@ jobs:
 
     - name: Upload TTIR MLIR
       id: upload-ttir-mlir
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: (success() || failure()) && !matrix.build.skip-ttir-dump
       with:
         name: ${{ steps.dump-ttir.outputs.artifact_name }}
@@ -265,7 +265,7 @@ jobs:
 
     - name: Upload TTNN MLIR
       id: upload-ttnn-mlir
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: (success() || failure()) && !matrix.build.skip-ttnn-dump
       with:
         name: ${{ steps.dump-ttnn.outputs.artifact_name }}
@@ -361,7 +361,7 @@ jobs:
 
     - name: Upload Device Perf
       id: upload-device-perf
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
       with:
         name: device-perf-${{ steps.strings.outputs.job_id }}
@@ -392,7 +392,7 @@ jobs:
         fi
 
     - name: Upload Perf Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
         name: perf-reports-${{ steps.strings.outputs.job_id }}

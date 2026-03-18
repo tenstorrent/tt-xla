@@ -33,12 +33,12 @@ class RequirementsManager:
     - Also looks for system-requirements.txt for system packages (e.g. ffmpeg)
     """
 
-    # JAX test infra imports flax/transformers at module level; purging them
-    # from sys.modules would break isinstance checks between old class objects
-    # held by module-level variables (e.g. nnx.Module) and freshly loaded ones.
+    # JAX test infra imports flax at module level; purging it from sys.modules
+    # would break isinstance checks between old class objects held by
+    # module-level variables (e.g. nnx.Module) and freshly loaded ones.
     # Entries must be import names (e.g. "PIL", not "Pillow"), since they are
     # compared against resolved import names in _purge_stale_modules.
-    _JAX_PURGE_SKIP = frozenset({"flax", "transformers"})
+    _JAX_PURGE_SKIP = frozenset({"flax"})
 
     # Top-level directory names in RECORD that are not importable packages.
     _RECORD_SKIP = frozenset({"__pycache__", "bin", "share"})
@@ -314,14 +314,11 @@ class RequirementsManager:
         point to the old version's code.  Purging forces Python to re-import
         from the updated on-disk packages the next time they are imported.
 
-        For JAX, ``flax`` and ``transformers`` are excluded from purging because
-        the JAX test infrastructure imports them at module level during test
-        collection.  Purging them would create a mismatch between the old class
-        objects held by module-level variables (e.g. ``nnx.Module``) and the
-        freshly loaded ones, breaking ``isinstance`` checks.  Keeping them in
-        ``sys.modules`` preserves the same behaviour as before sys-module
-        purging was introduced — the old versions remain in memory and are used
-        consistently by both the tester and the model.
+        For JAX, ``flax`` is excluded from purging because the JAX test
+        infrastructure imports it at module level during test collection.
+        Purging it would create a mismatch between the old class objects held
+        by module-level variables (e.g. ``nnx.Module``) and the freshly loaded
+        ones, breaking ``isinstance`` checks.
         """
         affected_normalized: Set[str] = set()
         for name in self._newly_installed | set(self._changed_versions.keys()):

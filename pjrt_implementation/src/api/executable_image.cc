@@ -300,8 +300,6 @@ std::string ExecutableImage::generateFingerprint() const {
   // 2. Add compile options
   data_to_hash << "optimization_level:" << m_compile_options.optimization_level
                << "\n";
-  data_to_hash << "enable_bfp8_conversion:"
-               << m_compile_options.enable_bfp8_conversion << "\n";
   data_to_hash << "enable_trace:" << m_compile_options.enable_trace << "\n";
 
   return data_to_hash.str();
