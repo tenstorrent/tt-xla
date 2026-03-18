@@ -1,7 +1,11 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """
 Minimal script to run model(**inputs) on TT device with 4x8 mesh using gpt_oss loader.
 Uses only third_party/tt_forge_models/gpt_oss/pytorch/loader.py and PyTorch/torch_xla.
 """
+
 import os
 
 import numpy as np
@@ -9,9 +13,9 @@ import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from torch_xla.distributed.spmd import Mesh
 
-from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from third_party.tt_forge_models.gpt_oss.pytorch.loader import ModelLoader, ModelVariant
 
 
@@ -47,7 +51,9 @@ def run_gpt_oss_120b_4x8():
     # 5. Move model and inputs to TT device
     device = torch_xla.device()
     model = model.to(device)
-    inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
+    inputs = {
+        k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()
+    }
 
     # 6. Apply shard specs from loader
     shard_specs = loader.load_shard_spec(model)
