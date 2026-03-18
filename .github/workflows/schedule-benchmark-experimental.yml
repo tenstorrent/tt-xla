@@ -51,9 +51,8 @@ jobs:
     with:
       adv_filter: '[ {"runs-on": "n150", "vllm": true} ]'
       docker_image: "ghcr.io/tenstorrent/tt-xla-slim:nightly-latest"
-      artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
-      vllm_tt_artifact_name: vllm-tt-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   fail-notify:
     needs:
