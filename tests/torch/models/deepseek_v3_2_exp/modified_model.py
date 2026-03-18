@@ -693,8 +693,10 @@ class Indexer(torch.nn.Module):
         if self.return_raw_scores:
             return index_score
 
-        topk_indices = index_score.topk(min(self.index_topk, end_pos), dim=-1)[1]
-
+        # topk_indices = index_score.topk(min(self.index_topk, end_pos), dim=-1)[1]
+        topk_indices = torch.topk(index_score, k=min(self.index_topk, end_pos), dim=-1)[1]
+        if self.testing_mode:
+            return (index_score, topk_indices)
         return topk_indices
 
 
@@ -783,7 +785,7 @@ class MLA(nn.Module):
             persistent=False,
         )
         # Preset topk indices tensor. Only used for testing.
-        self.register_buffer("prepopulated_topk_indices", None, persistent=False)
+        # self.register_buffer("prepopulated_topk_indices", None, persistent=False)
         self.dequant_wkv_b = None
 
     def forward(
@@ -793,6 +795,7 @@ class MLA(nn.Module):
         freqs_cis: torch.Tensor,
         mask: Optional[torch.Tensor],
         use_optimized_decode_flow: bool = True,
+        prepopulated_topk_indices: Optional[torch.Tensor] = None,
     ):
         """
         Forward pass for the Multi-Head Latent Attention (MLA) Layer.
@@ -843,8 +846,8 @@ class MLA(nn.Module):
 
             # indexer
             if self.indexer is not None:
-                if self.prepopulated_topk_indices is not None:
-                    topk_indices = self.prepopulated_topk_indices
+                if prepopulated_topk_indices is not None:
+                    topk_indices = prepopulated_topk_indices
                 else:
                     topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
                 index_mask = torch.full(
@@ -868,11 +871,11 @@ class MLA(nn.Module):
 
             if use_optimized_decode_flow:
                 x = self.modified_decode_flow(
-                    x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+                    x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, prepopulated_topk_indices
                 )
             else:
                 x = self.original_decode_flow(
-                    x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+                    x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, prepopulated_topk_indices
                 )
             # Expand from latent
             x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
@@ -880,7 +883,7 @@ class MLA(nn.Module):
         return x
 
     def original_decode_flow(
-        self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+        self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, prepopulated_topk_indices
     ):
         """
         Original decode flow of the MLA forward pass as presented in Deepseek's original
@@ -896,8 +899,8 @@ class MLA(nn.Module):
 
         # indexer
         if self.indexer is not None:
-            if self.prepopulated_topk_indices is not None:
-                topk_indices = self.prepopulated_topk_indices
+            if prepopulated_topk_indices is not None:
+                topk_indices = prepopulated_topk_indices
             else:
                 topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
             index_mask = torch.full(
@@ -910,7 +913,7 @@ class MLA(nn.Module):
         return x
 
     def modified_decode_flow(
-        self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
+        self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, prepopulated_topk_indices
     ):
         """
         More optimal decode flow for the MLA forward pass.
@@ -919,8 +922,8 @@ class MLA(nn.Module):
         indices of the cached kv and pe for the attention computation.
         """
         if self.indexer is not None:
-            if self.prepopulated_topk_indices is not None:
-                topk_indices = self.prepopulated_topk_indices
+            if prepopulated_topk_indices is not None:
+                topk_indices = prepopulated_topk_indices
             else:
                 topk_indices = self.indexer(
                     x, qr, start_pos, freqs_cis, mask

@@ -15,6 +15,7 @@ from torch import nn
 from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import failed_ttmlir_compilation
+from benchmark.utils import compute_pcc
 
 # This model is modified from the original deepseek_v3_2_exp model.py to:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
@@ -235,14 +236,17 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
     attention.pe_cache[:batch_size, :start_pos] = torch.randn(
         batch_size, start_pos, args.qk_rope_head_dim, dtype=torch.bfloat16
     )
-    attention.indexer.k_cache[:batch_size, :start_pos] = torch.randn(
-        batch_size, start_pos, args.index_head_dim, dtype=torch.bfloat16
-    )
+    attention.indexer = None
+    if attention.indexer is not None:
+        attention.indexer.k_cache[:batch_size, :start_pos] = torch.randn(
+            batch_size, start_pos, args.index_head_dim, dtype=torch.bfloat16
+        )
 
     # Prepopulating topk_indices instead of running the indexer, since we have no
     # guarantee that the topk indices returned by it will be the same across CPU and
     # TT devices. Also, the indexer is already separately tested.
-    attention.prepopulated_topk_indices = torch.stack(
+    # print("Index topk: ", args.index_topk)
+    prepopulated_topk_indices = torch.stack(
         [torch.randperm(prefill_seq_len)[: args.index_topk] for _ in range(batch_size)]
     ).unsqueeze(
         1
@@ -278,10 +282,11 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
         shard_specs[attention.pe_cache] = (batch_axis, None, None)
 
         # Indexer sharding (if present)
-        shard_specs[attention.indexer.wq_b.weight] = ("model", None)
-        shard_specs[attention.indexer.wk.weight] = (None, batch_axis)
-        shard_specs[attention.indexer.weights_proj.weight] = ("model", batch_axis)
-        shard_specs[attention.indexer.k_cache] = (batch_axis, None, None)
+        if attention.indexer is not None:
+            shard_specs[attention.indexer.wq_b.weight] = ("model", None)
+            shard_specs[attention.indexer.wk.weight] = (None, batch_axis)
+            shard_specs[attention.indexer.weights_proj.weight] = ("model", batch_axis)
+            shard_specs[attention.indexer.k_cache] = (batch_axis, None, None)
 
         return shard_specs
 
@@ -297,6 +302,7 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
             freqs_cis,
             None,  # attention_mask - triggers decode path
             True,  # use_optimized_decode_flow
+            prepopulated_topk_indices,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -305,14 +311,34 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
     )
 
 
+
+def indexer_indices_comparator(device_output, cpu_output, args, kwargs):
+    index_score_device, topk_indices_device = device_output
+    index_score_cpu, topk_indices_cpu = cpu_output
+
+    index_score_device = index_score_device.cpu()
+    topk_indices_device = topk_indices_device.cpu()
+
+    index_score_pcc = compute_pcc(index_score_device, index_score_cpu)
+
+    assert index_score_pcc > 0.99, f"Index score PCC too low: {index_score_pcc}"
+
+    device_gathered = torch.gather(index_score_device, -1, topk_indices_device)
+    cpu_gathered = torch.gather(index_score_cpu, -1, topk_indices_cpu)
+
+    gathered_pcc = compute_pcc(device_gathered, cpu_gathered)
+    assert gathered_pcc > 0.99, f"Gathered PCC too low: {gathered_pcc}"
+
+
 @pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 @pytest.mark.parametrize("seq_len", [32, 128, 512])
-def test_deepseek_indexer(batch_size, seq_len):
+@pytest.mark.parametrize("test_scores_only", [False])
+def test_deepseek_indexer(batch_size, seq_len, test_scores_only):
     xr.set_device_type("TT")
 
     args = ModelArgs(
-        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
+        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2, index_topk=seq_len // 2,
     )
 
     model = ModifiedTransformer(args)
@@ -320,7 +346,8 @@ def test_deepseek_indexer(batch_size, seq_len):
     indexer = model.layers[0].attn.indexer
 
     # Enable raw score return for testing (returns index_score instead of topk_indices)
-    indexer.return_raw_scores = True
+    indexer.return_raw_scores = test_scores_only
+    indexer.testing_mode = True
 
     # Create inputs
     hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
@@ -373,6 +400,8 @@ def test_deepseek_indexer(batch_size, seq_len):
         pcc=PccConfig(enabled=True, required_pcc=0.99),
     )
 
+    comparator = indexer_indices_comparator if not test_scores_only else None
+
     run_graph_test(
         indexer,
         [
@@ -386,6 +415,7 @@ def test_deepseek_indexer(batch_size, seq_len):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
+        custom_comparator=comparator,
     )
 
 
