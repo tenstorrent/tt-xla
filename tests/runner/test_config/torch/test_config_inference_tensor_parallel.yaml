@@ -139,11 +139,8 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-Math_7B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    # bringup_status: INCORRECT_RESULT
-    # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
-
+    status: EXPECTED_PASSING
+    assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3782
   # Models that need work....
 
   llama/causal_lm/pytorch-3.1_405B-tensor_parallel-inference:
@@ -185,9 +182,8 @@ test_config:
 
   qwen_2/causal_lm/pytorch-Qwq_32B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on n300-llmbox"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3781
 
   qwen_2_5/causal_lm/pytorch-72B_Instruct-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
