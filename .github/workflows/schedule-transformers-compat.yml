@@ -293,10 +293,7 @@ jobs:
         5. After making fixes, you MUST re-run the FULL test command above (not just --collect-only).
            Run the exact test command provided and wait for it to complete.
            If it still fails, analyze the new error and iterate until the tests pass.
-        6. Do NOT consider your task complete until you have run the full test suite and either:
-           - All tests pass, or
-           - All remaining failures are not related to API changes from the latest transformers version, or
-           - You've run the full test suite ten times and tests still fail.
+        6. Finish your task after you re-run the full test suite.
 
         ## Rules
         - Do NOT modify files under third_party/ (these are external submodules), EXCEPT for third_party/tt_forge_models.
