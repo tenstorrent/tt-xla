@@ -141,6 +141,14 @@ jobs:
           --dir wheels \
           --name xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}
 
+        if [[ "${{ matrix.build.vllm }}" == "true" ]]; then
+          echo "=== Downloading vllm-tt wheel ==="
+          gh run download ${{ inputs.artifact_release_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name vllm-tt-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}
+        fi
+
         echo "=== Installing wheel ==="
         source venv/activate
         pip install wheels/*.whl
