@@ -162,16 +162,22 @@ test_config:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3591
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on galaxy"
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n300-llmbox:
+        status: EXPECTED_PASSING
+        enable_weight_bfp8_conversion: true
+        assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3591
+      galaxy-wh-6u:
+        status: EXPECTED_PASSING
+        required_pcc: 0.98
 
   llama/causal_lm/pytorch-3.3_70B_Instruct-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on galaxy"
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3591
+      galaxy-wh-6u:
+        status: EXPECTED_PASSING
 
   phi4/causal_lm/pytorch-Phi_4-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
