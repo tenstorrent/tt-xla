@@ -4,6 +4,7 @@
 
 import argparse
 import os
+import time
 from typing import Any, List, Optional
 
 import numpy as np
@@ -25,7 +26,6 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils.quantization_config import Mxfp4Config
-
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 DEFAULT_PROMPTS = [
@@ -33,7 +33,6 @@ DEFAULT_PROMPTS = [
     "Explain quantum mechanics.",
     "Explain quantum mechanics.",
     "Explain quantum mechanics.",
-
     "Explain quantum mechanics.",
     "Explain quantum mechanics.",
     "Explain quantum mechanics.",
@@ -399,15 +398,11 @@ def mark_sharding_on_inputs_and_model(
             xs.mark_sharding(
                 layer.mlp.experts.gate_up_proj, mesh, ("model", "batch", None)
             )
-            xs.mark_sharding(
-                layer.mlp.experts.gate_up_proj_bias, mesh, ("model", None)
-            )
+            xs.mark_sharding(layer.mlp.experts.gate_up_proj_bias, mesh, ("model", None))
             xs.mark_sharding(
                 layer.mlp.experts.down_proj, mesh, ("model", None, "batch")
             )
-            xs.mark_sharding(
-                layer.mlp.experts.down_proj_bias, mesh, ("model", "batch")
-            )
+            xs.mark_sharding(layer.mlp.experts.down_proj_bias, mesh, ("model", "batch"))
 
         xs.mark_sharding(layer.input_layernorm.weight, mesh, ("batch",))
         xs.mark_sharding(layer.post_attention_layernorm.weight, mesh, ("batch",))
@@ -439,6 +434,10 @@ def run_generate(
     num_users = input_args["input_ids"].shape[0]
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
 
+    compile_time_prefill = 0.0
+    compile_time_decode = 0.0
+    decode_times: List[float] = []
+
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             if step == 0:
@@ -450,9 +449,23 @@ def run_generate(
                     print("-" * 80)
                     print("GENERATED:", end="", flush=True)
 
+            step_start = time.perf_counter()
+
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
+
+            step_elapsed = time.perf_counter() - step_start
+
+            if step == 0:
+                compile_time_prefill = step_elapsed
+                print(f"Prefill (incl. compile): {compile_time_prefill:.2f}s")
+            elif step == 1:
+                compile_time_decode = step_elapsed
+                print(f"First decode (incl. compile): {compile_time_decode:.2f}s")
+            else:
+                decode_times.append(step_elapsed)
+
             next_token_id = output_logits[:, -1].argmax(dim=-1)
             output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
             for i, output_tokens_list in enumerate(output_tokens):
@@ -472,7 +485,18 @@ def run_generate(
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
+    # Print performance summary
     print()
+    print("=" * 50)
+    print("PERFORMANCE SUMMARY")
+    print(f"  Prefill (incl. compile):      {compile_time_prefill:.2f}s")
+    print(f"  First decode (incl. compile): {compile_time_decode:.2f}s")
+    if decode_times:
+        avg_decode = sum(decode_times) / len(decode_times)
+        print(f"  Steady-state decode steps:    {len(decode_times)}")
+        print(f"  Avg decode latency:           {avg_decode * 1000:.1f}ms")
+        print(f"  Decode throughput:            {num_users / avg_decode:.1f} tokens/s")
+    print("=" * 50)
     if not is_interactive:
         for i in range(num_users):
             print(f"=" * 80)
