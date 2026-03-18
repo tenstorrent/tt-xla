@@ -298,9 +298,10 @@ def mark_sharding_on_inputs_and_model(
         mesh: Device mesh for SPMD operations
     """
 
-    for layer in input_args["past_key_values"].layers:
-        xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-        xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+    # don't shard layers in 1x16 mode!
+    # for layer in input_args["past_key_values"].layers:
+        # xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+        # xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
     # Shard model internals
     for layer in model.model.layers:

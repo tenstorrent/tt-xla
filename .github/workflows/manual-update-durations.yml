@@ -908,6 +908,9 @@ jobs:
             echo "running simple sharded addition test"
             pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
 
+            echo "Running llama test"
+            python examples/pytorch/llama.py
+
             echo "Running test: gptoss 120b dualt3k 1x16"
             pytest -svv tests/benchmark/test_llms.py::test_gpt_oss_120b_tp
           '

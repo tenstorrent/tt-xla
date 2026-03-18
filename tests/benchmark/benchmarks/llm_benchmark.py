@@ -210,6 +210,7 @@ def benchmark_llm_torch_xla(
     accuracy_testing: bool = False,
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
+    max_output_tokens: int = None,
     inject_custom_moe: bool = False,
 ):
     """

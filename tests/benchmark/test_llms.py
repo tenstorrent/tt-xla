@@ -147,6 +147,7 @@ def test_llm(
         model_name_for_accuracy=model_name_for_accuracy,
         hf_model_name_for_accuracy=hf_model_name,
         inject_custom_moe=inject_custom_moe,
+        max_output_tokens=None
     )
 
     if output_file:
