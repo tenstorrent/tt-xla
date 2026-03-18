@@ -15,7 +15,7 @@ on:
         description: 'Artifact run ID to download (leave empty for latest push-main)'
         required: false
         type: string
-        default: '22777374403'
+        default: '23263523176'
 
 permissions:
   packages: read
