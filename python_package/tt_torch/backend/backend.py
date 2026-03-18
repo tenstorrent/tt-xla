@@ -58,11 +58,11 @@ def _build_aot_graph_signature(
     AOTAutograd lifts all parameters and buffers as placeholder arguments.
     The ordering convention is: params first, then buffers, then user inputs.
 
-    Mutation detection uses AOTAutograd's own ``ViewAndMutationMeta``
-    (``TracingContext.fw_metadata``) — the same functionalization-based
-    analysis that ``torch.export`` relies on.  When a buffer is mutated,
-    we emit a ``BUFFER_MUTATION`` output spec so that
-    ``insert_argument_type_markers`` classifies it as ``"input"`` (not
+    Mutation detection uses AOTAutograd's own ViewAndMutationMeta
+    (TracingContext.fw_metadata) — the same functionalization-based
+    analysis that torch.export relies on.  When a buffer is mutated,
+    we emit a BUFFER_MUTATION output spec so that
+    insert_argument_type_markers classifies it as "input" (not
     hoisted into consteval).
     """
     tracing_ctx = torch._guards.TracingContext.try_get()
@@ -143,7 +143,7 @@ def _build_aot_graph_signature(
             )
 
     # AOTAutograd functionalises all mutations, so the forward graph itself
-    # is pure functional.  But we need BUFFER_MUTATION output specs so that
+    # is pure functional. But we need BUFFER_MUTATION output specs so that
     # insert_argument_type_markers can detect which buffers are mutated.
     output_specs = []
     for target in mutated_buffer_targets:
