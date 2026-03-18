@@ -882,7 +882,7 @@ jobs:
             source /tmp/worker_path_env
 
             echo "Configuring distributed runtime environment..."
-            export TTXLA_LOGGER_LEVEL=DEBUG
+            export TTXLA_LOGGER_LEVEL=VERBOSE
             export TT_DISTRIBUTED_WORKER_PATH="$DISTRIBUTED_WORKER_PATH"
             export TT_RUNTIME_ENABLE_DISTRIBUTED=1
             export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
@@ -901,9 +901,6 @@ jobs:
             echo "  TT_DISTRIBUTED_HOSTS_FILE: $TT_DISTRIBUTED_HOSTS_FILE"
             echo "  TT_DISTRIBUTED_RANK_BINDING: $TT_DISTRIBUTED_RANK_BINDING"
             echo ""
-
-            # echo "running llama test" 
-            # python examples/pytorch/llama.py
 
             echo "running simple sharded addition test"
             pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
