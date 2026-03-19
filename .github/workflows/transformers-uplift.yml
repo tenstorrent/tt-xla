@@ -1,0 +1,637 @@
+name: Transformers Compatibility Check
+
+on:
+  push:
+    branches:
+      - jazpur/aknezevic/hf_uplift  # TODO: Remove before merging to main
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      transformers_ref:
+        description: 'Git ref for transformers (branch, tag, or SHA). Defaults to main.'
+        required: false
+        default: 'main'
+        type: string
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
+        default: 'transformers-uplift.json'
+        type: string
+      max-runs:
+        description: 'Maximum number of fix-and-retest iterations'
+        required: false
+        default: 2
+        type: integer
+      current-run:
+        description: 'Current run number (auto-incremented on retry)'
+        required: false
+        default: 1
+        type: integer
+      docker-image:
+        description: 'Docker image to use for the build'
+        required: false
+        type: string
+      xla-wheel-artifact-run-id:
+        description: 'Run ID of the workflow that produced the xla wheel artifact'
+        required: false
+        type: string
+      tt-xla-branch:
+        description: 'Branch name for tt-xla'
+        required: false
+        default: 'main'
+        type: string
+      tt-forge-models-branch:
+        description: 'Branch name for tt-forge-models'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  checks: write
+  pull-requests: write
+  actions: write
+  id-token: write
+
+concurrency:
+  group: transformers-compat
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+
+jobs:
+
+  # ── Job 1: Build Docker image ─────────────────────────────────────────
+  build-image:
+    if: ${{ !inputs.docker-image }}
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  # ── Job 2: Build tt-xla wheel ─────────────────────────────────────────
+  build-ttxla:
+    if: ${{ !inputs.xla-wheel-artifact-run-id }}
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  # ── Job 3: Generate test matrix ──────────
+  generate-matrix-test:
+    uses: ./.github/workflows/call-generate-matrix.yml
+    secrets: inherit
+    with:
+      test_suite: ${{ inputs.test_suite || 'transformers-uplift.json' }}
+
+  # ── Job 4: Run tests and upload failure logs  ──────────
+  run-tests:
+    needs: [generate-matrix-test, build-image, build-ttxla]
+    if: ${{ !cancelled() && !failure() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
+
+    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
+
+    name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base || inputs.docker-image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-xla/tt-xla
+        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+    - name: Log disk space
+      run: df -h
+
+    - name: Set caching env variables
+      shell: bash
+      run: echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        token: ${{ secrets.GH_TOKEN }}
+        sparse-checkout-cone-mode: false
+        sparse-checkout: |
+          .github/scripts
+          .gitmodules
+          .test_durations
+          pjrt_implementation
+          third_party/pjrt_c_api
+          third_party/tt_forge_models
+          pytest.ini
+          python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
+          tests
+          venv
+          examples
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      env:
+        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
+        echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
+
+        # Precompute forge models detection as a reusable output
+        if [[ "${{ matrix.build.dir }}" == *"tests/runner/test_models.py"* ]]; then
+          echo "forge-models-test=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Download and install wheels
+      shell: bash
+      run: |
+        echo "=== Downloading wheels ==="
+        gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id || inputs.xla-wheel-artifact-run-id }} \
+          --repo ${{ github.repository }} \
+          --dir wheels \
+          --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+        echo "Downloaded wheel files:"
+        ls -la wheels
+
+        echo "=== Installing wheel ==="
+        source venv/activate
+        uv pip install wheels/*.whl
+
+    - name: Swap transformers to latest
+      id: swap-transformers
+      shell: bash
+      run: |
+        source venv/activate
+        CURRENT_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current transformers version: $CURRENT_VERSION"
+
+        uv pip uninstall transformers
+        TRANSFORMERS_REF="${{ inputs.transformers_ref || 'main' }}"
+        echo "Installing transformers from git ref: $TRANSFORMERS_REF"
+        echo "TRANSFORMERS_REF=$TRANSFORMERS_REF" >> $GITHUB_ENV
+        uv pip install "transformers @ git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"
+
+        NEW_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "New transformers version: $NEW_VERSION"
+
+    - name: Set pytest command
+      shell: bash
+      run: |
+        # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
+        # See issue: https://github.com/tenstorrent/tt-xla/issues/795
+        # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
+        # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
+        PYTEST_FORKED=""
+        for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
+          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+            PYTEST_FORKED="--forked"; break
+          fi
+        done
+
+        # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
+        if [[ -n "$PYTEST_FORKED" ]]; then
+          VERBOSITY="-vv"
+        else
+          VERBOSITY="-sv"
+        fi
+
+        # Pass arch to forge models tests to resolve arch_overrides in test_config files.
+        ARCH=""
+        if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
+          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
+        fi
+
+        MARKS="${{ matrix.build.test-mark }}"
+
+        PYTEST_SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} \
+          --group ${{ matrix.build.group-id || 1}} \
+          --splitting-algorithm least_duration"
+
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
+          --durations=0 \
+          ${{ matrix.build.dir }} \
+          $ARCH \
+          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
+          $PYTEST_SPLITS"
+
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
+
+    - name: Validate Forge Models Tests test config file
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        source venv/activate
+        uv pip install pyyaml
+        python3 tests/runner/validate_test_config.py
+
+    - name: Collect Tests
+      id: collect-tests
+      continue-on-error: true
+      shell: bash
+      run: |
+        source venv/activate
+        echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
+        cat collected_tests.txt
+
+        # Check if any collected tests have notimeout marker
+        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
+          echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
+          ESTIMATED_DURATION=240
+        else
+          SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+            --collected-output collected_tests.txt \
+            --durations-file .test_durations \
+            --default-timeout 240)
+          echo "$SCRIPT_OUTPUT"
+          ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+        fi
+
+        echo "Estimated duration: $ESTIMATED_DURATION minutes"
+        echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
+
+    - name: Run tests
+      id: run-tests
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+        TORCH_HOME: /mnt/dockercache/torchhub
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        ENABLE_BRINGUP_STAGE_LOGGING: 1
+      shell: bash
+      run: |
+        source venv/activate
+        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+               --junitxml=${{ steps.strings.outputs.test_report_path }} \
+               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
+               2>&1 | tee pytest.log
+
+    - name: Extract failure context
+      if: always() && steps.run-tests.outcome == 'failure'
+      shell: bash
+      run: |
+        mkdir -p failure_logs
+        source venv/activate
+        EXTRACT_ERROR_CMD="python .github/scripts/extract_transformers_failure_context.py . . failure_logs/failure_context_${{ matrix.build.group-id }}.txt"
+        echo "EXTRACT_ERROR_CMD=$EXTRACT_ERROR_CMD" >> $GITHUB_ENV
+        $EXTRACT_ERROR_CMD
+
+    - name: Upload failure logs
+      if: always() && steps.run-tests.outcome == 'failure'
+      uses: actions/upload-artifact@v4
+      with:
+        name: failure-logs-${{ matrix.build.group-id }}
+        path: failure_logs/failure_context_${{ matrix.build.group-id }}.txt
+        if-no-files-found: ignore
+
+  # ── Job 5: Fix and commit ─────────────────────────────────────────
+  fix-and-commit:
+    needs: [ run-tests, build-image, build-ttxla ]
+    if: ${{ always() && needs.run-tests.result == 'failure' }}
+    runs-on: wormhole_b0
+
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base || inputs.docker-image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - name: Log disk space
+        run: df -h
+
+      - name: Set caching env variables
+        shell: bash
+        run: echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/scripts
+            .gitmodules
+            .test_durations
+            pjrt_implementation
+            third_party/pjrt_c_api
+            third_party/tt_forge_models
+            pytest.ini
+            python_package/requirements.txt
+            integrations/vllm_plugin/requirements-vllm-plugin.txt
+            tests
+            venv
+            examples
+
+      - name: Download and install wheels
+        shell: bash
+        run: |
+          echo "=== Downloading wheels ==="
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id || inputs.xla-wheel-artifact-run-id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          echo "Downloaded wheel files:"
+          ls -la wheels
+
+          echo "=== Installing wheel ==="
+          source venv/activate
+          uv pip install wheels/*.whl
+
+      - name: Swap transformers to latest
+        id: swap-transformers
+        shell: bash
+        run: |
+          source venv/activate
+          CURRENT_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current transformers version: $CURRENT_VERSION"
+
+          uv pip uninstall transformers
+          TRANSFORMERS_REF="${{ inputs.transformers_ref || 'main' }}"
+          echo "Installing transformers from git ref: $TRANSFORMERS_REF"
+          echo "TRANSFORMERS_REF=$TRANSFORMERS_REF" >> $GITHUB_ENV
+          uv pip install "transformers @ git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REF}"
+
+          NEW_VERSION=$(python -c "import transformers; print(transformers.__version__)")
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New transformers version: $NEW_VERSION"
+
+      - name: Download all failure logs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: failure-logs-*
+          merge-multiple: true
+          path: failure_logs
+
+      - name: Install Claude Code CLI
+        shell: bash
+        run: |
+          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/ || true
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Create fix branches
+        id: create-branch
+        shell: bash
+        run: |
+          BRANCH_NAME="${{ inputs.tt-xla-branch }}"
+          if [ -z "$BRANCH_NAME" ] || [ "$BRANCH_NAME" == "main" ]; then
+            BRANCH_NAME="auto/transformers-compat-$(date +%Y%m%d-%H%M)"
+          fi
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          git checkout -B "$BRANCH_NAME"
+          echo "Using tt-xla branch: $BRANCH_NAME"
+
+          cd third_party/tt_forge_models
+          FORGE_BRANCH="${{ inputs.tt-forge-models-branch }}"
+          if [ -z "$FORGE_BRANCH" ] || [ "$FORGE_BRANCH" == "main" ]; then
+            FORGE_BRANCH="$BRANCH_NAME"
+          fi
+          git checkout -B "$FORGE_BRANCH"
+          echo "Using tt-forge-models branch: $FORGE_BRANCH"
+          cd ../..
+
+      - name: Build Claude Code prompt
+        shell: bash
+        run: |
+          cat > claude_prompt.txt << 'PROMPT_HEADER'
+          You are fixing transformers compatibility issues in the tt-xla project.
+
+          The HuggingFace transformers library was updated from the pinned version to the latest
+          from the 'main' branch, and some model tests broke.
+          PROMPT_HEADER
+
+          cat >> claude_prompt.txt << PROMPT_TAIL
+
+          ## Instructions
+          1. Analyze the failures in ALL the failure logs under the ./failure_logs directory to identify which transformers API changes caused them.
+          2. Your changes do not need to be backward-compatible with older transformers versions. The whole repo is going to be updated to the latest transformers version.
+          3. You may modify any Python files in the repo as needed to fix the compatibility issues
+            (e.g. update imports, fix class references, etc.).
+          4. Address any API changes at the source level. If an old API is no longer supported, we don't want monkey patching or workarounds, we want to fix the issues at the source level.
+            - Make the necessary changes to third_party/tt_forge_models to fix the compatibility issues.
+          5. Finish your task after you've added fixes.
+
+          ## Rules
+          - Under third_party/ (these are external submodules), ONLY apply fixes to third_party/tt_forge_models.
+          - Modify venv/requirements-dev.txt to change the pinned transformers version to:
+            - ${{ env.TRANSFORMERS_REF }}
+          - Keep changes minimal and focused on compatibility.
+          PROMPT_TAIL
+
+      - name: Run Claude Code to fix and re-run tests
+        timeout-minutes: 120
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HF_HOME: /mnt/dockercache/huggingface
+          TORCH_HOME: /mnt/dockercache/torchhub
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        shell: bash
+        run: |
+          cat claude_prompt.txt | claude -p \
+            --verbose \
+            --allowedTools "Edit,Read,Glob,Grep,Write,Bash"
+
+      - name: Revert any changes to third_party submodules
+        shell: bash
+        run: |
+          CHANGED_FILES=$(git diff --name-only)
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No changes were made"
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          SUBMODULE_FILES=$(echo "$CHANGED_FILES" | grep "^third_party/" | grep -v "^third_party/tt_forge_models" || true)
+          if [ -n "$SUBMODULE_FILES" ]; then
+            echo "Reverting changes to third_party/ submodules:"
+            echo "$SUBMODULE_FILES"
+            while IFS= read -r file; do
+              if [ -n "$file" ]; then
+                git checkout -- "$file" 2>/dev/null || true
+              fi
+            done <<< "$SUBMODULE_FILES"
+          fi
+
+      - name: Commit and push tt_forge_models changes
+        id: check-forge-changes
+        shell: bash
+        run: |
+          cd third_party/tt_forge_models
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_forge_fix=false" >> $GITHUB_OUTPUT
+            echo "No tt_forge_models changes"
+            exit 0
+          fi
+
+          echo "has_forge_fix=true" >> $GITHUB_OUTPUT
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Auto-fix: transformers compatibility (run ${{ inputs.current-run || 1 }} of ${{ inputs.max-runs || 2 }})
+
+          Generated by Claude Code CLI in response to test failures
+          when running against latest transformers from main.
+
+          Co-Authored-By: Claude <noreply@anthropic.com>"
+          git push origin "${{ steps.create-branch.outputs.branch_name }}"
+          cd ../..
+
+      - name: Check for changes and commit
+        id: check-changes
+        shell: bash
+        run: |
+          if [ -z "$(git diff --name-only)" ]; then
+            echo "has_fix=false" >> $GITHUB_OUTPUT
+            echo "No fix was produced"
+            exit 0
+          fi
+
+          echo "has_fix=true" >> $GITHUB_OUTPUT
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --name-only | xargs git add --
+          if [ "${{ steps.check-forge-changes.outputs.has_forge_fix }}" == "true" ]; then
+            git add third_party/tt_forge_models
+          fi
+          git commit -m "Auto-fix: transformers compatibility (run ${{ inputs.current-run || 1 }} of ${{ inputs.max-runs || 2 }})
+
+          Generated by Claude Code CLI in response to test failures
+          when running against latest transformers from main.
+
+          Co-Authored-By: Claude <noreply@anthropic.com>"
+          git push origin "${{ steps.create-branch.outputs.branch_name }}"
+
+    outputs:
+      has-fix: ${{ steps.check-changes.outputs.has_fix }}
+      fix-branch: ${{ steps.create-branch.outputs.branch_name }}
+
+  # ── Job 6: Re-trigger workflow if Claude produced a fix and runs remain ────
+  retry-on-failure:
+    needs: [fix-and-commit, build-image, build-ttxla]
+    if: >-
+      always() &&
+      needs.fix-and-commit.outputs.has-fix == 'true' &&
+      fromJson(inputs.current-run || '1') < fromJson(inputs.max-runs || '2')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Re-trigger transformers uplift workflow
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          NEXT_RUN=$(( ${{ inputs.current-run || 1 }} + 1 ))
+          echo "Starting run $NEXT_RUN of ${{ inputs.max-runs || 2 }}"
+
+          gh workflow run transformers-uplift.yml \
+            --repo ${{ github.repository }} \
+            --ref ${{ needs.fix-and-commit.outputs.fix-branch }} \
+            -f transformers_ref="${{ inputs.transformers_ref || 'main' }}" \
+            -f test_suite="${{ inputs.test_suite || 'transformers-uplift.json' }}" \
+            -f max-runs="${{ inputs.max-runs || 2 }}" \
+            -f current-run="$NEXT_RUN" \
+            -f docker-image="${{ needs.build-image.outputs.docker-image-base || inputs.docker-image }}" \
+            -f xla-wheel-artifact-run-id="${{ needs.build-ttxla.outputs.artifacts_run_id || inputs.xla-wheel-artifact-run-id }}" \
+            -f tt-xla-branch="${{ needs.fix-and-commit.outputs.fix-branch }}" \
+            -f tt-forge-models-branch="${{ needs.fix-and-commit.outputs.fix-branch }}"
+
+  # ── Job 7: Create PR ─────────────────────────────────────────
+  #create-pr:
+  #  needs: [fix-and-commit]
+  #  if: ${{ always() && needs.fix-and-commit.outputs.has-fix == 'true' }}
+  #  runs-on: ubuntu-latest
+
+  #  steps:
+  #  - uses: actions/checkout@v4
+  #    with:
+  #      ref: ${{ needs.fix-and-commit.outputs.fix-branch }}
+  #      fetch-depth: 0
+
+  #  - name: Create Pull Request
+  #    id: create-pr
+  #    env:
+  #      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  #    shell: bash
+  #    run: |
+  #      PR_URL=$(gh pr create \
+  #        --base "${{ github.ref_name }}" \
+  #        --head "${{ needs.fix-and-commit.outputs.fix-branch }}" \
+  #        --title "Auto-fix: transformers compatibility (latest from main)" \
+  #        --body "$(cat <<'EOF'
+  #      ## Summary
+
+  #      This PR was auto-generated by the **Transformers Compatibility Check** workflow.
+
+  #      Model tests failed when running against the latest `transformers` from `main`.
+  #      Claude Code CLI analyzed the failures, applied fixes, and verified they pass on hardware.
+
+  #      ### Verification
+  #      - Claude Code iterated on fixes until the test passed on a TT hardware runner (n150).
+
+  #      ### Workflow run
+  #      https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  #      > **Note:** This PR requires human review before merging.
+
+  #      ---
+  #      *Generated by Claude Code CLI*
+  #      EOF
+  #      )" \
+  #        --label "transformers-compat" \
+  #        --label "auto-generated" 2>&1)
+
+  #      echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+  #      echo "PR created: $PR_URL"
+
+  #  outputs:
+  #    pr-url: ${{ steps.create-pr.outputs.pr_url }}
