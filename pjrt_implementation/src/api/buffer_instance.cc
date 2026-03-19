@@ -274,6 +274,11 @@ BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
   if (num_dims == 0) {
     // Our compiler and runtime don't support scalars so we convert them to 1D
     // tensors.
+    if (data_type_utils::isComplexPJRTType(data_type)) {
+      // Throw error if complex tensor num_dims == 0.
+      throw std::runtime_error(
+          "Complex tensor with num_dims == 0 is not supported.");
+    }
     return {1};
   }
 

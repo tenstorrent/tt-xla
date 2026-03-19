@@ -176,6 +176,40 @@ def test_complex_real_imag_combined(shape: tuple, dtype: torch.dtype, request):
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    torch_op_name="torch.view_as_complex+torch.real+torch.imag",
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [torch.float32, torch.float64],
+    ids=["float32", "float64"],
+)
+def test_complex_real_imag_combined_scalar(dtype: torch.dtype, request):
+    """Scalar variant: constructs a complex scalar, extracts real/imag parts,
+    then reconstructs it via view_as_complex to verify round-trip correctness."""
+
+    class ComplexRealImagCombined(torch.nn.Module):
+        def forward(self, real: torch.Tensor, imag: torch.Tensor) -> torch.Tensor:
+            z = torch.view_as_complex(torch.stack([real, imag], dim=-1))
+            r = torch.real(z)
+            i = torch.imag(z)
+            return torch.view_as_complex(torch.stack([r, i], dim=-1))
+
+    run_op_test(
+        ComplexRealImagCombined(),
+        [
+            torch.tensor(1.5, dtype=dtype),
+            torch.tensor(2.5, dtype=dtype),
+        ],
+        framework=Framework.TORCH,
+        request=request,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
     category=Category.OP_TEST, torch_op_name="torch.mul"
 )
 @pytest.mark.parametrize(
