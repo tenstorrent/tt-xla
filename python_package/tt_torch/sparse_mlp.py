@@ -315,22 +315,18 @@ class A2aSparseMLP(nn.Module):
         K = self.num_experts_per_tok
 
         # 1. Router
-        # GptOssTopKRouter returns (router_logits, router_scores, router_indices).
-        # Router must receive 2D [B*S, H] input because its softmax uses dim=1,
-        # which must correspond to the hidden dimension (not sequence).
+        # Monkey-patched router returns (router_logits [T,E], router_scores [T,E], router_indices [T,K]).
+        # router_scores is full sparse [T, E] (matching 4.57.1 behavior).
         hidden_flat = hidden_states.view(batch_size * seq_len, hidden_size)
-        router_out = self.router(hidden_flat)
-        router_logits = router_out[0].view(batch_size, seq_len, -1)  # [B, S, E]
-        router_scores = router_out[1].view(batch_size, seq_len, K)  # [B, S, top_k]
-        router_indices = router_out[-1].view(batch_size, seq_len, K)  # [B, S, top_k]
-        # Keep CPU golden path memory-efficient by delegating to the original
-        # expert implementation. The custom sparse custom-op path is intended
-        # for XLA/TT execution and can materialize larger temporary tensors on CPU.
+        router_logits, router_scores, router_indices = self.router(hidden_flat)
+        router_logits = router_logits.view(batch_size, seq_len, -1)  # [B, S, E]
+        router_indices = router_indices.view(batch_size, seq_len, K)  # [B, S, K]
+        # CPU golden path: use original per-expert loop for PCC reference.
         if hidden_states.device.type == "cpu":
             routed_out = self.experts(
                 hidden_states.view(batch_size * seq_len, hidden_size),
-                top_k_index=router_indices.view(batch_size * seq_len, K),
-                top_k_weights=router_scores.view(batch_size * seq_len, K),
+                router_indices=router_indices.view(batch_size * seq_len, K),
+                routing_weights=router_scores,
             )
             return routed_out.view(batch_size, seq_len, hidden_size), router_scores
 
@@ -655,8 +651,14 @@ class A2aSparseMLP(nn.Module):
         )
 
         # Weighted sum
-        # router_scores is compact [B, S, K] softmax probabilities — use directly.
-        topk_weights = router_scores.view(batch_size * seq_len, K)  # [B*S, K]
+        # router_scores is full sparse [T, E]; gather compact [T, K] weights.
+        indices_flat = router_indices.view(batch_size * seq_len, K)
+        one_hot = torch.nn.functional.one_hot(
+            indices_flat.long(), num_classes=self.num_experts
+        ).to(
+            router_scores.dtype
+        )  # [T, K, E]
+        topk_weights = torch.einsum("te,tke->tk", router_scores, one_hot)  # [T, K]
         if seq_len == 1:
             topk_weights = topk_weights.view(batch_size, K)
             topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)  # [K, B, 1]
