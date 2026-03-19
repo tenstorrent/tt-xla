@@ -30,6 +30,10 @@ RUN apt-get update && \
     python3.12 -m pip install --no-cache-dir --ignore-installed --upgrade pip && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    build-essential
+
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
 
