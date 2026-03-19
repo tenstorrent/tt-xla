@@ -72,6 +72,9 @@ class TTConfig:
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
 
+    # Override number of hidden layers (0 = use model default)
+    num_hidden_layers: int = 0
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
