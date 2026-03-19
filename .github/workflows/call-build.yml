@@ -302,6 +302,15 @@ jobs:
             TTMLIR_INSTALL=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install
             cp -r "${TTMLIR_INSTALL}/tt-metal" "${STAGING}/tt-metal"
 
+            # lib/ — _ttmlir_runtime.so (in python_packages/) has an RPATH pointing
+            # to build/lib/ for libTTMLIRRuntime.so and other tt-mlir shared libraries.
+            # The test runner restores the archive to the same absolute path
+            # (/__w/tt-xla/tt-xla/third_party/tt-mlir/src/tt-mlir/build/), so the
+            # RPATH resolves correctly once lib/ is present there.
+            # Use -rL to dereference version symlinks (libFoo.so -> libFoo.so.1) so
+            # the archive contains real files rather than potentially-dangling symlinks.
+            cp -rL "${TTMLIR_BUILD}/lib" "${STAGING}/lib"
+
             # Archive from the staging directory — no --dereference needed because
             # every file is already real content.
             tar -czf builder-bindings.tar.gz \
@@ -310,7 +319,8 @@ jobs:
               python_packages \
               runtime/python \
               dist-info \
-              tt-metal
+              tt-metal \
+              lib
 
       - name: Upload bindings artifact
         if: inputs.enable_python_bindings == true

@@ -251,6 +251,18 @@ jobs:
             echo "WARNING: tt-metal not found at ${TT_METAL_DIR} – setup_tt_metal_home() will attempt fallbacks"
           fi
 
+          # _ttmlir_runtime.so (used by load_split_and_execute.py) depends on
+          # libTTMLIRRuntime.so from build/lib/.  The RPATH in the .so should point
+          # there already (same absolute workspace path on build and test runners),
+          # but we also export LD_LIBRARY_PATH as a fallback.
+          TTMLIR_LIB="$(pwd)/third_party/tt-mlir/src/tt-mlir/build/lib"
+          if [ -d "${TTMLIR_LIB}" ]; then
+            echo "LD_LIBRARY_PATH=${TTMLIR_LIB}:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+            echo "Added ${TTMLIR_LIB} to LD_LIBRARY_PATH"
+          else
+            echo "WARNING: tt-mlir lib not found at ${TTMLIR_LIB}"
+          fi
+
       - name: Query TT hardware and save device artifacts
         shell: bash
         run: |
