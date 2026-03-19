@@ -28,16 +28,8 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils.quantization_config import Mxfp4Config
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
-DEFAULT_PROMPTS = [
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-    "Explain quantum mechanics.",
-]
+BATCH_SIZE = 8
+DEFAULT_PROMPTS = ["Explain quantum mechanics."] * BATCH_SIZE
 
 
 # --------------------------------
@@ -212,8 +204,8 @@ def construct_inputs(
     max_length = max(prompt_lengths)
 
     # Sparse MoE requires seq_len divisible by 32 (tile size in sparse_matmul)
-    if sparse_moe:
-        max_length = ((max_length + 31) // 32) * 32
+    # if sparse_moe:
+    #     max_length = ((max_length + 31) // 32) * 32
 
     inputs = tokenizer(
         formatted_prompts,
