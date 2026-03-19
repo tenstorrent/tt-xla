@@ -306,11 +306,11 @@ def mark_sharding_on_inputs_and_model(
 
     xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
 
-    # Shard model internals
-    for layer in model.model.layers:
-        xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("batch", None))
-        xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("batch", None))
-        xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "batch"))
+    # Don't shard model internals -> mlp input is already batch sharded; 
+    # for layer in model.model.layers:
+        # xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("batch", None))
+        # xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("batch", None))
+        # xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "batch"))
 
         # xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
         # xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
