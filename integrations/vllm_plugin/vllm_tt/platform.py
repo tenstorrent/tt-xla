@@ -72,6 +72,14 @@ class TTConfig:
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
 
+    # Override number of hidden layers (0 = use model default)
+    # For debugging and testing purposes, we allow overriding the number of hidden
+    # layers in the model config to enable testing with smaller models or to
+    # simulate the behavior of larger models. This is done by directly modifying
+    # the vllm_config before the model is loaded. We also store the original and
+    # target number of layers to filter the weights accordingly during loading.
+    num_hidden_layers: int = 0
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
