@@ -347,6 +347,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_query_heads = model_config.get_num_attention_heads(parallel_config)
         self.num_kv_heads = model_config.get_num_kv_heads(parallel_config)
         self.head_size = model_config.get_head_size()
+        self.hidden_size = model_config.get_hidden_size()
         self.inputs_embeds_size = model_config.get_inputs_embeds_size()
         self.vocab_size = model_config.get_vocab_size()
 
@@ -501,8 +502,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.mm_budget = (
             MultiModalBudget(
-                self.model_config,
-                self.scheduler_config,
+                self.vllm_config,
                 self.mm_registry,
             )
             if self.supports_mm_inputs
@@ -1055,7 +1055,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return
 
         # Batch the multi-modal inputs.
-        mm_kwargs = list[MultiModalKwargsItem]()
+        # group_mm_kwargs_by_modality expects list[tuple[str, MultiModalKwargsItem]]
+        mm_kwargs: list[tuple[str, MultiModalKwargsItem]] = []
         # List of tuple (mm_hash, pos_info)
         mm_hashes_pos = list[tuple[str, PlaceholderRange]]()
         for req_id, encoder_input_ids in scheduled_encoder_inputs.items():
@@ -1064,7 +1065,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for mm_input_id in encoder_input_ids:
                 mm_feature = req_state.mm_features[mm_input_id]
                 mm_hash = mm_feature.identifier
-                mm_kwargs.append(mm_feature.data)
+                mm_kwargs.append((mm_feature.modality, mm_feature.data))
                 mm_hashes_pos.append((mm_hash, mm_feature.mm_position))
 
         # Batch mm inputs as much as we can: if a request in the batch has
@@ -1080,7 +1081,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             mm_kwargs,
             device=self.device,
             pin_memory=self.pin_memory,
-            merge_by_field_config=model.merge_by_field_config,
         ):
             # Run the encoder.
             # `curr_group_outputs` is either of the following:
@@ -1090,7 +1090,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # (feature_size, hidden_size) in case the feature size is dynamic
             # depending on the input multimodal items.
             torch_xla.sync(wait=False)
-            curr_group_outputs = self.model.get_multimodal_embeddings(**mm_kwargs_group)
+            curr_group_outputs = self.model.embed_multimodal(**mm_kwargs_group)
             torch_xla.sync(wait=False)
 
             sanity_check_mm_encoder_outputs(
@@ -1191,8 +1191,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # NOTE(woosuk): To unify token ids and soft tokens (vision
             # embeddings), we always use embeddings (rather than token ids)
             # as input to the multimodal model, even when the input is text.
-            inputs_embeds = self.model.get_input_embeddings(
-                input_ids,
+            # The runner stores input_ids as [batch, seq] (2D), but
+            # embed_input_ids / token_embedding expects a flat 1D token
+            # sequence so that the resulting embeddings are [N, embed_dim]
+            # (2D).  Passing a 2D tensor would produce [batch, seq, dim]
+            # (3D) and break models like CLIP that inspect shape[1] as the
+            # embedding dimension.
+            inputs_embeds = self.model.embed_input_ids(
+                input_ids.view(-1),
                 multimodal_embeddings=mm_embeds,
                 is_multimodal=is_mm_embed,
             )
@@ -1599,7 +1605,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # impact of recompilation until it's fixed.
                     start = time.perf_counter()
                     torch_xla.sync(wait=False)
-                    dummy_encoder_outputs = self.model.get_multimodal_embeddings(
+                    dummy_encoder_outputs = self.model.embed_multimodal(
                         **batched_dummy_mm_inputs
                     )
                     torch_xla.sync(wait=False)
@@ -1711,10 +1717,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return logits_cloned
 
     def get_multimodal_embeddings(self, *args, **kwargs):
-        return self.model.get_multimodal_embeddings(*args, **kwargs)
+        return self.model.embed_multimodal(*args, **kwargs)
 
     def get_input_embeddings(self, *args, **kwargs):
-        return self.model.get_input_embeddings(*args, **kwargs)
+        return self.model.embed_input_ids(*args, **kwargs)
 
     # Keep API parity with upstream TPUModelRunner / TTModelRunner naming.
     def embed_multimodal(self, *args, **kwargs):
@@ -1785,7 +1791,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 dummy_mm_items,
                 device=self.device,
                 pin_memory=self.pin_memory,
-                merge_by_field_config=model.merge_by_field_config,
             )
         )
 
