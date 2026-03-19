@@ -69,6 +69,9 @@ class TTConfig:
     # Target dtype for weight conversion (e.g. "bfp8", "bfp4"). Empty disables.
     experimental_weight_dtype: str = ""
 
+    # Flag to enable 2D mesh for tensor parallel execution.
+    use_2d_mesh: bool = True
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
