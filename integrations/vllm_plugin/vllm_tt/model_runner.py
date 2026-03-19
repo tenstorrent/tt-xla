@@ -1351,7 +1351,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
+            _t_sample = time.perf_counter()
+            if self.tt_config.cpu_sampling:
+                selected_token_ids = self.sample_from_logits_cpu(
+                    logits, tpu_sampling_metadata
+                )
+            else:
+                selected_token_ids = self.sample_from_logits(
+                    logits, tpu_sampling_metadata
+                )
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
