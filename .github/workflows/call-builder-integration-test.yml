@@ -152,6 +152,7 @@ jobs:
             pytest.ini
             tests
             venv
+            python_package/requirements.txt
             third_party/tt_forge_models
 
       - name: Fetch job ID
