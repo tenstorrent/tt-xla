@@ -181,7 +181,7 @@ class ModelTester(BaseTester, ABC):
                 tt_res, cpu_res, self._workload.args, self._workload.kwargs
             )
             return None
-        return (self._compare(tt_res, cpu_res, self._workload),)
+        return (self._compare(tt_res, cpu_res),)
 
     def _test_e2e_perf(self) -> dict[str, float]:
         warmup_iters_count = 3
