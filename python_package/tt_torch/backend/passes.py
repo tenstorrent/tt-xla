@@ -125,7 +125,7 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
 
-    Handles two types of nodes:
+    Handles three types of nodes:
     1. call_function nodes: torch and torch.nn.functional ops
        - node.target is a function reference
        - Replaced by changing node.target to composite function
@@ -133,6 +133,10 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     2. call_module nodes: nn.Module instances
        - node.target is a string like "some_module"
        - Replaced by creating new call_function node (composite function) with get_attr for parameters
+
+    3. call_method nodes: tensor method calls (e.g. x.topk(k) instead of torch.topk(x, k))
+       - node.target is a method name string like "topk"
+       - Resolved via composite_ops.method_name_to_function, then promoted to call_function
     """
     for node in list(gm.graph.nodes):  # snapshot to allow mid-loop erasure
         if node.op == "call_function":
@@ -148,6 +152,19 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
             module_type = type(module)
             if module_type in composite_ops.replacements:
                 composite_ops.replacements[module_type](gm, node, module)
+
+        elif node.op == "call_method":
+            # This happens when the method is called as `input.function(args)` instead of
+            # `function(input, args)`.
+            torch_fn = composite_ops.method_name_to_function.get(node.target)
+            if torch_fn is not None and torch_fn in composite_ops.replacements:
+                replacement = composite_ops.replacements[torch_fn]
+                # Promote call_method to call_function (args layout is identical)
+                node.op = "call_function"
+                if isinstance(replacement, dict):
+                    _replace_multi_output_op(gm, node, replacement)
+                else:
+                    node.target = replacement
 
     gm.graph.lint()
 

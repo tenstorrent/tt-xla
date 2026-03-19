@@ -270,3 +270,13 @@ replacements = {
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
 }
+
+"""
+Maps tensor method name strings to their torch function equivalents.
+Used to resolve call_method FX nodes (e.g. x.topk(k)) where dynamo sets
+node.target to the method name string "topk".
+The mapped function must be a key in `replacements` for the rewrite to apply.
+"""
+method_name_to_function = {
+    "topk": torch.topk,
+}

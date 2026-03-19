@@ -202,6 +202,9 @@ There are three replacement categories:
 
    `handle_composite_ops` automatically detects the dict form, inspects which outputs are actually consumed in the graph and selects the matching variant. See `torch.topk` in `composite_ops.py` for a complete example.
 
+  >[!IMPORTANT]
+  > If the composite op you're adding has an equivalent form as a tensor method (for example: `torch.topk(input, k, ...)` can also be written as `input.topk(k, ...)`), then you should also add an entry for that function in the `method_name_to_function` dictionary.
+
 3. **For `nn.Module` types**, write a `replace_<op>_module` function that:
    - Extracts parameters from the module instance
    - Creates `get_attr` nodes for module weights/biases

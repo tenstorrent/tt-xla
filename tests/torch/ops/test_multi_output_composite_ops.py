@@ -14,27 +14,7 @@ from tt_torch.composite_ops import (
     composite_topk_values,
 )
 
-
-def _capture_via_compile(model, *args):
-    """
-    Capture the FX GraphModule as seen by a torch.compile backend.
-
-    torch.compile (dynamo) preserves high-level torch ops like torch.topk,
-    which is required for handle_composite_ops to match on node.target.
-    torch.export.export / make_fx would lower to aten.topk.default instead.
-    """
-    captured = {}
-
-    def _backend(gm, example_inputs):
-        captured["gm"] = gm
-        return gm.forward
-
-    torch.compile(model, backend=_backend)(*args)
-    return captured["gm"]
-
-
-def _call_function_targets(gm):
-    return {n.target for n in gm.graph.nodes if n.op == "call_function"}
+from tests.utils import capture_via_compile, get_call_function_targets
 
 
 class _TopKIndices(torch.nn.Module):
@@ -60,11 +40,11 @@ class _GeluModel(torch.nn.Module):
 
 def test_handle_composite_ops_gelu_no_multi_output():
     x = torch.randn(1, 10)
-    gm = _capture_via_compile(_GeluModel(), x)
+    gm = capture_via_compile(_GeluModel(), x)
     with patch("tt_torch.backend.passes._replace_multi_output_op") as mock_replace:
         handle_composite_ops(gm)
         mock_replace.assert_not_called()
-    targets = _call_function_targets(gm)
+    targets = get_call_function_targets(gm)
     assert composite_gelu in targets
     assert torch.nn.functional.gelu not in targets
     assert operator.getitem not in targets
@@ -72,9 +52,9 @@ def test_handle_composite_ops_gelu_no_multi_output():
 
 def test_handle_composite_ops_selects_indices():
     x = torch.randn(1, 10)
-    gm = _capture_via_compile(_TopKIndices(), x)
+    gm = capture_via_compile(_TopKIndices(), x)
     handle_composite_ops(gm)
-    targets = _call_function_targets(gm)
+    targets = get_call_function_targets(gm)
     assert composite_topk_indices in targets
     assert composite_topk not in targets
     assert composite_topk_values not in targets
@@ -84,9 +64,9 @@ def test_handle_composite_ops_selects_indices():
 
 def test_handle_composite_ops_selects_values():
     x = torch.randn(1, 10)
-    gm = _capture_via_compile(_TopKValues(), x)
+    gm = capture_via_compile(_TopKValues(), x)
     handle_composite_ops(gm)
-    targets = _call_function_targets(gm)
+    targets = get_call_function_targets(gm)
     assert composite_topk_values in targets
     assert composite_topk not in targets
     assert composite_topk_indices not in targets
@@ -95,9 +75,9 @@ def test_handle_composite_ops_selects_values():
 
 def test_handle_composite_ops_selects_both():
     x = torch.randn(1, 10)
-    gm = _capture_via_compile(_TopKBoth(), x)
+    gm = capture_via_compile(_TopKBoth(), x)
     handle_composite_ops(gm)
-    targets = _call_function_targets(gm)
+    targets = get_call_function_targets(gm)
     print(targets)
     assert composite_topk in targets
     assert composite_topk_values not in targets

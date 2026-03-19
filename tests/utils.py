@@ -10,6 +10,7 @@ import jax
 import jax.lax as jlx
 import jax.numpy as jnp
 import pytest
+import torch
 import torch_xla
 from infra import Framework
 
@@ -220,3 +221,28 @@ def parametrize_arch(archs=["single_device"]):
     params = [pytest.param(arch, marks=arch_marks[arch]) for arch in archs]
 
     return pytest.mark.parametrize("arch", params)
+
+
+def capture_via_compile(model, *args):
+    """
+    Capture the FX GraphModule as seen by a torch.compile backend.
+
+    torch.compile (dynamo) preserves high-level torch ops like torch.topk,
+    which is required for handle_composite_ops to match on node.target.
+    torch.export.export / make_fx would lower to aten.topk.default instead.
+    """
+    captured = {}
+
+    def _backend(gm, example_inputs):
+        captured["gm"] = gm
+        return gm.forward
+
+    torch.compile(model, backend=_backend)(*args)
+    return captured["gm"]
+
+
+def get_call_function_targets(gm):
+    """
+    Returns the set of targets of call_function nodes in the given FX GraphModule.
+    """
+    return {n.target for n in gm.graph.nodes if n.op == "call_function"}
