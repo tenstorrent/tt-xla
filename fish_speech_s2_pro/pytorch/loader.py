@@ -56,15 +56,15 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Fish Speech S2 Pro model."""
         from huggingface_hub import snapshot_download
-        from fish_speech.models.text2semantic.llama import DualARTransformer
+        from fish_speech.models.text2semantic.llama import BaseTransformer
 
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         # Download model files from HuggingFace Hub
         local_path = snapshot_download(repo_id=pretrained_model_name)
 
-        # Load the DualARTransformer from local checkpoint
-        model = DualARTransformer.from_pretrained(local_path, load_weights=True)
+        # Load the model (auto-detects DualARTransformer from config)
+        model = BaseTransformer.from_pretrained(local_path, load_weights=True)
 
         if dtype_override is not None:
             model = model.to(dtype=dtype_override)
@@ -80,11 +80,15 @@ class ModelLoader(ForgeModel):
         seq_len = 128
         num_codebooks = config.num_codebooks
 
-        # Build input tensor: [batch, seq_len, num_codebooks + 1]
-        # First channel is the semantic/text token, remaining are acoustic codebooks
-        inp = torch.zeros(1, seq_len, num_codebooks + 1, dtype=torch.long)
-        inp[:, :, 0] = torch.randint(0, config.vocab_size, (1, seq_len))
+        # inp shape: [batch, num_codebooks + 1, seq_len]
+        # Channel 0 is text/semantic tokens, channels 1..num_codebooks are audio codebooks
+        inp = torch.zeros(1, num_codebooks + 1, seq_len, dtype=torch.long)
+        inp[:, 0, :] = torch.randint(0, config.vocab_size, (1, seq_len))
         for i in range(num_codebooks):
-            inp[:, :, i + 1] = torch.randint(0, config.codebook_size, (1, seq_len))
+            inp[:, i + 1, :] = torch.randint(0, config.codebook_size, (1, seq_len))
 
-        return {"inp": inp}
+        # labels are required by DualARTransformer.forward() for the fast transformer
+        # Use same shape as inp; tokens outside semantic range trigger dummy fast path
+        labels = inp.clone()
+
+        return {"inp": inp, "labels": labels}
