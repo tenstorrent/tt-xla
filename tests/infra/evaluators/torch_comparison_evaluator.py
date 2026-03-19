@@ -34,8 +34,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         """
         if hasattr(cache, "to_legacy_cache"):
             return cache.to_legacy_cache()
-        # Fallback for any Cache with .layers (DynamicCache, StaticCache in transformers 5.x,
-        # and any other Cache subclass). Each layer exposes .keys and .values via CacheLayerMixin.
+        # Fallback for StaticCache and any Cache with .layers that do not
+        # implement to_legacy_cache (e.g. StaticCache with StaticLayer).
         if hasattr(cache, "layers"):
             return tuple((layer.keys, layer.values) for layer in cache.layers)
         return cache
