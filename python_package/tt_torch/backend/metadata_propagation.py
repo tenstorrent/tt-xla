@@ -149,11 +149,12 @@ def _find_enclosing_function(
                     self.found_name = None
 
                 def visit_FunctionDef(self, node):
-                    if hasattr(node, "body") and node.lineno <= self.line <= (
+                    end_line = getattr(node, "end_lineno", None) or (
                         max(getattr(x, "lineno", node.lineno) for x in node.body)
                         if node.body
                         else node.lineno
-                    ):
+                    )
+                    if hasattr(node, "body") and node.lineno <= self.line <= end_line:
                         # Recursively visit all children to find more specific (inner) functions.
                         # This includes functions nested directly AND methods inside nested classes.
                         self.generic_visit(node)
