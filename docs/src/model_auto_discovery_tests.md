@@ -84,7 +84,9 @@ tests/runner/test_models.py::test_all_models[llama/causal_lm/pytorch-llama_3_1_8
 ```bash
 pytest -q -k "qwen_2_5_vl/pytorch-3b_instruct" tests/runner/test_models.py
 pytest -q -m "training and tensor_parallel" tests/runner/test_models.py
+pytest -q --collect-only -m vulcan tests/runner/test_models.py |& tee collect_vulcan.log
 ```
+- Model-group markers are applied directly from `ModelInfo.group`, so once `tt-forge-models` loaders set `group=vulcan`, operators can use `-m vulcan` for collect-only or targeted runs.
 
 Take a look at `model-test-passing.json` and related `.json` files inside `.github/workflows/test-matrix-presets` for seeing how filtering works for CI jobs.
 
@@ -221,7 +223,10 @@ pytest -q -m n300_llmbox --arch n300-llmbox tests/runner/test_models.py
 
 - Push/PR: A small, fast subset runs on each pull request (e.g., tests marked `push`). This provides quick signal without large queues.
 - Nightly: The broad model matrix (inference/training across supported parallelism) runs nightly and reports to the Superset dashboard. Tests are selected via markers and `tests/runner/test_config/*` statuses/arch tags like `ModelTestStatus.EXPECTED_PASSING`
-- Experimental nightly: New or experimental models not yet promoted/tagged in `tests/runner/test_config/*` (typically `unspecified`) run separately. These do not report to Superset until promoted with proper status/markers.
+- Experimental nightly: New or experimental models not yet promoted/tagged in `tests/runner/test_config/*` (typically `unspecified`) run separately. The default CI preset explicitly excludes tests carrying the direct `vulcan` group marker (`and not vulcan`) so Vulcan-targeted models stay out of scheduled experimental selection unless a preset is intentionally widened. These do not report to Superset until promoted with proper status/markers.
+- Vulcan promotion lane: once a Vulcan-tagged model is validated and marked `EXPECTED_PASSING` in native `test_config` YAML, the dedicated preset `model-test-vulcan-passing.json` can be used to schedule only `vulcan and expected_passing and single_device and inference` cases on `n150` / `p150` without widening the default nightly or experimental presets.
+- Promotion guardrail: proof loaders used only for discovery or filter-path validation must not be added to `EXPECTED_PASSING` presets or YAML entries until they have at least one hardware-backed validated pass.
+- Example native promotion shape: `tests/runner/test_config/torch/test_config_inference_single_device.yaml` may later hold a Vulcan entry with `status: EXPECTED_PASSING`, explicit `supported_archs`, and optional review markers like `push`, but only after that model has cleared the native validation gate.
 
 ## Adding a new model to run in Nightly CI
 
@@ -264,7 +269,7 @@ git commit -m "Uplift tt-forge-models submodule to <version> to include <model>"
 - `tests/runner/test_models.py`: main parametrized pytest runner
 - `tests/runner/test_utils.py`: discovery, IDs, `DynamicTorchModelTester`
 - `tests/runner/requirements.py`: per-model requirements context manager
-- `tests/runner/conftest.py`: config attachment, markers, `--arch`, config validation
+- `tests/runner/conftest.py`: config attachment, direct model-group markers (for example `red`, `generality`, `vulcan`), default schedule markers, `--arch`, config validation
 - `tests/runner/test_config/*.yaml`: YAML test config files (source of truth)
 - `tests/runner/test_config/config_loader.py`: loads/merges/validates YAML into Python at runtime
 - `third_party/tt_forge_models/config.py`: `Parallelism` and model metadata
