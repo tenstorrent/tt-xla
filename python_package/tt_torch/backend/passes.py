@@ -128,8 +128,7 @@ def insert_argument_type_markers(
         if out_spec.kind == OutputKind.BUFFER_MUTATION:
             mutated_buffer_targets.add(out_spec.target)
 
-    get_attr_target_type_dict = {}
-    placeholder_target_type_dict = {}
+    input_type_dict = {}
     for in_spec in input_signature:
         type_str = None
         if in_spec.kind == InputKind.USER_INPUT:
@@ -154,23 +153,21 @@ def insert_argument_type_markers(
         else:
             assert False, f"Unexpected input kind: {in_spec.kind}"
 
+        # Index by target (for get_attr nodes) and by arg.name (for placeholder
+        # nodes in the AOTAutograd path).
         if in_spec.target is not None:
-            get_attr_target_type_dict[in_spec.target] = type_str
-        # Always also index by arg.name so that placeholder nodes (used in the
-        # AOTAutograd path where all inputs are placeholders) can be matched.
-        placeholder_target_type_dict[in_spec.arg.name] = type_str
+            input_type_dict[in_spec.target] = type_str
+        input_type_dict[in_spec.arg.name] = type_str
 
     for input_node in input_nodes:
         users = list(input_node.users.keys())
         if len(users) == 0:
             continue
 
-        argument_type = None
-        if input_node.target in get_attr_target_type_dict:
-            argument_type = get_attr_target_type_dict[input_node.target]
-        elif input_node.name in placeholder_target_type_dict:
-            argument_type = placeholder_target_type_dict[input_node.name]
-        else:
+        argument_type = input_type_dict.get(input_node.target) or input_type_dict.get(
+            input_node.name
+        )
+        if argument_type is None:
             continue
 
         mangled_name = input_node.target if input_node.target else input_node.name
