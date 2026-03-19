@@ -21,6 +21,7 @@ def run_pooling_test(
     max_num_reqs: int = 2,
     max_num_batched_tokens: int = 128,
     optimization_level: int = 0,
+    use_2d_mesh: bool = False,
 ):
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
@@ -46,6 +47,7 @@ def run_pooling_test(
             "enable_const_eval": enable_const_eval,
             "batch_size": batch_size,
             "optimization_level": optimization_level,
+            "use_2d_mesh": use_2d_mesh,
         },
     }
     model = vllm.LLM(**llm_args)
