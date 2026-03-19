@@ -147,7 +147,7 @@ def create_device_mesh() -> Mesh:
         Mesh object for SPMD operations
     """
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (1, num_devices)
+    mesh_shape = (num_devices,1)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
     print(f"Created device mesh: {mesh_shape} with {num_devices} devices")
@@ -300,20 +300,22 @@ def mark_sharding_on_inputs_and_model(
     """
 
     # don't shard layers in 1x16 mode!
-    # for layer in input_args["past_key_values"].layers:
-        # xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-        # xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+    for layer in input_args["past_key_values"].layers:
+        xs.mark_sharding(layer.keys, mesh, ('batch', None, None, None))
+        xs.mark_sharding(layer.values, mesh, ('batch', None, None, None))
+
+    xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
 
     # Shard model internals
     for layer in model.model.layers:
-        xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
+        xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("batch", None))
+        xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("batch", None))
+        xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "batch"))
 
-        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+        # xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
+        # xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
+        # xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
+        # xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
 
 def run_generate(
