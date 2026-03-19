@@ -140,7 +140,6 @@ class XlaQKVParallelLinear(nn.Module):
         xs.mark_sharding(self.k_weight, mesh, ("batch", "model"))
         xs.mark_sharding(self.v_weight, mesh, ("batch", "model"))
         if self.q_bias is not None:
-            logger.info(f"loading bias for qkv parallel linear")
             assert (
                 self.k_bias is not None and self.v_bias is not None
             ), "QKVParallelLinear should have q, k, and v biases together."
