@@ -256,4 +256,5 @@ def benchmark_vllm(
         input_sequence_length=config.max_model_len,
         device_count=device_count,
         mesh_shape=mesh_shape,
+        vllm=True,
     )

@@ -30,7 +30,9 @@ SINGLE_DEVICE_CONFIGS = [
 
 
 def _run_vllm_benchmark(config, output_file, request):
-    display_name = resolve_display_name(request=request, fallback=config.model)
+    display_name = "vllm_" + resolve_display_name(
+        request=request, fallback=config.model
+    )
 
     print(f"\n{'='*60}")
     print(f"vLLM Benchmark: {display_name}")
