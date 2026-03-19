@@ -5,9 +5,6 @@
 name: Transformers Compatibility Check
 
 on:
-  push:
-    branches:
-      - jazpur/aknezevic/hf_uplift  # TODO: Remove before merging to main
   schedule:
     - cron: '0 6 * * *'  # Daily at 06:00 UTC
   workflow_dispatch:
@@ -179,12 +176,13 @@ jobs:
         apt-get update
         apt install -y libgl1 libglx-mesa0
 
-    - name: Validate test config
+    - name: Validate Forge Models Tests test config file
       continue-on-error: true
       shell: bash
       run: |
         source venv/activate
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
+        uv pip install pyyaml
+        python3 tests/runner/validate_test_config.py
 
     - name: Collect Tests
       id: collect-tests
