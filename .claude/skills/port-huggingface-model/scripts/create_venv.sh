@@ -22,4 +22,6 @@ source $VENV_DIR/bin/activate
 pip install pre-commit
 pre-commit install
 
+pip install pytest
+
 pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
