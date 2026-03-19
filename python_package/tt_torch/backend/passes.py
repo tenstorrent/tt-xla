@@ -266,12 +266,8 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
                 and node.args[1] == torch.float32
             )
             node_meta = node.args[0].meta
-            if "tensor_meta" in node_meta:
-                is_redundant_cast = node_meta["tensor_meta"].dtype == node.args[1]
-            elif "val" in node_meta and isinstance(node_meta["val"], torch.Tensor):
-                is_redundant_cast = node_meta["val"].dtype == node.args[1]
-            else:
-                is_redundant_cast = False
+            meta_val = node_meta.get("tensor_meta") or node_meta.get("val")
+            is_redundant_cast = meta_val is not None and meta_val.dtype == node.args[1]
 
             if is_unwanted_dtype_promotion or is_redundant_cast:
                 node.replace_all_uses_with(node.args[0])
