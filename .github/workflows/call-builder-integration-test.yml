@@ -140,10 +140,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          # No submodules needed — build artifacts come from the build job.
-          # venv/activate only needs the directory structure to exist, which
-          # we create below when restoring the bindings artifact.
-          submodules: false
+          submodules: recursive
           repository: 'tenstorrent/tt-xla'
 
       - name: Fetch job ID
