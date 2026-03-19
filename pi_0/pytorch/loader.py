@@ -89,7 +89,8 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None, episode_index=0):
         """
         Load and preprocess inputs for action sampling.
-        Returns images, image masks, language tokens, language masks, and state.
+        Returns images, image masks, language tokens, language masks, state,
+        and a pre-generated noise tensor for deterministic diffusion sampling.
         """
         from lerobot.policies.factory import make_pre_post_processors
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
@@ -111,7 +112,14 @@ class ModelLoader(ForgeModel):
             lang_masks,
             state,
         ) = self.pi_0.preprocess_for_sampling(batch)
-        return images, img_masks, lang_tokens, lang_masks, state
+
+        bsize = state.shape[0]
+        noise = self.pi_0.model.sample_noise(
+            (bsize, self.pi_0.config.chunk_size, self.pi_0.config.max_action_dim),
+            device=state.device,
+        )
+
+        return images, img_masks, lang_tokens, lang_masks, state, noise
 
     def postprocess(self, pred_action):
         """Apply postprocessing to predicted actions."""
