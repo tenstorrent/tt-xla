@@ -69,6 +69,9 @@ class TTConfig:
     # Target dtype for weight conversion (e.g. "bfp8", "bfp4"). Empty disables.
     experimental_weight_dtype: str = ""
 
+    # Perform token sampling on CPU instead of compiling a sampling graph for device
+    cpu_sampling: bool = False
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
