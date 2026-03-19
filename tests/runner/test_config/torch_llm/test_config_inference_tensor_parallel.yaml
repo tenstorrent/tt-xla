@@ -37,12 +37,10 @@ test_config:
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
-    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
   gemma/pytorch-2_9B_IT-llm_decode-seq_1-batch_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
   gemma/pytorch-2_27B_IT-llm_decode-seq_1-batch_1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
