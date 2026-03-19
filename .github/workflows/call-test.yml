@@ -97,17 +97,17 @@ jobs:
         submodules: recursive
         sparse-checkout-cone-mode: false
         sparse-checkout: |
-          .github/scripts/*
+          .github/scripts/
           .gitmodules
           .test_durations
-          pjrt_implementation/*
-          third_party/pjrt_c_api/*
+          pjrt_implementation/
+          third_party/pjrt_c_api/
           pytest.ini
           python_package/requirements.txt
           integrations/vllm_plugin/requirements-vllm-plugin.txt
-          tests/*
-          venv/*
-          examples/*
+          tests/
+          venv/
+          examples/
 
     - name: Fetch job id
       id: fetch-job-id

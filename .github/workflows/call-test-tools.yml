@@ -49,7 +49,7 @@ jobs:
           submodules: recursive
           sparse-checkout-cone-mode: false
           sparse-checkout: |
-            examples/pytorch/*
+            examples/pytorch/
 
       - name: Set reusable strings
         id: strings
