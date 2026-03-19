@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
- 
+
 # Directory name for the virtual environment
 VENV_DIR=".venv"
- 
+
 if [ -d "$VENV_DIR" ] && [ -f "$VENV_DIR/bin/activate" ]; then
     echo "Virtual environment already exists at '$VENV_DIR'. Skipping creation."
 else
     echo "Creating Python 3 virtual environment at '$VENV_DIR'..."
     python3 -m venv "$VENV_DIR"
- 
+
     if [ $? -eq 0 ]; then
         echo "Virtual environment created successfully."
     else
