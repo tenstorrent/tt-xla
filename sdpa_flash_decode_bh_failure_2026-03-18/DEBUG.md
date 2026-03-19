@@ -80,3 +80,103 @@ pytest -svv tests/integrations/vllm_plugin/generative/test_llama3_3b_generation.
 3. torch dynamo → XLA → tt-mlir → tt-metal
 4. tt-metal JIT compiles `sdpa` / `sdpa_flash_decode` kernels
 5. trisc1 link fails on `_calculate_exponential_approx_` in BH exponential LLK
+
+## Parameter Sweep Findings
+
+The bug is **determined entirely by `num_query_heads`**. Sequence length, batch size, weight dtype (bfp8), kv_heads, and head_dim are all irrelevant.
+
+### SDPA Op-Level Sweep (`test_sdpa_decode_sweep.py`)
+
+| query_heads | kv_heads | head_dim | Result |
+|---|---|---|---|
+| 4 | 4 | 64 | PASS |
+| 4 | 4 | 128 | PASS |
+| 8 | 4 | 64 | PASS |
+| 8 | 8 | 64 | PASS |
+| 8 | 8 | 128 | PASS |
+| 16 | 4 | 64 | PASS |
+| 16 | 8 | 64 | PASS |
+| 16 | 16 | 64 | PASS |
+| 16 | 16 | 128 | PASS |
+| 20 | 4 | 64 | **FAIL** |
+| 24 | 8 | 128 | **FAIL** |
+| 32 | 4 | 64 | **FAIL** |
+| 32 | 8 | 64 | **FAIL** |
+| 32 | 8 | 128 | **FAIL** |
+| 32 | 16 | 64 | **FAIL** |
+| 32 | 32 | 64 | **FAIL** |
+
+**Threshold: `num_query_heads > 16` triggers the bug for all valid head combos.**
+
+### vLLM Model Tests
+
+| Model | Params | Query heads | Result | tok/s |
+|---|---|---|---|---|
+| **Qwen2.5-0.5B-Instruct** | 0.5B | 16 | **PASS** | 3.51 |
+| **Qwen2.5-3B-Instruct** | 3B | 16 | **PASS** | 3.23 |
+| Qwen2.5-7B-Instruct | 7B | 28 | FAIL (sdpa_flash_decode) | — |
+| Llama-3.2-3B-Instruct | 3B | 24 | FAIL (sdpa) | — |
+| Llama-3.1-8B-Instruct | 8B | 32 | FAIL (sdpa) | — |
+| TinyLlama-1.1B | 1.1B | 32 | FAIL (sdpa) | — |
+| Gemma-2-9B-it | 9B | 8 | FAIL (different error, not SDPA) | — |
+| Qwen3-0.6B | 0.6B | 16 | PASS (known from other tests) | — |
+
+### Seq Len / Weight Dtype Do Not Help (Llama-3.2-3B)
+
+Tested with `max_model_len=32` (smallest possible) — still fails. The SDPA kernel template is parameterized by head count, not sequence length. bfp8 weight dtype also does not affect the SDPA kernel compilation.
+
+Logs: `test_llama_sweep_seq32.log`, `test_llama_sweep_bfp8.log`
+
+### Why Specific Head Counts Trigger the Bug
+
+The SDPA kernel is templated on `num_query_heads`. Higher head counts create more complex loop unrolling in the exponential computation, increasing register pressure. At >16 heads, LTO's optimization of the `sfpi::reinterpret` → `__vBase::assign()` chain exceeds the available SFPU registers, forcing a spill.
+
+### Full Baseline Run (no fix applied)
+
+Log: `bh_single_device_vllm_no_fix.log`
+
+| Test | Query heads | Result |
+|---|---|---|
+| `test_opt_generation` (OPT-125M) | 12 | PASS |
+| `test_opt_generation_multibatch` | 12 | PASS |
+| `test_responses_api_basic[string_input]` | 12 | PASS |
+| `test_responses_api_basic[message_input]` | 12 | PASS |
+| `test_responses_api_streaming` | 12 | PASS |
+| `test_responses_api_deterministic` | 12 | PASS |
+| `test_responses_api_instructions` | 12 | PASS |
+| `test_responses_api_top_logprobs` | 12 | PASS |
+| `test_vllm_generation[opt-125m]` | 12 | PASS |
+| `test_vllm_generation[qwen2.5-0.5b]` | 16 | PASS |
+| `test_vllm_generation[qwen2.5-1.5b]` | 12 | PASS |
+| `test_vllm_generation[qwen2.5-3b]` | 16 | PASS |
+| `test_llama3_3b_generation` (Llama-3.2-3B) | 24 | **FAIL** (sdpa) |
+| `test_tinyllama_generation` | 32 | **FAIL** (sdpa) |
+| `test_vllm_generation[tinyllama-1.1b]` | 32 | **FAIL** (sdpa) |
+| `test_vllm_generation[llama3.2-1b]` | 32 | **FAIL** (sdpa) |
+| `test_vllm_generation[llama3.2-3b]` | 24 | **FAIL** (sdpa) |
+| `test_vllm_generation[qwen2.5-7b]` | 28 | **FAIL** (sdpa) |
+| `test_vllm_generation[llama3.1-8b]` | 32 | **FAIL** (sdpa) |
+
+All 7 failures are `cannot write sfpu vector to memory` in `sdpa_flash_decode`, all >16 query heads.
+
+### Compiler Wrapper Workaround Attempted
+
+Replaced `/opt/tenstorrent/sfpi/compiler/bin/riscv-tt-elf-g++` with a wrapper script that strips `-flto=auto` for sdpa kernels only.
+
+- **`-O3 -fno-lto`**: Kernel compiles but binary too large (71296 > 70688 byte Tensix limit)
+- **`-O3 -fno-lto -ffunction-sections -fdata-sections -Wl,--gc-sections`**: Kernel compiles and fits, but produces **garbage output** (attention computation incorrect without LTO)
+- **`-O3 -fno-lto + sfpi.h v=in hack`**: Same garbage output — the sfpi.h change is not the cause
+
+Conclusion: SDPA kernel on BH requires LTO for both fitting in the Tensix buffer and correct codegen. Compiler-level workarounds are not viable.
+
+### Fixes
+
+Two fix paths identified:
+
+1. **tt-mlir PR [#7561](https://github.com/tenstorrent/tt-mlir/pull/7561)**: Disables `exp_approx_mode` for BH paged SDPA decode in tt-mlir runtime. Falls back to precise exp which doesn't trigger the bug. In our control.
+
+2. **tt-metal PR [#39474](https://github.com/tenstorrent/tt-metal/pull/39474)**: Changes SDPA to no longer call `_calculate_exponential_piecewise_`. Cherry-picked to tt-metal branch `kmabee/metal_march18_exp_approx_sdpa_cherry_pick` and confirmed working.
+
+### Demo Workaround (without fix)
+
+**Qwen2.5-3B-Instruct** (16 query heads, 3B params) is the largest model confirmed working via vLLM on single-chip Blackhole without any fix. Serving example at `examples/vllm/Qwen2.5-3B-Instruct/`.
