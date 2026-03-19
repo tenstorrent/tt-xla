@@ -39,15 +39,8 @@ RUN apt-get update && \
     apt install -y "./mpi.deb" && \
     rm -f "mpi.deb"
 
-ARG OMPI_TAG=v5.0.7
-ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
-ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
-
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
-
-# Temporary fix for the vllm wheel install
-ENV VLLM_TARGET_DEVICE="empty"
 
 COPY *.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl && \
