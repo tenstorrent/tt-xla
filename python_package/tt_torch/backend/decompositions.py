@@ -277,6 +277,13 @@ def dot(input: torch.Tensor, tensor: torch.Tensor):
         return NotImplemented
 
 
+def histc(input: torch.Tensor, bins: int = 100, min: int = 0, max: int = 0):
+    # torch.histc on CPU does not support integer dtypes. Cast to float first.
+    if not input.is_floating_point():
+        return torch.histc(input.float(), bins, min, max)
+    return NotImplemented
+
+
 def boolean_bitwise_and(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
     if input.dtype == torch.bool and other.dtype == torch.bool:
         return torch.logical_and(input, other)
@@ -376,6 +383,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.prims.squeeze.default: squeeze,
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
+        aten.histc.default: histc,
     }
 
 

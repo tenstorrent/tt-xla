@@ -19,6 +19,9 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if len(args) > 2 and args[2] is not None:
                     res = res + args[2]
                 return res
+        # torch.histc on CPU does not support integer dtypes; cast to float.
+        if func is torch.ops.aten.histc.default and not args[0].is_floating_point():
+            return func(args[0].float(), *args[1:], **(kwargs or {}))
         return func(*args, **(kwargs or {}))
 
 
