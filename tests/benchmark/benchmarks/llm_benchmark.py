@@ -64,6 +64,10 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+    # Use static dense experts forward to avoid graph breaks from data-dependent
+    # loops in the original experts and _grouped_mm CPU crashes.
+    if hasattr(model.config, "_experts_implementation"):
+        model.config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
