@@ -363,8 +363,6 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
         run_shape_prop(gm, example_inputs)
         gm = bypass_dtype_promotion_and_redundant_cast(gm, example_inputs)
 
-    gm.graph.eliminate_dead_code()
-    gm.graph.lint()
     return gm
 
 
