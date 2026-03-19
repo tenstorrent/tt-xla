@@ -5,77 +5,80 @@ name: Run Test
 
 on:
   workflow_dispatch:
-    inputs:
-      test_suite:
-        description: 'Test suite preset options or custom'
-        required: true
-        type: choice
-        options:
-          - 'basic-test.json'
-          - 'basic-test-nightly.json'
-          - 'model-test-push.json'
-          - 'model-test-full.json'
-          - 'on-pr.json'
-          - 'schedule-nightly.json'
-          - 'model-test-passing.json'
-          - 'model-test-xfail.json'
-          - 'model-test-experimental.json'
-          - 'model-test-training-xfail-weekly.json'
-          - 'model-test-extended.json'
-          - 'mlir-uplift-qualification.json'
-          - 'model-test-passing-weekly.json'
-          - 'model-test-weekly.json'
-          - 'vllm-model-tests.json'
-          - 'vllm-model-tests-nightly.json'
-          - 'fusion-tests.json'
-          - 'Custom'
-      test_suite_custom:
-        description: 'Custom test suite json'
-        required: false
-        type: string
-      mlir_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir'
-        required: false
-        type: string
-      manylinux_build:
-        description: 'Build and use manylinux wheel'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
+  contents: read
+  pages: write
+  id-token: write
   packages: write
   checks: write
-
-run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
+  deployments: write
 
 jobs:
-  build-image:
-    uses: ./.github/workflows/call-build-docker.yml
-    secrets: inherit
-    with:
-      mlir_override: ${{ inputs.mlir_override }}
-      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
-  build-ttxla:
-    needs: build-image
-    uses: ./.github/workflows/call-build.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      mlir_override: ${{ inputs.mlir_override }}
-      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+  build-docs:
+    runs-on: ubuntu-latest
 
-  test:
-    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
-    uses: ./.github/workflows/call-test.yml
-    needs: [ build-image, build-ttxla ]
-    secrets: inherit
-    with:
-      test_suite: ${{ inputs.test_suite }}
-      test_suite_custom: ${{ inputs.test_suite_custom }}
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+    container:
+      image: "ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest"
+
+    env:
+      MDBOOK_VERSION: 0.4.36
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+
+    - name: Git safe dir
+      run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
+
+    - name: Install system deps (Doxygen, Rust, Cargo)
+      shell: bash
+      run: |
+        apt-get update
+        apt-get install -y doxygen curl
+
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        source "$HOME/.cargo/env"
+
+        cargo install --version ${MDBOOK_VERSION} mdbook --locked
+
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Setup Pages
+      id: pages
+      uses: actions/configure-pages@v6
+
+    - name: Build Docs
+      shell: bash
+      run: |
+        source venv/activate
+        source "$HOME/.cargo/env"
+        cmake -G Ninja -B build
+        cmake --build build -- docs
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v4
+      with:
+        path: ./build/docs/book
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    needs: build-docs
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
