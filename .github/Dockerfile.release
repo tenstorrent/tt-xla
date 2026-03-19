@@ -22,11 +22,13 @@ RUN apt-get update && \
     ssh \
     unzip
 
+# Enable system-wide packages install
 RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 
+# Install python
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3.12 python3.12-dev python3.12-venv python3-pip && \
-    python3.12 -m pip install --no-cache-dir --ignore-installed --upgrade pip setuptools wheel && \
+    python3.12 -m pip install --no-cache-dir --ignore-installed --upgrade pip && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
 # Install system dependencies
@@ -34,20 +36,10 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
     libnuma1 \
-    protobuf-compiler && \
-    wget "https://github.com/dmakoviichuk-tt/mpi-ulfm/releases/download/v5.0.7-ulfm/openmpi-ulfm_5.0.7-1_amd64.deb" -O "mpi.deb" && \
-    apt install -y "./mpi.deb" && \
-    rm -f "mpi.deb"
-
-ARG OMPI_TAG=v5.0.7
-ARG OMPI_PREFIX=/opt/openmpi-${OMPI_TAG}-ulfm
-ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
+    protobuf-compiler
 
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
-
-# Temporary fix for the vllm wheel install
-ENV VLLM_TARGET_DEVICE="empty"
 
 COPY *.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl && \
