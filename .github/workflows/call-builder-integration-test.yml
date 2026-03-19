@@ -142,6 +142,17 @@ jobs:
         with:
           submodules: recursive
           repository: 'tenstorrent/tt-xla'
+          # Sparse checkout: omit python_package/ so the editable install in the
+          # Docker image venv cannot redirect imports back to the source tree.
+          # The wheel (installed below) is the authoritative pjrt_plugin_tt.
+          # call-test.yml relies on the same behaviour implicitly — it only
+          # sparse-checks out python_package/requirements.txt, never the packages.
+          sparse-checkout: |
+            .gitmodules
+            pytest.ini
+            tests
+            venv
+            third_party/tt_forge_models
 
       - name: Fetch job ID
         id: fetch-job-id
@@ -166,6 +177,31 @@ jobs:
         run: |
           source venv/activate
           uv pip install wheels/*.whl
+
+      - name: Verify pjrt_plugin_tt install
+        shell: bash
+        run: |
+          source venv/activate
+          python3 - <<'EOF'
+          import pathlib, pjrt_plugin_tt
+          init = pathlib.Path(pjrt_plugin_tt.__file__).resolve()
+          plugin_dir = init.parent
+          so = plugin_dir / "pjrt_plugin_tt.so"
+          print(f"pjrt_plugin_tt loaded from : {init}")
+          print(f"pjrt_plugin_tt.so path     : {so}")
+          if so.is_symlink():
+              target = so.readlink()
+              resolved = so.resolve() if so.exists() else None
+              status = f"SYMLINK -> {target}"
+              status += f"  (resolved: {resolved})" if resolved else "  (DANGLING - target missing)"
+          elif so.is_file():
+              status = f"regular file ({so.stat().st_size // 1024 // 1024} MB)"
+          else:
+              status = "NOT FOUND"
+          print(f"pjrt_plugin_tt.so status   : {status}")
+          assert so.exists(), f"pjrt_plugin_tt.so not found at {so}"
+          print("OK - pjrt_plugin_tt.so is accessible")
+          EOF
 
       - name: Download tt-mlir bindings
         uses: actions/download-artifact@v4
