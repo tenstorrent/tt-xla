@@ -99,6 +99,7 @@ from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
+from .vllm_utils import determine_mesh_shape
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -235,11 +236,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
+        self.use_2d_mesh = self.tt_config.use_2d_mesh
+
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
-            mesh_shape = (num_devices, 1)
+            mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
             device_ids = np.array(range(num_devices))
-            self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
+            self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -1731,6 +1734,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
+            if self.enable_tensor_parallel:
+                xs.mark_sharding(
+                    dummy_hidden,
+                    self.mesh,
+                    (None, None if num_tokens == 1 else "batch", "model"),
+                )
             self.select_hidden_states(dummy_hidden, indices)
 
         xm.wait_device_ops()
@@ -1748,6 +1757,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.max_num_reqs, hsize), dtype=self._hidden_states_dtype
         )
         dummy_hidden = dummy_hidden.to(self.device)
+        if self.enable_tensor_parallel:
+            xs.mark_sharding(dummy_hidden, self.mesh, (None, None))
         self.compute_logits(dummy_hidden)
 
         xm.wait_device_ops()
@@ -2070,7 +2081,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Shard KV Cache
             for cache in self.kv_caches:
                 assert cache.ndim == 5, "KV cache tensor must be 5D."
-                xs.mark_sharding(cache, self.mesh, (None, None, "x", None, None))
+                xs.mark_sharding(cache, self.mesh, (None, None, "batch", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
@@ -2096,7 +2107,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-        return hidden_states[batch_indices, indices_do_sample, :]
+        result = hidden_states[batch_indices, indices_do_sample, :]
+        if self.enable_tensor_parallel:
+            result = sharding_constraint_tensor(result, self.mesh, (None, None))
+        return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
@@ -2105,8 +2119,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # (quant_method.apply bypasses __call__) and all_gather is a
         # no-op (world_size=1). Must be inside the compiled graph —
         # external sharding_constraint between compiled functions breaks.
-        if self.enable_tensor_parallel:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+        # if self.enable_tensor_parallel:
+        #    logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
