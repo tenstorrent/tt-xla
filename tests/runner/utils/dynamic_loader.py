@@ -79,9 +79,21 @@ class DynamicLoader:
             Tuple of (mesh_shape, mesh_names) if loader implements get_mesh_config,
             (None, None) otherwise
         """
-        if hasattr(self.loader, "get_mesh_config"):
-            return self.loader.get_mesh_config(num_devices)
-        return None, None
+        if num_devices == 16:
+            ret =  (16,1), ("batch", "model")
+        elif num_devices == 64:
+            ret =  (8,8), ("batch", "model")
+        elif num_devices == 128:
+            ret =  (16,8), ("batch", "model")
+        else:
+            raise ValueError(f"[james] unsupported num_devices = {num_devices}")
+        
+        print(f"[james] Returnning overriden mesh_config for num devices = {num_devices} = {ret}")
+        return ret
+        # if hasattr(self.loader, "get_mesh_config"):
+        #     return self.loader.get_mesh_config(num_devices)
+        # return None, None
+
 
     def has_mesh_support(self) -> bool:
         """Check if the loader supports mesh configuration.
