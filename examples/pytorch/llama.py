@@ -94,6 +94,10 @@ def llama(interactive: bool = False):
             user_prompt, tokenizer, model.config, batch_size, max_cache_len
         )
 
+        torch_xla.set_custom_compile_options({
+            "experimental_weight_dtype": "bfp8",  # Cast matmul weights to bfloat8_b
+        })
+
         # Limit maximum generation count to fit within preallocated static cache
         max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
