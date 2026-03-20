@@ -30,7 +30,7 @@ env:
 jobs:
   multihost-hostname-check:
     runs-on:
-      - multi-host-t3000
+      - multi-host-galaxy
       - in-service
 
     steps:
@@ -526,12 +526,7 @@ jobs:
           echo "Smoketest complete"
           echo ""
 
-      - name: Upload system descriptor artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: tt-system-descriptor
-          path: ${{ github.workspace }}/system_descriptor/
-          if-no-files-found: warn
+
 
       - name: Install build dependencies for tt-metal
         if: ${{ inputs.test_metal }}
@@ -889,19 +884,19 @@ jobs:
             source /tmp/worker_path_env
 
             echo "Configuring distributed runtime environment..."
-            export TTXLA_LOGGER_LEVEL=VERBOSE
+            export TTXLA_LOGGER_LEVEL=DEBUG
             export TT_DISTRIBUTED_WORKER_PATH="$DISTRIBUTED_WORKER_PATH"
             export TT_RUNTIME_ENABLE_DISTRIBUTED=1
-            export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
-            export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
-            # export TT_DISTRIBUTED_HOSTS_LIST=f10cs03,f10cs04
+            export TT_DISTRIBUTED_RANK_BINDING=dual_galaxy
+            export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=g10glx03
+            # export TT_DISTRIBUTED_HOSTS_LIST=g10glx03,g10glx04
             export TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
             export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
             export TT_METAL_LOGGER_LEVEL=DEBUG
             export TT_METAL_LOGGER_TYPES=Fabric,Always
             export TT_RUNTIME_USING_DUALT3K=1
+            export TT_DISTRIBUTED_RANK_FILE_PATH=/etc/mpirun/rankfile
 
-            echo ""
             echo "Environment configured:"
             echo "  TT_DISTRIBUTED_WORKER_PATH: $TT_DISTRIBUTED_WORKER_PATH"
             echo "  TT_DISTRIBUTED_CONTROLLER_HOST_NAME: $TT_DISTRIBUTED_CONTROLLER_HOST_NAME"
@@ -913,19 +908,29 @@ jobs:
             pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
 
             # echo "Running llama test"
-            python examples/pytorch/llama.py
+            # python examples/pytorch/llama.py
+
+            pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
 
             echo "Saving system descriptor after llama run in distributed context..."
             mkdir -p system_descriptor
             python .github/scripts/save_system_descriptor.py system_descriptor/tt_system
 
             echo "Running test: gptoss 120b dualt3k 1x16"
-            pytest -svv tests/benchmark/test_llms.py::test_gpt_oss_120b_tp
+            # pytest -svv tests/benchmark/test_llms.py::test_gpt_oss_120b_tp
+
           '
 
           echo ""
           echo "Test execution complete"
           echo ""
+
+      - name: Upload system descriptor artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: tt-system-descriptor
+          path: ${{ github.workspace }}/system_descriptor/
+          if-no-files-found: warn
 
       - name: Fix workspace permissions
         if: always()
