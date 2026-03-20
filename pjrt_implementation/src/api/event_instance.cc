@@ -13,6 +13,7 @@
 // c++ standard library includes
 #include <exception>
 #include <stdexcept>
+#include <thread>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
@@ -134,11 +135,15 @@ void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
   // Release the lock before executing callbacks.
   ready_lock.unlock();
 
-  // Execute callbacks without holding lock (event may be destroyed in callback)
-  for (OnReadyCallback &callback : callbacks_to_execute) {
-    callback.callback_function(*ErrorInstance::makeError(status).release(),
-                               callback.user_arg);
-  }
+  // PROOF OF CONCEPT: fire callbacks on a detached thread to break the
+  // GIL + device lock deadlock. Not a proper fix - just proving the theory.
+  std::thread([callbacks_to_execute = std::move(callbacks_to_execute),
+               status]() mutable {
+    for (OnReadyCallback &callback : callbacks_to_execute) {
+      callback.callback_function(*ErrorInstance::makeError(status).release(),
+                                 callback.user_arg);
+    }
+  }).detach();
 }
 
 namespace internal {
