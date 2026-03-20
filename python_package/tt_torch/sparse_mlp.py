@@ -83,13 +83,9 @@ class SparseMLP(nn.Module):
         batch_size, seq_len, hidden_size = hidden_states.shape
 
         # 1. Router Execution
-        # GptOssTopKRouter returns (router_logits, router_scores, router_indices):
-        #   router_out[0]: raw logits [B, S, E]
-        #   router_out[1]: softmax(top_k_logits) compact probs [B, S, top_k]
-        #   router_out[-1]: top-k indices [B, S, top_k]
-        router_out = self.router(hidden_states)
-        router_scores = router_out[1]  # [B, S, top_k] compact softmax probabilities
-        router_indices = router_out[-1]  # [B, S, top_k] compact indices
+        # router_scores: [batch*seq, num_experts] (scattered probabilities)
+        # router_indices: [batch*seq, top_k]
+        router_scores, router_indices = self.router(hidden_states)
 
         # 2. Create Sparsity Mask [batch, seq, 1, num_experts]
         sparsity = torch.zeros(
@@ -176,21 +172,10 @@ class SparseMLP(nn.Module):
         down_out = down_out + self.experts.down_proj_bias
 
         # 8. Weighted Sum & Final Output
-        # router_scores is compact [B, S, top_k] — scatter to [B*S, E] so non-selected
-        # experts are zeroed out, then weight expert outputs by their softmax probability.
-        # down_out: [BS, E, H], output: [BS, H]
-        scores_flat = router_scores.view(batch_size * seq_len, self.num_experts_per_tok)
-        indices_flat = router_indices.view(
-            batch_size * seq_len, self.num_experts_per_tok
-        ).long()
-        scattered = torch.zeros(
-            batch_size * seq_len,
-            self.num_experts,
-            dtype=hidden_states.dtype,
-            device=hidden_states.device,
-        )
-        scattered.scatter_(1, indices_flat, scores_flat)
-        output = (down_out * scattered.unsqueeze(-1)).sum(dim=1)
+        # down_out: [BS, E, H]
+        # router_scores: [BS, E] -> [BS, E, 1]
+        # output: [BS, H] (Sum over Experts dim=1)
+        output = (down_out * router_scores.unsqueeze(-1)).sum(dim=1)
 
         # Reshape back to [batch, seq, hidden]
         output = output.view(batch_size, seq_len, hidden_size)
@@ -315,24 +300,18 @@ class A2aSparseMLP(nn.Module):
         K = self.num_experts_per_tok
 
         # 1. Router
-        # GptOssTopKRouter returns (router_logits, router_scores, router_indices).
-        # Router must receive 2D [B*S, H] input because its softmax uses dim=1,
-        # which must correspond to the hidden dimension (not sequence).
-        hidden_flat = hidden_states.view(batch_size * seq_len, hidden_size)
-        router_out = self.router(hidden_flat)
-        router_logits = router_out[0].view(batch_size, seq_len, -1)  # [B, S, E]
-        router_scores = router_out[1].view(batch_size, seq_len, K)  # [B, S, top_k]
-        router_indices = router_out[-1].view(batch_size, seq_len, K)  # [B, S, top_k]
+        router_scores, router_indices = self.router(hidden_states)
         # Keep CPU golden path memory-efficient by delegating to the original
         # expert implementation. The custom sparse custom-op path is intended
         # for XLA/TT execution and can materialize larger temporary tensors on CPU.
         if hidden_states.device.type == "cpu":
             routed_out = self.experts(
-                hidden_states.view(batch_size * seq_len, hidden_size),
-                top_k_index=router_indices.view(batch_size * seq_len, K),
-                top_k_weights=router_scores.view(batch_size * seq_len, K),
+                hidden_states,
+                router_indices=router_indices,
+                routing_weights=router_scores,
             )
-            return routed_out.view(batch_size, seq_len, hidden_size), router_scores
+            return routed_out, router_scores
+        # router_scores: [B*S, E], router_indices: [B*S, K]
 
         # 2. Reshape for dispatch: tt-metal expects [B, 1, S, H] format
         x = hidden_states.view(batch_size, 1, seq_len, hidden_size)
@@ -444,7 +423,7 @@ class A2aSparseMLP(nn.Module):
 
             # Build topk_tensor [1, BD, S, E] — fold D into batch dim so the
             # kernel sees BD tokens and produces BD*S/M reduced entries.
-            topk_3d = router_logits  # [B, S, E] raw logits for remap kernel
+            topk_3d = router_scores.view(batch_size, seq_len, E)
             topk_repeated = topk_3d.repeat(D, 1, 1)  # [BD, S, E]
             topk_tensor = topk_repeated.unsqueeze(0)  # [1, BD, S, E]
 
@@ -655,8 +634,15 @@ class A2aSparseMLP(nn.Module):
         )
 
         # Weighted sum
-        # router_scores is compact [B, S, K] softmax probabilities — use directly.
-        topk_weights = router_scores.view(batch_size * seq_len, K)  # [B*S, K]
+        # Workaround: avoid torch.gather (TTNN scatter-based lowering has issues
+        # for large seq_len). Instead, use einsum with one-hot mask.
+        E = self.num_experts
+        # Build one-hot: [B*S, K, E] where one_hot[n, k, e] = 1 if indices[n,k] == e
+        expert_range = torch.arange(E, device=router_scores.device)  # [E]
+        one_hot = (router_indices.unsqueeze(-1) == expert_range).to(
+            router_scores.dtype
+        )  # [B*S, K, E]
+        topk_weights = torch.einsum("nke,ne->nk", one_hot, router_scores)  # [B*S, K]
         if seq_len == 1:
             topk_weights = topk_weights.view(batch_size, K)
             topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)  # [K, B, 1]
@@ -748,12 +734,7 @@ class A2aSparseStackedMlp(nn.Module):
         K = self.num_experts_per_tok
 
         # 1. Router
-        # GptOssTopKRouter returns (router_logits, router_scores, router_indices):
-        #   router_out[1]: softmax(top_k_logits) compact probs [B, S, top_k]
-        #   router_out[-1]: top-k indices [B, S, top_k]
-        router_out = self.router(hidden_states)
-        router_scores = router_out[1]  # [B, S, top_k] compact softmax probabilities
-        router_indices = router_out[-1]  # [B, S, top_k] compact indices
+        router_scores, router_indices = self.router(hidden_states)
 
         # 2. Reshape for dispatch: tt-metal expects [B, 1, S, H] format
         x = hidden_states.view(batch_size, 1, seq_len, hidden_size)
@@ -846,8 +827,8 @@ class A2aSparseStackedMlp(nn.Module):
         # combined: [K, B, S, H]
 
         # 10. Weighted sum
-        # router_scores is compact [B, S, K] softmax probabilities — use directly.
-        topk_weights = router_scores.view(batch_size, seq_len, K)
+        topk_weights = torch.gather(router_scores, dim=-1, index=router_indices)
+        topk_weights = topk_weights.view(batch_size, seq_len, K)
         topk_weights = topk_weights.permute(2, 0, 1).unsqueeze(-1)
 
         output = (combined * topk_weights).sum(dim=0)

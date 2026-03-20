@@ -89,22 +89,10 @@ jobs:
       sh-runner: false
       skip-device-perf: false
       perf_regression_check: true
-      adv_filter: '[ {"accuracy-testing": false, "vllm": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
+      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
-
-  vllm-perf-benchmark:
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
-    needs: [ build-image, build-ttxla ]
-    secrets: inherit
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      sh-runner: false
-      skip-device-perf: false
-      adv_filter: '[ {"vllm": true}, {"runs-on": "n150"} ]'
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   release:
     uses: ./.github/workflows/call-release.yml
@@ -134,7 +122,6 @@ jobs:
       - build-image
       - build-ttxla
       - perf-benchmark
-      - vllm-perf-benchmark
     runs-on: Ubuntu-latest
     outputs:
       is-main: ${{ steps.branch-check.outputs.IS_MAIN }}
