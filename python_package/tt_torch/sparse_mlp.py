@@ -308,7 +308,8 @@ class A2aSparseMLP(nn.Module):
         # Maps each expert to its owning device. When cluster_axis=0, the dispatch
         # kernel derives the target row from the device_id in the mapping.
         mapping = build_expert_mapping(num_experts, num_devices)
-        self.register_buffer("expert_mapping", mapping)
+        device = next(self.experts.parameters()).device
+        self.register_buffer("expert_mapping", mapping.to(device))
 
     def forward(self, hidden_states):
         batch_size, seq_len, hidden_size = hidden_states.shape
@@ -355,12 +356,22 @@ class A2aSparseMLP(nn.Module):
         M = 32
 
         # 4. Determine which dimension to split by M
-        # Prefer seq_len; fall back to BD; assert if neither works
+        # Prefer seq_len; fall back to BD; pad seq_len if neither works
         split_seq = seq_len % M == 0 and seq_len >= M
         split_bd = BD % M == 0 and BD >= M
-        assert (
-            split_seq or split_bd
-        ), f"Neither seq_len ({seq_len}) nor BD ({BD}) is divisible by M={M}"
+
+        seq_len_original = seq_len
+        pad_seq = 0
+        if not split_seq and not split_bd:
+            seq_len_padded = ((seq_len + M - 1) // M) * M
+            pad_seq = seq_len_padded - seq_len
+            # dispatched: [1, BD, S, H] → pad S dim
+            dispatched = F.pad(dispatched, (0, 0, 0, pad_seq))
+            # metadata: [1, BD, S, K] → pad S dim
+            metadata = F.pad(metadata, (0, 0, 0, pad_seq))
+            seq_len = seq_len_padded
+            split_seq = True
+
         if split_seq:
             dim_a, dim_b = BD, seq_len // M
         else:
@@ -445,7 +456,9 @@ class A2aSparseMLP(nn.Module):
             # Build topk_tensor [1, BD, S, E] — fold D into batch dim so the
             # kernel sees BD tokens and produces BD*S/M reduced entries.
             topk_3d = router_logits  # [B, S, E] raw logits for remap kernel
-            topk_repeated = topk_3d.repeat(D, 1, 1)  # [BD, S, E]
+            topk_repeated = topk_3d.repeat(D, 1, 1)  # [BD, S_original, E]
+            if pad_seq > 0:
+                topk_repeated = F.pad(topk_repeated, (0, 0, 0, pad_seq))
             topk_tensor = topk_repeated.unsqueeze(0)  # [1, BD, S, E]
 
             # metadata already [1, BD, S, K] — pass as-is
@@ -642,8 +655,16 @@ class A2aSparseMLP(nn.Module):
                 down_out = down_out.permute(3, 0, 2, 1, 4).contiguous()
                 down_out = down_out.view(E, BD, seq_len, hidden_size)
 
-        # Combine: gather expert outputs back along cluster_axis
+        # Remove seq padding before combine
         decode_mode = dim_b == 1 and not split_seq
+        if pad_seq > 0:
+            # down_out: [E, BD, S, H] — slice S dim back to original
+            down_out = down_out.narrow(2, 0, seq_len_original)
+            # metadata: [1, BD, S, K] — slice S dim back to original
+            metadata = metadata.narrow(2, 0, seq_len_original)
+            seq_len = seq_len_original
+
+        # Combine: gather expert outputs back along cluster_axis
         combined = torch.ops.tt.all_to_all_combine(
             down_out,
             metadata,
