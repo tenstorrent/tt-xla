@@ -38,8 +38,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.xla_sha_override }}
 
       - name: Set tag
         shell: bash
