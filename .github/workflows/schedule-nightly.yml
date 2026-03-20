@@ -122,7 +122,6 @@ jobs:
       - build-image
       - build-ttxla
       - perf-benchmark
-      - vllm-perf-benchmark
     runs-on: Ubuntu-latest
     outputs:
       is-main: ${{ steps.branch-check.outputs.IS_MAIN }}
