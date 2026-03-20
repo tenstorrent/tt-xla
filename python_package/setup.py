@@ -316,6 +316,8 @@ class CMakeBuildPy(build_py):
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
             "-DTT_USE_SYSTEM_SFPI=ON",
+            "-DCMAKE_BUILD_TYPE=Debug",
+            "-DTT_RUNTIME_DEBUG=ON",
         ]
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
