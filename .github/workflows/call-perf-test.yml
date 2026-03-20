@@ -373,7 +373,7 @@ jobs:
       uses: actions/upload-artifact@v6
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
       with:
-        name: device-perf-${{ steps.strings.outputs.job_id }}
+        name: device-perf-${{ strategy.job-index }}-${{ steps.strings.outputs.job_id }}
         path: ${{ steps.strings.outputs.perf_report_path }}/device_perf/
         compression-level: 0
         if-no-files-found: warn
@@ -404,7 +404,7 @@ jobs:
       uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
-        name: perf-reports-${{ steps.strings.outputs.job_id }}
+        name: perf-reports-${{ strategy.job-index }}-${{ steps.strings.outputs.job_id }}
         path: ${{ steps.strings.outputs.perf_report_path }}
 
     # Perf Regression Check
