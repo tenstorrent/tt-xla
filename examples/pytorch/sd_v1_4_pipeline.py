@@ -112,10 +112,10 @@ class SD14Pipeline:
             # --- Text encoding (CLIP) ---
             negative_prompt = negative_prompt or ""
 
-            cond_tokens = self.tokenizer(
+            cond_tokens = self.tokenizer.batch_encode_plus(
                 [prompt], padding="max_length", max_length=77
             ).input_ids
-            uncond_tokens = self.tokenizer(
+            uncond_tokens = self.tokenizer.batch_encode_plus(
                 [negative_prompt], padding="max_length", max_length=77
             ).input_ids
 
