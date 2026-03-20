@@ -683,22 +683,34 @@ def _should_use_capfd(request) -> bool:
 
     Returns True when:
     - Running with --forked (TeeCapture doesn't work with pytest-forked)
-    - Running in distributed mode (TeeCapture doesn't work in subprocesses)
+    - Running in distributed mode with capture enabled (TeeCapture doesn't work in subprocesses)
     - Pytest capture is enabled (TeeCapture conflicts with pytest's capture pipes)
+
+    Always returns False (or only True for --forked) when -s is passed, so that
+    capfd does not buffer output that should stream directly to the terminal.
+    capfd captures at the fd level and overrides -s, hiding real-time logs from
+    distributed workers and other sources until the test completes.
     """
+    # Check if pytest capture is enabled (not disabled via -s)
+    capture_mode = request.config.getoption("capture")
+    is_capturing = capture_mode != "no"
+
     # Check if --forked option was passed to pytest
     try:
         is_forked = request.config.getoption("--forked", default=False)
     except ValueError:
         is_forked = False
 
-    # Check if running in distributed/multi_host subprocess
+    # When the user explicitly disables capture (-s), only fall back to capfd
+    # for --forked (where TeeCapture cannot work across the fork boundary).
+    # Distributed mode is excluded here: TeeCapture works fine in the main
+    # pytest process, and using capfd with -s would buffer all output until
+    # the test finishes, hiding real-time logs from distributed workers.
+    if not is_capturing:
+        return is_forked
+
+    # Capture is enabled — use capfd for forked, distributed, or any capture mode.
     is_distributed = os.environ.get("TT_RUNTIME_ENABLE_DISTRIBUTED") == "1"
-
-    # Check if pytest capture is enabled (not disabled via -s)
-    capture_mode = request.config.getoption("capture")
-    is_capturing = capture_mode != "no"
-
     return is_forked or is_distributed or is_capturing
 
 
@@ -709,7 +721,10 @@ def captured_output_fixture(request):
 
     When running normally: Uses TeeCapture to show output in real-time while capturing.
     When running with --forked: Uses pytest's capfd which handles forked processes correctly.
-    When running in distributed mode: Uses capfd (TeeCapture doesn't work in subprocesses).
+    When running in distributed mode with capture enabled: Uses capfd.
+    When running with -s (capture=no): Uses TeeCapture regardless of distributed mode,
+        so that output from distributed workers streams to the terminal in real-time
+        instead of being buffered until the test completes.
     """
     if _should_use_capfd(request):
         # Use capfd - handles forked/subprocess environments correctly
