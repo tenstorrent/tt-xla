@@ -889,7 +889,7 @@ jobs:
             source /tmp/worker_path_env
 
             echo "Configuring distributed runtime environment..."
-            export TTXLA_LOGGER_LEVEL=VERBOSE
+            export TTXLA_LOGGER_LEVEL=DEBUG
             export TT_DISTRIBUTED_WORKER_PATH="$DISTRIBUTED_WORKER_PATH"
             export TT_RUNTIME_ENABLE_DISTRIBUTED=1
             export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
