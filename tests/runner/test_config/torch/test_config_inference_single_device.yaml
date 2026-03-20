@@ -2414,7 +2414,9 @@ test_config:
   ultra_fast_lane_detection/pytorch-TuSimple_ResNet34_Backbone-single_device-inference:
     status: EXPECTED_PASSING
 
+  # Moved to n300 due to hanging on n150 (slow CPU conv): https://github.com/tenstorrent/tt-xla/issues/3852
   dense_unet_3d/pytorch-Base-single_device-inference:
+    supported_archs: ["n300"]
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'stablehlo.reduce_window' - https://github.com/tenstorrent/tt-mlir/issues/7240"
     markers: [large]
