@@ -9,12 +9,6 @@ from utils import incorrect_result
 
 
 @pytest.mark.nightly
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "PCC comparison failed. Calculated: pcc=0.523076923076923. Required: pcc=0.99 "
-        "https://github.com/tenstorrent/tt-xla/issues/3607"
-    )
-)
 def test_contiguous_transposed_input():
     """
     Runs identity test with transposed input tensor (contiguous in memory).
