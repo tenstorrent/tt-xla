@@ -47,9 +47,9 @@ def training_tester() -> SuryaOCRTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.xfail(
-    reason="torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: AttributeError('ndarray' object has no attribute 'mul')"
-)
+# @pytest.mark.xfail(
+#     reason="torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: AttributeError('ndarray' object has no attribute 'mul')"
+# )
 def test_torch_surya_ocr_text_inference():
     loader_path = inspect.getsourcefile(surya_loader)
     with RequirementsManager.for_loader(loader_path):
