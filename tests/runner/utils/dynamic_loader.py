@@ -78,8 +78,10 @@ class DynamicLoader:
         Returns:
             Tuple of (mesh_shape, mesh_names) if loader implements get_mesh_config,
             (None, None) otherwise
-        """
-        if num_devices == 16:
+        """        
+        if num_devices == 8:
+            ret =  (2,4), ("batch", "model")
+        elif num_devices == 16:
             ret =  (16,1), ("batch", "model")
         elif num_devices == 64:
             ret =  (8,8), ("batch", "model")
