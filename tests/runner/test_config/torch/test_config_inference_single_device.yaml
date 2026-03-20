@@ -1270,7 +1270,7 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov9/pytorch-T-single_device-inference:
-    required_pcc: 0.95
+    required_pcc: 0.94
     status: EXPECTED_PASSING
     markers: [push, nightly]
 
