@@ -6,8 +6,9 @@
 test_config:
   falcon/pytorch-3_7B_Base-tensor_parallel-training:
     supported_archs: [n300-llmbox]
-    status: KNOWN_FAILURE_XFAIL
-    # reason: "DRAM OOM"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Fatal Python error: Aborted: https://github.com/tenstorrent/tt-xla/issues/3627"
 
   falcon/pytorch-7B_Instruct-tensor_parallel-training:
     supported_archs: [n300-llmbox]
