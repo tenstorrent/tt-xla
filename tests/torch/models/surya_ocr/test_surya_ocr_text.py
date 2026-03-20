@@ -39,16 +39,14 @@ def training_tester() -> SuryaOCRTester:
 
 @pytest.mark.nightly
 @pytest.mark.model_test
-@pytest.mark.single_device
+# Moved to n300 (dual_chip) due to hanging on n150 (slow CPU conv): https://github.com/tenstorrent/tt-xla/issues/3852
+@pytest.mark.dual_chip
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,
     parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
-)
-@pytest.mark.xfail(
-    reason="torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: AttributeError('ndarray' object has no attribute 'mul')"
 )
 def test_torch_surya_ocr_text_inference():
     loader_path = inspect.getsourcefile(surya_loader)
