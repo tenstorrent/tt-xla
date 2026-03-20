@@ -1,0 +1,223 @@
+name: Update Release Notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to update'
+        required: true
+        type: string
+      is_nightly:
+        description: 'Is this a nightly release?'
+        required: true
+        type: boolean
+        default: false
+      commit_hash:
+        description: 'Commit SHA to filter API results by'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  update-release-notes:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get current release body
+        run: |
+          gh release view ${{ inputs.tag_name }} --json body -q '.body' > current_body.md
+
+      - name: Resolve commit hashes for weekly workflows
+        id: resolve-commits
+        run: |
+          if [ "${{ inputs.is_nightly }}" = "true" ]; then
+            WEEKLY_COMMIT=$(gh run list --workflow "schedule-weekly.yml" --branch main \
+              --status success --limit 1 --json headSha -q '.[0].headSha')
+            WEEKLY_TRAINING_COMMIT=$(gh run list --workflow "schedule-weekly-training.yml" --branch main \
+              --status success --limit 1 --json headSha -q '.[0].headSha')
+          else
+            WEEKLY_COMMIT="${{ inputs.commit_hash }}"
+            WEEKLY_TRAINING_COMMIT="${{ inputs.commit_hash }}"
+          fi
+          echo "weekly_commit=$WEEKLY_COMMIT" >> $GITHUB_OUTPUT
+          echo "weekly_training_commit=$WEEKLY_TRAINING_COMMIT" >> $GITHUB_OUTPUT
+
+      - name: Fetch model coverage (On nightly)
+        id: model-coverage-nightly
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ inputs.commit_hash }}"}'
+
+      - name: Fetch model coverage (On weekly)
+        id: model-coverage-weekly
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On weekly", "commit_hash": "${{ steps.resolve-commits.outputs.weekly_commit }}"}'
+
+      - name: Fetch model coverage (On weekly training)
+        id: model-coverage-weekly-training
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On weekly training", "commit_hash": "${{ steps.resolve-commits.outputs.weekly_training_commit }}"}'
+
+      - name: Fetch model performance
+        id: model-performance
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_performance
+          query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ inputs.commit_hash }}", "architecture": "wormhole"}'
+
+      - name: Generate reports
+        env:
+          COVERAGE_NIGHTLY_JSON: ${{ steps.model-coverage-nightly.outputs.response }}
+          COVERAGE_WEEKLY_JSON: ${{ steps.model-coverage-weekly.outputs.response }}
+          COVERAGE_WEEKLY_TRAINING_JSON: ${{ steps.model-coverage-weekly-training.outputs.response }}
+          PERF_JSON: ${{ steps.model-performance.outputs.response }}
+        run: |
+          python3 << 'EOF'
+          import json
+          import csv
+          import os
+
+          # ── Model Coverage ──────────────────────────────────────────────────────
+
+          def make_arch_slug(arch):
+              return arch.lower().replace(' ', '_').replace('.', '_')
+
+          coverage_data = (
+              json.loads(os.environ['COVERAGE_NIGHTLY_JSON']) +
+              json.loads(os.environ['COVERAGE_WEEKLY_JSON']) +
+              json.loads(os.environ['COVERAGE_WEEKLY_TRAINING_JSON'])
+          )
+
+          # Write coverage CSV
+          with open('model_coverage.csv', 'w', newline='') as f:
+              w = csv.writer(f)
+              w.writerow([
+                  'Model task', 'Model architecture', 'Model variant',
+                  'Inference', 'Training', 'n150', 'n300', 'p150',
+                  'Single device', 'Data parallel', 'Tensor parallel', 'Model source'
+              ])
+              for row in coverage_data:
+                  arch = row['model_architecture']
+                  url = f"https://github.com/tenstorrent/tt-forge-models/tree/main/{make_arch_slug(arch)}"
+                  w.writerow([
+                      row['model_task'], arch, row['model_variant'],
+                      row['inference'], row['training'],
+                      row['n150'], row['n300'], row['p150'],
+                      row['single_device'], row['data_parallel'], row['tensor_parallel'],
+                      url
+                  ])
+
+          # Write coverage MD
+          with open('model_coverage.md', 'w') as f:
+              f.write('## Model coverage\n')
+              f.write('> _Info:_  Full list of supported models is available in the assets section.\n\n')
+              f.write('| Model task | Model architecture | Model variant | Inference | Training | n150 | n300 | p150 | Single device | Data parallel | Tensor parallel | Model source |\n')
+              f.write('| --- | --- | --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | --- |\n')
+              for row in coverage_data:
+                  arch = row['model_architecture']
+                  url = f"https://github.com/tenstorrent/tt-forge-models/tree/main/{make_arch_slug(arch)}"
+                  f.write(
+                      f"| {row['model_task']} | {arch} | {row['model_variant']} "
+                      f"| {row['inference']} | {row['training']} "
+                      f"| {row['n150']} | {row['n300']} | {row['p150']} "
+                      f"| {row['single_device']} | {row['data_parallel']} | {row['tensor_parallel']} "
+                      f"| [View Source]({url}) |\n"
+                  )
+
+          # ── Model Performance ───────────────────────────────────────────────────
+
+          perf_data = json.loads(os.environ['PERF_JSON'])
+
+          llms = [r for r in perf_data if r.get('ttft_ms') not in (None, '', 0)]
+          non_llms = [r for r in perf_data if r.get('ttft_ms') in (None, '')]
+
+          # LLM CSV
+          with open('model_performance_llms.csv', 'w', newline='') as f:
+              w = csv.writer(f)
+              w.writerow(['Model', 'Token/sec/user', 'Batch', 'Token/sec', 'ttft (ms)'])
+              for r in llms:
+                  w.writerow([
+                      r['model'],
+                      round(float(r['tokens_per_sec_per_user']), 2),
+                      r['batch'],
+                      round(float(r['tokens_per_sec']), 2),
+                      round(float(r['ttft_ms']), 2),
+                  ])
+
+          # LLM MD
+          with open('model_performance_llms.md', 'w') as f:
+              f.write('## LLM Performance\n\n')
+              f.write('| Model | Token/sec/user | Batch | Token/sec | ttft (ms) |\n')
+              f.write('| --- | --- | --- | --- | --- |\n')
+              for r in llms:
+                  f.write(
+                      f"| {r['model']} "
+                      f"| {round(float(r['tokens_per_sec_per_user']), 2)} "
+                      f"| {r['batch']} "
+                      f"| {round(float(r['tokens_per_sec']), 2)} "
+                      f"| {round(float(r['ttft_ms']), 2)} |\n"
+                  )
+
+          # Non-LLM CSV
+          with open('model_performance_non_llms.csv', 'w', newline='') as f:
+              w = csv.writer(f)
+              w.writerow(['Model', 'Batch', 'Sample/sec'])
+              for r in non_llms:
+                  w.writerow([
+                      r['model'],
+                      r['batch'],
+                      round(float(r['tokens_per_sec']), 2),
+                  ])
+
+          # Non-LLM MD
+          with open('model_performance_non_llms.md', 'w') as f:
+              f.write('## Non-LLM Performance\n\n')
+              f.write('| Model | Batch | Sample/sec |\n')
+              f.write('| --- | --- | --- |\n')
+              for r in non_llms:
+                  f.write(
+                      f"| {r['model']} "
+                      f"| {r['batch']} "
+                      f"| {round(float(r['tokens_per_sec']), 2)} |\n"
+                  )
+
+          print("All reports generated successfully")
+          EOF
+
+      - name: Assemble updated release body
+        run: |
+          {
+            cat current_body.md
+            echo ""
+            echo "---"
+            echo ""
+            cat model_coverage.md
+            echo ""
+            cat model_performance_llms.md
+            echo ""
+            cat model_performance_non_llms.md
+          } > updated_body.md
+
+      - name: Update release body
+        run: |
+          gh release edit ${{ inputs.tag_name }} --notes-file updated_body.md
+
+      - name: Upload CSV assets to release
+        run: |
+          gh release upload ${{ inputs.tag_name }} \
+            model_coverage.csv \
+            model_performance_llms.csv \
+            model_performance_non_llms.csv \
+            --clobber
