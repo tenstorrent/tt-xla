@@ -172,13 +172,6 @@ def test_kimi_k2_attention_decode():
         device="cpu",
         dtype=torch.bfloat16,
     )
-    for layer in static_cache.layers:
-        layer.lazy_initialization(
-            torch.zeros(batch_size, 1, 1, config.kv_lora_rank, dtype=torch.bfloat16),
-            torch.zeros(
-                batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
-            ),
-        )
     past_key_states = static_cache
 
     def get_shard_spec(attention, args, kwargs):
@@ -186,8 +179,8 @@ def test_kimi_k2_attention_decode():
 
         shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
         shard_specs[args[1]] = ("_axis_1", None, None, None)
-        shard_specs[args[3].layers[0].compressed_kv] = ("_axis_1", None, None, None)
-        shard_specs[args[3].layers[0].k_pe] = ("_axis_1", None, None, None)
+        shard_specs[args[3][0][0]] = ("_axis_1", None, None, None)
+        shard_specs[args[3][0][1]] = ("_axis_1", None, None, None)
 
         # Main attention weights, TP across model and batch dimensions
         shard_specs[attention.q_b_proj.weight] = ("_axis_0", None)
@@ -254,13 +247,6 @@ def test_kimi_k2_layer():
         device="cpu",
         dtype=torch.bfloat16,
     )
-    for cache_layer in static_cache.layers:
-        cache_layer.lazy_initialization(
-            torch.zeros(batch_size, 1, 1, config.kv_lora_rank, dtype=torch.bfloat16),
-            torch.zeros(
-                batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
-            ),
-        )
     past_key_states = static_cache
 
     num_devices = xr.global_runtime_device_count()
@@ -271,8 +257,8 @@ def test_kimi_k2_layer():
 
         shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
         shard_specs[args[1]] = ("_axis_1", None, None, None)
-        shard_specs[args[3].layers[0].compressed_kv] = ("_axis_1", None, None, None)
-        shard_specs[args[3].layers[0].k_pe] = ("_axis_1", None, None, None)
+        shard_specs[args[3][0][0]] = ("_axis_1", None, None, None)
+        shard_specs[args[3][0][1]] = ("_axis_1", None, None, None)
 
         # Main attention weights, TP across model and batch dimensions
         shard_specs[layer.self_attn.q_b_proj.weight] = ("_axis_0", None)
