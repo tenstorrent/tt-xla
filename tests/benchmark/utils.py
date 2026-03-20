@@ -510,10 +510,14 @@ def create_benchmark_result(
         # input_size is (channels, height, width)
         image_dimension = f"{input_size[0]}x{input_size[1]}x{input_size[2]}"
 
+    run_type = f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}_{loop_count}"
+    if vllm:
+        run_type += "_vllm"
+
     return {
         "model": full_model_name,
         "model_type": model_type,
-        "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}_{loop_count}",
+        "run_type": run_type,
         "config": config,
         "num_layers": num_layers,
         "batch_size": batch_size,
@@ -533,7 +537,6 @@ def create_benchmark_result(
             "mesh_shape": mesh_shape,
             "device_type": get_device_type(arch, device_count),
         },
-        "vllm": vllm,
     }
 
 
