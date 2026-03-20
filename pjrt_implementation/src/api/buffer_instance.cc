@@ -142,7 +142,11 @@ void BufferInstance::deleteData() {
     return;
   }
 
-  joinCopyThread();
+  {
+    const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
+    if (m_copy_to_host_thread.joinable())
+      m_copy_to_host_thread.join();
+  }
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
@@ -330,21 +334,18 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
 
+  std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+
   // TODO(acolic): Copying in a separate thread is left to match previous
   // behavior. Check whether it is needed: it does not make much sense to
   // create new thread for each shard, because tensors are moved once from
-  // device when onHost is called on a first shard; on the other hand, there is
-  // no sense to create new thread for memcpy because framework would wait on a
-  // copy anyway, right? Also, creating std::thread for memcpy might be overhead
-  // with performance loss. We must measure.
-  // Also, std::thread (as all objects from std::) has a value semantic, so it
-  // does not make any sense to create std::thread as a unique_ptr.
-  joinCopyThread();
+  // device when onHost is called on a first shard. Also, creating std::thread
+  // for memcpy might be overhead with performance loss. We should measure.
+  const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
+  if (m_copy_to_host_thread.joinable())
+    m_copy_to_host_thread.join();
 
-  std::unique_ptr<EventInstance> event = EventInstance::createInstance();
-
-  m_copy_to_host_thread = std::make_unique<std::thread>([=, this,
-                                                         e = event.get()] {
+  m_copy_to_host_thread = std::thread([=, this, e = event.get()] {
     try {
       ZoneScopedN("CopyToHostThread");
       const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
