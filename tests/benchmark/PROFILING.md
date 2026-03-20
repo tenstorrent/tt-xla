@@ -121,3 +121,10 @@ tracy -p --no-device -m pytest -svv tests/benchmark/test_llms.py::test_llama_3_1
 | `-p` | Port (default: Tracy default port) |
 | `-f` | Force overwrite of output file |
 | `-s` | Stop capture after N seconds |
+
+## Further Reading
+
+- [Tracy Profiler — TT-Metalium docs](https://docs.tenstorrent.com/tt-metal/latest/tt-metalium/tools/tracy_profiler.html) — host C++/Python profiling and basic device hookup
+- [Profiling TT-NN Operations](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/profiling_ttnn_operations.html) — perf CSV headers, TT-NN Visualizer
+- [Profiling TT-Metal with Tracy (slide deck)](https://docs.google.com/presentation/d/1E7gNhc8G6JZSkTxpbYq9p78BZ5MJTXtG) — Mo Memarian, May 2025
+- [Tracy Profiler GitHub](https://github.com/wolfpld/tracy) — official Tracy docs, GUI downloads, and intro videos
