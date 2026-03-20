@@ -147,7 +147,7 @@ jobs:
           gh run download ${{ inputs.artifact_release_run_id }} \
             --repo ${{ github.repository }} \
             --dir wheels \
-            --name vllm-tt-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}
+            --name vllm-tt-whl-release${{ inputs.artifact_suffix }}
         fi
 
         echo "=== Installing wheel ==="
