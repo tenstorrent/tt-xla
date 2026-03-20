@@ -614,8 +614,8 @@ test_config:
     status: EXPECTED_PASSING
 
   yoloworld/pytorch-Small_640-single_device-inference:
-    status: EXPECTED_PASSING
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTroch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   yoloworld/pytorch-Small_1280-single_device-inference:
     status: EXPECTED_PASSING
@@ -774,14 +774,12 @@ test_config:
     reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7923736013936152. Required: pcc=0.99."
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTorch 2.10 is not compatible with TorchCodec 0.9.1 - https://github.com/tenstorrent/tt-xla/issues/3767"
 
   pi_0/pytorch-pi0_base-single_device-inference:
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError:PCC comparison failed. Calculated: pcc=0.9835311599617622. Required: pcc=0.99."
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTorch 2.10 is not compatible with TorchCodec 0.9.1 - https://github.com/tenstorrent/tt-xla/issues/3767"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     assert_pcc: false
@@ -2261,7 +2259,8 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTroch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3723"
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING
@@ -2382,7 +2381,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   efficientdet/pytorch-D0-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTroch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   efficientdet/pytorch-D1-single_device-inference:
     status: EXPECTED_PASSING
