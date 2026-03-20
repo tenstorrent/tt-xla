@@ -128,7 +128,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: ${{ needs.set-inputs.outputs.filter }}
+      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
       docker_image: ${{ inputs.docker_image }}
       artifact_release_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
       artifact_suffix: ${{ inputs.should_build_wheel && needs.build.outputs.artifact_suffix || '' }}
