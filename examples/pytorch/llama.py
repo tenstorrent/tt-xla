@@ -18,7 +18,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
-
+from tt_torch.sharding import sharding_constraint_hook
 DEFAULT_PROMPTS = [
     "I like taking walks in the",
     "My name is",
@@ -305,6 +305,12 @@ def mark_sharding_on_inputs_and_model(
         xs.mark_sharding(layer.values, mesh, ('batch', None, None, None))
 
     xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
+    
+    
+            # Apply sharding constraint on lm_head output to all_gather logits
+    if hasattr(model, "lm_head") and model.lm_head is not None:
+        hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+        model.lm_head.register_forward_hook(hook)
 
     # Don't shard model internals -> mlp input is already batch sharded; 
     # for layer in model.model.layers:
