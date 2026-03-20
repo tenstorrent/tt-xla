@@ -57,6 +57,7 @@ def test_llm(
     request=None,
     accuracy_testing: bool = False,
     max_output_tokens=None,
+    inject_custom_moe: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -76,6 +77,7 @@ def test_llm(
         required_pcc: Required PCC threshold
         num_layers: Number of layers to override
         accuracy_testing: Enable token accuracy testing with reference data
+        inject_custom_moe: Whether to inject custom MoE logic for models that support it (e.g. GPT-OSS)
     """
     # Set default batch size if None
     if batch_size is None:
@@ -146,6 +148,7 @@ def test_llm(
         model_name_for_accuracy=model_name_for_accuracy,
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
+        inject_custom_moe=inject_custom_moe,
     )
 
     if output_file:
@@ -1089,24 +1092,32 @@ def test_llama_3_1_70b_tp(output_file, num_layers, request, max_output_tokens):
     )
 
 
-# Use 1x8 shard specs for gpt-oss-20b until https://github.com/tenstorrent/tt-xla/issues/3490 is resolved.
 def _gpt_oss_20b_mesh_config_fn(model_loader, num_devices):
-    return (1, num_devices), ("batch", "model")
+    return (2, num_devices // 2), ("batch", "model")
 
 
 def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, "batch")
+    shard_specs[model.model.norm.weight] = ("batch",)
+    shard_specs[model.lm_head.weight] = ("model", "batch")
     for layer in model.model.layers:
-        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+        shard_specs[layer.self_attn.q_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+        shard_specs[layer.self_attn.k_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+        shard_specs[layer.self_attn.v_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[layer.self_attn.o_proj.bias] = ("batch",)
         shard_specs[layer.self_attn.sinks] = (None,)
-        shard_specs[layer.mlp.router.weight] = (None, None)
-        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
-        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
-        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.router.weight] = (None, "batch")
+        shard_specs[layer.mlp.experts.gate_up_proj] = (("batch", "model"), None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("batch", "model"), None)
+        shard_specs[layer.mlp.experts.down_proj] = (("batch", "model"), None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = (("batch", "model"), None)
+        shard_specs[layer.input_layernorm.weight] = ("batch",)
+        shard_specs[layer.post_attention_layernorm.weight] = ("batch",)
     return shard_specs
 
 
@@ -1127,6 +1138,7 @@ def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
+        inject_custom_moe=True,  # Enable custom MoE logic for GPT-OSS sparse MoE variant
     )
 
 
@@ -1150,6 +1162,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=1,
         optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
+        inject_custom_moe=True,  # Enable custom MoE logic for GPT-OSS sparse MoE variant
     )
 
 
