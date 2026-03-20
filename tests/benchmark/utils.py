@@ -437,6 +437,7 @@ def create_benchmark_result(
     input_sequence_length: Optional[int] = -1,
     device_count: int = 1,
     mesh_shape: Optional[tuple] = None,
+    vllm: bool = False,
 ) -> Dict[str, Any]:
     """Create a standardized benchmark result dictionary.
 
@@ -532,6 +533,7 @@ def create_benchmark_result(
             "mesh_shape": mesh_shape,
             "device_type": get_device_type(arch, device_count),
         },
+        "vllm": vllm,
     }
 
 
