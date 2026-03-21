@@ -1,0 +1,838 @@
+2026-03-21 07:09:57.397 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0 -- /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.13', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.35', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'anyio': '4.12.1', 'split': '0.11.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, anyio-4.12.1, split-0.11.0, forked-1.6.0
+collecting ... 2026-03-21 07:10:08.269 | WARNING  | tests.runner.utils.dynamic_loader:discover_loader_paths:451 - Workaround to exclude model: suryaocr from discovery. Issue #1166
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+2026-03-21 07:10:10.757 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/yolov12/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-03-21 07:10:10.834 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/yolov11/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-03-21 07:10:10.971 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/yolov5/pytorch/loader.py: No module named 'pkg_resources'
+2026-03-21 07:10:13.841 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/sentencizer/pytorch/loader.py: cannot import name 'is_remote_url' from 'transformers.utils' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/venv/lib/python3.12/site-packages/transformers/utils/__init__.py)
+2026-03-21 07:10:14.456 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/yolov10/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-03-21 07:10:14.901 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/yolov8/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-03-21 07:10:15.149 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/albert/masked_lm/jax/loader.py: cannot import name 'FlaxAlbertForMaskedLM' from 'transformers' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-03-21 07:10:15.154 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/t5/summarization/jax/loader.py: No module named 'transformers.models.t5.modeling_flax_t5'
+2026-03-21 07:10:15.157 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/mt5/nlp_summarization/jax/loader.py: No module named 'transformers.models.mt5.modeling_flax_mt5'
+2026-03-21 07:10:15.183 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/beit/image_classification/jax/loader.py: cannot import name 'FlaxBeitForImageClassification' from 'transformers' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-03-21 07:10:15.189 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/longt5/text_classification/jax/loader.py: No module named 'transformers.models.longt5.modeling_flax_longt5'
+2026-03-21 07:10:15.199 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/bert/masked_lm/jax/loader.py: cannot import name 'FlaxBertForMaskedLM' from 'transformers' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-03-21 07:10:15.211 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/bart/causal_lm/jax/loader.py: cannot import name 'FlaxBartForCausalLM' from 'transformers' (/proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+collected 1 item
+
+tests/runner/test_models.py::test_all_models_torch[alexnet/pytorch-B-single_device-inference] 
+[DEBUG][TorchDeviceConnector.__init__] CALLED
+[DEBUG][TorchDeviceConnector.__init__] Setting device type to 'TT' via xr.runtime.set_device_type('TT')
+[DEBUG][TorchDeviceConnector.__init__] Initializing XLA computation cache at: /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/tmp/
+[DEBUG][TorchDeviceConnector.__init__] DONE
+
+################################################################################
+[DEBUG][_run_model_test_impl] CALLED
+  run_mode = inference
+  parallelism = single_device
+  framework = torch
+  run_phase = default
+  compiler_config = None
+################################################################################
+[DEBUG][_run_model_test_impl] loader_path = /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/third_party/tt_forge_models/alexnet/pytorch/loader.py
+[DEBUG][_run_model_test_impl] variant = B, ModelLoader = ModelLoader
+
+[DEBUG][_run_model_test_impl] Installing per-model requirements...
+Running tests/runner/test_models.py::test_all_models_torch[alexnet/pytorch-B-single_device-inference] - pytorch_AlexNet_B_cv_image_cls_osmr
+[DEBUG][_run_model_test_impl] model_info.name = pytorch_AlexNet_B_cv_image_cls_osmr
+[DEBUG][_run_model_test_impl] model_info.group = generality
+[DEBUG][_run_model_test_impl] model_info.task = cv_image_cls
+[DEBUG][_run_model_test_impl] model_info.source = osmr
+[DEBUG][_run_model_test_impl] test_metadata.status = ModelTestStatus.EXPECTED_PASSING
+
+[DEBUG][_run_model_test_impl] Creating DynamicTorchModelTester...
+
+================================================================================
+[DEBUG][DynamicTorchModelTester.__init__] CALLED
+  run_mode = inference
+  loader = ModelLoader
+  comparison_config = ComparisonConfig(equal=EqualConfig(enabled=False), atol=AtolConfig(enabled=False, required_atol=0.16), pcc=PccConfig(enabled=True, required_pcc=0.99, allclose=AllcloseConfig(enabled=True, rtol=0.01, atol=0.01)), allclose=AllcloseConfig(enabled=False, rtol=0.01, atol=0.01), assert_on_failure=False)
+  compiler_config = CompilerConfig(optimization_level=0, experimental_weight_dtype='', math_fidelity=None, fp32_dest_acc_en=None, experimental_enable_fusing_conv2d_with_multiply_pattern=False, experimental_enable_permute_matmul_fusion=True, enable_const_eval_on_cpu=False, enable_trace=False, export_path='', export_model_name='', codegen_try_recover_structure=False)
+  parallelism = single_device
+  run_phase = default
+  test_metadata = <tests.runner.test_utils.ModelTestConfig object at 0x7fb052452e40>
+================================================================================
+
+[DEBUG][TorchModelTester.__init__] CALLED
+  comparison_config = ComparisonConfig(equal=EqualConfig(enabled=False), atol=AtolConfig(enabled=False, required_atol=0.16), pcc=PccConfig(enabled=True, required_pcc=0.99, allclose=AllcloseConfig(enabled=True, rtol=0.01, atol=0.01)), allclose=AllcloseConfig(enabled=False, rtol=0.01, atol=0.01), assert_on_failure=False)
+  run_mode = inference
+  compiler_config = CompilerConfig(optimization_level=0, experimental_weight_dtype='', math_fidelity=None, fp32_dest_acc_en=None, experimental_enable_fusing_conv2d_with_multiply_pattern=False, experimental_enable_permute_matmul_fusion=True, enable_const_eval_on_cpu=False, enable_trace=False, export_path='', export_model_name='', codegen_try_recover_structure=False)
+  parallelism = single_device
+  dtype_override = None
+
+[DEBUG][ModelTester.__init__] CALLED
+  comparison_config = ComparisonConfig(equal=EqualConfig(enabled=False), atol=AtolConfig(enabled=False, required_atol=0.16), pcc=PccConfig(enabled=True, required_pcc=0.99, allclose=AllcloseConfig(enabled=True, rtol=0.01, atol=0.01)), allclose=AllcloseConfig(enabled=False, rtol=0.01, atol=0.01), assert_on_failure=False)
+  run_mode = inference
+  framework = torch
+  compiler_config = CompilerConfig(optimization_level=0, experimental_weight_dtype='', math_fidelity=None, fp32_dest_acc_en=None, experimental_enable_fusing_conv2d_with_multiply_pattern=False, experimental_enable_permute_matmul_fusion=True, enable_const_eval_on_cpu=False, enable_trace=False, export_path='', export_model_name='', codegen_try_recover_structure=False)
+  dtype_override = None
+[DEBUG][ModelTester.__init__] disable_perf_measurement=False
+
+[DEBUG][BaseTester.__init__] CALLED
+  evaluator_type = comparison
+  comparison_config = ComparisonConfig(equal=EqualConfig(enabled=False), atol=AtolConfig(enabled=False, required_atol=0.16), pcc=PccConfig(enabled=True, required_pcc=0.99, allclose=AllcloseConfig(enabled=True, rtol=0.01, atol=0.01)), allclose=AllcloseConfig(enabled=False, rtol=0.01, atol=0.01), assert_on_failure=False)
+  framework = torch
+  quality_config = None
+  metric_names = None
+  metric_kwargs = None
+
+[DEBUG][BaseTester._initialize_framework_specific_helpers] CALLED — framework=torch
+[DEBUG][DeviceRunnerFactory.create_runner] CALLED -- framework=torch
+[DEBUG][DeviceRunnerFactory.create_runner] Created connector: TorchDeviceConnector
+
+[DEBUG][TorchDeviceRunner.__init__] CALLED
+
+[DEBUG][DeviceRunner.__init__] CALLED — connector=TorchDeviceConnector
+[DEBUG][DeviceRunnerFactory.create_runner] Created TorchDeviceRunner
+[DEBUG][BaseTester._initialize_framework_specific_helpers] Created device_runner: TorchDeviceRunner
+
+[DEBUG][BaseTester._initialize_evaluator] CALLED — evaluator_type=comparison
+[DEBUG][BaseTester._initialize_evaluator] Created evaluator: TorchComparisonEvaluator
+[DEBUG][BaseTester.__init__] DONE — device_runner=TorchDeviceRunner, evaluator=TorchComparisonEvaluator
+
+[DEBUG][ModelTester._initialize_components] CALLED — starting 5-step initialization
+[DEBUG][ModelTester._initialize_components] Step 1/5: _initialize_model()
+
+[DEBUG][ModelTester._initialize_model] CALLED
+
+[DEBUG][DynamicTorchModelTester._get_model] CALLED — loading model via dynamic_loader
+[DEBUG][DynamicTorchModelTester._get_model] Loaded model: type=AlexNet
+[DEBUG][ModelTester._initialize_model] Got model: type=AlexNet
+
+[DEBUG][TorchModelTester._configure_model] CALLED — run_mode=inference
+[DEBUG][TorchModelTester._configure_model] Setting training_mode=False on device_runner
+[DEBUG][TorchDeviceRunner.set_training_mode] CALLED — training_mode=False
+
+[DEBUG][ModelTester._configure_model] CALLED — run_mode=inference
+[DEBUG][TorchModelTester._configure_model_for_inference] CALLED — calling model.eval()
+[DEBUG][TorchModelTester._configure_model_for_inference] Model set to eval mode
+[DEBUG][TorchModelTester._calculate_model_size] Model size: 61100840 params (61.10M)
+[DEBUG][ModelTester._initialize_model] Model configured for inference
+[DEBUG][ModelTester._initialize_components] Step 2/5: _set_model_dtype()
+[DEBUG][ModelTester._set_model_dtype] CALLED — dtype_override=None
+[DEBUG][ModelTester._set_model_dtype] No dtype_override, skipping
+[DEBUG][ModelTester._initialize_components] Step 3/5: _cache_model_inputs()
+
+[DEBUG][TorchModelTester._cache_model_inputs] CALLED
+
+[DEBUG][DynamicTorchModelTester._get_input_activations] CALLED
+[DEBUG][DynamicTorchModelTester._get_input_activations] run_phase=default, seq_len=None, batch_size=None
+[DEBUG][DynamicTorchModelTester._get_input_activations] Loaded inputs: type=Tensor
+[DEBUG][TorchModelTester._cache_model_inputs] Cached inputs: Tensor(shape=[1, 3, 224, 224], dtype=torch.bfloat16, device=cpu)
+[DEBUG][ModelTester._initialize_components] Step 4/5: _set_inputs_dtype()
+[DEBUG][ModelTester._set_inputs_dtype] CALLED — dtype_override=None
+[DEBUG][ModelTester._set_inputs_dtype] No dtype_override, skipping
+[DEBUG][ModelTester._initialize_components] Step 5/5: _initialize_workload()
+
+[DEBUG][TorchModelTester._initialize_workload] CALLED
+[DEBUG][TorchModelTester._get_forward_method_args] CALLED — input_activations type=Tensor
+[DEBUG][TorchModelTester._get_forward_method_kwargs] CALLED — input_activations type=Tensor
+[DEBUG][TorchModelTester._initialize_workload] args count=1, kwargs keys=[]
+[DEBUG][TorchModelTester._initialize_workload]   arg[0] = Tensor(shape=[1, 3, 224, 224], dtype=torch.bfloat16, device=cpu)
+[DEBUG][DynamicTorchModelTester._get_mesh] CALLED — parallelism=single_device
+[DEBUG][DynamicTorchModelTester._get_mesh] SINGLE_DEVICE — returning None
+[DEBUG][DynamicTorchModelTester._get_shard_specs_function] CALLED — parallelism=single_device
+[DEBUG][DynamicTorchModelTester._get_shard_specs_function] Returning: set
+[DEBUG][TorchModelTester._initialize_workload] mesh=None, shard_spec_fn=set
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=AlexNet
+  mesh=None
+  shard_spec_fn=set
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = None
+  compiled_executable = None
+  model = AlexNet
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=True, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][TorchModelTester._initialize_workload] TorchWorkload created: framework=torch
+[DEBUG][ModelTester._initialize_components] DONE — all 5 steps complete
+[DEBUG][ModelTester.__init__] DONE
+[DEBUG][TorchModelTester.__init__] Setting custom compile options: {}
+2026-03-21 07:10:19.074076: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+[DEBUG][TorchModelTester.__init__] DONE
+[DEBUG][DynamicTorchModelTester.__init__] DONE
+[DEBUG][_run_model_test_impl] DynamicTorchModelTester created successfully
+
+[DEBUG][_run_model_test_impl] Calling tester.test()...
+
+================================================================================
+[DEBUG][ModelTester.test] CALLED — run_mode=inference
+================================================================================
+
+[DEBUG][ModelTester._test_inference] === STEP 1: Compile for CPU ===
+
+[DEBUG][TorchModelTester._compile_for_cpu] CALLED — using torch.compile(backend='inductor')
+
+[DEBUG][compile_torch_workload_for_cpu] CALLED
+  to_compile = AlexNet (using model)
+  Calling: torch.compile(to_compile, backend='inductor')
+[DEBUG][compile_torch_workload_for_cpu] DONE — compiled_executable type=OptimizedModule
+[DEBUG][TorchModelTester._compile_for_cpu] DONE — compiled_executable set
+
+[DEBUG][ModelTester._test_inference] === STEP 2: Run on CPU (golden reference) ===
+[DEBUG][TorchModelTester._run_on_cpu] CALLED — masking jax accelerator, then running on CPU
+[DEBUG][ModelTester._run_on_cpu] CALLED — delegating to device_runner.run_on_cpu()
+
+[DEBUG][DeviceRunner.run_on_cpu] CALLED
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.CPU, count=16
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: cpu
+[DEBUG][DeviceRunner.run_on_device] Connected to device: cpu
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=cpu
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=cpu
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=AlexNet
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=1, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to cpu...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to cpu...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving model (AlexNet) to cpu...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=AlexNet
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = None
+  compiled_executable = OptimizedModule
+  model = AlexNet
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on cpu...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=cpu, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=True, has model=True, has executable=False
+[DEBUG][Workload.execute] Using compiled_executable (OptimizedModule) with 1 args, [] kwargs
+[DEBUG][Workload.execute] DONE
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on cpu
+[DEBUG][ModelTester._test_inference] CPU result: Tensor(shape=[1, 1000], dtype=torch.bfloat16, device=cpu)
+
+[DEBUG][ModelTester._test_inference] === STEP 3: Compile for TT device ===
+
+[DEBUG][TorchModelTester._compile_for_tt_device] CALLED — using torch.compile(backend='tt'), options=None
+
+[DEBUG][compile_torch_workload_for_tt_device] CALLED
+  to_compile = AlexNet (using model)
+  options = {}
+  Calling: torch.compile(to_compile, backend='tt', options={})
+[DEBUG][compile_torch_workload_for_tt_device] DONE — compiled_executable type=OptimizedModule
+[DEBUG][TorchModelTester._compile_for_tt_device] DONE — compiled_executable set for TT
+
+[DEBUG][ModelTester._test_inference] === STEP 4: E2E Perf measurement ===
+[DEBUG][ModelTester._run_on_tt_device] CALLED — delegating to device_runner.run_on_tt_device()
+
+[DEBUG][DeviceRunner.run_on_tt_device] CALLED — device_num=0
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.TT, count=1
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Connected to device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=xla:0
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=xla:0
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=AlexNet
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=1, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving model (AlexNet) to xla:0...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=AlexNet
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = None
+  compiled_executable = OptimizedModule
+  model = AlexNet
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on xla:0...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=xla:0, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=True, has model=True, has executable=False
+[DEBUG][Workload.execute] Using compiled_executable (OptimizedModule) with 1 args, [] kwargs
+[DEBUG][Workload.execute] DONE
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on xla:0
+[DEBUG][ModelTester._run_on_tt_device] CALLED — delegating to device_runner.run_on_tt_device()
+
+[DEBUG][DeviceRunner.run_on_tt_device] CALLED — device_num=0
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.TT, count=1
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Connected to device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=xla:0
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=xla:0
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=AlexNet
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=1, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving model (AlexNet) to xla:0...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=AlexNet
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = None
+  compiled_executable = OptimizedModule
+  model = AlexNet
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on xla:0...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=xla:0, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=True, has model=True, has executable=False
+[DEBUG][Workload.execute] Using compiled_executable (OptimizedModule) with 1 args, [] kwargs
+[DEBUG][Workload.execute] DONE
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on xla:0
+[DEBUG][ModelTester._run_on_tt_device] CALLED — delegating to device_runner.run_on_tt_device()
+
+[DEBUG][DeviceRunner.run_on_tt_device] CALLED — device_num=0
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.TT, count=1
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Connected to device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=xla:0
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=xla:0
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=AlexNet
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=1, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving model (AlexNet) to xla:0...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=AlexNet
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = None
+  compiled_executable = OptimizedModule
+  model = AlexNet
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on xla:0...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=xla:0, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=True, has model=True, has executable=False
+[DEBUG][Workload.execute] Using compiled_executable (OptimizedModule) with 1 args, [] kwargs
+[DEBUG][Workload.execute] DONE
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on xla:0
+[DEBUG][ModelTester._run_on_tt_device] CALLED — delegating to device_runner.run_on_tt_device()
+
+[DEBUG][DeviceRunner.run_on_tt_device] CALLED — device_num=0
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.TT, count=1
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Connected to device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=xla:0
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=xla:0
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=AlexNet
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=1, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving model (AlexNet) to xla:0...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=AlexNet
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = None
+  compiled_executable = OptimizedModule
+  model = AlexNet
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on xla:0...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=xla:0, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=True, has model=True, has executable=False
+[DEBUG][Workload.execute] Using compiled_executable (OptimizedModule) with 1 args, [] kwargs
+[DEBUG][Workload.execute] DONE
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on xla:0
+[DEBUG][ModelTester._run_on_tt_device] CALLED — delegating to device_runner.run_on_tt_device()
+
+[DEBUG][DeviceRunner.run_on_tt_device] CALLED — device_num=0
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.TT, count=1
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Connected to device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=xla:0
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=xla:0
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=AlexNet
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=1, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving model (AlexNet) to xla:0...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=AlexNet
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = None
+  compiled_executable = OptimizedModule
+  model = AlexNet
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on xla:0...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=xla:0, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=True, has model=True, has executable=False
+[DEBUG][Workload.execute] Using compiled_executable (OptimizedModule) with 1 args, [] kwargs
+[DEBUG][Workload.execute] DONE
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on xla:0
+[DEBUG][ModelTester._test_inference] Perf stats: avg_time=0.0060s
+
+[DEBUG][ModelTester._test_inference] === STEP 5: Run on TT device ===
+[DEBUG][ModelTester._run_on_tt_device] CALLED — delegating to device_runner.run_on_tt_device()
+
+[DEBUG][DeviceRunner.run_on_tt_device] CALLED — device_num=0
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.TT, count=1
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.TT, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Connected to device: xla:0
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=xla:0
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=xla:0
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=AlexNet
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=1, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to xla:0...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving model (AlexNet) to xla:0...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=AlexNet
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = None
+  compiled_executable = OptimizedModule
+  model = AlexNet
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on xla:0...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=xla:0, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=True, has model=True, has executable=False
+[DEBUG][Workload.execute] Using compiled_executable (OptimizedModule) with 1 args, [] kwargs
+[DEBUG][Workload.execute] DONE
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on xla:0
+[DEBUG][ModelTester._test_inference] TT result: Tensor(shape=[1, 1000], dtype=torch.bfloat16, device=xla:0)
+
+[DEBUG][ModelTester._test_inference] === STEP 6: Compare TT vs CPU ===
+[DEBUG][ModelTester._compare] CALLED — comparing device output vs golden output
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][DeviceRunnerFactory.create_runner] CALLED -- framework=torch
+[DEBUG][DeviceRunnerFactory.create_runner] Created connector: TorchDeviceConnector
+
+[DEBUG][TorchDeviceRunner.__init__] CALLED
+
+[DEBUG][DeviceRunner.__init__] CALLED — connector=TorchDeviceConnector
+[DEBUG][DeviceRunnerFactory.create_runner] Created TorchDeviceRunner
+
+[DEBUG][DeviceRunner.run_on_cpu] CALLED
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.CPU, count=16
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: cpu
+[DEBUG][DeviceRunner.run_on_device] Connected to device: cpu
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=cpu
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=cpu
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=None
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=1, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to cpu...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to cpu...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=None
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 1
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on cpu...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=cpu, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=False, has model=False, has executable=True
+[DEBUG][Workload.execute] Using executable (function)
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on cpu
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 2
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][DeviceRunnerFactory.create_runner] CALLED -- framework=torch
+[DEBUG][DeviceRunnerFactory.create_runner] Created connector: TorchDeviceConnector
+
+[DEBUG][TorchDeviceRunner.__init__] CALLED
+
+[DEBUG][DeviceRunner.__init__] CALLED — connector=TorchDeviceConnector
+[DEBUG][DeviceRunnerFactory.create_runner] Created TorchDeviceRunner
+
+[DEBUG][DeviceRunner.run_on_cpu] CALLED
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.CPU, count=16
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: cpu
+[DEBUG][DeviceRunner.run_on_device] Connected to device: cpu
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=cpu
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=cpu
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=None
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=2, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to cpu...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to cpu...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=None
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 2
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on cpu...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=cpu, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=False, has model=False, has executable=True
+[DEBUG][Workload.execute] Using executable (function)
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on cpu
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 3
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][DeviceRunnerFactory.create_runner] CALLED -- framework=torch
+[DEBUG][DeviceRunnerFactory.create_runner] Created connector: TorchDeviceConnector
+
+[DEBUG][TorchDeviceRunner.__init__] CALLED
+
+[DEBUG][DeviceRunner.__init__] CALLED — connector=TorchDeviceConnector
+[DEBUG][DeviceRunnerFactory.create_runner] Created TorchDeviceRunner
+
+[DEBUG][DeviceRunner.run_on_cpu] CALLED
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.CPU, count=16
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: cpu
+[DEBUG][DeviceRunner.run_on_device] Connected to device: cpu
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=cpu
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=cpu
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=None
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=3, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to cpu...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to cpu...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=None
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 3
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on cpu...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=cpu, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=False, has model=False, has executable=True
+[DEBUG][Workload.execute] Using executable (function)
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on cpu
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 4
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][DeviceRunnerFactory.create_runner] CALLED -- framework=torch
+[DEBUG][DeviceRunnerFactory.create_runner] Created connector: TorchDeviceConnector
+
+[DEBUG][TorchDeviceRunner.__init__] CALLED
+
+[DEBUG][DeviceRunner.__init__] CALLED — connector=TorchDeviceConnector
+[DEBUG][DeviceRunnerFactory.create_runner] Created TorchDeviceRunner
+
+[DEBUG][DeviceRunner.run_on_cpu] CALLED
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.CPU, count=16
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: cpu
+[DEBUG][DeviceRunner.run_on_device] Connected to device: cpu
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=cpu
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=cpu
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=None
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=4, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to cpu...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to cpu...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=None
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 4
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on cpu...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=cpu, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=False, has model=False, has executable=True
+[DEBUG][Workload.execute] Using executable (function)
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 3
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][DeviceRunnerFactory.create_runner] CALLED -- framework=torch
+[DEBUG][DeviceRunnerFactory.create_runner] Created connector: TorchDeviceConnector
+
+[DEBUG][TorchDeviceRunner.__init__] CALLED
+
+[DEBUG][DeviceRunner.__init__] CALLED — connector=TorchDeviceConnector
+[DEBUG][DeviceRunnerFactory.create_runner] Created TorchDeviceRunner
+
+[DEBUG][DeviceRunner.run_on_cpu] CALLED
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.CPU, count=16
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: cpu
+[DEBUG][DeviceRunner.run_on_device] Connected to device: cpu
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=cpu
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=cpu
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=None
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=3, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to cpu...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to cpu...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=None
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 3
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on cpu...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=cpu, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=False, has model=False, has executable=True
+[DEBUG][Workload.execute] Using executable (function)
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on cpu
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on cpu
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 3
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][DeviceRunnerFactory.create_runner] CALLED -- framework=torch
+[DEBUG][DeviceRunnerFactory.create_runner] Created connector: TorchDeviceConnector
+
+[DEBUG][TorchDeviceRunner.__init__] CALLED
+
+[DEBUG][DeviceRunner.__init__] CALLED — connector=TorchDeviceConnector
+[DEBUG][DeviceRunnerFactory.create_runner] Created TorchDeviceRunner
+
+[DEBUG][DeviceRunner.run_on_cpu] CALLED
+[DEBUG][DeviceRunner.run_on_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._number_of_devices] device_type=DeviceType.CPU, count=16
+[DEBUG][TorchDeviceConnector._connect_device] CALLED — device_type=DeviceType.CPU, device_num=0
+[DEBUG][TorchDeviceConnector._connect_device] Returning device: cpu
+[DEBUG][DeviceRunner.run_on_device] Connected to device: cpu
+[DEBUG][DeviceRunner.run_on_device] Putting workload on device...
+[DEBUG][DeviceRunner._put_on_device] CALLED — device=cpu
+
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] CALLED — target device=cpu
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.model type=None
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device]   workload.args count=3, kwargs keys=[]
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving args to cpu...
+[DEBUG][TorchDeviceRunner._safely_put_workload_on_device] Moving kwargs to cpu...
+
+[DEBUG][TorchWorkload.__init__] CALLED
+  model=None
+  mesh=None
+  shard_spec_fn=None
+
+[DEBUG][Workload.__init__] CALLED
+  framework = torch
+  executable = function
+  compiled_executable = None
+  model = None
+  args count = 3
+  kwargs keys = []
+[DEBUG][Workload.__init__] DONE
+[DEBUG][TorchWorkload._enable_xla_spmd_if_needed] has_shard_specs=False, is_multichip=None
+[DEBUG][TorchWorkload.__init__] DONE
+[DEBUG][DeviceRunner.run_on_device] Executing workload on cpu...
+[DEBUG][TorchDeviceRunner._run_on_device] CALLED — device=cpu, training_mode=False, grad_enabled=False
+[DEBUG][Workload.execute] CALLED — has compiled_executable=False, has model=False, has executable=True
+[DEBUG][Workload.execute] Using executable (function)
+[DEBUG][TorchDeviceRunner._run_on_device] Execution complete
+[DEBUG][DeviceRunner.run_on_device] Execution complete on cpu
+[DEBUG][_run_model_test_impl] tester.test() returned: (ComparisonResult(passed=True, error_message=None, pcc=0.9996678393565037, atol=0.3125, allclose=False, equal=False),)
+[DEBUG][_run_model_test_impl] All results passed = True
+====================================================================
+| pytorch_AlexNet_B_cv_image_cls_osmr BENCHMARK:  
+--------------------------------------------------------------------
+| e2e_perf-total_samples: 2
+| e2e_perf-total_time: 0.012066613067872822
+| e2e_perf-avg_time: 0.006033306533936411
+| e2e_perf-perf_time_1: 0.0061436080140993
+| e2e_perf-perf_time_2: 0.005923005053773522
+====================================================================
+PASSED
+
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/runner/test_models.py::test_all_models_torch[alexnet/pytorch-B-single_device-inference]
+  /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/tests/conftest.py:489: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/runner/test_models.py::test_all_models_torch[alexnet/pytorch-B-single_device-inference]
+  /proj_sw/user_dev/akannan_new/20_mar_bgd/tt-xla/tests/conftest.py:493: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================== 1 passed, 4 warnings in 91.96s (0:01:31) ===================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
