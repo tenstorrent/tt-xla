@@ -444,6 +444,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.tt_config.cpu_sampling:
+            logger.warning("cpu_sampling=True: using CPU sampling path")
             self.sample_from_logits_func = self.sample_from_logits_cpu
         elif not self.enable_tensor_parallel:
             self.sample_from_logits_func = torch.compile(
@@ -1271,6 +1272,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
+            if not hasattr(self, '_logged_sampling_device'):
+                logger.warning("Sampling on %s (cpu_sampling=%s)", sampling_device, self.tt_config.cpu_sampling)
+                self._logged_sampling_device = True
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
@@ -1293,6 +1297,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits, tpu_sampling_metadata
                 )
             else:
+                if not hasattr(self, '_logged_device_sampling'):
+                    logger.warning("Using DEVICE sampling path")
+                    self._logged_device_sampling = True
                 selected_token_ids = self.sample_from_logits(
                     logits, tpu_sampling_metadata
                 )
@@ -1797,6 +1804,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._precompile_structured_decoding()
             if not self.tt_config.cpu_sampling:
                 self._precompile_sample_from_logits()
+            else:
+                logger.warning("cpu_sampling=True: skipping device sampling precompilation")
             self._precompile_gather_logprobs()
 
     def profile_run(
@@ -2062,11 +2071,61 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Sample on CPU instead of compiling a device sampling graph.
 
-        This function mainly exists as a workaround for https://github.com/tenstorrent/tt-xla/issues/3610.
-        Only support greedy sampling for now to reduce maintenance overhead.
+        Supports greedy, temperature, top-k/top-p, and penalty-based sampling.
+        All operations run on CPU to avoid compiling a device sampling graph.
         """
         logits = logits.cpu()
-        out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+
+        # Apply penalties (repetition, frequency, presence)
+        if not sampling_metadata.no_penalties:
+            occurred_output = sampling_metadata.output_token_counts.cpu() > 0
+            prompt_mask = sampling_metadata.prompt_token_mask.cpu()
+            rep_pen = sampling_metadata.repetition_penalties.cpu().unsqueeze(1)
+            rep_mask = occurred_output | prompt_mask
+            penalty_factor = torch.where(logits > 0, torch.reciprocal(rep_pen), rep_pen)
+            logits = torch.where(rep_mask, logits * penalty_factor, logits)
+            freq_pen = sampling_metadata.frequency_penalties.cpu().unsqueeze(1)
+            logits -= freq_pen * sampling_metadata.output_token_counts.cpu().to(logits.dtype)
+            pres_pen = sampling_metadata.presence_penalties.cpu().unsqueeze(1)
+            logits -= pres_pen * occurred_output.to(logits.dtype)
+
+        # Greedy path: no temperature or all-greedy
+        if sampling_metadata.all_greedy:
+            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+            return out_tokens
+
+        # Apply temperature
+        temp = sampling_metadata.temperature.cpu()
+        temp = torch.where(temp < 1e-6, torch.ones_like(temp), temp)
+        logits = logits / temp.unsqueeze(1)
+
+        # Apply top-k
+        if sampling_metadata.top_k is not None:
+            top_k = sampling_metadata.top_k.cpu()
+            for i in range(logits.size(0)):
+                k = int(top_k[i].item())
+                if k > 0 and k < logits.size(1):
+                    topk_vals, _ = torch.topk(logits[i], k)
+                    logits[i][logits[i] < topk_vals[-1]] = float('-inf')
+
+        # Apply top-p
+        if sampling_metadata.top_p is not None:
+            top_p = sampling_metadata.top_p.cpu()
+            for i in range(logits.size(0)):
+                p = float(top_p[i].item())
+                if p < 1.0:
+                    sorted_logits, sorted_indices = torch.sort(logits[i], descending=True)
+                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                    mask = cumulative_probs - torch.softmax(sorted_logits, dim=-1) >= p
+                    sorted_logits[mask] = float('-inf')
+                    logits[i] = sorted_logits.scatter(0, sorted_indices, sorted_logits)
+
+        # Sample from distribution
+        probs = torch.softmax(logits, dim=-1)
+        # Per-token: use greedy where temperature ~ 0, random otherwise
+        greedy = torch.argmax(logits, dim=-1)
+        random = torch.multinomial(probs, num_samples=1).squeeze(-1)
+        out_tokens = torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
         return out_tokens
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
