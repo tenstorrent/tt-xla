@@ -305,6 +305,8 @@ class CMakeBuildPy(build_py):
         if config.enable_explorer:
             enable_explorer = "ON"
 
+        enable_python_bindings = os.environ.get("TTMLIR_ENABLE_BINDINGS_PYTHON", "OFF")
+
         cmake_args = [
             "-G",
             "Ninja",
@@ -314,6 +316,7 @@ class CMakeBuildPy(build_py):
             "-DTTXLA_ENABLE_TOOLS=" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
+            "-DTTMLIR_ENABLE_BINDINGS_PYTHON=" + enable_python_bindings,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
             "-DTT_USE_SYSTEM_SFPI=ON",
         ]
