@@ -460,6 +460,67 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.scheduler_output: SchedulerOutput | None = None
         self.mm_embed_inputs: tuple[list[torch.Tensor], torch.Tensor] | None = None
 
+        # Override number of hidden layers if specified in TTConfig
+        self._original_num_layers = None
+        self._target_num_layers = None
+        target_num_layers = self.tt_config.num_hidden_layers
+        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
+
+        if target_num_layers > 0 and target_num_layers < original_num_layers:
+            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
+            logger.info(
+                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+            )
+            # Store original layer count for weight filtering
+            self._original_num_layers = original_num_layers
+            self._target_num_layers = target_num_layers
+
+    def _filter_weights_for_layer_override(self, weights_iterator):
+        """Filter weights to only include layers that exist in the modified model."""
+        if self._original_num_layers is None or self._target_num_layers is None:
+            # No layer override, return all weights
+            yield from weights_iterator
+            return
+
+        logger.info(
+            f"Filtering weights: keeping layers 0-{self._target_num_layers-1}, "
+            f"skipping layers {self._target_num_layers}-{self._original_num_layers-1}"
+        )
+
+        skipped_count = 0
+        kept_count = 0
+
+        for weight_name, weight_tensor in weights_iterator:
+            # Check if this weight belongs to a layer that should be skipped
+            should_skip = False
+
+            # Look for layer patterns like "layers.N." where N >= target_num_layers
+            if "layers." in weight_name:
+                try:
+                    # Extract layer number from weight name
+                    parts = weight_name.split(".")
+                    for i, part in enumerate(parts):
+                        if part == "layers" and i + 1 < len(parts):
+                            layer_num = int(parts[i + 1])
+                            if layer_num >= self._target_num_layers:
+                                should_skip = True
+                                break
+                except (ValueError, IndexError):
+                    # If we can't parse the layer number, keep the weight
+                    pass
+
+            if should_skip:
+                skipped_count += 1
+                logger.debug(f"Skipping weight: {weight_name}")
+                continue
+            else:
+                kept_count += 1
+                yield weight_name, weight_tensor
+
+        logger.info(
+            f"Weight filtering complete: kept {kept_count} weights, skipped {skipped_count} weights"
+        )
+
     def reset_mm_cache(self) -> None:
         if self.mm_budget:
             self.mm_budget.reset_cache()
@@ -1437,6 +1498,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ):
             try:
                 model_loader = get_model_loader(self.load_config)
+
+                # If layer override is active, patch the weight loading process
+                if (
+                    self._original_num_layers is not None
+                    and self._target_num_layers is not None
+                ):
+                    # Store reference to original get_all_weights method
+                    original_get_all_weights = model_loader.get_all_weights
+
+                    def filtered_get_all_weights(model_config, model):
+                        # Get all weights using the original method
+                        all_weights = original_get_all_weights(model_config, model)
+                        # Filter out weights for non-existent layers
+                        return self._filter_weights_for_layer_override(all_weights)
+
+                    # Temporarily replace the method
+                    model_loader.get_all_weights = filtered_get_all_weights
+
                 model = model_loader.load_model(
                     vllm_config=self.vllm_config, model_config=self.model_config
                 ).eval()
@@ -1795,6 +1874,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self,
         num_tokens: int,
     ) -> None:
+        logger.info(
+            f"Profiling a run with num_tokens={num_tokens} to warm up the model."
+        )
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
@@ -1873,6 +1955,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         xm.wait_device_ops()
         self.encoder_cache.clear()
         gc.collect()
+        logger.info(f"Profiling run with num_tokens={num_tokens} finished.")
 
     def maybe_setup_cross_layer_kv_sharing(
         self,
