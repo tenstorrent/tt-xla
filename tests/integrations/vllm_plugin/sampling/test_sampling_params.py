@@ -79,6 +79,7 @@ def vllm_single_device():
         additional_config={
             "enable_const_eval": False,
             "min_context_len": 32,
+            "cpu_sampling": True,
         },
     )
 
