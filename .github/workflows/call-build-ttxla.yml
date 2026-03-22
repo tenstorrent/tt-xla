@@ -31,6 +31,15 @@ on:
         required: false
         type: string
         default: ${{ github.sha }}
+      enable_python_bindings:
+        description: 'Build with MLIR Python bindings enabled'
+        type: boolean
+        required: false
+        default: false
+    outputs:
+      bindings_artifact_name:
+        description: 'Name of the tt-mlir bindings artifact (only set when enable_python_bindings=true)'
+        value: builder-bindings-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
 
 jobs:
   build-ttxla:
@@ -78,6 +87,8 @@ jobs:
 
       - name: Build the wheel
         shell: bash
+        env:
+            TTMLIR_ENABLE_BINDINGS_PYTHON: ${{ inputs.enable_python_bindings && 'ON' || '' }}
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
@@ -101,8 +112,70 @@ jobs:
         id: upload-wheel
         uses: actions/upload-artifact@v6
         with:
-            name: xla-whl-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
+            name: xla-whl-${{ inputs.build_type }}${{ inputs.artifact_suffix }}${{ inputs.enable_python_bindings && '-bindings' || '' }}
             path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+
+      - name: Archive tt-mlir bindings
+        if: inputs.enable_python_bindings == true
+        shell: bash
+        run: |
+            if [[ "${{ inputs.build_type }}" != "debug" ]]; then
+              echo "Error: enable_python_bindings=true requires build_type=debug (got '${{ inputs.build_type }}')"
+              exit 1
+            fi
+
+            TTMLIR_BUILD=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build
+
+            mkdir -p "${TTMLIR_BUILD}/bin"
+            cat > "${TTMLIR_BUILD}/bin/ttrt" <<'WRAPPER'
+            #!/usr/bin/env bash
+            SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+            exec python3 "${SCRIPT_DIR}/../python_packages/ttrt/__main__.py" "$@"
+            WRAPPER
+            chmod +x "${TTMLIR_BUILD}/bin/ttrt"
+
+            source venv/activate
+            TTRT_VERSION=$(python3 -c \
+              "from importlib.metadata import version; print(version('ttrt'))" \
+              2>/dev/null || echo "0.0.0")
+            DIST_INFO_DIR="${TTMLIR_BUILD}/dist-info/ttrt-${TTRT_VERSION}.dist-info"
+            mkdir -p "${DIST_INFO_DIR}"
+            printf "Metadata-Version: 2.1\nName: ttrt\nVersion: %s\n" "${TTRT_VERSION}" \
+              > "${DIST_INFO_DIR}/METADATA"
+            printf "Wheel-Version: 1.0\nGenerator: ttxla-ci\nRoot-Is-Purelib: true\nTag: py3-none-any\n" \
+              > "${DIST_INFO_DIR}/WHEEL"
+            touch "${DIST_INFO_DIR}/RECORD"
+
+            STAGING="${TTMLIR_BUILD}/archive-staging"
+            mkdir -p "${STAGING}/bin" "${STAGING}/runtime"
+
+            cp "${TTMLIR_BUILD}/bin/ttrt" "${STAGING}/bin/ttrt"
+            cp -rL "${TTMLIR_BUILD}/python_packages" "${STAGING}/python_packages"
+            cp -rL "${TTMLIR_BUILD}/runtime/python" "${STAGING}/runtime/python"
+            cp -r "${TTMLIR_BUILD}/dist-info" "${STAGING}/dist-info"
+
+            TTMLIR_INSTALL=${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/install
+            cp -r "${TTMLIR_INSTALL}/tt-metal" "${STAGING}/tt-metal"
+
+            mkdir -p "${STAGING}/lib"
+            cp -rL "${TTMLIR_BUILD}/lib/." "${STAGING}/lib/"
+            cp -rL "${TTMLIR_INSTALL}/lib/." "${STAGING}/lib/"
+
+            tar -czf builder-bindings.tar.gz \
+              -C "${STAGING}" \
+              bin/ttrt \
+              python_packages \
+              runtime/python \
+              dist-info \
+              tt-metal \
+              lib
+
+      - name: Upload bindings artifact
+        if: inputs.enable_python_bindings == true
+        uses: actions/upload-artifact@v6
+        with:
+            name: builder-bindings-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
+            path: builder-bindings.tar.gz
 
       - name: Upload alchemist library and templates
         if: inputs.build_type == 'release'
