@@ -1,0 +1,37 @@
+name: Builder Integration Test (manual)
+
+# Allows manual triggering of the builder integration test from any branch,
+# without needing to run the full nightly schedule.
+# Use this for development and debugging of builder integration tests.
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir (leave empty to use pinned version)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+  packages: write
+  checks: write
+
+run-name: 'Builder Integration Test (branch: ${{ github.ref_name }})'
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+
+  builder_integration_tests:
+    uses: ./.github/workflows/call-builder-integration-test.yml
+    secrets: inherit
+    needs: [ build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
