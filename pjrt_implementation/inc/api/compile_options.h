@@ -96,6 +96,9 @@ struct CompileOptions {
   // some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
   bool experimental_enable_permute_matmul_fusion = true;
 
+  // Enable DRAM space saving optimization pass (TTNNMemoryManagement).
+  bool experimental_enable_dram_space_saving_optimization = false;
+
   // Enable collection of TTNN performance metrics during execution.
   bool ttnn_perf_metrics_enabled = false;
 
