@@ -88,8 +88,30 @@ jobs:
           COVERAGE_WEEKLY_JSON: ${{ steps.model-coverage-weekly.outputs.response }}
           COVERAGE_WEEKLY_TRAINING_JSON: ${{ steps.model-coverage-weekly-training.outputs.response }}
           PERF_JSON: ${{ steps.model-performance.outputs.response }}
+        run: python3 .github/scripts/generate_release_reports.py
+
+      - name: Assemble updated release body
         run: |
-          echo "$COVERAGE_NIGHTLY_JSON"
-          echo "$COVERAGE_WEEKLY_JSON"
-          echo "$COVERAGE_WEEKLY_TRAINING_JSON"
-          echo "$PERF_JSON"
+          {
+            cat current_body.md
+            echo ""
+            echo "---"
+            echo ""
+            cat model_coverage.md
+            echo ""
+            cat model_performance_llms.md
+            echo ""
+            cat model_performance_non_llms.md
+          } > updated_body.md
+
+      - name: Update release body
+        run: |
+          gh release edit ${{ inputs.tag_name }} --notes-file updated_body.md
+
+      - name: Upload CSV assets to release
+        run: |
+          gh release upload ${{ inputs.tag_name }} \
+            model_coverage.csv \
+            model_performance_llms.csv \
+            model_performance_non_llms.csv \
+            --clobber
