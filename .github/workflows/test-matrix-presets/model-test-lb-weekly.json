@@ -1,0 +1,5 @@
+[
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and single_device and expected_passing", "parallel-groups": 1 },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and single_device and expected_passing", "parallel-groups": 1 },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_llm", "dir": "./tests/runner/test_models.py::test_llms_torch", "test-mark": "p150 and single_device and expected_passing", "parallel-groups": 1 }
+]
