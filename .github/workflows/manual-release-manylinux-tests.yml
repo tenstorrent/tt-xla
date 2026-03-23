@@ -17,6 +17,7 @@ jobs:
 
   build-xla-torch:
     runs-on: tt-ubuntu-2204-large-stable
+    needs: build-image
     container:
       image: ${{ vars.HARBOR_PREFIX }}${{ needs.build-image.outputs.docker-image }}
     steps:
