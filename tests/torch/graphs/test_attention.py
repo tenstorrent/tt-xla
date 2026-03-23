@@ -2343,7 +2343,7 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
 
     loader = GPTOSSModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
+    config._attn_implementation = "eager"
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
     batch_size = 1
     if arch in ("llmbox", "galaxy"):
@@ -2406,7 +2406,7 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
 
     loader = GPTOSSModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
+    config._attn_implementation = "eager"
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
     batch_size = 1
 
