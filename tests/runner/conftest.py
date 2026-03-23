@@ -201,8 +201,8 @@ def pytest_runtest_logreport(report):
     normalisation are visible when junitxml reads the report.
     trylast=True makes this the outermost wrapper so it runs first in pre-yield.
     """
-    # Only process failed crash reports (when="???") or failed call-phase reports
-    # that have no tags yet (normal failures are handled by record_model_test_properties).
+    # Only process failed crash reports (when="???") (this is produced by pytest-forked)
+    # normal failures are handled by record_model_test_properties.
     if report.when != "???" or report.passed:
         yield
         return
@@ -278,4 +278,4 @@ def pytest_runtest_logreport(report):
     # and write our properties. The crash message in longrepr is preserved.
     report.when = "teardown"
 
-    yield  # All other hooks (including junitxml) run here with the modified report
+    yield

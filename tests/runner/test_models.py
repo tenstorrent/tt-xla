@@ -159,7 +159,7 @@ def _run_model_test_impl(
                     request.node.add_marker(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
-                os._exit(1)
+
                 comparison_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
