@@ -35,6 +35,7 @@
 #include "api/device_instance.h"
 #include "api/error_instance.h"
 #include "api/memory_instance.h"
+#include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
 #include "utils/status.h"
@@ -325,7 +326,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
-  assert(m_pjrt_tensor && "Copy from buffer without an associated tensor.");
+  TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
