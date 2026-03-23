@@ -99,7 +99,7 @@ jobs:
     secrets: inherit
     needs: [ inspect-changes, build-image, build-ttxla ]
     with:
-      test_suite: model-test-extended.json
+      test_suite: ${{ needs.inspect-changes.outputs.uplift-test-suite }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}

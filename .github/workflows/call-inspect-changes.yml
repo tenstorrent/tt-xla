@@ -18,6 +18,9 @@ on:
       run-uplift-model-tests:
         description: "True if we need to run extended tests"
         value: ${{ jobs.inspect-changes.outputs.run-uplift-model-tests }}
+      uplift-test-suite:
+        description: "Test suite presets for detected uplifts, colon-separated"
+        value: ${{ jobs.inspect-changes.outputs.uplift-test-suite }}
       wheel-changes:
         description: "True if wheel build related files changed."
         value: ${{ jobs.inspect-changes.outputs.wheel-changes }}
@@ -31,6 +34,7 @@ jobs:
       run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
       only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
       run-uplift-model-tests: ${{ steps.inspect.outputs.run-uplift-model-tests }}
+      uplift-test-suite: ${{ steps.inspect.outputs.uplift-test-suite }}
       wheel-changes: ${{ steps.inspect.outputs.wheel-changes }}
     steps:
       - uses: actions/checkout@v6
@@ -50,7 +54,8 @@ jobs:
           run_perf_tests=false
           only_run_forge_models=false
           run_uplift_model_tests=false
-          tt_mlir_version_changed=false
+          uplift_detected=false
+          uplift_test_suite=""
           wheel_changes=false
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -105,7 +110,6 @@ jobs:
               fi
             done
 
-
             # Just run forge tests if everything else is skipped but we detect changes under tests/runner/.
             if [[ "$skip_build_and_test" == "true" ]]; then
               push_changed=false
@@ -141,19 +145,14 @@ jobs:
               fi
             fi
 
-            # Detect TT-MLIR dependency updates in PRs.
-            if echo "$CHANGED_FILES" | grep -q "^third_party/CMakeLists.txt$"; then
-              TT_MLIR_DIFF=$(gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} || true)
-
-              CMAKE_FILE_DIFF=$(
-                echo "$TT_MLIR_DIFF" |
-                sed -n '/^diff --git a\/third_party\/CMakeLists\.txt/,/^diff --git /p'
-              )
-
-              if echo "$CMAKE_FILE_DIFF" | grep -qE '^[+-][[:space:]]*set\(TT_MLIR_VERSION'; then
-                echo "Detected TT_MLIR_VERSION change in PR diff."
-                tt_mlir_version_changed=true
-              fi
+            echo "$CHANGED_FILES" > /tmp/changed_files.txt
+            gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} > /tmp/pr_diff.txt || true
+            uplift_result=$(python .github/scripts/detect_uplift.py .github/uplift-config.json /tmp/changed_files.txt /tmp/pr_diff.txt)
+            echo "Uplift detection result: $uplift_result"
+            uplift_test_suite=$(echo "$uplift_result" | python -c "import sys,json; print(json.load(sys.stdin)['test_matrix'])")
+            uplift_names=$(echo "$uplift_result" | python -c "import sys,json; print(','.join(json.load(sys.stdin)['uplifts']))")
+            if [[ -n "$uplift_names" ]]; then
+              uplift_detected=true
             fi
 
             # Check wheel build file changes
@@ -178,13 +177,14 @@ jobs:
             run_pr_tests=true
           fi
 
-          if [[ "$tt_mlir_version_changed" == "true" ]]; then
-            echo "Enabling uplift model tests due to TT-MLIR dependency change."
+          if [[ "$uplift_detected" == "true" ]]; then
+            echo "Enabling uplift model tests due to detected uplift(s)."
             run_uplift_model_tests=true
           fi
 
           # Debug Purposes
           echo "run-uplift-model-tests=$run_uplift_model_tests"
+          echo "uplift-test-suite=${uplift_test_suite:-}"
           echo "wheel-changes=$wheel_changes"
           echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
 
@@ -193,4 +193,5 @@ jobs:
           echo "run-perf-tests=$run_perf_tests" >> "$GITHUB_OUTPUT"
           echo "only-run-forge-models=$only_run_forge_models" >> "$GITHUB_OUTPUT"
           echo "run-uplift-model-tests=$run_uplift_model_tests" >> "$GITHUB_OUTPUT"
+          echo "uplift-test-suite=${uplift_test_suite:-}" >> "$GITHUB_OUTPUT"
           echo "wheel-changes=$wheel_changes" >> "$GITHUB_OUTPUT"
