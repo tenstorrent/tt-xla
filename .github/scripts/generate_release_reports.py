@@ -38,21 +38,21 @@ with open("model_coverage.csv", "w", newline="") as f:
         ]
     )
     for row in coverage_data:
-        arch = row["model_architecture"]
+        arch = row["Model architecture"]
         url = f"https://github.com/tenstorrent/tt-forge-models/tree/main/{make_arch_slug(arch)}"
         w.writerow(
             [
-                row["model_task"],
+                row["Model task"],
                 arch,
-                row["model_variant"],
-                row["inference"],
-                row["training"],
+                row["Model variant"],
+                row["Inference"],
+                row["Training"],
                 row["n150"],
                 row["n300"],
                 row["p150"],
-                row["single_device"],
-                row["data_parallel"],
-                row["tensor_parallel"],
+                row["Single device"],
+                row["Data parallel"],
+                row["Tensor parallel"],
                 url,
             ]
         )
@@ -70,13 +70,13 @@ with open("model_coverage.md", "w") as f:
         "| --- | --- | --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | --- |\n"
     )
     for row in coverage_data:
-        arch = row["model_architecture"]
+        arch = row["Model architecture"]
         url = f"https://github.com/tenstorrent/tt-forge-models/tree/main/{make_arch_slug(arch)}"
         f.write(
-            f"| {row['model_task']} | {arch} | {row['model_variant']} "
-            f"| {row['inference']} | {row['training']} "
+            f"| {row['Model task']} | {arch} | {row['Model variant']} "
+            f"| {row['Inference']} | {row['Training']} "
             f"| {row['n150']} | {row['n300']} | {row['p150']} "
-            f"| {row['single_device']} | {row['data_parallel']} | {row['tensor_parallel']} "
+            f"| {row['Single device']} | {row['Data parallel']} | {row['Tensor parallel']} "
             f"| [View Source]({url}) |\n"
         )
 
@@ -85,8 +85,8 @@ with open("model_coverage.md", "w") as f:
 with open("perf.json") as f:
     perf_data = json.load(f)
 
-llms = [r for r in perf_data if r.get("ttft_ms") not in (None, "", 0)]
-non_llms = [r for r in perf_data if r.get("ttft_ms") in (None, "")]
+llms = [r for r in perf_data if r.get("ttft (ms)") not in (None, "", 0)]
+non_llms = [r for r in perf_data if r.get("ttft (ms)") in (None, "")]
 
 # LLM CSV
 with open("model_performance_llms.csv", "w", newline="") as f:
@@ -95,11 +95,11 @@ with open("model_performance_llms.csv", "w", newline="") as f:
     for r in llms:
         w.writerow(
             [
-                r["model"],
-                round(float(r["tokens_per_sec_per_user"]), 2),
-                r["batch"],
-                round(float(r["tokens_per_sec"]), 2),
-                round(float(r["ttft_ms"]), 2),
+                r["Model"],
+                round(float(r["Tokens/sec/user"]), 2),
+                r["Batch"],
+                round(float(r["Tokens/sec"]), 2),
+                round(float(r["ttft (ms)"]), 2),
             ]
         )
 
@@ -110,11 +110,11 @@ with open("model_performance_llms.md", "w") as f:
     f.write("| --- | --- | --- | --- | --- |\n")
     for r in llms:
         f.write(
-            f"| {r['model']} "
-            f"| {round(float(r['tokens_per_sec_per_user']), 2)} "
-            f"| {r['batch']} "
-            f"| {round(float(r['tokens_per_sec']), 2)} "
-            f"| {round(float(r['ttft_ms']), 2)} |\n"
+            f"| {r['Model']} "
+            f"| {round(float(r['Tokens/sec/user']), 2)} "
+            f"| {r['Batch']} "
+            f"| {round(float(r['Tokens/sec']), 2)} "
+            f"| {round(float(r['ttft (ms)']), 2)} |\n"
         )
 
 # Non-LLM CSV
@@ -124,9 +124,9 @@ with open("model_performance_non_llms.csv", "w", newline="") as f:
     for r in non_llms:
         w.writerow(
             [
-                r["model"],
-                r["batch"],
-                round(float(r["tokens_per_sec"]), 2),
+                r["Model"],
+                r["Batch"],
+                round(float(r["Tokens/sec"]), 2),
             ]
         )
 
@@ -137,9 +137,9 @@ with open("model_performance_non_llms.md", "w") as f:
     f.write("| --- | --- | --- |\n")
     for r in non_llms:
         f.write(
-            f"| {r['model']} "
-            f"| {r['batch']} "
-            f"| {round(float(r['tokens_per_sec']), 2)} |\n"
+            f"| {r['Model']} "
+            f"| {r['Batch']} "
+            f"| {round(float(r['Tokens/sec']), 2)} |\n"
         )
 
 print("All reports generated successfully")
