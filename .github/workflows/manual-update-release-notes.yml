@@ -88,11 +88,11 @@ jobs:
             echo ""
             echo "---"
             echo ""
-            cat model_coverage.md
-            echo ""
             cat model_performance_llms.md
             echo ""
             cat model_performance_non_llms.md
+            echo ""
+            cat model_coverage.md
           } > updated_body.md
 
       - name: Update release body
