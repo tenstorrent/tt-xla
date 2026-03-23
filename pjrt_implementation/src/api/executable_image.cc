@@ -11,7 +11,6 @@
 #include "api/executable_image.h"
 
 // c++ standard library includes
-#include <cassert>
 #include <functional>
 #include <memory>
 #include <sstream>
@@ -22,6 +21,7 @@
 #include "api/loaded_executable_instance.h"
 #include "api/memory_instance.h"
 #include "api/so_loaded_executable_instance.h"
+#include "utils/assert.h"
 #include "utils/data_type_utils.h"
 
 namespace tt::pjrt {
@@ -177,8 +177,10 @@ ExecutableImage::ExecutableImage(
       m_output_memory_kinds_sizes(std::move(output_memory_kinds_sizes)),
       m_compile_options(std::move(compile_options)) {
 
-  assert(m_num_inputs == m_input_sharding.size());
-  assert(m_num_outputs == m_output_sharding.size());
+  TT_FATAL(m_num_inputs == m_input_sharding.size(),
+           "Number of inputs doesn't match input sharding size");
+  TT_FATAL(m_num_outputs == m_output_sharding.size(),
+           "Number of outputs doesn't match output sharding size");
 }
 
 FlatbufferExecutableImage::FlatbufferExecutableImage(
@@ -209,32 +211,34 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
           std::move(optimized_mlir_code), std::move(compile_options)) {
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
-  assert(this->getNumInputs() ==
-         m_flatbuffer_binary.getProgramInputs(program_index).size());
+  TT_FATAL(this->getNumInputs() ==
+               m_flatbuffer_binary.getProgramInputs(program_index).size(),
+           "Number of inputs doesn't match flatbuffer program inputs size");
   std::vector<tt::runtime::TensorDesc> output_specs =
       m_flatbuffer_binary.getProgramOutputs(program_index);
-  assert(this->getNumOutputs() == output_specs.size());
+  TT_FATAL(this->getNumOutputs() == output_specs.size(),
+           "Number of outputs doesn't match output specs size");
 
   int output_dims_so_far = 0;
   for (size_t output_index = 0; output_index < getNumOutputs();
        ++output_index) {
-    assert(getOutputDimensions()[output_index] ==
-               output_specs[output_index].shape &&
-           "Output shape from flatbuffer binary does not match the one "
-           "collected from the MLIR module");
+    TT_FATAL(getOutputDimensions()[output_index] ==
+                 output_specs[output_index].shape,
+             "Output shape from flatbuffer binary does not match the one "
+             "collected from the MLIR module");
 
-    assert(getOutputRanks()[output_index] ==
-               getOutputDimensions()[output_index].size() &&
-           "Output rank from flatbuffer binary does not match the one "
-           "collected from the MLIR module");
+    TT_FATAL(getOutputRanks()[output_index] ==
+                 getOutputDimensions()[output_index].size(),
+             "Output rank from flatbuffer binary does not match the one "
+             "collected from the MLIR module");
 
     for (auto dim_index = 0;
          dim_index < getOutputDimensions()[output_index].size(); dim_index++) {
-      assert(getOutputDimensionsFlat()[output_dims_so_far + dim_index] ==
-                 static_cast<std::int64_t>(
-                     getOutputDimensions()[output_index][dim_index]) &&
-             "Output flat dimension from flatbuffer binary does not match the "
-             "one collected from the MLIR module");
+      TT_FATAL(getOutputDimensionsFlat()[output_dims_so_far + dim_index] ==
+                   static_cast<std::int64_t>(
+                       getOutputDimensions()[output_index][dim_index]),
+               "Output flat dimension from flatbuffer binary does not match "
+               "the one collected from the MLIR module");
     }
 
     output_dims_so_far += getOutputDimensions()[output_index].size();
@@ -273,21 +277,21 @@ SOExecutableImage::SOExecutableImage(
 
 const std::vector<std::uint32_t> &
 ExecutableImage::getOutputShape(size_t output_index) const {
-  assert(output_index < m_output_dimensions.size() &&
-         "Output index out of range");
+  TT_FATAL(output_index < m_output_dimensions.size(),
+           "Output index out of range");
   return m_output_dimensions[output_index];
 }
 
 const mlir::tt::sharding_utils::MeshSharding &
 ExecutableImage::getInputSharding(size_t input_index) const {
-  assert(input_index < m_input_sharding.size() && "Input index out of range");
+  TT_FATAL(input_index < m_input_sharding.size(), "Input index out of range");
   return m_input_sharding[input_index];
 }
 
 const mlir::tt::sharding_utils::MeshSharding &
 ExecutableImage::getOutputSharding(size_t output_index) const {
-  assert(output_index < m_output_sharding.size() &&
-         "Output index out of range");
+  TT_FATAL(output_index < m_output_sharding.size(),
+           "Output index out of range");
   return m_output_sharding[output_index];
 }
 

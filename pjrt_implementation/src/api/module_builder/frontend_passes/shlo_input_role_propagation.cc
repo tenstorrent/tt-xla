@@ -5,9 +5,6 @@
 
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 
-// c++ standard library includes
-#include <cassert>
-
 // llvm includes
 #include "llvm/ADT/StringRef.h"
 
@@ -27,6 +24,7 @@
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
+#include "utils/assert.h"
 #include "utils/logging.h"
 #include "utils/status.h"
 
@@ -191,13 +189,10 @@ struct PopulateArgumentAttrsFromTTMark final
       return mlir::failure();
     }
 
-    assert(
-        op.getNumOperands() == 1 &&
-        std::string("Expected one operand to " + c_mark_argument_function_name)
-            .c_str());
-    assert(op.getNumResults() == 1 && std::string("Expected one result to " +
-                                                  c_mark_argument_function_name)
-                                          .c_str());
+    TT_FATAL(op.getNumOperands() == 1, "Expected one operand to {}",
+             c_mark_argument_function_name);
+    TT_FATAL(op.getNumResults() == 1, "Expected one result to {}",
+             c_mark_argument_function_name);
 
     // Torch XLA allows us to populate a frontend_attributes dictionary to
     // custom call ops. This dictionary is used to populate the argument type
@@ -255,7 +250,7 @@ struct PopulateArgumentAttrsFromTTMark final
 
       // Assert that the input is a block argument to a function
       auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
-      assert(funcOp && "Expected function as parent of block argument");
+      TT_FATAL(funcOp, "Expected function as parent of block argument");
 
       // Set argument type for this argument
       funcOp.setArgAttr(argIndex, mlir::tt::ttcore::ArgumentTypeAttr::name,
@@ -282,7 +277,7 @@ private:
       blockArgs.push_back(blockArg);
     } else {
       auto definingOp = value.getDefiningOp();
-      assert(definingOp && "This value does not have a defining operation, nor "
+      TT_FATAL(definingOp, "This value does not have a defining operation, nor "
                            "is it a block argument.");
       for (mlir::Value operand : definingOp->getOperands()) {
         blockArgs.append(getBlockArguments(operand));
