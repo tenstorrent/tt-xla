@@ -16,7 +16,6 @@ from enum import Enum
 from typing import Any, List, Optional
 
 import numpy as np
-import pytest
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
@@ -483,9 +482,58 @@ def _derive_guidance_from_pcc(comparison_result, comparison_config) -> list[str]
     return guidance
 
 
+def build_model_tags(
+    item,
+    test_metadata,
+    model_info,
+    *,
+    run_mode,
+    run_phase,
+    parallelism,
+    weights_dtype,
+    bringup_status,
+    failing_reason=None,
+    failing_reason_summary=None,
+):
+    """Build the base tags dict used by both normal reporting and crash-report hooks."""
+    tags = {
+        "test_name": str(item.originalname),
+        "specific_test_case": str(item.name),
+        "category": str(Category.MODEL_TEST),
+        "model_name": str(model_info.name),
+        "model_info": model_info.to_report_dict(),
+        "run_mode": str(run_mode) if run_mode is not None else None,
+        "run_phase": str(run_phase),
+        "bringup_status": str(bringup_status),
+        "model_test_status": str(test_metadata.status),
+        "failing_reason": (
+            {
+                "name": failing_reason.name,
+                "description": failing_reason.value.description,
+                "component": failing_reason.value.component_checker_description,
+                "summary": failing_reason_summary,
+            }
+            if failing_reason
+            else {
+                "name": None,
+                "description": None,
+                "component": None,
+                "summary": None,
+            }
+        ),
+        "parallelism": str(parallelism) if parallelism is not None else None,
+        "arch": getattr(test_metadata, "arch", None),
+        "seq_len": getattr(test_metadata, "seq_len", None),
+        "batch_size": getattr(test_metadata, "batch_size", None),
+        "weights_dtype": weights_dtype if weights_dtype is not None else "bfloat16",
+        "guidance": [],
+    }
+    return tags
+
+
 def record_model_test_properties(
     record_property,
-    request,
+    item,
     *,
     model_info,
     test_metadata,
@@ -499,20 +547,19 @@ def record_model_test_properties(
     weights_dtype: str = None,
 ):
     """
-    Record standard runtime properties for model tests and optionally control flow.
+    Record standard runtime properties for model tests.
 
     - Always records tags (including test_name, specific_test_case, category, model_name, run_mode, bringup_status),
       plus owner and group properties.
     - Passing tests (test_passed=True) set bringup_status based on PCC comparison.
     - Failing tests classify bringup info based on the last stage reached before failure.
-    - If test_metadata.status is NOT_SUPPORTED_SKIP, set bringup_status and reason from config and call pytest.skip(reason).
     - If test_metadata.bringup_status is NOT_STARTED, its just recorded as NOT_STARTED - test_placeholder_models uses this.
-    - If test_metadata.status is KNOWN_FAILURE_XFAIL, call pytest.xfail(reason) at the end.
     - If test_metadata.failing_reason is set, use it to set the failing reason.
+
+    Note: skip/xfail control flow is handled at collection time in pytest_collection_modifyitems.
     """
 
     reason = ""
-    arch = getattr(test_metadata, "arch", None)
     failing_reason = getattr(test_metadata, "failing_reason", None)
     failing_reason_summary = getattr(test_metadata, "failing_reason_summary", None)
     config_bringup_status = getattr(test_metadata, "bringup_status", None)
@@ -570,37 +617,18 @@ def record_model_test_properties(
 
         reason = static_reason or runtime_reason or "Not specified"
 
-    tags = {
-        "test_name": str(request.node.originalname),
-        "specific_test_case": str(request.node.name),
-        "category": str(Category.MODEL_TEST),
-        "model_name": str(model_info.name),
-        "model_info": model_info.to_report_dict(),
-        "run_mode": str(run_mode),
-        "run_phase": str(run_phase),
-        "bringup_status": str(bringup_status),
-        "model_test_status": str(test_metadata.status),
-        "failing_reason": (
-            {
-                "name": failing_reason.name,
-                "description": failing_reason.value.description,
-                "component": failing_reason.value.component_checker_description,
-                "summary": failing_reason_summary,
-            }
-            if failing_reason
-            else {
-                "name": None,
-                "description": None,
-                "component": None,
-                "summary": None,
-            }
-        ),
-        "parallelism": str(parallelism),
-        "arch": arch,
-        "seq_len": getattr(test_metadata, "seq_len", None),
-        "batch_size": getattr(test_metadata, "batch_size", None),
-        "weights_dtype": weights_dtype if weights_dtype is not None else "bfloat16",
-    }
+    tags = build_model_tags(
+        item,
+        test_metadata,
+        model_info,
+        run_mode=run_mode,
+        run_phase=run_phase,
+        parallelism=parallelism,
+        weights_dtype=weights_dtype,
+        bringup_status=bringup_status,
+        failing_reason=failing_reason,
+        failing_reason_summary=failing_reason_summary,
+    )
 
     # Add model size (in billions of parameters) to tags if available
     if model_size is not None:
@@ -643,7 +671,6 @@ def record_model_test_properties(
     tags["guidance"] = guidance_pcc + guidance_status
 
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
-    # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
         record_property("error_message", _to_marshal_safe(reason))
 
@@ -652,12 +679,6 @@ def record_model_test_properties(
     record_property("owner", "tt-xla")
     if hasattr(model_info, "group") and model_info.group is not None:
         record_property("group", str(model_info.group))
-
-    # Control flow for skipped and xfailed tests is handled by pytest.
-    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
-        pytest.skip(reason)
-    elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
-        pytest.xfail(reason)
 
 
 def get_xla_device_arch():

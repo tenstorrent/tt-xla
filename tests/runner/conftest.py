@@ -3,20 +3,30 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import socket
 
 import pytest
+
+from infra import RunMode
 
 from tests.runner.test_config.constants import ALLOWED_ARCHES
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
 from tests.runner.test_config.torch_llm import test_config as torch_llm_test_config
+from tests.infra.utilities.types import Framework
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
     RunPhase,
     _to_marshal_safe,
+    build_model_tags,
+    create_benchmark_result,
+    get_input_shape_info,
+    get_xla_device_arch,
+    record_model_test_properties,
+    update_test_metadata_for_exception,
 )
-from tests.utils import BringupStatus, Category
+from tests.utils import BringupStatus
 
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
@@ -128,8 +138,19 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.expected_passing)
         elif meta.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
             item.add_marker(pytest.mark.known_failure_xfail)
+            item.add_marker(
+                pytest.mark.xfail(
+                    reason=getattr(meta, "reason", "known failure"),
+                    strict=False,
+                )
+            )
         elif meta.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
             item.add_marker(pytest.mark.not_supported_skip)
+            item.add_marker(
+                pytest.mark.skip(
+                    reason=getattr(meta, "reason", "not supported"),
+                )
+            )
         elif meta.status == ModelTestStatus.UNSPECIFIED:
             item.add_marker(pytest.mark.unspecified)
 
@@ -217,16 +238,8 @@ def pytest_runtest_logreport(report):
         return
 
     meta = item._test_meta
-    params = item.callspec.params
 
-    # Resolve test_entry (regular: "test_entry"; LLM: "test_entry_and_phase")
-    test_entry = params.get("test_entry")
-    run_phase = RunPhase.DEFAULT
-    if test_entry is None:
-        test_entry_and_phase = params.get("test_entry_and_phase")
-        if test_entry_and_phase is not None:
-            test_entry, run_phase = test_entry_and_phase
-
+    test_entry, run_phase = _resolve_test_entry(item)
     if test_entry is None:
         yield
         return
@@ -234,35 +247,23 @@ def pytest_runtest_logreport(report):
     variant, ModelLoader = test_entry.variant_info
     model_info = ModelLoader.get_model_info(variant=variant)
 
+    params = item.callspec.params
     run_mode = params.get("run_mode")
     parallelism = params.get("parallelism")
     weights_dtype = (
         "bfp8" if getattr(meta, "enable_weight_bfp8_conversion", False) else "bfloat16"
     )
 
-    tags = {
-        "test_name": str(item.originalname),
-        "specific_test_case": str(item.name),
-        "category": str(Category.MODEL_TEST),
-        "model_name": str(model_info.name),
-        "model_info": model_info.to_report_dict(),
-        "run_mode": str(run_mode) if run_mode is not None else None,
-        "run_phase": str(run_phase),
-        "parallelism": str(parallelism) if parallelism is not None else None,
-        "bringup_status": str(BringupStatus.UNKNOWN),
-        "model_test_status": str(meta.status),
-        "arch": getattr(meta, "arch", None),
-        "seq_len": getattr(meta, "seq_len", None),
-        "batch_size": getattr(meta, "batch_size", None),
-        "weights_dtype": weights_dtype,
-        "failing_reason": {
-            "name": None,
-            "description": None,
-            "component": None,
-            "summary": None,
-        },
-        "guidance": [],
-    }
+    tags = build_model_tags(
+        item,
+        meta,
+        model_info,
+        run_mode=run_mode,
+        run_phase=run_phase,
+        parallelism=parallelism,
+        weights_dtype=weights_dtype,
+        bringup_status=BringupStatus.UNKNOWN,
+    )
 
     report.user_properties.append(("tags", _to_marshal_safe(tags)))
     report.user_properties.append(("owner", "tt-xla"))
@@ -277,3 +278,181 @@ def pytest_runtest_logreport(report):
     report.when = "teardown"
 
     yield
+
+
+def _resolve_test_entry(item):
+    """Resolve test_entry and run_phase from item's callspec params."""
+    if not hasattr(item, "callspec"):
+        return None, RunPhase.DEFAULT
+    params = item.callspec.params
+    test_entry = params.get("test_entry")
+    run_phase = RunPhase.DEFAULT
+    if test_entry is None:
+        test_entry_and_phase = params.get("test_entry_and_phase")
+        if test_entry_and_phase is not None:
+            test_entry, run_phase = test_entry_and_phase
+    return test_entry, run_phase
+
+
+def _record_properties_from_hook(report, item, meta):
+    """Record model test properties from the makereport hook."""
+
+    def record_property(key, value):
+        report.user_properties.append((key, value))
+
+    model_info = getattr(item, "_model_info", None)
+    if model_info is None:
+        return
+
+    record_model_test_properties(
+        record_property,
+        item,
+        model_info=model_info,
+        test_metadata=meta,
+        run_mode=getattr(item, "_run_mode", None),
+        run_phase=getattr(item, "_run_phase", RunPhase.DEFAULT),
+        parallelism=getattr(item, "_parallelism", None),
+        test_passed=getattr(item, "_test_passed", False),
+        comparison_results=getattr(item, "_comparison_result", []),
+        comparison_config=getattr(item, "_comparison_config", None),
+        model_size=getattr(item, "_model_size", None),
+        weights_dtype=getattr(item, "_weights_dtype", None),
+    )
+
+
+def _maybe_record_perf_benchmarks(item):
+    """Record perf benchmark results for torch inference tests."""
+    framework = getattr(item, "_framework", None)
+    run_mode = getattr(item, "_run_mode", None)
+    if framework != Framework.TORCH or run_mode != RunMode.INFERENCE:
+        return
+
+    tester = getattr(item, "_tester", None)
+    loader = getattr(item, "_loader", None)
+    model_info = getattr(item, "_model_info", None)
+    parallelism = getattr(item, "_parallelism", None)
+
+    if model_info is None:
+        return
+
+    measurements = getattr(tester, "_perf_measurements", None)
+    model_config = loader.load_config() if loader else None
+    batch_size, input_sequence_length, input_size = (
+        get_input_shape_info(getattr(tester, "_input_activations", None))
+        if tester
+        else (1, -1, (-1,))
+    )
+    create_benchmark_result(
+        full_model_name=model_info.name,
+        output_dir=item.config.getoption("--perf-report-dir"),
+        perf_id=item.config.getoption("--perf-id"),
+        measurements=measurements,
+        model_type=str(model_info.task),
+        training=False,
+        model_info=model_info.name,
+        model_rawname=f"{model_info.model}_{model_info.variant}",
+        model_group=str(model_info.group),
+        parallelism=str(parallelism),
+        device_arch=get_xla_device_arch(),
+        run_mode=str(run_mode),
+        device_name=socket.gethostname(),
+        batch_size=batch_size,
+        input_size=input_size,
+        num_layers=getattr(model_config, "num_hidden_layers", 0) if model_config else 0,
+        total_time=(
+            measurements[0].get("total_time", -1)
+            if measurements and len(measurements) > 0
+            else -1
+        ),
+        total_samples=(
+            measurements[0].get("perf_iters_count", -1)
+            if measurements and len(measurements) > 0
+            else -1
+        ),
+        input_sequence_length=input_sequence_length,
+        data_format="bfloat16",
+    )
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Record model test properties and classify failures.
+
+    Replaces the try/except/finally block that was in test_models.py.
+    Handles:
+    1. Failure classification using captured stdout/stderr
+    2. Recording all model test properties (tags, owner, group)
+    3. Perf benchmark recording (torch inference only)
+
+    Skipped tests (NOT_SUPPORTED_SKIP) are handled for the 'setup' phase
+    since they are skipped at collection time and never reach 'call'.
+    """
+    outcome = yield
+    report = outcome.get_result()
+
+    # Only process tests with model test metadata
+    if not hasattr(item, "_test_meta"):
+        return
+    # Only process tests marked no_auto_properties (model tests)
+    if not item.get_closest_marker("no_auto_properties"):
+        return
+
+    meta = item._test_meta
+
+    # Handle skipped tests (skipped at collection time via pytest.mark.skip)
+    if report.when == "setup" and report.skipped:
+        # For NOT_SUPPORTED_SKIP tests, record properties on the setup report
+        if meta.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
+            _record_skip_properties(report, item, meta)
+        return
+
+    if report.when != "call":
+        return
+
+    # 1. On failure: classify exception using captured stdout/stderr
+    if report.failed and call.excinfo is not None:
+        stdout = report.capstdout or None
+        stderr = report.capstderr or None
+        update_test_metadata_for_exception(
+            meta, call.excinfo.value, stdout=stdout, stderr=stderr
+        )
+
+    # 2. Record all model test properties
+    _record_properties_from_hook(report, item, meta)
+
+    # 3. Perf benchmarks (torch inference only, on success)
+    if report.passed:
+        _maybe_record_perf_benchmarks(item)
+
+
+def _record_skip_properties(report, item, meta):
+    """Record properties for tests skipped at collection time."""
+
+    def record_property(key, value):
+        report.user_properties.append((key, value))
+
+    # Resolve model_info from test_entry
+    test_entry, run_phase = _resolve_test_entry(item)
+    if test_entry is None:
+        return
+
+    variant, ModelLoader = test_entry.variant_info
+    model_info = ModelLoader.get_model_info(variant=variant)
+
+    params = item.callspec.params if hasattr(item, "callspec") else {}
+    run_mode = params.get("run_mode")
+    parallelism = params.get("parallelism")
+    weights_dtype = (
+        "bfp8" if getattr(meta, "enable_weight_bfp8_conversion", False) else "bfloat16"
+    )
+
+    record_model_test_properties(
+        record_property,
+        item,
+        model_info=model_info,
+        test_metadata=meta,
+        run_mode=run_mode,
+        run_phase=run_phase,
+        parallelism=parallelism,
+        weights_dtype=weights_dtype,
+    )
