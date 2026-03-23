@@ -144,8 +144,14 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            Install via pypi
-            pip install tt-forge==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            ### Installation
 
-            Pull docker image
+            #### Via PyPI
+            ```bash
+            pip install tt-forge==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            ```
+
+            #### Via Docker
+            ```bash
             docker pull ${{ steps.build-docker.outputs.docker_image_base }}:${{ inputs.release_tag }}
+            ```
