@@ -6,105 +6,88 @@ name: Update Test Durations
 
 on:
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to update'
+        required: true
+        type: string
+      is_nightly:
+        description: 'Is this a nightly release?'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
-  packages: write
-  checks: write
+  contents: write
+  id-token: write
 
 jobs:
-  update_test_durations:
+  update-release-notes:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          # ref: main
-      - uses: actions/setup-python@v6
-      - name: Process test durations from latest workflows
-        id: get-test-durations
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get current release body
+        id: get-release
         run: |
-          repo="tenstorrent/tt-xla"
+          gh release view ${{ inputs.tag_name }} --json body -q '.body' > current_body.md
+          COMMIT=$(gh release view ${{ inputs.tag_name }} --json targetCommitish -q '.targetCommitish')
+          echo "commit_hash=$COMMIT" >> $GITHUB_OUTPUT
 
-          get_test_results_from_wf() {
-            local wf_name="$1"
-            local conclusions="$2"
-            local num=5
-
-            # get json of the last $num workflow runs
-            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
-
-            counter=0
-            while true; do
-              # Check the status of 'conclusion'
-              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
-
-              if echo "$conclusions" | grep -q -w "$conclusion"; then
-                break
-              else
-                ((++counter))
-
-                # Exit if the counter reaches $num
-                if [ $counter -ge $num ]; then
-                  echo "ERROR: Did not found good workflow within last $num. Exiting."
-                  exit 1
-                fi
-              fi
-            done
-            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
-            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
-            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
-            rm -f runs.json
-
-            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
-          }
-
-          # get test results from the last nightly that was success or failure
-          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
-
-          # get test results from the last successful push
-          get_test_results_from_wf "push-main.yml" "success" "push"
-
-          # get test results from the last weekly that was success or failure
-          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
-
-          # get test results from the last weekly training that was success or failure
-          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
-
-          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
-          echo "" >> .test_durations
-          echo "----- NEW DURATIONS"
-          cat .test_durations
-
-          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
-        id: create-pr
-        with:
-          branch: test-durations-update
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          base: main
-          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
-          labels: tooling
-          delete-branch: true
-          token: ${{ secrets.GH_TOKEN }}
-
-      - name: Enable Pull Request Automerge
-        if: ${{ steps.create-pr.outputs.pull-request-number }}
-        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Generate Summary
+      - name: Resolve commit hashes for weekly workflows
+        id: resolve-commits
         run: |
-          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
-          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.is_nightly }}" = "true" ]; then
+            WEEKLY_COMMIT=$(gh run list --workflow "schedule-weekly.yml" --branch main \
+              --status success --limit 1 --json headSha -q '.[0].headSha')
+            WEEKLY_TRAINING_COMMIT=$(gh run list --workflow "schedule-weekly-training.yml" --branch main \
+              --status success --limit 1 --json headSha -q '.[0].headSha')
+          else
+            WEEKLY_COMMIT="${{ steps.get-release.outputs.commit_hash }}"
+            WEEKLY_TRAINING_COMMIT="${{ steps.get-release.outputs.commit_hash }}"
+          fi
+          echo "weekly_commit=$WEEKLY_COMMIT" >> $GITHUB_OUTPUT
+          echo "weekly_training_commit=$WEEKLY_TRAINING_COMMIT" >> $GITHUB_OUTPUT
+
+      - name: Fetch model coverage (On nightly)
+        id: model-coverage-nightly
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}"}'
+
+      - name: Fetch model coverage (On weekly)
+        id: model-coverage-weekly
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On weekly", "commit_hash": "${{ steps.resolve-commits.outputs.weekly_commit }}"}'
+
+      - name: Fetch model coverage (On weekly training)
+        id: model-coverage-weekly-training
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On weekly training", "commit_hash": "${{ steps.resolve-commits.outputs.weekly_training_commit }}"}'
+
+      - name: Fetch model performance
+        id: model-performance
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_performance
+          query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}", "architecture": "wormhole"}'
+
+      - name: Generate reports
+        env:
+          COVERAGE_NIGHTLY_JSON: ${{ steps.model-coverage-nightly.outputs.response }}
+          COVERAGE_WEEKLY_JSON: ${{ steps.model-coverage-weekly.outputs.response }}
+          COVERAGE_WEEKLY_TRAINING_JSON: ${{ steps.model-coverage-weekly-training.outputs.response }}
+          PERF_JSON: ${{ steps.model-performance.outputs.response }}
+        run: |
+          echo "$COVERAGE_NIGHTLY_JSON"
+          echo "$COVERAGE_WEEKLY_JSON"
+          echo "$COVERAGE_WEEKLY_TRAINING_JSON"
+          echo "$PERF_JSON"
