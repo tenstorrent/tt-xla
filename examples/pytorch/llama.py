@@ -18,6 +18,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from tt_torch.sharding import sharding_constraint_hook
 
 DEFAULT_PROMPTS = [
     "I like taking walks in the",
@@ -150,7 +151,7 @@ def create_device_mesh() -> Mesh:
         Mesh object for SPMD operations
     """
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (1, num_devices)
+    mesh_shape = (num_devices,1)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
     print(f"Created device mesh: {mesh_shape} with {num_devices} devices")
@@ -301,20 +302,29 @@ def mark_sharding_on_inputs_and_model(
         mesh: Device mesh for SPMD operations
     """
 
+    # don't shard layers in 1x16 mode!
     for layer in input_args["past_key_values"].layers:
-        xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-        xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+        xs.mark_sharding(layer.keys, mesh, ('batch', None, None, None))
+        xs.mark_sharding(layer.values, mesh, ('batch', None, None, None))
+
+    xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
+    
+    
+            # Apply sharding constraint on lm_head output to all_gather logits
+    if hasattr(model, "lm_head") and model.lm_head is not None:
+        hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+        model.lm_head.register_forward_hook(hook)
 
     # Shard model internals
-    for layer in model.model.layers:
-        xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
+    # for layer in model.model.layers:
+    #     xs.mark_sharding(layer.mlp.up_proj.weight, mesh, ("model", None))
+    #     xs.mark_sharding(layer.mlp.gate_proj.weight, mesh, ("model", None))
+    #     xs.mark_sharding(layer.mlp.down_proj.weight, mesh, (None, "model"))
 
-        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
-        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
+    #     xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
+    #     xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
+    #     xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
+    #     xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
 
 
 def run_generate(
