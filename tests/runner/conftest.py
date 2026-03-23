@@ -237,9 +237,7 @@ def pytest_runtest_logreport(report):
     run_mode = params.get("run_mode")
     parallelism = params.get("parallelism")
     weights_dtype = (
-        "bfp8"
-        if getattr(meta, "enable_weight_bfp8_conversion", False)
-        else "bfloat16"
+        "bfp8" if getattr(meta, "enable_weight_bfp8_conversion", False) else "bfloat16"
     )
 
     tags = {
