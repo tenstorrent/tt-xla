@@ -130,7 +130,7 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    * Python 3.12
    * python3.12-venv
    * Clang 17
-   * GCC 12
+   * GCC 13
    * Ninja
    * CMake 4.0.3
 
