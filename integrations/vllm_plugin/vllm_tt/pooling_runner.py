@@ -509,11 +509,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
+        # Override number of hidden layers if specified in TTConfig
         # Layer override support
         self._original_num_layers = None
         self._target_num_layers = None
 
-        if self.tt_config.num_hidden_layers > 0:
+        if self.tt_config.num_hidden_layers > 0 and self.tt_config.target_num_layers < self.tt_config.original_num_layers:
             # Store original layer count before override
             self._original_num_layers = self.model_config.num_hidden_layers
             self._target_num_layers = self.tt_config.num_hidden_layers

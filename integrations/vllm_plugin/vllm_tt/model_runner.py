@@ -477,6 +477,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.scheduler_output: SchedulerOutput | None = None
         self.mm_embed_inputs: tuple[list[torch.Tensor], torch.Tensor] | None = None
 
+        # Override number of hidden layers if specified in TTConfig
+        self._original_num_layers = None
+        self._target_num_layers = None
+        target_num_layers = self.tt_config.num_hidden_layers
+        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
+
+        if target_num_layers > 0 and target_num_layers < original_num_layers:
+            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
+            logger.info(
+                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+            )
+            # Store original layer count for weight filtering
+            self._original_num_layers = original_num_layers
+            self._target_num_layers = target_num_layers
+
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
         if self._original_num_layers is None or self._target_num_layers is None:
