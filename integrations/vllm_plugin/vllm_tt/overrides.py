@@ -90,7 +90,7 @@ def get_fqn(module):
 def tt_rmsnorm_module(layer: torch.nn.Module) -> torch.nn.Module:
     assert isinstance(layer, RMSNorm)
     tt_layer = TTRMSNorm(layer)
-    logger.info("Wrapped RMSNorm module %s with TT-compatible version", layer)
+    logger.debug("Wrapped RMSNorm module %s with TT-compatible version", layer)
     return tt_layer
 
 
@@ -102,6 +102,10 @@ MODULE_TYPE_TO_TT_OVERRIDE = OrderedDict(
 
 
 def replace_modules(model: torch.nn.Module) -> None:
+    logger.info(
+        "Replacing vLLM modules with TT-compatible overrides where necessary..."
+    )
+
     def _process_module(module, name=None, parent=None):
         if get_fqn(module) in MODULE_TYPE_TO_TT_OVERRIDE:
             tt_override_cls = MODULE_TYPE_TO_TT_OVERRIDE[get_fqn(module)]
