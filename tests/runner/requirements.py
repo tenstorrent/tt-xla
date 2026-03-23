@@ -346,6 +346,7 @@ class RequirementsManager:
         for key in list(sys.modules.keys()):
             top_level = key.split(".")[0].lower().replace("-", "_")
             if top_level in affected_normalized:
+                self._unregister_arrow_ext_types(sys.modules[key])
                 purged.append(key)
                 del sys.modules[key]
 
@@ -355,6 +356,29 @@ class RequirementsManager:
             )
 
         importlib.invalidate_caches()
+
+    @staticmethod
+    def _unregister_arrow_ext_types(module) -> None:
+        """Unregister any pyarrow extension types defined in *module*.
+
+        pyarrow's C-level type registry survives sys.modules purges.
+        Without this, re-importing the module would re-register its types
+        and raise ArrowKeyError.
+        """
+        pa = sys.modules.get("pyarrow")
+        if pa is None:
+            return
+        for attr in vars(module).values():
+            if (
+                isinstance(attr, type)
+                and issubclass(attr, pa.ExtensionType)
+                and attr is not pa.ExtensionType
+            ):
+                name = f"{attr.__module__}.{attr.__qualname__}"
+                try:
+                    pa.unregister_extension_type(name)
+                except (pa.lib.ArrowKeyError, KeyError):
+                    pass
 
     @staticmethod
     def _pip(args: Tuple[str, ...]) -> None:
