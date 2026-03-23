@@ -1134,7 +1134,7 @@ test_config:
 
   inception/pytorch-v4_OSMR-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.97
+    # required_pcc: 0.97
 
   regnet/pytorch-Y_400mf-single_device-inference:
     status: EXPECTED_PASSING
