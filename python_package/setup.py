@@ -306,12 +306,14 @@ class CMakeBuildPy(build_py):
             enable_explorer = "ON"
 
         enable_python_bindings = os.environ.get("TTMLIR_ENABLE_BINDINGS_PYTHON", "OFF")
+        cmake_build_type = "Debug" if config.build_type == "debug" else "Release"
 
         cmake_args = [
             "-G",
             "Ninja",
             "-B",
             "build",
+            f"-DCMAKE_BUILD_TYPE={cmake_build_type}",
             "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
             "-DTTXLA_ENABLE_TOOLS=" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
