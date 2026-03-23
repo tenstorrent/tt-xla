@@ -13,7 +13,6 @@ set -euo pipefail
 changed_files="$1"
 diff_file="$2"
 
-# Check if venv/requirements-dev.txt is in the changed files
 if ! grep -q "^venv/requirements-dev.txt$" "$changed_files"; then
     exit 1
 fi

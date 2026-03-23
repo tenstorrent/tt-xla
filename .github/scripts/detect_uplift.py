@@ -27,7 +27,7 @@ from pathlib import Path
 def main():
     if len(sys.argv) != 4:
         print(
-            "Usage: python <this_script> <config_file> <changechanged_files_filed_files> <diff_file>",
+            "Usage: python <this_script> <config_file> <changed_files_file> <diff_file>",
             file=sys.stderr,
         )
         sys.exit(1)

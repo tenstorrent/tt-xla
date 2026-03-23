@@ -54,7 +54,6 @@ jobs:
           run_perf_tests=false
           only_run_forge_models=false
           run_uplift_model_tests=false
-          uplift_detected=false
           uplift_test_suite=""
           wheel_changes=false
 
@@ -145,14 +144,16 @@ jobs:
               fi
             fi
 
-            echo "$CHANGED_FILES" > /tmp/changed_files.txt
-            gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} > /tmp/pr_diff.txt || true
-            uplift_result=$(python .github/scripts/detect_uplift.py .github/uplift-config.json /tmp/changed_files.txt /tmp/pr_diff.txt)
+            tmp_dir=$(mktemp -d)
+            echo "$CHANGED_FILES" > "$tmp_dir/changed_files"
+            gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} > "$tmp_dir/pr_diff" || true
+            uplift_result=$(python .github/scripts/detect_uplift.py .github/uplift-config.json "$tmp_dir/changed_files" "$tmp_dir/pr_diff")
+            rm -rf "$tmp_dir"
             echo "Uplift detection result: $uplift_result"
             uplift_test_suite=$(echo "$uplift_result" | python -c "import sys,json; print(json.load(sys.stdin)['test_matrix'])")
             uplift_names=$(echo "$uplift_result" | python -c "import sys,json; print(','.join(json.load(sys.stdin)['uplifts']))")
             if [[ -n "$uplift_names" ]]; then
-              uplift_detected=true
+              run_uplift_model_tests=true
             fi
 
             # Check wheel build file changes
@@ -175,11 +176,6 @@ jobs:
           else
             skip_build_and_test=false
             run_pr_tests=true
-          fi
-
-          if [[ "$uplift_detected" == "true" ]]; then
-            echo "Enabling uplift model tests due to detected uplift(s)."
-            run_uplift_model_tests=true
           fi
 
           # Debug Purposes

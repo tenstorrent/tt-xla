@@ -13,7 +13,6 @@ set -euo pipefail
 changed_files="$1"
 diff_file="$2"
 
-# Check if third_party/CMakeLists.txt is in the changed files
 if ! grep -q "^third_party/CMakeLists.txt$" "$changed_files"; then
     exit 1
 fi

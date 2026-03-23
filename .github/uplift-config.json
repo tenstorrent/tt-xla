@@ -1,6 +1,6 @@
 [
   {
-    "name": "mlir",
+    "name": "tt-mlir",
     "description": "TT-MLIR dependency uplift",
     "detector": "detect_uplift_mlir.sh",
     "test_matrix": "model-test-extended.json"
