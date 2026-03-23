@@ -6,76 +6,109 @@ name: Run Test
 on:
   workflow_dispatch:
     inputs:
-      test_suite:
-        description: 'Test suite preset options or custom'
+      tag_name:
+        description: 'Release tag to update'
         required: true
-        type: choice
-        options:
-          - 'basic-test.json'
-          - 'basic-test-nightly.json'
-          - 'model-test-push.json'
-          - 'model-test-full.json'
-          - 'on-pr.json'
-          - 'schedule-nightly.json'
-          - 'model-test-passing.json'
-          - 'model-test-xfail.json'
-          - 'model-test-experimental.json'
-          - 'model-test-training-xfail-weekly.json'
-          - 'model-test-extended.json'
-          - 'mlir-uplift-qualification.json'
-          - 'model-test-passing-weekly.json'
-          - 'model-test-weekly.json'
-          - 'vllm-model-tests.json'
-          - 'vllm-model-tests-nightly.json'
-          - 'fusion-tests.json'
-          - 'Custom'
-      test_suite_custom:
-        description: 'Custom test suite json'
-        required: false
         type: string
-      mlir_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir'
-        required: false
-        type: string
-      manylinux_build:
-        description: 'Build and use manylinux wheel'
-        required: false
+      is_nightly:
+        description: 'Is this a nightly release?'
+        required: true
         type: boolean
         default: false
 
 permissions:
-  packages: write
-  checks: write
-
-run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
+  contents: write
+  id-token: write
 
 jobs:
-  build-image:
-    uses: ./.github/workflows/call-build-docker.yml
-    secrets: inherit
-    with:
-      mlir_override: ${{ inputs.mlir_override }}
-      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
+  update-release-notes:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
 
-  build-ttxla:
-    needs: build-image
-    uses: ./.github/workflows/call-build.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      mlir_override: ${{ inputs.mlir_override }}
-      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+      - name: Get current release body
+        id: get-release
+        run: |
+          gh release view ${{ inputs.tag_name }} --json body -q '.body' > current_body.md
+          COMMIT=$(gh release view ${{ inputs.tag_name }} --json targetCommitish -q '.targetCommitish')
+          echo "commit_hash=$COMMIT" >> $GITHUB_OUTPUT
 
-  test:
-    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
-    uses: ./.github/workflows/call-test.yml
-    needs: [ build-image, build-ttxla ]
-    secrets: inherit
-    with:
-      test_suite: ${{ inputs.test_suite }}
-      test_suite_custom: ${{ inputs.test_suite_custom }}
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+      - name: Resolve commit hashes for weekly workflows
+        id: resolve-commits
+        run: |
+          if [ "${{ inputs.is_nightly }}" = "true" ]; then
+            WEEKLY_COMMIT=$(gh run list --workflow "schedule-weekly.yml" --branch main \
+              --status success --limit 1 --json headSha -q '.[0].headSha')
+            WEEKLY_TRAINING_COMMIT=$(gh run list --workflow "schedule-weekly-training.yml" --branch main \
+              --status success --limit 1 --json headSha -q '.[0].headSha')
+          else
+            WEEKLY_COMMIT="${{ steps.get-release.outputs.commit_hash }}"
+            WEEKLY_TRAINING_COMMIT="${{ steps.get-release.outputs.commit_hash }}"
+          fi
+          echo "weekly_commit=$WEEKLY_COMMIT" >> $GITHUB_OUTPUT
+          echo "weekly_training_commit=$WEEKLY_TRAINING_COMMIT" >> $GITHUB_OUTPUT
+
+      - name: Fetch model coverage (On nightly)
+        id: model-coverage-nightly
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}"}'
+
+      - name: Fetch model coverage (On weekly)
+        id: model-coverage-weekly
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On weekly", "commit_hash": "${{ steps.resolve-commits.outputs.weekly_commit }}"}'
+
+      - name: Fetch model coverage (On weekly training)
+        id: model-coverage-weekly-training
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_coverage
+          query_params: '{"project": "tt-xla", "workflow_name": "On weekly training", "commit_hash": "${{ steps.resolve-commits.outputs.weekly_training_commit }}"}'
+
+      - name: Fetch model performance
+        id: model-performance
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_performance
+          query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}", "architecture": "wormhole"}'
+
+      - name: Generate reports
+        env:
+          COVERAGE_NIGHTLY_JSON: ${{ steps.model-coverage-nightly.outputs.response }}
+          COVERAGE_WEEKLY_JSON: ${{ steps.model-coverage-weekly.outputs.response }}
+          COVERAGE_WEEKLY_TRAINING_JSON: ${{ steps.model-coverage-weekly-training.outputs.response }}
+          PERF_JSON: ${{ steps.model-performance.outputs.response }}
+        run: python3 .github/scripts/generate_release_reports.py
+
+      - name: Assemble updated release body
+        run: |
+          {
+            cat current_body.md
+            echo ""
+            echo "---"
+            echo ""
+            cat model_coverage.md
+            echo ""
+            cat model_performance_llms.md
+            echo ""
+            cat model_performance_non_llms.md
+          } > updated_body.md
+
+      - name: Update release body
+        run: |
+          gh release edit ${{ inputs.tag_name }} --notes-file updated_body.md
+
+      - name: Upload CSV assets to release
+        run: |
+          gh release upload ${{ inputs.tag_name }} \
+            model_coverage.csv \
+            model_performance_llms.csv \
+            model_performance_non_llms.csv \
+            --clobber
