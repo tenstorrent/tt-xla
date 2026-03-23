@@ -419,8 +419,10 @@
         "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.6 vllm==0.16.0",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",
         "vllm": true,
+        "skip-stablehlo-dump": true,
         "skip-ttir-dump": true,
         "skip-ttnn-dump": true,
+        "skip-device-perf": true,
         "runs-on": "n150"
       },
       {
@@ -428,8 +430,10 @@
         "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.6 vllm==0.16.0",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b-batch32]",
         "vllm": true,
+        "skip-stablehlo-dump": true,
         "skip-ttir-dump": true,
         "skip-ttnn-dump": true,
+        "skip-device-perf": true,
         "runs-on": "n150"
       }
     ]
