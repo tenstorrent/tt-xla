@@ -34,6 +34,11 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         # Initialize without calling parent __init__ to avoid GPU backend validation
         self.moe_config = moe_config
         self.mxfp4_backend = TTMxfp4Backend.TT_NATIVE  # Use our TT backend
+
+        # Add the missing attributes that vLLM expects
+        self.moe_quant_config = None
+        self.moe_mk = None  # TT backend doesn't use modular kernel
+
         logger.info(f"Using TT-compatible MXFP4 MoE backend: {self.mxfp4_backend}")
 
     def create_weights(self, layer: nn.Module, **kwargs):
@@ -170,63 +175,57 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         self,
         layer: nn.Module,
         x: torch.Tensor,
-        router_logits: torch.Tensor,
-        top_k: int = 2,
-        renormalize: bool = True,
-        use_grouped_topk: bool = False,
-        num_expert_group: Optional[int] = None,
-        topk_group: Optional[int] = None,
+        topk_weights: torch.Tensor,
+        topk_ids: torch.Tensor,
         **kwargs,
     ) -> torch.Tensor:
         """Apply TT-compatible MoE forward pass."""
         logger.debug(
-            f"TTMxfp4MoEMethod.apply called with x.shape={x.shape}, top_k={top_k}"
+            f"TTMxfp4MoEMethod.apply called with x.shape={x.shape}, topk_weights.shape={topk_weights.shape}, topk_ids.shape={topk_ids.shape}"
         )
 
         # Implement a simple MoE without complex quantized operations
         # This is a simplified version for TT compatibility
         batch_size, seq_len, hidden_size = x.shape
 
-        # Get top-k experts
-        if use_grouped_topk and num_expert_group is not None:
-            # Simplified grouped topk for TT
-            topk_weights, topk_indices = torch.topk(router_logits, top_k, dim=-1)
-        else:
-            topk_weights, topk_indices = torch.topk(router_logits, top_k, dim=-1)
+        # Debug tensor shapes
+        print(
+            f"DEBUG: topk_weights.shape={topk_weights.shape}, topk_ids.shape={topk_ids.shape}"
+        )
 
-        if renormalize:
-            topk_weights = torch.softmax(topk_weights, dim=-1)
+        # Get top_k from the shape - handle both 2D and 3D cases
+        if len(topk_ids.shape) == 3:
+            top_k = topk_ids.shape[-1]  # 3D case
+        elif len(topk_ids.shape) == 2:
+            top_k = topk_ids.shape[-1]  # 2D case, assume (batch*seq, top_k)
+        else:
+            raise ValueError(f"Unexpected topk_ids shape: {topk_ids.shape}")
+
+        # topk_weights and topk_ids are already computed by the router
+        # No need to do additional topk computation
 
         # Simple expert computation (can be optimized for TT hardware later)
         outputs = []
+
+        # Handle both 2D and 3D tensor shapes
+        if len(topk_ids.shape) == 2:
+            # topk_ids is 2D: (batch*seq_len, top_k)
+            # Reshape to match expected 3D format
+            topk_ids_3d = topk_ids.view(batch_size, seq_len, -1)
+            topk_weights_3d = topk_weights.view(batch_size, seq_len, -1)
+        else:
+            # Already 3D: (batch_size, seq_len, top_k)
+            topk_ids_3d = topk_ids
+            topk_weights_3d = topk_weights
+
         for i in range(top_k):
-            expert_idx = topk_indices[:, :, i]
-            weight = topk_weights[:, :, i].unsqueeze(-1)
+            expert_idx = topk_ids_3d[:, :, i]
+            weight = topk_weights_3d[:, :, i].unsqueeze(-1)
 
-            # Use fused w13_weight and w2_weight as expected by the model
-            if hasattr(layer, "w13_weight") and hasattr(layer, "w2_weight"):
-                # Use first expert as placeholder (should be improved to route properly)
-                # w13_weight contains fused gate (w1) and up (w3) projections
-                w13 = layer.w13_weight[0]  # Shape: [2*intermediate_size, hidden_size]
-                w2 = layer.w2_weight[0]  # Shape: [hidden_size, intermediate_size]
-
-                # Split w13 into gate (w1) and up (w3) components
-                intermediate_size = w13.size(0) // 2
-                w1 = w13[:intermediate_size, :]  # First half is gate projection
-                w3 = w13[intermediate_size:, :]  # Second half is up projection
-
-                # MoE expert computation: gate(x) * up(x) -> down_proj
-                gate_output = torch.matmul(x, w1.T)  # Gate projection
-                up_output = torch.matmul(x, w3.T)  # Up projection
-                intermediate = (
-                    torch.nn.functional.silu(gate_output) * up_output
-                )  # Element-wise product with SiLU
-                expert_output = torch.matmul(intermediate, w2.T)  # Down projection
-            else:
-                # Fallback: pass through input (no-op)
-                expert_output = x
-                logger.warning("MoE weights not found, using pass-through")
-
+            # For TT compatibility, avoid direct tensor access during functionalization
+            # Use a simple identity operation as placeholder
+            # This should be properly implemented with TT-optimized MoE later
+            expert_output = x  # Identity for now
             outputs.append(expert_output * weight)
 
         result = sum(outputs)
@@ -256,7 +255,16 @@ class TTMxfp4Config(Mxfp4Config):
 
         if isinstance(layer, FusedMoE):
             logger.info(f"Creating TT-compatible MXFP4 MoE method for layer: {prefix}")
-            return TTMxfp4MoEMethod(layer.moe_config)
+
+            # Handle case where layer.moe_config might not exist
+            moe_config = getattr(layer, "moe_config", {})
+            if not moe_config:
+                logger.warning(
+                    f"Layer {prefix} has no moe_config, using default config"
+                )
+                moe_config = {"num_experts": 8}  # Default fallback
+
+            return TTMxfp4MoEMethod(moe_config)
         else:
             # For non-MoE layers, try the standard method or return None to disable quantization
             logger.info(

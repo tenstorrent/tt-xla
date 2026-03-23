@@ -356,6 +356,9 @@ def scaled_dot_product_attention_decode(
 
     if is_causal:
         assert attn_mask is None, "attn_mask must be None when is_causal is True."
+    print(
+        f"query shape: {query.shape}, key shape: {key.shape}, value shape: {value.shape}, cur_pos_tensor shape: {cur_pos_tensor.shape}, attn_mask shape: {attn_mask.shape if attn_mask is not None else None}, attention_sink shape: {attention_sink.shape if attention_sink is not None else None}"
+    )
 
     if query.device.type == "xla":
 
