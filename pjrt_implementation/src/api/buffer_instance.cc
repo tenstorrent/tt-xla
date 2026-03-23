@@ -343,7 +343,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
-  m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
+  m_copy_to_host_thread = std::make_unique<std::thread>([=, this,
+                                                         e = event.get()] {
     try {
       ZoneScopedN("CopyToHostThread");
       const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
