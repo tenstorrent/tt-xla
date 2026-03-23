@@ -28,14 +28,15 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils.quantization_config import Mxfp4Config
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
-BATCH_SIZE = 8
-DEFAULT_PROMPTS = ["Explain quantum mechanics."] * BATCH_SIZE
+DEFAULT_PROMPT = "Explain quantum mechanics."
 
 
 # --------------------------------
 # GPT-OSS 120B Generation Loop Example
 # --------------------------------
-def gpt_oss_120b(interactive: bool = False, sparse_moe: bool = False):
+def gpt_oss_120b(
+    interactive: bool = False, sparse_moe: bool = False, batch_size: int = 64
+):
 
     # Set up config variables.
     max_cache_len: int = 256
@@ -57,14 +58,35 @@ def gpt_oss_120b(interactive: bool = False, sparse_moe: bool = False):
 
     while True:
         if interactive:
-            user_prompt = input("Enter your prompt or quit() to exit: ")
-            batch_size: int = 1
-            if user_prompt.lower() == "quit()":
+            print(
+                f"\nEnter up to {batch_size} prompt(s). "
+                f"Press Enter on an empty line to finish (remaining slots will be padded with the last prompt). "
+                f"Type 'quit()' to exit."
+            )
+            prompts = []
+            quit_requested = False
+            for i in range(batch_size):
+                entry = input(f"  Prompt {i + 1}/{batch_size}: ")
+                if entry.lower() == "quit()":
+                    quit_requested = True
+                    break
+                if entry == "":
+                    if i == 0:
+                        prompts.append(DEFAULT_PROMPT)
+                    break
+                prompts.append(entry)
+
+            if quit_requested:
                 break
-            user_prompt = [user_prompt]
+
+            if len(prompts) < batch_size:
+                n_pad = batch_size - len(prompts)
+                print(f"Padding {n_pad} slot(s) with: '{prompts[-1]}'")
+                prompts += [prompts[-1]] * n_pad
+
+            user_prompt = prompts
         else:
-            user_prompt = DEFAULT_PROMPTS
-            batch_size: int = len(user_prompt)
+            user_prompt = [DEFAULT_PROMPT] * batch_size
 
         # Construct inputs, including static cache
         input_args, formatted_prompts = construct_inputs(
@@ -126,10 +148,8 @@ def create_device_mesh() -> tuple[Mesh, tuple]:
 
     if num_devices == 32:  # Galaxy
         mesh_shape = (4, 8)
-    elif num_devices == 8:  # llmbox
-        mesh_shape = (2, 4)
     else:
-        raise RuntimeError(f"Gpt-oss is only supported on llmbox and galaxy")
+        raise RuntimeError(f"Gpt-oss-120b is only supported on galaxy")
 
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
@@ -202,10 +222,6 @@ def construct_inputs(
         len(tokenizer.encode(p, add_special_tokens=False)) for p in formatted_prompts
     ]
     max_length = max(prompt_lengths)
-
-    # Sparse MoE requires seq_len divisible by 32 (tile size in sparse_matmul)
-    # if sparse_moe:
-    #     max_length = ((max_length + 31) // 32) * 32
 
     inputs = tokenizer(
         formatted_prompts,
@@ -439,7 +455,6 @@ def run_generate(
                     print("PROMPT:")
                     print(formatted_prompts[0])
                     print("-" * 80)
-                    print("GENERATED:", end="", flush=True)
 
             step_start = time.perf_counter()
 
@@ -462,12 +477,14 @@ def run_generate(
             output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
             for i, output_tokens_list in enumerate(output_tokens):
                 output_tokens_list.append(output_text[i])
-                if is_interactive:
-                    print(output_text[i], end="", flush=True)
+            if is_interactive:
+                for i in range(num_users):
+                    print(f"User {i + 1}: {output_text[i]}")
+                print(flush=True)
 
             # Check for EOS token and early exit
             if torch.all(next_token_id == tokenizer.eos_token_id):
-                print()  # Add newline after generation completes
+                print()
                 break
 
             # Update inputs for next iteration
@@ -517,9 +534,34 @@ if __name__ == "__main__":
         default=False,
         help="Use sparse MoE implementation (A2aSparseMLP) instead of dense expert computation",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=8,
+        help=(
+            "Number of prompts to process in one batch (default: 8). "
+            "When using --sparse-moe, batch_size must be a multiple of 8 because "
+            "sparse MoE requires batch_size * num_devices_along_dispact_axis (4) to be a multiple of 32."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.batch_size <= 0:
+        parser.error(
+            f"--batch-size must be a positive integer (got {args.batch_size})."
+        )
+
+    if args.sparse_moe and args.batch_size % 8 != 0:
+        parser.error(
+            f"--batch-size must be a multiple of 8 when using --sparse-moe (got {args.batch_size}). "
+            "Sparse MoE requires batch_size * device_on_axis (4) to be a multiple of 32."
+        )
 
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
-    gpt_oss_120b(interactive=args.interactive, sparse_moe=args.sparse_moe)
+    gpt_oss_120b(
+        interactive=args.interactive,
+        sparse_moe=args.sparse_moe,
+        batch_size=args.batch_size,
+    )

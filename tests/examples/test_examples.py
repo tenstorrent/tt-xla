@@ -21,7 +21,8 @@ XFAIL_DIRS: dict[str, str] = {
 
 # Specific files with known issues - tests will be marked as xfail with the given reason
 XFAIL_FILES: dict[str, str] = {
-    "pytorch/gpt_oss_20b.py": "Gpt-oss example requires llmbox or galaxy",
+    "pytorch/gpt_oss_20b.py": "Gpt-oss-20b example requires llmbox or galaxy",
+    "pytorch/gpt_oss_120b.py": "Gpt-oss-120b example requires galaxy",
 }
 
 
