@@ -346,7 +346,6 @@ def _get_custom_decompositions() -> DecompositionTable:
     return {
         aten.copy.default: copy_default,
         aten.matmul.default: matmul,
-        aten.dot.default: dot,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -387,9 +386,9 @@ def populate_decompositions() -> DecompositionTable:
     # We add a custom decomposition of mm -> einsum. For this reason, remove einsum decomposition.
     decompositions.pop(torch.ops.aten.einsum.default)
 
-    # Dot product gets lowered to stablehlo.multiply, returning eltwise product
-    # of two tensors: https://github.com/tenstorrent/tt-xla/issues/2672
-    # A custom decomposition dot->matmul is added later (ref dot fn).
+    # Torch decomposition for dot results in a multiply rather than a matmul
+    # https://github.com/tenstorrent/tt-xla/issues/2672
+    # TorchXLA handles dot correctly anyway, so we don't need to decompose it.
     decompositions.pop(torch.ops.aten.dot.default)
 
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
