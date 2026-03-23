@@ -4,7 +4,11 @@
 import csv
 import json
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Models listed here are intentionally omitted from all performance report outputs.
+EXCLUDED_PERF_MODELS = [
+    "Resnet 50 HF",
+    "meta-llama/Llama-3.2-3B",
+]
 
 
 def extract_segment(cell: str):
@@ -49,8 +53,6 @@ def emoji(value: str):
         return "❌"
     return value
 
-
-# ── Model Coverage ──────────────────────────────────────────────────────────
 
 with open("coverage_nightly.json") as f:
     coverage_data = json.load(f)
@@ -128,11 +130,16 @@ with open("model_coverage.md", "w") as f:
 with open("perf.json") as f:
     perf_data = json.load(f)
 
-llms = [r for r in perf_data if r.get("ttft (ms)") not in (None, "", 0)]
+llms = [
+    r
+    for r in perf_data
+    if r.get("ttft (ms)") not in (None, "", 0)
+    and r["Model"] not in EXCLUDED_PERF_MODELS
+]
 non_llms = [
     r
     for r in perf_data
-    if r.get("ttft (ms)") in (None, "") and r["Model"] != "Resnet 50 HF"
+    if r.get("ttft (ms)") in (None, "") and r["Model"] not in EXCLUDED_PERF_MODELS
 ]
 
 # LLM CSV
