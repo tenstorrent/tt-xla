@@ -339,7 +339,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
   // bugs
   if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D_TORUS_XY);
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
   }
   m_system_descriptor = tt::runtime::getCurrentSystemDesc();
 
@@ -478,7 +478,7 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
     // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
     if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
         std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
-      return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_2D_TORUS_XY,
+      return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_2D,
                                            {}};
     }
 
