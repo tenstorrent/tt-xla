@@ -42,7 +42,7 @@ def test_llama_rms_norm_fusion(batch_size, seq_len, hidden_size, dtype, request)
 
 @pytest.mark.single_device
 @pytest.mark.push
-@pytest.mark.filecheck(["rms_norm.ttir.mlir"])
+@pytest.mark.filecheck(["rms_norm.ttnn.mlir"])
 @pytest.mark.parametrize(
     "batch_size, seq_len, hidden_size",
     [(1, 32, 32), (1, 128, 768), (1, 1024, 768)],
