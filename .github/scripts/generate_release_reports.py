@@ -38,6 +38,14 @@ def model_source_url(full_test_name: str):
     return ""
 
 
+def sample_sec(r):
+    """Tokens/sec divided by Batch, except for 'Resnet 50 HF' which reports per-sample already."""
+    value = float(r["Tokens/sec"])
+    if r["Model"] != "Resnet 50 HF":
+        value = value / int(r["Batch"])
+    return round(value, 2)
+
+
 def emoji(value: str):
     if value == "+":
         return "✅"
@@ -95,7 +103,7 @@ with open("model_coverage.csv", "w", newline="") as f:
             ]
         )
 
-# Coverage MD — +/- as ✅/❌, URL as [View Source](...)
+# Coverage MD — +/- as ✅/❌, URL as [View Source](...), capped at 80 rows
 with open("model_coverage.md", "w") as f:
     f.write("## Model coverage\n")
     f.write(
@@ -107,7 +115,7 @@ with open("model_coverage.md", "w") as f:
     f.write(
         "| --- | --- | --- | --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | --- |\n"
     )
-    for row in coverage_data:
+    for row in coverage_data[:80]:
         url = model_source_url(row["full_test_name"])
         source = f"[View Source]({url})" if url else "Source not available"
         f.write(
@@ -161,13 +169,7 @@ with open("model_performance_non_llms.csv", "w", newline="") as f:
     w = csv.writer(f, lineterminator="\n")
     w.writerow(["Model", "Batch", "Sample/sec"])
     for r in non_llms:
-        w.writerow(
-            [
-                r["Model"],
-                r["Batch"],
-                round(float(r["Tokens/sec"]), 2),
-            ]
-        )
+        w.writerow([r["Model"], r["Batch"], sample_sec(r)])
 
 # Non-LLM MD
 with open("model_performance_non_llms.md", "w") as f:
@@ -175,10 +177,6 @@ with open("model_performance_non_llms.md", "w") as f:
     f.write("| Model | Batch | Sample/sec |\n")
     f.write("| --- | --- | --- |\n")
     for r in non_llms:
-        f.write(
-            f"| {r['Model']} "
-            f"| {r['Batch']} "
-            f"| {round(float(r['Tokens/sec']), 2)} |\n"
-        )
+        f.write(f"| {r['Model']} | {r['Batch']} | {sample_sec(r)} |\n")
 
 print("All reports generated successfully")
