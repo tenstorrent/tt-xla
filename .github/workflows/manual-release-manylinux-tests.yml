@@ -16,10 +16,10 @@ jobs:
     secrets: inherit
 
   build-xla-torch:
-    runs-on: tt-ubuntu-2204-large-stable
+    runs-on: builder
     needs: build-image
     container:
-      image: ${{ vars.HARBOR_PREFIX }}${{ needs.build-image.outputs.docker-image }}
+      image: ${{ needs.build-image.outputs.docker-image }}
     steps:
       - name: Fix workspace permissions issue
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
@@ -29,7 +29,14 @@ jobs:
 
       - name: Build xla-torch
         shell: bash
-        run: scripts/build_torch_xla.sh
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
+        run: |
+          # set up limit for bazel to avoid OOM issues on GitHub runners
+          echo "build --local_ram_resources=HOST_RAM*0.6" > ~/.bazelrc
+          echo "build --host_jvm_args=-Xmx2g" >> ~/.bazelrc
+          echo "build --discard_analysis_cache" >> ~/.bazelrc
+          scripts/build_torch_xla.sh
 
       - name: List built wheel files
         run: find temp -name "*.whl" -type f
