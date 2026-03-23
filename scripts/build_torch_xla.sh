@@ -61,19 +61,19 @@ check_command() {
 # ── Step 1: Install prerequisites ───────────────────────────────────────────
 info "Installing system dependencies..."
 
-sudo apt update
-sudo apt install -y build-essential cmake git curl wget unzip
-sudo apt install -y libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev
-sudo apt install -y libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev
+sudo -E apt update
+sudo -E apt install -y build-essential cmake git curl wget unzip
+sudo -E apt install -y libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev
+sudo -E apt install -y libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev
 
 # Install Python 3.12
 PYTHON_BIN="python${PYTHON_VERSION}"
 if ! check_command "${PYTHON_BIN}"; then
     info "Installing Python ${PYTHON_VERSION}..."
-    sudo apt install software-properties-common -y
-    sudo add-apt-repository ppa:deadsnakes/ppa -y
-    sudo apt update
-    sudo apt install "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-venv" "python${PYTHON_VERSION}-dev" -y
+    sudo -E apt install software-properties-common -y
+    sudo -E add-apt-repository ppa:deadsnakes/ppa -y
+    sudo -E apt update
+    sudo -E apt install "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-venv" "python${PYTHON_VERSION}-dev" -y
 fi
 
 # Install Bazel
@@ -81,7 +81,7 @@ if ! check_command bazel || [[ "$(bazel --version | awk '{print $2}')" != "${BAZ
     info "Installing Bazel ${BAZEL_VERSION}..."
     wget "https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
     chmod +x "bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
-    sudo "./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
+    sudo -E "./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
     rm -f "bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
 fi
 
