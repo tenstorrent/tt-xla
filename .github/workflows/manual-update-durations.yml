@@ -29,12 +29,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-tags: true
 
       - name: Get current release body
         id: get-release
         run: |
           gh release view ${{ inputs.tag_name }} --json body -q '.body' > current_body.md
-          COMMIT=$(gh release view ${{ inputs.tag_name }} --json targetCommitish -q '.targetCommitish')
+          COMMIT=$(git rev-list -n 1 "${{ inputs.tag_name }}")
           echo "commit_hash=$COMMIT" >> $GITHUB_OUTPUT
 
       - name: Resolve commit hashes for weekly workflows
@@ -42,9 +44,9 @@ jobs:
         run: |
           if [ "${{ inputs.is_nightly }}" = "true" ]; then
             WEEKLY_COMMIT=$(gh run list --workflow "schedule-weekly.yml" --branch main \
-              --status success --limit 1 --json headSha -q '.[0].headSha')
+              --status completed --limit 1 --json headSha -q '.[0].headSha')
             WEEKLY_TRAINING_COMMIT=$(gh run list --workflow "schedule-weekly-training.yml" --branch main \
-              --status success --limit 1 --json headSha -q '.[0].headSha')
+              --status completed --limit 1 --json headSha -q '.[0].headSha')
           else
             WEEKLY_COMMIT="${{ steps.get-release.outputs.commit_hash }}"
             WEEKLY_TRAINING_COMMIT="${{ steps.get-release.outputs.commit_hash }}"
