@@ -891,6 +891,11 @@ jobs:
             echo "Configuring distributed runtime environment..."
             export TTXLA_LOGGER_LEVEL=DEBUG
             export TT_DISTRIBUTED_WORKER_PATH="$DISTRIBUTED_WORKER_PATH"
+            
+            # memory logging
+            export TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG
+            export TT_RUNTIME_MEMORY_LOG_LEVEL=operation
+            
             export TT_RUNTIME_ENABLE_DISTRIBUTED=1
             export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
             export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
