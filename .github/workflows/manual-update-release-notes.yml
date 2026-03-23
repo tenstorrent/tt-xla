@@ -12,6 +12,11 @@ on:
         required: true
         type: boolean
         default: false
+      target_repo:
+        description: 'Repository to update the release on (e.g. tenstorrent/tt-xla)'
+        required: true
+        type: string
+        default: tenstorrent/tt-xla
 
 permissions:
   contents: write
@@ -21,7 +26,7 @@ jobs:
   update-release-notes:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.TT_FORGE_RELEASER }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -31,7 +36,7 @@ jobs:
       - name: Get current release body
         id: get-release
         run: |
-          gh release view ${{ inputs.tag_name }} --json body -q '.body' > current_body.md
+          gh release view ${{ inputs.tag_name }} -R ${{ inputs.target_repo }} --json body -q '.body' > current_body.md
           COMMIT=$(git rev-list -n 1 "${{ inputs.tag_name }}")
           echo "commit_hash=$COMMIT" >> $GITHUB_OUTPUT
 
@@ -97,7 +102,7 @@ jobs:
 
       - name: Update release body
         run: |
-          gh release edit ${{ inputs.tag_name }} --notes-file updated_body.md
+          gh release edit ${{ inputs.tag_name }} -R ${{ inputs.target_repo }} --notes-file updated_body.md
 
       - name: Upload CSV assets to release
         run: |
@@ -105,4 +110,5 @@ jobs:
             model_coverage.csv \
             model_performance_llms.csv \
             model_performance_non_llms.csv \
+            -R ${{ inputs.target_repo }} \
             --clobber
