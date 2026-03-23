@@ -39,11 +39,7 @@ def model_source_url(full_test_name: str):
 
 
 def sample_sec(r):
-    """Tokens/sec divided by Batch, except for 'Resnet 50 HF' which reports per-sample already."""
-    value = float(r["Tokens/sec"])
-    if r["Model"] != "Resnet 50 HF":
-        value = value / int(r["Batch"])
-    return round(value, 2)
+    return round(float(r["Tokens/sec"]) / int(r["Batch"]), 2)
 
 
 def emoji(value: str):
@@ -133,7 +129,11 @@ with open("perf.json") as f:
     perf_data = json.load(f)
 
 llms = [r for r in perf_data if r.get("ttft (ms)") not in (None, "", 0)]
-non_llms = [r for r in perf_data if r.get("ttft (ms)") in (None, "")]
+non_llms = [
+    r
+    for r in perf_data
+    if r.get("ttft (ms)") in (None, "") and r["Model"] != "Resnet 50 HF"
+]
 
 # LLM CSV
 with open("model_performance_llms.csv", "w", newline="") as f:
