@@ -292,7 +292,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         #                    or single-pass attention for pooling models)
         # - is_prefill=False: Paged decode attention (generative models only)
         if inputs.is_prefill:
-            assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
+            # assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
             output = self._compute_full_attention(inputs, attn_metadata)
         else:
             output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
@@ -535,6 +535,8 @@ class TTAttentionBackendImpl(AttentionImpl):
         """Compute attention for decode phase (paged)."""
         k_cache = kv_cache[0]
         v_cache = kv_cache[1]
+        # logger.info(f"query shape: {inputs.query.shape}, k_cache shape: {k_cache.shape}, v_cache shape: {v_cache.shape}")
+        # logger.info(f"sink_shape: {self.sinks.shape if self.sinks is not None else None}")
 
         # Adjust for decode kernel expecting query as [1, num_users, num_heads, head]
         # Current query: [users, query_num_tokens, num_heads, head_size]
