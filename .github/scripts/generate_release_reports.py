@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import csv
 import json
-import os
 
 # ── Model Coverage ──────────────────────────────────────────────────────
 
@@ -12,11 +11,12 @@ def make_arch_slug(arch):
     return arch.lower().replace(" ", "_").replace(".", "_")
 
 
-coverage_data = (
-    json.loads(os.environ["COVERAGE_NIGHTLY_JSON"])
-    + json.loads(os.environ["COVERAGE_WEEKLY_JSON"])
-    + json.loads(os.environ["COVERAGE_WEEKLY_TRAINING_JSON"])
-)
+with open("coverage_nightly.json") as f:
+    coverage_data = json.load(f)
+with open("coverage_weekly.json") as f:
+    coverage_data += json.load(f)
+with open("coverage_weekly_training.json") as f:
+    coverage_data += json.load(f)
 
 # Write coverage CSV
 with open("model_coverage.csv", "w", newline="") as f:
@@ -82,7 +82,8 @@ with open("model_coverage.md", "w") as f:
 
 # ── Model Performance ───────────────────────────────────────────────────
 
-perf_data = json.loads(os.environ["PERF_JSON"])
+with open("perf.json") as f:
+    perf_data = json.load(f)
 
 llms = [r for r in perf_data if r.get("ttft_ms") not in (None, "", 0)]
 non_llms = [r for r in perf_data if r.get("ttft_ms") in (None, "")]

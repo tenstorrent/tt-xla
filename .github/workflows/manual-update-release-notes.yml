@@ -51,39 +51,34 @@ jobs:
           echo "weekly_training_commit=$WEEKLY_TRAINING_COMMIT" >> $GITHUB_OUTPUT
 
       - name: Fetch model coverage (On nightly)
-        id: model-coverage-nightly
         uses: ./.github/actions/superset-api
         with:
           query: report/model_coverage
           query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}"}'
+          output_file: coverage_nightly.json
 
       - name: Fetch model coverage (On weekly)
-        id: model-coverage-weekly
         uses: ./.github/actions/superset-api
         with:
           query: report/model_coverage
           query_params: '{"project": "tt-xla", "workflow_name": "On weekly", "commit_hash": "${{ steps.resolve-commits.outputs.weekly_commit }}"}'
+          output_file: coverage_weekly.json
 
       - name: Fetch model coverage (On weekly training)
-        id: model-coverage-weekly-training
         uses: ./.github/actions/superset-api
         with:
           query: report/model_coverage
           query_params: '{"project": "tt-xla", "workflow_name": "On weekly training", "commit_hash": "${{ steps.resolve-commits.outputs.weekly_training_commit }}"}'
+          output_file: coverage_weekly_training.json
 
       - name: Fetch model performance
-        id: model-performance
         uses: ./.github/actions/superset-api
         with:
           query: report/model_performance
           query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}", "architecture": "wormhole"}'
+          output_file: perf.json
 
       - name: Generate reports
-        env:
-          COVERAGE_NIGHTLY_JSON: ${{ steps.model-coverage-nightly.outputs.response }}
-          COVERAGE_WEEKLY_JSON: ${{ steps.model-coverage-weekly.outputs.response }}
-          COVERAGE_WEEKLY_TRAINING_JSON: ${{ steps.model-coverage-weekly-training.outputs.response }}
-          PERF_JSON: ${{ steps.model-performance.outputs.response }}
         run: python3 .github/scripts/generate_release_reports.py
 
       - name: Assemble updated release body

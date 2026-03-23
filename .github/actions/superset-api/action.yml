@@ -7,6 +7,10 @@ inputs:
   query_params:
     description: 'Query parameters as a JSON string'
     required: true
+  output_file:
+    description: 'If set, write the JSON response to this file path instead of a step output'
+    required: false
+    default: ''
 outputs:
   response:
     description: 'JSON response from the API'
@@ -90,5 +94,9 @@ runs:
         print(json.dumps(response.json()))
         ")
 
-        # Set the response as an output
-        echo "response=$response" >> $GITHUB_OUTPUT
+        # Write response to file or step output
+        if [ -n '${{ inputs.output_file }}' ]; then
+          echo "$response" > '${{ inputs.output_file }}'
+        else
+          echo "response=$response" >> $GITHUB_OUTPUT
+        fi
