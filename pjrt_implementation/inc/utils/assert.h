@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//  Assert header summary:
+//  Summary:
 //
 //  TT_ASSERT -> debug build only assert. Throws exception with condition,
 //  location and backtrace.
@@ -107,8 +107,6 @@ tt_throw_impl(const char *file, int line, const char *assert_type,
               const char *condition_str, const Args &...args) {
   if (std::getenv("TT_XLA_ASSERT_ABORT")) {
     if constexpr (sizeof...(args) > 0) {
-      // log_critical(tt::LogAlways, "{}: {}", assert_type,
-      // fmt::format(args...));
       LOG_F(ERROR, "%s: %s", assert_type, std::format(args...).c_str());
     }
     abort();
@@ -119,10 +117,7 @@ tt_throw_impl(const char *file, int line, const char *assert_type,
                    << condition_str << std::endl;
   if constexpr (sizeof...(args) > 0) {
     trace_message_ss << "info:" << std::endl;
-    // trace_message_ss << fmt::format(args...) << std::endl;
     trace_message_ss << std::format(args...) << std::endl;
-    // log_critical(tt::LogAlways, "{}: {}", assert_type, fmt::format(args...));
-    // LOG_F(ERROR, std::format("{}: {}", assert_type, args...));
     LOG_F(ERROR, "%s: %s", assert_type, std::format(args...).c_str());
   }
 
@@ -145,7 +140,6 @@ tt_throw_impl(const char *file, int line, const char *assert_type,
 template <typename... Args>
 [[noreturn]] void tt_throw(const char *file, int line, const char *assert_type,
                            const char *condition_str,
-                           // fmt::format_string<const Args &...> fmt,
                            std::format_string<const Args &...> fmt,
                            const Args &...args) {
   tt_throw_impl(file, line, assert_type, condition_str, fmt, args...);
@@ -161,7 +155,6 @@ inline void tt_assert(char const *file, int line, char const *assert_type,
 template <typename... Args>
 inline void tt_assert(char const *file, int line, char const *assert_type,
                       bool condition, char const *condition_str,
-                      // fmt::format_string<Args const &...> fmt,
                       std::format_string<Args const &...> fmt,
                       Args const &...args) {
   if (not condition) {

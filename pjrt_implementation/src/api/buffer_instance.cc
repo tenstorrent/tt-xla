@@ -362,6 +362,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                "Host buffer is too small: logical_tensor_size={}, "
                "host_buffer_size={}",
                logicalTensorSize(), host_buffer_size);
+
       tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
                           rt_data_type);
 
