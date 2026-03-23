@@ -29,7 +29,12 @@ jobs:
 
       - name: Build xla-torch
         shell: bash
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 16
         run: scripts/build_torch_xla.sh
+
+      - name: List built wheel files
+        run: find temp -name "*.whl" -type f
 
       - name: Upload xla-torch wheel
         uses: actions/upload-artifact@v6
