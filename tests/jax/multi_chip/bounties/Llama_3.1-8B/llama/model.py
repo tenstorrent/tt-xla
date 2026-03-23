@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import math
 from functools import partial
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import flax.linen as nn  # type: ignore
 import jax  # type: ignore
@@ -20,20 +20,62 @@ from jax import lax  # type: ignore
 from jax.experimental.shard_map import shard_map  # type: ignore
 from jax.sharding import Mesh  # type: ignore
 from jax.sharding import PartitionSpec  # type: ignore
-from transformers.modeling_flax_outputs import (  # type: ignore
-    FlaxBaseModelOutput,
-    FlaxCausalLMOutput,
-)
-from transformers.modeling_flax_utils import (  # type: ignore
-    ACT2FN,
-    FlaxPreTrainedModel,
-    append_call_sample_docstring,
-)
+from dataclasses import dataclass
+from transformers.activations import ACT2FN  # type: ignore
 from transformers.utils import (  # type: ignore
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
     logging,
 )
+
+
+@dataclass
+class FlaxBaseModelOutput:
+    last_hidden_state: Any = None
+    hidden_states: Optional[Tuple] = None
+    attentions: Optional[Tuple] = None
+
+
+@dataclass
+class FlaxCausalLMOutput:
+    logits: Any = None
+    hidden_states: Optional[Tuple] = None
+    attentions: Optional[Tuple] = None
+
+
+class FlaxPreTrainedModel:
+    """Minimal stub replacing transformers.FlaxPreTrainedModel (removed in transformers 5.x)."""
+
+    config_class = None
+    base_model_prefix = ""
+    module_class = None
+
+    def __init__(self, config, module, input_shape=(1, 1), seed=0, dtype=jnp.float32, _do_init=True):
+        self.config = config
+        self._module = module
+        self.dtype = dtype
+        self._input_shape = input_shape
+        if _do_init:
+            rng = jax.random.PRNGKey(seed)
+            self.params = self.init_weights(rng, input_shape)
+
+    def init_weights(self, rng, input_shape, params=None):
+        raise NotImplementedError
+
+    def __call__(self, *args, params=None, **kwargs):
+        if params is None:
+            params = self.params
+        return self._module.apply({"params": params}, *args, **kwargs)
+
+    def init_cache(self, batch_size, max_length):
+        raise NotImplementedError
+
+
+def append_call_sample_docstring(*args, **kwargs):
+    """No-op decorator replacing transformers.modeling_flax_utils.append_call_sample_docstring."""
+    def decorator(fn):
+        return fn
+    return decorator
 
 remat = nn_partitioning.remat
 

@@ -12,7 +12,7 @@ from jax import Array, lax
 from jax.sharding import Mesh, NamedSharding
 from jax.sharding import PartitionSpec as P
 from jax_config import axis_name, cpu_devices, device_mesh, num_devices
-from transformers.modeling_flax_utils import ACT2FN
+from transformers.activations import ACT2FN
 from transformers.models.mixtral.configuration_mixtral import MixtralConfig
 
 

@@ -10,7 +10,6 @@ import jax
 import numpy as np
 import torch
 from jax import device_put
-from transformers import FlaxResNetForImageClassification
 from tt_jax import serialize_compiled_artifacts_to_disk
 from utils import (
     aggregate_ttnn_perf_metrics,
@@ -121,6 +120,7 @@ def benchmark_resnet_jax(
 
     with jax.default_device(cpu_device):
         # Instantiate the model on CPU
+        from transformers import FlaxResNetForImageClassification
         framework_model = FlaxResNetForImageClassification.from_pretrained(
             variant,
             from_pt=True,
