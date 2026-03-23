@@ -75,12 +75,16 @@ class TTConfig:
     # Override number of hidden layers (0 = use model default)
     num_hidden_layers: int = 0
 
+    # Enable metal trace mode for faster program replay
+    enable_trace: bool = False
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
+            "enable_trace": "true" if self.enable_trace else "false",
         }
 
 
