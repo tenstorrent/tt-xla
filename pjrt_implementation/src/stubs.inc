@@ -178,3 +178,6 @@
   _STUB(PJRT_Device_GetAttributes);
   _STUB(PJRT_LoadedExecutable_AddressableDeviceLogicalIds);
   _STUB(PJRT_Buffer_Bitcast);
+  _STUB(PJRT_Error_ForEachPayload);
+  _STUB(PJRT_Executable_ParameterMemoryKinds);
+  _STUB(PJRT_TopologyDescription_Fingerprint);
