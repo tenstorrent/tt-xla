@@ -265,7 +265,7 @@ def torch_pass_pipeline(
         )
         program = program.run_decompositions(decompositions)
 
-        compiled_graph = program.module()
+        compiled_graph = program.graph_module
         graph_signature = program.graph_signature
 
         # Nodes in the fx graph can have inconsistent prev/next pointers after
