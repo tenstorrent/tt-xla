@@ -230,7 +230,8 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
     llvm::SmallVector<int64_t> mesh_shape_data = meshSharding.getMeshShape();
     TT_FATAL(mesh_shape_data.size() <= 2 && mesh_shape_data.size() >= 1,
-             "Mesh shape data size must be 1 or 2");
+             "Mesh shape data size must be 1 or 2: mesh_shape_data.size()={}",
+             mesh_shape_data.size());
     if (mesh_shape_data.size() == 1) {
       strategy["strategy"] = "shard";
       strategy["shard_dim"] = std::to_string(mesh_shape_data[0]);

@@ -68,7 +68,8 @@ DeviceInstance *MemoryInstance::getDevice() {
 
   TT_FATAL(m_addressable_by_devices.size() == 1,
            "MemoryInstance::getDevice: Device memory should have exactly one "
-           "device.");
+           "device: m_addressable_by_devices.size()={}",
+           m_addressable_by_devices.size());
 
   return m_addressable_by_devices[0];
 }

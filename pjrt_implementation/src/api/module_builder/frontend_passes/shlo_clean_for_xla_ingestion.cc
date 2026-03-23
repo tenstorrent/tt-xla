@@ -156,7 +156,9 @@ getOrderedAxisRefs(TensorShardingAttr sdySharding, MeshAttr mesh) {
 void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
                           mlir::SmallVector<int64_t> &transposePerm) {
   TT_FATAL(reshapeDims.size() == transposePerm.size(),
-           "Reshape dims and transpose perm must have the same size");
+           "Reshape dims and transpose perm must have the same size: "
+           "reshapeDims.size()={}, transposePerm.size()={}",
+           reshapeDims.size(), transposePerm.size());
   if (reshapeDims.size() < 1) {
     return;
   }
@@ -184,7 +186,9 @@ void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
           transposePerm[new_idx] = new_perm_dim;
           ++new_idx;
           TT_FATAL(new_idx <= new_ndims,
-                   "New index exceeds new number of dimensions");
+                   "New index exceeds new number of dimensions: "
+                   "new_idx={}, new_ndims={}",
+                   new_idx, new_ndims);
         }
       }
       transposePerm.truncate(new_ndims);
@@ -390,7 +394,9 @@ cleanForXlaIngestion(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   // (non-shardy path), we still need to strip sdy.mesh ops and TT dialect
   // attributes so XLA can parse the cleaned module.
   if (manualComputationOps.size() == 1) {
-    TT_FATAL(meshOps.size() == 1, "Expected exactly one sdy.mesh op in module");
+    TT_FATAL(meshOps.size() == 1,
+             "Expected exactly one sdy.mesh op in module: meshOps.size()={}",
+             meshOps.size());
     auto meshOp = meshOps.front();
 
     auto manualComputationOp = manualComputationOps.front();

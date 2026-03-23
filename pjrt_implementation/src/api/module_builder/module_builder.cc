@@ -657,7 +657,8 @@ tt_pjrt_status ModuleBuilder::collectNumArguments(
 
       for (int64_t dim : shape) {
         TT_FATAL(dim != mlir::ShapedType::kDynamic,
-                 "Dynamic dimensions not supported");
+                 "Dynamic dimensions not supported: result_index={}",
+                 result_index);
         output_shape.push_back(static_cast<std::uint32_t>(dim));
       }
 
@@ -668,7 +669,9 @@ tt_pjrt_status ModuleBuilder::collectNumArguments(
         result.output_dimensions_flat.push_back(static_cast<std::int64_t>(dim));
       }
     } else {
-      TT_THROW("Expected ranked tensor type for function result");
+      TT_THROW(
+          "Expected ranked tensor type for function result: result_index={}",
+          result_index);
     }
   }
   return tt_pjrt_status::kSuccess;

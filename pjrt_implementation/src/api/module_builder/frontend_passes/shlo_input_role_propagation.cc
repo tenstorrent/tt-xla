@@ -189,10 +189,10 @@ struct PopulateArgumentAttrsFromTTMark final
       return mlir::failure();
     }
 
-    TT_FATAL(op.getNumOperands() == 1, "Expected one operand to {}",
-             c_mark_argument_function_name);
-    TT_FATAL(op.getNumResults() == 1, "Expected one result to {}",
-             c_mark_argument_function_name);
+    TT_FATAL(op.getNumOperands() == 1, "Expected one operand to {}, got {}",
+             c_mark_argument_function_name, op.getNumOperands());
+    TT_FATAL(op.getNumResults() == 1, "Expected one result to {}, got {}",
+             c_mark_argument_function_name, op.getNumResults());
 
     // Torch XLA allows us to populate a frontend_attributes dictionary to
     // custom call ops. This dictionary is used to populate the argument type

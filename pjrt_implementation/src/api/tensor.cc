@@ -117,7 +117,9 @@ void PjrtTensor::move_to_host() noexcept {
       tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
 
   TT_FATAL(tensors.size() == m_shards.size() || tensors.size() == 1,
-           "Unexpected number of tensors after move to host");
+           "Unexpected number of tensors after move to host: "
+           "tensors.size()={}, m_shards.size()={}",
+           tensors.size(), m_shards.size());
   m_runtime_tensor = std::move(tensors[0]);
 
   for (std::size_t i = 1; i < m_shards.size(); ++i) {

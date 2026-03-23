@@ -165,7 +165,11 @@ void BufferInstance::copyFromHost(
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event) {
 
-  TT_FATAL(data_type == m_data_type, "m_data_type and data_type do not match");
+  TT_FATAL(
+      data_type == m_data_type,
+      "m_data_type and data_type do not match: m_data_type={}, data_type={}",
+      data_type_utils::getPJRTBufferTypeString(m_data_type),
+      data_type_utils::getPJRTBufferTypeString(data_type));
 
   m_pjrt_tensor.reset();
 
@@ -307,7 +311,9 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
   }
 
   TT_FATAL(num_byte_strides == 0 || num_byte_strides == num_dims,
-           "num_byte_strides must be 0 or equal to num_dims");
+           "num_byte_strides must be 0 or equal to num_dims: "
+           "num_byte_strides={}, num_dims={}",
+           num_byte_strides, num_dims);
 
   std::vector<std::uint32_t> strides;
   for (size_t i = 0; i < num_dims; ++i) {
@@ -353,7 +359,9 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       m_pjrt_tensor->move_to_host();
 
       TT_FATAL(logicalTensorSize() <= host_buffer_size,
-               "Host buffer is too small.");
+               "Host buffer is too small: logical_tensor_size={}, "
+               "host_buffer_size={}",
+               logicalTensorSize(), host_buffer_size);
       tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
                           rt_data_type);
 
