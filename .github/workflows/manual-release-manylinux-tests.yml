@@ -33,16 +33,13 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: 12
         run: |
           # set up limit for bazel to avoid OOM issues on GitHub runners
-          echo "build --local_ram_resources=HOST_RAM*0.6" > ~/.bazelrc
+          echo "build --local_ram_resources=HOST_RAM*0.8" > ~/.bazelrc
           echo "build --local_cpu_resources=12" >> ~/.bazelrc
           echo "build --discard_analysis_cache" >> ~/.bazelrc
           scripts/build_torch_xla.sh
-
-      - name: List built wheel files
-        run: find temp -name "*.whl" -type f
 
       - name: Upload xla-torch wheel
         uses: actions/upload-artifact@v6
         with:
           name: xla-torch-wheel
-          path: temp/*.whl
+          path: pytorch/dist/*.whl
