@@ -13,10 +13,15 @@ RUN pacman -Syu --noconfirm && \
     git \
     jq \
     unzip \
-    ca-certificates
+    ca-certificates \
+    binutils \
+    pkgfile \
+    fakeroot \
+    sudo
 
-# Install debtap
-RUN pacman -S --noconfirm debtap && \
+# Install debtap from github and update the database
+RUN wget -O /usr/local/bin/debtap https://raw.githubusercontent.com/helixarch/debtap/3.6.3/debtap && \
+    chmod +x /usr/local/bin/debtap && \
     debtap -u
 
 # Install Python 3.12
