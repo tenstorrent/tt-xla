@@ -72,6 +72,8 @@ jobs:
           query: report/model_coverage
           query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}"}'
           output_file: coverage_nightly.json
+          max_attempts: 12
+          retry_interval_seconds: 300
 
       - name: Fetch model coverage (On weekly)
         uses: ./.github/actions/superset-api

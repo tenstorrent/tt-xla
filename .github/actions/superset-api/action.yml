@@ -11,6 +11,14 @@ inputs:
     description: 'If set, write the JSON response to this file path instead of a step output'
     required: false
     default: ''
+  max_attempts:
+    description: 'Maximum number of polling attempts when waiting for data (only applies when output_file is set)'
+    required: false
+    default: '1'
+  retry_interval_seconds:
+    description: 'Seconds to wait between polling attempts'
+    required: false
+    default: '0'
 outputs:
   response:
     description: 'JSON response from the API'
@@ -38,65 +46,12 @@ runs:
     - name: Call Superset API
       id: api-call
       shell: bash
+      env:
+        API_QUERY: ${{ inputs.query }}
+        API_QUERY_PARAMS: ${{ inputs.query_params }}
+        API_OUTPUT_FILE: ${{ inputs.output_file }}
+        API_MAX_ATTEMPTS: ${{ inputs.max_attempts }}
+        API_RETRY_INTERVAL: ${{ inputs.retry_interval_seconds }}
       run: |
-        export QUERY_PARAMS='${{ inputs.query_params }}'
-        echo "Query parameters: $QUERY_PARAMS"
-        response=$(python3 -c "
-        import boto3
-        import requests
-        import json
-        import sys
-        import os
-        from botocore.auth import SigV4Auth
-        from botocore.awsrequest import AWSRequest
-
-        # Base API Gateway endpoint
-        base_url = 'https://ftuxhxqka0.execute-api.us-east-2.amazonaws.com/api-gw-data-db-main/api/v1/data_db_main/'
-
-        # Get inputs
-        query = '${{ inputs.query }}'
-        query_params_json = os.environ['QUERY_PARAMS']
-
-        # Parse query parameters
-        query_params = json.loads(query_params_json)
-
-        # Construct full URL
-        url = base_url + query
-
-        # Create a request
-        request = AWSRequest(
-            method='GET',
-            url=url,
-            params=query_params
-        )
-
-        # Get credentials from the environment
-        session = boto3.Session()
-        credentials = session.get_credentials()
-
-        # Sign the request
-        SigV4Auth(credentials, 'execute-api', 'us-east-2').add_auth(request)
-
-        # Get the signed headers
-        signed_headers = dict(request.headers)
-
-        # Make the request
-        response = requests.get(
-            url,
-            params=query_params,
-            headers=signed_headers
-        )
-
-        # Check if the request was successful
-        response.raise_for_status()
-
-        # Output the response as JSON
-        print(json.dumps(response.json()))
-        ")
-
-        # Write response to file or step output
-        if [ -n '${{ inputs.output_file }}' ]; then
-          echo "$response" > '${{ inputs.output_file }}'
-        else
-          echo "response=$response" >> $GITHUB_OUTPUT
-        fi
+        response=$(python3 $GITHUB_ACTION_PATH/call_api.py)
+        [ -n "$API_OUTPUT_FILE" ] || echo "response=$response" >> $GITHUB_OUTPUT

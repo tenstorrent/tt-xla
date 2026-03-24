@@ -13,9 +13,6 @@ jobs:
     outputs:
       tag_name: ${{ steps.find.outputs.tag_name }}
     steps:
-      - name: Wait for data collection to complete
-        run: sleep 300
-
       - name: Find latest nightly release tag
         id: find
         env:
