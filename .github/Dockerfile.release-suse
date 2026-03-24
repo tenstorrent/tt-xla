@@ -1,4 +1,4 @@
-FROM opensuse/leap:15.6
+FROM opensuse/tumbleweed
 
 SHELL ["/bin/bash", "-c"]
 
@@ -6,6 +6,7 @@ LABEL org.opencontainers.image.source=https://github.com/tenstorrent/tt-xla
 LABEL org.opencontainers.image.licenses=Apache-2.0
 
 # Install system tools
+# gmp is required for opensuse
 RUN zypper update -y && \
     zypper install -y \
     wget \
