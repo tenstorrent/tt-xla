@@ -218,8 +218,16 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
   int output_dims_so_far = 0;
   for (size_t output_index = 0; output_index < getNumOutputs();
        ++output_index) {
-    assert(getOutputDimensions()[output_index] ==
-               output_specs[output_index].shape &&
+    // Complex types are lowered by the TT-MLIR compiler to float tensors with
+    // a trailing dimension of 2 (interleaved real/imag pairs), so the
+    // flatbuffer shape will have one extra trailing dimension compared to the
+    // MLIR module shape.
+    std::vector<std::uint32_t> expected_shape =
+        getOutputDimensions()[output_index];
+    if (data_type_utils::isComplexPJRTType(getOutputTypes()[output_index])) {
+      expected_shape.push_back(2);
+    }
+    assert(expected_shape == output_specs[output_index].shape &&
            "Output shape from flatbuffer binary does not match the one "
            "collected from the MLIR module");
 
