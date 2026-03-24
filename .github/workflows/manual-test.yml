@@ -56,10 +56,12 @@ on:
         description: 'Run ID to download artifacts from (required when skip_build is true)'
         required: false
         type: string
+        default: '23507723680'
       artifact_suffix:
         description: 'Artifact suffix from the previous run, e.g. -abc1234 (leave blank if none)'
         required: false
         type: string
+        default: '-9ee9ed6'
 
 permissions:
   packages: write
