@@ -401,11 +401,13 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Host OOM due to cpu hoisting - https://github.com/tenstorrent/tt-xla/issues/3901"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Host OOM due to cpu hoisting - https://github.com/tenstorrent/tt-xla/issues/3901"
     bringup_status: FAILED_RUNTIME
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
