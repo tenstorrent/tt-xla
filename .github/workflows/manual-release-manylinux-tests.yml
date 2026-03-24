@@ -42,4 +42,4 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: xla-torch-wheel
-          path: pytorch/dist/*.whl
+          path: temp/pytorch/dist/*.whl
