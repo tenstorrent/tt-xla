@@ -17,6 +17,17 @@ on:
         required: true
         type: string
         default: tenstorrent/tt-xla
+  workflow_call:
+    inputs:
+      tag_name:
+        required: true
+        type: string
+      is_nightly:
+        required: true
+        type: boolean
+      target_repo:
+        required: true
+        type: string
 
 permissions:
   contents: write

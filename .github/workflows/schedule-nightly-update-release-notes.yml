@@ -1,0 +1,44 @@
+name: Nightly Update Release Notes
+
+on:
+  workflow_run:
+    workflows: ["schedule-nightly"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  find-tag:
+    if: github.event.workflow_run.run_attempt == 1
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.find.outputs.tag_name }}
+    steps:
+      - name: Wait for data collection to complete
+        run: sleep 300
+
+      - name: Find latest nightly release tag
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.TT_FORGE_RELEASER }}
+        run: |
+          TAG=$(gh release list -R tenstorrent/tt-xla --limit 20 --json tagName \
+            | jq -r '[.[] | select(.tagName | test("^[0-9]+\\.[0-9]+\\.[0-9]+\\.dev[0-9]+$"))] | .[0].tagName')
+          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+
+  update-release-notes-tt-xla:
+    needs: find-tag
+    uses: ./.github/workflows/manual-update-release-notes.yml
+    secrets: inherit
+    with:
+      tag_name: ${{ needs.find-tag.outputs.tag_name }}
+      is_nightly: true
+      target_repo: tenstorrent/tt-xla
+
+  update-release-notes-tt-forge:
+    needs: find-tag
+    uses: ./.github/workflows/manual-update-release-notes.yml
+    secrets: inherit
+    with:
+      tag_name: ${{ needs.find-tag.outputs.tag_name }}
+      is_nightly: true
+      target_repo: tenstorrent/tt-forge

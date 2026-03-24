@@ -52,3 +52,21 @@ jobs:
     with:
       release_tag: ${{ needs.release.outputs.release_tag }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
+
+  update-release-notes-tt-xla:
+    needs: [ release-forge, release ]
+    uses: ./.github/workflows/manual-update-release-notes.yml
+    secrets: inherit
+    with:
+      tag_name: ${{ needs.release.outputs.release_tag }}
+      is_nightly: false
+      target_repo: tenstorrent/tt-xla
+
+  update-release-notes-tt-forge:
+    needs: [ release-forge, release ]
+    uses: ./.github/workflows/manual-update-release-notes.yml
+    secrets: inherit
+    with:
+      tag_name: ${{ needs.release.outputs.release_tag }}
+      is_nightly: false
+      target_repo: tenstorrent/tt-forge
