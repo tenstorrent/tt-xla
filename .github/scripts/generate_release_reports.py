@@ -61,6 +61,20 @@ with open("coverage_weekly.json") as f:
 with open("coverage_weekly_training.json") as f:
     coverage_data += json.load(f)
 
+COVERAGE_HW_COLS = [
+    "n150",
+    "n300",
+    "p150",
+    "Single device",
+    "Data parallel",
+    "Tensor parallel",
+]
+
+
+def has_any_hw_support(row: dict) -> bool:
+    return any(row[col] != "-" for col in COVERAGE_HW_COLS)
+
+
 COVERAGE_HEADERS = [
     "Model task",
     "Model architecture",
@@ -82,6 +96,8 @@ with open("model_coverage.csv", "w", newline="") as f:
     w = csv.writer(f, lineterminator="\n")
     w.writerow(COVERAGE_HEADERS)
     for row in coverage_data:
+        if not has_any_hw_support(row):
+            continue
         url = model_source_url(row["full_test_name"])
         w.writerow(
             [
@@ -113,7 +129,8 @@ with open("model_coverage.md", "w") as f:
     f.write(
         "| --- | --- | --- | --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | --- |\n"
     )
-    for row in coverage_data[:80]:
+    filtered_coverage = [r for r in coverage_data if has_any_hw_support(r)]
+    for row in filtered_coverage[:80]:
         url = model_source_url(row["full_test_name"])
         source = f"[View Source]({url})" if url else "Source not available"
         f.write(
