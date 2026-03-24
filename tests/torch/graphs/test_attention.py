@@ -2410,7 +2410,7 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
     batch_size = 1
 
-    if arch == ("llmbox", "galaxy"):
+    if arch in ("llmbox", "galaxy"):
         batch_size = 2 if arch == "llmbox" else 4
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))

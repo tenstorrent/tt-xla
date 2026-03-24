@@ -14,5 +14,5 @@
   { "runs-on": "n150",               "name": "run_vllm_n150_tests",    "dir": "./tests/integrations/vllm_plugin",         "test-mark": "nightly and single_device", "shared-runners": "true" },
   { "runs-on": "n300",               "name": "run_vllm_n300_tests",    "dir": "./tests/integrations/vllm_plugin",         "test-mark": "nightly and data_parallel", "shared-runners": "true" },
   { "runs-on": "n300",               "name": "run_vllm_n300_tests",    "dir": "./tests/integrations/vllm_plugin",         "test-mark": "nightly and tensor_parallel and dual_chip", "shared-runners": "true" },
-  { "runs-on": "galaxy-wh-6u",       "name": "run_torch_galaxy",       "dir": "./tests/torch/graphs",                     "test-mark": "nightly and tensor_parallel and galaxy" }
+  { "runs-on": "galaxy-wh-6u",       "name": "run_torch_galaxy",       "dir": "./tests/torch/graphs",                     "test-mark": "nightly and galaxy" }
 ]
