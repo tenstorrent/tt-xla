@@ -2085,8 +2085,13 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9793780977131366. Required: pcc=0.99."
 
   transfuser/pytorch-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<3x3xf32>, tensor<3xf32>>' (https://github.com/tenstorrent/tt-xla/issues/3257)"
+    arch_overrides:
+        n150:
+          status: KNOWN_FAILURE_XFAIL
+          reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<3x3xf32>, tensor<3xf32>>' - https://github.com/tenstorrent/tt-xla/issues/3878"
+        p150:
+          status: KNOWN_FAILURE_XFAIL
+          reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<3x3xf32>, tensor<3xf32>>' - https://github.com/tenstorrent/tt-xla/issues/3878"
 
   issac_groot/pytorch-Gr00t_N1.5_3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2121,11 +2126,7 @@ test_config:
   #   status: EXPECTED_PASSING
 
   vgg19_unet/pytorch-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2162688 B L1_SMALL buffer across 64 banks, where each bank needs to store 33792 B, but bank size is only 32768 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    arch_overrides:
-      p150:
-        status: EXPECTED_PASSING
+    status: EXPECTED_PASSING
 
   qwen_2/token_classification/pytorch-single_device-inference:
     arch_overrides:
