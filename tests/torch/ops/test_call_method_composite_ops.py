@@ -11,7 +11,7 @@ from tt_torch.composite_ops import (
     composite_topk_values,
 )
 
-from tests.utils import capture_via_compile, get_call_function_targets
+from tests.utils import capture_gm_via_compile, get_call_function_targets
 
 # This file tests that handle_composite_ops correctly handles call_method nodes.
 # Specifically, when the composite ops are called as `x.topk(k, ...)` instead of `torch.topk(x, k, ...)`.
@@ -35,7 +35,7 @@ class _TopKIndicesMethod(torch.nn.Module):
 
 def test_handle_composite_ops_method_selects_both():
     x = torch.randn(1, 10)
-    gm = capture_via_compile(_TopKBothMethod(), x)
+    gm = capture_gm_via_compile(_TopKBothMethod(), x)
     handle_composite_ops(gm)
     targets = get_call_function_targets(gm)
     assert composite_topk in targets
@@ -46,7 +46,7 @@ def test_handle_composite_ops_method_selects_both():
 
 def test_handle_composite_ops_method_selects_values():
     x = torch.randn(1, 10)
-    gm = capture_via_compile(_TopKValuesMethod(), x)
+    gm = capture_gm_via_compile(_TopKValuesMethod(), x)
     handle_composite_ops(gm)
     targets = get_call_function_targets(gm)
     assert composite_topk_values in targets
@@ -57,7 +57,7 @@ def test_handle_composite_ops_method_selects_values():
 
 def test_handle_composite_ops_method_selects_indices():
     x = torch.randn(1, 10)
-    gm = capture_via_compile(_TopKIndicesMethod(), x)
+    gm = capture_gm_via_compile(_TopKIndicesMethod(), x)
     handle_composite_ops(gm)
     targets = get_call_function_targets(gm)
     assert composite_topk_indices in targets

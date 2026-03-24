@@ -223,13 +223,9 @@ def parametrize_arch(archs=["single_device"]):
     return pytest.mark.parametrize("arch", params)
 
 
-def capture_via_compile(model, *args):
+def capture_gm_via_compile(model, *args):
     """
     Capture the FX GraphModule as seen by a torch.compile backend.
-
-    torch.compile (dynamo) preserves high-level torch ops like torch.topk,
-    which is required for handle_composite_ops to match on node.target.
-    torch.export.export / make_fx would lower to aten.topk.default instead.
     """
     captured = {}
 

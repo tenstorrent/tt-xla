@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -14,7 +14,7 @@ from tt_torch.composite_ops import (
     composite_topk_values,
 )
 
-from tests.utils import capture_via_compile, get_call_function_targets
+from tests.utils import capture_gm_via_compile, get_call_function_targets
 
 
 class _TopKIndices(torch.nn.Module):
@@ -40,7 +40,7 @@ class _GeluModel(torch.nn.Module):
 
 def test_handle_composite_ops_gelu_no_multi_output():
     x = torch.randn(1, 10)
-    gm = capture_via_compile(_GeluModel(), x)
+    gm = capture_gm_via_compile(_GeluModel(), x)
     with patch("tt_torch.backend.passes._replace_multi_output_op") as mock_replace:
         handle_composite_ops(gm)
         mock_replace.assert_not_called()
@@ -52,7 +52,7 @@ def test_handle_composite_ops_gelu_no_multi_output():
 
 def test_handle_composite_ops_selects_indices():
     x = torch.randn(1, 10)
-    gm = capture_via_compile(_TopKIndices(), x)
+    gm = capture_gm_via_compile(_TopKIndices(), x)
     handle_composite_ops(gm)
     targets = get_call_function_targets(gm)
     assert composite_topk_indices in targets
@@ -64,7 +64,7 @@ def test_handle_composite_ops_selects_indices():
 
 def test_handle_composite_ops_selects_values():
     x = torch.randn(1, 10)
-    gm = capture_via_compile(_TopKValues(), x)
+    gm = capture_gm_via_compile(_TopKValues(), x)
     handle_composite_ops(gm)
     targets = get_call_function_targets(gm)
     assert composite_topk_values in targets
@@ -75,7 +75,7 @@ def test_handle_composite_ops_selects_values():
 
 def test_handle_composite_ops_selects_both():
     x = torch.randn(1, 10)
-    gm = capture_via_compile(_TopKBoth(), x)
+    gm = capture_gm_via_compile(_TopKBoth(), x)
     handle_composite_ops(gm)
     targets = get_call_function_targets(gm)
     print(targets)
