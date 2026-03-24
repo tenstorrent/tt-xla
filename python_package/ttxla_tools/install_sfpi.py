@@ -81,6 +81,7 @@ def main():
     sfpi_dist = "debian"
     sfpi_pkg = "deb"
     pkgm = ["apt-get", "install", "-y", "--allow-downgrades"]
+    use_debtap = False
     try:
         with open("/etc/os-release", "r") as f:
             os_release = f.read().lower()
@@ -102,6 +103,19 @@ def main():
 
                 sfpi_dist = "fedora"
                 sfpi_pkg = "rpm"
+            elif "arch" in os_release:
+                print("Detected Arch Linux distribution")
+                # For Arch, we download deb and convert using debtap
+                if not shutil.which("debtap"):
+                    print(
+                        "Error: debtap is not installed. Please install it with: yay -S debtap",
+                        file=sys.stderr,
+                    )
+                    return 1
+                sfpi_dist = "debian"  # Download deb package
+                sfpi_pkg = "deb"
+                use_debtap = True
+                pkgm = ["pacman", "-U", "--noconfirm"]
             elif "debian" in os_release or "ubuntu" in os_release:
                 print("Detected debian linux distribution")
             else:
@@ -128,7 +142,43 @@ def main():
         urllib.request.urlretrieve(sfpi_url, temp_pkg_path)
         print(f"Downloaded to {temp_pkg_path}")
 
-        # Install the package using dpkg
+        # Convert package for Arch Linux using debtap
+        if use_debtap:
+            print("Converting .deb package to Arch package using debtap...")
+            sys.stdout.flush()
+            sys.stderr.flush()
+
+            # Run debtap to convert the package
+            debtap_cmd = ["debtap", "-q", str(temp_pkg_path)]
+            if sudo_available:
+                debtap_cmd.insert(0, "sudo")
+
+            subprocess.run(
+                debtap_cmd,
+                check=True,
+                capture_output=False,
+                text=True,
+                cwd=temp_dir,
+            )
+
+            # Find the converted package
+            converted_pkgs = list(Path(temp_dir).glob("*.pkg.tar.zst"))
+            if not converted_pkgs:
+                # Try other possible extensions
+                converted_pkgs = list(Path(temp_dir).glob("*.pkg.tar.xz"))
+
+            if not converted_pkgs:
+                print(
+                    "Error: debtap conversion failed - no converted package found",
+                    file=sys.stderr,
+                )
+                return 1
+
+            temp_pkg_path.unlink()
+            temp_pkg_path = converted_pkgs
+            print(f"Converted package: {temp_pkg_path}")
+
+        # Install the package
         print("Installing SFPI package...")
         sys.stdout.flush()
         sys.stderr.flush()
@@ -150,9 +200,12 @@ def main():
         print(f"Error installing package: {e}", file=sys.stderr)
         return 1
     finally:
-        # Clean up temporary file
-        if temp_pkg_path.exists():
-            temp_pkg_path.unlink()
+        # Clean up temporary file(s)
+        if isinstance(temp_pkg_path, str):
+            temp_pkg_path = [temp_pkg_path]
+        for pkg_path in temp_pkg_path:
+            if pkg_path.exists():
+                pkg_path.unlink()
         Path(temp_dir).rmdir()
     return 0
 

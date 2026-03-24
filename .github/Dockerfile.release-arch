@@ -1,0 +1,31 @@
+FROM archlinux:latest
+
+SHELL ["/bin/bash", "-c"]
+
+LABEL org.opencontainers.image.source=https://github.com/tenstorrent/tt-xla
+LABEL org.opencontainers.image.licenses=Apache-2.0
+
+# Install system tools
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm \
+    wget \
+    curl \
+    git \
+    jq \
+    unzip \
+    ca-certificates
+
+# Install debtap
+RUN pacman -S --noconfirm debtap && \
+    debtap -u
+
+# Install Python 3.12
+RUN pacman -S --noconfirm python && \
+    python -m pip install --no-cache-dir --upgrade pip
+
+COPY *.whl /tmp/
+RUN pip install --no-cache-dir /tmp/*.whl && \
+    tt-forge-install && \
+    rm -rf /tmp/*.whl
+
+CMD ["/bin/bash"]
