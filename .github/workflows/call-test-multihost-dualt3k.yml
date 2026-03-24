@@ -216,6 +216,30 @@ jobs:
           echo "Wheel installation complete"
         '
 
+    - name: Download experimental bigmesh config files
+      shell: bash
+      run: |
+        docker exec multihost-poc bash -c '
+          RANK_BINDINGS_PATH="/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_1x16_experimental_bigmesh_rank_bindings.yaml"
+          MESH_DESC_PATH="/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/tt_fabric/custom_mesh_descriptors/dual_t3k_1x16_experimental_bigmesh_mgd.textproto"
+
+          mkdir -p "$(dirname "$RANK_BINDINGS_PATH")"
+          mkdir -p "$(dirname "$MESH_DESC_PATH")"
+
+          echo "Downloading rank bindings config..."
+          curl -fsSL \
+            "https://raw.githubusercontent.com/tenstorrent/tt-metal/1a435d7ecd18d6e2b334b8b77f17ccd208cc5256/tests/tt_metal/distributed/config/dual_t3k_1x16_experimental_bigmesh_rank_bindings.yaml" \
+            -o "$RANK_BINDINGS_PATH"
+
+          echo "Downloading mesh graph descriptor..."
+          curl -fsSL \
+            "https://raw.githubusercontent.com/tenstorrent/tt-metal/52eb0446f39616679445fb91017eda68bb793d64/tests/tt_metal/tt_fabric/custom_mesh_descriptors/dual_t3k_1x16_experimental_bigmesh_mgd.textproto" \
+            -o "$MESH_DESC_PATH"
+
+          echo "Downloaded files:"
+          ls -la "$RANK_BINDINGS_PATH" "$MESH_DESC_PATH"
+        '
+
     - name: Run tests
       timeout-minutes: 60
       shell: bash
