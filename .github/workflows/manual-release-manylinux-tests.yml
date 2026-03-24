@@ -28,6 +28,7 @@ jobs:
   test-distro:
     needs: build-ttxla
     strategy:
+      fail-fast: false
       matrix:
         distro: [ "ubuntu", "suse", "fedora" ]
     name: "Test manylinux wheel on ${{ matrix.distro }}"
