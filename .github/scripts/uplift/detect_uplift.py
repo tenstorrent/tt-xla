@@ -38,7 +38,7 @@ def main():
     with open(config_path, "r") as f:
         config = json.load(f)
 
-    scripts_dir = config_path.parent / "scripts"
+    scripts_dir = config_path.parent
 
     detected_uplifts = []
     detected_matrices = []
