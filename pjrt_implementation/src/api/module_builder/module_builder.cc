@@ -1437,6 +1437,9 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     std::string try_recover_structure =
         compile_options.codegen_try_recover_structure ? "true" : "false";
     pipeline_options += " try-recover-structure=" + try_recover_structure;
+    std::string split_files =
+        compile_options.codegen_split_files ? "true" : "false";
+    pipeline_options += " split-files=" + split_files;
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local,
