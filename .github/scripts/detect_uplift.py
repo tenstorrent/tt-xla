@@ -5,17 +5,16 @@
 Uplift detection main script.
 
 Reads the given uplift detection config file and runs each detection script
-to determine which uplifts, if any are present in a PR. Outputs a JSON object
-describing detected uplifts and the combined test matrix to stdout.
+to determine which uplifts, if any are present in a PR. Outputs a single
+string to stdout in the format:
+
+    uplift1:uplift2#matrix1:matrix2
+
+The part before '#' is colon-separated uplift names, the part after '#' is
+colon-separated test matrix presets. Empty string if no uplifts detected.
 
 Usage:
     python <this_file> <config_file> <changed_files_file> <diff_file>
-
-Output example:
-    {
-        "uplifts": ["mlir"],
-        "test_matrix": "model-test-extended.json"
-    }
 """
 
 import json
@@ -76,12 +75,10 @@ def main():
                 file=sys.stderr,
             )
 
-    output = {
-        "uplifts": detected_uplifts,
-        "test_matrix": ":".join(detected_matrices),
-    }
-
-    print(json.dumps(output))
+    if detected_uplifts:
+        print(f"{':'.join(detected_uplifts)}#{':'.join(detected_matrices)}")
+    else:
+        print("")
 
 
 if __name__ == "__main__":

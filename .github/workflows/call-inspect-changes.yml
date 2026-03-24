@@ -150,9 +150,8 @@ jobs:
             uplift_result=$(python .github/scripts/detect_uplift.py .github/uplift-config.json "$tmp_dir/changed_files" "$tmp_dir/pr_diff")
             rm -rf "$tmp_dir"
             echo "Uplift detection result: $uplift_result"
-            uplift_test_suite=$(echo "$uplift_result" | python -c "import sys,json; print(json.load(sys.stdin)['test_matrix'])")
-            uplift_names=$(echo "$uplift_result" | python -c "import sys,json; print(','.join(json.load(sys.stdin)['uplifts']))")
-            if [[ -n "$uplift_names" ]]; then
+            if [[ -n "$uplift_result" ]]; then
+              uplift_test_suite="${uplift_result#*#}"
               run_uplift_model_tests=true
             fi
 
