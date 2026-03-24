@@ -6,6 +6,7 @@ import os
 
 import pytest
 
+from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.constants import ALLOWED_ARCHES
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
@@ -13,6 +14,12 @@ from tests.runner.test_config.torch_llm import test_config as torch_llm_test_con
 from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def capture_golden_pip_state():
+    """Capture the clean pip environment at session start for crash recovery."""
+    RequirementsManager.capture_golden_state()
 
 
 def _get_model_group_from_item(item):
