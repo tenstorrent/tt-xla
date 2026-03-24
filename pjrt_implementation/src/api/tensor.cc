@@ -73,7 +73,11 @@ PjrtTensor::PjrtTensor(Private, std::vector<BufferInstance *> shards,
   TensorPool::insert(this);
 }
 
-PjrtTensor::~PjrtTensor() { TensorPool::erase(this); }
+PjrtTensor::~PjrtTensor() {
+  tt::runtime::setTensorRetain(m_runtime_tensor, false);
+  tt::runtime::deallocateTensor(m_runtime_tensor);
+  TensorPool::erase(this);
+}
 
 void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
                                const tt::runtime::Layout &layout) {
