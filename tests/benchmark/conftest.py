@@ -53,6 +53,14 @@ def pytest_addoption(parser):
         help="Enable accuracy testing mode. Uses reference data for TOP1/TOP5 accuracy.",
     )
 
+    parser.addoption(
+        "--max-output-tokens",
+        action="store",
+        default=None,
+        type=make_validator_positive_int("--max-output-tokens"),
+        help="Limit the maximum number of output tokens generated. Useful for profiling runs.",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -72,3 +80,8 @@ def batch_size(request):
 @pytest.fixture
 def accuracy_testing(request):
     return request.config.getoption("--accuracy-testing")
+
+
+@pytest.fixture
+def max_output_tokens(request):
+    return request.config.getoption("--max-output-tokens")

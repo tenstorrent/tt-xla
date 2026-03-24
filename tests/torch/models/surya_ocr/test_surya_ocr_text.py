@@ -39,7 +39,8 @@ def training_tester() -> SuryaOCRTester:
 
 @pytest.mark.nightly
 @pytest.mark.model_test
-@pytest.mark.single_device
+# Moved to n300 (dual_chip) due to hanging on n150 (slow CPU conv): https://github.com/tenstorrent/tt-xla/issues/3852
+@pytest.mark.dual_chip
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO,

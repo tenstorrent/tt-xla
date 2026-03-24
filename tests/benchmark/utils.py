@@ -425,7 +425,7 @@ def create_benchmark_result(
     optimization_level: int = 0,
     program_cache_enabled: bool = False,
     trace_enabled: bool = False,
-    enable_weight_bfp8_conversion: bool = False,
+    experimental_weight_dtype: str = "",
     model_info: str = "",
     display_name: str = "",
     torch_xla_enabled: bool = True,
@@ -437,6 +437,7 @@ def create_benchmark_result(
     input_sequence_length: Optional[int] = -1,
     device_count: int = 1,
     mesh_shape: Optional[tuple] = None,
+    vllm: bool = False,
 ) -> Dict[str, Any]:
     """Create a standardized benchmark result dictionary.
 
@@ -491,7 +492,7 @@ def create_benchmark_result(
         "optimization_level": optimization_level,
         "program_cache_enabled": program_cache_enabled,
         "trace_enabled": trace_enabled,
-        "enable_weight_bfp8_conversion": enable_weight_bfp8_conversion,
+        "experimental_weight_dtype": experimental_weight_dtype,
         "model_info": model_info,
         "display_name": display_name,
     }
@@ -509,10 +510,14 @@ def create_benchmark_result(
         # input_size is (channels, height, width)
         image_dimension = f"{input_size[0]}x{input_size[1]}x{input_size[2]}"
 
+    run_type = f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}_{loop_count}"
+    if vllm:
+        run_type += "_vllm"
+
     return {
         "model": full_model_name,
         "model_type": model_type,
-        "run_type": f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}_{loop_count}",
+        "run_type": run_type,
         "config": config,
         "num_layers": num_layers,
         "batch_size": batch_size,

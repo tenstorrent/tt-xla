@@ -47,7 +47,7 @@ class TTConfig:
     # Enables hoisting const-eval subgraphs to CPU module. When enabled, const-eval
     # operations are hoisted to be executed on the CPU instead of being executed
     # on the device.
-    enable_const_eval_on_cpu: bool = False
+    enable_const_eval_on_cpu: bool = True
 
     min_context_len: int = 128
     batch_size: int = 1
@@ -66,15 +66,26 @@ class TTConfig:
     # Optimization level for tt-mlir compilation.
     optimization_level: int = 0
 
-    # Enables experimental BFP8 weight conversion in tt-mlir.
-    experimental_enable_weight_bfp8_conversion: bool = False
+    # Target dtype for weight conversion (e.g. "bfp8", "bfp4"). Empty disables.
+    experimental_weight_dtype: str = ""
+
+    # Perform token sampling on CPU instead of compiling a sampling graph for device
+    cpu_sampling: bool = False
+
+    # Override number of hidden layers (0 = use model default)
+    # For debugging and testing purposes, we allow overriding the number of hidden
+    # layers in the model config to enable testing with smaller models or to
+    # simulate the behavior of larger models. This is done by directly modifying
+    # the vllm_config before the model is loaded. We also store the original and
+    # target number of layers to filter the weights accordingly during loading.
+    num_hidden_layers: int = 0
 
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
-            "experimental_enable_weight_bfp8_conversion": self.experimental_enable_weight_bfp8_conversion,
+            "experimental_weight_dtype": self.experimental_weight_dtype,
         }
 
 

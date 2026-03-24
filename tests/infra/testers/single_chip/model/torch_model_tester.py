@@ -5,7 +5,7 @@
 import collections
 import os
 from contextlib import contextmanager
-from typing import Any, Dict, Mapping, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Set, Tuple
 
 import torch
 import torch_xla
@@ -77,6 +77,7 @@ class TorchModelTester(ModelTester):
         compiler_config: CompilerConfig = None,
         parallelism=None,
         dtype_override=None,
+        custom_comparator: Optional[Callable] = None,
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
@@ -89,6 +90,7 @@ class TorchModelTester(ModelTester):
             Framework.TORCH,
             compiler_config,
             dtype_override,
+            custom_comparator=custom_comparator,
         )
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.

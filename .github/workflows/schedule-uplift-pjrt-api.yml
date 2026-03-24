@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tt-xla
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
             repository: 'tenstorrent/tt-xla'
 
@@ -27,7 +27,7 @@ jobs:
           git clone --depth 1 https://github.com/openxla/xla.git ${{ runner.temp }}/xla
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 

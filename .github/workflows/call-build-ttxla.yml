@@ -26,6 +26,11 @@ on:
         description: 'Suffix for artifact name to distinguish different builds, e.g. commit SHA'
         type: string
         required: false
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
 
 jobs:
   build-ttxla:
@@ -43,10 +48,12 @@ jobs:
             git config --global --add safe.directory /__w/tt-xla/tt-xla
             git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'
+            ref: ${{ inputs.xla_sha_override }}
+
 
       - name: Override tt-mlir SHA mlir_override is set
         if: ${{ inputs.mlir_override }}
@@ -92,7 +99,7 @@ jobs:
 
       - name: Upload the wheel
         id: upload-wheel
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
             name: xla-whl-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
             path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
@@ -100,7 +107,7 @@ jobs:
       - name: Upload alchemist library and templates
         if: inputs.build_type == 'release'
         id: upload-alchemist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
             name: alchemist-lib-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
             path: |
@@ -118,7 +125,7 @@ jobs:
       - name: Upload the vllm plugin wheel
         if: inputs.build_type == 'release'
         id: upload-vllm-tt-wheel
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
             name: vllm-tt-whl-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
             path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl

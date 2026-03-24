@@ -172,7 +172,8 @@ void BufferInstance::copyFromHost(
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
-  std::vector<std::uint32_t> shape = calculateShape(dims, num_dims);
+  std::vector<std::uint32_t> shape =
+      calculateShape(dims, num_dims, m_data_type);
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
@@ -251,7 +252,8 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   std::uint32_t element_size =
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape = calculateShape(
-      src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions());
+      src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions(),
+      src_buffer->getDataType());
   std::vector<std::uint32_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
 
@@ -267,16 +269,28 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
 }
 
 std::vector<std::uint32_t>
-BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims) {
+BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
+                               PJRT_Buffer_Type data_type) {
   if (num_dims == 0) {
     // Our compiler and runtime don't support scalars so we convert them to 1D
     // tensors.
+    if (data_type_utils::isComplexPJRTType(data_type)) {
+      // Throw error if complex tensor num_dims == 0.
+      throw std::runtime_error(
+          "Complex tensor with num_dims == 0 is not supported.");
+    }
     return {1};
   }
 
   std::vector<std::uint32_t> shape;
   for (size_t i = 0; i < num_dims; ++i) {
     shape.push_back(dims[i]);
+  }
+
+  // Complex tensors have no runtime equivalent dtype, so they are stored as
+  // float tensors with a trailing dimension of 2 for interleaved real/imag.
+  if (data_type_utils::isComplexPJRTType(data_type)) {
+    shape.push_back(2);
   }
 
   return shape;
@@ -329,7 +343,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   std::unique_ptr<EventInstance> event = EventInstance::createInstance();
 
-  m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
+  m_copy_to_host_thread = std::make_unique<std::thread>([=, this,
+                                                         e = event.get()] {
     try {
       ZoneScopedN("CopyToHostThread");
       const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);

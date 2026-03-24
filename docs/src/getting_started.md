@@ -126,11 +126,11 @@ Install from source if you are a developer who wants to develop for TT-XLA.
 #### Step 1: Prerequisites
 
 - TT-XLA has the following system dependencies:
-   * Ubuntu 22.04
+   * Ubuntu 24.04
    * Python 3.12
    * python3.12-venv
    * Clang 17
-   * GCC 12
+   * GCC 13
    * Ninja
    * CMake 4.0.3
 
