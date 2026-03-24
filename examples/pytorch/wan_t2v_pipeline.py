@@ -109,19 +109,22 @@ class WanT2VPipeline:
         )
         text_input_ids = text_inputs.input_ids.to(self.device)
         mask = text_inputs.attention_mask.to(self.device)
-        seq_lens = mask.gt(0).sum(dim=1).long()
+        seq_lens = mask.gt(0).sum(dim=1).long()  # actual token count per sequence
 
+        # CPU → TT
         if self.encoder_on_tt:
             text_input_ids = text_input_ids.to(xm.xla_device())
             mask = mask.to(xm.xla_device())
 
         embeds = self.text_encoder(text_input_ids, mask).last_hidden_state
 
+        # TT → CPU
         if self.encoder_on_tt:
             embeds = embeds.to("cpu").to(dtype=torch.float32)
         else:
             embeds = embeds.to(dtype=self.text_encoder.dtype, device=self.device)
 
+        # Trim to actual seq length, then re-pad to max_sequence_length
         embeds = [u[:v] for u, v in zip(embeds, seq_lens)]
         embeds = torch.stack(
             [
@@ -174,6 +177,7 @@ class WanT2VPipeline:
         cpu_cast = lambda x: x.to("cpu").to(dtype=torch.float32)
 
         with torch.no_grad():
+            # --- Align num_frames to VAE temporal factor (must be k*factor + 1) ---
             if num_frames % self.vae_scale_factor_temporal != 1:
                 num_frames = (
                     num_frames
@@ -183,6 +187,7 @@ class WanT2VPipeline:
                 )
             num_frames = max(num_frames, 1)
 
+            # --- Align height/width to patch and VAE spatial factor ---
             patch_size = self.transformer.config.patch_size
             h_multiple = self.vae_scale_factor_spatial * patch_size[1]
             w_multiple = self.vae_scale_factor_spatial * patch_size[2]
@@ -195,6 +200,7 @@ class WanT2VPipeline:
             else:
                 generator.seed()
 
+            # --- Text encoding (UMT5) ---
             prompt_embeds, negative_prompt_embeds = self.encode_prompt(
                 prompt, negative_prompt, max_sequence_length
             )
@@ -204,9 +210,11 @@ class WanT2VPipeline:
             if negative_prompt_embeds is not None:
                 negative_prompt_embeds = negative_prompt_embeds.to(transformer_dtype)
 
+            # --- Prepare timesteps ---
             self.scheduler.set_timesteps(num_inference_steps, device=self.device)
             timesteps = self.scheduler.timesteps
 
+            # --- Prepare latents ---
             num_channels_latents = self.transformer.config.in_channels
             num_latent_frames = (num_frames - 1) // self.vae_scale_factor_temporal + 1
             latent_shape = (
@@ -223,14 +231,18 @@ class WanT2VPipeline:
                 device=self.device,
             )
 
+            # Spatial mask for building per-patch timestep vector
             mask = torch.ones_like(latents)
 
+            # --- Denoising loop (Transformer) ---
             for i, t in enumerate(timesteps):
                 latent_model_input = latents.to(transformer_dtype)
 
+                # Per-patch timestep: broadcast scalar t across spatial patches
                 temp_ts = (mask[0][0][:, ::2, ::2] * t).flatten()
                 timestep = temp_ts.unsqueeze(0).expand(batch_size, -1)
 
+                # CPU → TT
                 if self.transformer_on_tt:
                     latent_model_input = tt_cast(latent_model_input)
                     timestep = tt_cast(timestep)
@@ -238,6 +250,7 @@ class WanT2VPipeline:
                 else:
                     prompt_embeds_input = prompt_embeds
 
+                # Conditional forward pass
                 with self.transformer.cache_context("cond"):
                     noise_pred = self.transformer(
                         hidden_states=latent_model_input,
@@ -246,9 +259,11 @@ class WanT2VPipeline:
                         return_dict=False,
                     )[0]
 
+                # TT → CPU
                 if self.transformer_on_tt:
                     noise_pred = cpu_cast(noise_pred)
 
+                # --- CFG: unconditional pass + blending ---
                 if do_cfg:
                     if self.transformer_on_tt:
                         neg_embeds_input = tt_cast(negative_prompt_embeds)
@@ -266,18 +281,22 @@ class WanT2VPipeline:
                     if self.transformer_on_tt:
                         noise_uncond = cpu_cast(noise_uncond)
 
+                    # CFG blending (CPU)
                     noise_pred = noise_uncond + guidance_scale * (
                         noise_pred - noise_uncond
                     )
 
+                # Scheduler step (CPU)
                 latents = self.scheduler.step(
                     noise_pred, t, latents, return_dict=False
                 )[0]
 
                 print(f"  Step {i + 1}/{num_inference_steps}")
 
+            # --- VAE decode ---
             if output_type != "latent":
                 latents_vae = latents.to(dtype=torch.float32)
+
                 latents_mean = (
                     torch.tensor(self.vae.config.latents_mean)
                     .view(1, self.vae.config.z_dim, 1, 1, 1)
@@ -288,11 +307,13 @@ class WanT2VPipeline:
                 ).to(latents_vae.device, latents_vae.dtype)
                 latents_vae = latents_vae / latents_std + latents_mean
 
+                # CPU → TT
                 if self.vae_on_tt:
                     latents_vae = latents_vae.to(device=xm.xla_device())
 
                 video = self.vae.decode(latents_vae, return_dict=False)[0]
 
+                # TT → CPU
                 if self.vae_on_tt:
                     video = cpu_cast(video)
 
