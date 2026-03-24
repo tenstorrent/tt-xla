@@ -66,7 +66,10 @@ public: // Constructors needs to be public for std::shared_ptr.
   PjrtTensor(Private, std::vector<BufferInstance *> shards,
              tt::runtime::Tensor tensor);
 
-  ~PjrtTensor();
+  ~PjrtTensor() {
+    tt::runtime::setTensorRetain(m_runtime_tensor, false);
+    tt::runtime::deallocateTensor(m_runtime_tensor);
+  }
 
   PjrtTensor(const PjrtTensor &other) = delete;
   PjrtTensor &operator=(const PjrtTensor &other) = delete;
