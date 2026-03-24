@@ -430,8 +430,8 @@ def test_kimi_k2_full():
     use_cache = True
     config.use_cache = use_cache
     
-    config.num_hidden_layers = 2  # Need 2+ so layer_idx=1 exists and is MoE
-    
+    config.num_hidden_layers = 3  # Need 2+ so layer_idx=1 exists and is MoE
+    print("[James] Setting num_hidden_layers to ", config.num_hidden_layers, " and disabling sparse MLP")
 
     model = DeepseekV3Model(config)
     total_params = sum(p.numel() for p in model.parameters())
@@ -449,14 +449,14 @@ def test_kimi_k2_full():
     if num_devices_total == 32:
         mesh_shape = (8, 4)
     elif num_devices_total == 64:
-        mesh_shape = (16, 4)
+        mesh_shape = (4, 16)
 
-    enable_sparse_mlp(
-        model,
-        mesh=mesh_shape,
-        cluster_axis=0,
-        config=config,
-    )
+    # enable_sparse_mlp(
+    #     model,
+    #     mesh=mesh_shape,
+    #     cluster_axis=0,
+    #     config=config,
+    # )
 
     model.eval()
 
