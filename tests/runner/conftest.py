@@ -22,6 +22,12 @@ def capture_golden_pip_state():
     RequirementsManager.capture_golden_state()
 
 
+@pytest.fixture(autouse=True)
+def restore_pip_env_if_dirty():
+    """Restore pip environment before each test if a previous fork was killed."""
+    RequirementsManager.check_and_restore_environment()
+
+
 def _get_model_group_from_item(item):
     """Extract ModelGroup enum from a parametrized test item's test_entry parameter.
 

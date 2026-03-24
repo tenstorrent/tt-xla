@@ -114,6 +114,16 @@ class RequirementsManager:
 
         _dbg("[Requirements] Environment restored")
 
+    @classmethod
+    def check_and_restore_environment(cls) -> None:
+        """Public entry point: restore pip env to golden state if dirty.
+
+        Called before every test (via a pytest fixture) so that even tests
+        without their own requirements.txt benefit from crash recovery.
+        """
+        if cls._golden_freeze is not None:
+            cls._restore_environment()
+
     def __init__(
         self, requirements_path: Optional[str], framework: Optional[str] = None
     ) -> None:
