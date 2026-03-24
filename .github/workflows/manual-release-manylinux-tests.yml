@@ -2,6 +2,15 @@ name: Manual manylinux release tests
 
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Type of build to test'
+        type: choice
+        required: true
+        default: 'release'
+        options:
+          - release
+          - debug
 
 permissions:
   actions: write
@@ -36,10 +45,10 @@ jobs:
           echo "build --local_ram_resources=HOST_RAM*0.8" > ~/.bazelrc
           echo "build --local_cpu_resources=12" >> ~/.bazelrc
           echo "build --discard_analysis_cache" >> ~/.bazelrc
-          scripts/build_torch_xla.sh
+          scripts/build_torch_xla.sh --${{ inputs.build_type }}
 
       - name: Upload xla-torch wheel
         uses: actions/upload-artifact@v6
         with:
-          name: xla-torch-wheel
+          name: xla-torch-wheel-${{ inputs.build_type }}
           path: temp/pytorch/dist/*.whl
