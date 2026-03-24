@@ -232,3 +232,52 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
     markers: [nightly]
+
+  # SmolLM3-3B — GQA + NoPE (every 4th layer has no RoPE)
+  smollm3/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
+    status: UNSPECIFIED
+    bringup_status: NOT_STARTED
+    required_pcc: 0.98
+    assert_pcc: true
+    reason: "SmolLM3-3B GQA+NoPE — initial XLA bring-up"
+    markers: [nightly]
+
+  smollm3/causal_lm/pytorch-3B_Base-llm_decode-seq_1-batch_1-single_device-inference:
+    status: UNSPECIFIED
+    bringup_status: NOT_STARTED
+    required_pcc: 0.98
+    assert_pcc: true
+    reason: "SmolLM3-3B-Base — baseline accuracy reference"
+    markers: [nightly]
+
+  smollm3/causal_lm/pytorch-3B_Instruct-llm_prefill-seq_128-batch_1-single_device-inference:
+    status: UNSPECIFIED
+    bringup_status: NOT_STARTED
+    required_pcc: 0.98
+    assert_pcc: true
+    reason: "SmolLM3-3B prefill — initial bring-up"
+    markers: [nightly]
+
+  smollm3/causal_lm/pytorch-3B_Instruct-llm_prefill-seq_128-batch_2-single_device-inference:
+    status: UNSPECIFIED
+    bringup_status: NOT_STARTED
+    required_pcc: 0.98
+    assert_pcc: true
+    reason: "SmolLM3-3B prefill batch=2"
+    markers: [nightly]
+
+  smollm3/causal_lm/pytorch-3B_Instruct-llm_prefill-seq_1024-batch_1-single_device-inference:
+    status: UNSPECIFIED
+    bringup_status: NOT_STARTED
+    required_pcc: 0.98
+    assert_pcc: true
+    reason: "SmolLM3-3B prefill seq_len=1024"
+    markers: [nightly]
+
+  smollm3/causal_lm/pytorch-3B_Instruct-llm_prefill-seq_2048-batch_1-single_device-inference:
+    status: UNSPECIFIED
+    bringup_status: NOT_STARTED
+    required_pcc: 0.98
+    assert_pcc: true
+    reason: "SmolLM3-3B prefill seq_len=2048"
+    markers: [nightly]
