@@ -65,7 +65,7 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   perf-benchmark:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true' && github.event_name == 'pull_request' && (contains(needs.inspect-changes.outputs.detected-uplifts, 'tt-mlir') || contains(needs.inspect-changes.outputs.detected-uplifts, 'transformers'))
     needs: [ inspect-changes, build-image, build-ttxla ]
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     secrets: inherit
@@ -94,7 +94,7 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   test-uplift-extended:
-    if: needs.inspect-changes.outputs.run-additional-uplift-validation == 'true'
+    if: needs.inspect-changes.outputs.detected-uplifts != ''
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ inspect-changes, build-image, build-ttxla ]

@@ -15,12 +15,12 @@ on:
       only-run-forge-models:
         description: "True if only forge-models runner files changed."
         value: ${{ jobs.inspect-changes.outputs.only-run-forge-models }}
-      run-additional-uplift-validation:
-        description: "True if we need to run extended tests"
-        value: ${{ jobs.inspect-changes.outputs.run-additional-uplift-validation }}
       uplift-additional-test-suites:
         description: "Test suite presets for detected uplifts, colon-separated"
         value: ${{ jobs.inspect-changes.outputs.uplift-additional-test-suites }}
+      detected-uplifts:
+        description: "Colon-separated list of detected uplifts"
+        value: ${{ jobs.inspect-changes.outputs.detected-uplifts }}
       wheel-changes:
         description: "True if wheel build related files changed."
         value: ${{ jobs.inspect-changes.outputs.wheel-changes }}
@@ -33,8 +33,8 @@ jobs:
       run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
       run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
       only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
-      run-additional-uplift-validation: ${{ steps.inspect.outputs.run-additional-uplift-validation }}
       uplift-additional-test-suites: ${{ steps.inspect.outputs.uplift-additional-test-suites }}
+      detected-uplifts: ${{ steps.inspect.outputs.detected-uplifts }}
       wheel-changes: ${{ steps.inspect.outputs.wheel-changes }}
     steps:
       - uses: actions/checkout@v6
@@ -53,7 +53,7 @@ jobs:
           run_pr_tests=false
           run_perf_tests=false
           only_run_forge_models=false
-          run_additional_uplift_validation=false
+          detected_uplifts=""
           uplift_additional_test_suites=""
           wheel_changes=false
 
@@ -151,8 +151,8 @@ jobs:
             rm -rf "$tmp_dir"
             echo "Uplift detection result: $uplift_detection_result"
             if [[ -n "$uplift_detection_result" ]]; then
+              detected_uplifts="${uplift_detection_result%%#*}"
               uplift_additional_test_suites="${uplift_detection_result#*#}"
-              run_additional_uplift_validation=true
             fi
 
             # Check wheel build file changes
@@ -178,7 +178,7 @@ jobs:
           fi
 
           # Debug Purposes
-          echo "run-additional-uplift-validation=$run_additional_uplift_validation"
+          echo "detected-uplifts=${detected_uplifts:-}"
           echo "uplift-additional-test-suites=${uplift_additional_test_suites:-}"
           echo "wheel-changes=$wheel_changes"
           echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
@@ -187,6 +187,6 @@ jobs:
           echo "run-pr-tests=$run_pr_tests" >> "$GITHUB_OUTPUT"
           echo "run-perf-tests=$run_perf_tests" >> "$GITHUB_OUTPUT"
           echo "only-run-forge-models=$only_run_forge_models" >> "$GITHUB_OUTPUT"
-          echo "run-additional-uplift-validation=$run_additional_uplift_validation" >> "$GITHUB_OUTPUT"
           echo "uplift-additional-test-suites=${uplift_additional_test_suites:-}" >> "$GITHUB_OUTPUT"
+          echo "detected-uplifts=${detected_uplifts:-}" >> "$GITHUB_OUTPUT"
           echo "wheel-changes=$wheel_changes" >> "$GITHUB_OUTPUT"
