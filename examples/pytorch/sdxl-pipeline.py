@@ -199,11 +199,11 @@ class SDXLPipeline:
                         (self.tokenizer_2, self.text_encoder_2),
                     ]
                 ):
-                    cond_tokens = curr_tokenizer.batch_encode_plus(
+                    cond_tokens = curr_tokenizer(
                         [prompt], padding="max_length", max_length=77
                     ).input_ids  # (B, T)
 
-                    uncond_tokens = curr_tokenizer.batch_encode_plus(
+                    uncond_tokens = curr_tokenizer(
                         [negative_prompt], padding="max_length", max_length=77
                     ).input_ids  # (B, T)
 
