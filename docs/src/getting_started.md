@@ -142,6 +142,7 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    sudo apt install libnuma-dev
    sudo apt install libhwloc-dev
    sudo apt install libboost-all-dev
+   sudo apt install libnsl-dev
    ```
 
 #### Step 2: Building the TT-MLIR Toolchain
