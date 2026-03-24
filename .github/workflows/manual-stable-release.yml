@@ -7,7 +7,11 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
         required: true
         type: string
-
+      should_overwrite_release:
+        description: 'Should we overwrite an existing pypi wheel'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -44,6 +48,7 @@ jobs:
       wheel_release_vllm_tt_artifact_name: vllm-tt-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
       is_nightly_release: false
       xla_sha_override: ${{ inputs.xla_sha_override }}
+      should_overwrite_release: ${{ inputs.should_overwrite_release }}
 
   release-forge:
     uses: ./.github/workflows/call-forge-release.yml
@@ -52,6 +57,7 @@ jobs:
     with:
       release_tag: ${{ needs.release.outputs.release_tag }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
+      should_overwrite_release: ${{ inputs.should_overwrite_release }}
 
   update-release-notes-tt-xla:
     needs: [ release-forge, release ]
