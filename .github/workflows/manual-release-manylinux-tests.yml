@@ -34,6 +34,7 @@ jobs:
         run: |
           # set up limit for bazel to avoid OOM issues on GitHub runners
           echo "build --local_ram_resources=HOST_RAM*0.6" > ~/.bazelrc
+          echo "build --local_cpu_resources=12" >> ~/.bazelrc
           echo "build --discard_analysis_cache" >> ~/.bazelrc
           scripts/build_torch_xla.sh
 
