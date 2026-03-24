@@ -43,6 +43,77 @@ class RequirementsManager:
     # Top-level directory names in RECORD that are not importable packages.
     _RECORD_SKIP = frozenset({"__pycache__", "bin", "share"})
 
+    # Golden snapshot of the pip environment captured once per session.
+    # Each forked child inherits this from the parent process.  At the
+    # start of __enter__, the current on-disk state is compared against
+    # the golden snapshot; if they differ (e.g. a previous child was
+    # OOM-killed before __exit__ could roll back), the environment is
+    # restored before proceeding.
+    _golden_freeze: Optional[Dict[str, str]] = None
+
+    @classmethod
+    def capture_golden_state(cls) -> None:
+        """Capture the clean pip environment in memory.  Called once per session."""
+        cls._golden_freeze = cls._pip_freeze()
+        _dbg(
+            f"[Requirements] Golden freeze captured: "
+            f"{len(cls._golden_freeze)} packages"
+        )
+
+    @classmethod
+    def _restore_environment(cls) -> None:
+        """Restore the pip environment to the golden state held in memory."""
+        if cls._golden_freeze is None:
+            _dbg("[Requirements] No golden freeze captured; cannot heal")
+            return
+
+        _dbg("[Requirements] Restoring environment from golden freeze")
+
+        current_freeze = cls._pip_freeze()
+
+        # Packages not in the golden state — must be removed
+        to_uninstall = sorted(
+            set(current_freeze.keys()) - set(cls._golden_freeze.keys())
+        )
+
+        # Packages whose version changed or that went missing
+        to_restore = []
+        for name, line in cls._golden_freeze.items():
+            if name not in current_freeze or current_freeze[name] != line:
+                to_restore.append(line)
+
+        if not to_uninstall and not to_restore:
+            _dbg("[Requirements] Environment is clean; nothing to heal")
+            return
+
+        if to_uninstall:
+            _dbg(f"[Requirements] Restoring: uninstalling {to_uninstall}")
+            try:
+                cls._pip_uninstall(to_uninstall)
+            except Exception as e:
+                _dbg(f"[Requirements] Restoring: uninstall failed: {e}")
+
+        if to_restore:
+            _dbg(f"[Requirements] Restoring: restoring {len(to_restore)} packages")
+            restore_file = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    suffix=".txt",
+                    delete=False,
+                    prefix="tt_xla_restore_golden_",
+                ) as f:
+                    f.write("\n".join(to_restore) + "\n")
+                    restore_file = f.name
+                cls._pip_install_requirements(restore_file)
+            except Exception as e:
+                _dbg(f"[Requirements] Restoring: restore failed: {e}")
+            finally:
+                if restore_file and os.path.isfile(restore_file):
+                    os.unlink(restore_file)
+
+        _dbg("[Requirements] Environment restored")
+
     def __init__(
         self, requirements_path: Optional[str], framework: Optional[str] = None
     ) -> None:
@@ -92,6 +163,13 @@ class RequirementsManager:
         )
         self._lock_file = open(lock_path, "w")
         fcntl.flock(self._lock_file, fcntl.LOCK_EX)
+
+        # Self-healing: compare the on-disk pip state against the golden
+        # snapshot captured at session start.  If they differ, a previous
+        # forked child was likely killed (e.g. OOM) before __exit__ could
+        # roll back.  Restore the clean state before proceeding.
+        if self._golden_freeze is not None:
+            self._restore_environment()
 
         # Install system requirements first (if any)
         if self.system_requirements_path:
