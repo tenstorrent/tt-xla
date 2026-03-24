@@ -81,10 +81,10 @@ jobs:
           --mca btl_tcp_if_exclude docker0,lo \
           --tag-output \
           bash -c '
-            if docker ps -a --filter name=multihost-poc --format "{{.Names}}" | grep -q multihost-poc; then
-              echo "$(hostname): Stopping existing multihost-poc container..."
-              docker stop multihost-poc || true
-              docker rm multihost-poc || true
+            if docker ps -a --filter name=ubuntu-host-mapped --format "{{.Names}}" | grep -q ubuntu-host-mapped; then
+              echo "$(hostname): Stopping existing ubuntu-host-mapped container..."
+              docker stop ubuntu-host-mapped || true
+              docker rm ubuntu-host-mapped || true
               echo "$(hostname): Cleaned up existing container"
             else
               echo "$(hostname): No existing containers found"
@@ -106,7 +106,7 @@ jobs:
         source /tmp/ssh_agent_env
 
         DOCKER_CMD="docker run --pull=always --rm -d \
-          --name multihost-poc \
+          --name ubuntu-host-mapped \
           --privileged \
           --pid=host \
           --network=host \
@@ -147,11 +147,11 @@ jobs:
           --mca btl_tcp_if_exclude docker0,lo \
           --tag-output \
           bash -c '
-            if docker ps --filter name=multihost-poc --format "{{.Names}}" | grep -q multihost-poc; then
+            if docker ps --filter name=ubuntu-host-mapped --format "{{.Names}}" | grep -q ubuntu-host-mapped; then
               echo "$(hostname): Container already running (controller), skipping"
             else
               CONTAINER_ID=$(docker run --pull=always --rm -d \
-                --name multihost-poc \
+                --name ubuntu-host-mapped \
                 --privileged \
                 --pid=host \
                 --network=host \
@@ -178,7 +178,7 @@ jobs:
     - name: Make remote_docker.sh executable in controller container
       shell: bash
       run: |
-        docker exec multihost-poc chmod +x \
+        docker exec ubuntu-host-mapped chmod +x \
           /workspace/tests/torch/multi_host/experimental/remote_docker.sh
         echo "remote_docker.sh is executable"
 
@@ -187,7 +187,7 @@ jobs:
       run: |
         docker exec \
           -e GH_TOKEN=${{ env.GH_TOKEN }} \
-          multihost-poc bash -c '
+          ubuntu-host-mapped bash -c '
             echo "=== Downloading wheel artifact ==="
             echo "Downloading from run: ${{ inputs.artifact_release_run_id }} name: ${{ steps.strings.outputs.wheel_artifact_name }}"
             gh run download ${{ inputs.artifact_release_run_id }} \
@@ -201,7 +201,7 @@ jobs:
     - name: Install wheel in controller container
       shell: bash
       run: |
-        docker exec multihost-poc bash -c '
+        docker exec ubuntu-host-mapped bash -c '
           cd /workspace
           source venv/activate
 
@@ -219,7 +219,7 @@ jobs:
     - name: Download experimental bigmesh config files
       shell: bash
       run: |
-        docker exec multihost-poc bash -c '
+        docker exec ubuntu-host-mapped bash -c '
           RANK_BINDINGS_PATH="/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/dual_t3k_1x16_experimental_bigmesh_rank_bindings.yaml"
           MESH_DESC_PATH="/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/tt_fabric/custom_mesh_descriptors/dual_t3k_1x16_experimental_bigmesh_mgd.textproto"
 
@@ -244,7 +244,7 @@ jobs:
       timeout-minutes: 60
       shell: bash
       run: |
-        docker exec multihost-poc bash -c '
+        docker exec ubuntu-host-mapped bash -c '
           cd /workspace
           source venv/activate
 
@@ -291,8 +291,8 @@ jobs:
           --mca btl_tcp_if_exclude docker0,lo \
           --tag-output \
           bash -c '
-            docker stop multihost-poc || true
-            docker rm multihost-poc || true
+            docker stop ubuntu-host-mapped || true
+            docker rm ubuntu-host-mapped || true
             if [ -f /tmp/ssh_agent_env ]; then
               source /tmp/ssh_agent_env
               kill $SSH_AGENT_PID || true
