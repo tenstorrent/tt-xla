@@ -179,20 +179,25 @@ class SDXLPipeline:
                         (self.tokenizer_2, self.text_encoder_2),
                     ]
                 ):
-                    cond_tokens = curr_tokenizer.batch_encode_plus(
-                        [prompt], padding="max_length", max_length=77
-                    ).input_ids  # (B, T)
-
-                    uncond_tokens = curr_tokenizer.batch_encode_plus(
-                        [negative_prompt], padding="max_length", max_length=77
-                    ).input_ids  # (B, T)
-
-                    cond_tokens = torch.tensor(cond_tokens, dtype=torch.long).to(
+                    cond_tokens = curr_tokenizer(
+                        [prompt],
+                        padding="max_length",
+                        max_length=77,
+                        truncation=True,
+                        return_tensors="pt",
+                    ).input_ids.to(
                         device=self.device
-                    )
-                    uncond_tokens = torch.tensor(uncond_tokens, dtype=torch.long).to(
+                    )  # (B, T)
+
+                    uncond_tokens = curr_tokenizer(
+                        [negative_prompt],
+                        padding="max_length",
+                        max_length=77,
+                        truncation=True,
+                        return_tensors="pt",
+                    ).input_ids.to(
                         device=self.device
-                    )
+                    )  # (B, T)
 
                     cond_output = curr_text_encoder(
                         cond_tokens, output_hidden_states=True
