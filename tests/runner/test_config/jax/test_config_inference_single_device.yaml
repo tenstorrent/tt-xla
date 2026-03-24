@@ -369,8 +369,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-1.5B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [large]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Host OOM due to cpu hoisting - https://github.com/tenstorrent/tt-xla/issues/3901"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/jax-3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -397,12 +398,14 @@ test_config:
     markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-1.5B-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [large]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Host OOM due to cpu hoisting - https://github.com/tenstorrent/tt-xla/issues/3901"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [large]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Host OOM due to cpu hoisting - https://github.com/tenstorrent/tt-xla/issues/3901"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5_coder/causal_lm/jax-3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -425,8 +428,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/jax-0_6B-single_device-inference:
-    status: EXPECTED_PASSING
-    markers: [large]
+    status: NOT_SUPPORTED_SKIP
+    reason: "Host OOM due to cpu hoisting - https://github.com/tenstorrent/tt-xla/issues/3901"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/jax-1_7B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
