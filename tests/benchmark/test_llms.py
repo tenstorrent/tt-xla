@@ -716,6 +716,7 @@ def test_mistral_7b(
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3934)
 def test_ministral_8b(
     output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
 ):
@@ -761,6 +762,7 @@ def test_llama_3_1_8b(
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_falcon3_7b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -775,9 +777,11 @@ def test_falcon3_7b_tp(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_falcon3_10b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -792,9 +796,11 @@ def test_falcon3_10b_tp(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_llama_3_1_8b_instruct_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -809,6 +815,7 @@ def test_llama_3_1_8b_instruct_tp(output_file, num_layers, request, max_output_t
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -829,6 +836,8 @@ def test_mistral_7b_tp(output_file, num_layers, request, max_output_tokens):
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3935)
+# Also perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_ministral_8b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -847,6 +856,7 @@ def test_ministral_8b_tp(output_file, num_layers, request, max_output_tokens):
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_mistral_nemo_instruct_2407_tp(
     output_file, num_layers, request, max_output_tokens
 ):
@@ -863,9 +873,11 @@ def test_mistral_nemo_instruct_2407_tp(
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_mistral_small_24b_instruct_2501_tp(
     output_file, num_layers, request, max_output_tokens
 ):
@@ -882,9 +894,11 @@ def test_mistral_small_24b_instruct_2501_tp(
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_qwen_2_5_14b_instruct_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -899,6 +913,7 @@ def test_qwen_2_5_14b_instruct_tp(output_file, num_layers, request, max_output_t
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -919,6 +934,7 @@ def test_qwen_2_5_32b_instruct_tp(output_file, num_layers, request, max_output_t
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_qwen_2_5_coder_32b_instruct_tp(
     output_file, num_layers, request, max_output_tokens
 ):
@@ -935,6 +951,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -972,6 +989,7 @@ def test_qwen_3_1_7b_tp(output_file, num_layers, request, max_output_tokens):
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_qwen_3_8b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -986,9 +1004,11 @@ def test_qwen_3_8b_tp(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_qwen_3_14b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1003,9 +1023,11 @@ def test_qwen_3_14b_tp(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_qwen_3_32b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1020,6 +1042,7 @@ def test_qwen_3_32b_tp(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -1074,6 +1097,7 @@ def test_llama_3_8b_tp(output_file, num_layers, request, max_output_tokens):
     )
 
 
+# Trace disabled: perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_llama_3_1_70b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1088,6 +1112,7 @@ def test_llama_3_1_70b_tp(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -1112,6 +1137,8 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
+# Also perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1132,6 +1159,8 @@ def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
     )
 
 
+# Trace disabled: SDPA validation failure (https://github.com/tenstorrent/tt-xla/issues/3930)
+# Also perf regression (https://github.com/tenstorrent/tt-xla/issues/3938)
 def test_gpt_oss_20b_tp_batch_size_1(
     output_file, num_layers, request, max_output_tokens
 ):

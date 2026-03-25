@@ -130,6 +130,7 @@ def test_efficientnet(output_file, request):
     )
 
 
+# Trace disabled: PCC degradation (https://github.com/tenstorrent/tt-xla/issues/3931)
 def test_mnist(output_file, request):
     from third_party.tt_forge_models.mnist.image_classification.pytorch.loader import (
         ModelLoader,
@@ -276,6 +277,7 @@ def test_segformer(output_file, request):
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3933)
 def test_swin(output_file, request):
     from third_party.tt_forge_models.swin.image_classification.pytorch.loader import (
         ModelLoader,
@@ -389,6 +391,7 @@ def test_ufld_v2(output_file, request):
     )
 
 
+# Trace disabled: PCC degradation (https://github.com/tenstorrent/tt-xla/issues/3932)
 def test_unet(output_file, request):
     from third_party.tt_forge_models.vgg19_unet.pytorch.loader import ModelLoader
 
