@@ -895,18 +895,32 @@ def sparse_matmul(
             _moe_shape = (BD, S)
 
     if device.type == "xla":
-        # Normalize MoE tensors to canonical sparse_matmul input formats only.
-        # Hardware-driven tile decomposition is now handled by MLIR workarounds.
+        # Pre-tile MoE tensors so the M (tile) dimension is already 32-aligned.
+        # This avoids MLIR workaround reshape/permute overhead entirely.
+        #
+        # Gate-up: [1, BD, S, H] → [BD, S//M, M, H]  (reshape only)
+        #   output: [BD, S//M, 1, E, M, N] → squeeze → [BD, S//M, E, M, N] (5D)
+        #   caller does bias add on 5D, activation, then reshapes for down.
+        #
+        # Down: caller sends [BD*S//M, E, M, inter] (already canonical [A,E,M,K])
+        #   → not detected as _moe_shape, passes through directly
+        #   output: [BD*S//M, E, M, H] — caller does bias add, permute, reshape.
         if _moe_shape is not None:
             BD, S = _moe_shape
+            reduced = sparsity.shape[2]
+            M = (BD * S) // reduced
+
             if not is_input_a_sparse and is_input_b_sparse:
-                # Gate-up: [1, BD, S, H] -> [BD, S, 1, H]
-                input_tensor_a = input_tensor_a.permute(1, 2, 0, 3)
-            elif is_input_a_sparse and not is_input_b_sparse:
-                # Down: [BD, S, E, K] -> [BD*S, E, 1, K]
-                E_in = input_tensor_a.shape[2]
-                K_in = input_tensor_a.shape[-1]
-                input_tensor_a = input_tensor_a.reshape(BD * S, E_in, 1, K_in)
+                H = input_tensor_a.shape[-1]
+                split_seq = S % M == 0 and S >= M
+                if split_seq:
+                    input_tensor_a = input_tensor_a.reshape(BD, S // M, M, H)
+                    sparsity = sparsity.reshape(BD, S // M, 1, E_experts)
+                else:
+                    # Decode: tile on BD instead
+                    input_tensor_a = input_tensor_a.reshape(BD // M, M, S, H)
+                    input_tensor_a = input_tensor_a.permute(0, 2, 1, 3)
+                    sparsity = sparsity.reshape(BD // M, S, 1, E_experts)
 
         frontend_attributes = {
             "is_input_a_sparse": str(is_input_a_sparse),
@@ -935,14 +949,11 @@ def sparse_matmul(
             frontend_attributes=frontend_attributes,
         )
 
-        # Convert canonical sparse_matmul outputs back to clean MoE outputs.
+        # Convert tiled sparse_matmul outputs.
         if _moe_shape is not None:
-            BD, S = _moe_shape
-            N = input_tensor_b.shape[-1]
             if not is_input_a_sparse and is_input_b_sparse:
+                # [A, B, 1, E, M, N] → [A, B, E, M, N] (5D tiled)
                 result = result.squeeze(2).squeeze(-2)
-            elif is_input_a_sparse and not is_input_b_sparse:
-                result = result.squeeze(2).reshape(BD, S, E_experts, N)
 
         return result
 
@@ -1044,7 +1055,7 @@ def sparse_matmul_fake(
             _, BD, S, _ = input_tensor_a.shape
             _moe_shape = (BD, S)
         elif input_tensor_a.dim() == 4 and input_tensor_a.shape[2] == 1:
-            # SparseMLP / A2aSparseStackedMlp layout: [BD, S, 1, H]
+            # SparseMLP layout: [BD, S, 1, H]
             BD, S, _, _ = input_tensor_a.shape
             _moe_shape = (BD, S)
     elif is_input_a_sparse and not is_input_b_sparse:
@@ -1054,7 +1065,16 @@ def sparse_matmul_fake(
 
     if _moe_shape is not None:
         BD, S = _moe_shape
-        output_shape = [BD, S, E, N]
+        reduced = sparsity.shape[2]
+        M = (BD * S) // reduced
+        if not is_input_a_sparse and is_input_b_sparse:
+            # Gate-up: tiled output [A, B, E, M, N] (5D)
+            split_seq = S % M == 0 and S >= M
+            A = BD if split_seq else BD // M
+            B = S // M if split_seq else S
+            output_shape = [A, B, E, M, N]
+        else:
+            output_shape = [BD, S, E, N]
     elif is_input_a_sparse and is_input_b_sparse:
         output_shape = list(input_tensor_a.shape)
         output_shape[-1] = N
