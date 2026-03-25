@@ -28,6 +28,11 @@ source venv/activate
 '
 ```
 
+Important:
+- `venv/activate` in this repo is `pwd`-sensitive and uses `$(pwd)` to derive repo-relative paths such as `venv/`, `python_package/requirements.txt`, and `third_party/tt-mlir/...`
+- always `cd <REPO_PATH_IN_CONTAINER>` before `source venv/activate`
+- do not run `source /absolute/path/to/venv/activate` from `/` or any non-repo directory, or it may try to create the venv in the wrong place such as `//venv`
+
 If you are already inside the container, use:
 
 ```bash
@@ -89,19 +94,11 @@ Ignore:
 
 For Llama, the middle layer is a repeated structural block inside the selected `decode_2` slice, not just a numeric layer ID.
 
-Identify repeated consecutive op blocks across all devices. The middle layer is the middle repeated block that matches this shape:
-
-- starts at an RMS-like op, a binary op, or a few ops before `ReduceDeviceOperation`
-- contains, in order:
-  1. 3 matmuls
-  2. `sdpa`
-  3. 1 matmul
-  4. another RMS norm or reduce
-  5. 3 more matmuls
-  6. a binary op
-- ends where the next block with the same pattern begins
-
-In current traces this often appears as repeated grouped-op regions. Prefer detecting the repeated structure from consecutive op groups rather than hardcoding absolute CSV row numbers.
+Use the sibling skill `.cursor/skills/llama-layer-parsing/SKILL.md` to:
+- map Tracy or ops-CSV regions back to Llama transformer structure
+- detect boundaries for either one full Llama layer or one attention-only sublayer
+- identify the repeated RMSNorm -> attention -> RMSNorm -> gated-MLP block shape
+- select the middle repeated layer inside the `decode_2` slice
 
 ## GPT-OSS Middle-Layer Rule
 
@@ -109,7 +106,11 @@ For GPT-OSS, use 6 layers and run two analyses:
 - middle even layer
 - middle odd layer
 
-This rule is still provisional. Until refined, use the positional middle layer within each parity group.
+Use the sibling skill `.cursor/skills/gpt-oss-layer-parsing/SKILL.md` to:
+- map Tracy or ops-CSV regions back to GPT-OSS transformer structure
+- detect boundaries for either one full GPT-OSS layer or one attention-only sublayer
+- distinguish even-layer full-context attention from odd-layer sliding-window attention
+- select the middle layer separately within the even and odd parity groups
 
 ## CCL Follow-Up
 
@@ -125,30 +126,64 @@ Use that skill for:
 - average runtime per collective shape
 - lowered runtime patterns such as `all_gather + FastReduceNCDeviceOperation`
 
-## tt-perf-report
+## tt-perf-report Handoff
 
-Run `tt-perf-report` on the isolated middle-layer CSV, not on the full trace CSV.
+After isolating the middle-layer CSV, use the sibling skill `.cursor/skills/tt-perf-report/SKILL.md` for all `tt-perf-report` work:
+- running `tt-perf-report`
+- regenerating report CSV and summary PNG artifacts
+- saving the terminal-style `Performance Report`
+- rendering the colored HTML preview
 
-Do not include `.csv` in the `--summary-file` argument. Use a basename only, because `tt-perf-report` adds its own suffixes.
+For layer profiling, treat the generated summary PNG from that skill as the default chart artifact unless the user explicitly asks for a different visualization.
 
-```bash
-tt-perf-report <MIDDLE_LAYER_CSV> \
-  --summary-file <SUMMARY_BASENAME> \
-  --csv <REPORT_CSV>
+## Full-Model Device-Time Estimate
+
+If you have:
+- total device time for a traced model run with `num_layers`
+- total device time for one isolated layer
+
+estimate the full-model device time with:
+
+```text
+full_model_device_time ~= device_time_at_num_layers + (total_layers - num_layers) * one_layer_device_time
 ```
 
-Example:
+Layer counts:
+- GPT-OSS 20B: 24 layers
+- GPT-OSS 120B: 36 layers
+- Llama 70B: 80 layers
 
-```bash
-tt-perf-report llama_middle_layer.csv \
-  --summary-file tt_perf_summary \
-  --csv tt_perf_report.csv
+### Llama
+
+For Llama, all layers have the same structure, so:
+
+```text
+llama_70b_total_device_time ~= device_time_at_num_layers + (80 - num_layers) * one_layer_device_time
 ```
 
-This produces outputs like:
-- `tt_perf_report.csv`
-- `tt_perf_summary.csv`
-- `tt_perf_summary.png`
+### GPT-OSS
+
+GPT-OSS alternates:
+- even layers: full-context attention
+- odd layers: sliding-window attention
+
+If you have both isolated middle-layer measurements, prefer:
+
+```text
+gpt_oss_20b_total_device_time ~= device_time_at_num_layers + (12 - measured_even_layers) * even_layer_device_time + (12 - measured_odd_layers) * odd_layer_device_time
+gpt_oss_120b_total_device_time ~= device_time_at_num_layers + (18 - measured_even_layers) * even_layer_device_time + (18 - measured_odd_layers) * odd_layer_device_time
+```
+
+If you only have one GPT-OSS layer measurement, you may use the rough estimate:
+
+```text
+gpt_oss_20b_total_device_time ~= device_time_at_num_layers + (24 - num_layers) * one_layer_device_time
+gpt_oss_120b_total_device_time ~= device_time_at_num_layers + (36 - num_layers) * one_layer_device_time
+```
+
+Always state whether the estimate used:
+- the traced model device time plus per-layer extrapolation
+- separate even and odd layer measurements
 
 ## Artifact Layout
 
@@ -156,6 +191,9 @@ Store outputs together, for example:
 
 ```text
 <ARTIFACT_DIR>/<model>/<RUN_ID>/
+  terminal_logs/
+    tracy_terminal_live.txt
+    tracy_terminal_final.txt
   raw/
   slices/
     decode_2.csv
@@ -176,30 +214,65 @@ For ad hoc analysis of an existing report directory, it is also fine to create:
 
 and place the derived artifacts there.
 
+## Terminal Log Preservation
+
+When launching the full workflow through a background Shell command, preserve the terminal transcript as part of the profiling artifacts.
+
+Required behavior:
+- do not kill the monitoring terminal just to stop watching output
+- record the terminal output file path returned by the Shell tool as soon as the profiling command starts
+- save a workspace-accessible copy of that terminal output under `<ARTIFACT_DIR>/<model>/<RUN_ID>/terminal_logs/`
+- refresh that saved copy again after the run exits or fails so the final traceback/error is preserved inside the repo
+
+Recommended filenames:
+- `terminal_logs/tracy_terminal_live.txt`
+- `terminal_logs/tracy_terminal_final.txt`
+
+Do not assume the external terminal transcript path will still be available later. Persist an in-workspace copy while the run is active.
+
 ## Failure Recovery
 
-If a full profiling run hits a device fatal such as:
-- `TT_FATAL`
-- unexpected `run_mailbox` values
-- a stuck run that repeatedly logs the same device error
+If a full profiling run hits a device fatal, distinguish between ordinary TT fatal logs and device-hang / mailbox failures.
 
-then recover inside the container with:
+Do not reset the device yourself.
+
+### Keep logs alive for ordinary TT fatals
+
+If the run logs a `TT_FATAL` but is still making forward progress or has already exited on its own, do not proactively kill it just because a fatal appeared in the logs.
+
+Keep the logs/artifacts intact for postmortem analysis unless the user explicitly asks to stop the run sooner.
+
+Before ending monitoring of a failed run, make sure the saved in-workspace terminal log copy includes the final traceback or pytest summary.
+
+### Stop the run only for mailbox / stuck-device failures
+
+If the run hits unexpected `run_mailbox` values
+
+first stop the failed profiling run:
 
 ```bash
 kill <PROFILE_PID>
-tt-smi -r
 ```
 
-If the profiling command is still running or stuck repeating the same device error, kill that process first, then reset the device.
+Before killing a mailbox-stuck run, save the current terminal transcript into `<ARTIFACT_DIR>/<model>/<RUN_ID>/terminal_logs/` so the pre-reset failure output is preserved.
 
-After the reset, start the full layer analysis again from the top:
+
+Double-check that all related profiling processes are fully stopped before asking for recovery.
+
+Then ask the user to run the reset themselves and wait for explicit confirmation that the reset has finished before continuing. Do not run `tt-smi -r` or any other reset command on the user's behalf.
+
+If the reset command itself fails, stop immediately and do not continue with profiling, retries, or artifact processing. Surface the reset failure to the user and wait for guidance.
+
+Only after the user confirms the reset completed successfully, start the full layer analysis again from the top:
 1. relaunch the Tracy command
 2. wait for a fresh report directory and `ops_perf_results_*.csv`
 3. redo decode-window selection
 4. redo middle-layer extraction
 5. rerun `tt-perf-report`
 
-Do not continue processing partial artifacts from the failed run unless the user explicitly asks for postmortem analysis.
+Do not continue processing partial artifacts from a mailbox / stuck-device failure unless the user explicitly asks for postmortem analysis.
+
+For ordinary TT fatals that are not `run_mailbox` failures, prefer preserving the logs and surfacing the error first. Only restart from the top after the user decides whether they want recovery or postmortem analysis.
 
 ## Recommended Workflow
 
@@ -211,13 +284,14 @@ Do not continue processing partial artifacts from the failed run unless the user
 6. Identify the middle layer using the model-specific rule.
 7. Write a second CSV for the isolated middle layer.
 8. Save `selection_metadata.json` with the chosen signposts and row ranges.
-9. Run `tt-perf-report` on the middle-layer CSV with `--summary-file <basename-without-extension>`.
-10. Return the artifact paths to the user.
+9. Use `.cursor/skills/tt-perf-report/SKILL.md` to run `tt-perf-report --no-advice` on the middle-layer CSV and generate the report artifacts.
+10. Return the generated `tt_perf_summary.png` chart path along with the CSV artifact paths to the user.
 
 If the run fails with a device fatal, follow the `Failure Recovery` section and restart from step 1.
 
 ## References
 
+- `.cursor/skills/tt-perf-report/SKILL.md`
 - `.cursor/skills/ccl-ttnn-device-perf/SKILL.md`
 - `tests/benchmark/LAYER_PROFILING_PLAN.md`
 - `tests/benchmark/PROFILING.md`

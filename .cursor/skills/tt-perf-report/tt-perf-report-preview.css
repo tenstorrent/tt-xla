@@ -1,0 +1,134 @@
+body {
+  margin: 0;
+  background: #262626;
+  color: #e5e7eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.container {
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 18px 20px;
+  background: #262626;
+}
+
+pre {
+  margin: 0;
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.5;
+  font-size: 11px;
+}
+
+.title {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.rule-title {
+  color: #f59e0b;
+}
+
+.rule {
+  color: #374151;
+}
+
+.header {
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.section {
+  color: #a7f3d0;
+  font-weight: 700;
+}
+
+.cat-tm {
+  color: #9ca3af;
+}
+
+.cat-matmul {
+  color: #bfdbfe;
+}
+
+.cat-ccl {
+  color: #ffd500;
+}
+
+.cat-eltwise {
+  color: #7ebad3;
+}
+
+.cat-reduce {
+  color: #c9a164;
+}
+
+.cat-special {
+  color: #cd9848;
+}
+
+.stacked-row {
+  color: #9ca3af;
+}
+
+.slow {
+  background: rgba(127, 29, 29, 0.35);
+  color: #fee2e2;
+  font-weight: 700;
+}
+
+.note {
+  color: #86efac;
+}
+
+.warning {
+  color: #fca5a5;
+}
+
+.bullet {
+  color: #d1d5db;
+}
+
+.hi-us {
+  font-weight: 900;
+  border-radius: 4px;
+}
+
+.hi-us-low {
+  box-shadow: inset 4px 0 0 #9ca3af;
+  background: rgba(156, 163, 175, 0.10);
+}
+
+.hi-us-med {
+  box-shadow: inset 4px 0 0 #fbbf24;
+  background: rgba(251, 191, 36, 0.10);
+}
+
+.hi-us-high {
+  box-shadow: inset 4px 0 0 #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.report-name {
+  margin-bottom: 14px;
+  color: #f8fafc;
+  font-family: system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.summary-chart {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #374151;
+}
+
+.summary-chart img {
+  display: block;
+  width: 600px;
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  background: #1f2937;
+}
