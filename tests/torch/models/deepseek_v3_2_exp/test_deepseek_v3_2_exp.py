@@ -95,6 +95,7 @@ def test_deepseek_complex_rotary_emb():
 
 
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 def test_deepseek_attention_prefill(batch_size):
     xr.set_device_type("TT")
@@ -165,6 +166,7 @@ def test_deepseek_attention_prefill(batch_size):
 
 
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 def test_deepseek_indexer(batch_size):
     xr.set_device_type("TT")
