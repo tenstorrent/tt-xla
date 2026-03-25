@@ -10,6 +10,78 @@ from tt_torch.fusion_providers import FusionProvider
 from ttxla_tools.logging import logger
 
 
+def rewrite_interpolate_to_matmul(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Rewrite F.interpolate(mode='bilinear'/'nearest') to the matmul-based implementation.
+
+    AOTAutograd's functionalization trace decomposes F.interpolate via the C++
+    CompositeImplicitAutograd kernel into gather/index ops before the Python
+    decomposition table is consulted.  This pass rewrites the calls at the FX
+    graph level so they use our efficient matmul-based interpolation instead.
+    """
+    from tt_torch.backend.decompositions import (
+        upsample_linear_vec,
+        upsample_nearest_vec,
+    )
+
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if (
+            node.op != "call_function"
+            or node.target is not torch.nn.functional.interpolate
+        ):
+            continue
+
+        # Extract arguments — F.interpolate(input, size=, scale_factor=, mode=, align_corners=, ...)
+        input_node = node.args[0] if node.args else node.kwargs.get("input")
+        size = node.kwargs.get("size", node.args[1] if len(node.args) > 1 else None)
+        scale_factor = node.kwargs.get("scale_factor", None)
+        mode = node.kwargs.get("mode", "nearest")
+        align_corners = node.kwargs.get("align_corners", False)
+
+        # Normalize size to a list or None
+        if size is not None:
+            if isinstance(size, int):
+                output_size = [size, size]
+            else:
+                output_size = list(size)
+            scale_factors = None
+        else:
+            output_size = None
+            if isinstance(scale_factor, (int, float)):
+                scale_factors = [float(scale_factor), float(scale_factor)]
+            elif scale_factor is not None:
+                scale_factors = [float(s) for s in scale_factor]
+            else:
+                continue
+
+        # Use the vec wrappers which handle output_size/scale_factor normalization
+        if mode == "bilinear":
+            replacement_fn = upsample_linear_vec
+            new_args = (input_node, output_size, align_corners, scale_factors)
+        elif mode == "nearest":
+            replacement_fn = upsample_nearest_vec
+            new_args = (input_node, output_size, scale_factors)
+        else:
+            continue
+
+        with graph.inserting_after(node):
+            new_node = graph.call_function(
+                replacement_fn,
+                args=new_args,
+            )
+            node.replace_all_uses_with(new_node)
+            graph.erase_node(node)
+            modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
 def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     """
     Rewrite call_module nodes targeting AdaptiveAvgPool1d/2d with output_size=1/(1,1)
