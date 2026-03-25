@@ -217,9 +217,7 @@ class XLAExecutor:
             )
 
         full_args = self.params_and_consts + args
-        # Ensure unsharded tensors are marked REPLICATED in SPMD mode so their
-        # sharding spec matches what was recorded at graph capture time. This is a temporary workaround
-        # until a change is made in torch-xla to automatically mark unsharded tensors as REPLICATED at runtime in SPMD mode.
+
         return self.compiled_graph(*full_args)
 
     def __call__(self, *args):
