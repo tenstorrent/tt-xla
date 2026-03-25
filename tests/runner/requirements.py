@@ -99,7 +99,11 @@ class RequirementsManager:
             try:
                 cls._pip_uninstall(to_uninstall)
             except Exception as e:
-                _dbg(f"[Requirements] Restoring: uninstall failed: {e}")
+                warnings.warn(
+                    f"[Requirements] Restoring: uninstall failed: {e}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
         if to_restore:
             _dbg(f"[Requirements] Restoring: restoring {len(to_restore)} packages")
@@ -115,7 +119,11 @@ class RequirementsManager:
                     restore_file = f.name
                 cls._pip_install_requirements(restore_file)
             except Exception as e:
-                _dbg(f"[Requirements] Restoring: restore failed: {e}")
+                warnings.warn(
+                    f"[Requirements] Restoring: install failed: {e}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
             finally:
                 if restore_file and os.path.isfile(restore_file):
                     os.unlink(restore_file)
