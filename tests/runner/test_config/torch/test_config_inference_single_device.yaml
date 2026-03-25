@@ -761,11 +761,21 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7923736013936152. Required: pcc=0.99."
+    arch_overrides:
+      p150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/3922"
+        bringup_status: FAILED_RUNTIME
 
   pi_0/pytorch-pi0_base-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
     reason: "AssertionError:PCC comparison failed. Calculated: pcc=0.9835311599617622. Required: pcc=0.99."
+    arch_overrides:
+      p150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/3922"
+        bringup_status: FAILED_RUNTIME
 
   opt/qa/pytorch-1.3b-single_device-inference:
     assert_pcc: false
