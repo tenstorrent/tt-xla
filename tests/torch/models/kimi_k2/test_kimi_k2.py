@@ -427,11 +427,20 @@ def test_kimi_k2_full():
         config.num_hidden_layers = 2  # Need 2+ so layer_idx=1 exists and is MoE
     use_cache = True
     config.use_cache = use_cache
-
-    model = DeepseekV3Model(config)
-    model = model.to(torch.bfloat16)
-    
     config.num_hidden_layers = 2
+    
+
+    print("Creating model in metal device for zero weights with num_hidden_layers = ", config.num_hidden_layers)
+    with torch.device("meta"):
+        model = DeepseekV3Model(config)
+    model = model.to_empty(device="cpu")
+    for param in model.parameters():
+        param.data.zero_()
+    for buf in model.buffers():
+        buf.data.zero_()
+        
+    model = model.to(torch.bfloat16)
+    print("Model casted to bf16")
 
     # Replace all MoE MLP layers with A2aSparseMLP
     # With first_k_dense_replace=1 and moe_layer_freq=1:
