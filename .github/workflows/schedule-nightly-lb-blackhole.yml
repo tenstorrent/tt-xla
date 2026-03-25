@@ -26,12 +26,12 @@ jobs:
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
       build_types: release,manylinux
 
-  test_forge_models_passing_lb:
+  test_forge_models_lb_blackhole:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
-      test_suite: model-test-lb-nightly.json
+      test_suite: model-test-lb-blackhole-nightly.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
@@ -40,7 +40,7 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - test_forge_models_passing_lb
+      - test_forge_models_lb_blackhole
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
@@ -69,7 +69,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Bad bad LB nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "Bad bad LB Blackhole nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "channel": "C08GYB57C8M",
               "unfurl_links": false, "unfurl_media": false
             }
@@ -82,7 +82,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Good LB nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "Good LB Blackhole nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "channel": "C08GYB57C8M",
               "unfurl_links": false, "unfurl_media": false
             }

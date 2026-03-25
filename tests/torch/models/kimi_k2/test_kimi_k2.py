@@ -64,6 +64,7 @@ def test_kimi_k2_single_layer():
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 def test_kimi_k2_attention_prefill():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
@@ -137,6 +138,7 @@ def test_kimi_k2_attention_prefill():
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 def test_kimi_k2_attention_decode():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
@@ -211,6 +213,7 @@ def test_kimi_k2_attention_decode():
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 def test_kimi_k2_layer():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
