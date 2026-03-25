@@ -6,10 +6,12 @@ import math
 from abc import abstractmethod
 from typing import Tuple
 
+import torch
 from infra.utilities import PyTree, Tensor
 
 from .evaluation_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
 from .evaluator import ComparisonResult, Evaluator
+from loguru import logger
 
 
 class ComparisonEvaluator(Evaluator):
@@ -35,6 +37,12 @@ class ComparisonEvaluator(Evaluator):
         """
         # Pack args in an iterable to simulate a pytree.
         device_output, golden_output = self._match_data_types((device_out, golden_out))
+        logger.info("device_output={}",device_output)
+        logger.info("golden_output={}",golden_output)
+        logger.info("torch.isinf(device_output).any()={}", torch.isinf(device_output).any())
+        logger.info("torch.isinf(golden_output).any()={}", torch.isinf(golden_output).any())
+        logger.info("torch.isnan(device_output).any()={}", torch.isnan(device_output).any())
+        logger.info("torch.isnan(golden_output).any()={}", torch.isnan(golden_output).any())
         _comparison_result = ComparisonResult(
             passed=False,
             pcc=None,
@@ -84,6 +92,7 @@ class ComparisonEvaluator(Evaluator):
         - passed: True if all enabled comparisons passed their thresholds, False otherwise
         - error_message: None if passed, combined error message for all failures if any failed
         """
+        logger.info("PCC={}",comparison_result.pcc)
         passed = True
         error_messages = []
 
