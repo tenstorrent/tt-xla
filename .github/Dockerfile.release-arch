@@ -14,19 +14,22 @@ RUN pacman -Syu --noconfirm && \
     jq \
     unzip \
     ca-certificates \
-    binutils \
-    pkgfile \
-    fakeroot \
     sudo
 
-# Install debtap from github and update the database
-RUN wget -O /usr/local/bin/debtap https://raw.githubusercontent.com/helixarch/debtap/3.6.3/debtap && \
-    chmod +x /usr/local/bin/debtap && \
-    debtap -u
+# Build yay for AUR access
+RUN sudo pacman -S --needed git base-devel && \
+    git clone https://aur.archlinux.org && \
+    cd yay && \
+    makepkg -si && \
+    cd .. && \
+    rm -rf yay
 
-# Install Python 3.12
-RUN pacman -S --noconfirm python312 && \
-    python3.12 -m pip install --no-cache-dir  --break-system-packages --upgrade pip
+# Install python3.12, pip and debtap
+RUN yay -S python312 debtap && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+    python3.12 get-pip.py && \
+    sudo debtap -u && \
+    rm -rf get-pip.py
 
 COPY *.whl /tmp/
 RUN pip install --no-cache-dir --break-system-packages /tmp/*.whl && \
