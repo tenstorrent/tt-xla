@@ -94,7 +94,7 @@ from .attention import (
 from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .overrides import replace_modules
-from .platform import TTConfig
+from .platform import TTConfig, resolve_hf_decoder_layer_config
 from .vllm_distributed_utils import shard_model
 
 if TYPE_CHECKING:
@@ -513,16 +513,17 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._original_num_layers = None
         self._target_num_layers = None
         target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
-
-        if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
-            logger.info(
-                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
-            )
-            # Store original layer count for weight filtering
-            self._original_num_layers = original_num_layers
-            self._target_num_layers = target_num_layers
+        if target_num_layers > 0:
+            hf_cfg = vllm_config.model_config.hf_config
+            original_num_layers, layer_cfg = resolve_hf_decoder_layer_config(hf_cfg)
+            if target_num_layers < original_num_layers:
+                layer_cfg.num_hidden_layers = target_num_layers
+                logger.info(
+                    f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+                )
+                # Store original layer count for weight filtering
+                self._original_num_layers = original_num_layers
+                self._target_num_layers = target_num_layers
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -1520,7 +1521,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(
-                (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
+                (batch_size, num_tokens, self.inputs_embeds_size),
+                dtype=self.dtype,
+                device=self.device,
             )
         else:
             input_ids = torch.zeros((batch_size, num_tokens), dtype=torch.int32).to(
