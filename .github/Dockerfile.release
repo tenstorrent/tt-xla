@@ -5,40 +5,28 @@ SHELL ["/bin/bash", "-c"]
 LABEL org.opencontainers.image.source=https://github.com/tenstorrent/tt-xla
 LABEL org.opencontainers.image.licenses=Apache-2.0
 
-# Install system tools
+# Install runtime dependencies and Python
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    software-properties-common \
-    pkg-config \
     curl \
     wget \
-    jq \
     git \
-    vim \
-    nano \
+    jq \
+    unzip \
     ca-certificates \
-    sudo \
-    ssh \
-    unzip
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
+    python3-pip && \
+    python3.12 -m pip install --break-system-packages --no-cache-dir --upgrade pip && \
+    ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3.12 /usr/bin/python && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Enable system-wide packages install
-RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
-
-# Install python
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3.12 python3.12-dev python3.12-venv python3-pip && \
-    python3.12 -m pip install --no-cache-dir --ignore-installed --upgrade pip && \
-    ln -sf /usr/bin/python3 /usr/bin/python
-
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    build-essential
-
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
 
 COPY *.whl /tmp/
-RUN pip install --no-cache-dir /tmp/*.whl && \
+RUN pip install --break-system-packages --no-cache-dir /tmp/*.whl && \
     tt-forge-install && \
     rm -rf /tmp/*.whl
 
