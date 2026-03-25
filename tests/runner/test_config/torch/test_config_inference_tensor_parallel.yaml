@@ -14,9 +14,8 @@ test_config:
 
   falcon/pytorch-3_Mamba_7B_Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: KNOWN_FAILURE_XFAIL
-    reason: " Error: loc('compare.1209'): error: Compare operation is not supported in stablehlo-pipeline for meshes not 1x1 - https://github.com/tenstorrent/tt-mlir/issues/3497"
-
+    status: EXPECTED_PASSING
+    
   gemma/pytorch-1.1_7B_IT-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
@@ -194,9 +193,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-30B_A3b-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on n300-llmbox"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   olmo3/causal_lm/pytorch-3_32b_think-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -215,8 +212,7 @@ test_config:
 
   mistral/pytorch-mistral_small_3.2_24b_instruct_2506-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "KeyError: c_lifted_tensor_1 - https://github.com/tenstorrent/tt-xla/issues/3221"
+    status: EXPECTED_PASSING
 
   solar-10_7B/causal_lm/pytorch-10_7B_Instruct_v1.0-tensor_parallel-inference:
     supported_archs: [n300-llmbox]

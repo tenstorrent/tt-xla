@@ -871,13 +871,13 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_vl/pytorch-3B_Instruct-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+    status: EXPECTED_PASSING
+    # reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
   qwen_2_5_vl/pytorch-7B_Instruct-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
+    status: EXPECTED_PASSING
+    # reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
   llama/sequence_classification/pytorch-3.2_1B-single_device-inference:
     status: EXPECTED_PASSING
@@ -1839,8 +1839,9 @@ test_config:
 
   llava/pytorch-1.5_7B-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>>'"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>>'"
 
   qwen_2_5/causal_lm/pytorch-72B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -2589,8 +2590,8 @@ test_config:
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
+    status: EXPECTED_PASSING
+    # reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0725-single_device-inference:
     supported_archs: ["p150"]
