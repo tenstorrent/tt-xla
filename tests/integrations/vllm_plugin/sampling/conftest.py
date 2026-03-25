@@ -8,6 +8,10 @@ failure (which can leave the vLLM engine core in a dead state).
 """
 
 import gc
+import json
+import os
+import sys
+from datetime import datetime, timezone
 
 import pytest
 import vllm
@@ -68,9 +72,97 @@ def pytest_runtest_teardown(item, nextitem):
         _flush_llm_cache()
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--iterations",
+        type=int,
+        default=50,
+        help="Number of sampling iterations for perf benchmarks (default: 50)",
+    )
+    parser.addoption(
+        "--perf-output",
+        type=str,
+        default=None,
+        help="Path for perf benchmark JSON output (default: perf_debug/sampling_perf_<timestamp>.json)",
+    )
+
+
+@pytest.fixture
+def iterations(request):
+    return request.config.getoption("--iterations")
+
+
+# -- Perf result collection --
+
+_perf_results: list[dict] = []
+
+
+@pytest.fixture
+def perf_collector():
+    """Append a result dict to the session-wide perf collector."""
+
+    def record(
+        test_name, backend, mode, vocab_size, iterations, avg_ms, p50_ms, p95_ms
+    ):
+        _perf_results.append(
+            {
+                "test": test_name,
+                "backend": backend,
+                "mode": mode,
+                "vocab_size": vocab_size,
+                "iterations": iterations,
+                "avg_ms": round(avg_ms, 2),
+                "p50_ms": round(p50_ms, 2),
+                "p95_ms": round(p95_ms, 2),
+                "tok_s": round(1000.0 / avg_ms, 1) if avg_ms > 0 else 0,
+            }
+        )
+
+    return record
+
+
 def pytest_sessionfinish(session, exitstatus):
-    """Shut down cached LLM instances before Python tears down I/O."""
+    """Shut down cached LLM instances and write perf results."""
     _flush_llm_cache()
+
+    if not _perf_results:
+        return
+
+    # Print summary table to stderr so it's visible even without -s
+    w = sys.stderr.write
+    header = (
+        f"  {'Test':<35} {'Backend':<8} {'Vocab':>8} {'Avg ms':>8} "
+        f"{'P50 ms':>8} {'P95 ms':>8} {'tok/s':>7}"
+    )
+    width = len(header)
+    w("\n" + "=" * width + "\n")
+    w("SAMPLING PERF SUMMARY\n")
+    w("=" * width + "\n")
+    w(header + "\n")
+    w("-" * width + "\n")
+    for r in _perf_results:
+        w(
+            f"  {r['test']:<35} {r['backend']:<8} {r['vocab_size']:>8} "
+            f"{r['avg_ms']:>8.2f} {r['p50_ms']:>8.2f} {r['p95_ms']:>8.2f} "
+            f"{r['tok_s']:>7.1f}\n"
+        )
+    w("=" * width + "\n")
+
+    # Write JSON
+    output_path = session.config.getoption("--perf-output", default=None)
+    if output_path is None:
+        os.makedirs("perf_debug", exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        output_path = f"perf_debug/sampling_perf_{ts}.json"
+
+    summary = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "iterations": session.config.getoption("--iterations", default=100),
+        "results": _perf_results,
+    }
+    with open(output_path, "w") as f:
+        json.dump(summary, f, indent=2)
+    sys.stderr.write(f"\nPerf results written to: {output_path}\n")
 
 
 @pytest.fixture

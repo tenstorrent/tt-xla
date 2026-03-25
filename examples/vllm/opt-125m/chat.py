@@ -26,6 +26,7 @@ import vllm
 
 MODEL = "facebook/opt-125m"
 MAX_MODEL_LEN = 1024
+MAX_MODEL_LEN_FAST = 256  # Smaller context → faster compilation
 GPU_MEMORY_UTILIZATION = 0.1
 
 BENCHMARK_PROMPTS = [
@@ -40,7 +41,8 @@ BENCHMARK_PROMPTS = [
 ]
 
 
-def create_engine(cpu_sampling=False):
+def create_engine(cpu_sampling=False, fast=False):
+    max_len = MAX_MODEL_LEN_FAST if fast else MAX_MODEL_LEN
     additional_config = {
         "enable_const_eval": False,
         "min_context_len": 32,
@@ -49,17 +51,19 @@ def create_engine(cpu_sampling=False):
         additional_config["cpu_sampling"] = True
 
     sampling_label = "CPU" if cpu_sampling else "device"
-    print(f"Loading {MODEL} (sampling: {sampling_label}) ...")
+    print(f"Loading {MODEL} (sampling: {sampling_label}, max_model_len={max_len}) ...")
+    start = time.perf_counter()
     llm = vllm.LLM(
         model=MODEL,
-        max_model_len=MAX_MODEL_LEN,
-        max_num_batched_tokens=MAX_MODEL_LEN,
+        max_model_len=max_len,
+        max_num_batched_tokens=max_len,
         max_num_seqs=1,
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         disable_log_stats=True,
         additional_config=additional_config,
     )
-    print("Engine ready.\n")
+    elapsed = time.perf_counter() - start
+    print(f"Engine ready in {elapsed:.1f}s.\n")
     return llm
 
 
@@ -182,9 +186,14 @@ def main():
         default=1,
         help="Number of benchmark prompts (max 8)",
     )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Use smaller max_model_len (256) for faster compilation",
+    )
     args = parser.parse_args()
 
-    llm = create_engine(cpu_sampling=args.cpu_sampling)
+    llm = create_engine(cpu_sampling=args.cpu_sampling, fast=args.fast)
     warmup(llm, args.temperature)
 
     if args.benchmark:
