@@ -43,6 +43,7 @@ from .passes import (
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
+    rewrite_interpolate_to_matmul,
     run_fusion_passes,
 )
 
@@ -221,25 +222,6 @@ def torch_pass_pipeline(
     dict[str, str],
     Tuple[torch.Tensor, ...],
 ]:
-
-    # Run fusion passes to detect and fuse multi-op patterns
-    # This runs before composite_ops to allow fused patterns to be wrapped as composites
-    enable_fusion_passes = options is None or options.get(
-        "tt_enable_torch_fx_fusion_pass", True
-    )
-    if enable_fusion_passes:
-        run_fusion_passes(gm)
-
-    # This is a temporary option to disable / enable composite ops
-    # that will be removed once composite ops are more stable.
-    # default to True if options are not given or if tt_enable_composite_ops is not present
-
-    enable_composite_ops = options is None or options.get(
-        "tt_enable_composite_ops", True
-    )
-    if enable_composite_ops:
-        handle_composite_ops(gm)
-
     if aot_graph_signature is not None:
         # AOTAutograd path: decompositions already applied by AOTAutograd.
         # All params/buffers are already lifted as placeholders in args.
@@ -255,6 +237,26 @@ def torch_pass_pipeline(
             if spec.target is not None
         }
     else:
+        # fx fusion and composite ops are pre applied in case of AOTAutograd, but not without it.
+        # so we need to run them here if AOTAutograd is not used.
+
+        # Run fusion passes to detect and fuse multi-op patterns
+        # This runs before composite_ops to allow fused patterns to be wrapped as composites
+        enable_fusion_passes = options is None or options.get(
+            "tt_enable_torch_fx_fusion_pass", True
+        )
+        if enable_fusion_passes:
+            run_fusion_passes(gm)
+
+        # This is a temporary option to disable / enable composite ops
+        # that will be removed once composite ops are more stable.
+        # default to True if options are not given or if tt_enable_composite_ops is not present
+        enable_composite_ops = options is None or options.get(
+            "tt_enable_composite_ops", True
+        )
+        if enable_composite_ops:
+            handle_composite_ops(gm)
+
         # Non-AOTAutograd path: use torch.export for decompositions.
         decompositions = populate_decompositions()
 
@@ -454,6 +456,26 @@ def aot_backend(
     # There is a Torch/TorchXLA bug where fakified XLA tensors fault in AdaptiveAveragePool, because of an as_strided_ call
     # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3549
     gm = rewrite_adaptive_avgpool_to_mean(gm)
+
+    # Rewrite F.interpolate(bilinear/nearest) to matmul-based implementation.
+    # AOTAutograd seems to force decompose F.interpolate no matter what, and that op doesn't reach our decomposition table.
+    # The standard decomposition works, but the rest of the stack is overfit on the old form and the new behavior would introduce a perf regression.
+    # You guessed it, THIS IS A HACK (again) https://github.com/tenstorrent/tt-xla/issues/3912.
+    gm = rewrite_interpolate_to_matmul(gm)
+
+    # FX fusion is not robust to changes AOTAutograd applies, and that causes composite handling to break.
+    # So let's just handle all that before AOTAutograd.
+    enable_fusion_passes = options is None or options.get(
+        "tt_enable_torch_fx_fusion_pass", True
+    )
+    if enable_fusion_passes:
+        run_fusion_passes(gm)
+
+    enable_composite_ops = options is None or options.get(
+        "tt_enable_composite_ops", True
+    )
+    if enable_composite_ops:
+        handle_composite_ops(gm)
 
     # Capture parameter/buffer names and the FQN mapping from the original
     # module *before* AOTAutograd lifts them into flat placeholder inputs.
