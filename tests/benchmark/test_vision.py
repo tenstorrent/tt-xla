@@ -10,7 +10,7 @@ from utils import aggregate_ttnn_perf_metrics, resolve_display_name
 
 # Defaults for all vision models
 DEFAULT_OPTIMIZATION_LEVEL = 2
-DEFAULT_TRACE_ENABLED = False
+DEFAULT_TRACE_ENABLED = True
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_LOOP_COUNT = 128
 DEFAULT_INPUT_SIZE = (3, 224, 224)  # (channels, height, width)
