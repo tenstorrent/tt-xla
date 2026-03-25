@@ -58,10 +58,6 @@ private:
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index) override;
 
-  // Create default-initialized output buffers for SO execution
-  void createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
-                                  size_t num_devices);
-
   // Fills the output lists of the PJRT API with actual output tensors
   // produced by PythonModelRunner execution.
   void fillPJRTOutputLists(
