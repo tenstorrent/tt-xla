@@ -441,7 +441,8 @@ class TorchDynamicLoader(DynamicLoader):
         # TODO(kmabee) - Temporary workaround to exclude models with fatal issues.
         # Dictionary mapping model directory names to their exclusion reasons
         excluded_model_dirs = {
-            "suryaocr": "Issue #1166"  # Surya OCR imports and initializes torch_xla runtime which causes issues
+            "suryaocr": "Issue #1166",  # Surya OCR imports and initializes torch_xla runtime which causes issues
+            "minicpm_o_2_6": "Global nn.Module.__getattr__ monkey patch breaks other models",
         }
 
         for root, dirs, files in os.walk(models_root):
