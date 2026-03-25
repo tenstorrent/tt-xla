@@ -11,11 +11,7 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig
-from infra.utilities import (
-    Framework,
-    compile_torch_workload_for_cpu,
-    compile_torch_workload_for_tt_device,
-)
+from infra.utilities import Framework, compile_torch_workload_for_tt_device
 from infra.workloads import TorchWorkload, Workload
 from tt_torch.sharding import sharding_constraint_tensor
 from ttxla_tools.logging import logger
@@ -170,10 +166,6 @@ class TorchModelTester(ModelTester):
             return {**self._input_activations}
         return {}
 
-    def _compile_for_cpu(self, workload: Workload) -> None:
-        """Compile Torch workload for CPU."""
-        compile_torch_workload_for_cpu(workload)
-
     def _run_on_cpu(self, compiled_workload: Workload) -> torch.Tensor:
         """Runs workload on CPU with jax accelerator masked.
 
@@ -252,7 +244,6 @@ class TorchModelTester(ModelTester):
         torch_xla._XLAC._init_computation_client()
 
         # Run forward on CPU
-        self._compile_for_cpu(self._workload)
         cpu_res = self._run_on_cpu(self._workload)
         cpu_res = self._unpack_forward_output(cpu_res)
 
