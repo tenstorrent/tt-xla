@@ -779,7 +779,7 @@ def test_simple_sharded_addition():
     xr.set_device_type("TT")
     setup_spmd()
     device = torch_xla.device()
-    mesh = create_device_mesh((4, 32))
+    mesh = create_device_mesh((4, 16))
 
     # Create 1024x4096 tensors - the 4096 dimension will be sharded across 8 devices
     a = torch.randn(1024, 4096, dtype=torch.float32).to(device)
