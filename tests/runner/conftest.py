@@ -16,9 +16,17 @@ from tests.runner.test_utils import ModelTestConfig, ModelTestStatus
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
-@pytest.fixture(scope="session", autouse=True)
-def capture_golden_pip_state():
-    """Capture the clean pip environment at session start for crash recovery."""
+def pytest_sessionstart(session):
+    """Capture the clean pip environment at session start for crash recovery.
+
+    This must be a hook (not a session-scoped fixture) because pytest-forked
+    runs ``runtestprotocol`` — including fixture setup — inside each fork()ed
+    child.  A session fixture would lazily re-initialise in every child,
+    capturing the (possibly dirty) on-disk state instead of the original
+    clean state.  ``pytest_sessionstart`` runs once in the parent process
+    before any forking occurs, so the snapshot is taken exactly once and
+    inherited by all children via fork().
+    """
     RequirementsManager.capture_golden_state()
 
 

@@ -53,7 +53,15 @@ class RequirementsManager:
 
     @classmethod
     def capture_golden_state(cls) -> None:
-        """Capture the clean pip environment in memory.  Called once per session."""
+        """Capture the clean pip environment in memory.  Called once per session.
+
+        Guarded so that forked children (pytest-forked) do not re-capture:
+        with --forked, session fixtures re-run inside each child process.
+        Without this guard the child would overwrite the inherited golden
+        freeze with the (possibly dirty) on-disk state.
+        """
+        if cls._golden_freeze is not None:
+            return
         cls._golden_freeze = cls._pip_freeze()
         _dbg(
             f"[Requirements] Golden freeze captured: "
