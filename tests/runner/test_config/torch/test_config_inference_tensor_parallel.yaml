@@ -222,3 +222,30 @@ test_config:
   solar-10_7B/causal_lm/pytorch-10_7B_Instruct_v1.0-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+
+  llama/sequence_classification/pytorch-3.1_70B-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u,n300-llmbox]
+    arch_overrides:
+      galaxy-wh-6u:
+        status: EXPECTED_PASSING
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        status: EXPECTED_PASSING
+
+  llama/sequence_classification/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u,n300-llmbox]
+    arch_overrides:
+      galaxy-wh-6u:
+        status: EXPECTED_PASSING
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        status: EXPECTED_PASSING
+
+  llama/sequence_classification/pytorch-3.3_70B_Instruct-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    arch_overrides:
+      galaxy-wh-6u:
+        status: EXPECTED_PASSING
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        status: EXPECTED_PASSING
