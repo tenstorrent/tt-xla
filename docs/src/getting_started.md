@@ -129,7 +129,7 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    * Ubuntu 24.04
    * Python 3.12
    * python3.12-venv
-   * Clang 17
+   * Clang 20
    * GCC 13
    * Ninja
    * CMake 4.0.3
@@ -227,7 +227,7 @@ Install from source if you are a developer who wants to develop for TT-XLA.
 The TT-XLA repo contains various tests in the **tests** directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line. Multi-chip tests can be run only on specific Tenstorrent hardware, therefore these tests are structured in folders named by the Tenstorrent cards/systems they can be run on. For example, you can run `pytest -v tests/jax/multi_chip/n300` only on a system with an n300 Tenstorrent card. Single-chip tests can be run on any system with the command `pytest -v tests/jax/single_chip`.
 
 ## Common Build Errors
-- Building TT-XLA requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
+- Building TT-XLA requires `clang-20`. Please make sure that `clang-20` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
 - Please also see the TT-MLIR [docs](https://github.com/tenstorrent/tt-mlir/blob/main/docs/src/getting-started.md#common-build-errors) for common build errors.
 
 ## Pre-commit
