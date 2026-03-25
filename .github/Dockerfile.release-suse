@@ -22,7 +22,7 @@ RUN zypper install -y python312 python312-devel python3-pip && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 
 COPY *.whl /tmp/
-RUN pip install --no-cache-dir /tmp/*.whl && \
+RUN pip install --no-cache-dir --break-system-packages /tmp/*.whl && \
     tt-forge-install && \
     rm -rf /tmp/*.whl
 

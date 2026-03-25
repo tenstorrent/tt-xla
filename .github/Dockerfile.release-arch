@@ -17,7 +17,7 @@ RUN pacman -Syu --noconfirm && \
     sudo
 
 # Build yay for AUR access
-RUN sudo pacman -S --needed git base-devel && \
+RUN sudo pacman -Syu --needed git base-devel && \
     git clone https://aur.archlinux.org && \
     cd yay && \
     makepkg -si && \
