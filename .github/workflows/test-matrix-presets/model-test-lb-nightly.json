@@ -1,6 +1,9 @@
 [
-  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "lb-blackhole and tensor_parallel" },
-  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_multichip", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "lb-blackhole and tensor_parallel" },
-  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_llm_multichip", "dir": "./tests/runner/test_models.py::test_llms_torch", "test-mark": "lb-blackhole and tensor_parallel" },
-  { "runs-on": "lb-blackhole", "name": "run_standalone_models_lb_multichip", "dir": "./tests/torch/models", "test-mark": "llmbox" }
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "lb-blackhole and tensor_parallel and expected_passing" },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_multichip", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "lb-blackhole and tensor_parallel and expected_passing" },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_llm_multichip", "dir": "./tests/runner/test_models.py::test_llms_torch", "test-mark": "lb-blackhole and tensor_parallel and expected_passing" },
+  { "runs-on": "lb-blackhole", "name": "run_standalone_models_lb_multichip", "dir": "./tests/torch/models", "test-mark": "llmbox" },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_multichip_xfail", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "lb-blackhole and tensor_parallel and known_failure_xfail" },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_multichip_xfail", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "lb-blackhole and tensor_parallel and known_failure_xfail" },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_llm_multichip_xfail", "dir": "./tests/runner/test_models.py::test_llms_torch", "test-mark": "lb-blackhole and tensor_parallel and known_failure_xfail" }
 ]
