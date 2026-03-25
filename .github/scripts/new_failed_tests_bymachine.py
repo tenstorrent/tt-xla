@@ -101,6 +101,13 @@ def find_new_failed_tests(dir_a, dir_b, filter):
         machine: tests for machine, tests in new_failed_tests.items() if tests
     }
 
+    # Skip galaxy machines - limited runner availability makes bisecting impractical
+    new_failed_tests = {
+        machine: tests
+        for machine, tests in new_failed_tests.items()
+        if "galaxy" not in machine and "glx" not in machine
+    }
+
     print(f"New failed tests: {new_failed_tests}")
     return new_failed_tests
 
