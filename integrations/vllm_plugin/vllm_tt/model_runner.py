@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -1026,6 +1027,31 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if num_reqs == 1:
             cache_position[1:] = -1
             page_table[1:, :] = 0
+
+        # Debug: check for overlapping physical blocks between request slots
+        if num_reqs > 1 and os.environ.get("DEBUG_BLOCK_TABLE"):
+            all_blocks = {}  # physical_block -> list of (slot, logical_idx)
+            for slot in range(num_reqs):
+                n_blocks = (seq_lens[slot].item() + self.block_size - 1) // self.block_size
+                for b in range(n_blocks):
+                    phys = page_table[slot, b].item()
+                    if phys not in all_blocks:
+                        all_blocks[phys] = []
+                    all_blocks[phys].append((slot, b))
+            overlaps = {k: v for k, v in all_blocks.items() if len(v) > 1}
+            if overlaps:
+                print(f"BLOCK TABLE OVERLAP DETECTED! num_reqs={num_reqs}", flush=True)
+                for phys, slots in overlaps.items():
+                    print(f"  Physical block {phys} used by: {slots}", flush=True)
+            # Always log block table for first few decode steps
+            if not hasattr(self, '_debug_bt_count'):
+                self._debug_bt_count = 0
+            self._debug_bt_count += 1
+            if self._debug_bt_count <= 3:
+                print(f"DEBUG_BT step={self._debug_bt_count} num_reqs={num_reqs} seq_lens={seq_lens[:num_reqs].tolist()}", flush=True)
+                for slot in range(num_reqs):
+                    n_blocks = (seq_lens[slot].item() + self.block_size - 1) // self.block_size
+                    print(f"  Slot {slot}: blocks={page_table[slot, :n_blocks].tolist()}", flush=True)
 
         cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
