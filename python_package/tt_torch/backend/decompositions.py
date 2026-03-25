@@ -78,6 +78,7 @@ def upsample_linear(
     align_corners: bool,
     scales: List[Optional[float]],
 ) -> torch.Tensor:
+    scales = list(scales)
     input_size = input.shape[-len(scales) :]
 
     for i in range(len(scales)):
