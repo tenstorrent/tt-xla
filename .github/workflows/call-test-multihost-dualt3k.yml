@@ -100,79 +100,48 @@ jobs:
         echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> /tmp/ssh_agent_env
         echo "SSH agent started with PID $SSH_AGENT_PID"
 
-    - name: Start container on controller
-      shell: bash
-      run: |
-        source /tmp/ssh_agent_env
-
-        DOCKER_CMD="docker run --pull=always --rm -d \
-          --name ubuntu-host-mapped \
-          --privileged \
-          --pid=host \
-          --network=host \
-          --device /dev/tenstorrent \
-          -v /dev/hugepages:/dev/hugepages \
-          -v /dev/hugepages-1G:/dev/hugepages-1G \
-          -v /etc/udev/rules.d:/etc/udev/rules.d \
-          -v /lib/modules:/lib/modules \
-          -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
-          -v /mnt/dockercache:/mnt/dockercache \
-          -v /etc/mpirun:/etc/mpirun:ro"
-
-        if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
-          echo "SSH agent forwarding enabled: $SSH_AUTH_SOCK"
-          DOCKER_CMD="$DOCKER_CMD -v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
-        else
-          echo "Warning: SSH_AUTH_SOCK not available — skipping SSH agent forwarding"
-        fi
-
-        DOCKER_CMD="$DOCKER_CMD \
-          -v ${{ github.workspace }}:/workspace \
-          -w /workspace \
-          --hostname mpirun-host \
-          ${{ inputs.docker_image }} \
-          sleep infinity"
-
-        CONTAINER_ID=$(eval $DOCKER_CMD)
-        if [ -z "$CONTAINER_ID" ]; then
-          echo "ERROR: Failed to start controller container"
-          exit 1
-        fi
-        echo "Controller container started: $CONTAINER_ID"
-
-    - name: Start containers on worker hosts via mpirun
+    - name: Start containers on all hosts via mpirun
       shell: bash
       run: |
         mpirun --hostfile /etc/mpirun/hostfile \
           --mca btl_tcp_if_exclude docker0,lo \
           --tag-output \
           bash -c '
-            if docker ps --filter name=ubuntu-host-mapped --format "{{.Names}}" | grep -q ubuntu-host-mapped; then
-              echo "$(hostname): Container already running (controller), skipping"
+            [ -f /tmp/ssh_agent_env ] && source /tmp/ssh_agent_env
+
+            DOCKER_CMD="docker run --pull=always --rm -d \
+              --name ubuntu-host-mapped \
+              --privileged \
+              --pid=host \
+              --network=host \
+              --device /dev/tenstorrent \
+              -v /dev/hugepages:/dev/hugepages \
+              -v /dev/hugepages-1G:/dev/hugepages-1G \
+              -v /etc/udev/rules.d:/etc/udev/rules.d \
+              -v /lib/modules:/lib/modules \
+              -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+              -v /mnt/dockercache:/mnt/dockercache \
+              -v /etc/mpirun:/etc/mpirun:ro"
+
+            if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+              echo "$(hostname): SSH agent forwarding enabled: $SSH_AUTH_SOCK"
+              DOCKER_CMD="$DOCKER_CMD -v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
             else
-              CONTAINER_ID=$(docker run --pull=always --rm -d \
-                --name ubuntu-host-mapped \
-                --privileged \
-                --pid=host \
-                --network=host \
-                --device /dev/tenstorrent \
-                -v /etc/mpirun:/etc/mpirun:ro \
-                -v /dev/hugepages:/dev/hugepages \
-                -v /dev/hugepages-1G:/dev/hugepages-1G \
-                -v /etc/udev/rules.d:/etc/udev/rules.d \
-                -v /lib/modules:/lib/modules \
-                -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
-                -v /mnt/dockercache:/mnt/dockercache \
-                -v ${{ github.workspace }}:/workspace \
-                -w /workspace \
-                ${{ inputs.docker_image }} \
-                sleep infinity)
-              if [ -z "$CONTAINER_ID" ]; then
-                echo "$(hostname): ERROR: Failed to start worker container"
-                exit 1
-              fi
-              echo "$(hostname): Worker container started: $CONTAINER_ID"
+              echo "$(hostname): No SSH agent available"
             fi
+
+            DOCKER_CMD="$DOCKER_CMD \
+              -v ${{ github.workspace }}:/workspace \
+              -w /workspace \
+              ${{ inputs.docker_image }} \
+              sleep infinity"
+
+            CONTAINER_ID=$(eval $DOCKER_CMD)
+            if [ -z "$CONTAINER_ID" ]; then
+              echo "$(hostname): ERROR: Failed to start container"
+              exit 1
+            fi
+            echo "$(hostname): Container started: $CONTAINER_ID"
           '
 
     - name: Make remote_docker.sh executable in controller container
