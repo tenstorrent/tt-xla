@@ -597,7 +597,11 @@ class DeepseekV3MoE(nn.Module):
             outputs.append(expert_out)
             start_idx = end_idx
 
-        outs = torch.cat(outputs, dim=0) if len(outputs) else sorted_tokens.new_empty(0)
+        outs = (
+            torch.cat(outputs, dim=0)
+            if len(outputs)
+            else sorted_tokens.new_zeros(sorted_tokens.shape)
+        )
         if self.ep_size > 1:
             new_x = torch.empty_like(outs)
             new_x[gatherd_idxs] = outs
