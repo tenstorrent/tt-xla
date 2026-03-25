@@ -269,6 +269,7 @@ def test_qwen3_embedding_4b(output_file, num_layers, request):
         input_sequence_length=input_sequence_length,
         loop_count=32,
         optimization_level=0,
+        trace_enabled=False,
     )
 
 
@@ -545,4 +546,5 @@ def test_unet_for_conditional_generation(output_file, request):
         input_sequence_length=unet_max_seqlen,  # for UNet it is always set to the max sequence length
         loop_count=128,
         optimization_level=1,
+        trace_enabled=False,
     )

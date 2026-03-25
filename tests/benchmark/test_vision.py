@@ -163,6 +163,7 @@ def test_mnist(output_file, request):
         batch_size=batch_size,
         input_size=input_size,
         data_format=data_format,
+        trace_enabled=False,
     )
 
 
@@ -310,6 +311,7 @@ def test_swin(output_file, request):
         input_size=input_size,
         data_format=data_format,
         required_pcc=0.90,
+        trace_enabled=False,
     )
 
 
@@ -417,6 +419,7 @@ def test_unet(output_file, request):
         batch_size=batch_size,
         input_size=input_size,
         data_format=data_format,
+        trace_enabled=False,
     )
 
 

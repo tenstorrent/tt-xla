@@ -735,6 +735,7 @@ def test_ministral_8b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -842,6 +843,7 @@ def test_ministral_8b_tp(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -1126,6 +1128,7 @@ def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
         max_output_tokens=max_output_tokens,
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        trace_enabled=False,
     )
 
 
@@ -1148,6 +1151,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=1,
+        trace_enabled=False,
     )
 
 
