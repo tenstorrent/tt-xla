@@ -39,6 +39,8 @@ def main():
             return match.group(1).strip()
         return None
 
+    sudo_available = bool(shutil.which("sudo"))
+
     try:
         # Find the package installation directory
         import pjrt_plugin_tt
@@ -130,8 +132,11 @@ def main():
         print("Installing SFPI package...")
         sys.stdout.flush()
         sys.stderr.flush()
+        cmd = [*pkgm, str(temp_pkg_path)]
+        if sudo_available:
+            cmd.insert(0, "sudo")
         subprocess.run(
-            ["sudo", *pkgm, str(temp_pkg_path)],
+            cmd,
             check=True,
             capture_output=False,
             text=True,
