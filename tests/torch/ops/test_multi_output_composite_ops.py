@@ -5,6 +5,7 @@
 import operator
 from unittest.mock import patch
 
+import pytest
 import torch
 from tt_torch.backend.passes import handle_composite_ops
 from tt_torch.composite_ops import (
@@ -38,6 +39,7 @@ class _GeluModel(torch.nn.Module):
         return torch.nn.functional.gelu(x, approximate="tanh")
 
 
+@pytest.mark.push
 def test_handle_composite_ops_gelu_no_multi_output():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_GeluModel(), x)
@@ -50,6 +52,7 @@ def test_handle_composite_ops_gelu_no_multi_output():
     assert operator.getitem not in targets
 
 
+@pytest.mark.push
 def test_handle_composite_ops_selects_indices():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKIndices(), x)
@@ -62,6 +65,7 @@ def test_handle_composite_ops_selects_indices():
     assert operator.getitem not in targets
 
 
+@pytest.mark.push
 def test_handle_composite_ops_selects_values():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKValues(), x)
@@ -73,6 +77,7 @@ def test_handle_composite_ops_selects_values():
     assert operator.getitem not in targets
 
 
+@pytest.mark.push
 def test_handle_composite_ops_selects_both():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKBoth(), x)

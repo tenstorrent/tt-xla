@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import operator
 
+import pytest
 import torch
 from tt_torch.backend.passes import handle_composite_ops
 from tt_torch.composite_ops import (
@@ -33,6 +34,7 @@ class _TopKIndicesMethod(torch.nn.Module):
         return x.topk(3)[1]
 
 
+@pytest.mark.push
 def test_handle_composite_ops_method_selects_both():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKBothMethod(), x)
@@ -44,6 +46,7 @@ def test_handle_composite_ops_method_selects_both():
     assert operator.getitem in targets
 
 
+@pytest.mark.push
 def test_handle_composite_ops_method_selects_values():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKValuesMethod(), x)
@@ -55,6 +58,7 @@ def test_handle_composite_ops_method_selects_values():
     assert operator.getitem not in targets
 
 
+@pytest.mark.push
 def test_handle_composite_ops_method_selects_indices():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKIndicesMethod(), x)
