@@ -735,6 +735,7 @@ def test_ministral_8b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -862,6 +863,7 @@ def test_ministral_8b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
