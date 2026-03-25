@@ -13,89 +13,354 @@
     }
 
     .container {
-      max-width: 960px;
+      max-width: 1120px;
       margin: 0 auto;
-      padding: 32px 20px 40px;
+      padding: 36px 20px 48px;
     }
 
     h1 {
-      margin: 0 0 8px;
-      font-size: 28px;
-      color: #f8fafc;
+      margin: 0 0 10px;
+      font-size: 32px;
+      color: #fbbf24;
     }
 
-    p {
-      margin: 0 0 24px;
+    .lead {
+      margin: 0 0 28px;
       color: #9ca3af;
       line-height: 1.5;
+      max-width: 820px;
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 14px;
-    }
-
-    a.card {
-      display: block;
-      padding: 16px 18px;
+    .section {
+      margin-top: 26px;
+      padding: 20px;
       border: 1px solid #374151;
-      border-radius: 12px;
+      border-radius: 18px;
       background: #1f2937;
+    }
+
+    .summary {
+      margin-top: 22px;
+      padding: 20px;
+      border: 1px solid #4b5563;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(20, 184, 166, 0.10), rgba(31, 41, 55, 0.96));
+    }
+
+    .summary-title {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: #99f6e4;
+    }
+
+    .summary-text {
+      margin: 0;
+      color: #cbd5e1;
+      line-height: 1.6;
+      max-width: 920px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .stat-card {
+      padding: 14px 16px;
+      border: 1px solid #374151;
+      border-radius: 14px;
+      background: rgba(17, 24, 39, 0.62);
+    }
+
+    .stat-label {
+      display: block;
+      margin-bottom: 6px;
+      color: #9ca3af;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      display: block;
+      color: #f8fafc;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .stat-detail {
+      display: block;
+      margin-top: 6px;
+      color: #93c5fd;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 20px;
+      color: #a7f3d0;
+    }
+
+    .section-note {
+      color: #9ca3af;
+      font-size: 14px;
+    }
+
+    .full-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 20px;
+      border: 1px solid #f59e0b;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.10), rgba(31, 41, 55, 0.95));
       color: #e5e7eb;
       text-decoration: none;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
 
-    a.card:hover {
+    .full-card:hover,
+    .sub-card:hover {
       border-color: #60a5fa;
       background: #243244;
+    }
+
+    .eyebrow {
+      display: block;
+      margin-bottom: 6px;
+      color: #f59e0b;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     .title {
       display: block;
       font-weight: 700;
       color: #f8fafc;
+      font-size: 22px;
+    }
+
+    .desc {
+      display: block;
+      margin-top: 8px;
+      color: #cbd5e1;
+      line-height: 1.45;
     }
 
     .meta {
       display: block;
-      margin-top: 6px;
+      margin-top: 8px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 12px;
       color: #93c5fd;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(251, 191, 36, 0.10);
+      color: #fde68a;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .sub-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .sub-card {
+      display: block;
+      padding: 16px 18px;
+      border: 1px solid #374151;
+      border-radius: 14px;
+      background: #262626;
+      color: #e5e7eb;
+      text-decoration: none;
+    }
+
+    .sub-card.attention {
+      border-color: rgba(126, 186, 211, 0.45);
+      background: linear-gradient(180deg, rgba(126, 186, 211, 0.10), rgba(38, 38, 38, 0.96));
+    }
+
+    .sub-card.moe {
+      border-color: rgba(205, 152, 72, 0.50);
+      background: linear-gradient(180deg, rgba(205, 152, 72, 0.11), rgba(38, 38, 38, 0.96));
+    }
+
+    .sub-label {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(156, 163, 175, 0.12);
+      color: #d1d5db;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .sub-card.attention .sub-label {
+      background: rgba(126, 186, 211, 0.12);
+      color: #7ebad3;
+    }
+
+    .sub-card.moe .sub-label {
+      background: rgba(205, 152, 72, 0.14);
+      color: #cd9848;
+    }
+
+    .sub-title {
+      display: block;
+      font-weight: 700;
+      color: #f8fafc;
+      font-size: 18px;
+    }
+
+    .sub-desc {
+      display: block;
+      margin-top: 8px;
+      color: #cbd5e1;
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    @media (max-width: 700px) {
+      .full-card {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>TT Perf Segment Previews</h1>
-    <p>Open any generated preview below. Each page includes the fresh terminal-style `tt-perf-report` output and its summary chart.</p>
-    <div class="grid">
-      <a class="card" href="even_attention_performance_report.html">
-        <span class="title">Even Attention</span>
-        <span class="meta">even_attention_performance_report.html</span>
+    <h1>GPT-OSS 20B Layer And Sublayer Device Perf</h1>
+    <p class="lead">Measured on Galaxy at batch size 64. We ran a traced 6-layer model decode, sliced representative full layers and sublayers from that run, and used those layer measurements to estimate total device perf for the full GPT-OSS 20B model.</p>
+
+    <section class="summary">
+      <h2 class="summary-title">GPT-OSS 20B Device Perf Summary</h2>
+      <p class="summary-text">Measured from the second traced `decode_2` window on Galaxy at batch size 64. The 6-layer model device perf comes from the full slice between the `decode_2` signposts. Representative even and odd layer times are sliced from that same run, then the skill formula uses those layer measurements to estimate total GPT-OSS 20B device perf.</p>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-label">Model And Trace Scope</span>
+          <span class="stat-value">GPT-OSS 20B</span>
+          <span class="stat-detail">Galaxy, traced 6-layer decode run, second `decode_2`, batch size 64</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Even Full Layer Device Perf</span>
+          <span class="stat-value">10.228 ms</span>
+          <span class="stat-detail">representative middle even layer</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Odd Full Layer Device Perf</span>
+          <span class="stat-value">10.244 ms</span>
+          <span class="stat-detail">representative middle odd layer</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Estimated Total Device Perf</span>
+          <span class="stat-value">263.659 ms</span>
+          <span class="stat-detail">6-layer baseline + remaining 9 even layers + remaining 9 odd layers</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Device-Perf Tokens/s/User</span>
+          <span class="stat-value">3.79</span>
+          <span class="stat-detail">1 / 0.263659 s using estimated total device perf</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">End-to-End Tokens/s/User</span>
+          <span class="stat-value">2.015</span>
+          <span class="stat-detail">from CI benchmark run #879 on Galaxy at batch size 64</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Even Layers</h2>
+        <span class="section-note">Full layer includes attention and MoE sublayers</span>
+      </div>
+
+      <a class="full-card" href="even_full_performance_report.html">
+        <span>
+          <span class="eyebrow">Primary View</span>
+          <span class="title">Even Full</span>
+          <span class="desc">Full GPT-OSS even-layer slice, from the input norm that starts the transformer block through the residual add after the MoE combine.</span>
+          <span class="meta">even_full_performance_report.html</span>
+        </span>
+        <span class="pill">Open full layer</span>
       </a>
-      <a class="card" href="even_full_performance_report.html">
-        <span class="title">Even Full</span>
-        <span class="meta">even_full_performance_report.html</span>
+
+      <div class="sub-grid">
+        <a class="sub-card attention" href="even_attention_performance_report.html">
+          <span class="sub-label">Part of Even Full Layer</span>
+          <span class="sub-title">Even Attention Sublayer</span>
+          <span class="sub-desc">Attention-only sublayer from the even layer, ending at the residual add after attention output projection. Even GPT-OSS layers use full-context attention.</span>
+          <span class="meta">even_attention_performance_report.html</span>
+        </a>
+
+        <a class="sub-card moe" href="even_moe_performance_report.html">
+          <span class="sub-label">Part of Even Full Layer</span>
+          <span class="sub-title">Even MoE Sublayer</span>
+          <span class="sub-desc">Post-attention MoE sublayer from the even layer: post-attention norm, router projection, top-k routing, expert MLP work, combine, and final residual add.</span>
+          <span class="meta">even_moe_performance_report.html</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Odd Layers</h2>
+        <span class="section-note">Full layer includes attention and MoE sublayers</span>
+      </div>
+
+      <a class="full-card" href="odd_full_performance_report.html">
+        <span>
+          <span class="eyebrow">Primary View</span>
+          <span class="title">Odd Full</span>
+          <span class="desc">Full GPT-OSS odd-layer slice, from the input norm that starts the transformer block through the residual add after the MoE combine.</span>
+          <span class="meta">odd_full_performance_report.html</span>
+        </span>
+        <span class="pill">Open full layer</span>
       </a>
-      <a class="card" href="even_moe_performance_report.html">
-        <span class="title">Even MoE</span>
-        <span class="meta">even_moe_performance_report.html</span>
-      </a>
-      <a class="card" href="odd_attention_performance_report.html">
-        <span class="title">Odd Attention</span>
-        <span class="meta">odd_attention_performance_report.html</span>
-      </a>
-      <a class="card" href="odd_full_performance_report.html">
-        <span class="title">Odd Full</span>
-        <span class="meta">odd_full_performance_report.html</span>
-      </a>
-      <a class="card" href="odd_moe_performance_report.html">
-        <span class="title">Odd MoE</span>
-        <span class="meta">odd_moe_performance_report.html</span>
-      </a>
-    </div>
+
+      <div class="sub-grid">
+        <a class="sub-card attention" href="odd_attention_performance_report.html">
+          <span class="sub-label">Part of Odd Full Layer</span>
+          <span class="sub-title">Odd Attention Sublayer</span>
+          <span class="sub-desc">Attention-only sublayer from the odd layer, ending at the residual add after attention output projection. Odd GPT-OSS layers use sliding-window attention.</span>
+          <span class="meta">odd_attention_performance_report.html</span>
+        </a>
+
+        <a class="sub-card moe" href="odd_moe_performance_report.html">
+          <span class="sub-label">Part of Odd Full Layer</span>
+          <span class="sub-title">Odd MoE Sublayer</span>
+          <span class="sub-desc">Post-attention MoE sublayer from the odd layer: post-attention norm, router projection, top-k routing, expert MLP work, combine, and final residual add.</span>
+          <span class="meta">odd_moe_performance_report.html</span>
+        </a>
+      </div>
+    </section>
   </div>
 </body>
 </html>
