@@ -25,11 +25,11 @@ RUN wget -O /usr/local/bin/debtap https://raw.githubusercontent.com/helixarch/de
     debtap -u
 
 # Install Python 3.12
-RUN pacman -S --noconfirm python && \
-    python -m pip install --no-cache-dir --upgrade pip
+RUN pacman -S --noconfirm python312 && \
+    python3.12 -m pip install --no-cache-dir  --break-system-packages --upgrade pip
 
 COPY *.whl /tmp/
-RUN pip install --no-cache-dir /tmp/*.whl && \
+RUN pip install --no-cache-dir --break-system-packages /tmp/*.whl && \
     tt-forge-install && \
     rm -rf /tmp/*.whl
 
