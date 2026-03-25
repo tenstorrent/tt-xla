@@ -1,0 +1,10 @@
+[
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_blackhole_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and single_device and expected_passing", "parallel-groups": 20 },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_blackhole_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and single_device and expected_passing", "parallel-groups": 5 },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_blackhole_llm", "dir": "./tests/runner/test_models.py::test_llms_torch", "test-mark": "p150 and single_device and expected_passing" },
+  { "runs-on": "lb-blackhole", "name": "run_standalone_models_lb_blackhole_torch", "dir": "./tests/torch/models", "test-mark": "single_device" },
+  { "runs-on": "lb-blackhole", "name": "run_standalone_models_lb_blackhole_jax", "dir": "./tests/jax/single_chip/models", "test-mark": "" },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_blackhole_torch_xfail", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and single_device and known_failure_xfail", "parallel-groups": 20 },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_blackhole_jax_xfail", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and single_device and known_failure_xfail", "parallel-groups": 5 },
+  { "runs-on": "lb-blackhole", "name": "run_forge_models_lb_blackhole_llm_xfail", "dir": "./tests/runner/test_models.py::test_llms_torch", "test-mark": "p150 and single_device and known_failure_xfail" }
+]
