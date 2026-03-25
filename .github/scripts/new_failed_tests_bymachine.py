@@ -105,7 +105,7 @@ def find_new_failed_tests(dir_a, dir_b, filter):
     new_failed_tests = {
         machine: tests
         for machine, tests in new_failed_tests.items()
-        if not machine.startswith("galaxy")
+        if "galaxy" not in machine and "glx" not in machine
     }
 
     print(f"New failed tests: {new_failed_tests}")
