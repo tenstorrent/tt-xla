@@ -3,22 +3,22 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Interactive single-process chat with Llama-3.1-8B-Instruct using vllm.LLM.
+Interactive single-process chat with Llama-3.2-1B-Instruct using vllm.LLM.
 
 No server required — runs the engine directly in this process.
 
 Usage:
     # Interactive chat (greedy)
-    python examples/vllm/Llama-3.1-8B-Instruct/chat.py
+    python examples/vllm/Llama-3.2-1B-Instruct/chat.py
 
     # Benchmark: device sampling, non-greedy (the slow case)
-    python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --temperature 0.8
+    python examples/vllm/Llama-3.2-1B-Instruct/chat.py --benchmark --temperature 0.8
 
     # Benchmark: CPU sampling, non-greedy
-    python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --temperature 0.8 --cpu-sampling
+    python examples/vllm/Llama-3.2-1B-Instruct/chat.py --benchmark --temperature 0.8 --cpu-sampling
 
     # Benchmark: device sampling, greedy (baseline)
-    python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --temperature 0.0
+    python examples/vllm/Llama-3.2-1B-Instruct/chat.py --benchmark --temperature 0.0
 """
 
 import argparse
@@ -26,9 +26,9 @@ import time
 
 import vllm
 
-MODEL = "meta-llama/Llama-3.1-8B-Instruct"
+MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 MAX_MODEL_LEN = 2048
-GPU_MEMORY_UTILIZATION = 0.05
+GPU_MEMORY_UTILIZATION = 0.1
 
 BENCHMARK_PROMPTS = [
     "Explain the theory of relativity in simple terms.",
@@ -173,7 +173,9 @@ def run_interactive(llm, temperature, max_tokens):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Chat or benchmark Llama-3.1-8B")
+    parser = argparse.ArgumentParser(
+        description="Chat or benchmark Llama-3.2-1B-Instruct"
+    )
     parser.add_argument(
         "--benchmark", action="store_true", help="Run automated benchmark"
     )
