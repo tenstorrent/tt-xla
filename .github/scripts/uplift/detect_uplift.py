@@ -4,23 +4,56 @@
 """
 Uplift detection main script.
 
-Reads the given uplift detection config file and runs each detection script
-to determine which uplifts, if any are present in a PR. Outputs a single
-string to stdout in the format:
+Reads the given uplift detection config file and checks the PR diff for
+changes matching each entry's path and regex pattern. Outputs JSON to stdout:
 
-    uplift1:uplift2#matrix1:matrix2
-
-The part before '#' is colon-separated uplift names, the part after '#' is
-colon-separated test matrix presets. Empty string if no uplifts detected.
+    {
+      "uplifts": ["uplift1", "uplift2"],
+      "test_matrices": ["matrix1.json", "matrix2.json"]
+    }
 
 Usage:
     python <this_file> <config_file> <changed_files_file> <diff_file>
 """
 
 import json
-import subprocess
+import re
 import sys
 from pathlib import Path
+
+
+def check_uplift(entry, changed_files, diff_content):
+    """Check if an uplift is detected based on config entry."""
+    name = entry["name"]
+    path = entry["path"]
+    regex = entry["regex"]
+
+    if path not in changed_files:
+        print(f"No uplift: {name}", file=sys.stderr)
+        return False
+
+    # Extract the diff section for the specific file
+    escaped_path = re.escape(path)
+    section_pattern = (
+        rf"^diff --git a/{escaped_path} b/{escaped_path}\n(.*?)(?=^diff --git |\Z)"
+    )
+    section_match = re.search(section_pattern, diff_content, re.MULTILINE | re.DOTALL)
+
+    if not section_match:
+        print(f"No uplift: {name}", file=sys.stderr)
+        return False
+
+    file_diff = section_match.group(0)
+    if re.search(regex, file_diff, re.MULTILINE):
+        print(
+            f"Detected change matching /{regex}/ in {path}",
+            file=sys.stderr,
+        )
+        print(f"Uplift detected: {name}", file=sys.stderr)
+        return True
+
+    print(f"No uplift: {name}", file=sys.stderr)
+    return False
 
 
 def main():
@@ -38,47 +71,20 @@ def main():
     with open(config_path, "r") as f:
         config = json.load(f)
 
-    scripts_dir = config_path.parent
+    with open(changed_files_path, "r") as f:
+        changed_files = {line.strip() for line in f if line.strip()}
 
-    detected_uplifts = []
-    detected_matrices = []
+    with open(diff_file_path, "r") as f:
+        diff_content = f.read()
+
+    result = {"uplifts": [], "test_matrices": []}
 
     for entry in config:
-        name = entry["name"]
-        script = scripts_dir / entry["detector"]
-        test_matrix = entry["test_matrix"]
+        if check_uplift(entry, changed_files, diff_content):
+            result["uplifts"].append(entry["name"])
+            result["test_matrices"].append(entry["test_matrix"])
 
-        if not script.exists():
-            print(f"Warning: detection script not found: {script}", file=sys.stderr)
-            continue
-
-        try:
-            result = subprocess.run(
-                [str(script), changed_files_path, diff_file_path],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.stdout.strip():
-                print(f"  [{name}] {result.stdout.strip()}", file=sys.stderr)
-            if result.returncode == 0:
-                print(f"Uplift detected: {name}", file=sys.stderr)
-                detected_uplifts.append(name)
-                detected_matrices.append(test_matrix)
-            else:
-                print(f"No uplift: {name}", file=sys.stderr)
-        except subprocess.TimeoutExpired:
-            print(f"Warning: detection script timed out: {script}", file=sys.stderr)
-        except Exception as e:
-            print(
-                f"Warning: error running detection script {script}: {e}",
-                file=sys.stderr,
-            )
-
-    if detected_uplifts:
-        print(f"{':'.join(detected_uplifts)}#{':'.join(detected_matrices)}")
-    else:
-        print("")
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":

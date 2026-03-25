@@ -147,13 +147,11 @@ jobs:
             tmp_dir=$(mktemp -d)
             echo "$CHANGED_FILES" > "$tmp_dir/changed_files"
             gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} > "$tmp_dir/pr_diff" || true
-            uplift_detection_result=$(python .github/scripts/uplift/detect_uplift.py .github/scripts/uplift/uplift-config.json "$tmp_dir/changed_files" "$tmp_dir/pr_diff")
+            uplift_json=$(python .github/scripts/uplift/detect_uplift.py .github/scripts/uplift/uplift-config.json "$tmp_dir/changed_files" "$tmp_dir/pr_diff")
             rm -rf "$tmp_dir"
-            echo "Uplift detection result: $uplift_detection_result"
-            if [[ -n "$uplift_detection_result" ]]; then
-              detected_uplifts="${uplift_detection_result%%#*}"
-              uplift_additional_test_suites="${uplift_detection_result#*#}"
-            fi
+            echo "Uplift detection result: $uplift_json"
+            detected_uplifts=$(echo "$uplift_json" | jq -r '.uplifts | join(":")')
+            uplift_additional_test_suites=$(echo "$uplift_json" | jq -r '.test_matrices | join(":")')
 
             # Check wheel build file changes
             wheel_patterns=(

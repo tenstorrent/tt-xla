@@ -2,13 +2,15 @@
   {
     "name": "tt-mlir",
     "description": "TT-MLIR dependency uplift",
-    "detector": "detect_uplift_mlir.sh",
+    "path": "third_party/CMakeLists.txt",
+    "regex": "^[+-]\\s*set\\(TT_MLIR_VERSION",
     "test_matrix": "model-test-extended.json"
   },
   {
     "name": "transformers",
     "description": "Transformers library uplift",
-    "detector": "detect_uplift_transformers.sh",
+    "path": "venv/requirements-dev.txt",
+    "regex": "^[+-]transformers[=<>!~]",
     "test_matrix": "transformers-uplift-qualification.json"
   }
 ]
