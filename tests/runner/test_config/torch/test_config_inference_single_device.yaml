@@ -2393,6 +2393,7 @@ test_config:
 
   dense_unet_3d/pytorch-Base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
     reason: "Currently hanging - https://github.com/tenstorrent/tt-xla/issues/3852"
     markers: [large]
 
