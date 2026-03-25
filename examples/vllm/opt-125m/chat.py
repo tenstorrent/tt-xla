@@ -3,22 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Interactive single-process chat with Llama-3.1-8B-Instruct using vllm.LLM.
+Benchmark sampling overhead with OPT-125M using vllm.LLM.
 
-No server required — runs the engine directly in this process.
+OPT-125M is tiny enough that model compute is negligible — differences
+between configurations are almost entirely sampling overhead.
 
 Usage:
-    # Interactive chat (greedy)
-    python examples/vllm/Llama-3.1-8B-Instruct/chat.py
+    # Device sampling, non-greedy (isolates sampling cost)
+    python examples/vllm/opt-125m/chat.py --benchmark --temperature 0.8
 
-    # Benchmark: device sampling, non-greedy (the slow case)
-    python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --temperature 0.8
+    # CPU sampling, non-greedy
+    python examples/vllm/opt-125m/chat.py --benchmark --temperature 0.8 --cpu-sampling
 
-    # Benchmark: CPU sampling, non-greedy
-    python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --temperature 0.8 --cpu-sampling
-
-    # Benchmark: device sampling, greedy (baseline)
-    python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --temperature 0.0
+    # Device sampling, greedy (baseline)
+    python examples/vllm/opt-125m/chat.py --benchmark --temperature 0.0
 """
 
 import argparse
@@ -26,9 +24,9 @@ import time
 
 import vllm
 
-MODEL = "meta-llama/Llama-3.1-8B-Instruct"
-MAX_MODEL_LEN = 2048
-GPU_MEMORY_UTILIZATION = 0.05
+MODEL = "facebook/opt-125m"
+MAX_MODEL_LEN = 1024
+GPU_MEMORY_UTILIZATION = 0.1
 
 BENCHMARK_PROMPTS = [
     "Explain the theory of relativity in simple terms.",
@@ -92,16 +90,8 @@ def run_benchmark(llm, args):
 
     results = []
     for i, prompt_text in enumerate(prompts):
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt_text},
-        ]
-        prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-
         start = time.perf_counter()
-        outputs = llm.generate([prompt], params)
+        outputs = llm.generate([prompt_text], params)
         elapsed = time.perf_counter() - start
 
         output = outputs[0]
@@ -138,18 +128,10 @@ def run_benchmark(llm, args):
 
 
 def run_interactive(llm, temperature, max_tokens):
-    messages = [{"role": "system", "content": "You are a helpful assistant."}]
-    tokenizer = llm.get_tokenizer()
-
     while True:
-        user_input = input("Enter a message (or 'q' to quit): ")
-        if user_input.strip().lower() == "q":
+        prompt = input("Enter a prompt (or 'q' to quit): ")
+        if prompt.strip().lower() == "q":
             break
-
-        messages.append({"role": "user", "content": user_input})
-        prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
 
         params = vllm.SamplingParams(max_tokens=max_tokens, temperature=temperature)
 
@@ -169,11 +151,11 @@ def run_interactive(llm, temperature, max_tokens):
             f"{tok_s:.1f} tok/s, {elapsed:.2f}s]"
         )
 
-        messages.append({"role": "assistant", "content": text})
-
 
 def main():
-    parser = argparse.ArgumentParser(description="Chat or benchmark Llama-3.1-8B")
+    parser = argparse.ArgumentParser(
+        description="Chat or benchmark OPT-125M sampling overhead"
+    )
     parser.add_argument(
         "--benchmark", action="store_true", help="Run automated benchmark"
     )
