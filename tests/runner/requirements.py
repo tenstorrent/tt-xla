@@ -107,26 +107,17 @@ class RequirementsManager:
 
         if to_restore:
             _dbg(f"[Requirements] Restoring: restoring {len(to_restore)} packages")
-            restore_file = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w",
-                    suffix=".txt",
-                    delete=False,
-                    prefix="tt_xla_restore_golden_",
-                ) as f:
-                    f.write("\n".join(to_restore) + "\n")
-                    restore_file = f.name
-                cls._pip_install_requirements(restore_file)
-            except Exception as e:
-                warnings.warn(
-                    f"[Requirements] Restoring: install failed: {e}",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-            finally:
-                if restore_file and os.path.isfile(restore_file):
-                    os.unlink(restore_file)
+            # Install one-by-one so that a single unresolvable package
+            # does not block the entire restore.
+            for spec in to_restore:
+                try:
+                    cls._pip_install(tuple([spec]))
+                except Exception as e:
+                    warnings.warn(
+                        f"[Requirements] Restoring: failed to install {spec}: {e}",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
 
         _dbg("[Requirements] Environment restored")
 
