@@ -1,9 +1,0 @@
-[
-  {
-    "runs-on": "multi-host-t3000",
-    "name": "run_multihost_dualt3k_basic",
-    "dir": "./tests/torch/multi_host/experimental/test_multihost_basic.py",
-    "test-mark": "",
-    "args": "-k dual_t3k"
-  }
-]
