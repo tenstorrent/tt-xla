@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{PAGE_TITLE}}</title>
+  <style>
+    body {
+      margin: 0;
+      background: #262626;
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 36px 20px 48px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 32px;
+      color: #fbbf24;
+    }
+
+    .lead {
+      margin: 0 0 28px;
+      color: #9ca3af;
+      line-height: 1.5;
+      max-width: 860px;
+    }
+
+    .summary,
+    .section {
+      margin-top: 24px;
+      padding: 20px;
+      border: 1px solid #374151;
+      border-radius: 18px;
+      background: #1f2937;
+    }
+
+    .summary {
+      background: linear-gradient(180deg, rgba(20, 184, 166, 0.10), rgba(31, 41, 55, 0.96));
+    }
+
+    .summary-title {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: #99f6e4;
+    }
+
+    .summary-text {
+      margin: 0;
+      color: #cbd5e1;
+      line-height: 1.6;
+      max-width: 920px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .stat-card {
+      padding: 14px 16px;
+      border: 1px solid #374151;
+      border-radius: 14px;
+      background: rgba(17, 24, 39, 0.62);
+    }
+
+    .stat-label {
+      display: block;
+      margin-bottom: 6px;
+      color: #9ca3af;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      display: block;
+      color: #f8fafc;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .stat-detail {
+      display: block;
+      margin-top: 6px;
+      color: #93c5fd;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 20px;
+      color: #a7f3d0;
+    }
+
+    .section-note {
+      color: #9ca3af;
+      font-size: 14px;
+    }
+
+    .full-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 20px;
+      border: 1px solid #f59e0b;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.10), rgba(31, 41, 55, 0.95));
+      color: #e5e7eb;
+      text-decoration: none;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .full-card:hover,
+    .sub-card:hover {
+      border-color: #60a5fa;
+      background: #243244;
+    }
+
+    .eyebrow {
+      display: block;
+      margin-bottom: 6px;
+      color: #f59e0b;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .title {
+      display: block;
+      font-weight: 700;
+      color: #f8fafc;
+      font-size: 22px;
+    }
+
+    .desc {
+      display: block;
+      margin-top: 8px;
+      color: #cbd5e1;
+      line-height: 1.45;
+    }
+
+    .meta {
+      display: block;
+      margin-top: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      color: #93c5fd;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(251, 191, 36, 0.10);
+      color: #fde68a;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .sub-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .sub-card {
+      display: block;
+      padding: 16px 18px;
+      border: 1px solid #374151;
+      border-radius: 14px;
+      background: #262626;
+      color: #e5e7eb;
+      text-decoration: none;
+    }
+
+    .sub-card.part-a {
+      border-color: rgba(126, 186, 211, 0.45);
+      background: linear-gradient(180deg, rgba(126, 186, 211, 0.10), rgba(38, 38, 38, 0.96));
+    }
+
+    .sub-card.part-b {
+      border-color: rgba(205, 152, 72, 0.50);
+      background: linear-gradient(180deg, rgba(205, 152, 72, 0.11), rgba(38, 38, 38, 0.96));
+    }
+
+    .sub-card.part-c {
+      border-color: rgba(167, 243, 208, 0.45);
+      background: linear-gradient(180deg, rgba(167, 243, 208, 0.10), rgba(38, 38, 38, 0.96));
+    }
+
+    .sub-label {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(156, 163, 175, 0.12);
+      color: #d1d5db;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .sub-title {
+      display: block;
+      font-weight: 700;
+      color: #f8fafc;
+      font-size: 18px;
+    }
+
+    .sub-desc {
+      display: block;
+      margin-top: 8px;
+      color: #cbd5e1;
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    @media (max-width: 700px) {
+      .full-card {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>{{PAGE_HEADER}}</h1>
+    <p class="lead">{{LEAD_TEXT}}</p>
+
+    <section class="summary">
+      <h2 class="summary-title">{{SUMMARY_TITLE}}</h2>
+      <p class="summary-text">{{SUMMARY_TEXT}}</p>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-label">Trace Scope</span>
+          <span class="stat-value">{{MODEL_NAME}}</span>
+          <span class="stat-detail">{{TRACE_SCOPE_DETAIL}}</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">{{PRIMARY_LAYER_LABEL}}</span>
+          <span class="stat-value">{{PRIMARY_LAYER_VALUE}}</span>
+          <span class="stat-detail">{{PRIMARY_LAYER_DETAIL}}</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">{{SECONDARY_LAYER_LABEL}}</span>
+          <span class="stat-value">{{SECONDARY_LAYER_VALUE}}</span>
+          <span class="stat-detail">{{SECONDARY_LAYER_DETAIL}}</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">{{TOTAL_DEVICE_PERF_LABEL}}</span>
+          <span class="stat-value">{{TOTAL_DEVICE_PERF_VALUE}}</span>
+          <span class="stat-detail">{{TOTAL_DEVICE_PERF_DETAIL}}</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">{{DEVICE_RATE_LABEL}}</span>
+          <span class="stat-value">{{DEVICE_RATE_VALUE}}</span>
+          <span class="stat-detail">{{DEVICE_RATE_DETAIL}}</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">{{E2E_RATE_LABEL}}</span>
+          <span class="stat-value">{{E2E_RATE_VALUE}}</span>
+          <span class="stat-detail">{{E2E_RATE_DETAIL}}</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">{{GROUP_A_TITLE}}</h2>
+        <span class="section-note">{{GROUP_A_NOTE}}</span>
+      </div>
+
+      <a class="full-card" href="{{GROUP_A_FULL_HREF}}">
+        <span>
+          <span class="eyebrow">Primary View</span>
+          <span class="title">{{GROUP_A_FULL_TITLE}}</span>
+          <span class="desc">{{GROUP_A_FULL_DESC}}</span>
+          <span class="meta">{{GROUP_A_FULL_META}}</span>
+        </span>
+        <span class="pill">Open full layer</span>
+      </a>
+
+      <div class="sub-grid">
+        <a class="sub-card part-a" href="{{GROUP_A_PART1_HREF}}">
+          <span class="sub-label">{{GROUP_A_PART1_LABEL}}</span>
+          <span class="sub-title">{{GROUP_A_PART1_TITLE}}</span>
+          <span class="sub-desc">{{GROUP_A_PART1_DESC}}</span>
+          <span class="meta">{{GROUP_A_PART1_META}}</span>
+        </a>
+
+        <a class="sub-card part-b" href="{{GROUP_A_PART2_HREF}}">
+          <span class="sub-label">{{GROUP_A_PART2_LABEL}}</span>
+          <span class="sub-title">{{GROUP_A_PART2_TITLE}}</span>
+          <span class="sub-desc">{{GROUP_A_PART2_DESC}}</span>
+          <span class="meta">{{GROUP_A_PART2_META}}</span>
+        </a>
+
+        <a class="sub-card part-c" href="{{GROUP_A_PART3_HREF}}">
+          <span class="sub-label">{{GROUP_A_PART3_LABEL}}</span>
+          <span class="sub-title">{{GROUP_A_PART3_TITLE}}</span>
+          <span class="sub-desc">{{GROUP_A_PART3_DESC}}</span>
+          <span class="meta">{{GROUP_A_PART3_META}}</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">{{GROUP_B_TITLE}}</h2>
+        <span class="section-note">{{GROUP_B_NOTE}}</span>
+      </div>
+
+      <a class="full-card" href="{{GROUP_B_FULL_HREF}}">
+        <span>
+          <span class="eyebrow">Primary View</span>
+          <span class="title">{{GROUP_B_FULL_TITLE}}</span>
+          <span class="desc">{{GROUP_B_FULL_DESC}}</span>
+          <span class="meta">{{GROUP_B_FULL_META}}</span>
+        </span>
+        <span class="pill">Open full layer</span>
+      </a>
+
+      <div class="sub-grid">
+        <a class="sub-card part-a" href="{{GROUP_B_PART1_HREF}}">
+          <span class="sub-label">{{GROUP_B_PART1_LABEL}}</span>
+          <span class="sub-title">{{GROUP_B_PART1_TITLE}}</span>
+          <span class="sub-desc">{{GROUP_B_PART1_DESC}}</span>
+          <span class="meta">{{GROUP_B_PART1_META}}</span>
+        </a>
+
+        <a class="sub-card part-b" href="{{GROUP_B_PART2_HREF}}">
+          <span class="sub-label">{{GROUP_B_PART2_LABEL}}</span>
+          <span class="sub-title">{{GROUP_B_PART2_TITLE}}</span>
+          <span class="sub-desc">{{GROUP_B_PART2_DESC}}</span>
+          <span class="meta">{{GROUP_B_PART2_META}}</span>
+        </a>
+
+        <a class="sub-card part-c" href="{{GROUP_B_PART3_HREF}}">
+          <span class="sub-label">{{GROUP_B_PART3_LABEL}}</span>
+          <span class="sub-title">{{GROUP_B_PART3_TITLE}}</span>
+          <span class="sub-desc">{{GROUP_B_PART3_DESC}}</span>
+          <span class="meta">{{GROUP_B_PART3_META}}</span>
+        </a>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

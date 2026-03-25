@@ -136,10 +136,34 @@ After isolating the middle-layer CSV, use the sibling skill `.cursor/skills/tt-p
 
 For layer profiling, treat the generated summary PNG from that skill as the default chart artifact unless the user explicitly asks for a different visualization.
 
-## Full-Model Device-Time Estimate
+## Decode-Window Device Perf
+
+When the user asks for decode device perf, throughput, or tokens per second, use one traced reduced-layer decode window as the baseline input, then estimate the total decode device time for all layers.
+
+Use the selected `decode_2` interval as the traced reduced-layer baseline:
+- include all rows strictly inside the chosen `decode_2_start` / `decode_2_end` pair
+- if there are multiple `decode_2` windows, use the second one
+- write a dedicated full-decode slice CSV with signpost rows removed
+- run `tt-perf-report` on that full-decode CSV
+- take the traced decode device time from the final `100.0 %` row in the main `Performance Report`
+
+For reporting:
+- `traced_decode_device_time` is the measured device time for the reduced-layer traced decode window
+- `estimated_total_decode_device_time` is the preferred total device-perf output for the full model
+- `device_perf_tokens_per_second_per_user ~= 1 / estimated_total_decode_device_time_seconds`
+- `overall_tokens_per_second ~= batch_size / estimated_total_decode_device_time_seconds`
+
+Always state:
+- that the measured baseline comes from one full traced reduced-layer `decode_2` window
+- which decode window was used if multiple were present
+- that the final reported device-perf rate comes from the estimated total decode device time for all layers
+
+## Full-Model Decode Estimate
+
+For GPT-OSS decode profiling, the traced reduced-layer run is an input to the final estimate, not the final answer.
 
 If you have:
-- total device time for a traced model run with `num_layers`
+- total device time for a traced reduced-layer decode run with `num_layers`
 - total device time for one isolated layer
 
 estimate the full-model device time with:
@@ -167,22 +191,45 @@ GPT-OSS alternates:
 - even layers: full-context attention
 - odd layers: sliding-window attention
 
-If you have both isolated middle-layer measurements, prefer:
+If you have a traced GPT-OSS decode run with fewer layers plus representative isolated even and odd layer measurements, prefer:
 
 ```text
-gpt_oss_20b_total_device_time ~= device_time_at_num_layers + (12 - measured_even_layers) * even_layer_device_time + (12 - measured_odd_layers) * odd_layer_device_time
-gpt_oss_120b_total_device_time ~= device_time_at_num_layers + (18 - measured_even_layers) * even_layer_device_time + (18 - measured_odd_layers) * odd_layer_device_time
+gpt_oss_20b_total_decode_device_time ~= device_time_at_num_layers + (12 - measured_even_layers) * even_layer_device_time + (12 - measured_odd_layers) * odd_layer_device_time
+gpt_oss_120b_total_decode_device_time ~= device_time_at_num_layers + (18 - measured_even_layers) * even_layer_device_time + (18 - measured_odd_layers) * odd_layer_device_time
 ```
+
+Interpretation:
+- `device_time_at_num_layers`: total device time for one traced reduced-layer GPT-OSS decode step
+- `measured_even_layers`: number of even layers already included in that traced run
+- `measured_odd_layers`: number of odd layers already included in that traced run
+- `even_layer_device_time`: representative isolated even full-layer device time
+- `odd_layer_device_time`: representative isolated odd full-layer device time
+
+This means:
+
+```text
+gpt_oss_20b_total_decode_device_time
+  ~= traced_reduced_layer_decode_device_time
+   + missing_even_layers * even_layer_device_time
+   + missing_odd_layers * odd_layer_device_time
+```
+
+where:
+
+- `missing_even_layers = 12 - measured_even_layers`
+- `missing_odd_layers = 12 - measured_odd_layers`
+
+Use the traced decode window to determine `measured_even_layers` and `measured_odd_layers`; do not assume a specific reduced-layer count unless the user explicitly gives one.
 
 If you only have one GPT-OSS layer measurement, you may use the rough estimate:
 
 ```text
-gpt_oss_20b_total_device_time ~= device_time_at_num_layers + (24 - num_layers) * one_layer_device_time
-gpt_oss_120b_total_device_time ~= device_time_at_num_layers + (36 - num_layers) * one_layer_device_time
+gpt_oss_20b_total_decode_device_time ~= device_time_at_num_layers + (24 - num_layers) * one_layer_device_time
+gpt_oss_120b_total_decode_device_time ~= device_time_at_num_layers + (36 - num_layers) * one_layer_device_time
 ```
 
 Always state whether the estimate used:
-- the traced model device time plus per-layer extrapolation
+- the traced decode device time plus per-layer extrapolation
 - separate even and odd layer measurements
 
 ## Artifact Layout
