@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TT Perf Segment Previews</title>
+  <style>
+    body {
+      margin: 0;
+      background: #262626;
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 40px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      color: #f8fafc;
+    }
+
+    p {
+      margin: 0 0 24px;
+      color: #9ca3af;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+
+    a.card {
+      display: block;
+      padding: 16px 18px;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      background: #1f2937;
+      color: #e5e7eb;
+      text-decoration: none;
+    }
+
+    a.card:hover {
+      border-color: #60a5fa;
+      background: #243244;
+    }
+
+    .title {
+      display: block;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .meta {
+      display: block;
+      margin-top: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      color: #93c5fd;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>TT Perf Segment Previews</h1>
+    <p>Open any generated preview below. Each page includes the fresh terminal-style `tt-perf-report` output and its summary chart.</p>
+    <div class="grid">
+      <a class="card" href="even_attention_performance_report.html">
+        <span class="title">Even Attention</span>
+        <span class="meta">even_attention_performance_report.html</span>
+      </a>
+      <a class="card" href="even_full_performance_report.html">
+        <span class="title">Even Full</span>
+        <span class="meta">even_full_performance_report.html</span>
+      </a>
+      <a class="card" href="even_moe_performance_report.html">
+        <span class="title">Even MoE</span>
+        <span class="meta">even_moe_performance_report.html</span>
+      </a>
+      <a class="card" href="odd_attention_performance_report.html">
+        <span class="title">Odd Attention</span>
+        <span class="meta">odd_attention_performance_report.html</span>
+      </a>
+      <a class="card" href="odd_full_performance_report.html">
+        <span class="title">Odd Full</span>
+        <span class="meta">odd_full_performance_report.html</span>
+      </a>
+      <a class="card" href="odd_moe_performance_report.html">
+        <span class="title">Odd MoE</span>
+        <span class="meta">odd_moe_performance_report.html</span>
+      </a>
+    </div>
+  </div>
+</body>
+</html>
