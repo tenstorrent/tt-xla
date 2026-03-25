@@ -179,7 +179,7 @@ def main():
     parser.add_argument(
         "--num_devices",
         type=int,
-        default=4,
+        default=None,
         help="Simulate N devices via XLA_FLAGS (must divide num_heads and num_kv_heads; "
         "valid for Qwen2.5-7B: 1, 2, 4)",
     )

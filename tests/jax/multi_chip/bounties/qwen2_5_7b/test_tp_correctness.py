@@ -11,7 +11,7 @@ Uses a small Qwen-like config with random weights to verify:
   3. TP output matches single-device output (numerical equivalence).
 
 Run:
-  XLA_FLAGS='--xla_force_host_platform_device_count=4' \
+  XLA_FLAGS='--xla_force_host_platform_device_count=2' \
   JAX_PLATFORMS=cpu python test_tp_correctness.py
 """
 
@@ -26,11 +26,7 @@ if "--xla_force_host_platform_device_count" not in os.environ.get("XLA_FLAGS", "
 import jax
 import jax.numpy as jnp
 import numpy as np
-from model import (
-    Qwen25ForCausalLM,
-    make_causal_mask,
-    setup_device_mesh,
-)
+from model import Qwen25ForCausalLM, setup_device_mesh
 
 SMALL_CONFIG = {
     "hidden_size": 256,
@@ -42,8 +38,6 @@ SMALL_CONFIG = {
     "rms_norm_eps": 1e-6,
     "rope_theta": 1000000.0,
 }
-
-TP_SIZE = 2
 
 
 def init_model_and_params(config, dtype=jnp.bfloat16):
