@@ -90,9 +90,15 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            Install via pypi
+            ### Installation
+
+            #### Via PyPI
+            ```bash
             pip install pjrt-plugin-tt==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
             pip install vllm-tt==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            ```
 
-            Pull docker image
+            #### Via Docker
+            ```bash
             docker pull ${{ inputs.docker_image_base }}:${{ inputs.release_tag }}
+            ```
