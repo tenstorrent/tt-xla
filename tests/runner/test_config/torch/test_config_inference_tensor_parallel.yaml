@@ -108,9 +108,13 @@ test_config:
     status: EXPECTED_PASSING
 
   mistral/pytorch-Large_INSTRUCT_2411-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "xr.global_runtime_device_count() - Expected 2 eth links from physical chip 4 to physical chip 0 - https://github.com/tenstorrent/tt-xla/issues/1975"
+    supported_archs: [galaxy-wh-6u,n300-llmbox]
+    arch_overrides:
+      galaxy-wh-6u:
+        status: EXPECTED_PASSING
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        status: EXPECTED_PASSING
 
   mistral/pytorch-Devstral_Small_2505-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
