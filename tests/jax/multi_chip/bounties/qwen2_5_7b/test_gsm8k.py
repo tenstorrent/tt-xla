@@ -82,7 +82,7 @@ def generate_text_for_eval(
     formatted_text = tokenizer.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
     )
-    input_ids = tokenizer.encode(formatted_text, return_tensors="jax")
+    input_ids = jnp.array(tokenizer.encode(formatted_text, return_tensors="np"))
     batch, seq = input_ids.shape
     position_ids = jnp.arange(seq, dtype=jnp.int32)[None, :]
     past_key_values = None
