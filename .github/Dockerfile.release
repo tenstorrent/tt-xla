@@ -18,7 +18,7 @@ RUN apt-get update && \
     python3.12-dev \
     python3.12-venv \
     python3-pip && \
-    python3.12 -m pip install --break-system-packages --no-cache-dir --upgrade pip && \
+    # Create symlinks for python3.12
     ln -sf /usr/bin/python3.12 /usr/bin/python3 && \
     ln -sf /usr/bin/python3.12 /usr/bin/python && \
     apt-get clean && \
