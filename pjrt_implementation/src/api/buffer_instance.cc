@@ -35,6 +35,7 @@
 #include "api/device_instance.h"
 #include "api/error_instance.h"
 #include "api/memory_instance.h"
+#include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
 #include "utils/status.h"
@@ -142,7 +143,11 @@ void BufferInstance::deleteData() {
     return;
   }
 
-  joinCopyThread();
+  {
+    const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
+    if (m_copy_to_host_thread.joinable())
+      m_copy_to_host_thread.join();
+  }
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
@@ -151,8 +156,8 @@ void BufferInstance::deleteData() {
 
     // TODO(mrakita): Revert.
     // https://github.com/openxla/xla/issues/25172
-    assert(m_done_with_host_buffer_event->isIndestructible() &&
-           "Expected done_with_host_buffer_event to be indestructible");
+    TT_FATAL(m_done_with_host_buffer_event->isIndestructible(),
+             "Expected done_with_host_buffer_event to be indestructible");
     delete m_done_with_host_buffer_event;
   }
 }
@@ -164,7 +169,11 @@ void BufferInstance::copyFromHost(
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event) {
 
-  assert(data_type == m_data_type && "m_data_type and data_type do not match");
+  TT_FATAL(
+      data_type == m_data_type,
+      "m_data_type and data_type do not match: m_data_type={}, data_type={}",
+      data_type_utils::getPJRTBufferTypeString(m_data_type),
+      data_type_utils::getPJRTBufferTypeString(data_type));
 
   m_pjrt_tensor.reset();
 
@@ -243,7 +252,7 @@ void BufferInstance::copyFromHost(
 
 void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
-  assert(src_buffer->getPjrtTensor() && "Source buffer has no data.");
+  TT_FATAL(src_buffer->getPjrtTensor(), "Source buffer has no data.");
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
@@ -276,8 +285,7 @@ BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
     // tensors.
     if (data_type_utils::isComplexPJRTType(data_type)) {
       // Throw error if complex tensor num_dims == 0.
-      throw std::runtime_error(
-          "Complex tensor with num_dims == 0 is not supported.");
+      TT_THROW("Complex tensor with num_dims == 0 is not supported.");
     }
     return {1};
   }
@@ -305,7 +313,10 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
     return {1};
   }
 
-  assert(num_byte_strides == 0 || num_byte_strides == num_dims);
+  TT_FATAL(num_byte_strides == 0 || num_byte_strides == num_dims,
+           "num_byte_strides must be 0 or equal to num_dims: "
+           "num_byte_strides={}, num_dims={}",
+           num_byte_strides, num_dims);
 
   std::vector<std::uint32_t> strides;
   for (size_t i = 0; i < num_dims; ++i) {
@@ -325,33 +336,34 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
-  assert(m_pjrt_tensor && "Copy from buffer without an associated tensor.");
+  TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
 
+  std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+
   // TODO(acolic): Copying in a separate thread is left to match previous
   // behavior. Check whether it is needed: it does not make much sense to
   // create new thread for each shard, because tensors are moved once from
-  // device when onHost is called on a first shard; on the other hand, there is
-  // no sense to create new thread for memcpy because framework would wait on a
-  // copy anyway, right? Also, creating std::thread for memcpy might be overhead
-  // with performance loss. We must measure.
-  // Also, std::thread (as all objects from std::) has a value semantic, so it
-  // does not make any sense to create std::thread as a unique_ptr.
-  joinCopyThread();
+  // device when onHost is called on a first shard. Also, creating std::thread
+  // for memcpy might be overhead with performance loss. We should measure.
+  const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
+  if (m_copy_to_host_thread.joinable())
+    m_copy_to_host_thread.join();
 
-  std::unique_ptr<EventInstance> event = EventInstance::createInstance();
-
-  m_copy_to_host_thread = std::make_unique<std::thread>([=, e = event.get()] {
+  m_copy_to_host_thread = std::thread([=, this, e = event.get()] {
     try {
       ZoneScopedN("CopyToHostThread");
       const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
 
       m_pjrt_tensor->move_to_host();
 
-      assert(logicalTensorSize() <= host_buffer_size &&
-             "Host buffer is too small.");
+      TT_FATAL(logicalTensorSize() <= host_buffer_size,
+               "Host buffer is too small: logical_tensor_size={}, "
+               "host_buffer_size={}",
+               logicalTensorSize(), host_buffer_size);
+
       tt::runtime::memcpy(host_buffer, m_pjrt_tensor->runtime_tensor(),
                           rt_data_type);
 
@@ -370,7 +382,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 }
 
 void BufferInstance::markAsDataReady() {
-  assert(!m_data_ready);
+  TT_FATAL(!m_data_ready, "Data is already ready");
 
   std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
 

@@ -19,6 +19,7 @@
 
 // tt-xla includes
 #include "api/error_instance.h"
+#include "utils/assert.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -181,8 +182,8 @@ PJRT_Error *onEventError(PJRT_Event_Error_Args *args) {
     // PJRT docs state that PJRT_Event_Error should only be called if
     // PJRT_Event_IsReady returns true. XLA PJRT implementation aborts if this
     // check is not true.
-    throw std::runtime_error("PJRT_Event_Error should only be called if "
-                             "PJRT_Event_IsReady returns true");
+    TT_THROW("PJRT_Event_Error should only be called if "
+             "PJRT_Event_IsReady returns true");
   }
 
   return event_instance->getErrorFromStatus();

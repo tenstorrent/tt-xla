@@ -5,9 +5,6 @@
 
 #include "api/flatbuffer_loaded_executable_instance.h"
 
-// c++ standard library includes
-#include <cassert>
-
 // tracy includes
 #include "tracy/Tracy.hpp"
 
@@ -23,6 +20,7 @@
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/tensor.h"
+#include "utils/assert.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -151,12 +149,16 @@ FlatbufferLoadedExecutableInstance::getOutputShape(size_t output_index) {
   }
   llvm::SmallVector<int64_t> output_sharding_shard_shape =
       outputSharding.getShardShape();
-  assert(output_sharding_shard_shape.size() == outputShape.size() &&
-         "Output sharding shape doesn't match the output shape");
+  TT_FATAL(output_sharding_shard_shape.size() == outputShape.size(),
+           "Output sharding shape doesn't match the output shape: "
+           "output_sharding_shard_shape.size()={}, outputShape.size()={}",
+           output_sharding_shard_shape.size(), outputShape.size());
 
   for (size_t i = 0; i < outputShape.size(); ++i) {
-    assert(outputShape[i] % output_sharding_shard_shape[i] == 0 &&
-           "Output shape is not divisible by the sharding shape");
+    TT_FATAL(outputShape[i] % output_sharding_shard_shape[i] == 0,
+             "Output shape is not divisible by the sharding shape: "
+             "dim={}, outputShape[dim]={}, output_sharding_shard_shape[dim]={}",
+             i, outputShape[i], output_sharding_shard_shape[i]);
     outputShape[i] /= output_sharding_shard_shape[i];
   }
 
