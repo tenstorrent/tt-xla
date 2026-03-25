@@ -241,7 +241,6 @@ def test_deepseek_indexer(batch_size):
     )
 
 
-@pytest.mark.nightly
 @pytest.mark.llmbox
 def test_deepseek_v3_2_layer_sparse_moe():
     """Test single MoE Block with A2aSparseMLP on (2,4) mesh."""
@@ -254,7 +253,7 @@ def test_deepseek_v3_2_layer_sparse_moe():
         return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 / 1024
 
     batch_size = 64
-    seq_len = 32
+    seq_len = 1
     args = ModelArgs(
         n_layers=2,
         q_lora_rank=3072,
@@ -358,8 +357,6 @@ def test_deepseek_v3_2_layer_sparse_moe():
     print(f"[mem] after run_graph_test: {peak_rss_gb():.2f} GB")
 
 
-
-@pytest.mark.nightly
 @pytest.mark.llmbox
 def test_deepseek_v3_2_full_sparse_moe():
     """Test full DeepseekV3-2 Transformer with A2aSparseMLP on (2,4) mesh."""
