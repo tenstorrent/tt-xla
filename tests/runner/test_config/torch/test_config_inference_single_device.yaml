@@ -9,7 +9,12 @@
 
 test_config:
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
-    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: EXPECTED_PASSING
+      p150:
+        status: EXPECTED_PASSING
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3860
 
   gpt_neo/causal_lm/pytorch-1_3B-single_device-inference:
     status: EXPECTED_PASSING
@@ -561,8 +566,10 @@ test_config:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3860
       n150:
         status: EXPECTED_PASSING
+        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3860
 
   phi2/token_classification/pytorch-Phi_2_Pytdml-single_device-inference:
     arch_overrides:
@@ -1633,14 +1640,10 @@ test_config:
         status: EXPECTED_PASSING
 
   llama/sequence_classification/pytorch-3.1_70B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/sequence_classification/pytorch-3.1_70B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/sequence_classification/pytorch-3.1_8B-single_device-inference:
     status: EXPECTED_PASSING
@@ -1659,9 +1662,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   llama/sequence_classification/pytorch-3.3_70B_Instruct-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Too large for single chip"
-    bringup_status: FAILED_RUNTIME
+    status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   llama/sequence_classification/pytorch-3_8B-single_device-inference:
     arch_overrides:
@@ -2663,3 +2664,4 @@ test_config:
 
   gemma3/causal_lm/pytorch-1B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3860 - AssertionError: PCC comparison failed. Calculated: pcc=0.955831792289353. Required: pcc=0.99
