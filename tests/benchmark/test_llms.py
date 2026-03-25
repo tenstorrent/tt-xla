@@ -16,7 +16,7 @@ from utils import create_model_loader, resolve_display_name
 DEFAULT_OPTIMIZATION_LEVEL = 2
 DEFAULT_TP_OPTIMIZATION_LEVEL = 1
 DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
-DEFAULT_TRACE_ENABLED = False
+DEFAULT_TRACE_ENABLED = True
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_LOOP_COUNT = 1
 # WARNING: Changing this value will affect accuracy metrics due to context length differences.
