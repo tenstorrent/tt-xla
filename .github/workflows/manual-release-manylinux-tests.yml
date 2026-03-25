@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ "suse", "arch" ] # "ubuntu", "fedora" ]
+        distro: [ "ubuntu", "fedora" ]
     name: "Test manylinux wheel on ${{ matrix.distro }}"
     uses: ./.github/workflows/call-test-manylinux-distro.yml
     secrets: inherit
