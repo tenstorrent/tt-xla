@@ -482,10 +482,9 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
 def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
-    if mlp_type == "sparse" and arch not in ("llmbox", "galaxy"):
-        pytest.skip(
-            "Sparse MLP test only supported on multi-device (llmbox / galaxy) arch"
-        )
+    if mlp_type == "sparse" and arch != "llmbox":
+        # Cannot run sparse MLP on galaxy due to hang: https://github.com/tenstorrent/tt-xla/issues/3941
+        pytest.skip("Sparse MLP test only supported on llmbox arch")
     if mlp_type != "sparse":
         request.node.add_marker(
             pytest.mark.filecheck(["matmul_with_activation_silu.ttnn.mlir"])
