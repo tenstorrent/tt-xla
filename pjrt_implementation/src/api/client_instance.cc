@@ -32,6 +32,7 @@
 #include "api/memory_instance.h"
 #include "api/module_builder/module_builder.h"
 #include "api/tensor_pool.h"
+#include "utils/assert.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -660,7 +661,7 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
 
   ClientInstance *client_instance =
       GlobalClientInstanceSingleton::getClientInstance();
-  assert(client_instance != nullptr);
+  TT_FATAL(client_instance != nullptr, "Client instance is null");
   args->client = reinterpret_cast<PJRT_Client *>(client_instance);
 
   return nullptr;
@@ -673,7 +674,8 @@ PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
   ClientInstance *global_client_instance =
       GlobalClientInstanceSingleton::getClientInstance();
-  assert(client_instance == global_client_instance);
+  TT_FATAL(client_instance == global_client_instance,
+           "Client instance doesn't match global client instance");
   GlobalClientInstanceSingleton::destroyClient();
   return nullptr;
 }
