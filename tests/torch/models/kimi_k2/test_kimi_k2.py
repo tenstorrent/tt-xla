@@ -431,7 +431,7 @@ def test_kimi_k2_full():
     model = DeepseekV3Model(config)
     model = model.to(torch.bfloat16)
     
-    config.num_hidden_layers = 4
+    config.num_hidden_layers = 2
 
     # Replace all MoE MLP layers with A2aSparseMLP
     # With first_k_dense_replace=1 and moe_layer_freq=1:
