@@ -8,6 +8,7 @@
 // c++ standard library includes
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -73,7 +74,6 @@
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
-#include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
 
@@ -670,9 +670,8 @@ tt_pjrt_status ModuleBuilder::collectNumArguments(
       std::vector<std::uint32_t> output_shape;
 
       for (int64_t dim : shape) {
-        TT_FATAL(dim != mlir::ShapedType::kDynamic,
-                 "Dynamic dimensions not supported: result_index={}",
-                 result_index);
+        assert(dim != mlir::ShapedType::kDynamic &&
+               "Dynamic dimensions not supported");
         output_shape.push_back(static_cast<std::uint32_t>(dim));
       }
 
@@ -683,9 +682,7 @@ tt_pjrt_status ModuleBuilder::collectNumArguments(
         result.output_dimensions_flat.push_back(static_cast<std::int64_t>(dim));
       }
     } else {
-      TT_THROW(
-          "Expected ranked tensor type for function result: result_index={}",
-          result_index);
+      assert(false && "Expected ranked tensor type for function result");
     }
   }
   return tt_pjrt_status::kSuccess;
@@ -1391,8 +1388,8 @@ ModuleBuilder::buildModuleForTTNNCodegen(
 tt_pjrt_status
 ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
                               const CompileOptions &compile_options) {
-  TT_FATAL(compile_options.export_path.has_value(),
-           "export_path compile option is not set.");
+  assert(compile_options.export_path.has_value() &&
+         "export_path compile option is not set.");
 
   if (!m_tt_alchemist_handler.isInitialized()) {
     LOG_F(ERROR, "tt-alchemist library or functions not available");
@@ -1448,7 +1445,7 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
         instance, input_file.c_str(), folder.c_str(), is_local,
         pipeline_options.c_str());
   } else {
-    TT_THROW("Unsupported backend when doing codegen");
+    assert(false && "Unsupported backend when doing codegen");
   }
 
   if (!result) {
