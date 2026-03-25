@@ -45,7 +45,9 @@ def create_device_mesh(mesh_shape) -> Mesh:
     return mesh
 
 
-@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"])
+@pytest.mark.parametrize(
+    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"]
+)
 def test_simple_distributed_addition(topology, configure_topology, mesh_shape):
     """
     Verifies basic distributed tensor addition across multiple hosts.
@@ -87,7 +89,9 @@ def test_simple_distributed_addition(topology, configure_topology, mesh_shape):
     comparator.evaluate(output.cpu(), expected_output)
 
 
-@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"])
+@pytest.mark.parametrize(
+    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"]
+)
 def test_matmul_contracting_dim_sharded(topology, configure_topology, mesh_shape):
     """
     Matmul A @ B with contracting dimension (K) sharded across model axis.
@@ -136,7 +140,9 @@ def test_matmul_contracting_dim_sharded(topology, configure_topology, mesh_shape
     comparator.evaluate(output.cpu(), expected)
 
 
-@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"])
+@pytest.mark.parametrize(
+    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"]
+)
 def test_matmul_batch_sharded(topology, configure_topology, mesh_shape):
     """
     Matmul A @ B with A sharded on batch. Each device holds a batch slice,
