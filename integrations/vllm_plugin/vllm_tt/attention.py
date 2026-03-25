@@ -533,6 +533,13 @@ class TTAttentionBackendImpl(AttentionImpl):
         # Current query: [users, query_num_tokens, num_heads, head_size]
         # In decode, query_num_tokens == 1 is normal
         query_for_decode = inputs.query.transpose(0, 1)
+        
+        # Handle sink: if sink is non None and 1D then convert it to 2D with second dim as 1
+        sink = self.sinks
+        if sink is not None and sink.dim() == 1:
+            sink = sink.unsqueeze(-1)
+
+        # logger.info(f"Running decode attention with query shape {query_for_decode.shape}, k_cache shape {k_cache.shape}, v_cache shape {v_cache.shape}, page_table shape {attn_metadata.page_table.shape if attn_metadata.page_table is not None else None}, cache_position shape {attn_metadata.cache_position.shape if attn_metadata.cache_position is not None else None}, sink shape {sink.shape if sink is not None else None}")
 
         out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
             query_for_decode,
@@ -542,7 +549,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             cur_pos_tensor=attn_metadata.cache_position,
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
-            attention_sink=self.sinks,
+            attention_sink=sink,
         )
         # out: [query_num_tokens, users, num_heads, head_size]
         out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]
