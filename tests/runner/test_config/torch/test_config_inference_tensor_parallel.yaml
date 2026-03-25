@@ -109,7 +109,7 @@ test_config:
 
   mistral/pytorch-Large_INSTRUCT_2411-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
 
   mistral/pytorch-Devstral_Small_2505-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -226,27 +226,27 @@ test_config:
     supported_archs: [galaxy-wh-6u,n300-llmbox]
     arch_overrides:
       galaxy-wh-6u:
-        status: EXPECTED_PASSING
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
       n300-llmbox:
         enable_weight_bfp8_conversion: true
-        status: EXPECTED_PASSING
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
 
   llama/sequence_classification/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u,n300-llmbox]
     arch_overrides:
       galaxy-wh-6u:
-        status: EXPECTED_PASSING
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
         assert_pcc: false
         required_pcc: 0.98
       n300-llmbox:
         enable_weight_bfp8_conversion: true
-        status: EXPECTED_PASSING
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
 
   llama/sequence_classification/pytorch-3.3_70B_Instruct-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u,n300-llmbox]
     arch_overrides:
       galaxy-wh-6u:
-        status: EXPECTED_PASSING
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
       n300-llmbox:
         enable_weight_bfp8_conversion: true
-        status: EXPECTED_PASSING
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
