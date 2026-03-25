@@ -352,7 +352,11 @@ jobs:
         cp ./modules/*.ttnn flatbuffers/ 2>/dev/null
 
         echo "Run ttrt perf"
-        ttrt perf flatbuffers --ignore-version
+        if [[ "${{ matrix.build.runs-on }}" == "galaxy-wh-6u" ]]; then
+          ttrt perf flatbuffers --ignore-version --fabric-config fabric_1d_ring
+        else
+          ttrt perf flatbuffers --ignore-version
+        fi
 
         echo "Write device perf to report"
         python3 ./tests/benchmark/scripts/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }}
