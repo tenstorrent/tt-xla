@@ -282,7 +282,11 @@ def main():
         help="Run in single-device mode for equivalence check",
     )
     parser.add_argument(
-        "--num_devices", type=int, default=None, help="Simulate N devices via XLA_FLAGS"
+        "--num_devices",
+        type=int,
+        default=4,
+        help="Simulate N devices via XLA_FLAGS (must divide num_heads and num_kv_heads; "
+        "valid for Qwen2.5-7B: 1, 2, 4)",
     )
     parser.add_argument(
         "--platform",
@@ -314,11 +318,11 @@ def main():
 
     dtype = jnp.bfloat16 if args.dtype == "bfloat16" else jnp.float32
 
-    global mesh
-    mesh = setup_device_mesh()
-
     with open(os.path.join(args.model_path, "config.json")) as f:
         config = json.load(f)
+
+    global mesh
+    mesh = setup_device_mesh(config=config)
     model = Qwen25ForCausalLM(config=config, dtype=dtype)
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     params = load_params(model, args.model_path, dtype)
