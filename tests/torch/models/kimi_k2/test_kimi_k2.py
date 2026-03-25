@@ -508,37 +508,37 @@ def test_kimi_k2_full():
 
             # MLP sharding (MoE or dense)
             mlp_wrapper = decoder_layer.mlp
-            if hasattr(mlp_wrapper, "mlp"):
-                # A2aSparseMLP: experts compound-sharded (axis_0, axis_1)
-                mlp = mlp_wrapper.mlp
-                shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
-                shard_specs[mlp.experts.gate_up_proj] = (
-                    ("_axis_0", "_axis_1"),
-                    None,
-                    None,
-                )
-                shard_specs[mlp.experts.down_proj] = (
-                    ("_axis_0", "_axis_1"),
-                    None,
-                    None,
-                )
-                shard_specs[mlp.experts.gate_up_proj_bias] = (
-                    ("_axis_0", "_axis_1"),
-                    None,
-                )
-                shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
+            # if hasattr(mlp_wrapper, "mlp"):
+            #     # A2aSparseMLP: experts compound-sharded (axis_0, axis_1)
+            #     mlp = mlp_wrapper.mlp
+            #     shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
+            #     shard_specs[mlp.experts.gate_up_proj] = (
+            #         ("_axis_0", "_axis_1"),
+            #         None,
+            #         None,
+            #     )
+            #     shard_specs[mlp.experts.down_proj] = (
+            #         ("_axis_0", "_axis_1"),
+            #         None,
+            #         None,
+            #     )
+            #     shard_specs[mlp.experts.gate_up_proj_bias] = (
+            #         ("_axis_0", "_axis_1"),
+            #         None,
+            #     )
+            #     shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
 
-                # Shared experts
-                shared = getattr(mlp_wrapper, "shared_experts", None)
-                if shared is not None:
-                    shard_specs[shared.gate_proj.weight] = (None, "_axis_0")
-                    shard_specs[shared.up_proj.weight] = (None, "_axis_0")
-                    shard_specs[shared.down_proj.weight] = ("_axis_0", None)
-            else:
+            #     # Shared experts
+            #     shared = getattr(mlp_wrapper, "shared_experts", None)
+            #     if shared is not None:
+            #         shard_specs[shared.gate_proj.weight] = (None, "_axis_0")
+            #         shard_specs[shared.up_proj.weight] = (None, "_axis_0")
+            #         shard_specs[shared.down_proj.weight] = ("_axis_0", None)
+            # else:
                 # Dense MLP
-                shard_specs[mlp_wrapper.gate_proj.weight] = ("_axis_1", "_axis_0")
-                shard_specs[mlp_wrapper.up_proj.weight] = ("_axis_1", "_axis_0")
-                shard_specs[mlp_wrapper.down_proj.weight] = ("_axis_0", "_axis_1")
+            shard_specs[mlp_wrapper.gate_proj.weight] = ("_axis_1", "_axis_0")
+            shard_specs[mlp_wrapper.up_proj.weight] = ("_axis_1", "_axis_0")
+            shard_specs[mlp_wrapper.down_proj.weight] = ("_axis_0", "_axis_1")
 
             # LayerNorm
             shard_specs[decoder_layer.input_layernorm.weight] = ("_axis_0",)
