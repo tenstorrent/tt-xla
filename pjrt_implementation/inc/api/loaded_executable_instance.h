@@ -97,6 +97,11 @@ protected:
   // Save all graph inputs as files, in metal's tensorbin format.
   void dumpInputs(const std::vector<tt::runtime::Tensor> &input_tensors);
 
+  // Create default-initialized (zero-filled) output buffers, used in dry_run
+  // mode or when actual execution is skipped.
+  void createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
+                                  size_t num_devices);
+
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the
   // corresponding devices count in the mesh shape estimated by the compiler.

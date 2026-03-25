@@ -8,15 +8,12 @@
 // c++ standard library includes
 #include <iostream>
 #include <mutex>
-#include <numeric>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
 
 // tt-mlir includes
-#include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
-#include "tt/runtime/utils.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
@@ -25,7 +22,6 @@
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/tensor.h"
-#include "utils/data_type_utils.h"
 #include "utils/logging.h"
 #include "utils/status.h"
 
@@ -162,49 +158,6 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   return tt_pjrt_status::kSuccess;
-}
-
-void SOLoadedExecutableInstance::createDefaultOutputBuffers(
-    PJRT_Buffer **const *output_lists, size_t num_devices) {
-  ZoneScoped;
-  size_t num_outputs = m_executable_image->getNumOutputs();
-
-  for (size_t device_index = 0; device_index < num_devices; ++device_index) {
-    for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
-      std::vector<std::uint32_t> output_shape =
-          m_executable_image->getOutputShape(output_index);
-      PJRT_Buffer_Type output_type =
-          m_executable_image->getOutputTypes()[output_index];
-      ::tt::target::DataType runtime_data_type =
-          data_type_utils::convertPJRTToRuntimeDataType(output_type);
-      std::uint32_t element_size =
-          tt::runtime::utils::dataTypeElementSize(runtime_data_type);
-
-      std::unique_ptr<BufferInstance> output_buffer =
-          BufferInstance::createOutputBufferInstance(
-              std::move(output_shape), m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory(),
-              output_type, device_index);
-
-      // We create a row-major tensor. Last stride is 1, one before is the last
-      // dimension size, etc. That means the right algorithm is the exclusive
-      // right scan.
-      std::vector<std::uint32_t> strides(output_shape.size());
-      std::exclusive_scan(output_shape.rbegin(), output_shape.rend(),
-                          strides.rbegin(), std::uint32_t(1),
-                          std::multiplies<>());
-
-      tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
-          nullptr, output_shape, strides, element_size, runtime_data_type);
-
-      PjrtTensor::from_runtime_tensor({output_buffer.get()}, host_tensor);
-
-      output_buffer->markAsDataReady();
-
-      // Release ownership to the PJRT API caller
-      output_lists[device_index][output_index] = *output_buffer.release();
-    }
-  }
 }
 
 void SOLoadedExecutableInstance::fillPJRTOutputLists(
