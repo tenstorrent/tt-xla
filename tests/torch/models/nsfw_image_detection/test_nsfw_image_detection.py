@@ -50,7 +50,7 @@ def trace_tester(monkeypatch: MonkeyPatch) -> NsfwImageDetectionTester:
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name=MODEL_NAME,
-    model_group=ModelGroup.VULCAN,
+    model_group=ModelGroup.GENERALITY,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
