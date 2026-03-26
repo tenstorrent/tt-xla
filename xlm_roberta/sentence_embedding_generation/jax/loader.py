@@ -84,7 +84,9 @@ class ModelLoader(ForgeModel):
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = FlaxXLMRobertaModel.from_pretrained(self._model_name, **model_kwargs)
+        model = FlaxXLMRobertaModel.from_pretrained(
+            self._model_name, from_pt=True, **model_kwargs
+        )
 
         if dtype_override is not None:
             model = cast_hf_model_to_type(model, dtype_override)
