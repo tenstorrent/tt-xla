@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     BERT_BASE_UNCASED = "Base_Uncased"
     BERT_BASE_CASED = "Base_Cased"
     BERT_BASE_MULTILINGUAL_CASED = "Base_Multilingual_Cased"
+    BIO_CLINICAL_BERT = "Bio_ClinicalBERT"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_BASE_MULTILINGUAL_CASED: LLMModelConfig(
             pretrained_model_name="google-bert/bert-base-multilingual-cased",
+            max_length=128,
+        ),
+        ModelVariant.BIO_CLINICAL_BERT: LLMModelConfig(
+            pretrained_model_name="emilyalsentzer/Bio_ClinicalBERT",
             max_length=128,
         ),
     }
@@ -80,6 +85,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.BERT_BASE_CASED,
             ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
+            ModelVariant.BIO_CLINICAL_BERT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
