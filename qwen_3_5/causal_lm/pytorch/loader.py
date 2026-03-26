@@ -24,6 +24,7 @@ from ....tools.utils import get_static_cache_decode_inputs
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for causal language modeling."""
 
+    QWEN_3_5_4B = "4B"
     QWEN_3_5_9B = "9B"
     QWEN_3_5_27B = "27B"
     QWEN_3_5_35B_A3B = "35B_A3B"
@@ -35,6 +36,10 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
+        ModelVariant.QWEN_3_5_4B: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-4B",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_5_9B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-9B",
             max_length=128,
