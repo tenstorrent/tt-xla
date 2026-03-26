@@ -9,7 +9,7 @@ from typing import Optional
 
 import torch
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoProcessor
+from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
 
 from ...base import ForgeModel
 from ...config import (
@@ -59,9 +59,15 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    # Vision processing parameters
+    min_pixels = 56 * 56
+    max_pixels = 13 * 28 * 1280
+
     def _load_processor(self):
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
+            min_pixels=self.min_pixels,
+            max_pixels=self.max_pixels,
             trust_remote_code=True,
         )
         return self.processor
@@ -82,7 +88,9 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+            model_name, **model_kwargs
+        )
         model.eval()
 
         if self.processor is None:
@@ -95,28 +103,36 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        conversation = [
+        messages = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image"},
+                    {
+                        "type": "image",
+                        "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
+                    },
                     {"type": "text", "text": self.sample_text},
                 ],
             }
         ]
 
-        text_prompt = self.processor.apply_chat_template(
-            conversation, padding=True, add_generation_prompt=True
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
         )
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        from qwen_vl_utils import process_vision_info
 
-        inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
+        image_inputs, video_inputs = process_vision_info(messages)
+
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
 
         if dtype_override is not None:
-            for key in inputs:
-                if inputs[key].dtype.is_floating_point:
-                    inputs[key] = inputs[key].to(dtype_override)
+            inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
 
         return dict(inputs)
