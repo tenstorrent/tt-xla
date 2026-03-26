@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-XLMRoberta For Masked LM model loader implementation
+RoBERTa For Masked LM model loader implementation
 """
 import torch
-from transformers import AutoTokenizer, XLMRobertaForMaskedLM
+from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import Optional
 
 from ....base import ForgeModel
@@ -21,18 +21,22 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available XLMRoberta For Masked LM model variants."""
+    """Available RoBERTa For Masked LM model variants."""
 
     XLM_BASE = "Xlm_Base"
+    ROBERTA_BASE = "Roberta_Base"
 
 
 class ModelLoader(ForgeModel):
-    """XLMRoberta For Masked LM model loader implementation for causal language modeling tasks."""
+    """RoBERTa For Masked LM model loader implementation for masked language modeling tasks."""
 
     # Dictionary of available model variants
     _VARIANTS = {
         ModelVariant.XLM_BASE: ModelConfig(
             pretrained_model_name="FacebookAI/xlm-roberta-base",
+        ),
+        ModelVariant.ROBERTA_BASE: ModelConfig(
+            pretrained_model_name="FacebookAI/roberta-base",
         ),
     }
 
@@ -60,10 +64,13 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.ROBERTA_BASE:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="RoBERTa",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_MASKED_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -104,7 +111,7 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         # Load pre-trained model from HuggingFace
-        model = XLMRobertaForMaskedLM.from_pretrained(
+        model = AutoModelForMaskedLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
 
