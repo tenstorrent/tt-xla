@@ -8,6 +8,7 @@ Moondream2 model loader implementation for vision-language tasks.
 from typing import Optional
 
 import torch
+import torch.nn as nn
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -21,6 +22,23 @@ from ...config import (
     Framework,
     StrEnum,
 )
+
+
+class Moondream2TextDecoderWrapper(nn.Module):
+    """Wrapper around Moondream2's text decoder for standard forward pass."""
+
+    def __init__(self, moondream_model):
+        super().__init__()
+        self.moondream = moondream_model.model
+        self.config = moondream_model.model.config
+
+    def forward(self, inputs_embeds):
+        self.moondream._setup_caches()
+        seq_len = inputs_embeds.size(1)
+        attn_mask = self.moondream.attn_mask[:, :, :seq_len, :]
+        pos_ids = torch.arange(seq_len, dtype=torch.long, device=inputs_embeds.device)
+        hidden = self.moondream._prefill(inputs_embeds, attn_mask, pos_ids, None)
+        return hidden
 
 
 class ModelVariant(StrEnum):
@@ -44,7 +62,7 @@ class ModelLoader(ForgeModel):
         """Initialize Moondream2 model loader."""
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
+        self.raw_model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -60,7 +78,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Moondream2 model instance."""
+        """Load and return the Moondream2 model wrapped for standard forward pass."""
         model_name = self._variant_config.pretrained_model_name
 
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -75,20 +93,28 @@ class ModelLoader(ForgeModel):
         model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
         model.eval()
 
-        self.model = model
-        return model
+        self.raw_model = model
+        return Moondream2TextDecoderWrapper(model)
 
     def load_inputs(self, dtype_override=None):
-        """Load and return input tensors for Moondream2."""
-        if self.model is None:
+        """Load and return input embeddings for Moondream2."""
+        if self.raw_model is None:
             self.load_model(dtype_override=dtype_override)
+
+        mm = self.raw_model.model
 
         # Load a sample image
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
 
-        # Use the model's built-in encoding to get input embeddings
-        enc_image = self.model.encode_image(image)
-        inputs_embeds = self.model.input_embeds("Describe this image.", enc_image)
+        # Run vision encoder to get image embeddings
+        with torch.no_grad():
+            img_emb = mm._run_vision_encoder(image)
+            bos_emb = torch.nn.functional.embedding(
+                torch.tensor([[mm.config.tokenizer.bos_id]], device=mm.device),
+                mm.text.wte,
+            )
+            # Combine BOS token embedding with image embeddings
+            inputs_embeds = torch.cat([bos_emb, img_emb[None]], dim=1)
 
-        return inputs_embeds
+        return inputs_embeds.clone().detach()
