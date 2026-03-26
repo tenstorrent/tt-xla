@@ -895,18 +895,32 @@ def sparse_matmul(
             _moe_shape = (BD, S)
 
     if device.type == "xla":
-        # Normalize MoE tensors to canonical sparse_matmul input formats only.
-        # Hardware-driven tile decomposition is now handled by MLIR workarounds.
+        # Pre-tile MoE tensors so the M (tile) dimension is already 32-aligned.
+        # This avoids MLIR workaround reshape/permute overhead entirely.
+        #
+        # Gate-up: [1, BD, S, H] → [BD, S//M, M, H]  (reshape only)
+        #   output: [BD, S//M, 1, E, M, N] → squeeze → [BD, S//M, E, M, N] (5D)
+        #   caller does bias add on 5D, activation, then reshapes for down.
+        #
+        # Down: caller sends [BD*S//M, E, M, inter] (already canonical [A,E,M,K])
+        #   → not detected as _moe_shape, passes through directly
+        #   output: [BD*S//M, E, M, H] — caller does bias add, permute, reshape.
         if _moe_shape is not None:
             BD, S = _moe_shape
+            reduced = sparsity.shape[2]
+            M = (BD * S) // reduced
+
             if not is_input_a_sparse and is_input_b_sparse:
-                # Gate-up: [1, BD, S, H] -> [BD, S, 1, H]
-                input_tensor_a = input_tensor_a.permute(1, 2, 0, 3)
-            elif is_input_a_sparse and not is_input_b_sparse:
-                # Down: [BD, S, E, K] -> [BD*S, E, 1, K]
-                E_in = input_tensor_a.shape[2]
-                K_in = input_tensor_a.shape[-1]
-                input_tensor_a = input_tensor_a.reshape(BD * S, E_in, 1, K_in)
+                H = input_tensor_a.shape[-1]
+                split_seq = S % M == 0 and S >= M
+                if split_seq:
+                    input_tensor_a = input_tensor_a.reshape(BD, S // M, M, H)
+                    sparsity = sparsity.reshape(BD, S // M, 1, E_experts)
+                else:
+                    # Decode: tile on BD instead
+                    input_tensor_a = input_tensor_a.reshape(BD // M, M, S, H)
+                    input_tensor_a = input_tensor_a.permute(0, 2, 1, 3)
+                    sparsity = sparsity.reshape(BD // M, S, 1, E_experts)
 
         frontend_attributes = {
             "is_input_a_sparse": str(is_input_a_sparse),
@@ -935,14 +949,11 @@ def sparse_matmul(
             frontend_attributes=frontend_attributes,
         )
 
-        # Convert canonical sparse_matmul outputs back to clean MoE outputs.
+        # Convert tiled sparse_matmul outputs.
         if _moe_shape is not None:
-            BD, S = _moe_shape
-            N = input_tensor_b.shape[-1]
             if not is_input_a_sparse and is_input_b_sparse:
+                # [A, B, 1, E, M, N] → [A, B, E, M, N] (5D tiled)
                 result = result.squeeze(2).squeeze(-2)
-            elif is_input_a_sparse and not is_input_b_sparse:
-                result = result.squeeze(2).reshape(BD, S, E_experts, N)
 
         return result
 
@@ -1044,7 +1055,7 @@ def sparse_matmul_fake(
             _, BD, S, _ = input_tensor_a.shape
             _moe_shape = (BD, S)
         elif input_tensor_a.dim() == 4 and input_tensor_a.shape[2] == 1:
-            # SparseMLP / A2aSparseStackedMlp layout: [BD, S, 1, H]
+            # SparseMLP layout: [BD, S, 1, H]
             BD, S, _, _ = input_tensor_a.shape
             _moe_shape = (BD, S)
     elif is_input_a_sparse and not is_input_b_sparse:
@@ -1054,7 +1065,16 @@ def sparse_matmul_fake(
 
     if _moe_shape is not None:
         BD, S = _moe_shape
-        output_shape = [BD, S, E, N]
+        reduced = sparsity.shape[2]
+        M = (BD * S) // reduced
+        if not is_input_a_sparse and is_input_b_sparse:
+            # Gate-up: tiled output [A, B, E, M, N] (5D)
+            split_seq = S % M == 0 and S >= M
+            A = BD if split_seq else BD // M
+            B = S // M if split_seq else S
+            output_shape = [A, B, E, M, N]
+        else:
+            output_shape = [BD, S, E, N]
     elif is_input_a_sparse and is_input_b_sparse:
         output_shape = list(input_tensor_a.shape)
         output_shape[-1] = N
@@ -1100,10 +1120,10 @@ def all_to_all_dispatch(
     device = input_tensor.device
 
     if device.type == "xla":
-        # Keep frontend shape ops minimal for XLA path; rank normalization is
-        # canonicalized in StableHLO->TTIR conversion.
+        # Canonicalize inputs to 4D for runtime compatibility.
         if input_tensor.dim() == 3:
             B, S, H = input_tensor.shape
+            input_tensor = input_tensor.reshape(B, 1, S, H)
         elif input_tensor.dim() == 4:
             B, _, S, H = input_tensor.shape
         else:
@@ -1111,7 +1131,13 @@ def all_to_all_dispatch(
                 f"input_tensor must be rank 3 or 4, got {input_tensor.dim()}"
             )
 
+        # Canonicalize expert_indices to 4D [B, 1, S, K]
         K = expert_indices.shape[-1]
+        if expert_indices.dim() == 2:
+            expert_indices = expert_indices.reshape(B, S, K).unsqueeze(1)
+        elif expert_indices.dim() == 3:
+            expert_indices = expert_indices.unsqueeze(1)
+
         BD = B * num_devices
         output_shapes = [[1, BD, S, H], [1, BD, S, K]]
         output_dtypes = [input_tensor.dtype, expert_indices.dtype]
@@ -1222,21 +1248,15 @@ def all_to_all_combine(
         if input_tensor.dim() != 4:
             raise ValueError(f"input_tensor must be rank 4, got {input_tensor.dim()}")
 
-        # Keep frontend shape ops minimal for XLA path; [BD, S, E, H] -> [E, BD, S, H]
-        # normalization is canonicalized in StableHLO->TTIR conversion.
-        E_global = expert_mapping.shape[2]  # [1, 1, E, D]
-        D_total = expert_mapping.shape[3]
-        E_candidates = {E_global} | ({E_global // D_total} if D_total > 1 else set())
-        if input_tensor.shape[2] in E_candidates:
-            BD, S, _, H = input_tensor.shape  # [BD, S, E, H]
-        else:
-            _, BD, S, H = input_tensor.shape  # [E, BD, S, H]
+        # metadata is [1, 1, tokens, K] where tokens = BD*S.
+        tokens = expert_metadata.shape[2]
+        H = input_tensor.shape[-1]
+        tokens_per_device = tokens // num_devices
 
-        B = BD // num_devices
         if output_shard_dim == 1:
-            output_shape = [K, B, S, H]
+            output_shape = [K, tokens_per_device, 1, H]
         elif output_shard_dim == 2:
-            output_shape = [K, S, B, H]
+            output_shape = [K, 1, tokens_per_device, H]
         else:
             raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
 
@@ -1256,68 +1276,37 @@ def all_to_all_combine(
         )
 
     elif device.type == "cpu":
-        # Keep existing CPU behavior: normalize [BD, S, E, H] to [E, BD, S, H].
-        E_global = expert_mapping.shape[2]  # [1, 1, E, D]
-        D = expert_mapping.shape[3]
-        E_candidates = {E_global} | ({E_global // D} if D > 1 else set())
-        if input_tensor.dim() == 4 and input_tensor.shape[2] in E_candidates:
-            input_tensor = input_tensor.permute(2, 0, 1, 3)
+        # metadata is [1, 1, tokens, K] where tokens = BD*S.
+        tokens = expert_metadata.shape[2]
+        H = input_tensor.shape[-1]
+        tokens_per_device = tokens // num_devices
 
-        if output_shard_dim == 1:
-            E_local, BD, S, H = input_tensor.shape
-        elif output_shard_dim == 2:
-            E_local, S, BD, H = input_tensor.shape
-        else:
-            raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
+        # Normalize input to [E, tokens, H] for indexing.
+        E_local = input_tensor.shape[0]
+        input_flat = input_tensor.reshape(E_local, tokens, H)
+
+        # metadata indices: [1, 1, tokens, K] → [tokens, K]
+        metadata_indices = expert_metadata[0, 0].long()  # [tokens, K]
 
         _t0 = time.perf_counter()
-        B_local = BD // num_devices
-        metadata_indices = expert_metadata[0].long()  # [BD, S, K]
+        combined = torch.zeros(
+            K, tokens_per_device, H, dtype=input_tensor.dtype, device=device
+        )
+        for k in range(K):
+            expert_ids = metadata_indices[:tokens_per_device, k]  # [tokens_per_device]
+            valid = (expert_ids >= 0) & (expert_ids < E_local)
+            expert_ids_clamped = expert_ids.clamp(0, E_local - 1)
+            t_idx = torch.arange(tokens_per_device, device=device)
+            gathered = input_flat[
+                expert_ids_clamped, t_idx, :
+            ]  # [tokens_per_device, H]
+            combined[k] = gathered * valid.unsqueeze(-1).to(gathered.dtype)
 
-        if output_shard_dim == 1:
-            # Vectorized: gather from input_tensor[expert_id, b, s, :] for each k
-            # input_tensor: [E, BD, S, H], indices: [BD, S, K]
-            combined = torch.zeros(
-                K, B_local, S, H, dtype=input_tensor.dtype, device=device
-            )
-            for k in range(K):
-                expert_ids = metadata_indices[:B_local, :, k]  # [B_local, S]
-                # Clamp to valid range
-                valid = (expert_ids >= 0) & (expert_ids < E_local)
-                expert_ids_clamped = expert_ids.clamp(0, E_local - 1)
-                # Advanced indexing: gather [B_local, S, H]
-                b_idx = (
-                    torch.arange(B_local, device=device)
-                    .unsqueeze(1)
-                    .expand_as(expert_ids)
-                )
-                s_idx = (
-                    torch.arange(S, device=device).unsqueeze(0).expand_as(expert_ids)
-                )
-                gathered = input_tensor[
-                    expert_ids_clamped, b_idx, s_idx, :
-                ]  # [B_local, S, H]
-                combined[k] = gathered * valid.unsqueeze(-1).to(gathered.dtype)
+        # Reshape to match output_shard_dim format: [K, tokens_per_device, H] → [K, 1, tpd, H]
+        if output_shard_dim == 2:
+            combined = combined.unsqueeze(1)  # [K, 1, tokens_per_device, H]
         else:
-            combined = torch.zeros(
-                K, S, B_local, H, dtype=input_tensor.dtype, device=device
-            )
-            for k in range(K):
-                expert_ids = metadata_indices[:B_local, :, k]  # [B_local, S]
-                valid = (expert_ids >= 0) & (expert_ids < E_local)
-                expert_ids_clamped = expert_ids.clamp(0, E_local - 1)
-                b_idx = (
-                    torch.arange(B_local, device=device)
-                    .unsqueeze(1)
-                    .expand_as(expert_ids)
-                )
-                s_idx = (
-                    torch.arange(S, device=device).unsqueeze(0).expand_as(expert_ids)
-                )
-                gathered = input_tensor[expert_ids_clamped, s_idx, b_idx, :]
-                combined[k] = gathered.permute(1, 0, 2) * valid.permute(1, 0).unsqueeze(
-                    -1
-                ).to(gathered.dtype)
+            combined = combined.unsqueeze(2)  # [K, tokens_per_device, 1, H]
 
         _perf_log("combine_cpu", time.perf_counter() - _t0)
         return combined
@@ -1341,23 +1330,22 @@ def all_to_all_combine_fake(
     if input_tensor.dim() != 4:
         raise ValueError(f"input_tensor must be rank 4, got {input_tensor.dim()}")
 
-    # Mirror the XLA path shape inference without materializing frontend permute.
-    E_global = expert_mapping.shape[2]  # [1, 1, E, D]
-    D_total = expert_mapping.shape[3]
-    E_candidates = {E_global} | ({E_global // D_total} if D_total > 1 else set())
-    if input_tensor.shape[2] in E_candidates:
-        BD, S, _, H = input_tensor.shape  # [BD, S, E, H]
-    else:
-        _, BD, S, H = input_tensor.shape  # [E, BD, S, H]
+    # metadata is [1, 1, tokens, K].
+    tokens = expert_metadata.shape[2]
+    H = input_tensor.shape[-1]
+    tokens_per_device = tokens // num_devices
 
-    B = BD // num_devices
     if output_shard_dim == 1:
         return torch.zeros(
-            [K, B, S, H], dtype=input_tensor.dtype, device=input_tensor.device
+            [K, tokens_per_device, 1, H],
+            dtype=input_tensor.dtype,
+            device=input_tensor.device,
         )
     if output_shard_dim == 2:
         return torch.zeros(
-            [K, S, B, H], dtype=input_tensor.dtype, device=input_tensor.device
+            [K, 1, tokens_per_device, H],
+            dtype=input_tensor.dtype,
+            device=input_tensor.device,
         )
     raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
 
@@ -1388,15 +1376,25 @@ def moe_expert_token_remap(
     device = topk_tensor.device
 
     if device.type == "xla":
-        # Keep frontend shape ops minimal for XLA path; rank normalization to
-        # [1, BD, S, E] is canonicalized in StableHLO->TTIR conversion.
-        BD = expert_metadata.shape[1]
-        S = expert_metadata.shape[2]
+        # metadata is [1, 1, tokens, K] where tokens = BD*S.
+        tokens = expert_metadata.shape[2]
         E = topk_tensor.shape[-1]
-        reduced_seq = math.ceil(BD * S / reduction_size)
+        reduced_seq = math.ceil(tokens / reduction_size)
+
+        # Canonicalize topk_tensor to 4D [1, 1, tokens, E].
+        if topk_tensor.dim() == 2:
+            BS = topk_tensor.shape[0]
+            topk_tensor = topk_tensor.unsqueeze(0)  # [1, B*S, E]
+            if num_devices > 1:
+                topk_tensor = topk_tensor.repeat(1, num_devices, 1)  # [1, BD*S, E]
+            topk_tensor = topk_tensor.unsqueeze(0)  # [1, 1, tokens, E]
+        elif topk_tensor.dim() == 3:
+            if num_devices > 1:
+                topk_tensor = topk_tensor.repeat(1, num_devices, 1)
+            topk_tensor = topk_tensor.unsqueeze(0)
 
         output_shapes = [
-            [1, BD, S, E],
+            [1, 1, tokens, E],
             [1, 1, reduced_seq, E],
         ]
         output_dtypes = [topk_tensor.dtype, topk_tensor.dtype]
@@ -1415,42 +1413,42 @@ def moe_expert_token_remap(
         )
 
     # CPU fallback (vectorized)
-    # Normalize to [1, BD, S, E] for the fallback implementation.
-    if topk_tensor.dim() == 2:
-        BD = expert_metadata.shape[1]
-        S = expert_metadata.shape[2]
-        B = BD // num_devices
-        E = topk_tensor.shape[-1]
-        topk_tensor = topk_tensor.view(B, S, E).repeat(num_devices, 1, 1).unsqueeze(0)
-    elif topk_tensor.dim() == 3:
-        topk_tensor = topk_tensor.repeat(num_devices, 1, 1).unsqueeze(0)
-
-    D, BD, S, E = topk_tensor.shape
+    # metadata is [1, 1, tokens, K] where tokens = BD*S.
+    tokens = expert_metadata.shape[2]
     K = expert_metadata.shape[-1]
-    reduced_seq = math.ceil(BD * S / reduction_size)
+    E = topk_tensor.shape[-1]
+    reduced_seq = math.ceil(tokens / reduction_size)
+
+    # Normalize topk_tensor to [1, 1, tokens, E].
+    if topk_tensor.dim() == 2:
+        BS = topk_tensor.shape[0]
+        topk_tensor = topk_tensor.unsqueeze(0)  # [1, B*S, E]
+        if num_devices > 1:
+            topk_tensor = topk_tensor.repeat(1, num_devices, 1)
+        topk_tensor = topk_tensor.unsqueeze(0)  # [1, 1, tokens, E]
+    elif topk_tensor.dim() == 3:
+        if num_devices > 1:
+            topk_tensor = topk_tensor.repeat(1, num_devices, 1)
+        topk_tensor = topk_tensor.unsqueeze(0)
+
+    D, _, tokens_dim, E = topk_tensor.shape
 
     _t0 = time.perf_counter()
-    mapping = torch.zeros(1, BD, S, E, dtype=topk_tensor.dtype, device=device)
+    mapping = torch.zeros(1, 1, tokens, E, dtype=topk_tensor.dtype, device=device)
     reduced = torch.zeros(1, 1, reduced_seq, E, dtype=topk_tensor.dtype, device=device)
 
-    # expert_metadata: [D, BD, S, K] — selected expert indices
-    # Scatter topk scores into mapping at the selected expert positions
-    indices = expert_metadata.long()  # [D, BD, S, K]
-    for d in range(D):
-        # Gather scores for selected experts: [BD, S, K]
-        scores = torch.gather(topk_tensor[d], dim=-1, index=indices[d])
-        # Scatter into mapping: [1, BD, S, E]
-        mapping[0].scatter_(-1, indices[d], scores)
+    # expert_metadata: [1, 1, tokens, K] — selected expert indices
+    # topk_tensor: [1, 1, tokens, E] — router scores
+    indices = expert_metadata.long()  # [1, 1, tokens, K]
+    # Gather scores for selected experts and scatter into mapping
+    scores = torch.gather(topk_tensor[0, 0], dim=-1, index=indices[0, 0])
+    mapping[0, 0].scatter_(-1, indices[0, 0], scores)
 
     # Build reduced sparsity: any selected expert in each M-token chunk → 1.0
-    token_idx = torch.arange(BD * S, device=device).view(BD, S)
-    chunk_idx = token_idx // reduction_size  # [BD, S]
-    # For each (chunk, expert) pair, mark as active
+    chunk_idx = torch.arange(tokens, device=device) // reduction_size
     for k_idx in range(K):
-        expert_ids = indices[0, :, :, k_idx]  # [BD, S]
-        flat_chunk = chunk_idx.reshape(-1)
-        flat_expert = expert_ids.reshape(-1).long()
-        reduced[0, 0, flat_chunk, flat_expert] = 1.0
+        expert_ids = indices[0, 0, :, k_idx]  # [tokens]
+        reduced[0, 0, chunk_idx, expert_ids.long()] = 1.0
 
     _perf_log("remap_cpu", time.perf_counter() - _t0)
     return mapping, reduced
@@ -1466,21 +1464,13 @@ def moe_expert_token_remap_fake(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     import math
 
-    if topk_tensor.dim() == 2:
-        BD = expert_metadata.shape[1]
-        S = expert_metadata.shape[2]
-        E = topk_tensor.shape[-1]
-    elif topk_tensor.dim() == 3:
-        BD = expert_metadata.shape[1]
-        S = expert_metadata.shape[2]
-        E = topk_tensor.shape[-1]
-    else:
-        _, BD, S, E = topk_tensor.shape
-
-    reduced_seq = math.ceil(BD * S / reduction_size)
+    # metadata is [1, 1, tokens, K]
+    tokens = expert_metadata.shape[2]
+    E = topk_tensor.shape[-1]
+    reduced_seq = math.ceil(tokens / reduction_size)
 
     mapping = torch.zeros(
-        [1, BD, S, E], dtype=topk_tensor.dtype, device=topk_tensor.device
+        [1, 1, tokens, E], dtype=topk_tensor.dtype, device=topk_tensor.device
     )
     reduced = torch.zeros(
         [1, 1, reduced_seq, E],
