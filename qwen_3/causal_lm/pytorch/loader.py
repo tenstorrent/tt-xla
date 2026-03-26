@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     QWEN_3_14B = "14B"
     QWEN_3_32B = "32B"
     QWEN_3_30B_A3B = "30B_A3b"
+    QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
 
 
 class ModelLoader(ForgeModel):
@@ -76,6 +77,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -113,6 +118,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_8B_BASE,
+            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -207,7 +213,10 @@ class ModelLoader(ForgeModel):
         else:
             messages = [{"role": "user", "content": self.sample_text}]
             # Instruct-2507 variants do not support thinking mode
-            enable_thinking = self._variant != ModelVariant.QWEN_3_4B_INSTRUCT_2507
+            enable_thinking = self._variant not in (
+                ModelVariant.QWEN_3_4B_INSTRUCT_2507,
+                ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
+            )
             text = self.tokenizer.apply_chat_template(
                 messages,
                 tokenize=False,
