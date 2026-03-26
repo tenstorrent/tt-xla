@@ -26,25 +26,14 @@ import torch
 import tracy
 from transformers.cache_utils import StaticCache
 
-ReadLogitsFn = Callable[[object], torch.Tensor]
-
 
 def _fast_argmax(last_logits: torch.Tensor) -> torch.Tensor:
-    """Argmax without ttnn.argmax or ttnn.sort — uses only max, compare, iota.
-
-    The ttnn.argmax kernel is single-core (~104 ms for 131K vocab on Wormhole)
-    and ttnn.sort fails to compile for this pattern.  This implementation
-    avoids both by computing argmax as:
+    """Alternative argmax implementation that avoids slow single-core ttnn.argmax.
 
       1. ``max`` reduction to find the row-wise maximum value  (ttnn.max)
       2. element-wise ``eq`` to build a boolean mask of matching positions
       3. multiply mask by a position vector (iota) and ``max``-reduce to
          recover the index of the (last) matching position
-
-    All three stages use ops that are well-supported and potentially
-    multi-core on Wormhole, unlike ttnn.argmax.
-
-    Works identically for single-chip and multi-chip (TP) models.
 
     Args:
         last_logits: ``[batch, vocab_size]`` logits for the last position.
@@ -53,51 +42,33 @@ def _fast_argmax(last_logits: torch.Tensor) -> torch.Tensor:
         ``[batch, 1]`` token IDs (the argmax indices).
     """
     B, V = last_logits.shape
-
-    # Stage 1: row-wise max value (ttnn.max — no index tracking, fast)
-    row_max = last_logits.max(dim=-1, keepdim=True).values  # [B, 1]
-
-    # Stage 2: boolean mask where logit equals the row max
-    mask = last_logits == row_max  # [B, V]
-
-    # Stage 3: recover the index from the mask.
-    # Multiply mask by a 1-based position vector [1, 2, …, V] so that
-    # token-0 maps to 1.0 (not 0.0 which is indistinguishable from
-    # non-matching).  A final max-reduce gives the (last) matching
-    # 1-based index per row; subtract 1 to get the 0-based token ID.
-    # float32 is required because bfloat16 cannot represent positions
-    # above ~256 exactly.
+    row_max = last_logits.max(dim=-1, keepdim=True).values
+    mask = last_logits == row_max
     positions = torch.arange(1, V + 1, device=last_logits.device, dtype=torch.float32)
-    masked_positions = mask.to(torch.float32) * positions.unsqueeze(0)  # [B, V]
+    masked_positions = mask.to(torch.float32) * positions.unsqueeze(0)
     next_token_ids = (masked_positions.max(dim=-1).values - 1.0).to(torch.int64)
 
-    return next_token_ids.unsqueeze(-1)  # [B, 1]
+    return next_token_ids.unsqueeze(-1)
 
 
 class LLMDecodeWrapper(torch.nn.Module):
-    """Wraps an LLM to perform post-processing (token selection, cache update) on device.
+    """Wraps an LLM to perform sampling (token selection, cache update) on device.
 
     By keeping token selection and cache_position increment inside the compiled
     graph, intermediate tensors stay on device between decode steps, eliminating
     costly device-to-host round-trips for input_ids and cache_position.
 
-    Token selection uses a max-compare-iota pattern instead of ttnn.argmax
-    (which is single-core and ~100x slower for large vocabularies) or
-    ttnn.sort/topk (which has compilation issues with current tt-mlir).
-
     Args:
         model: The LLM to wrap.
         read_logits_fn: Function to extract logits from model output.
         return_logits: If True, forward() returns (next_token_ids, next_cache_position, logits).
-            If False, returns (next_token_ids, next_cache_position) only, avoiding
-            logit accumulation on device which can cause OOM. The flag is traced
-            at torch.compile time, producing different compiled graphs.
+            If False, returns (next_token_ids, next_cache_position) only.
     """
 
     def __init__(
         self,
         model: torch.nn.Module,
-        read_logits_fn: ReadLogitsFn,
+        read_logits_fn,
         return_logits: bool = True,
     ):
         super().__init__()
@@ -208,7 +179,7 @@ def generate_and_benchmark(
     input_args: dict,
     device: torch.device,
     max_tokens_to_generate: int,
-    read_logits_fn: Optional[ReadLogitsFn] = None,
+    read_logits_fn=None,
     tokenizer: Optional[object] = None,
     verbose: bool = True,
     ground_truth_tokens: Optional[torch.Tensor] = None,
