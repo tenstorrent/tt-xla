@@ -178,28 +178,3 @@ class RMSNormFusionProvider(FusionProvider):
             (self.pattern, self.replacement),
             (self.pattern_cast_after_mul, self.replacement),
         ]
-
-    @staticmethod
-    def match_filter(match, gm: torch.fx.Graph, subgraph: torch.fx.Graph) -> bool:
-        # TODO: This filter should be removed once tt-metal starts supporting splitting work
-        # across multiple cores on column axis (for now it works on row axis only).
-        # Check https://github.com/tenstorrent/tt-metal/issues/36094 for more details.
-
-        # From testing, this was the last multiple of 32 that worked.
-        UPPER_BOUND = 3968
-
-        for pn, gn in match.nodes_map.items():
-            if pn.target != "weight":
-                continue
-            if (value := gn.meta.get("example_value", None)) is None:
-                raise ValueError(
-                    f"Weight node is missing required metadata 'example_value'. "
-                    f"Available meta keys: {list(gn.meta.keys())}"
-                )
-            if value.size()[-1] > UPPER_BOUND:
-                logger.debug(
-                    f"[Fusion] Skipping RMSNorm fusion for weight node with size {value.size()[-1]} because it is greater than the upper bound of {UPPER_BOUND}"
-                )
-                return False
-
-        return True
