@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Table Transformer model variants for object detection."""
 
     DETECTION = "Detection"
+    STRUCTURE_RECOGNITION = "Structure_Recognition"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DETECTION: ModelConfig(
             pretrained_model_name="microsoft/table-transformer-detection",
+        ),
+        ModelVariant.STRUCTURE_RECOGNITION: ModelConfig(
+            pretrained_model_name="microsoft/table-transformer-structure-recognition",
         ),
     }
 
