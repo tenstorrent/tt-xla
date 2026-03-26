@@ -15,6 +15,8 @@ from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
 
+MESH_SHAPE = (4, 16)
+
 # This model is modified from the original deepseek_v3_2_exp model.py to:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
 #    - fast_hadamard_transform requires a CUDA enviroment and fails to install
@@ -106,7 +108,7 @@ def test_deepseek_attention_prefill(batch_size):
     freqs_cis = model.freqs_cis[0:seq_len]
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = MESH_SHAPE
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -181,7 +183,7 @@ def test_deepseek_indexer(batch_size):
 
     # Setup mesh
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = MESH_SHAPE
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -259,7 +261,7 @@ def test_deepseek_v3_2_moe_only():
     model = model.to(torch.bfloat16)
     # Extract MoE module from block layer 1
     moe = model.layers[1].ffn
-    mesh_shape = (2, 4)
+    mesh_shape = MESH_SHAPE
     enable_sparse_mlp(moe, mesh=mesh_shape, cluster_axis=0, config=args)
     moe.eval()
 
@@ -340,7 +342,7 @@ def test_deepseek_v3_2_layer_sparse_moe():
     block = model.layers[1]  # layer_id=1 >= n_dense_layers=1 → MoE
     freqs_cis = model.freqs_cis[:seq_len]
 
-    mesh_shape = (2, 4)
+    mesh_shape = MESH_SHAPE
     enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
     block.eval()
 
@@ -452,7 +454,7 @@ def test_deepseek_v3_2_full_sparse_moe():
     # but model.to(bf16) converts it. Restore to float32 to match forward's .float() call.
     model.head = model.head.to(torch.float32)
 
-    mesh_shape = (2, 4)
+    mesh_shape = MESH_SHAPE
     enable_sparse_mlp(
         model,
         mesh=mesh_shape,
