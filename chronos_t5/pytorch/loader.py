@@ -34,7 +34,11 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """Chronos-T5 model loader for time series forecasting."""
+    """Chronos-T5 model loader for time series forecasting.
+
+    Loads the underlying T5ForConditionalGeneration model from the
+    Chronos pipeline for single-pass encoder-decoder inference.
+    """
 
     _VARIANTS = {
         ModelVariant.BASE: ChronosT5Config(
@@ -63,10 +67,10 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the Chronos-T5 model for time series forecasting.
+        """Load the Chronos-T5 underlying T5 model.
 
         Returns:
-            torch.nn.Module: The ChronosModel instance.
+            torch.nn.Module: The T5ForConditionalGeneration instance.
         """
         cfg = self._variant_config
 
@@ -77,7 +81,10 @@ class ModelLoader(ForgeModel):
         )
 
         self._tokenizer = pipeline.tokenizer
-        model = pipeline.model
+        # Use the inner T5ForConditionalGeneration model directly
+        # to avoid autoregressive generation in ChronosModel.forward
+        model = pipeline.model.model
+        model.config.use_cache = False
         model.eval()
 
         return model
@@ -86,7 +93,8 @@ class ModelLoader(ForgeModel):
         """Load sample time series inputs for the model.
 
         Returns:
-            dict: Input dict with 'input_ids' and 'attention_mask' tensors.
+            dict: Input dict with 'input_ids', 'attention_mask', and
+                  'decoder_input_ids' tensors.
         """
         cfg = self._variant_config
         dtype = dtype_override or torch.float32
@@ -98,4 +106,11 @@ class ModelLoader(ForgeModel):
         # Tokenize the context using the pipeline's tokenizer
         token_ids, attention_mask, _ = self._tokenizer.context_input_transform(context)
 
-        return {"input_ids": token_ids, "attention_mask": attention_mask}
+        # T5 encoder-decoder requires decoder_input_ids
+        decoder_input_ids = torch.zeros((1, 1), dtype=torch.long)
+
+        return {
+            "input_ids": token_ids,
+            "attention_mask": attention_mask,
+            "decoder_input_ids": decoder_input_ids,
+        }
