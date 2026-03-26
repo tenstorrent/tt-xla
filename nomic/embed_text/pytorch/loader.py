@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Nomic Embed Text model variants for embedding generation."""
 
+    NOMIC_EMBED_TEXT_V1 = "nomic-embed-text-v1"
     NOMIC_EMBED_TEXT_V1_5 = "nomic-embed-text-v1.5"
 
 
@@ -30,6 +31,9 @@ class ModelLoader(ForgeModel):
     """Nomic Embed Text v1.5 model loader implementation for sentence embedding generation."""
 
     _VARIANTS = {
+        ModelVariant.NOMIC_EMBED_TEXT_V1: ModelConfig(
+            pretrained_model_name="nomic-ai/nomic-embed-text-v1",
+        ),
         ModelVariant.NOMIC_EMBED_TEXT_V1_5: ModelConfig(
             pretrained_model_name="nomic-ai/nomic-embed-text-v1.5",
         ),
