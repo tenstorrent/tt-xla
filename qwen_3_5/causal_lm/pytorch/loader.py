@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B = "27B"
     QWEN_3_5_35B_A3B = "35B_A3B"
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
+    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -56,10 +57,17 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3.5-35B-A3B-FP8",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3.5-35B-A3B-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B
+
+    # GGUF file to use for quantized variant
+    GGUF_FILE = "Qwen3.5-35B-A3B-Q4_K_M.gguf"
 
     # Shared configuration parameters
     sample_text = "Give me a short introduction to large language model."
@@ -113,6 +121,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
+        # Pass gguf_file for GGUF variants
+        if self._is_gguf_variant():
+            tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
+
         # Load the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -142,6 +154,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
+
+        # Pass gguf_file for GGUF variants
+        if self._is_gguf_variant():
+            model_kwargs["gguf_file"] = self.GGUF_FILE
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
@@ -220,11 +236,16 @@ class ModelLoader(ForgeModel):
         ), "Attention heads must be divisible by the model axis size"
         return mesh_shape, ("batch", "model")
 
+    def _is_gguf_variant(self):
+        """Check if the current variant uses GGUF quantization."""
+        return self._variant == ModelVariant.QWEN_3_5_35B_A3B_GGUF
+
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
+            ModelVariant.QWEN_3_5_35B_A3B_GGUF,
         )
 
     def load_shard_spec(self, model):
@@ -271,8 +292,12 @@ class ModelLoader(ForgeModel):
         Returns:
             The configuration object for the Qwen 3.5 model.
         """
+        config_kwargs = {}
+        if self._is_gguf_variant():
+            config_kwargs["gguf_file"] = self.GGUF_FILE
+
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
+            self._variant_config.pretrained_model_name, **config_kwargs
         )
 
         return self.config
