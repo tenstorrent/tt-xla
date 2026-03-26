@@ -31,6 +31,7 @@ class ChronosBoltConfig(ModelConfig):
 
 class ModelVariant(StrEnum):
     SMALL = "small"
+    BASE = "base"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,11 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.SMALL: ChronosBoltConfig(
             pretrained_model_name="autogluon/chronos-bolt-small",
+            context_length=512,
+            prediction_length=64,
+        ),
+        ModelVariant.BASE: ChronosBoltConfig(
+            pretrained_model_name="amazon/chronos-bolt-base",
             context_length=512,
             prediction_length=64,
         ),
