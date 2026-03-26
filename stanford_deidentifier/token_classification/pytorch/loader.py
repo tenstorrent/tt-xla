@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BERT model loader implementation for masked language modeling.
+Stanford Deidentifier model loader implementation for token classification.
 """
 
-from transformers import BertForMaskedLM, BertTokenizer, AutoConfig
+import torch
+from transformers import AutoModelForTokenClassification, AutoTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -19,44 +20,24 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available BERT model variants for masked language modeling."""
+    """Available Stanford Deidentifier model variants for token classification."""
 
-    BERT_BASE_UNCASED = "Base_Uncased"
-    BERT_BASE_CASED = "Base_Cased"
-    BERT_BASE_MULTILINGUAL_CASED = "Base_Multilingual_Cased"
-    BIO_CLINICAL_BERT = "Bio_ClinicalBERT"
-    BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
+    STANFORD_DEIDENTIFIER_BASE = "StanfordAIMI/stanford-deidentifier-base"
 
 
 class ModelLoader(ForgeModel):
-    """BERT model loader implementation for masked language modeling."""
+    """Stanford Deidentifier model loader implementation for token classification."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.BERT_BASE_UNCASED: LLMModelConfig(
-            pretrained_model_name="bert-base-uncased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_CASED: LLMModelConfig(
-            pretrained_model_name="google-bert/bert-base-cased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_MULTILINGUAL_CASED: LLMModelConfig(
-            pretrained_model_name="google-bert/bert-base-multilingual-cased",
-            max_length=128,
-        ),
-        ModelVariant.BIO_CLINICAL_BERT: LLMModelConfig(
-            pretrained_model_name="emilyalsentzer/Bio_ClinicalBERT",
-            max_length=128,
-        ),
-        ModelVariant.BERT_LARGE_PORTUGUESE_CASED: LLMModelConfig(
-            pretrained_model_name="neuralmind/bert-large-portuguese-cased",
+        ModelVariant.STANFORD_DEIDENTIFIER_BASE: LLMModelConfig(
+            pretrained_model_name="StanfordAIMI/stanford-deidentifier-base",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.BERT_BASE_UNCASED
+    DEFAULT_VARIANT = ModelVariant.STANFORD_DEIDENTIFIER_BASE
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -70,7 +51,7 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.sample_text = "The capital of France is [MASK]."
+        self.sample_text = "Dr. John Smith treated patient Jane Doe at Stanford Medical Center on 03/15/2024."
         self.max_length = 128
         self.tokenizer = None
 
@@ -86,36 +67,29 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
-        group = ModelGroup.GENERALITY
-        if variant_name in (
-            ModelVariant.BERT_BASE_CASED,
-            ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
-            ModelVariant.BIO_CLINICAL_BERT,
-            ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
-        ):
-            group = ModelGroup.VULCAN
+
         return ModelInfo(
-            model="BERT",
+            model="Stanford Deidentifier",
             variant=variant_name,
-            group=group,
-            task=ModelTask.NLP_MASKED_LM,
+            group=ModelGroup.VULCAN,
+            task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load BERT model for masked language modeling from Hugging Face.
+        """Load Stanford Deidentifier model for token classification from Hugging Face.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                             If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The BERT model instance.
+            torch.nn.Module: The model instance.
         """
 
         # Initialize tokenizer
-        self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
@@ -123,12 +97,15 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = BertForMaskedLM.from_pretrained(self.model_name, **model_kwargs)
+        model = AutoModelForTokenClassification.from_pretrained(
+            self.model_name, **model_kwargs
+        )
+        self.model = model
         model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Prepare sample input for BERT masked language modeling.
+        """Prepare sample input for Stanford Deidentifier token classification.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -153,24 +130,19 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
-        """Decode the model output for masked language modeling."""
-        inputs = self.load_inputs()
-        logits = co_out[0]
-        mask_token_index = (inputs["input_ids"] == self.tokenizer.mask_token_id)[
-            0
-        ].nonzero(as_tuple=True)[0]
-        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
-        predicted_token = self.tokenizer.decode(predicted_token_id)
-        print("The predicted token for the [MASK] is:", predicted_token)
+        """Decode the model output for token classification.
 
-    def load_config(self):
-        """Load and return the configuration for the Bert model variant.
-
-        Returns:
-            The configuration object for the Bert model.
+        Args:
+            co_out: Model output
         """
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
+        inputs = self.load_inputs()
+        predicted_token_class_ids = co_out[0].argmax(-1)
+        predicted_token_class_ids = torch.masked_select(
+            predicted_token_class_ids, (inputs["attention_mask"][0] == 1)
         )
+        predicted_tokens_classes = [
+            self.model.config.id2label[t.item()] for t in predicted_token_class_ids
+        ]
 
-        return self.config
+        print(f"Context: {self.sample_text}")
+        print(f"Answer: {predicted_tokens_classes}")
