@@ -15,7 +15,6 @@ from .utils import (
     compile_jax_multichip_workload,
     compile_jax_workload_for_cpu,
     compile_jax_workload_for_tt_device,
-    compile_torch_workload_for_cpu,
     compile_torch_workload_for_tt_device,
     random_image,
     random_tensor,
