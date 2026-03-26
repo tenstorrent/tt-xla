@@ -6,6 +6,7 @@
 Wav2Vec2 model loader implementation for audio feature extraction.
 """
 
+import torch
 from typing import Optional
 
 from ....base import ForgeModel
@@ -52,7 +53,7 @@ class ModelLoader(ForgeModel):
             group=ModelGroup.VULCAN,
             task=ModelTask.AUDIO_FE,
             source=ModelSource.HUGGING_FACE,
-            framework=Framework.JAX,
+            framework=Framework.TORCH,
         )
 
     def _load_processor(self, dtype_override=None):
@@ -69,16 +70,19 @@ class ModelLoader(ForgeModel):
         return self._processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        from transformers import FlaxWav2Vec2Model
+        from transformers import Wav2Vec2Model
 
         model_kwargs = {}
         if dtype_override is not None:
-            model_kwargs["dtype"] = dtype_override
+            model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = FlaxWav2Vec2Model.from_pretrained(
-            self._variant_config.pretrained_model_name, from_pt=True, **model_kwargs
+        model = Wav2Vec2Model.from_pretrained(
+            self._variant_config.pretrained_model_name, **model_kwargs
         )
+        model.eval()
+        if dtype_override is not None:
+            model.to(dtype_override)
 
         return model
 
@@ -98,7 +102,7 @@ class ModelLoader(ForgeModel):
         inputs = self._processor(
             audio_array,
             sampling_rate=sampling_rate,
-            return_tensors="jax",
+            return_tensors="pt",
         )
 
         return inputs
