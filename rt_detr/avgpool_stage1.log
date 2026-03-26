@@ -1,0 +1,6 @@
+[11:43:41] INFO  ==============================================================
+[11:43:41] INFO  Block: avgpool_stage1
+[11:43:41] INFO  ==============================================================
+[11:43:41] INFO  CPU: shape=[1, 64, 80, 80]  min=0.0000  max=3.6891  mean=0.385818  std=0.375945  nan=False  inf=False
+[11:43:43] INFO  TT : shape=[1, 64, 80, 80]  min=nan  max=nan  mean=nan  std=nan  nan=True  inf=True
+[11:43:43] INFO  PCC = nan  [FAIL]

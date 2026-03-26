@@ -1,0 +1,6 @@
+[11:42:36] INFO  ==============================================================
+[11:42:36] INFO  Block: embedder+stage0+stage1
+[11:42:36] INFO  ==============================================================
+[11:42:36] INFO  CPU: shape=[1, 128, 80, 80]  min=0.0000  max=5.8296  mean=0.237018  std=0.341448  nan=False  inf=False
+[11:42:57] INFO  TT : shape=[1, 128, 80, 80]  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+[11:42:57] INFO  PCC = nan  [FAIL]

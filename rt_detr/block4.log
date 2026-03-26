@@ -1,0 +1,6 @@
+[11:42:57] INFO  ==============================================================
+[11:42:57] INFO  Block: ..+stage2
+[11:42:57] INFO  ==============================================================
+[11:42:57] INFO  CPU: shape=[1, 256, 40, 40]  min=0.0000  max=4.3605  mean=0.099663  std=0.199718  nan=False  inf=False
+[11:43:15] INFO  TT : shape=[1, 256, 40, 40]  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+[11:43:15] INFO  PCC = nan  [FAIL]

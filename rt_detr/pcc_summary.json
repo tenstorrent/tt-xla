@@ -1,0 +1,34 @@
+[
+  {
+    "block": "embedder_only",
+    "pcc": 0.9999293088912964
+  },
+  {
+    "block": "embedder+stage0",
+    "pcc": 1.0001437664031982
+  },
+  {
+    "block": "embedder+stage0+stage1",
+    "pcc": NaN
+  },
+  {
+    "block": "..+stage2",
+    "pcc": NaN
+  },
+  {
+    "block": "..+stage3",
+    "pcc": NaN
+  },
+  {
+    "block": "stage[1].layer[0]",
+    "pcc": NaN
+  },
+  {
+    "block": "stage[1].layer[0].shortcut",
+    "pcc": NaN
+  },
+  {
+    "block": "avgpool_stage1",
+    "pcc": NaN
+  }
+]

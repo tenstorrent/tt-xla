@@ -1,0 +1,52 @@
+[11:42:19] INFO  Loading PekingU/rtdetr_r18vd...
+[11:42:21] INFO  Input: [1, 3, 640, 640]
+[11:42:21] INFO  
+==============================================================
+[11:42:21] INFO  STAGE 1 — backbone slice sweep
+[11:42:21] INFO  ==============================================================
+[11:42:30] INFO    embedder_only                        PCC=0.999929  OK
+[11:42:36] INFO    embedder+stage0                      PCC=1.000144  OK
+[11:42:57] INFO    embedder+stage0+stage1               PCC=nan  FAIL
+[11:42:57] INFO    *** First failure at n_stages=2 ***
+[11:43:15] INFO    ..+stage2                            PCC=nan  FAIL
+[11:43:38] INFO    ..+stage3                            PCC=nan  FAIL
+[11:43:38] INFO  
+==============================================================
+[11:43:38] INFO  STAGE 2 — drill into stage[1] layers
+[11:43:38] INFO  ==============================================================
+[11:43:38] INFO    Stage[1] input: shape=[1, 64, 160, 160]  min=0.0000  max=9.4336  mean=0.385818  std=0.440991  nan=False  inf=False
+[11:43:40] INFO    stage[1].layer[0]  PCC=nan  FAIL ← FAILING LAYER
+[11:43:40] INFO  
+==============================================================
+[11:43:40] INFO  STAGE 3 — drill into layer[0] shortcut vs main path
+[11:43:40] INFO  ==============================================================
+[11:43:40] INFO    Shortcut: Sequential(
+  (0): AvgPool2d(kernel_size=2, stride=2, padding=0)
+  (1): RTDetrResNetShortCut(
+    (convolution): Conv2d(64, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (normalization): RTDetrFrozenBatchNorm2d()
+  )
+)
+[11:43:41] INFO    Shortcut PCC=nan  FAIL ← shortcut is broken
+[11:43:41] INFO  
+  Testing AvgPool2d alone: AvgPool2d(kernel_size=2, stride=2, padding=0)
+[11:43:43] INFO    AvgPool2d alone PCC=nan  FAIL ← ROOT CAUSE
+[11:43:43] INFO  
+  *** CONFIRMED ROOT CAUSE ***
+[11:43:43] INFO    Op : AvgPool2d(kernel_size=2, stride=2, padding=0)
+[11:43:43] INFO    Location: model.backbone.model.encoder.stages[1]
+[11:43:43] INFO              .layers[0].shortcut[0]
+[11:43:43] INFO  
+Results saved to /proj_sw/user_dev/ctr-lelanchelian/latest_build/tt-xla/rt_detr/pcc_summary.json
+[11:43:43] INFO  
+==============================================================
+[11:43:43] INFO  SUMMARY TABLE
+[11:43:43] INFO  ==============================================================
+[11:43:43] INFO    embedder_only                                  PCC=0.999929  OK
+[11:43:43] INFO    embedder+stage0                                PCC=1.000144  OK
+[11:43:43] INFO    embedder+stage0+stage1                         PCC=nan  FAIL
+[11:43:43] INFO    ..+stage2                                      PCC=nan  FAIL
+[11:43:43] INFO    ..+stage3                                      PCC=nan  FAIL
+[11:43:43] INFO    stage[1].layer[0]                              PCC=nan  FAIL
+[11:43:43] INFO    stage[1].layer[0].shortcut                     PCC=nan  FAIL
+[11:43:43] INFO    avgpool_stage1                                 PCC=nan  FAIL

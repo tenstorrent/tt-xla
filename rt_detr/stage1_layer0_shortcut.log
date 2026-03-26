@@ -1,0 +1,6 @@
+[11:43:40] INFO  ==============================================================
+[11:43:40] INFO  Block: stage[1].layer[0].shortcut
+[11:43:40] INFO  ==============================================================
+[11:43:40] INFO  CPU: shape=[1, 128, 80, 80]  min=-2.9071  max=3.1550  mean=0.023392  std=0.331091  nan=False  inf=False
+[11:43:41] INFO  TT : shape=[1, 128, 80, 80]  min=-inf  max=inf  mean=nan  std=nan  nan=False  inf=True
+[11:43:41] INFO  PCC = nan  [FAIL]
