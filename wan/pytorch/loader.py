@@ -12,6 +12,8 @@ Supports:
 Available variants:
 - WAN22_TI2V_5B: Wan 2.2 text-to-image-to-video 5B (full pipeline only)
 - WAN21_T2V_14B: Wan 2.1 text-to-video 14B (supports VAE subfolder)
+- WAN21_VACE_1_3B: Wan 2.1 VACE (Video Creation and Editing) 1.3B
+  Based on Kijai/WanVideo_comfy, uses Wan-AI/Wan2.1-VACE-1.3B-diffusers
 """
 
 from typing import Any, Optional, Dict
@@ -33,6 +35,8 @@ from .src.utils import (
     load_vae,
     load_vae_decoder_inputs,
     load_vae_encoder_inputs,
+    load_vace_pipeline,
+    load_vace_inputs,
 )
 
 SUPPORTED_SUBFOLDERS = {"vae"}
@@ -43,6 +47,7 @@ class ModelVariant(StrEnum):
 
     WAN22_TI2V_5B = "2.2_Ti2v_5B"
     WAN21_T2V_14B = "2.1_T2v_14B"
+    WAN21_VACE_1_3B = "2.1_VACE_1.3B"
 
 
 class ModelLoader(ForgeModel):
@@ -54,6 +59,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.WAN21_T2V_14B: ModelConfig(
             pretrained_model_name="Wan-AI/Wan2.1-T2V-14B-Diffusers",
+        ),
+        ModelVariant.WAN21_VACE_1_3B: ModelConfig(
+            pretrained_model_name="Wan-AI/Wan2.1-VACE-1.3B-diffusers",
         ),
     }
     DEFAULT_VARIANT = ModelVariant.WAN22_TI2V_5B
@@ -78,13 +86,22 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        if variant == ModelVariant.WAN21_VACE_1_3B:
+            group = ModelGroup.VULCAN
+            task = ModelTask.MM_VIDEO_TTT
+        elif variant == ModelVariant.WAN21_T2V_14B:
+            group = ModelGroup.RED
+            task = ModelTask.MM_VIDEO_TTT
+        else:
+            group = ModelGroup.RED
+            task = ModelTask.MM_IMAGE_TTT
+
         return ModelInfo(
             model="WAN",
             variant=variant,
-            group=ModelGroup.RED,
-            task=ModelTask.MM_VIDEO_TTT
-            if variant == ModelVariant.WAN21_T2V_14B
-            else ModelTask.MM_IMAGE_TTT,
+            group=group,
+            task=task,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -144,6 +161,13 @@ class ModelLoader(ForgeModel):
             dtype = dtype_override if dtype_override is not None else torch.float32
             return load_vae(self._variant_config.pretrained_model_name, dtype)
 
+        if self._variant is not None and self._variant == ModelVariant.WAN21_VACE_1_3B:
+            dtype = dtype_override if dtype_override is not None else torch.float32
+            self.pipeline = load_vace_pipeline(
+                self._variant_config.pretrained_model_name, dtype
+            )
+            return self.pipeline
+
         if self.pipeline is None:
             return self._load_pipeline(
                 dtype_override=dtype_override,
@@ -162,6 +186,7 @@ class ModelLoader(ForgeModel):
         Prepare inputs for the model or component.
 
         For VAE subfolder, pass vae_type="decoder" or vae_type="encoder".
+        For VACE variant, returns reference-to-video inputs.
         For full pipeline, returns a prompt dict.
         """
         if self._subfolder == "vae":
@@ -175,6 +200,11 @@ class ModelLoader(ForgeModel):
                 raise ValueError(
                     f"Unknown vae_type: {vae_type}. Expected 'decoder' or 'encoder'."
                 )
+
+        if self._variant is not None and self._variant == ModelVariant.WAN21_VACE_1_3B:
+            return load_vace_inputs(
+                prompt=prompt if prompt is not None else self.DEFAULT_PROMPT
+            )
 
         prompt_value = prompt if prompt is not None else self.DEFAULT_PROMPT
         return {"prompt": prompt_value}

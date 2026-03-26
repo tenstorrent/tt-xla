@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Utility functions for Wan VAE model loading."""
+"""Utility functions for Wan model loading (VAE and VACE pipeline)."""
 
 import torch
+from PIL import Image
 
 
 # Wan VAE uses 16 latent channels (z_dim=16)
@@ -81,3 +82,54 @@ def load_vae_encoder_inputs(dtype: torch.dtype = torch.float32) -> torch.Tensor:
     return torch.randn(
         1, 3, num_frames, LATENT_HEIGHT * 8, LATENT_WIDTH * 8, dtype=dtype
     )
+
+
+# ============================================================================
+# VACE Pipeline Loading Functions
+# ============================================================================
+
+
+def load_vace_pipeline(pretrained_model_name: str, dtype: torch.dtype):
+    """
+    Load WanVACEPipeline from diffusers.
+
+    Args:
+        pretrained_model_name: HuggingFace model ID
+            (e.g. "Wan-AI/Wan2.1-VACE-1.3B-diffusers")
+        dtype: Torch dtype for model weights
+    """
+    from diffusers import AutoencoderKLWan, WanVACEPipeline
+
+    vae = AutoencoderKLWan.from_pretrained(
+        pretrained_model_name,
+        subfolder="vae",
+        torch_dtype=torch.float32,
+    )
+    pipe = WanVACEPipeline.from_pretrained(
+        pretrained_model_name,
+        vae=vae,
+        torch_dtype=dtype,
+    )
+    pipe.eval()
+    return pipe
+
+
+def load_vace_inputs(prompt: str) -> dict:
+    """
+    Prepare inputs for the VACE pipeline (reference-to-video generation).
+
+    Returns a dict suitable for passing to WanVACEPipeline.__call__.
+    Uses a small synthetic reference image for testing.
+    """
+    # Create a small synthetic reference image for R2V (reference-to-video)
+    ref_image = Image.new("RGB", (832, 480), color=(128, 128, 200))
+
+    return {
+        "prompt": prompt,
+        "reference_images": [ref_image],
+        "height": 480,
+        "width": 832,
+        "num_frames": 9,
+        "num_inference_steps": 2,
+        "guidance_scale": 5.0,
+    }
