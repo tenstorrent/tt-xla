@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_2B_THINKING = "2b_thinking"
     QWEN_3_VL_4B_INSTRUCT = "4b_instruct"
     QWEN_3_VL_4B_THINKING = "4b_thinking"
+    QWEN_3_VL_8B_INSTRUCT = "8b_instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -48,6 +49,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_VL_4B_THINKING: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-VL-4B-Thinking",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_VL_8B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-VL-8B-Instruct",
             max_length=128,
         ),
     }
@@ -81,10 +86,17 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.QWEN_3_VL_8B_INSTRUCT
+            else ModelGroup.RED
+        )
         return ModelInfo(
             model="qwen_v3",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_IMAGE_TO_TEXT,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
