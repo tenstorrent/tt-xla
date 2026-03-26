@@ -25,7 +25,9 @@ class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for causal language modeling."""
 
     QWEN_3_5_9B = "9B"
+    QWEN_3_5_27B = "27B"
     QWEN_3_5_35B_A3B = "35B_A3B"
+    QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -37,8 +39,16 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3.5-9B",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_27B: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-27B",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_5_35B_A3B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-35B-A3B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-35B-A3B-FP8",
             max_length=128,
         ),
     }
@@ -207,7 +217,10 @@ class ModelLoader(ForgeModel):
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
-        return self._variant == ModelVariant.QWEN_3_5_35B_A3B
+        return self._variant in (
+            ModelVariant.QWEN_3_5_35B_A3B,
+            ModelVariant.QWEN_3_5_35B_A3B_FP8,
+        )
 
     def load_shard_spec(self, model):
         shard_specs = {}
