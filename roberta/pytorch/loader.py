@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available Roberta model variants."""
 
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
+    ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.ROBERTA_BASE_SENTIMENT: ModelConfig(
             pretrained_model_name="cardiffnlp/twitter-roberta-base-sentiment",
+        ),
+        ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST: ModelConfig(
+            pretrained_model_name="cardiffnlp/twitter-roberta-base-sentiment-latest",
         ),
     }
 
@@ -49,10 +53,15 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
+
+        group = ModelGroup.GENERALITY
+        if variant_name == ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST:
+            group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="RoBERTa",
             variant=variant_name,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
