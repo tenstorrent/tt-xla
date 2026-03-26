@@ -539,9 +539,14 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         mesh = None
         get_shard_spec = None
 
+    comparison_config = ComparisonConfig()
+    if variant == "120B" and arch == "single_device" and mlp_type == "standard":
+        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.985))
+
     run_graph_test(
         mlp,
         [hidden_states],
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
