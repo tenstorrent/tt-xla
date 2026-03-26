@@ -26,6 +26,14 @@ class ModelVariant(StrEnum):
     """Available DFN CLIP model variants."""
 
     VIT_H_14_378 = "ViT_H_14_378"
+    VIT_B_16 = "ViT_B_16"
+
+
+# Mapping from variant to OpenCLIP tokenizer name
+_TOKENIZER_NAME = {
+    ModelVariant.VIT_H_14_378: "ViT-H-14",
+    ModelVariant.VIT_B_16: "ViT-B-16",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +42,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.VIT_H_14_378: ModelConfig(
             pretrained_model_name="hf-hub:apple/DFN5B-CLIP-ViT-H-14-378",
+        ),
+        ModelVariant.VIT_B_16: ModelConfig(
+            pretrained_model_name="hf-hub:apple/DFN2B-CLIP-ViT-B-16",
         ),
     }
 
@@ -70,7 +81,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model, self.preprocess = create_model_from_pretrained(pretrained_model_name)
-        self.tokenizer = get_tokenizer("ViT-H-14")
+        self.tokenizer = get_tokenizer(_TOKENIZER_NAME[self._variant])
 
         if dtype_override is not None:
             model = model.to(dtype_override)
@@ -96,7 +107,7 @@ class ModelLoader(ForgeModel):
             _, self.preprocess = create_model_from_pretrained(
                 self._variant_config.pretrained_model_name
             )
-            self.tokenizer = get_tokenizer("ViT-H-14")
+            self.tokenizer = get_tokenizer(_TOKENIZER_NAME[self._variant])
 
         # Load image from HuggingFace dataset
         dataset = load_dataset("huggingface/cats-image")["test"]
