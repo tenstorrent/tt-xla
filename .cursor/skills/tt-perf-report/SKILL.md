@@ -106,19 +106,27 @@ If the user wants a previewable HTML rendering of the terminal report:
 - strip warning lines and omit later sections such as `Stacked report` unless the user explicitly asks to keep them
 - classify report lines into the preview classes such as `title`, `rule-title`, `header`, `cat-tm`, `cat-matmul`, `cat-ccl`, `cat-eltwise`, `cat-reduce`, `cat-special`, and `hi-us-*`
 - render the report name above the terminal block as a dedicated title element using the `report-name` CSS class
-- use a single flat dark gray page background, not a navy page with a separate gray card/container
+- use a dark olive/forest page background with deeper mossy panels, code-like monospace headings, and soft pink accents in the page chrome
 - keep `SLOW` rows highlighted with a red background
 - keep TM-style ops muted gray
-- use subtle category tinting for non-TM ops
+- use subtle olive/pink-forward category tinting for non-TM ops while preserving strong text contrast
+- keep highlighted rows using their original op-category text color; use background/border emphasis instead of recoloring the text
 - color `FastReduceNCDeviceOperation` with the reduce bucket, not the CCL bucket
 - color `SoftmaxDeviceOperation` with the special bucket to match the real generated preview output
 - if the user wants `Device Time` emphasis, highlight whole rows with `Device Time > 50 us` in the `Performance Report`
-- preserve some yellow medium-severity highlighting (`100-200 us`) when such rows exist; do not flatten everything to gray/red only
+- preserve a distinct medium-severity highlight (`100-200 us`) when such rows exist; do not flatten everything to gray/red only
+- if the user keeps the `High Op-to-Op Gap` advice section, re-highlight only that section by `Op-to-Op Gap`, not by `Device Time`
+- when re-highlighting `High Op-to-Op Gap`, only apply the highlight to actual op rows, not plain text, notes, or URLs
 
 Use severity buckets for `Device Time` row highlighting:
 - `50-100 us` -> gray left border and light gray tint
-- `100-200 us` -> yellow left border and light yellow tint
-- `200+ us` -> red left border and light red tint
+- `100-200 us` -> pink left border and light pink tint
+- `200+ us` -> stronger rose/red left border and light rose tint
+
+Use severity buckets for `High Op-to-Op Gap` row highlighting when that advice section is present:
+- `100-200 us` -> gray left border and light gray tint
+- `200-400 us` -> amber left border and light amber tint
+- `400+ us` -> rose left border and light rose tint
 
 Append the summary PNG below the text report when the user wants the chart embedded in the page.
 Render the embedded summary image at a fixed width of `600px` with `max-width: 100%` so it stays consistent while still shrinking on narrower previews.
@@ -135,9 +143,11 @@ Use `report_preview_example.html` in this skill directory as the visual referenc
 If the user wants an overview page for multiple slices, create a compact `index.html` that combines the different slice types into one summary:
 
 - start from `index_template.html` in this skill directory and replace the placeholders
+- prefer the same code-like monospace visual direction as the published GitHub Pages index
 - top header: model name, platform, and batch size
 - short lead: explain that the run was first traced as a smaller model/decode window, then representative full layers and sublayers were sliced from that same run
 - summary cards: use only the highest-signal numbers
+- use forest-toned boxes with deeper mossy surfaces and visible pink accents on headings, pills, and card chrome
 
 Preferred summary-card pattern:
 - trace scope: model, platform, decode window, batch size

@@ -6,18 +6,51 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Example Layer Part Performance Report</title>
   <style>
+    :root {
+      --page-bg: #1b241d;
+      --page-glow: rgba(240, 192, 214, 0.14);
+      --surface: #1f2f23;
+      --surface-soft: #294030;
+      --surface-deep: rgba(25, 39, 28, 0.98);
+      --text: #f7eff2;
+      --rule: #768775;
+      --title: #f2b9d0;
+      --title-strong: #ffdbe8;
+      --header: #eadde3;
+      --tm: #a8b2a9;
+      --matmul: #f7d9e3;
+      --ccl: #ebf2a6;
+      --eltwise: #b9ddd0;
+      --reduce: #d2ddb2;
+      --special: #ffd19a;
+      --slow-bg: rgba(128, 33, 73, 0.34);
+      --slow-text: #fff1f6;
+      --hi-low-bar: #a7b7a2;
+      --hi-low-bg: rgba(167, 183, 162, 0.16);
+      --hi-med-bar: #f2b880;
+      --hi-med-bg: rgba(242, 184, 128, 0.22);
+      --hi-high-bar: #f06b9a;
+      --hi-high-bg: rgba(240, 107, 154, 0.26);
+      --chart-border: rgba(240, 107, 154, 0.32);
+      --pink-line: rgba(240, 107, 154, 0.42);
+      --green-glow: rgba(185, 221, 208, 0.10);
+    }
+
     body {
       margin: 0;
-      background: #262626;
-      color: #e5e7eb;
+      background:
+        radial-gradient(circle at top left, var(--page-glow), transparent 34%),
+        radial-gradient(circle at top right, var(--green-glow), transparent 26%),
+        linear-gradient(180deg, #222d24 0%, var(--page-bg) 100%);
+      color: var(--text);
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     }
 
     .container {
       max-width: 1800px;
       margin: 0 auto;
-      padding: 18px 20px;
-      background: #262626;
+      padding: 18px 20px 28px;
+      background: transparent;
     }
 
     pre {
@@ -26,89 +59,133 @@
       overflow-x: auto;
       line-height: 1.5;
       font-size: 11px;
+      padding: 18px 20px;
+      border: 1px solid rgba(133, 160, 136, 0.40);
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(247, 214, 228, 0.05), rgba(0, 0, 0, 0)),
+        linear-gradient(135deg, rgba(185, 221, 208, 0.06), rgba(0, 0, 0, 0) 42%),
+        var(--surface-deep);
+      box-shadow:
+        0 16px 36px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        inset 4px 0 0 var(--pink-line);
     }
 
     .title {
-      color: #fbbf24;
+      color: var(--title-strong);
       font-weight: 700;
+      text-shadow: 0 0 12px rgba(240, 107, 154, 0.18);
     }
 
     .rule-title {
-      color: #f59e0b;
+      color: var(--title);
     }
 
     .rule {
-      color: #374151;
+      color: var(--rule);
     }
 
     .header {
-      color: #9ca3af;
+      color: var(--header);
       font-weight: 600;
     }
 
     .cat-tm {
-      color: #9ca3af;
+      color: var(--tm);
     }
 
     .cat-matmul {
-      color: #bfdbfe;
+      color: var(--matmul);
     }
 
     .cat-ccl {
-      color: #ffd500;
+      color: var(--ccl);
     }
 
     .cat-eltwise {
-      color: #7ebad3;
+      color: var(--eltwise);
     }
 
     .cat-reduce {
-      color: #c9a164;
+      color: var(--reduce);
     }
 
     .cat-special {
-      color: #cd9848;
+      color: var(--special);
     }
 
     .slow {
-      background: rgba(127, 29, 29, 0.35);
-      color: #fee2e2;
+      background: var(--slow-bg);
+      color: var(--slow-text);
       font-weight: 700;
     }
 
     .hi-us {
       font-weight: 900;
-      border-radius: 4px;
+      border-radius: 5px;
     }
 
     .hi-us-low {
-      box-shadow: inset 4px 0 0 #9ca3af;
-      background: rgba(156, 163, 175, 0.10);
+      box-shadow:
+        inset 4px 0 0 var(--hi-low-bar),
+        inset 0 0 0 1px rgba(167, 183, 162, 0.18);
+      background: var(--hi-low-bg);
     }
 
     .hi-us-med {
-      box-shadow: inset 4px 0 0 #fbbf24;
-      background: rgba(251, 191, 36, 0.10);
+      box-shadow:
+        inset 4px 0 0 var(--hi-med-bar),
+        inset 0 0 0 1px rgba(242, 184, 128, 0.18);
+      background: var(--hi-med-bg);
     }
 
     .hi-us-high {
-      box-shadow: inset 4px 0 0 #ef4444;
-      background: rgba(239, 68, 68, 0.12);
+      box-shadow:
+        inset 4px 0 0 var(--hi-high-bar),
+        inset 0 0 0 1px rgba(240, 107, 154, 0.22);
+      background: var(--hi-high-bg);
+    }
+
+    .hi-gap {
+      border-radius: 5px;
+    }
+
+    .hi-gap-100 {
+      box-shadow:
+        inset 4px 0 0 rgba(167, 183, 162, 0.95),
+        inset 0 0 0 1px rgba(167, 183, 162, 0.18);
+      background: rgba(167, 183, 162, 0.16);
+    }
+
+    .hi-gap-200 {
+      box-shadow:
+        inset 4px 0 0 rgba(242, 184, 128, 0.95),
+        inset 0 0 0 1px rgba(242, 184, 128, 0.18);
+      background: rgba(242, 184, 128, 0.22);
+    }
+
+    .hi-gap-400 {
+      box-shadow:
+        inset 4px 0 0 rgba(240, 107, 154, 0.98),
+        inset 0 0 0 1px rgba(240, 107, 154, 0.22);
+      background: rgba(240, 107, 154, 0.26);
     }
 
     .report-name {
       margin-bottom: 14px;
-      color: #f8fafc;
-      font-family: system-ui, sans-serif;
-      font-size: 22px;
+      color: var(--title-strong);
+      font-family: inherit;
+      font-size: 24px;
       font-weight: 700;
       letter-spacing: 0.01em;
+      text-shadow: 0 0 12px rgba(240, 107, 154, 0.14);
     }
 
     .summary-chart {
       margin-top: 22px;
       padding-top: 18px;
-      border-top: 1px solid #374151;
+      border-top: 1px solid var(--chart-border);
     }
 
     .summary-chart img {
@@ -116,10 +193,13 @@
       width: 600px;
       max-width: 100%;
       height: auto;
-      border-radius: 10px;
-      background: #1f2937;
+      border-radius: 12px;
+      border: 1px solid rgba(240, 107, 154, 0.22);
+      background: var(--surface-soft);
+      box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
-
   </style>
 </head>
 
@@ -152,7 +232,10 @@ ID     Total %  Bound  OP Code                               Device   Device Tim
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
        100.0 %         84 device ops, 0 host ops, 0 signposts              5,530 μs     13,478 μs</pre>
     <div class="summary-chart">
-      <img src="example_summary.png" alt="Example layer part summary chart" />
+      <img
+        src="../../../.tracy_artifacts/reports/2026_03_25_12_13_39/layer_profile/tt_perf/even_full_summary.png"
+        alt="Real even full layer summary chart"
+      />
     </div>
   </div>
   <script>
