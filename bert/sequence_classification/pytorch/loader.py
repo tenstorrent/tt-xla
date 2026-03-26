@@ -23,6 +23,9 @@ class ModelVariant(StrEnum):
 
     TEXTATTACK_BERT_BASE_UNCASED_SST_2 = "Base_Uncased_Sst_2"
     PROSUSAI_FINBERT = "ProsusAI_FinBERT"
+    NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT = (
+        "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +41,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="ProsusAI/finbert",
             max_length=128,
         ),
+        ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: LLMModelConfig(
+            pretrained_model_name="nlptown/bert-base-multilingual-uncased-sentiment",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -47,6 +54,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2: "the movie was great!",
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
+        ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
     }
 
     def __init__(self, variant=None):
@@ -78,7 +86,10 @@ class ModelLoader(ForgeModel):
         if variant_name is None:
             variant_name = "base"
         group = ModelGroup.GENERALITY
-        if variant_name == ModelVariant.PROSUSAI_FINBERT:
+        if variant_name in (
+            ModelVariant.PROSUSAI_FINBERT,
+            ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
+        ):
             group = ModelGroup.VULCAN
         return ModelInfo(
             model="BERT",
