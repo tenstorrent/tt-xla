@@ -389,11 +389,9 @@ test_config:
     reason: "Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22636544 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
-  # added push marker as `n150/p150 and expected_passing and push and large` in onPR has no tests supported with Transformers uplift
-  # this test is in `n150/p150 and expected_passing and large` in nightly
   qwen_2_5_coder/causal_lm/jax-0.5B-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [large, push]
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-1.5B-single_device-inference:
     status: EXPECTED_PASSING
