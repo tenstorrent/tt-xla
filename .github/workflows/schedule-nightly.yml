@@ -94,6 +94,13 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
 
+  builder_integration_tests:
+    uses: ./.github/workflows/call-builder-integration-test.yml
+    secrets: inherit
+    needs: [ build-image ]
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
   release:
     uses: ./.github/workflows/call-release.yml
     needs: [ build-ttxla ]
@@ -122,6 +129,7 @@ jobs:
       - build-image
       - build-ttxla
       - perf-benchmark
+      - builder_integration_tests
     runs-on: Ubuntu-latest
     outputs:
       is-main: ${{ steps.branch-check.outputs.IS_MAIN }}
