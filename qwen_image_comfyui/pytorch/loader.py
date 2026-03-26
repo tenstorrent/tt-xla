@@ -4,18 +4,17 @@
 """
 Qwen-Image ComfyUI Repackaged model loader implementation.
 
-Loads single-file safetensors VAE from Comfy-Org/Qwen-Image_ComfyUI.
-Supports VAE component loading for encoder/decoder testing.
+Loads the VAE component from Comfy-Org/Qwen-Image_ComfyUI via the upstream
+Qwen/Qwen-Image-2512 diffusers config. Supports encoder/decoder testing.
 
 Available variants:
-- QWEN_IMAGE_VAE: Qwen-Image VAE (latent channels=32, 3-channel RGB)
+- QWEN_IMAGE_VAE: Qwen-Image VAE (z_dim=16, 3-channel RGB)
 """
 
 from typing import Any, Optional
 
 import torch
 from diffusers import AutoencoderKLQwenImage
-from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
 from ...config import (
@@ -29,18 +28,13 @@ from ...config import (
 )
 
 REPO_ID = "Comfy-Org/Qwen-Image_ComfyUI"
+UPSTREAM_REPO = "Qwen/Qwen-Image-2512"
 
-LATENT_CHANNELS = 32
+# z_dim from model config
+LATENT_CHANNELS = 16
+LATENT_FRAMES = 1
 LATENT_HEIGHT = 8
 LATENT_WIDTH = 8
-
-_VAE_FILES = {
-    "default": "split_files/vae/qwen_image_vae.safetensors",
-}
-
-_VAE_CONFIGS = {
-    "default": "Qwen/Qwen-Image-2512",
-}
 
 
 class ModelVariant(StrEnum):
@@ -50,7 +44,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """Qwen-Image ComfyUI model loader using single-file safetensors."""
+    """Qwen-Image ComfyUI model loader for VAE component."""
 
     _VARIANTS = {
         ModelVariant.QWEN_IMAGE_VAE: ModelConfig(
@@ -77,15 +71,9 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_vae(self, dtype: torch.dtype = torch.float32) -> AutoencoderKLQwenImage:
-        """Load VAE from single-file safetensors."""
-        vae_path = hf_hub_download(
-            repo_id=REPO_ID,
-            filename=_VAE_FILES["default"],
-        )
-
-        self._vae = AutoencoderKLQwenImage.from_single_file(
-            vae_path,
-            config=_VAE_CONFIGS["default"],
+        """Load VAE from the upstream Qwen-Image-2512 repository."""
+        self._vae = AutoencoderKLQwenImage.from_pretrained(
+            UPSTREAM_REPO,
             subfolder="vae",
             torch_dtype=dtype,
         )
@@ -115,15 +103,20 @@ class ModelLoader(ForgeModel):
         vae_type = kwargs.get("vae_type", "decoder")
 
         if vae_type == "decoder":
+            # [batch, channels, frames, height, width]
             return torch.randn(
                 1,
                 LATENT_CHANNELS,
+                LATENT_FRAMES,
                 LATENT_HEIGHT,
                 LATENT_WIDTH,
                 dtype=dtype,
             )
         elif vae_type == "encoder":
-            return torch.randn(1, 3, LATENT_HEIGHT * 8, LATENT_WIDTH * 8, dtype=dtype)
+            # [batch, channels, frames, height, width]
+            return torch.randn(
+                1, 3, LATENT_FRAMES, LATENT_HEIGHT * 8, LATENT_WIDTH * 8, dtype=dtype
+            )
         else:
             raise ValueError(
                 f"Unknown vae_type: {vae_type}. Expected 'decoder' or 'encoder'."
