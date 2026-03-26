@@ -82,7 +82,7 @@ class ModelLoader(ForgeModel):
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {"from_pt": True}
         if dtype_override is not None:
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
