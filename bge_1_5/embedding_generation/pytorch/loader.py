@@ -4,6 +4,7 @@
 """
 BGE 1.5 model loader implementation for embedding generation.
 """
+
 import torch
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
@@ -26,6 +27,7 @@ class ModelVariant(StrEnum):
     BGE_LARGE_EN_V1_5 = "Large_En_v1_5"
     BGE_BASE_EN_V1_5 = "Base_En_v1_5"
     BGE_SMALL_EN_V1_5 = "Small_En_v1_5"
+    BGE_SMALL_ZH_V1_5 = "Small_Zh_v1_5"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +43,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BGE_SMALL_EN_V1_5: ModelConfig(
             pretrained_model_name="BAAI/bge-small-en-v1.5",
+        ),
+        ModelVariant.BGE_SMALL_ZH_V1_5: ModelConfig(
+            pretrained_model_name="BAAI/bge-small-zh-v1.5",
         ),
     }
 
@@ -71,7 +76,11 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant in [ModelVariant.BGE_BASE_EN_V1_5, ModelVariant.BGE_SMALL_EN_V1_5]:
+        if variant in [
+            ModelVariant.BGE_BASE_EN_V1_5,
+            ModelVariant.BGE_SMALL_EN_V1_5,
+            ModelVariant.BGE_SMALL_ZH_V1_5,
+        ]:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
