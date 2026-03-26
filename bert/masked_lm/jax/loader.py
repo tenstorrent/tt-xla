@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     LARGE = "Large"
+    MULTILINGUAL_BASE = "Multilingual Base (Uncased)"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE: LLMModelConfig(
             pretrained_model_name="google-bert/bert-large-uncased",
+        ),
+        ModelVariant.MULTILINGUAL_BASE: LLMModelConfig(
+            pretrained_model_name="google-bert/bert-base-multilingual-uncased",
         ),
     }
 
@@ -68,11 +72,17 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
+        variant_groups = {
+            ModelVariant.MULTILINGUAL_BASE: ModelGroup.VULCAN,
+        }
 
         return ModelInfo(
             model="BERT",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=variant_groups.get(variant, ModelGroup.GENERALITY),
             task=ModelTask.NLP_MASKED_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.JAX,
