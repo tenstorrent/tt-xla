@@ -324,7 +324,7 @@ def test_kimi_k2_layer_sparse_moe():
     )
     cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (4, 16)
+    mesh_shape = (4, 8)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
     enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
