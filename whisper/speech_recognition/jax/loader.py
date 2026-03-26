@@ -70,12 +70,16 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        variant_sources = {
+            ModelVariant.LARGE_V3_TURBO: ModelSource.HUGGING_FACE,
+        }
+
         return ModelInfo(
             model="Whisper",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.AUDIO_ASR,
-            source=ModelSource.EASYDEL,
+            source=variant_sources.get(variant, ModelSource.EASYDEL),
             framework=Framework.JAX,
         )
 
@@ -113,13 +117,25 @@ class ModelLoader(ForgeModel):
             model: The loaded model instance
         """
 
-        from easydel import AutoEasyDeLModelForSpeechSeq2Seq
-
         # Initialize model kwargs
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
+
+        if self._variant == ModelVariant.LARGE_V3_TURBO:
+            from transformers import FlaxWhisperForConditionalGeneration
+
+            from ....tools.jax_utils import cast_hf_model_to_type
+
+            model = FlaxWhisperForConditionalGeneration.from_pretrained(
+                self._model_name, from_pt=True, **model_kwargs
+            )
+            if dtype_override is not None:
+                model = cast_hf_model_to_type(model, dtype_override)
+            return model
+
+        from easydel import AutoEasyDeLModelForSpeechSeq2Seq
 
         partition_rules = ((r".*", PartitionSpec()),)
 
