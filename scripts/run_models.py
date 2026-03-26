@@ -12,11 +12,10 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
-JSON_FILE = REPO_DIR / "top_models.json"
 LOG_DIR = REPO_DIR / "scripts" / "logs"
 
 
-def run_model(model_id: str) -> tuple[str, int]:
+def run_model(model_id: str):
     """Run claude on a single model, returning (model_id, returncode)."""
     log_file = LOG_DIR / f"{model_id.replace('/', '_')}.log"
 
@@ -39,25 +38,40 @@ def run_model(model_id: str) -> tuple[str, int]:
 def main():
     parser = argparse.ArgumentParser(description="Run Claude on top HuggingFace models")
     parser.add_argument(
+        "--start",
+        type=int,
+        default=0,
+        help="Start offset models to process (default = 0)",
+    )
+    parser.add_argument(
         "--limit", type=int, default=0, help="Max models to process (0 = all)"
     )
     parser.add_argument(
-        "--workers", type=int, default=8, help="Max concurrent Claude instances"
+        "--workers", type=int, default=16, help="Max concurrent Claude instances"
+    )
+    parser.add_argument(
+        "json_file",
+        type=str,
+        default=None,
+        help="json file path",
     )
     args = parser.parse_args()
 
-    if not JSON_FILE.exists():
-        print(f"Error: {JSON_FILE} not found", file=sys.stderr)
+    if not Path(args.json_file).exists():
+        print(f"Error: {args.json_file} not found", file=sys.stderr)
         sys.exit(1)
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    with open(JSON_FILE) as f:
+    with open(args.json_file) as f:
         models = json.load(f)
 
     model_ids = [m["id"] for m in models]
     if args.limit > 0:
         model_ids = model_ids[: args.limit]
+
+    if args.start > 0:
+        model_ids = model_ids[args.start :]
 
     print(f"Processing {len(model_ids)} models with {args.workers} workers")
 
