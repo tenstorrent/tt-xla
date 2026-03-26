@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     """Available GPT-2 model variants."""
 
     GPT2_BASE = "Default"
+    GPT2_LARGE = "Large"
     GPT2_SEQUENCE_CLASSIFICATION = "Sequence_Classification"
 
 
@@ -38,6 +39,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GPT2_BASE: LLMModelConfig(
             pretrained_model_name="gpt2",
+            max_length=256,
+        ),
+        ModelVariant.GPT2_LARGE: LLMModelConfig(
+            pretrained_model_name="openai-community/gpt2-large",
             max_length=256,
         ),
         ModelVariant.GPT2_SEQUENCE_CLASSIFICATION: LLMModelConfig(
@@ -62,16 +67,21 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        task = (
-            ModelTask.NLP_CAUSAL_LM
-            if variant == ModelVariant.GPT2_BASE
-            else ModelTask.NLP_TEXT_CLS
+        if variant == ModelVariant.GPT2_SEQUENCE_CLASSIFICATION:
+            task = ModelTask.NLP_TEXT_CLS
+        else:
+            task = ModelTask.NLP_CAUSAL_LM
+
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.GPT2_LARGE
+            else ModelGroup.GENERALITY
         )
 
         return ModelInfo(
             model="GPT-2",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=task,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -82,8 +92,8 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name
         )
 
-        # Set padding side to left if not base GPT2 (i.e., classification)
-        if self._variant != ModelVariant.GPT2_BASE:
+        # Set padding side to left for classification variants
+        if self._variant == ModelVariant.GPT2_SEQUENCE_CLASSIFICATION:
             self.tokenizer.padding_side = "left"
 
         return self.tokenizer
@@ -91,7 +101,7 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
 
-        if self._variant == ModelVariant.GPT2_BASE:
+        if self._variant in (ModelVariant.GPT2_BASE, ModelVariant.GPT2_LARGE):
             config = GPT2Config.from_pretrained(model_name)
             config_dict = config.to_dict()
             config_dict["use_cache"] = True
@@ -119,7 +129,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        if self._variant == ModelVariant.GPT2_BASE:
+        if self._variant in (ModelVariant.GPT2_BASE, ModelVariant.GPT2_LARGE):
             # Use random input for text generation
             vocab_size = GPT2Config.from_pretrained(
                 self._variant_config.pretrained_model_name
