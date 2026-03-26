@@ -104,4 +104,4 @@ class ModelLoader(ForgeModel):
             faces_input = faces_input.to(dtype_override)
             body_input = body_input.to(dtype_override)
 
-        return faces_input, body_input
+        return {"faces_input": faces_input, "body_input": body_input}
