@@ -79,7 +79,6 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
-      forge_models_ref: ${{ inputs.forge_models_ref }}
 
   generate-test-config:
     needs: build-ttxla
