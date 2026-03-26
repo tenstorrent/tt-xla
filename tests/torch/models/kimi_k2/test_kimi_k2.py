@@ -300,7 +300,9 @@ def test_kimi_k2_layer():
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
-def test_kimi_k2_layer_sparse_moe():
+@pytest.mark.parametrize("batch_size", [32, 64])
+@pytest.mark.parametrize("seq_len", [1, 32, 128])
+def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
@@ -314,8 +316,6 @@ def test_kimi_k2_layer_sparse_moe():
     layer = layer.eval().to(torch.bfloat16)
 
     max_cache_len = 1024
-    batch_size = 64
-    seq_len = 1
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )

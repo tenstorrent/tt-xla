@@ -1120,10 +1120,10 @@ def all_to_all_dispatch(
     device = input_tensor.device
 
     if device.type == "xla":
-        # Keep frontend shape ops minimal for XLA path; rank normalization is
-        # canonicalized in StableHLO->TTIR conversion.
+        # Canonicalize inputs to 4D for runtime compatibility.
         if input_tensor.dim() == 3:
             B, S, H = input_tensor.shape
+            input_tensor = input_tensor.reshape(B, 1, S, H)
         elif input_tensor.dim() == 4:
             B, _, S, H = input_tensor.shape
         else:
@@ -1131,7 +1131,13 @@ def all_to_all_dispatch(
                 f"input_tensor must be rank 3 or 4, got {input_tensor.dim()}"
             )
 
+        # Canonicalize expert_indices to 4D [B, 1, S, K]
         K = expert_indices.shape[-1]
+        if expert_indices.dim() == 2:
+            expert_indices = expert_indices.reshape(B, S, K).unsqueeze(1)
+        elif expert_indices.dim() == 3:
+            expert_indices = expert_indices.unsqueeze(1)
+
         BD = B * num_devices
         output_shapes = [[1, BD, S, H], [1, BD, S, K]]
         output_dtypes = [input_tensor.dtype, expert_indices.dtype]

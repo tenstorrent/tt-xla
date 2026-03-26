@@ -56,6 +56,67 @@ def _moe_activation(
         return (up_out + 1) * glu
 
 
+def _sparse_expert_forward(experts, dispatched, sparsity_remap, activation_type,
+                           alpha=1.702, limit=7.0, output_shape=None):
+    """Unified sparse_matmul forward for MoE experts.
+
+    Works with both fused (w3=None, w1=gate_up) and separate (w3=up) expert weights.
+
+    Gate/up output is 5D tiled: [A, B, E, M, N] where A*B*M = BD*S.
+    Down input is reshaped to canonical [A*B, E, M, K].
+    Down output [A*B, E, M, H] is untiled to [BD, S, E, H].
+    """
+    E = experts.w2.shape[0]
+    w1 = experts.w1.unsqueeze(0)  # [1, E, H, N1]
+    w2 = experts.w2.view(1, E, experts.intermediate_size, -1)  # [1, E, inter, H]
+
+    # Gate (or gate+up fused): output [A, B, E, M, N1] (5D tiled)
+    w1_out = torch.ops.tt.sparse_matmul(
+        dispatched, w1, sparsity_remap,
+        nnz=0, is_input_a_sparse=False, is_input_b_sparse=True,
+    )
+    w1_out = w1_out + experts.w1_bias.view(1, 1, E, 1, -1)
+
+    if experts.w3 is not None:
+        # Separate gate/up: 2 sparse_matmuls
+        w3 = experts.w3.unsqueeze(0)  # [1, E, H, inter]
+        w3_out = torch.ops.tt.sparse_matmul(
+            dispatched, w3, sparsity_remap,
+            nnz=0, is_input_a_sparse=False, is_input_b_sparse=True,
+        )
+        w3_out = w3_out + experts.w3_bias.view(1, 1, E, 1, -1)
+
+        if activation_type == ACTIVATION_DEEPSEEK:
+            activated = F.silu(w1_out) * w3_out
+        else:
+            w1_out = w1_out.clamp(max=limit)
+            w3_out = w3_out.clamp(-limit, limit)
+            glu = w1_out * torch.sigmoid(w1_out * alpha)
+            activated = (w3_out + 1) * glu
+    else:
+        # Fused gate_up: 1 sparse_matmul, split via activation
+        activated = _moe_activation(w1_out, activation_type, alpha, limit)
+
+    # Reshape 5D → 4D canonical for down: [A, B, E, M, K] → [A*B, E, M, K]
+    A, B = activated.shape[0], activated.shape[1]
+    M = activated.shape[3]
+    activated = activated.reshape(A * B, E, M, experts.intermediate_size)
+
+    # Down: output [A*B, E, M, H] (canonical)
+    down_out = torch.ops.tt.sparse_matmul(
+        activated, w2, sparsity_remap,
+        nnz=0, is_input_a_sparse=True, is_input_b_sparse=False,
+    )
+    down_out = down_out + experts.w2_bias.view(1, E, 1, -1)
+
+    # Untile: [A*B, E, M, H] → [E, BD, S, H]
+    # Single permute to move E to front; A*B and M are adjacent so reshape merges them.
+    BD, S = output_shape
+    H = down_out.shape[-1]
+    down_out = down_out.permute(1, 0, 2, 3)  # [E, A*B, M, H]
+    return down_out.reshape(E, BD, S, H)
+
+
 class SparseMLP(nn.Module):
     """
     Sparse MLP implementation that uses sparse_matmul for MoE computation.
@@ -104,18 +165,15 @@ class SparseMLP(nn.Module):
         # 1. Router
         router_scores, router_indices = self.router(hidden_states)
 
-        # 2. Sparsity Mask [batch, seq, 1, num_experts]
-        sparsity = torch.zeros(
-            batch_size, seq_len, 1, self.num_experts,
-            dtype=hidden_states.dtype, device=hidden_states.device,
-        )
+        # 2. Sparsity Mask [batch, seq, 1, num_experts] via one-hot
         topk_indices_unsqueezed = router_indices.view(
             batch_size, seq_len, 1, self.num_experts_per_tok
         )
-        sparsity.scatter_(
-            dim=-1, index=topk_indices_unsqueezed,
-            src=torch.ones_like(topk_indices_unsqueezed, dtype=hidden_states.dtype),
-        )
+        expert_range = torch.arange(self.num_experts, device=hidden_states.device)
+        one_hot = (topk_indices_unsqueezed.unsqueeze(-1) == expert_range).to(
+            hidden_states.dtype
+        )  # [batch, seq, 1, K, E]
+        sparsity = one_hot.sum(dim=-2)  # [batch, seq, 1, E]
 
         # 3. Input [batch, seq, 1, hidden]
         hidden_4d = hidden_states.view(batch_size, seq_len, 1, hidden_size)
@@ -216,12 +274,40 @@ def build_expert_mapping(num_experts, num_devices, mesh_shape=None):
 
 
 class FusedExpertsWrapper(nn.Module):
-    """Wraps an experts module that has gate_up_proj and adds sparse_forward()."""
+    """Wraps an experts module that has gate_up_proj and adds sparse_forward().
+
+    Original attribute names (gate_up_proj, down_proj, etc.) remain accessible
+    for shard specs. w1/w2/w3 aliases are used by _sparse_expert_forward.
+    """
 
     def __init__(self, experts):
         super().__init__()
         self._experts = experts
         self.intermediate_size = experts.gate_up_proj.shape[-1] // 2
+
+    @property
+    def w1(self):
+        return self._experts.gate_up_proj
+
+    @property
+    def w1_bias(self):
+        return self._experts.gate_up_proj_bias
+
+    @property
+    def w2(self):
+        return self._experts.down_proj
+
+    @property
+    def w2_bias(self):
+        return self._experts.down_proj_bias
+
+    @property
+    def w3(self):
+        return None  # fused — no separate up proj
+
+    def forward(self, *args, **kwargs):
+        """Delegate to original experts forward for CPU golden path."""
+        return self._experts(*args, **kwargs)
 
     def __getattr__(self, name):
         if name.startswith("_") or name in ("intermediate_size", "training"):
@@ -230,42 +316,10 @@ class FusedExpertsWrapper(nn.Module):
 
     def sparse_forward(self, dispatched, sparsity_remap, activation_type,
                        alpha=1.702, limit=7.0, output_shape=None):
-        """Fused gate_up sparse_matmul + activation + down sparse_matmul.
-
-        Gate-up output is 5D tiled: [A, B, E, M, N] where A*B*M = BD*S.
-        Down input is reshaped to canonical [A*B, E, M, K].
-        Down output [A*B, E, M, H] is untiled to [BD, S, E, H].
-        """
-        E = self._experts.gate_up_proj.shape[0]
-        gate_up_proj = self._experts.gate_up_proj.unsqueeze(0)
-        down_proj = self._experts.down_proj.view(1, E, self.intermediate_size, -1)
-
-        # Gate+up: output [A, B, E, M, inter*2] (5D tiled)
-        gate_up_out = torch.ops.tt.sparse_matmul(
-            dispatched, gate_up_proj, sparsity_remap,
-            nnz=0, is_input_a_sparse=False, is_input_b_sparse=True,
+        return _sparse_expert_forward(
+            self, dispatched, sparsity_remap, activation_type,
+            alpha, limit, output_shape,
         )
-        gate_up_out = gate_up_out + self._experts.gate_up_proj_bias.view(1, 1, E, 1, -1)
-
-        activated = _moe_activation(gate_up_out, activation_type, alpha, limit)
-
-        # Reshape 5D → 4D canonical for down: [A, B, E, M, K] → [A*B, E, M, K]
-        A, B = activated.shape[0], activated.shape[1]
-        M = activated.shape[3]
-        activated = activated.reshape(A * B, E, M, self.intermediate_size)
-
-        # Down: output [A*B, E, M, H] (canonical)
-        down_out = torch.ops.tt.sparse_matmul(
-            activated, down_proj, sparsity_remap,
-            nnz=0, is_input_a_sparse=True, is_input_b_sparse=False,
-        )
-        down_out = down_out + self._experts.down_proj_bias.view(1, E, 1, -1)
-
-        # Untile: [A*B, E, M, H] → [BD, S, E, H]
-        BD, S = output_shape
-        H = down_out.shape[-1]
-        down_out = down_out.permute(0, 2, 1, 3)  # [A*B, M, E, H]
-        return down_out.reshape(BD, S, E, H)
 
 
 class A2aSparseMLP(nn.Module):
@@ -504,7 +558,7 @@ class A2aSparseMLP(nn.Module):
                 output_shape=(BD, seq_len),
             )
 
-        # Combine auto-detects [BD, S, E, H] or [E, BD, S, H] via expert_mapping.
+        # sparse_forward returns [E, BD, S, H] — combine expects this layout.
         combined = torch.ops.tt.all_to_all_combine(
             down_out,
             metadata,
@@ -573,19 +627,16 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                 topk_idx, topk_weight = out1, out2
             else:
                 topk_weight, topk_idx = out1, out2
-            bsz_seq = topk_idx.shape[0]
-            # Build sparse scores so gather(scores, indices) gives topk_weight
-            scores = torch.zeros(
-                bsz_seq,
-                self.n_experts,
-                dtype=topk_weight.dtype,
-                device=topk_weight.device,
-            )
-            scores.scatter_(1, topk_idx, topk_weight)
+            # Build sparse scores [BS, E] from topk_weight [BS, K] and topk_idx [BS, K]
+            # Using one_hot + einsum instead of scatter_ for XLA compatibility.
+            one_hot = (topk_idx.unsqueeze(-1) == torch.arange(
+                self.n_experts, device=topk_idx.device,
+            )).to(topk_weight.dtype)  # [BS, K, E]
+            scores = torch.einsum("bk,bke->be", topk_weight, one_hot)
             return scores, topk_idx
 
     class StackedExperts(nn.Module):
-        """Stacks separate gate_proj, up_proj, down_proj from Deepseek-style experts.
+        """Stacks expert weights into w1 (gate), w2 (down), w3 (up) format.
 
         Supports expert layouts with separate projections:
         - DeepseekV3MLP: gate_proj, up_proj, down_proj
@@ -646,58 +697,20 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                 torch.zeros(num_experts, hidden_size, dtype=dtype, device=device)
             )
 
+        # Aliases for unified _sparse_expert_forward (w1=gate, w2=down, w3=up)
+        w1 = property(lambda self: self.gate_proj)
+        w1_bias = property(lambda self: self.gate_proj_bias)
+        w2 = property(lambda self: self.down_proj)
+        w2_bias = property(lambda self: self.down_proj_bias)
+        w3 = property(lambda self: self.up_proj)
+        w3_bias = property(lambda self: self.up_proj_bias)
+
         def sparse_forward(self, dispatched, sparsity_remap, activation_type,
                            alpha=1.702, limit=7.0, output_shape=None):
-            """Run gate + up + activation + down via 3 sparse_matmuls.
-
-            Gate/up output is 5D tiled: [A, B, E, M, N] where A*B*M = BD*S.
-            Down input is reshaped to canonical [A*B, E, M, K].
-            Down output [A*B, E, M, H] is untiled to [BD, S, E, H].
-            """
-            E = self.down_proj.shape[0]
-            gate_proj = self.gate_proj.unsqueeze(0)
-            up_proj = self.up_proj.unsqueeze(0)
-            down_proj = self.down_proj.view(1, E, self.intermediate_size, -1)
-
-            # Gate: output [A, B, E, M, inter] (5D tiled)
-            gate_out = torch.ops.tt.sparse_matmul(
-                dispatched, gate_proj, sparsity_remap,
-                nnz=0, is_input_a_sparse=False, is_input_b_sparse=True,
+            return _sparse_expert_forward(
+                self, dispatched, sparsity_remap, activation_type,
+                alpha, limit, output_shape,
             )
-            gate_out = gate_out + self.gate_proj_bias.view(1, 1, E, 1, -1)
-
-            # Up: output [A, B, E, M, inter] (5D tiled)
-            up_out = torch.ops.tt.sparse_matmul(
-                dispatched, up_proj, sparsity_remap,
-                nnz=0, is_input_a_sparse=False, is_input_b_sparse=True,
-            )
-            up_out = up_out + self.up_proj_bias.view(1, 1, E, 1, -1)
-
-            if activation_type == ACTIVATION_DEEPSEEK:
-                activated = F.silu(gate_out) * up_out
-            else:
-                gate_out = gate_out.clamp(max=limit)
-                up_out = up_out.clamp(-limit, limit)
-                glu = gate_out * torch.sigmoid(gate_out * alpha)
-                activated = (up_out + 1) * glu
-
-            # Reshape 5D → 4D canonical for down: [A, B, E, M, K] → [A*B, E, M, K]
-            A, B = activated.shape[0], activated.shape[1]
-            M = activated.shape[3]
-            activated = activated.reshape(A * B, E, M, self.intermediate_size)
-
-            # Down: output [A*B, E, M, H] (canonical)
-            down_out = torch.ops.tt.sparse_matmul(
-                activated, down_proj, sparsity_remap,
-                nnz=0, is_input_a_sparse=True, is_input_b_sparse=False,
-            )
-            down_out = down_out + self.down_proj_bias.view(1, E, 1, -1)
-
-            # Untile: [A*B, E, M, H] → [BD, S, E, H]
-            BD, S = output_shape
-            H = down_out.shape[-1]
-            down_out = down_out.permute(0, 2, 1, 3)  # [A*B, M, E, H]
-            return down_out.reshape(BD, S, E, H)
 
     def __init__(self, moe_module):
         super().__init__()
@@ -949,11 +962,11 @@ def get_moe_shard_specs(
             compound = (mesh_names[0], mesh_names[1])
 
             if hasattr(experts, "gate_up_proj"):
-                # Fused gate_up (e.g. GPT-OSS)
+                # Fused gate_up (e.g. GPT-OSS via FusedExpertsWrapper)
                 shard_specs[experts.gate_up_proj] = (compound, None, None)
                 shard_specs[experts.gate_up_proj_bias] = (compound, None)
             else:
-                # Separate gate/up (e.g. Deepseek)
+                # Separate gate/up (e.g. Deepseek via StackedExperts)
                 shard_specs[experts.gate_proj] = (compound, None, None)
                 shard_specs[experts.up_proj] = (compound, None, None)
                 shard_specs[experts.gate_proj_bias] = (compound, None)

@@ -246,8 +246,8 @@ def test_deepseek_v3_2_moe_only():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    batch_size = 32
-    seq_len = 1
+    batch_size = 64
+    seq_len = 128
     args = ModelArgs(
         n_layers=2,
         q_lora_rank=3072,
@@ -320,13 +320,13 @@ def test_deepseek_v3_2_moe_only():
 
 
 @pytest.mark.llmbox
-def test_deepseek_v3_2_layer_sparse_moe():
+@pytest.mark.parametrize("batch_size", [32, 64])
+@pytest.mark.parametrize("seq_len", [1, 32, 128])
+def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
     """Test single MoE Block with A2aSparseMLP on (2,4) mesh."""
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    batch_size = 32
-    seq_len = 1
     args = ModelArgs(
         n_layers=2,
         q_lora_rank=3072,
