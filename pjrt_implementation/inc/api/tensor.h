@@ -175,65 +175,43 @@ public:
              "Tensor does not have the given shard");
 
     if (m_shard.load() != nullptr)
-      load_tensor()->remove_shard(m_shard.load());
+      m_tensor.load()->remove_shard(m_shard.load());
 
-    std::atomic_store(&m_tensor, std::move(tensor));
+    m_tensor.store(std::move(tensor));
     m_shard.store(shard);
   }
 
   explicit operator bool() const noexcept {
-    return static_cast<bool>(load_tensor());
+    return static_cast<bool>(m_tensor.load());
   }
 
   bool operator==(const PjrtTensorRef &other) const noexcept {
-    return load_tensor().get() == other.load_tensor().get();
+    return m_tensor.load() == other.m_tensor.load();
   }
-
-  // const PjrtTensor *operator->() const noexcept {
-  //   assert(load_tensor() && "Accessing non-existing PJRT tensor");
-  //   return load_tensor().operator->();
-  // }
-
-  // PjrtTensor *operator->() noexcept {
-  //   assert(load_tensor() && "Accessing non-existing PJRT tensor");
-  //   return load_tensor().operator->();
-  // }
 
   std::shared_ptr<PjrtTensor> operator->() noexcept {
-    TT_FATAL(load_tensor(), "Accessing non-existing PJRT tensor");
-    return load_tensor();
+    TT_FATAL(m_tensor.load(), "Accessing non-existing PJRT tensor");
+    return m_tensor.load();
   }
+
   std::shared_ptr<const PjrtTensor> operator->() const noexcept {
-    TT_FATAL(load_tensor(), "Accessing non-existing PJRT tensor");
-    return load_tensor();
+    TT_FATAL(m_tensor.load(), "Accessing non-existing PJRT tensor");
+    return m_tensor.load();
   }
 
   const PjrtTensor &operator*() const noexcept {
-    TT_FATAL(load_tensor(), "Accessing non-existing PJRT tensor");
-    return *load_tensor();
+    TT_FATAL(m_tensor.load(), "Accessing non-existing PJRT tensor");
+    return *m_tensor.load();
   };
 
   PjrtTensor &operator*() noexcept {
-    TT_FATAL(load_tensor(), "Accessing non-existing PJRT tensor");
-    return *load_tensor();
+    TT_FATAL(m_tensor.load(), "Accessing non-existing PJRT tensor");
+    return *m_tensor.load();
   };
-
-private:
-  std::shared_ptr<const PjrtTensor> load_tensor() const noexcept {
-    return std::atomic_load(&m_tensor);
-  }
-
-  std::shared_ptr<PjrtTensor> load_tensor() noexcept {
-    return std::atomic_load(&m_tensor);
-  }
 
 private: // members
   // Shared pointer to pjrt tensor.
-  // Since c++17 does not have std::atomic<std::shared_ptr>>, we will use manual
-  // std::atomic_load and std::atomic_store functions.
-  // TODO(acolic): Change to std::atomic<std::shared_ptr>> once we migrate to
-  // c++20.
-  std::shared_ptr<PjrtTensor> m_tensor;
+  std::atomic<std::shared_ptr<PjrtTensor>> m_tensor;
 
   // Buffer instance pointer that holds this tensor reference.
   std::atomic<BufferInstance *> m_shard{nullptr};

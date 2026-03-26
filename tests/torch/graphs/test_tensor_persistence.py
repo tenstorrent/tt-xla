@@ -585,6 +585,49 @@ def test_concurrent_multi_buffer_instance_transfer():
         thread.join()
 
 
+@pytest.mark.push
+@pytest.mark.nightly
+def test_sharded_concurrent_multi_buffer_instance_transfer():
+    """
+    Test scenario: Inputs A and B participates in some graph, and are concurrently copied to host
+    by multiple framework threads.
+
+    This tests for race conditions in the copyToHost thread instance mutex management, and that
+    there are not multiple concurrent calls to tt::runtime::submit triggering metal race conditions,
+    as guarded by the static copyToHost internal mutex.
+    """
+
+    class ProgramAB(torch.nn.Module):
+        def forward(self, A, B):
+            return A + 1, B + 1
+
+    input_a_cpu = torch.randn(32, 32, dtype=torch.float32)
+    input_b_cpu = torch.randn(32, 32, dtype=torch.float32)
+
+    program_ab = ProgramAB()
+
+    res_a, res_b = run_model_on_device(program_ab, [input_a_cpu, input_b_cpu])
+
+    # Create multiple threads that all copies result object
+    def copy_to_host(_result):
+        for _ in range(1024):
+            _result.cpu()
+
+    threads = []
+    num_threads = 10
+    for _ in range(num_threads):
+        thread_a = threading.Thread(target=copy_to_host, args=(res_a,))
+        thread_b = threading.Thread(target=copy_to_host, args=(res_b,))
+
+        threads.append(thread_a)
+        threads.append(thread_b)
+        thread_a.start()
+        thread_b.start()
+
+    for thread in threads:
+        thread.join()
+
+
 def setup_spmd():
     """Helper to enable SPMD mode with Shardy conversion."""
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"

@@ -125,11 +125,6 @@ void PjrtTensor::move_to_host() noexcept {
 
   const std::scoped_lock lock{m_mutex};
 
-  if (m_moved_to_host)
-    return;
-
-  m_moved_to_host = true;
-
   std::vector<tt::runtime::Tensor> tensors =
       tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
 
@@ -137,23 +132,21 @@ void PjrtTensor::move_to_host() noexcept {
            "Unexpected number of tensors after move to host: "
            "tensors.size()={}, m_shards.size()={}",
            tensors.size(), m_shards.size());
-  // m_runtime_tensor = std::move(tensors[0]);
 
-  // for (std::size_t i = 1; i < m_shards.size(); ++i) {
-  for (std::size_t i = 0; i < m_shards.size(); ++i) {
+  m_runtime_tensor = std::move(tensors[0]);
+
+  for (std::size_t i = 1; i < m_shards.size(); ++i) {
     if (m_shards[i] == nullptr) {
       DLOG_F(LOG_DEBUG, "Deleted tensor shard. Skipping PjrtTensor creation.");
       continue;
     }
 
-    // tt::runtime::Tensor rt_tensor =
-    //     tensors.size() == 1 ? m_runtime_tensor : std::move(tensors[i]);
     tt::runtime::Tensor rt_tensor =
-        tensors.size() == 1 ? tensors[0] : std::move(tensors[i]);
+        tensors.size() == 1 ? m_runtime_tensor : std::move(tensors[i]);
     PjrtTensor::from_runtime_tensor({m_shards[i]}, std::move(rt_tensor));
   }
 
-  // m_shards.resize(1);
+  m_shards.resize(1);
 }
 
 // Returns whether all shards share the same pjrt tensor.
