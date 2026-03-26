@@ -87,13 +87,13 @@ class ModelLoader(ForgeModel):
         """Load sample time series inputs for the model.
 
         Returns:
-            dict: Input dict with 'past_values' tensor of shape
+            dict: Input dict with 'input_ids' float tensor of shape
                   (batch_size, context_length).
         """
         cfg = self._variant_config
         dtype = dtype_override or torch.float32
 
         torch.manual_seed(42)
-        past_values = torch.randn(1, cfg.context_length, dtype=dtype)
+        input_ids = torch.randn(1, cfg.context_length, dtype=dtype)
 
-        return {"past_values": past_values}
+        return {"input_ids": input_ids}
