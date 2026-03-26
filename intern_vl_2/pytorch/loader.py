@@ -5,8 +5,6 @@
 InternVL2 model loader implementation for multimodal visual question answering.
 """
 
-import math
-
 import torch
 import torchvision.transforms as T
 from PIL import Image
