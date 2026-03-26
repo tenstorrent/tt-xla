@@ -5,7 +5,7 @@
 BERT model loader implementation for sentence embedding generation.
 """
 import torch
-from transformers import BertModel, BertTokenizer, AutoConfig
+from transformers import AutoTokenizer, BertModel, AutoConfig
 from typing import Optional
 
 from third_party.tt_forge_models.config import (
@@ -26,6 +26,9 @@ class ModelVariant(StrEnum):
     EMRECAN_BERT_BASE_TURKISH_CASED_MEAN_NLI_STSB_TR = (
         "emrecan/bert-base-turkish-cased-mean-nli-stsb-tr"
     )
+    PARAPHRASE_MULTILINGUAL_MINILM_L12_V2 = (
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +39,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.EMRECAN_BERT_BASE_TURKISH_CASED_MEAN_NLI_STSB_TR: LLMModelConfig(
             pretrained_model_name="emrecan/bert-base-turkish-cased-mean-nli-stsb-tr",
             max_length=16,
+        ),
+        ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: LLMModelConfig(
+            pretrained_model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            max_length=128,
         ),
     }
 
@@ -71,10 +78,15 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        variant_groups = {
+            ModelVariant.EMRECAN_BERT_BASE_TURKISH_CASED_MEAN_NLI_STSB_TR: ModelGroup.RED,
+            ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: ModelGroup.VULCAN,
+        }
+
         return ModelInfo(
             model="BERT",
             variant=variant,
-            group=ModelGroup.RED,
+            group=variant_groups.get(variant, ModelGroup.RED),
             task=ModelTask.NLP_EMBED_GEN,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -88,7 +100,7 @@ class ModelLoader(ForgeModel):
         """
         if self.tokenizer is None:
             model_name = self._variant_config.pretrained_model_name
-            self.tokenizer = BertTokenizer.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         return self.tokenizer
 
