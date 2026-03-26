@@ -2,7 +2,7 @@ name: Nightly Update Release Notes
 
 on:
   workflow_run:
-    workflows: ["schedule-nightly"]
+    workflows: ["On nightly"]
     types: [completed]
     branches: [main]
 
