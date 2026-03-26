@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     BASE_CASED = "Base (Cased)"
+    BASE_CHINESE = "Base (Chinese)"
     LARGE = "Large"
     MULTILINGUAL_BASE = "Multilingual Base (Uncased)"
 
@@ -42,6 +43,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_CASED: LLMModelConfig(
             pretrained_model_name="google-bert/bert-base-cased",
         ),
+        ModelVariant.BASE_CHINESE: LLMModelConfig(
+            pretrained_model_name="google-bert/bert-base-chinese",
+        ),
         ModelVariant.LARGE: LLMModelConfig(
             pretrained_model_name="google-bert/bert-large-uncased",
         ),
@@ -53,7 +57,11 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.BASE
 
-    sample_text = "The capital of France is [MASK]."
+    _SAMPLE_TEXTS = {
+        ModelVariant.BASE_CHINESE: "\u6211\u7231[\u004d\u0041\u0053\u004b]\u56fd\u3002",
+    }
+
+    _DEFAULT_SAMPLE_TEXT = "The capital of France is [MASK]."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -64,6 +72,10 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self._tokenizer = None
+
+    @property
+    def sample_text(self):
+        return self._SAMPLE_TEXTS.get(self._variant, self._DEFAULT_SAMPLE_TEXT)
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -81,6 +93,7 @@ class ModelLoader(ForgeModel):
 
         variant_groups = {
             ModelVariant.BASE_CASED: ModelGroup.VULCAN,
+            ModelVariant.BASE_CHINESE: ModelGroup.VULCAN,
             ModelVariant.MULTILINGUAL_BASE: ModelGroup.VULCAN,
         }
 
