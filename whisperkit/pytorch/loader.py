@@ -88,26 +88,19 @@ class ModelLoader(ForgeModel):
         if self.model is None or self.processor is None:
             self.load_model()
 
-        from datasets import load_dataset
+        import numpy as np
 
         model_config = WhisperConfig.from_pretrained(
             self._variant_config.pretrained_model_name
         )
 
-        # Load audio sample from HuggingFace datasets
-        dataset = load_dataset(
-            "hf-internal-testing/librispeech_asr_dummy", "clean", split="validation"
-        )
-        sample = dataset[0]["audio"]
-        sample_audio = sample["array"]
-        sampling_rate = sample["sampling_rate"]
-
         model_param = next(self.model.parameters())
         device, dtype = model_param.device, dtype_override or model_param.dtype
 
-        # Preprocess audio
+        # Generate synthetic audio and process through the feature extractor
+        sample_audio = np.random.randn(16000 * 3).astype(np.float32)
         processor_output = self.processor(
-            sample_audio, return_tensors="pt", sampling_rate=sampling_rate
+            sample_audio, return_tensors="pt", sampling_rate=16000
         )
         input_features = processor_output.input_features.to(device=device, dtype=dtype)
 
