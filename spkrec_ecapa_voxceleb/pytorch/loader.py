@@ -73,14 +73,16 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Generate sample audio input for the model.
+        """Generate sample Fbank feature input for the ECAPA-TDNN embedding model.
 
-        Returns a 1-second mono waveform at 16kHz sample rate.
+        Returns pre-computed features of shape (batch, time_steps, n_mels)
+        equivalent to 1 second of 16kHz audio processed through Fbank features.
         """
-        # ECAPA-TDNN expects (batch, samples): 16kHz mono audio, 1 second
-        waveform = torch.randn(1, 16000)
+        # ECAPA-TDNN embedding model expects (batch, time_steps, n_mels)
+        # 1 second of 16kHz audio produces ~101 frames with 80 Mel filters
+        features = torch.randn(1, 101, 80)
 
         if dtype_override is not None:
-            waveform = waveform.to(dtype_override)
+            features = features.to(dtype_override)
 
-        return [waveform]
+        return [features]
