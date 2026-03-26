@@ -73,7 +73,7 @@ class ModelLoader(ForgeModel):
         pipeline_kwargs = {}
         token = kwargs.pop("token", None) or os.environ.get("HF_TOKEN")
         if token:
-            pipeline_kwargs["use_auth_token"] = token
+            pipeline_kwargs["token"] = token
 
         pipeline = Pipeline.from_pretrained(
             self._variant_config.pretrained_model_name, **pipeline_kwargs
