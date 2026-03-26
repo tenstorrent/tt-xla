@@ -34,7 +34,7 @@ jobs:
     with:
       docker_image: ${{ inputs.docker_image }}
       build_type: debug
-      enable_python_bindings: true
+      enable_python_bindings: false
 
   # read-matrix:
   #   needs: [build]
