@@ -110,7 +110,6 @@ def load_vace_pipeline(pretrained_model_name: str, dtype: torch.dtype):
         vae=vae,
         torch_dtype=dtype,
     )
-    pipe.eval()
     return pipe
 
 
