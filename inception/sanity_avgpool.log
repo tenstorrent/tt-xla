@@ -1,0 +1,25 @@
+2026-03-26 10:47:40.962 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+2026-03-26 10:47:43.028971: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+================================================================
+Inception v4 — AvgPool2d(3, s=1, p=1) sanity test
+================================================================
+
+Op     : AvgPool2d(kernel_size=3, stride=1, padding=1)
+Input  : shape=[1, 384, 35, 35]  min=0.0000  max=5.6365  mean=0.9661  std=0.7301
+
+CPU out: shape=[1, 384, 35, 35]  min=0.0632  max=2.2431  mean=0.9295  std=0.2601  nan=False  inf=False
+TT  out: shape=[1, 384, 35, 35]  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+
+PCC    : nan  (threshold=0.99)
+Result : FAIL
+================================================================
+
+REPRO CONFIRMED — TT produces nan/inf for AvgPool2d(3,s=1,p=1)
+This is the root cause of Inception v4 PCC drop (pcc=0.014 in full model).
+
+Op location in model:
+  timm inception_v4
+  └── features[6]  InceptionA
+       └── branch3[0]  AvgPool2d(kernel_size=3, stride=1, padding=1)
+
+Same class of issue as DenseNet121 AvgPool2d repro.

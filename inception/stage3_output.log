@@ -1,0 +1,122 @@
+2026-03-26 10:46:02.390 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+2026-03-26 10:46:07.609124: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+Loading inception_v4...
+
+Block input to InceptionA (features[6]): shape=[1, 384, 35, 35]  min=0.0000  max=12.5068  mean=0.738472  std=1.206872  nan=False  inf=False
+
+================================================================
+STAGE 3: InceptionA branch drill-down
+  TT output of full InceptionA has inf → PCC=nan
+================================================================
+
+────────────────────────────────────────────────────────────────
+Branch 'branch0': ConvNormAct(
+  (conv): Conv2d(384, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+  (bn): BatchNormAct2d(
+    96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+    (drop): Identity()
+    (act): ReLU(inplace=True)
+  )
+)
+────────────────────────────────────────────────────────────────
+  CPU: shape=[1, 96, 35, 35]  min=0.0000  max=9.8381  mean=0.493249  std=0.869310  nan=False  inf=False
+  TT : shape=[1, 96, 35, 35]  min=0.0000  max=9.8224  mean=0.492477  std=0.867628  nan=False  inf=False
+  PCC = 1.000075  [PASS]
+
+────────────────────────────────────────────────────────────────
+Branch 'branch1': Sequential(
+  (0): ConvNormAct(
+    (conv): Conv2d(384, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (bn): BatchNormAct2d(
+      64, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+      (drop): Identity()
+      (act): ReLU(inplace=True)
+    )
+  )
+  (1): ConvNormAct(
+    (conv): Conv2d(64, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+    (bn): BatchNormAct2d(
+      96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+      (drop): Identity()
+      (act): ReLU(inplace=True)
+    )
+  )
+)
+────────────────────────────────────────────────────────────────
+  CPU: shape=[1, 96, 35, 35]  min=0.0000  max=5.6390  mean=0.206883  std=0.410962  nan=False  inf=False
+  TT : shape=[1, 96, 35, 35]  min=0.0000  max=5.6201  mean=0.206581  std=0.410050  nan=False  inf=False
+  PCC = 0.999968  [PASS]
+
+────────────────────────────────────────────────────────────────
+Branch 'branch2': Sequential(
+  (0): ConvNormAct(
+    (conv): Conv2d(384, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (bn): BatchNormAct2d(
+      64, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+      (drop): Identity()
+      (act): ReLU(inplace=True)
+    )
+  )
+  (1): ConvNormAct(
+    (conv): Conv2d(64, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+    (bn): BatchNormAct2d(
+      96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+      (drop): Identity()
+      (act): ReLU(inplace=True)
+    )
+  )
+  (2): ConvNormAct(
+    (conv): Conv2d(96, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+    (bn): BatchNormAct2d(
+      96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+      (drop): Identity()
+      (act): ReLU(inplace=True)
+    )
+  )
+)
+────────────────────────────────────────────────────────────────
+  CPU: shape=[1, 96, 35, 35]  min=0.0000  max=6.7094  mean=0.298359  std=0.586269  nan=False  inf=False
+  TT : shape=[1, 96, 35, 35]  min=0.0000  max=6.6673  mean=0.297491  std=0.583891  nan=False  inf=False
+  PCC = 0.999854  [PASS]
+
+────────────────────────────────────────────────────────────────
+Branch 'branch3': Sequential(
+  (0): AvgPool2d(kernel_size=3, stride=1, padding=1)
+  (1): ConvNormAct(
+    (conv): Conv2d(384, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (bn): BatchNormAct2d(
+      96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+      (drop): Identity()
+      (act): ReLU(inplace=True)
+    )
+  )
+)
+────────────────────────────────────────────────────────────────
+  CPU: shape=[1, 96, 35, 35]  min=0.0000  max=4.9827  mean=0.202953  std=0.516280  nan=False  inf=False
+  TT : shape=[1, 96, 35, 35]  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+  PCC = nan  [FAIL]
+
+────────────────────────────────────────────────────────────────
+Full InceptionA block (concat of all branches):
+────────────────────────────────────────────────────────────────
+  CPU: shape=[1, 384, 35, 35]  min=0.0000  max=9.8381  mean=0.300361  std=0.630530  nan=False  inf=False
+  TT : shape=[1, 384, 35, 35]  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+  PCC = nan  [FAIL]
+
+================================================================
+STAGE 4: branch3 sub-op drill-down
+  branch3: AvgPool2d(3,s=1,p=1) → ConvNormAct(384→96,1×1)
+================================================================
+
+  Op 1 — AvgPool2d alone:
+         AvgPool2d(kernel_size=3, stride=1, padding=1)
+  CPU: shape=[1, 384, 35, 35]  min=0.0000  max=9.3331  mean=0.735024  std=1.093379  nan=False  inf=False
+  TT : shape=[1, 384, 35, 35]  min=nan  max=nan  mean=nan  std=nan  nan=True  inf=True
+  PCC = nan  [FAIL]
+
+  Op 2 — AvgPool2d → ConvNormAct(384→96,1×1):
+  CPU: shape=[1, 96, 35, 35]  min=0.0000  max=4.9827  mean=0.202953  std=0.516280  nan=False  inf=False
+  TT : shape=[1, 96, 35, 35]  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+  PCC = nan  [FAIL]
+
+Done.

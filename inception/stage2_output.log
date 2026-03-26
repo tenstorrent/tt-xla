@@ -1,0 +1,99 @@
+2026-03-26 10:43:04.625 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+2026-03-26 10:43:17.377081: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+Loading inception_v4...
+================================================================
+STAGE 2: InceptionA block drill-down (features[6..9])
+  Stage 1 showed features[0:6] PASS, features[0:10] FAIL
+================================================================
+
+────────────────────────────────────────────────────────────────
+features[0:7]  (+InceptionA at [6])
+────────────────────────────────────────────────────────────────
+  CPU: shape=[1, 384, 35, 35]  min=0.0000  max=9.4681  mean=0.303066  std=0.637205  nan=False  inf=False
+  TT : shape=[1, 384, 35, 35]  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+  PCC = nan  [FAIL]
+
+*** FIRST FAILING BLOCK: features[6] = InceptionA ***
+  Block detail: InceptionA(
+  (branch0): ConvNormAct(
+    (conv): Conv2d(384, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (bn): BatchNormAct2d(
+      96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+      (drop): Identity()
+      (act): ReLU(inplace=True)
+    )
+  )
+  (branch1): Sequential(
+    (0): ConvNormAct(
+      (conv): Conv2d(384, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (bn): BatchNormAct2d(
+        64, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+        (drop): Identity()
+        (act): ReLU(inplace=True)
+      )
+    )
+    (1): ConvNormAct(
+      (conv): Conv2d(64, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn): BatchNormAct2d(
+        96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+        (drop): Identity()
+        (act): ReLU(inplace=True)
+      )
+    )
+  )
+  (branch2): Sequential(
+    (0): ConvNormAct(
+      (conv): Conv2d(384, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (bn): BatchNormAct2d(
+        64, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+        (drop): Identity()
+        (act): ReLU(inplace=True)
+      )
+    )
+    (1): ConvNormAct(
+      (conv): Conv2d(64, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn): BatchNormAct2d(
+        96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+        (drop): Identity()
+        (act): ReLU(inplace=True)
+      )
+    )
+    (2): ConvNormAct(
+      (conv): Conv2d(96, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn): BatchNormAct2d(
+        96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+        (drop): Identity()
+        (act): ReLU(inplace=True)
+      )
+    )
+  )
+  (branch3): Sequential(
+    (0): AvgPool2d(kernel_size=3, stride=1, padding=1)
+    (1): ConvNormAct(
+      (conv): Conv2d(384, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (bn): BatchNormAct2d(
+        96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True
+        (drop): Identity()
+        (act): ReLU(inplace=True)
+      )
+    )
+  )
+)
+
+================================================================
+STAGE 3: Drilling into InceptionA branches
+================================================================
+  Block input: shape=[1, 384, 35, 35]  min=0.0000  max=14.8830  mean=0.742072  std=1.215407  nan=False  inf=False
+
+  Testing full InceptionA:
+    CPU: shape=[1, 384, 35, 35]  min=0.0000  max=9.4681  mean=0.303066  std=0.637205  nan=False  inf=False
+    TT : shape=[1, 384, 35, 35]  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+Traceback (most recent call last):
+  File "/proj_sw/user_dev/ctr-lelanchelian/latest_build/tt-xla/inception_stage2.py", line 159, in <module>
+    main()
+  File "/proj_sw/user_dev/ctr-lelanchelian/latest_build/tt-xla/inception_stage2.py", line 112, in main
+    drill_into_inception_block(features, end_idx - 1, inputs)
+  File "/proj_sw/user_dev/ctr-lelanchelian/latest_build/tt-xla/inception_stage2.py", line 132, in drill_into_inception_block
+    print(f"  Full block PCC = {pcc:.6f if pcc is not None else 'N/A'}\n")
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: Invalid format specifier '.6f if pcc is not None else 'N/A'' for object of type 'float'

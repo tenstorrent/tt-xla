@@ -1,0 +1,8 @@
+[10:39:11] INFO  ==============================================================
+[10:39:11] INFO  Block : ..+ReductionB
+[10:39:11] INFO  ==============================================================
+[10:39:11] INFO  CPU output:
+[10:39:11] DEBUG    CPU     shape=[1, 1536, 8, 8]  dtype=torch.float32  min=0.0000  max=4.0957  mean=0.079213  std=0.242070  nan=False  inf=False
+[10:39:49] INFO  TT output:
+[10:39:49] DEBUG    TT      shape=[1, 1536, 8, 8]  dtype=torch.float32  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+[10:39:49] INFO  PCC = nan  [FAIL]

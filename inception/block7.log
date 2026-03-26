@@ -1,0 +1,8 @@
+[10:39:49] INFO  ==============================================================
+[10:39:49] INFO  Block : full_features
+[10:39:49] INFO  ==============================================================
+[10:39:49] INFO  CPU output:
+[10:39:49] DEBUG    CPU     shape=[1, 1536, 8, 8]  dtype=torch.float32  min=0.0000  max=11.9053  mean=0.248254  std=0.613321  nan=False  inf=False
+[10:41:06] INFO  TT output:
+[10:41:06] DEBUG    TT      shape=[1, 1536, 8, 8]  dtype=torch.float32  min=0.0000  max=inf  mean=inf  std=nan  nan=False  inf=True
+[10:41:06] INFO  PCC = nan  [FAIL]

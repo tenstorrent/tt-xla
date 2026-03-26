@@ -1,0 +1,8 @@
+[10:35:45] INFO  ==============================================================
+[10:35:45] INFO  Block : stem+Mixed3a-5a
+[10:35:45] INFO  ==============================================================
+[10:35:45] INFO  CPU output:
+[10:35:45] DEBUG    CPU     shape=[1, 384, 35, 35]  dtype=torch.float32  min=0.0000  max=12.1891  mean=0.738611  std=1.210925  nan=False  inf=False
+[10:36:50] INFO  TT output:
+[10:36:50] DEBUG    TT      shape=[1, 384, 35, 35]  dtype=torch.float32  min=0.0000  max=12.0625  mean=0.732815  std=1.203083  nan=False  inf=False
+[10:36:50] INFO  PCC = 0.999874  [OK  ]

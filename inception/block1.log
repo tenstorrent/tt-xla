@@ -1,0 +1,8 @@
+[10:35:02] INFO  ==============================================================
+[10:35:02] INFO  Block : stem_3conv
+[10:35:02] INFO  ==============================================================
+[10:35:02] INFO  CPU output:
+[10:35:02] DEBUG    CPU     shape=[1, 64, 147, 147]  dtype=torch.float32  min=0.0000  max=22.1969  mean=0.778413  std=1.585442  nan=False  inf=False
+[10:35:45] INFO  TT output:
+[10:35:45] DEBUG    TT      shape=[1, 64, 147, 147]  dtype=torch.float32  min=0.0000  max=22.0989  mean=0.776849  std=1.580898  nan=False  inf=False
+[10:35:45] INFO  PCC = 1.001197  [OK  ]

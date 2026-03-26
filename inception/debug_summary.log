@@ -1,0 +1,16 @@
+[10:35:01] INFO  Loading inception_v4 (pretrained)...
+[10:35:02] INFO  Input shape: torch.Size([1, 3, 299, 299])
+[10:35:02] INFO  
+==============================================================
+[10:35:02] INFO  STAGE 1 — coarse sweep over feature blocks
+[10:35:02] INFO  ==============================================================
+[10:35:45] INFO    stem_3conv                      PCC=1.001197  OK
+[10:36:50] INFO    stem+Mixed3a-5a                 PCC=0.999874  OK
+[10:37:38] INFO    stem+Mixed+IncA×4               PCC=nan  FAIL
+[10:37:38] INFO    *** First failure at features[0:10] ***
+[10:38:09] INFO    ..+ReductionA                   PCC=nan  FAIL
+[10:39:11] INFO    ..+IncB×7                       PCC=nan  FAIL
+[10:39:49] INFO    ..+ReductionB                   PCC=nan  FAIL
+[10:41:06] INFO    full_features                   PCC=nan  FAIL
+[10:41:06] INFO  
+  Testing features + global_pool ...
