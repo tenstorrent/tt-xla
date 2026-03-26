@@ -18,7 +18,6 @@ from infra.utilities import (
     Tensor,
     compile_jax_workload_for_cpu,
     compile_jax_workload_for_tt_device,
-    compile_torch_workload_for_cpu,
     compile_torch_workload_for_tt_device,
     random_tensor,
     sanitize_test_name,
@@ -67,8 +66,6 @@ class OpTester(BaseTester):
         cpu_workload = workload
         if self._framework == Framework.JAX:
             compile_jax_workload_for_cpu(cpu_workload)
-        else:
-            compile_torch_workload_for_cpu(cpu_workload)
         cpu_res = self._device_runner.run_on_cpu(cpu_workload)
 
         tt_workload = workload

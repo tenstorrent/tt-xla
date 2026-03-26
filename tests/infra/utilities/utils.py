@@ -220,12 +220,6 @@ def compile_jax_workload_for_tt_device(
     )
 
 
-def compile_torch_workload_for_cpu(workload: Workload) -> None:
-    """Compile Torch workload for CPU using inductor backend."""
-    to_compile = workload.model if workload.model is not None else workload.executable
-    workload.compiled_executable = torch.compile(to_compile, backend="inductor")
-
-
 def compile_torch_workload_for_tt_device(
     workload: Workload, torch_options: dict = None
 ) -> None:

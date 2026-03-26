@@ -216,6 +216,10 @@ class JaxModelTester(ModelTester):
         """Compile JAX workload for CPU."""
         compile_jax_workload_for_cpu(workload)
 
+    def _test_inference(self, request=None):
+        self._compile_for_cpu(self._workload)
+        return super()._test_inference(request=request)
+
     def _wrapper_model(self, f):
         def model(args, kwargs):
             out = f(*args, **kwargs)
