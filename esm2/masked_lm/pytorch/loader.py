@@ -2,8 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ESM-2 (facebook/esm2_t33_650M_UR50D) model loader implementation for masked language modeling
-on protein sequences.
+ESM-2 model loader implementation for masked language modeling on protein sequences.
 """
 import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
@@ -25,6 +24,9 @@ class ModelVariant(StrEnum):
     """Available ESM-2 model variants."""
 
     ESM2_T33_650M_UR50D = "facebook/esm2_t33_650M_UR50D"
+    ESM2_T33_650M_UR50_190K_STEPS = (
+        "ProteinSequenceAnnotation/esm2_t33_650M_UR50_190K_steps"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +35,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.ESM2_T33_650M_UR50D: ModelConfig(
             pretrained_model_name="facebook/esm2_t33_650M_UR50D",
+        ),
+        ModelVariant.ESM2_T33_650M_UR50_190K_STEPS: ModelConfig(
+            pretrained_model_name="ProteinSequenceAnnotation/esm2_t33_650M_UR50_190K_steps",
         ),
     }
 
