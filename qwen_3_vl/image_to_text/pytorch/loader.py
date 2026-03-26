@@ -141,7 +141,7 @@ class ModelLoader(ForgeModel):
 
         model_cls = (
             Qwen3VLMoeForConditionalGeneration
-            if self.variant in self._MOE_VARIANTS
+            if self._variant in self._MOE_VARIANTS
             else Qwen3VLForConditionalGeneration
         )
         model = model_cls.from_pretrained(
