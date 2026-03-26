@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available BERT model variants."""
 
     BASE = "Base"
+    BASE_CASED = "Base (Cased)"
     LARGE = "Large"
     MULTILINGUAL_BASE = "Multilingual Base (Uncased)"
 
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE: LLMModelConfig(
             pretrained_model_name="google-bert/bert-base-uncased",
+        ),
+        ModelVariant.BASE_CASED: LLMModelConfig(
+            pretrained_model_name="google-bert/bert-base-cased",
         ),
         ModelVariant.LARGE: LLMModelConfig(
             pretrained_model_name="google-bert/bert-large-uncased",
@@ -76,6 +80,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         variant_groups = {
+            ModelVariant.BASE_CASED: ModelGroup.VULCAN,
             ModelVariant.MULTILINGUAL_BASE: ModelGroup.VULCAN,
         }
 

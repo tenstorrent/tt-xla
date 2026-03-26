@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available BERT model variants for masked language modeling."""
 
     BERT_BASE_UNCASED = "Base_Uncased"
+    BERT_BASE_CASED = "Base_Cased"
     BERT_BASE_MULTILINGUAL_CASED = "Base_Multilingual_Cased"
 
 
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BERT_BASE_UNCASED: LLMModelConfig(
             pretrained_model_name="bert-base-uncased",
+            max_length=128,
+        ),
+        ModelVariant.BERT_BASE_CASED: LLMModelConfig(
+            pretrained_model_name="google-bert/bert-base-cased",
             max_length=128,
         ),
         ModelVariant.BERT_BASE_MULTILINGUAL_CASED: LLMModelConfig(
@@ -72,7 +77,10 @@ class ModelLoader(ForgeModel):
         if variant_name is None:
             variant_name = "base"
         group = ModelGroup.GENERALITY
-        if variant_name == ModelVariant.BERT_BASE_MULTILINGUAL_CASED:
+        if variant_name in (
+            ModelVariant.BERT_BASE_CASED,
+            ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
+        ):
             group = ModelGroup.VULCAN
         return ModelInfo(
             model="BERT",
