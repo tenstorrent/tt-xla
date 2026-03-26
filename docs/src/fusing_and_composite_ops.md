@@ -152,9 +152,8 @@ The `handle_composite_ops` pass iterates over the FX graph and uses this diction
 {{#include ../../../python_package/tt_torch/backend/passes.py:32:56}}
 ```
 
-There are three replacement categories:
-- **Single-output function replacements** (`call_function` nodes): The value is a function. The node's `target` is swapped directly (e.g., `torch.nn.functional.gelu` → `composite_gelu`).
-- **Multi-output function replacements** (`call_function` nodes): The value is a `dict` mapping `frozenset`s of output indices to composite functions. `handle_composite_ops` inspects which outputs are actually consumed and selects the matching variant (e.g., `torch.topk`).
+There are two replacement categories:
+- **Function replacements** (`call_function` nodes): The node's `target` is swapped directly from `torch.nn.functional.gelu` to `composite_gelu`.
 - **Module replacements** (`call_module` nodes): A replacement function (e.g., `replace_layer_norm_module`) creates new `get_attr` nodes for the module's parameters and replaces the `call_module` node with a `call_function` node targeting the composite function.
 
 ### How to Add a New Composite Op
@@ -178,32 +177,6 @@ There are three replacement categories:
        torch.nn.functional.my_op: composite_my_op,
    }
    ```
-
-   **For ops that return multiple outputs** (e.g. a tuple of tensors), define one composite function per output combination and map to a `dict` keyed by `frozenset` of output indices instead:
-
-   ```python
-   # One variant per combination of outputs the caller might use
-   def composite_my_op(input, k):          # both outputs
-       ...
-   def composite_my_op_first(input, k):    # only first output
-       ...
-   def composite_my_op_second(input, k):   # only second output
-       ...
-
-   replacements = {
-       ...
-       torch.my_op: {
-           frozenset({0, 1}): composite_my_op,        # both outputs used
-           frozenset({0}):    composite_my_op_first,   # only first output used
-           frozenset({1}):    composite_my_op_second,  # only second output used
-       },
-   }
-   ```
-
-   `handle_composite_ops` automatically detects the dict form, inspects which outputs are actually consumed in the graph and selects the matching variant. See `torch.topk` in `composite_ops.py` for a complete example.
-
-  >[!IMPORTANT]
-  > If the composite op you're adding has an equivalent form as a tensor method (for example: `torch.topk(input, k, ...)` can also be written as `input.topk(k, ...)`), then you should also add an entry for that function in the `method_name_to_function` dictionary.
 
 3. **For `nn.Module` types**, write a `replace_<op>_module` function that:
    - Extracts parameters from the module instance
