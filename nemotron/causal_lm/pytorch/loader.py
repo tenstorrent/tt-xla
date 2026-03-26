@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Nemotron 3 Nano model loader implementation for causal language modeling.
+Nemotron model loader implementation for causal language modeling.
 """
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
@@ -21,13 +22,13 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Nemotron 3 Nano model variants for causal language modeling."""
+    """Available Nemotron model variants for causal language modeling."""
 
-    NEMOTRON_3_NANO_30B_A3B_FP8 = "30B_A3B_FP8"
+    NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
 
 
 class ModelLoader(ForgeModel):
-    """Nemotron 3 Nano model loader implementation for causal language modeling tasks."""
+    """Nemotron model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
         ModelVariant.NEMOTRON_3_NANO_30B_A3B_FP8: LLMModelConfig(
@@ -53,7 +54,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="Nemotron 3 Nano",
+            model="Nemotron",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -68,9 +69,11 @@ class ModelLoader(ForgeModel):
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
             **tokenizer_kwargs,
         )
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -80,7 +83,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {"trust_remote_code": True}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
