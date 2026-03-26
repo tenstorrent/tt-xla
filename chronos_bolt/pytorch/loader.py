@@ -73,7 +73,7 @@ class ModelLoader(ForgeModel):
         pipeline = ChronosBoltPipeline.from_pretrained(
             cfg.pretrained_model_name,
             device_map="cpu",
-            torch_dtype=dtype_override or torch.float32,
+            dtype=dtype_override or torch.float32,
         )
 
         model = pipeline.model
