@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available BERT model variants for sequence classification."""
 
     TEXTATTACK_BERT_BASE_UNCASED_SST_2 = "Base_Uncased_Sst_2"
+    PROSUSAI_FINBERT = "ProsusAI_FinBERT"
 
 
 class ModelLoader(ForgeModel):
@@ -33,10 +34,20 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="textattack/bert-base-uncased-SST-2",
             max_length=128,
         ),
+        ModelVariant.PROSUSAI_FINBERT: LLMModelConfig(
+            pretrained_model_name="ProsusAI/finbert",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2
+
+    # Variant-specific sample texts
+    _SAMPLE_TEXTS = {
+        ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2: "the movie was great!",
+        ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
+    }
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -50,7 +61,7 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.review = "the movie was great!"
+        self.review = self._SAMPLE_TEXTS.get(self._variant, "the movie was great!")
         self.max_length = 128
         self.tokenizer = None
 
@@ -66,10 +77,13 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
+        group = ModelGroup.GENERALITY
+        if variant_name == ModelVariant.PROSUSAI_FINBERT:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="BERT",
             variant=variant_name,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
