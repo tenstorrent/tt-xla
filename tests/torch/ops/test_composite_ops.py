@@ -16,6 +16,7 @@ from infra.utilities.types import Framework
 from torch.nn import functional as F
 from tt_torch.composite_ops import (
     composite_gelu,
+    composite_group_norm,
     composite_layer_norm,
     composite_rms_norm,
     composite_topk,
@@ -401,6 +402,40 @@ def test_patched_topk_indices(input_shape, k):
     )
 
 
+@pytest.mark.single_device
+@pytest.mark.parametrize("affine", [True, False])
+@pytest.mark.parametrize(
+    "batch_size, num_channels, height, width, num_groups",
+    [(1, 32, 8, 8, 8), (1, 64, 16, 16, 16), (1, 128, 32, 32, 32)],
+)
+def test_patched_group_norm_module(
+    affine, batch_size, num_channels, height, width, num_groups
+):
+    class GroupNormModel(torch.nn.Module):
+        def __init__(self, num_groups, num_channels):
+            super().__init__()
+            self.gn = nn.GroupNorm(num_groups, num_channels, affine=affine)
+
+        def forward(self, x):
+            return self.gn(x)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(
+        batch_size, num_channels, height, width, dtype=torch.bfloat16
+    )
+
+    model = GroupNormModel(num_groups, num_channels)
+
+    run_graph_test(
+        model,
+        [input_tensor],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.parametrize(["input_shape", "k"], [((1, 10), 5), ((1, 40), 5)])
@@ -421,6 +456,45 @@ def test_patched_topk_values(input_shape, k):
     run_graph_test(
         TopKValues(k),
         [input],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "use_weight, use_bias", [(True, True), (True, False), (False, False)]
+)
+@pytest.mark.parametrize(
+    "batch_size, num_channels, height, width, num_groups",
+    [(1, 32, 8, 8, 8), (1, 64, 16, 16, 16), (1, 128, 32, 32, 32)],
+)
+def test_patched_group_norm_functional(
+    use_weight, use_bias, batch_size, num_channels, height, width, num_groups
+):
+
+    class GroupNormModel(torch.nn.Module):
+        def __init__(self, num_groups):
+            super().__init__()
+            self.num_groups = num_groups
+
+        def forward(self, x, weight=None, bias=None):
+            return F.group_norm(x, self.num_groups, weight, bias, eps=1e-5)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(
+        batch_size, num_channels, height, width, dtype=torch.bfloat16
+    )
+    weight = torch.randn(num_channels, dtype=torch.bfloat16) if use_weight else None
+    bias = torch.randn(num_channels, dtype=torch.bfloat16) if use_bias else None
+
+    model = GroupNormModel(num_groups)
+
+    run_graph_test(
+        model,
+        [input_tensor, weight, bias],
         comparison_config=ComparisonConfig(),
         framework=Framework.TORCH,
         torch_options=options,
@@ -452,3 +526,45 @@ def test_patched_topk_both(input_shape, k):
         framework=Framework.TORCH,
         torch_options=options,
     )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "use_weight, use_bias", [(True, True), (True, False), (False, False)]
+)
+@pytest.mark.parametrize(
+    "batch_size, num_channels, height, width, num_groups",
+    [(1, 32, 8, 8, 8), (1, 64, 16, 16, 16), (1, 128, 32, 32, 32)],
+)
+def test_composite_group_norm(
+    use_weight, use_bias, batch_size, num_channels, height, width, num_groups
+):
+
+    class GroupNormModel(torch.nn.Module):
+        def __init__(self, num_groups):
+            super().__init__()
+            self.num_groups = num_groups
+
+        def forward(self, x, weight=None, bias=None):
+            return composite_group_norm(x, self.num_groups, weight, bias, eps=1e-5)
+
+    options = {"tt_enable_composite_ops": False}
+
+    input_tensor = torch.randn(
+        batch_size, num_channels, height, width, dtype=torch.bfloat16
+    )
+    weight = torch.randn(num_channels, dtype=torch.bfloat16) if use_weight else None
+    bias = torch.randn(num_channels, dtype=torch.bfloat16) if use_bias else None
+
+    model = GroupNormModel(num_groups)
+
+    # Disable inplace buffers for inductor compilation
+    # so that we can compare the results with the golden model.
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            model,
+            [input_tensor, weight, bias],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
