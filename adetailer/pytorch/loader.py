@@ -24,7 +24,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import yolo_postprocess
 
 
 class ModelVariant(StrEnum):
@@ -100,6 +99,3 @@ class ModelLoader(ForgeModel):
             batch_tensor = batch_tensor.to(dtype_override)
 
         return batch_tensor
-
-    def post_process(self, co_out):
-        return yolo_postprocess(co_out)
