@@ -42,7 +42,7 @@ def main():
         "--limit", type=int, default=0, help="Max models to process (0 = all)"
     )
     parser.add_argument(
-        "--workers", type=int, default=4, help="Max concurrent Claude instances"
+        "--workers", type=int, default=8, help="Max concurrent Claude instances"
     )
     args = parser.parse_args()
 

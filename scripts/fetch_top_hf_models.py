@@ -20,19 +20,18 @@ FRAMEWORKS = ["pytorch", "jax"]
 
 
 def fetch_models(library: str, total: int, sort: str = "downloads"):
-    """Fetch models for a given library, paginating until we reach `total`."""
+    """Fetch models for a given library, paginating via Link headers until we reach `total`."""
     models = []
-    offset = 0
+    params = {
+        "library": library,
+        "sort": sort,
+        "direction": "-1",
+        "limit": PAGE_SIZE,
+    }
+    next_url = HF_API_URL
 
-    while len(models) < total:
-        params = {
-            "library": library,
-            "sort": sort,
-            "direction": "-1",
-            "limit": PAGE_SIZE,
-            "offset": offset,
-        }
-        resp = requests.get(HF_API_URL, params=params, timeout=30)
+    while next_url and len(models) < total:
+        resp = requests.get(next_url, params=params, timeout=30)
         resp.raise_for_status()
         batch = resp.json()
 
@@ -40,12 +39,12 @@ def fetch_models(library: str, total: int, sort: str = "downloads"):
             break
 
         models.extend(batch)
-        offset += len(batch)
-
         print(f"  [{library}] Fetched {len(models)} models so far...", file=sys.stderr)
 
-        if len(batch) < PAGE_SIZE:
-            break
+        # Follow the "next" Link header for pagination
+        next_url = resp.links.get("next", {}).get("url")
+        # After the first request, params are encoded in the next_url from the Link header
+        params = None
 
         # Be polite to the API
         time.sleep(0.5)
