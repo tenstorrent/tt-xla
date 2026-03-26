@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     XLSR_53_CHINESE_ZH_CN = "XLSR_53_Chinese_zh_CN"
     XLSR_53_JAPANESE = "XLSR_53_Japanese"
     XLSR_KOREAN = "XLSR_Korean"
+    XLSR_HINDI = "XLSR_Hindi"
 
 
 class ModelLoader(ForgeModel):
@@ -48,6 +49,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLSR_KOREAN: ModelConfig(
             pretrained_model_name="kresnik/wav2vec2-large-xlsr-korean",
+        ),
+        ModelVariant.XLSR_HINDI: ModelConfig(
+            pretrained_model_name="theainerd/Wav2Vec2-large-xlsr-hindi",
         ),
     }
 
