@@ -127,65 +127,6 @@ def composite_layer_norm(
     return output
 
 
-def composite_topk(
-    input: Tensor,
-    k: int,
-    dim: int = -1,
-    largest: bool = True,
-    sorted: bool = True,
-    *,
-    out: tuple[Tensor, ...] | list[Tensor] | None = None,
-) -> tuple[Tensor, Tensor]:
-    """
-    Creates composite topk operation for torch-xla using StableHLOCompositeBuilder.
-    Returns a (values, indices) tuple.
-    """
-    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
-
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk", attr=attrs)
-
-    input = builder.mark_inputs(input)
-    values, indices = torch.topk(input, k, dim, largest, sorted, out=out)
-    values, indices = builder.mark_outputs(values, indices)
-    return (values, indices)
-
-
-def composite_topk_values(
-    input: Tensor,
-    k: int,
-    dim: int = -1,
-    largest: bool = True,
-    sorted: bool = True,
-    *,
-    out: tuple[Tensor, ...] | list[Tensor] | None = None,
-) -> Tensor:
-    """Composite topk returning only values. Marks a single output at pos=0."""
-    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_values", attr=attrs)
-    input = builder.mark_inputs(input)
-    values, _ = torch.topk(input, k, dim, largest, sorted)
-    values = builder.mark_outputs(values)
-    return values
-
-
-def composite_topk_indices(
-    input: Tensor,
-    k: int,
-    dim: int = -1,
-    largest: bool = True,
-    sorted: bool = True,
-    *,
-    out: tuple[Tensor, ...] | list[Tensor] | None = None,
-) -> Tensor:
-    """Composite topk returning only indices. Marks a single output at pos=0."""
-    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_indices", attr=attrs)
-    input = builder.mark_inputs(input)
-    _, indices = torch.topk(input, k, dim, largest, sorted)
-    indices = builder.mark_outputs(indices)
-    return indices
-
-
 def composite_group_norm(
     input: Tensor,
     num_groups: int,
@@ -343,12 +284,6 @@ def replace_group_norm_module(
 Dictionary holding replacement composite functions for torch functions and modules.
 Maps torch API calls and module types to composite implementations.
 Used for call_function and call_module nodes where node.target is a function reference or module type.
-
-When the node.target is a torch function returning just a single output, we use the
-composite function directly.
-
-When the node.target is a torch function returning multiple outputs, we use a dictionary
-of composite functions, keyed by the frozenset of output indices used.
 """
 replacements = {
     # function replacements
@@ -356,23 +291,8 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
-    torch.topk: {
-        frozenset({0, 1}): composite_topk,
-        frozenset({0}): composite_topk_values,
-        frozenset({1}): composite_topk_indices,
-    },
     torch.nn.functional.group_norm: composite_group_norm,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
     torch.nn.GroupNorm: replace_group_norm_module,
-}
-
-"""
-Maps tensor method name strings to their torch function equivalents.
-Used to resolve call_method FX nodes (e.g. x.topk(k)) where dynamo sets
-node.target to the method name string "topk".
-The mapped function must be a key in `replacements` for the rewrite to apply.
-"""
-method_name_to_function = {
-    "topk": torch.topk,
 }
