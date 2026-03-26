@@ -95,7 +95,7 @@ class ModelLoader(ForgeModel):
 
         inputs = self.processor(
             text=self.text_prompts,
-            audios=audio_waveform,
+            audio=audio_waveform,
             return_tensors="pt",
             padding=True,
             sampling_rate=sample_rate,
