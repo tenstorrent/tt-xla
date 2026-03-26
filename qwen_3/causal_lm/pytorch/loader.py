@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     QWEN_3_4B = "4B"
     QWEN_3_4B_INSTRUCT_2507 = "4B_Instruct_2507"
     QWEN_3_8B = "8B"
+    QWEN_3_8B_BASE = "8B_Base"
     QWEN_3_14B = "14B"
     QWEN_3_32B = "32B"
     QWEN_3_30B_A3B = "30B_A3b"
@@ -57,6 +58,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_8B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-8B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_8B_BASE: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-8B-Base",
             max_length=128,
         ),
         ModelVariant.QWEN_3_14B: LLMModelConfig(
@@ -105,7 +110,10 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant == ModelVariant.QWEN_3_4B_INSTRUCT_2507:
+        if variant in (
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507,
+            ModelVariant.QWEN_3_8B_BASE,
+        ):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
@@ -193,17 +201,20 @@ class ModelLoader(ForgeModel):
         # Get max_length from the variant config
         max_length = self._variant_config.max_length
 
-        # Use chat template for Qwen 3 models
-        messages = [{"role": "user", "content": self.sample_text}]
-        # Instruct-2507 variants do not support thinking mode
-        enable_thinking = self._variant != ModelVariant.QWEN_3_4B_INSTRUCT_2507
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=enable_thinking,
-        )
-        prompts = [text]
+        # Base models use plain text; chat models use chat template
+        if self._variant == ModelVariant.QWEN_3_8B_BASE:
+            prompts = [self.sample_text]
+        else:
+            messages = [{"role": "user", "content": self.sample_text}]
+            # Instruct-2507 variants do not support thinking mode
+            enable_thinking = self._variant != ModelVariant.QWEN_3_4B_INSTRUCT_2507
+            text = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=enable_thinking,
+            )
+            prompts = [text]
 
         inputs = self.tokenizer(
             prompts,
