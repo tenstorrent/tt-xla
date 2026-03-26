@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Chronos-2 model variants."""
 
     CHRONOS_2 = "Chronos_2"
+    CHRONOS_2_SMALL = "Chronos_2_Small"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.CHRONOS_2: ModelConfig(
             pretrained_model_name="amazon/chronos-2",
+        ),
+        ModelVariant.CHRONOS_2_SMALL: ModelConfig(
+            pretrained_model_name="autogluon/chronos-2-small",
         ),
     }
 
