@@ -100,3 +100,6 @@ class ModelLoader(ForgeModel):
                     inputs[key] = value.to(dtype_override)
 
         return inputs
+
+    def unpack_forward_output(self, fwd_output) -> torch.Tensor:
+        return fwd_output.last_hidden_state
