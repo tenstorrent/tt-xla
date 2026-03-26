@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     XLSR_53_RUSSIAN = "XLSR_53_Russian"
     XLSR_53_PORTUGUESE = "XLSR_53_Portuguese"
     XLSR_53_CHINESE_ZH_CN = "XLSR_53_Chinese_zh_CN"
+    XLSR_53_JAPANESE = "XLSR_53_Japanese"
 
 
 class ModelLoader(ForgeModel):
@@ -40,6 +41,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLSR_53_CHINESE_ZH_CN: ModelConfig(
             pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
+        ),
+        ModelVariant.XLSR_53_JAPANESE: ModelConfig(
+            pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-japanese",
         ),
     }
 
