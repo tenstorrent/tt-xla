@@ -100,6 +100,13 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
+    def unpack_forward_output(self, fwd_output):
+        if hasattr(fwd_output, "logits"):
+            return fwd_output.logits
+        if isinstance(fwd_output, tuple):
+            return fwd_output[0]
+        return fwd_output
+
     def decode_output(self, **kwargs):
         outputs = kwargs.get("outputs")
         if outputs is None:
