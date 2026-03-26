@@ -147,9 +147,9 @@ class ModelLoader(ForgeModel):
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        # Load the model
+        # Load the model (from_pt=True to support variants with only PyTorch weights)
         model = FlaxWav2Vec2ForCTC.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+            self._variant_config.pretrained_model_name, from_pt=True, **model_kwargs
         )
 
         return model

@@ -4,6 +4,7 @@
 """
 Nemotron Nano VL model loader implementation for multimodal visual question answering
 """
+
 import torch
 from transformers import AutoModel, AutoTokenizer, AutoImageProcessor
 from PIL import Image
@@ -80,7 +81,7 @@ class ModelLoader(ForgeModel):
         if self.image_processor is None:
             self._load_image_processor()
 
-        model_kwargs = {"trust_remote_code": True, "_attn_implementation": "eager"}
+        model_kwargs = {"trust_remote_code": True, "attn_implementation": "eager"}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -102,19 +103,64 @@ class ModelLoader(ForgeModel):
         )
         image = Image.open(image_file)
 
+        # Process the image
         question = "<image>\nWhat is shown in this image?"
         image_features = self.image_processor(image)
+        pixel_values = image_features["pixel_values"]
+        num_patches = image_features["num_patches"]
+        if isinstance(num_patches, torch.Tensor):
+            num_patches_list = num_patches.tolist()
+        else:
+            num_patches_list = num_patches
 
-        generation_config = {
-            "max_new_tokens": 20,
-            "do_sample": False,
-        }
+        # Set up the image context token id on the model
+        img_context_token_id = self.tokenizer.convert_tokens_to_ids("<image>")
+        if self.model is not None:
+            self.model.img_context_token_id = img_context_token_id
+
+        # Build prompt using chat template
+        messages = [{"role": "user", "content": question}]
+        query = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+
+        # Format image tokens into the query
+        num_image_token = (
+            self.model.num_image_token if self.model is not None else 256
+        )
+        parts = query.split("<image>")
+        result = parts[0]
+        for np_count, part in zip(num_patches_list, parts[1:]):
+            image_tokens = "<image>" * num_image_token * np_count
+            image_tokens = "<img>" + image_tokens + "</img>"
+            result += image_tokens + part
+        query = result
+
+        # Tokenize
+        model_inputs = self.tokenizer(
+            query, return_tensors="pt", add_special_tokens=False
+        )
+        input_ids = model_inputs["input_ids"]
+        attention_mask = model_inputs["attention_mask"]
+
+        # Create image_flags (1 for each image patch)
+        image_flags = torch.ones(pixel_values.shape[0], 1, dtype=torch.long)
+
+        if dtype_override is not None:
+            pixel_values = cast_input_to_type(pixel_values, dtype_override)
+
+        if batch_size > 1:
+            input_ids = input_ids.repeat_interleave(batch_size, dim=0)
+            attention_mask = attention_mask.repeat_interleave(batch_size, dim=0)
+            pixel_values = pixel_values.repeat_interleave(batch_size, dim=0)
+            image_flags = image_flags.repeat_interleave(batch_size, dim=0)
 
         return {
-            "tokenizer": self.tokenizer,
-            "question": question,
-            "generation_config": generation_config,
-            **image_features,
+            "pixel_values": pixel_values,
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "image_flags": image_flags,
+            "use_cache": False,
         }
 
     def decode_output(self, outputs, input_length=None):
