@@ -5,6 +5,8 @@
 Pyannote speaker segmentation model loader implementation.
 """
 
+import os
+
 import torch
 from typing import Optional
 from ....base import ForgeModel
@@ -54,12 +56,21 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the Pyannote segmentation model."""
+        """Load the Pyannote segmentation model.
+
+        Requires a HuggingFace token with access to the gated model.
+        Set the HF_TOKEN environment variable or pass token as a kwarg.
+        """
         from pyannote.audio import Model
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # Gated model requires authentication
+        token = kwargs.pop("token", None) or os.environ.get("HF_TOKEN")
+        if token:
+            model_kwargs["use_auth_token"] = token
         model_kwargs |= kwargs
 
         self._model = Model.from_pretrained(
