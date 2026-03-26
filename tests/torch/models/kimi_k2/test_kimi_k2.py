@@ -429,8 +429,8 @@ def test_kimi_k2_full():
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
     config = DeepseekV3Config.from_json_file(config_path)
     config._attn_implementation = "eager"
-    if num_devices_total == 8:
-        config.num_hidden_layers = 2  # Need 2+ so layer_idx=1 exists and is MoE
+    # if num_devices_total == 8:
+    config.num_hidden_layers = 2  # Need 2+ so layer_idx=1 exists and is MoE
     use_cache = True
     config.use_cache = use_cache
 
