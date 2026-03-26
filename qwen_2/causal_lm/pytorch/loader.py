@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2 model variants for causal language modeling."""
 
     QWQ_32B = "Qwq_32B"
+    TINY_QWEN2_2_5 = "tiny_Qwen2ForCausalLM_2.5"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWQ_32B: LLMModelConfig(
             pretrained_model_name="Qwen/QwQ-32B",
+            max_length=128,
+        ),
+        ModelVariant.TINY_QWEN2_2_5: LLMModelConfig(
+            pretrained_model_name="trl-internal-testing/tiny-Qwen2ForCausalLM-2.5",
             max_length=128,
         ),
     }
@@ -68,10 +73,14 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        group = ModelGroup.RED
+        if variant == ModelVariant.TINY_QWEN2_2_5:
+            group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="Qwen 2",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -151,11 +160,11 @@ class ModelLoader(ForgeModel):
         # Get max_length from the variant config
         max_length = self._variant_config.max_length
 
-        # Use chat template for QwQ-32B
         messages = [{"role": "user", "content": self.sample_text}]
-        text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True, enable_thinking=True
-        )
+        chat_kwargs = {"tokenize": False, "add_generation_prompt": True}
+        if self._variant == ModelVariant.QWQ_32B:
+            chat_kwargs["enable_thinking"] = True
+        text = self.tokenizer.apply_chat_template(messages, **chat_kwargs)
         prompts = [text]
 
         inputs = self.tokenizer(
