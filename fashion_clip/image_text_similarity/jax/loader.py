@@ -144,6 +144,7 @@ class ModelLoader(ForgeModel):
             text=self.sample_text,
             images=image,
             return_tensors="jax",
+            padding=True,
         )
 
         return inputs
