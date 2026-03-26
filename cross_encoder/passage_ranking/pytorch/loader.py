@@ -106,7 +106,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs = {"return_dict": False}
         if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModelForSequenceClassification.from_pretrained(
