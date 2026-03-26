@@ -3,19 +3,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Wan 2.2 ComfyUI Repackaged model loader implementation.
+Wan ComfyUI Repackaged model loader implementation.
 
-Loads single-file safetensors variants from Comfy-Org/Wan_2.2_ComfyUI_Repackaged.
+Loads single-file safetensors VAE variants from Comfy-Org/Wan_2.2_ComfyUI_Repackaged.
 Supports VAE component loading for encoder/decoder testing.
 
 Available variants:
-- WAN22_VAE: Wan 2.2 VAE (encoder/decoder)
+- WAN21_VAE: Wan 2.1 VAE (z_dim=16, 3-channel RGB)
 """
 
 from typing import Any, Optional
 
 import torch
 from diffusers import AutoencoderKLWan  # type: ignore[import]
+from huggingface_hub import hf_hub_download  # type: ignore[import]
 
 from ...base import ForgeModel
 from ...config import (
@@ -30,7 +31,7 @@ from ...config import (
 
 REPO_ID = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged"
 
-# Wan VAE uses 16 latent channels (z_dim=16)
+# Wan 2.1 VAE uses 16 latent channels (z_dim=16)
 LATENT_CHANNELS = 16
 
 # Small test dimensions for VAE inputs
@@ -39,22 +40,32 @@ LATENT_HEIGHT = 8
 LATENT_WIDTH = 8
 LATENT_DEPTH = 2  # temporal latent frames
 
+# VAE file paths within the ComfyUI repackaged repo
+_VAE_FILES = {
+    "2.1": "split_files/vae/wan_2.1_vae.safetensors",
+}
+
+# Config sources for each VAE version
+_VAE_CONFIGS = {
+    "2.1": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+}
+
 
 class ModelVariant(StrEnum):
     """Available Wan ComfyUI Repackaged model variants."""
 
-    WAN22_VAE = "2.2_VAE"
+    WAN21_VAE = "2.1_VAE"
 
 
 class ModelLoader(ForgeModel):
-    """Wan 2.2 ComfyUI Repackaged model loader using single-file safetensors."""
+    """Wan ComfyUI Repackaged model loader using single-file safetensors."""
 
     _VARIANTS = {
-        ModelVariant.WAN22_VAE: ModelConfig(
-            pretrained_model_name=f"hf://{REPO_ID}/wan2.2_vae.safetensors",
+        ModelVariant.WAN21_VAE: ModelConfig(
+            pretrained_model_name=REPO_ID,
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.WAN22_VAE
+    DEFAULT_VARIANT = ModelVariant.WAN21_VAE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -75,8 +86,15 @@ class ModelLoader(ForgeModel):
 
     def _load_vae(self, dtype: torch.dtype = torch.float32) -> AutoencoderKLWan:
         """Load VAE from single-file safetensors."""
+        vae_path = hf_hub_download(
+            repo_id=REPO_ID,
+            filename=_VAE_FILES["2.1"],
+        )
+
         self._vae = AutoencoderKLWan.from_single_file(
-            self._variant_config.pretrained_model_name,
+            vae_path,
+            config=_VAE_CONFIGS["2.1"],
+            subfolder="vae",
             torch_dtype=dtype,
         )
         self._vae.eval()
