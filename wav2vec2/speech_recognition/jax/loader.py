@@ -8,7 +8,6 @@ Wav2Vec2 model loader implementation for speech recognition (ASR).
 
 from typing import Optional
 
-import datasets
 from ....base import ForgeModel
 from ....config import (
     ModelConfig,
@@ -85,7 +84,7 @@ class ModelLoader(ForgeModel):
             processor: The loaded audio processor instance
         """
 
-        from transformers import AutoProcessor
+        from transformers import Wav2Vec2Processor
 
         # Initialize processor with dtype override if specified
         processor_kwargs = {}
@@ -93,7 +92,7 @@ class ModelLoader(ForgeModel):
             processor_kwargs["dtype"] = dtype_override
 
         # Load the processor
-        self._processor = AutoProcessor.from_pretrained(
+        self._processor = Wav2Vec2Processor.from_pretrained(
             self._variant_config.pretrained_model_name, **processor_kwargs
         )
 
@@ -132,22 +131,22 @@ class ModelLoader(ForgeModel):
         Returns:
             inputs: Input tensors that can be fed to the model.
         """
-        from datasets import load_dataset
-
-        # Force datasets to use soundfile backend instead of torchcodec
-        datasets.config.AUDIO_BACKEND = "soundfile"
+        import numpy as np
 
         # Ensure processor is initialized
         if self._processor is None:
             self._load_processor(dtype_override=dtype_override)
 
-        dataset = load_dataset(
-            "hf-internal-testing/librispeech_asr_dummy", "clean", split="validation"
+        # Generate a synthetic 1-second audio waveform at 16kHz
+        sampling_rate = 16000
+        duration_seconds = 1
+        audio_array = np.random.randn(sampling_rate * duration_seconds).astype(
+            np.float32
         )
-        sample = dataset[0]["audio"]
+
         inputs = self._processor(
-            sample["array"],
-            sampling_rate=sample["sampling_rate"],
+            audio_array,
+            sampling_rate=sampling_rate,
             return_tensors="jax",
         )
 
