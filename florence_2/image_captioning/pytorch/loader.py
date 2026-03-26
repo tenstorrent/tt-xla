@@ -77,6 +77,7 @@ class ModelLoader(ForgeModel):
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name,
             trust_remote_code=True,
+            attn_implementation="eager",
             **model_kwargs,
         )
         model.eval()
@@ -91,6 +92,12 @@ class ModelLoader(ForgeModel):
 
         prompt = "<CAPTION>"
         inputs = self.processor(text=prompt, images=image, return_tensors="pt")
+
+        # Florence-2 is a seq2seq model that requires decoder_input_ids
+        decoder_start_token_id = self.processor.tokenizer.bos_token_id or 2
+        inputs["decoder_input_ids"] = torch.full(
+            (1, 1), decoder_start_token_id, dtype=torch.long
+        )
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
