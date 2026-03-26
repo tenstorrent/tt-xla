@@ -117,6 +117,7 @@ class ModelVariant(StrEnum):
     """Available H2OVL Mississippi model variants."""
 
     H2OVL_MISSISSIPPI_800M = "800M"
+    H2OVL_MISSISSIPPI_2B = "2B"
 
 
 class ModelLoader(ForgeModel):
@@ -125,6 +126,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.H2OVL_MISSISSIPPI_800M: ModelConfig(
             pretrained_model_name="h2oai/h2ovl-mississippi-800m",
+        ),
+        ModelVariant.H2OVL_MISSISSIPPI_2B: ModelConfig(
+            pretrained_model_name="h2oai/h2ovl-mississippi-2b",
         ),
     }
 
