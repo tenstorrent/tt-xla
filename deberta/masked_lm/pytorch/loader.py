@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available DeBERTa V3 model variants for masked language modeling."""
 
     DEBERTA_V3_BASE = "V3_Base"
+    MDEBERTA_V3_BASE = "mDeBERTa_V3_Base"
 
 
 class ModelLoader(ForgeModel):
@@ -30,6 +31,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DEBERTA_V3_BASE: LLMModelConfig(
             pretrained_model_name="microsoft/deberta-v3-base",
+            max_length=128,
+        ),
+        ModelVariant.MDEBERTA_V3_BASE: LLMModelConfig(
+            pretrained_model_name="microsoft/mdeberta-v3-base",
             max_length=128,
         ),
     }
