@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     XLSR_53_JAPANESE = "XLSR_53_Japanese"
     XLSR_KOREAN = "XLSR_Korean"
     XLSR_HINDI = "XLSR_Hindi"
+    XLSR_53_POLISH = "XLSR_53_Polish"
 
 
 class ModelLoader(ForgeModel):
@@ -56,6 +57,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLSR_HINDI: ModelConfig(
             pretrained_model_name="theainerd/Wav2Vec2-large-xlsr-hindi",
+        ),
+        ModelVariant.XLSR_53_POLISH: ModelConfig(
+            pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-polish",
         ),
     }
 
