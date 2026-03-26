@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
 
     _1B_TINY = "1B_Tiny"
     _3B_V2 = "3B_v2"
+    _3_2_3B_INSTRUCT = "3.2_3B_Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +43,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant._3B_V2: LLMModelConfig(
             pretrained_model_name="openlm-research/open_llama_3b_v2",
+        ),
+        ModelVariant._3_2_3B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="meta-llama/Llama-3.2-3B-Instruct",
         ),
     }
 
@@ -71,11 +75,17 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant._3_2_3B_INSTRUCT:
+            group = ModelGroup.VULCAN
 
         return ModelInfo(
             model="Llama",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.EASYDEL,
             framework=Framework.JAX,
