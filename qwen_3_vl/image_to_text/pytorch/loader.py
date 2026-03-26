@@ -5,7 +5,11 @@
 Qwen 3 model loader implementation for image to text.
 """
 
-from transformers import Qwen3VLForConditionalGeneration, AutoProcessor
+from transformers import (
+    Qwen3VLForConditionalGeneration,
+    Qwen3VLMoeForConditionalGeneration,
+    AutoProcessor,
+)
 from typing import Optional
 
 from ....base import ForgeModel
@@ -28,6 +32,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_4B_INSTRUCT = "4b_instruct"
     QWEN_3_VL_4B_THINKING = "4b_thinking"
     QWEN_3_VL_8B_INSTRUCT = "8b_instruct"
+    QWEN_3_VL_30B_A3B_INSTRUCT = "30b_a3b_instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -55,7 +60,14 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-VL-8B-Instruct",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-VL-30B-A3B-Instruct",
+            max_length=128,
+        ),
     }
+
+    # Variants that use the MoE architecture
+    _MOE_VARIANTS = {ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT}
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.QWEN_3_VL_2B_INSTRUCT
@@ -90,7 +102,11 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
         group = (
             ModelGroup.VULCAN
-            if variant == ModelVariant.QWEN_3_VL_8B_INSTRUCT
+            if variant
+            in (
+                ModelVariant.QWEN_3_VL_8B_INSTRUCT,
+                ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
+            )
             else ModelGroup.RED
         )
         return ModelInfo(
@@ -123,7 +139,12 @@ class ModelLoader(ForgeModel):
 
         self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
 
-        model = Qwen3VLForConditionalGeneration.from_pretrained(
+        model_cls = (
+            Qwen3VLMoeForConditionalGeneration
+            if self.variant in self._MOE_VARIANTS
+            else Qwen3VLForConditionalGeneration
+        )
+        model = model_cls.from_pretrained(
             pretrained_model_name, dtype="auto", device_map="auto", **model_kwargs
         )
         model.eval()
