@@ -51,6 +51,9 @@ class ModelVariant(StrEnum):
     # Llama 3.3 variants
     LLAMA_3_3_70B_INSTRUCT = "3.3_70B_Instruct"
 
+    # RedHatAI FP8 quantized variants
+    LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
+
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
 
@@ -112,6 +115,11 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_2_3B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Llama-3.2-3B-Instruct",
+            max_length=128,
+        ),
+        # RedHatAI FP8 quantized variants
+        ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Llama-3.2-1B-Instruct-FP8-dynamic",
             max_length=128,
         ),
         # Llama 3.3 variants
@@ -189,6 +197,10 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT,
         ]:
             group = ModelGroup.PRIORITY
+        elif variant in [
+            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
+        ]:
+            group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
 
@@ -441,6 +453,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT,
             ModelVariant.LLAMA_3_2_3B,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT,
+            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.HUGGYLLAMA_7B,
         ]:
             return None
