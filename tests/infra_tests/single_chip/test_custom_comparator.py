@@ -84,7 +84,8 @@ def test_op_tester_custom_comparator_is_called():
     ):
         tester = OpTester(framework=Framework.TORCH, custom_comparator=comparator)
 
-    tester.test(_make_torch_workload())
+    with patch.object(tester, "_compile_for_tt_device"):
+        tester.test(_make_torch_workload())
 
     comparator.assert_called_once()
 
