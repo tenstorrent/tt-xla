@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     """Available Pyannote speaker diarization model variants."""
 
     DIARIZATION_3_1 = "Diarization_3_1"
+    DIARIZATION_COMMUNITY_1 = "Diarization_Community_1"
 
 
 class ModelLoader(ForgeModel):
@@ -40,6 +41,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DIARIZATION_3_1: ModelConfig(
             pretrained_model_name="pyannote/speaker-diarization-3.1",
+        ),
+        ModelVariant.DIARIZATION_COMMUNITY_1: ModelConfig(
+            pretrained_model_name="pyannote/speaker-diarization-community-1",
         ),
     }
 
