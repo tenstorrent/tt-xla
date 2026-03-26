@@ -49,6 +49,7 @@ class ModelVariant(StrEnum):
     RESNET_50_TIMM = "ResNet50_TIMM"
     RESNET_50_TIMM_HIGH_RES = "ResNet50_TIMM_High_Resolution"
     RESNET_50_A1_IN1K_TIMM = "ResNet50_A1_IN1K_TIMM"
+    TEST_RESNET_R160_IN1K_TIMM = "TestResNet_R160_IN1K_TIMM"
 
     # Torchvision variants
     RESNET_18 = "ResNet18"
@@ -86,6 +87,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.RESNET_50_A1_IN1K_TIMM: ResNetConfig(
             pretrained_model_name="resnet50.a1_in1k",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.TEST_RESNET_R160_IN1K_TIMM: ResNetConfig(
+            pretrained_model_name="test_resnet.r160_in1k",
             source=ModelSource.TIMM,
         ),
         # Torchvision variants
@@ -154,6 +159,7 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.RED
         elif variant in [
             ModelVariant.RESNET_50_A1_IN1K_TIMM,
+            ModelVariant.TEST_RESNET_R160_IN1K_TIMM,
         ]:
             group = ModelGroup.VULCAN
         else:
