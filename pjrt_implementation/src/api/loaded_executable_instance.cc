@@ -12,6 +12,7 @@
 #include "tt/runtime/types.h"
 
 // c++ standard library includes
+#include <cassert>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
@@ -34,7 +35,6 @@
 #include "api/error_instance.h"
 #include "api/executable_image.h"
 #include "api/executable_instance.h"
-#include "utils/assert.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -90,8 +90,8 @@ void LoadedExecutableInstance::dumpInputs(
     const std::vector<tt::runtime::Tensor> &input_tensors) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::dumpInputs");
 
-  TT_FATAL(m_executable_image->getCompileOptions().export_path.has_value(),
-           "Export path must be set when dumping inputs");
+  assert(m_executable_image->getCompileOptions().export_path.has_value() &&
+         "Export path must be set when dumping inputs");
 
   std::filesystem::path dump_dir =
       std::filesystem::path(
@@ -163,8 +163,7 @@ std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
   // TODO: Now we will run only on the first one, but this should be somehow
   // explicit. Maybe use `execute_device` from the args?
   if (device_ids.size() == 0) {
-    TT_FATAL(!m_addressable_devices.empty(),
-             "No addressable devices available");
+    assert(!m_addressable_devices.empty());
     device_ids.emplace(m_addressable_devices.front()->getGlobalDeviceId());
   }
 
@@ -229,9 +228,7 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
     }
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
     llvm::SmallVector<int64_t> mesh_shape_data = meshSharding.getMeshShape();
-    TT_FATAL(mesh_shape_data.size() <= 2 && mesh_shape_data.size() >= 1,
-             "Mesh shape data size must be 1 or 2: mesh_shape_data.size()={}",
-             mesh_shape_data.size());
+    assert(mesh_shape_data.size() <= 2 && mesh_shape_data.size() >= 1);
     if (mesh_shape_data.size() == 1) {
       strategy["strategy"] = "shard";
       strategy["shard_dim"] = std::to_string(mesh_shape_data[0]);
