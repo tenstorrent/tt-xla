@@ -7,7 +7,7 @@ Qwen Casual LM model loader implementation
 
 
 import torch
-from transformers import AutoTokenizer, Qwen2ForCausalLM, AutoConfig
+from transformers import AutoTokenizer, Qwen2ForCausalLM, AutoConfig, AwqConfig
 from typing import Optional
 
 from ....base import ForgeModel
@@ -42,6 +42,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_72B_INSTRUCT = "72B_Instruct"
     QWEN_2_5_72B = "72B"
     QWEN_2_5_MATH_7B = "Math_7B"
+    QWEN_2_5_14B_INSTRUCT_AWQ = "14B_Instruct_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -113,6 +114,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-Math-7B",
             max_length=128,
         ),
+        ModelVariant.QWEN_2_5_14B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-14B-Instruct-AWQ",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -160,6 +165,10 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_72B,
         ]:
             group = ModelGroup.RED
+        if variant in [
+            ModelVariant.QWEN_2_5_14B_INSTRUCT_AWQ,
+        ]:
+            group = ModelGroup.VULCAN
 
         return ModelInfo(
             model="Qwen 2.5",
@@ -212,6 +221,13 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # Check if this is an AWQ variant and configure accordingly
+        if pretrained_model_name == "Qwen/Qwen2.5-14B-Instruct-AWQ":
+            quantization_config = AwqConfig(version="ipex")
+            model_kwargs["quantization_config"] = quantization_config
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
