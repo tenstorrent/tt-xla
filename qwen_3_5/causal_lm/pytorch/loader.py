@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for causal language modeling."""
 
     QWEN_3_5_9B = "9B"
+    QWEN_3_5_35B_A3B = "35B_A3B"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_5_9B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-9B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-35B-A3B",
             max_length=128,
         ),
     }
@@ -125,7 +130,10 @@ class ModelLoader(ForgeModel):
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
+            if hasattr(config, "text_config"):
+                config.text_config.num_hidden_layers = self.num_layers
+            else:
+                config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
@@ -178,19 +186,49 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
+    def _get_text_config(self):
+        """Get the text config, handling both nested (MoE) and flat config structures."""
+        if hasattr(self.config, "text_config"):
+            return self.config.text_config
+        return self.config
+
     def get_mesh_config(self, num_devices: int):
         mesh_shape = (1, num_devices)
+        text_config = self._get_text_config()
         assert (
-            self.config.num_attention_heads % mesh_shape[1] == 0
+            text_config.num_attention_heads % mesh_shape[1] == 0
         ), "Attention heads must be divisible by the model axis size"
         return mesh_shape, ("batch", "model")
+
+    def _is_moe_variant(self):
+        """Check if the current variant is a Mixture of Experts model."""
+        return self._variant == ModelVariant.QWEN_3_5_35B_A3B
 
     def load_shard_spec(self, model):
         shard_specs = {}
         for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+            if self._is_moe_variant():
+                # MoE layers have experts and a shared expert
+                mlp = layer.mlp
+                if hasattr(mlp, "experts"):
+                    for expert in mlp.experts:
+                        shard_specs[expert.up_proj.weight] = ("model", "batch")
+                        shard_specs[expert.gate_proj.weight] = ("model", "batch")
+                        shard_specs[expert.down_proj.weight] = ("batch", "model")
+                if hasattr(mlp, "shared_expert"):
+                    shard_specs[mlp.shared_expert.up_proj.weight] = ("model", "batch")
+                    shard_specs[mlp.shared_expert.gate_proj.weight] = (
+                        "model",
+                        "batch",
+                    )
+                    shard_specs[mlp.shared_expert.down_proj.weight] = (
+                        "batch",
+                        "model",
+                    )
+            else:
+                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
