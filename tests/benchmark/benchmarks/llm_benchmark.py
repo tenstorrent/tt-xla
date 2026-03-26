@@ -325,17 +325,9 @@ def benchmark_llm_torch_xla(
 
     # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
     if not accuracy_testing:
-        cpu_logits, _ = generate_and_benchmark(
-            model,
-            input_args,
-            torch.device("cpu"),
-            1,
-            read_logits_fn=read_logits_fn,
-            tokenizer=tokenizer,
-            verbose=False,
-        )
-        # Only one output makes sense to compare.
-        cpu_logits = cpu_logits[0]
+        with torch.no_grad():
+            cpu_output = model(**input_args)
+            cpu_logits = read_logits_fn(cpu_output)
 
     # Transfer model and inputs to device
     input_args = construct_inputs(
@@ -405,7 +397,6 @@ def benchmark_llm_torch_xla(
         input_args,
         device,
         warmup_tokens,
-        tokenizer=tokenizer,
         verbose=False,
         collect_logits=False,
     )
@@ -434,7 +425,6 @@ def benchmark_llm_torch_xla(
         input_args,
         device,
         max_output_tokens,
-        tokenizer=tokenizer,
         verbose=True,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
@@ -469,7 +459,6 @@ def benchmark_llm_torch_xla(
         input_args,
         device,
         accuracy_steps,
-        tokenizer=tokenizer,
         verbose=False,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=True,
