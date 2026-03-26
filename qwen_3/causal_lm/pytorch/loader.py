@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     QWEN_3_0_6B = "0_6B"
     QWEN_3_1_7B = "1_7B"
     QWEN_3_4B = "4B"
+    QWEN_3_4B_INSTRUCT_2507 = "4B_Instruct_2507"
     QWEN_3_8B = "8B"
     QWEN_3_14B = "14B"
     QWEN_3_32B = "32B"
@@ -48,6 +49,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_4B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-4B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_4B_INSTRUCT_2507: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-4B-Instruct-2507",
             max_length=128,
         ),
         ModelVariant.QWEN_3_8B: LLMModelConfig(
@@ -100,10 +105,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant == ModelVariant.QWEN_3_4B_INSTRUCT_2507:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.RED
+
         return ModelInfo(
             model="Qwen 3",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -185,8 +195,13 @@ class ModelLoader(ForgeModel):
 
         # Use chat template for Qwen 3 models
         messages = [{"role": "user", "content": self.sample_text}]
+        # Instruct-2507 variants do not support thinking mode
+        enable_thinking = self._variant != ModelVariant.QWEN_3_4B_INSTRUCT_2507
         text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True, enable_thinking=True
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=enable_thinking,
         )
         prompts = [text]
 
@@ -207,14 +222,20 @@ class ModelLoader(ForgeModel):
 
     def get_mesh_config(self, num_devices: int):
         mesh_shape = (1, num_devices)
-        if self._variant not in [ModelVariant.QWEN_3_4B]:
+        if self._variant not in [
+            ModelVariant.QWEN_3_4B,
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507,
+        ]:
             assert (
                 self.config.num_attention_heads % mesh_shape[1] == 0
             ), "Attention heads must be divisible by the model axis size"
         return mesh_shape, ("batch", "model")
 
     def load_shard_spec(self, model):
-        if self._variant in [ModelVariant.QWEN_3_4B]:
+        if self._variant in [
+            ModelVariant.QWEN_3_4B,
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507,
+        ]:
             return None
 
         shard_specs = {}
