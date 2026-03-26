@@ -17,13 +17,8 @@ from ....config import (
     ModelSource,
     Framework,
     StrEnum,
-    Parallelism,
 )
 from ....tools.jax_utils import cast_hf_model_to_type
-import flax.nnx as nnx
-from jax.sharding import PartitionSpec
-import jax.numpy as jnp
-import numpy as np
 
 
 class ModelVariant(StrEnum):
@@ -75,7 +70,7 @@ class ModelLoader(ForgeModel):
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
-            source=ModelSource.EASYDEL,
+            source=ModelSource.HUGGING_FACE,
             framework=Framework.JAX,
         )
 
@@ -108,29 +103,25 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            model: The loaded model instance
+            The loaded model instance.
         """
-
-        from easydel import AutoEasyDeLModelForCausalLM
+        from transformers import FlaxLlamaForCausalLM
 
         # Ensure tokenizer is loaded
         if self._tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        # Initialize model kwargs
+        # Load the model with dtype override if specified
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        partition_rules = ((r".*", PartitionSpec()),)
-
-        # Load the model
-        model = AutoEasyDeLModelForCausalLM.from_pretrained(
-            self._model_name, partition_rules=partition_rules, **model_kwargs
+        # Load the model (from_pt=True converts PyTorch weights to Flax)
+        model = FlaxLlamaForCausalLM.from_pretrained(
+            self._model_name, from_pt=True, **model_kwargs
         )
 
         # Cast the model to the dtype_override if provided
@@ -139,83 +130,24 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, mesh=None):
+    def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the Vicuna model with this instance's variant settings.
 
         Args:
             dtype_override: Optional dtype to override the model's default dtype.
-            mesh: Optional device mesh for sharding (DataParallel mode).
+
         Returns:
-            inputs: Input tensors that can be fed to the model.
+            inputs: The loaded inputs
         """
 
-        if mesh is not None:
-            # For multi-device, use a fixed batch size that's divisible by device count
-            num_devices = np.prod(list(mesh.shape.values())) if mesh.shape else 1
-            batch_size = 8
-            # Ensure batch size is divisible by number of devices
-            if batch_size % num_devices != 0:
-                batch_size = num_devices * (batch_size // num_devices + 1)
-        else:
-            batch_size = 8
-
-        # Ensure tokenizer is initialized
+        # Ensure tokenizer is loaded
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        # Create tokenized inputs
-        inputs = self._tokenizer(self.sample_text, return_tensors="jax")
-
-        input_ids = jnp.repeat(inputs.input_ids, batch_size, axis=0)
-        return {"input_ids": input_ids}
-
-    def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"):
-        """Get partition specification for input activations.
-
-        Args:
-            mesh: The device mesh for sharding.
-            parallelism: The level of parallelism for sharding.
-            axis_name: The name of the mesh axis to use for sharding.
-
-        Returns:
-            PartitionSpec for input activations (sharded on batch dimension)
-        """
-        if (
-            parallelism.name == Parallelism.TENSOR_PARALLEL.name
-            or np.prod(list(mesh.shape.values())) == 1
-        ):
-            return (PartitionSpec(),)
-
-        return (PartitionSpec(axis_name),)
-
-    def load_parameters_partition_spec(
-        self,
-        model_for_multichip,
-        parallelism,
-        axis_name="X",
-        cpu_mesh=None,
-        input_activations_partition_specs=None,
-        inputs=None,
-        dtype_override=None,
-    ):
-        # Get the model state
-        state = nnx.split(model_for_multichip)[1]
-
-        if (
-            parallelism.name == Parallelism.DATA_PARALLEL.name
-            or parallelism.name == Parallelism.SINGLE_DEVICE.name
-        ):
-            # In data parallel mode, use fully replicated partitioning
-            partition_rules = ((r".*", PartitionSpec()),)
-        else:
-            # Use EasyDel's LlamaConfig to get proper partition rules
-            from easydel.modules.llama import LlamaConfig
-
-            llama_config = LlamaConfig()
-            partition_rules = llama_config.get_partition_rules()
-
-        from infra.utilities import make_easydel_parameters_partition_specs
-
-        return make_easydel_parameters_partition_specs(
-            model_state=state, partition_rules=partition_rules, axis_name=axis_name
+        # Load sample inputs
+        inputs = self._tokenizer(
+            self.sample_text,
+            return_tensors="jax",
         )
+
+        return inputs
