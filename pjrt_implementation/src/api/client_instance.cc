@@ -47,7 +47,7 @@ static std::string getRankBindingPath(const std::string &metal_home) {
       {"dual_t3k", "tests/tt_metal/distributed/config/"
                    "dual_t3k_1x16_experimental_bigmesh_rank_bindings.yaml"},
       {"dual_galaxy",
-       "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
+       "tests/tt_metal/distributed/config/16x4_dual_bh_galaxy_rank_bindings.yaml"},
       {"quad_galaxy",
        "tests/tt_metal/distributed/config/quad_galaxy_rank_bindings.yaml"},
   };
