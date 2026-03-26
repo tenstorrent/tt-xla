@@ -4,20 +4,74 @@
 """
 Kimi K2.5 model loader implementation.
 """
-import torch
 import os
-from unittest.mock import patch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
-from transformers.dynamic_module_utils import get_imports
+import sys
 from typing import Optional
+from unittest.mock import patch
+
+import torch
+
+# Patch missing functions before importing model code that depends on them.
+# The model's remote code was written for an older transformers that included
+# these helpers; newer versions removed them.
+import transformers.utils
+import transformers.utils.import_utils
+
+if not hasattr(transformers.utils, "is_flash_attn_greater_or_equal_2_10"):
+
+    def _is_flash_attn_gte_2_10():
+        return False
+
+    transformers.utils.is_flash_attn_greater_or_equal_2_10 = _is_flash_attn_gte_2_10
+    sys.modules["transformers.utils"].__dict__[
+        "is_flash_attn_greater_or_equal_2_10"
+    ] = _is_flash_attn_gte_2_10
+
+if not hasattr(transformers.utils.import_utils, "is_torch_fx_available"):
+
+    def _is_torch_fx_available():
+        return False
+
+    transformers.utils.import_utils.is_torch_fx_available = _is_torch_fx_available
+    sys.modules["transformers.utils.import_utils"].__dict__[
+        "is_torch_fx_available"
+    ] = _is_torch_fx_available
+
+# Patch DynamicCache.from_legacy_cache removed in newer transformers
+from transformers.cache_utils import DynamicCache
+
+if not hasattr(DynamicCache, "from_legacy_cache"):
+
+    @classmethod  # type: ignore[misc]
+    def _from_legacy_cache(cls, past_key_values=None):
+        cache = cls()
+        if past_key_values is not None:
+            for layer_idx, (key, value) in enumerate(past_key_values):
+                cache.update(key, value, layer_idx)
+        return cache
+
+    DynamicCache.from_legacy_cache = _from_legacy_cache
+
+if not hasattr(DynamicCache, "to_legacy_cache"):
+
+    def _to_legacy_cache(self):
+        legacy_cache = []
+        for layer in self.layers:
+            legacy_cache.append((layer.keys, layer.values))
+        return legacy_cache
+
+    DynamicCache.to_legacy_cache = _to_legacy_cache
+
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers.dynamic_module_utils import get_class_from_dynamic_module, get_imports
 
 from ...base import ForgeModel
 from ...config import (
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
@@ -45,14 +99,17 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.KIMI_K2_5
 
     def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+        self,
+        variant: Optional[ModelVariant] = None,
+        num_layers: Optional[int] = None,
     ):
         """Initialize ModelLoader with specified variant.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
-            num_layers: Optional number of hidden layers to use. If None, uses a reduced default.
+            num_layers: Optional number of hidden layers to use.
+                        If None, uses a reduced default.
         """
         super().__init__(variant)
         self.model_name = "moonshotai/Kimi-K2.5"
@@ -80,19 +137,23 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Kimi K2.5 model instance with reduced config.
+        """Load and return the Kimi K2.5 text backbone with reduced config.
+
+        The full model is a 1T-parameter MoE vision-language model. We load
+        only the DeepSeek V3 text backbone with a reduced configuration for
+        testing, as the vision tower's remote code has compatibility issues.
 
         Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
+            dtype_override: Optional torch.dtype to override the model's dtype.
 
         Returns:
-            torch.nn.Module: The Kimi K2.5 model instance.
+            torch.nn.Module: The DeepSeek V3 text backbone instance.
         """
         model = None
         with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
 
-            # Reduce config for testing - the full model is 1T parameters
+            # Use the text backbone config (DeepSeek V3 architecture)
             text_config = config.text_config
             if self.num_layers is not None:
                 text_config.num_hidden_layers = self.num_layers
@@ -105,13 +166,24 @@ class ModelLoader(ForgeModel):
             text_config.num_experts_per_tok = 2
             text_config.q_lora_rank = 256
             text_config.use_flash_attention = False
+            text_config._attn_implementation = "eager"
 
-            model_kwargs = {"attn_implementation": "eager", "trust_remote_code": True}
+            model_kwargs = {
+                "attn_implementation": "eager",
+                "trust_remote_code": True,
+            }
             if dtype_override is not None:
                 model_kwargs["torch_dtype"] = dtype_override
             model_kwargs |= kwargs
 
-            model = AutoModelForCausalLM.from_config(config, **model_kwargs)
+            # Load the DeepSeek V3 text backbone directly
+            model_class = get_class_from_dynamic_module(
+                "modeling_deepseek.DeepseekV3ForCausalLM",
+                self.model_name,
+                trust_remote_code=True,
+            )
+            model = model_class(text_config)
+            model.eval()
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name, trust_remote_code=True
@@ -123,7 +195,7 @@ class ModelLoader(ForgeModel):
         """Load and return sample inputs for the Kimi K2.5 model.
 
         Args:
-            batch_size: Optional batch size to override the default batch size of 1.
+            batch_size: Optional batch size (default 1).
 
         Returns:
             dict: Input tensors that can be fed to the model.
