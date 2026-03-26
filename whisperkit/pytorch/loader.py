@@ -27,7 +27,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -89,19 +88,24 @@ class ModelLoader(ForgeModel):
         if self.model is None or self.processor is None:
             self.load_model()
 
+        from datasets import load_dataset
+
         model_config = WhisperConfig.from_pretrained(
             self._variant_config.pretrained_model_name
         )
 
-        # Load audio sample
-        weights_pth = get_file("test_files/pytorch/whisper/1272-128104-0000.pt")
-        sample = torch.load(weights_pth, weights_only=False)
-        sample_audio = sample["audio"]["array"]
+        # Load audio sample from HuggingFace datasets
+        dataset = load_dataset(
+            "hf-internal-testing/librispeech_asr_dummy", "clean", split="validation"
+        )
+        sample = dataset[0]["audio"]
+        sample_audio = sample["array"]
+        sampling_rate = sample["sampling_rate"]
+
         model_param = next(self.model.parameters())
         device, dtype = model_param.device, dtype_override or model_param.dtype
 
         # Preprocess audio
-        sampling_rate = 16000
         processor_output = self.processor(
             sample_audio, return_tensors="pt", sampling_rate=sampling_rate
         )
