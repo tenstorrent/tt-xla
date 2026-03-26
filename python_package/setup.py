@@ -317,6 +317,8 @@ class CMakeBuildPy(build_py):
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
             "-DTT_USE_SYSTEM_SFPI=ON",
         ]
+        if os.environ.get("TTMLIR_ENABLE_BINDINGS_PYTHON") == "ON":
+            cmake_args.append("-DTTMLIR_ENABLE_BINDINGS_PYTHON=ON")
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
 
