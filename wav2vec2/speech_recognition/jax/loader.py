@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Wav2Vec2 speech recognition model variants."""
 
+    XLSR_53_ARABIC = "XLSR_53_Arabic"
     XLSR_53_RUSSIAN = "XLSR_53_Russian"
     XLSR_53_PORTUGUESE = "XLSR_53_Portuguese"
     XLSR_53_CHINESE_ZH_CN = "XLSR_53_Chinese_zh_CN"
@@ -35,6 +36,9 @@ class ModelLoader(ForgeModel):
     """Wav2Vec2 model loader implementation for speech recognition."""
 
     _VARIANTS = {
+        ModelVariant.XLSR_53_ARABIC: ModelConfig(
+            pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-arabic",
+        ),
         ModelVariant.XLSR_53_RUSSIAN: ModelConfig(
             pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-russian",
         ),
