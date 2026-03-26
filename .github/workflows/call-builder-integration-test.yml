@@ -36,239 +36,239 @@ jobs:
       build_type: debug
       enable_python_bindings: true
 
-  # read-matrix:
-  #   needs: [build]
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     matrix: ${{ steps.read.outputs.matrix }}
-  #   steps:
-  #     - uses: actions/checkout@v4
+  read-matrix:
+    needs: [build]
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.read.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Read and group builder-integration-tests.json by device
-  #       id: read
-  #       shell: bash
-  #       run: |
-  #         # Group flat test entries by "runs-on" so all tests for the same
-  #         # device are bundled into one matrix job.
-  #         # Each grouped entry: { "runs-on": "n150", "test-configs": [ {name, tests, ...}, ... ] }
-  #         matrix=$(jq -c '
-  #           [group_by(."runs-on")[] |
-  #             {
-  #               "runs-on": .[0]."runs-on",
-  #               "test-configs": [.[] | del(."runs-on")]
-  #             }
-  #           ]
-  #         ' .github/workflows/test-matrix-presets/builder-integration-tests.json)
-  #         echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-  #         echo "Grouped matrix:"
-  #         echo "$matrix" | jq '.'
+      - name: Read and group builder-integration-tests.json by device
+        id: read
+        shell: bash
+        run: |
+          # Group flat test entries by "runs-on" so all tests for the same
+          # device are bundled into one matrix job.
+          # Each grouped entry: { "runs-on": "n150", "test-configs": [ {name, tests, ...}, ... ] }
+          matrix=$(jq -c '
+            [group_by(."runs-on")[] |
+              {
+                "runs-on": .[0]."runs-on",
+                "test-configs": [.[] | del(."runs-on")]
+              }
+            ]
+          ' .github/workflows/test-matrix-presets/builder-integration-tests.json)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Grouped matrix:"
+          echo "$matrix" | jq '.'
 
-  # run-test:
-  #   needs: [build, read-matrix]
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       build: ${{ fromJson(needs.read-matrix.outputs.matrix) }}
+  run-test:
+    needs: [build, read-matrix]
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.read-matrix.outputs.matrix) }}
 
-  #   timeout-minutes: 60
-  #   runs-on: ["${{ matrix.build.runs-on }}", "in-service"]
+    timeout-minutes: 60
+    runs-on: ["${{ matrix.build.runs-on }}", "in-service"]
 
-  #   name: "builder ${{ matrix.build.runs-on }} (${{ strategy.job-index }})"
+    name: "builder ${{ matrix.build.runs-on }} (${{ strategy.job-index }})"
 
-  #   container:
-  #     image: ${{ inputs.docker_image }}
-  #     options: --device /dev/tenstorrent
-  #     volumes:
-  #       - /dev/hugepages:/dev/hugepages
-  #       - /dev/hugepages-1G:/dev/hugepages-1G
-  #       - /etc/udev/rules.d:/etc/udev/rules.d
-  #       - /lib/modules:/lib/modules
-  #       - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
-  #       - /mnt/dockercache:/mnt/dockercache
+    container:
+      image: ${{ inputs.docker_image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
 
-  #   steps:
-  #     - name: Mark repo as safe for git
-  #       run: |
-  #         git config --global --add safe.directory /__w/tt-xla/tt-xla
-  #         git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
-  #         repository: 'tenstorrent/tt-xla'
-  #         sparse-checkout: |
-  #           .gitmodules
-  #           pytest.ini
-  #           tests
-  #           venv
-  #           python_package/requirements.txt
-  #           third_party/tt_forge_models
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          repository: 'tenstorrent/tt-xla'
+          sparse-checkout: |
+            .gitmodules
+            pytest.ini
+            tests
+            venv
+            python_package/requirements.txt
+            third_party/tt_forge_models
 
-  #     - name: Fetch job ID
-  #       id: fetch-job-id
-  #       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
-  #       with:
-  #         job_name: "builder ${{ matrix.build.runs-on }} (${{ strategy.job-index }})"
+      - name: Fetch job ID
+        id: fetch-job-id
+        uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+        with:
+          job_name: "builder ${{ matrix.build.runs-on }} (${{ strategy.job-index }})"
 
-  #     - name: Download wheel
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: xla-whl-debug-bindings
-  #         path: wheels
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: xla-whl-debug-bindings
+          path: wheels
 
-  #     - name: Install wheel
-  #       shell: bash
-  #       run: |
-  #         source venv/activate
-  #         uv pip install wheels/*.whl
+      - name: Install wheel
+        shell: bash
+        run: |
+          source venv/activate
+          uv pip install wheels/*.whl
 
-  #     - name: Verify pjrt_plugin_tt install
-  #       shell: bash
-  #       run: |
-  #         source venv/activate
-  #         python3 - <<'EOF'
-  #         import pathlib, pjrt_plugin_tt
-  #         init = pathlib.Path(pjrt_plugin_tt.__file__).resolve()
-  #         plugin_dir = init.parent
-  #         so = plugin_dir / "pjrt_plugin_tt.so"
-  #         print(f"pjrt_plugin_tt loaded from : {init}")
-  #         print(f"pjrt_plugin_tt.so path     : {so}")
-  #         if so.is_symlink():
-  #             target = so.readlink()
-  #             resolved = so.resolve() if so.exists() else None
-  #             status = f"SYMLINK -> {target}"
-  #             status += f"  (resolved: {resolved})" if resolved else "  (DANGLING - target missing)"
-  #         elif so.is_file():
-  #             status = f"regular file ({so.stat().st_size // 1024 // 1024} MB)"
-  #         else:
-  #             status = "NOT FOUND"
-  #         print(f"pjrt_plugin_tt.so status   : {status}")
-  #         assert so.exists(), f"pjrt_plugin_tt.so not found at {so}"
-  #         print("OK - pjrt_plugin_tt.so is accessible")
-  #         EOF
+      - name: Verify pjrt_plugin_tt install
+        shell: bash
+        run: |
+          source venv/activate
+          python3 - <<'EOF'
+          import pathlib, pjrt_plugin_tt
+          init = pathlib.Path(pjrt_plugin_tt.__file__).resolve()
+          plugin_dir = init.parent
+          so = plugin_dir / "pjrt_plugin_tt.so"
+          print(f"pjrt_plugin_tt loaded from : {init}")
+          print(f"pjrt_plugin_tt.so path     : {so}")
+          if so.is_symlink():
+              target = so.readlink()
+              resolved = so.resolve() if so.exists() else None
+              status = f"SYMLINK -> {target}"
+              status += f"  (resolved: {resolved})" if resolved else "  (DANGLING - target missing)"
+          elif so.is_file():
+              status = f"regular file ({so.stat().st_size // 1024 // 1024} MB)"
+          else:
+              status = "NOT FOUND"
+          print(f"pjrt_plugin_tt.so status   : {status}")
+          assert so.exists(), f"pjrt_plugin_tt.so not found at {so}"
+          print("OK - pjrt_plugin_tt.so is accessible")
+          EOF
 
-  #     - name: Download tt-mlir bindings
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: ${{ needs.build.outputs.bindings_artifact_name }}
-  #         path: bindings
+      - name: Download tt-mlir bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.bindings_artifact_name }}
+          path: bindings
 
-  #     - name: Restore bindings to expected path
-  #       shell: bash
-  #       run: |
-  #         # venv/activate sets:
-  #         #   PATH      += third_party/tt-mlir/src/tt-mlir/build/bin
-  #         #   PYTHONPATH += third_party/tt-mlir/src/tt-mlir/build/python_packages
-  #         #   PYTHONPATH += third_party/tt-mlir/src/tt-mlir/build/runtime/python
-  #         mkdir -p third_party/tt-mlir/src/tt-mlir/build
-  #         tar -xzf bindings/builder-bindings.tar.gz \
-  #           -C third_party/tt-mlir/src/tt-mlir/build
+      - name: Restore bindings to expected path
+        shell: bash
+        run: |
+          # venv/activate sets:
+          #   PATH      += third_party/tt-mlir/src/tt-mlir/build/bin
+          #   PYTHONPATH += third_party/tt-mlir/src/tt-mlir/build/python_packages
+          #   PYTHONPATH += third_party/tt-mlir/src/tt-mlir/build/runtime/python
+          mkdir -p third_party/tt-mlir/src/tt-mlir/build
+          tar -xzf bindings/builder-bindings.tar.gz \
+            -C third_party/tt-mlir/src/tt-mlir/build
 
-  #         # ttrt/__init__.py calls importlib.metadata.version('ttrt'), which needs
-  #         # dist-info metadata in the venv's site-packages.  Copy the dist-info
-  #         # that was captured in the build job into this venv.
-  #         source venv/activate
-  #         python3 - <<'EOF'
-  #         import site, shutil, glob, os
-  #         dist_infos = glob.glob(
-  #             "third_party/tt-mlir/src/tt-mlir/build/dist-info/*.dist-info"
-  #         )
-  #         site_packages = site.getsitepackages()[0]
-  #         for di in dist_infos:
-  #             dest = os.path.join(site_packages, os.path.basename(di))
-  #             shutil.copytree(di, dest, dirs_exist_ok=True)
-  #             print(f"Restored {os.path.basename(di)} → {site_packages}")
-  #         EOF
+          # ttrt/__init__.py calls importlib.metadata.version('ttrt'), which needs
+          # dist-info metadata in the venv's site-packages.  Copy the dist-info
+          # that was captured in the build job into this venv.
+          source venv/activate
+          python3 - <<'EOF'
+          import site, shutil, glob, os
+          dist_infos = glob.glob(
+              "third_party/tt-mlir/src/tt-mlir/build/dist-info/*.dist-info"
+          )
+          site_packages = site.getsitepackages()[0]
+          for di in dist_infos:
+              dest = os.path.join(site_packages, os.path.basename(di))
+              shutil.copytree(di, dest, dirs_exist_ok=True)
+              print(f"Restored {os.path.basename(di)} → {site_packages}")
+          EOF
 
-  #         # pjrt_plugin_tt/__init__.py calls setup_tt_metal_home() which looks for
-  #         # tt-metal in the installed wheel (pjrt_plugin_tt/tt-metal) or the source
-  #         # tree.  Neither is reliable in the split build/test workflow, so we
-  #         # explicitly point it at the tt-metal we extracted from the bindings archive.
-  #         TT_METAL_DIR="$(pwd)/third_party/tt-mlir/src/tt-mlir/build/tt-metal"
-  #         if [ -d "${TT_METAL_DIR}" ]; then
-  #           echo "TT_METAL_RUNTIME_ROOT=${TT_METAL_DIR}" >> "$GITHUB_ENV"
-  #           echo "Set TT_METAL_RUNTIME_ROOT=${TT_METAL_DIR}"
-  #         else
-  #           echo "WARNING: tt-metal not found at ${TT_METAL_DIR} - setup_tt_metal_home() will attempt fallbacks"
-  #         fi
+          # pjrt_plugin_tt/__init__.py calls setup_tt_metal_home() which looks for
+          # tt-metal in the installed wheel (pjrt_plugin_tt/tt-metal) or the source
+          # tree.  Neither is reliable in the split build/test workflow, so we
+          # explicitly point it at the tt-metal we extracted from the bindings archive.
+          TT_METAL_DIR="$(pwd)/third_party/tt-mlir/src/tt-mlir/build/tt-metal"
+          if [ -d "${TT_METAL_DIR}" ]; then
+            echo "TT_METAL_RUNTIME_ROOT=${TT_METAL_DIR}" >> "$GITHUB_ENV"
+            echo "Set TT_METAL_RUNTIME_ROOT=${TT_METAL_DIR}"
+          else
+            echo "WARNING: tt-metal not found at ${TT_METAL_DIR} - setup_tt_metal_home() will attempt fallbacks"
+          fi
 
-  #         # _ttmlir_runtime.so (used by load_split_and_execute.py) depends on
-  #         # libTTMLIRRuntime.so from build/lib/.  The RPATH in the .so should point
-  #         # there already (same absolute workspace path on build and test runners),
-  #         # but we also export LD_LIBRARY_PATH as a fallback.
-  #         TTMLIR_LIB="$(pwd)/third_party/tt-mlir/src/tt-mlir/build/lib"
-  #         if [ -d "${TTMLIR_LIB}" ]; then
-  #           echo "LD_LIBRARY_PATH=${TTMLIR_LIB}:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
-  #           echo "Added ${TTMLIR_LIB} to LD_LIBRARY_PATH"
-  #         else
-  #           echo "WARNING: tt-mlir lib not found at ${TTMLIR_LIB}"
-  #         fi
+          # _ttmlir_runtime.so (used by load_split_and_execute.py) depends on
+          # libTTMLIRRuntime.so from build/lib/.  The RPATH in the .so should point
+          # there already (same absolute workspace path on build and test runners),
+          # but we also export LD_LIBRARY_PATH as a fallback.
+          TTMLIR_LIB="$(pwd)/third_party/tt-mlir/src/tt-mlir/build/lib"
+          if [ -d "${TTMLIR_LIB}" ]; then
+            echo "LD_LIBRARY_PATH=${TTMLIR_LIB}:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+            echo "Added ${TTMLIR_LIB} to LD_LIBRARY_PATH"
+          else
+            echo "WARNING: tt-mlir lib not found at ${TTMLIR_LIB}"
+          fi
 
-  #     - name: Query TT hardware and save device artifacts
-  #       shell: bash
-  #       run: |
-  #         source venv/activate
-  #         ttrt query --save-artifacts
+      - name: Query TT hardware and save device artifacts
+        shell: bash
+        run: |
+          source venv/activate
+          ttrt query --save-artifacts
 
-  #     - name: Run all builder integration tests for this device
-  #       env:
-  #         HF_TOKEN: ${{ secrets.HF_TOKEN }}
-  #         HF_HOME: /mnt/dockercache/huggingface
-  #       shell: bash
-  #       run: |
-  #         source venv/activate
+      - name: Run all builder integration tests for this device
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_HOME: /mnt/dockercache/huggingface
+        shell: bash
+        run: |
+          source venv/activate
 
-  #         # build_cmd <config-json> <nameref> — fills the named array with
-  #         # the argument list for run_test_op_by_op.py
-  #         build_cmd() {
-  #           local cfg="$1"
-  #           local -n _cmd=$2
+          # build_cmd <config-json> <nameref> — fills the named array with
+          # the argument list for run_test_op_by_op.py
+          build_cmd() {
+            local cfg="$1"
+            local -n _cmd=$2
 
-  #           mapfile -t _cmd < <(echo "$cfg" | jq -r '.tests[]')
+            mapfile -t _cmd < <(echo "$cfg" | jq -r '.tests[]')
 
-  #           local src; src=$(echo "$cfg" | jq -r '.source // empty')
-  #           if [[ -n "$src" ]]; then _cmd+=(--source "$src"); fi
+            local src; src=$(echo "$cfg" | jq -r '.source // empty')
+            if [[ -n "$src" ]]; then _cmd+=(--source "$src"); fi
 
-  #           mapfile -t _targets < <(echo "$cfg" | jq -r '.target[]? // empty')
-  #           for t in "${_targets[@]}"; do _cmd+=(--target "$t"); done
+            mapfile -t _targets < <(echo "$cfg" | jq -r '.target[]? // empty')
+            for t in "${_targets[@]}"; do _cmd+=(--target "$t"); done
 
-  #           local adir; adir=$(echo "$cfg" | jq -r '."artifacts-dir" // empty')
-  #           if [[ -n "$adir" ]]; then _cmd+=(--artifacts-dir "$adir"); fi
+            local adir; adir=$(echo "$cfg" | jq -r '."artifacts-dir" // empty')
+            if [[ -n "$adir" ]]; then _cmd+=(--artifacts-dir "$adir"); fi
 
-  #           local norun; norun=$(echo "$cfg" | jq -r '."no-run" // false')
-  #           if [[ "$norun" == "true" ]]; then _cmd+=(--no-run); fi
-  #         }
+            local norun; norun=$(echo "$cfg" | jq -r '."no-run" // false')
+            if [[ "$norun" == "true" ]]; then _cmd+=(--no-run); fi
+          }
 
-  #         FAILED=()
-  #         configs='${{ toJson(matrix.build['test-configs']) }}'
-  #         count=$(echo "$configs" | jq 'length')
+          FAILED=()
+          configs='${{ toJson(matrix.build['test-configs']) }}'
+          count=$(echo "$configs" | jq 'length')
 
-  #         for i in $(seq 0 $((count - 1))); do
-  #           cfg=$(echo "$configs" | jq -c ".[$i]")
-  #           name=$(echo "$cfg" | jq -r '.name')
+          for i in $(seq 0 $((count - 1))); do
+            cfg=$(echo "$configs" | jq -c ".[$i]")
+            name=$(echo "$cfg" | jq -r '.name')
 
-  #           echo ""
-  #           echo "========================================================"
-  #           echo "[$((i+1))/$count] $name"
-  #           echo "========================================================"
+            echo ""
+            echo "========================================================"
+            echo "[$((i+1))/$count] $name"
+            echo "========================================================"
 
-  #           build_cmd "$cfg" CMD
-  #           echo "Running: python tests/integrations/tt_mlir_builder/run_test_op_by_op.py ${CMD[*]}"
+            build_cmd "$cfg" CMD
+            echo "Running: python tests/integrations/tt_mlir_builder/run_test_op_by_op.py ${CMD[*]}"
 
-  #           python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
-  #             "${CMD[@]}" \
-  #             2>&1 | tee "${name}.log" || FAILED+=("$name")
-  #         done
+            python tests/integrations/tt_mlir_builder/run_test_op_by_op.py \
+              "${CMD[@]}" \
+              2>&1 | tee "${name}.log" || FAILED+=("$name")
+          done
 
-  #         if [[ ${#FAILED[@]} -gt 0 ]]; then
-  #           echo ""
-  #           echo "FAILED tests: ${FAILED[*]}"
-  #           exit 1
-  #         fi
+          if [[ ${#FAILED[@]} -gt 0 ]]; then
+            echo ""
+            echo "FAILED tests: ${FAILED[*]}"
+            exit 1
+          fi
 
-  #     - name: Upload test logs
-  #       if: success() || failure()
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: builder-integration-logs-${{ matrix.build.runs-on }}-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
-  #         path: "*.log"
+      - name: Upload test logs
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-integration-logs-${{ matrix.build.runs-on }}-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+          path: "*.log"
