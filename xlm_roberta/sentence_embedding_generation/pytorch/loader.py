@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
 
     MULTILINGUAL_E5_SMALL = "intfloat/multilingual-e5-small"
     MULTILINGUAL_E5_BASE = "intfloat/multilingual-e5-base"
+    MULTILINGUAL_E5_LARGE_INSTRUCT = "intfloat/multilingual-e5-large-instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -40,6 +41,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MULTILINGUAL_E5_BASE: LLMModelConfig(
             pretrained_model_name="intfloat/multilingual-e5-base",
+            max_length=512,
+        ),
+        ModelVariant.MULTILINGUAL_E5_LARGE_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="intfloat/multilingual-e5-large-instruct",
             max_length=512,
         ),
     }
@@ -95,7 +100,10 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer()
 
         if sentence is None:
-            sentence = "query: How is the weather today?"
+            if self._variant == ModelVariant.MULTILINGUAL_E5_LARGE_INSTRUCT:
+                sentence = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: How is the weather today?"
+            else:
+                sentence = "query: How is the weather today?"
 
         max_length = getattr(self._variant_config, "max_length", 512)
 
