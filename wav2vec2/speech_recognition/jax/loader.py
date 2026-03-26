@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 speech recognition model variants."""
 
     XLSR_53_RUSSIAN = "XLSR_53_Russian"
+    XLSR_53_PORTUGUESE = "XLSR_53_Portuguese"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.XLSR_53_RUSSIAN: ModelConfig(
             pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-russian",
+        ),
+        ModelVariant.XLSR_53_PORTUGUESE: ModelConfig(
+            pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-portuguese",
         ),
     }
 
