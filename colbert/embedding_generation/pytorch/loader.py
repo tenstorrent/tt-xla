@@ -4,6 +4,7 @@
 """
 ColBERTv2.0 model loader implementation for embedding generation.
 """
+
 import torch
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
@@ -24,14 +25,19 @@ class ModelVariant(StrEnum):
     """Available ColBERT model variants for embedding generation."""
 
     COLBERT_IR_COLBERTV2_0 = "colbert-ir/colbertv2.0"
+    ANSWERAI_COLBERT_SMALL_V1 = "answerdotai/answerai-colbert-small-v1"
 
 
 class ModelLoader(ForgeModel):
-    """ColBERTv2.0 model loader implementation for embedding generation."""
+    """ColBERT model loader implementation for embedding generation."""
 
     _VARIANTS = {
         ModelVariant.COLBERT_IR_COLBERTV2_0: LLMModelConfig(
             pretrained_model_name="colbert-ir/colbertv2.0",
+            max_length=32,
+        ),
+        ModelVariant.ANSWERAI_COLBERT_SMALL_V1: LLMModelConfig(
+            pretrained_model_name="answerdotai/answerai-colbert-small-v1",
             max_length=32,
         ),
     }
