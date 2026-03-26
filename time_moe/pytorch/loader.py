@@ -76,7 +76,6 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             cfg.pretrained_model_name,
-            device_map="cpu",
             trust_remote_code=True,
             torch_dtype=dtype_override or torch.float32,
         )

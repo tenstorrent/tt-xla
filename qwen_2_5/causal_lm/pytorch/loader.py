@@ -7,7 +7,7 @@ Qwen Casual LM model loader implementation
 
 
 import torch
-from transformers import AutoTokenizer, Qwen2ForCausalLM, AutoConfig, AwqConfig
+from transformers import AutoTokenizer, Qwen2ForCausalLM, AutoConfig
 from typing import Optional
 
 from ....base import ForgeModel
@@ -233,8 +233,6 @@ class ModelLoader(ForgeModel):
             "Qwen/Qwen2.5-14B-Instruct-AWQ",
             "Qwen/Qwen2.5-32B-Instruct-AWQ",
         ):
-            quantization_config = AwqConfig(version="ipex")
-            model_kwargs["quantization_config"] = quantization_config
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
