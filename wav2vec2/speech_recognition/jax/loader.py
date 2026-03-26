@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     XLSR_HINDI = "XLSR_Hindi"
     XLSR_53_POLISH = "XLSR_53_Polish"
     XLS_R_300M_FILIPINO = "XLS_R_300M_Filipino"
+    XLS_R_1B_NYNORSK = "XLS_R_1B_Nynorsk"
 
 
 class ModelLoader(ForgeModel):
@@ -64,6 +65,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLS_R_300M_FILIPINO: ModelConfig(
             pretrained_model_name="Khalsuu/filipino-wav2vec2-l-xls-r-300m-official",
+        ),
+        ModelVariant.XLS_R_1B_NYNORSK: ModelConfig(
+            pretrained_model_name="NbAiLab/nb-wav2vec2-1b-nynorsk",
         ),
     }
 
