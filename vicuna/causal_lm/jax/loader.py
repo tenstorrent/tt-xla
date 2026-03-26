@@ -84,15 +84,15 @@ class ModelLoader(ForgeModel):
             tokenizer: The loaded tokenizer instance
         """
 
-        from transformers import AutoTokenizer
+        from transformers import LlamaTokenizer
 
         # Initialize tokenizer with dtype_override if provided
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["dtype"] = dtype_override
 
-        # Load the tokenizer
-        self._tokenizer = AutoTokenizer.from_pretrained(
+        # Load the slow tokenizer (Vicuna uses LLaMA's SentencePiece tokenizer)
+        self._tokenizer = LlamaTokenizer.from_pretrained(
             self._model_name, **tokenizer_kwargs
         )
 
