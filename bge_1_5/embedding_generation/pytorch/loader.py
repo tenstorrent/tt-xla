@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available BGE 1.5 model variants for embedding generation."""
 
     BGE_LARGE_EN_V1_5 = "Large_En_v1_5"
+    BGE_SMALL_EN_V1_5 = "Small_En_v1_5"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BGE_LARGE_EN_V1_5: ModelConfig(
             pretrained_model_name="BAAI/bge-large-en-v1.5",
+        ),
+        ModelVariant.BGE_SMALL_EN_V1_5: ModelConfig(
+            pretrained_model_name="BAAI/bge-small-en-v1.5",
         ),
     }
 
@@ -63,10 +67,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant in [ModelVariant.BGE_SMALL_EN_V1_5]:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="BGE-1.5",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_EMBED_GEN,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
