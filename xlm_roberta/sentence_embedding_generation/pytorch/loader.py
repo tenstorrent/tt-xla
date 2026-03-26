@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Multilingual E5 Small model loader for sentence embedding generation.
+Multilingual E5 model loader for sentence embedding generation.
 
-Uses the XLM-RoBERTa architecture (intfloat/multilingual-e5-small) via
-AutoModel for multilingual text embeddings.
+Uses the XLM-RoBERTa architecture via AutoModel for multilingual text embeddings.
 """
 
 import torch
@@ -25,17 +24,22 @@ from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available multilingual E5 small model variants."""
+    """Available multilingual E5 model variants."""
 
     MULTILINGUAL_E5_SMALL = "intfloat/multilingual-e5-small"
+    MULTILINGUAL_E5_BASE = "intfloat/multilingual-e5-base"
 
 
 class ModelLoader(ForgeModel):
-    """Multilingual E5 Small model loader for sentence embedding generation."""
+    """Multilingual E5 model loader for sentence embedding generation."""
 
     _VARIANTS = {
         ModelVariant.MULTILINGUAL_E5_SMALL: LLMModelConfig(
             pretrained_model_name="intfloat/multilingual-e5-small",
+            max_length=512,
+        ),
+        ModelVariant.MULTILINGUAL_E5_BASE: LLMModelConfig(
+            pretrained_model_name="intfloat/multilingual-e5-base",
             max_length=512,
         ),
     }
@@ -53,7 +57,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="multilingual-e5-small",
+            model="multilingual-e5",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_EMBED_GEN,

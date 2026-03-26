@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Multilingual E5 Small PyTorch implementation.
+Multilingual E5 PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant
