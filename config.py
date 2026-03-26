@@ -72,6 +72,7 @@ class ModelTask(StrEnum):
     MM_CONDITIONAL_GENERATION = "mm_conditional_generation"
     MM_DOC_OCR = "mm_doc_ocr"
     MM_IMAGE_TEXT_SIM = "mm_image_text_similarity"
+    MM_AUDIO_TEXT_SIM = "mm_audio_text_similarity"
     CONDITIONAL_GENERATION = "conditional_generation"
     ATOMIC_ML = "atomic_ml"
     MULTIVIEW_3D_OBJECT_DET = "Multiview_3D_object_detection"
