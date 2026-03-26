@@ -24,6 +24,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Pyannote segmentation model variants."""
 
+    SEGMENTATION = "Segmentation"
     SEGMENTATION_3_0 = "Segmentation_3_0"
 
 
@@ -31,12 +32,15 @@ class ModelLoader(ForgeModel):
     """Pyannote speaker segmentation model loader implementation."""
 
     _VARIANTS = {
+        ModelVariant.SEGMENTATION: ModelConfig(
+            pretrained_model_name="pyannote/segmentation",
+        ),
         ModelVariant.SEGMENTATION_3_0: ModelConfig(
             pretrained_model_name="pyannote/segmentation-3.0",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SEGMENTATION_3_0
+    DEFAULT_VARIANT = ModelVariant.SEGMENTATION
 
     def __init__(self, variant=None):
         super().__init__(variant)
