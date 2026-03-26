@@ -70,6 +70,8 @@ GENERATED_MLIR_LIST = Path("tests/integrations/tt_mlir_builder/generated_mlir_fi
 DEFAULT_ARTIFACTS_DIR = Path("output_artifact")
 
 
+# adding a random comment
+
 # ---------------------------------------------------------------------------
 # Test Runner
 # ---------------------------------------------------------------------------
