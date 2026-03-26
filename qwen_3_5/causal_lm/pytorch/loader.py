@@ -132,6 +132,11 @@ class ModelLoader(ForgeModel):
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if hasattr(config, "text_config"):
                 config.text_config.num_hidden_layers = self.num_layers
+                # Truncate layer_types to match the reduced number of layers
+                if hasattr(config.text_config, "layer_types"):
+                    config.text_config.layer_types = config.text_config.layer_types[
+                        : self.num_layers
+                    ]
             else:
                 config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -208,13 +213,11 @@ class ModelLoader(ForgeModel):
         shard_specs = {}
         for layer in model.model.layers:
             if self._is_moe_variant():
-                # MoE layers have experts and a shared expert
+                # MoE layers use fused expert weights (3D tensors)
                 mlp = layer.mlp
                 if hasattr(mlp, "experts"):
-                    for expert in mlp.experts:
-                        shard_specs[expert.up_proj.weight] = ("model", "batch")
-                        shard_specs[expert.gate_proj.weight] = ("model", "batch")
-                        shard_specs[expert.down_proj.weight] = ("batch", "model")
+                    shard_specs[mlp.experts.gate_up_proj] = (None, "model", "batch")
+                    shard_specs[mlp.experts.down_proj] = (None, "batch", "model")
                 if hasattr(mlp, "shared_expert"):
                     shard_specs[mlp.shared_expert.up_proj.weight] = ("model", "batch")
                     shard_specs[mlp.shared_expert.gate_proj.weight] = (
@@ -225,15 +228,21 @@ class ModelLoader(ForgeModel):
                         "batch",
                         "model",
                     )
+                # Layers have either self_attn (full attention) or linear_attn
+                if hasattr(layer, "self_attn"):
+                    shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+                    shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+                    shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+                    shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
             else:
                 shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
                 shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
                 shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         shard_specs[model.lm_head.weight] = ("model", "batch")
 
         return shard_specs
