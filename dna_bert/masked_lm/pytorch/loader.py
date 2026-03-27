@@ -82,9 +82,12 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer()
 
         # DNABERT uses k-mer tokenization (6-mers for DNA_bert_6).
-        # Input DNA sequences must be pre-tokenized into space-separated k-mers
+        # Input DNA sequences must be pre-tokenized into space-separated 6-mers
         # with one token replaced by [MASK].
-        dna_sequence = "ACT GAC TGA CTG ACT GAC TGA CTG [MASK] CTG ACT GAC"
+        dna_sequence = (
+            "ACTGAC CTGACT TGACTG GACTGA ACTGAC CTGACT"
+            " [MASK] GACTGA ACTGAC CTGACT TGACTG GACTGA"
+        )
 
         max_length = self._variant_config.max_length
         inputs = self.tokenizer(
