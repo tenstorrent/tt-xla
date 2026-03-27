@@ -4,8 +4,10 @@
 """
 DNABERT-S model loader implementation for embedding generation.
 """
+import sys
 import torch
-from transformers import AutoTokenizer, AutoModel
+import huggingface_hub
+from transformers import AutoTokenizer, AutoModel, AutoConfig
 from typing import Optional
 
 from third_party.tt_forge_models.config import (
@@ -75,10 +77,22 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(
-            model_name, trust_remote_code=True, **model_kwargs
-        )
+        # DNABERT-S uses custom BERT layers with ALiBi tensors that fail when
+        # constructed on the meta device (used by from_pretrained internally).
+        # Work around by constructing the model on CPU then loading weights.
+        config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+        model = AutoModel.from_config(config, trust_remote_code=True)
+        weights_file = huggingface_hub.hf_hub_download(model_name, "pytorch_model.bin")
+        state_dict = torch.load(weights_file, map_location="cpu", weights_only=True)
+        model.load_state_dict(state_dict, strict=False)
         model.eval()
+
+        # Disable Triton flash attention so the model uses the PyTorch
+        # fallback path, which works on CPU and non-CUDA devices.
+        bert_layers_mod = sys.modules.get(type(model.encoder).__module__)
+        if bert_layers_mod is not None:
+            bert_layers_mod.flash_attn_qkvpacked_func = None
+
         return model
 
     def load_inputs(self, dtype_override=None):
