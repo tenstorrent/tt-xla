@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Next model variants for causal language modeling."""
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
-    QWEN_3_NEXT_80B_A3B_INSTRUCT_BNB_4BIT_UNSLOTH = "80B_A3B_Instruct_Bnb_4bit_Unsloth"
+    QWEN_3_NEXT_80B_A3B_THINKING = "80B_A3B_Thinking"
 
 
 class ModelLoader(ForgeModel):
@@ -36,8 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_BNB_4BIT_UNSLOTH: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-Next-80B-A3B-Instruct-bnb-4bit",
+        ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Thinking",
             max_length=128,
         ),
     }
@@ -111,11 +111,15 @@ class ModelLoader(ForgeModel):
             model_kwargs["gguf_file"] = self._gguf_file
 
         if self.num_layers is not None:
-            config_kwargs = {}
-            if self._is_gguf_variant():
-                config_kwargs["gguf_file"] = self._gguf_file
-            config = AutoConfig.from_pretrained(pretrained_model_name, **config_kwargs)
-            config.num_hidden_layers = self.num_layers
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            if hasattr(config, "text_config"):
+                config.text_config.num_hidden_layers = self.num_layers
+                if hasattr(config.text_config, "layer_types"):
+                    config.text_config.layer_types = config.text_config.layer_types[
+                        : self.num_layers
+                    ]
+            else:
+                config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
@@ -133,12 +137,15 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         messages = [{"role": "user", "content": self.sample_text}]
-        enable_thinking = self._variant == ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING
+        chat_kwargs = {
+            "tokenize": False,
+            "add_generation_prompt": True,
+        }
+        if self._variant == ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING:
+            chat_kwargs["enable_thinking"] = True
         text = self.tokenizer.apply_chat_template(
             messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=enable_thinking,
+            **chat_kwargs,
         )
         prompts = [text]
 
