@@ -1,2 +1,1 @@
-qwen-asr
-numpy
+qwen-asr==0.0.6

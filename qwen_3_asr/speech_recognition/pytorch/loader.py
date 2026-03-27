@@ -1,46 +1,69 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 """
-Qwen3 ASR model loader implementation for speech recognition (ASR) using PyTorch.
+Qwen3-ASR model loader implementation for speech recognition (ASR).
+
+Qwen3-ASR-0.6B is a lightweight automatic speech recognition model from
+Alibaba's Qwen team, supporting multilingual speech-to-text conversion.
 """
 
-import torch
 from typing import Optional
+
+import numpy as np
+import torch
 
 from ....base import ForgeModel
 from ....config import (
-    ModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen3 ASR PyTorch speech recognition model variants."""
+    """Available Qwen3-ASR speech recognition model variants."""
 
-    QWEN3_ASR_1_7B = "1_7B"
+    V0_6B = "0.6B"
+
+
+class Qwen3ASRWrapper(torch.nn.Module):
+    """Wrapper around the Qwen3-ASR thinker model for a clean forward pass."""
+
+    def __init__(self, thinker):
+        super().__init__()
+        self.thinker = thinker
+
+    def forward(
+        self, input_ids, attention_mask, input_features, feature_attention_mask
+    ):
+        return self.thinker(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            input_features=input_features,
+            feature_attention_mask=feature_attention_mask,
+        )
 
 
 class ModelLoader(ForgeModel):
-    """Qwen3 ASR model loader implementation for speech recognition (PyTorch)."""
+    """Qwen3-ASR model loader implementation for speech recognition (ASR)."""
 
     _VARIANTS = {
-        ModelVariant.QWEN3_ASR_1_7B: ModelConfig(
-            pretrained_model_name="Qwen/Qwen3-ASR-1.7B",
+        ModelVariant.V0_6B: ModelConfig(
+            pretrained_model_name="Qwen/Qwen3-ASR-0.6B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN3_ASR_1_7B
+    DEFAULT_VARIANT = ModelVariant.V0_6B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self._processor = None
+        self._model_wrapper = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -48,7 +71,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="Qwen3 ASR",
+            model="Qwen3_ASR",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.AUDIO_ASR,
@@ -56,70 +79,52 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self):
-        from transformers import AutoProcessor
-
-        self._processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name, fix_mistral_regex=True
-        )
-        return self._processor
-
-    def load_model(self, *, dtype_override=None, **kwargs):
-        # Importing qwen_asr registers the qwen3_asr architecture with transformers
-        import qwen_asr  # noqa: F401
-        from transformers import AutoModel
+    def _load_model_wrapper(self, dtype_override=None):
+        """Load the qwen_asr model wrapper and cache processor."""
+        from qwen_asr import Qwen3ASRModel
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["dtype"] = dtype_override
-        model_kwargs |= kwargs
+        else:
+            model_kwargs["dtype"] = torch.float32
 
-        composite_model = AutoModel.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+        self._model_wrapper = Qwen3ASRModel.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            device_map="cpu",
+            max_new_tokens=50,
+            **model_kwargs,
         )
+        self._processor = self._model_wrapper.processor
 
-        # The outer Qwen3ASRForConditionalGeneration only implements generate(),
-        # not forward(). Extract the thinker which has the actual forward pass.
-        model = composite_model.thinker
+    def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Qwen3-ASR model instance."""
+        if self._model_wrapper is None:
+            self._load_model_wrapper(dtype_override=dtype_override)
+
+        thinker = self._model_wrapper.model.thinker
+        model = Qwen3ASRWrapper(thinker)
         model.eval()
-        if dtype_override is not None:
-            model.to(dtype_override)
 
         return model
 
     def load_inputs(self, dtype_override=None):
-        import numpy as np
+        """Load and return sample inputs for the Qwen3-ASR model."""
+        if self._model_wrapper is None:
+            self._load_model_wrapper(dtype_override=dtype_override)
 
-        if self._processor is None:
-            self._load_processor()
-
-        # Generate a synthetic 1-second audio waveform at 16kHz
-        sampling_rate = 16000
-        duration_seconds = 1
-        audio_array = np.random.randn(sampling_rate * duration_seconds).astype(
-            np.float32
+        text = self._model_wrapper._build_text_prompt(
+            context="", force_language="English"
         )
-
-        # Build the text prompt expected by the Qwen3 ASR processor
-        text = (
-            "<|startoftext|><|im_start|>system\n"
-            "You are a helpful assistant.<|im_end|>\n"
-            "<|im_start|>user\n"
-            "Audio 1: <|audio_bos|><|AUDIO|><|audio_eos|>\n"
-            "<|im_end|>\n"
-            "<|im_start|>assistant\n"
-        )
+        audio = np.random.randn(16000).astype(np.float32)
 
         inputs = self._processor(
-            text=text,
-            audio=audio_array,
-            sampling_rate=sampling_rate,
-            return_tensors="pt",
+            text=[text], audio=[audio], return_tensors="pt", padding=True
         )
 
-        if dtype_override is not None:
-            for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].is_floating_point():
-                    inputs[key] = inputs[key].to(dtype_override)
-
-        return inputs
+        return [
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            inputs["input_features"],
+            inputs["feature_attention_mask"],
+        ]
