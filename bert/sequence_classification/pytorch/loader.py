@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT = (
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
+    YIYANGHKUST_FINBERT_TONE = "yiyanghkust_FinBERT_Tone"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlptown/bert-base-multilingual-uncased-sentiment",
             max_length=128,
         ),
+        ModelVariant.YIYANGHKUST_FINBERT_TONE: LLMModelConfig(
+            pretrained_model_name="yiyanghkust/finbert-tone",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -55,6 +60,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2: "the movie was great!",
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
+        ModelVariant.YIYANGHKUST_FINBERT_TONE: "There is a shortage of capital, and we need extra financing.",
     }
 
     def __init__(self, variant=None):
@@ -89,6 +95,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
+            ModelVariant.YIYANGHKUST_FINBERT_TONE,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
