@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ORGANISMDETECT_MULTIMED_335M = (
         "OpenMed-NER-OrganismDetect-MultiMed-335M"
     )
+    OPENMED_NER_PROTEINDETECT_MULTIMED_335M = "OpenMed-NER-ProteinDetect-MultiMed-335M"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_ORGANISMDETECT_MULTIMED_335M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-MultiMed-335M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_PROTEINDETECT_MULTIMED_335M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-MultiMed-335M",
             max_length=128,
         ),
     }
@@ -80,6 +85,10 @@ class ModelLoader(ForgeModel):
             self.sample_text = (
                 "Caenorhabditis elegans is a model organism for genetic studies."
             )
+        elif self._variant == ModelVariant.OPENMED_NER_PROTEINDETECT_MULTIMED_335M:
+            self.sample_text = (
+                "The Maillard reaction is responsible for the browning of many foods."
+            )
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = 128
@@ -103,6 +112,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.OPENMED_NER_ORGANISMDETECT_MULTIMED_335M,
+            ModelVariant.OPENMED_NER_PROTEINDETECT_MULTIMED_335M,
         ):
             group = ModelGroup.VULCAN
 
