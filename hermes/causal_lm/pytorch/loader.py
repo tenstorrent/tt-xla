@@ -7,6 +7,7 @@ Hermes model loader implementation for causal language modeling.
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
+import torch
 
 from ....config import (
     LLMModelConfig,
@@ -18,25 +19,29 @@ from ....config import (
     StrEnum,
 )
 from ....base import ForgeModel
+from ....tools.utils import (
+    pad_inputs,
+    cast_input_to_type,
+)
 
 
 class ModelVariant(StrEnum):
-    """Available Hermes model variants for causal language modeling."""
+    """Available Hermes model variants for causal LM."""
 
-    HERMES_2_PRO_LLAMA_3_8B = "Hermes_2_Pro_Llama_3_8B"
+    HERMES_4_70B_MLX_6BIT = "4_70B_MLX_6bit"
 
 
 class ModelLoader(ForgeModel):
     """Hermes model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.HERMES_2_PRO_LLAMA_3_8B: LLMModelConfig(
-            pretrained_model_name="NousResearch/Hermes-2-Pro-Llama-3-8B",
+        ModelVariant.HERMES_4_70B_MLX_6BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Hermes-4-70B-MLX-6bit",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.HERMES_2_PRO_LLAMA_3_8B
+    DEFAULT_VARIANT = ModelVariant.HERMES_4_70B_MLX_6BIT
 
     sample_text = "Hey how are you doing today?"
 
@@ -45,6 +50,7 @@ class ModelLoader(ForgeModel):
     ):
         super().__init__(variant)
         self.tokenizer = None
+        self.seq_len = None
         self.config = None
         self.num_layers = num_layers
 
@@ -73,12 +79,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **tokenizer_kwargs
         )
 
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
-    def load_model(self, *, dtype_override=None, **kwargs):
+    def load_model(self, *, dtype_override=None, num_layers=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
@@ -96,30 +101,64 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
+        if num_layers is not None:
+            model.model.layers = model.model.layers[:num_layers]
 
-        self.config = model.config
+        model.eval()
         self.model = model
+        self.config = model.config
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        max_length = self._variant_config.max_length
-
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
-            padding="max_length",
-            truncation=True,
-            max_length=max_length,
         )
 
         for key in inputs:
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
+        if dtype_override is not None:
+            for key in inputs:
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
+
+        target_len = self._variant_config.max_length
+        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], target_len)
+        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], target_len)
+        self.seq_len = seq_len
+
+        inputs["input_ids"] = padded_input_ids
+        inputs["attention_mask"] = padded_attention_mask
         return inputs
+
+    def decode_output(self, max_new_tokens, model, inputs, tokenizer):
+        current_pos = self.seq_len
+
+        for _ in range(max_new_tokens):
+            logits = model(*inputs)
+
+            if isinstance(logits, (list, tuple)):
+                logits = logits[0]
+
+            next_token_logits = logits[:, current_pos - 1, :]
+            next_token_id = torch.argmax(next_token_logits, dim=-1)
+
+            if next_token_id.item() == tokenizer.eos_token_id:
+                break
+
+            inputs[0][:, current_pos] = next_token_id
+            inputs[1][:, current_pos] = 1
+
+            current_pos += 1
+
+        valid_tokens = inputs[0][:, self.seq_len : current_pos].view(-1).tolist()
+        answer = tokenizer.decode(valid_tokens, skip_special_tokens=True)
+        return answer
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
