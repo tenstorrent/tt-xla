@@ -46,8 +46,8 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        if self._variant == ModelVariant.YEAJINMIN_NER_NEWSBI:
-            self.sample_text = "삼성전자는 서울에서 새로운 반도체 공장을 발표했다"
+        if self._variant == ModelVariant.NER_HRL:
+            self.sample_text = "Nader Jokhadar had given Syria the lead with a well-struck header in the seventh minute."
         else:
             self.sample_text = (
                 "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday"
