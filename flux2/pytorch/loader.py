@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
     """Available FLUX.2 model variants."""
 
     DEV = "Dev"
-    KLEIN_BASE_9B = "Klein Base 9B"
+    KLEIN_9B_FP8 = "Klein-9B-FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -34,8 +34,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEV: ModelConfig(
             pretrained_model_name="black-forest-labs/FLUX.2-dev",
         ),
-        ModelVariant.KLEIN_BASE_9B: ModelConfig(
-            pretrained_model_name="black-forest-labs/FLUX.2-klein-base-9B",
+        ModelVariant.KLEIN_9B_FP8: ModelConfig(
+            pretrained_model_name="black-forest-labs/FLUX.2-klein-9b-fp8",
         ),
     }
 
@@ -61,10 +61,10 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        if self._variant in _SDNQ_VARIANTS:
-            from sdnq import SDNQConfig  # noqa: F401 — registers quantization handler
+        if self._variant == ModelVariant.KLEIN_9B_FP8:
+            return self._load_fp8_transformer(dtype_override)
 
-        load_kwargs = {}
+        load_kwargs = {"use_safetensors": True}
         if dtype_override is not None:
             load_kwargs["torch_dtype"] = dtype_override
 
@@ -83,6 +83,17 @@ class ModelLoader(ForgeModel):
 
         if dtype_override is not None:
             self.transformer = self.transformer.to(dtype_override)
+
+        return self.transformer
+
+    def _load_fp8_transformer(self, dtype_override=None):
+        """Load the FP8 transformer from a single safetensors checkpoint."""
+        dtype = dtype_override if dtype_override is not None else torch.bfloat16
+
+        self.transformer = Flux2Transformer2DModel.from_single_file(
+            "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/blob/main/flux-2-klein-9b-fp8.safetensors",
+            torch_dtype=dtype,
+        )
 
         return self.transformer
 
