@@ -7,7 +7,6 @@ Hulu-Med model loader implementation for medical image-to-text generation.
 
 import torch
 from transformers import AutoModelForCausalLM, AutoProcessor
-from PIL import Image
 from typing import Optional
 
 from ....base import ForgeModel
