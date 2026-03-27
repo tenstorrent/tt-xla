@@ -28,6 +28,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ONCOLOGYDETECT_EUROMED_212M = (
         "OpenMed/OpenMed-NER-OncologyDetect-EuroMed-212M"
     )
+    OPENMED_NER_SPECIESDETECT_SUPERMEDICAL_355M = (
+        "OpenMed/OpenMed-NER-SpeciesDetect-SuperMedical-355M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +44,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_ONCOLOGYDETECT_EUROMED_212M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-EuroMed-212M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERMEDICAL_355M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-SuperMedical-355M",
             max_length=128,
         ),
     }
