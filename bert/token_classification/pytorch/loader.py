@@ -28,10 +28,7 @@ class ModelVariant(StrEnum):
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     DSLIM_BERT_BASE_NER_UNCASED = "dslim/bert-base-NER-uncased"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    KBLAB_BERT_BASE_SWEDISH_CASED_NER = "KBLab/bert-base-swedish-cased-ner"
-    LLM_BOOK_BERT_BASE_JAPANESE_V3_NER_WIKIPEDIA_DATASET = (
-        "llm-book/bert-base-japanese-v3-ner-wikipedia-dataset"
-    )
+    OPENMED_NER_DNADETECT = "OpenMed_NER_DNADetect_BioClinical_108M"
 
 
 class ModelLoader(ForgeModel):
@@ -55,12 +52,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.KBLAB_BERT_BASE_SWEDISH_CASED_NER: LLMModelConfig(
-            pretrained_model_name="KBLab/bert-base-swedish-cased-ner",
-            max_length=128,
-        ),
-        ModelVariant.LLM_BOOK_BERT_BASE_JAPANESE_V3_NER_WIKIPEDIA_DATASET: LLMModelConfig(
-            pretrained_model_name="llm-book/bert-base-japanese-v3-ner-wikipedia-dataset",
+        ModelVariant.OPENMED_NER_DNADETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-BioClinical-108M",
             max_length=128,
         ),
     }
@@ -85,15 +78,10 @@ class ModelLoader(ForgeModel):
             ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER,
         ):
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.KBLAB_BERT_BASE_SWEDISH_CASED_NER:
+        elif self._variant == ModelVariant.OPENMED_NER_DNADETECT:
             self.sample_text = (
-                "Engelbert tar Volvon till Tele2 Arena för att titta på Djurgården IF"
+                "The p53 protein plays a crucial role in tumor suppression."
             )
-        elif (
-            self._variant
-            == ModelVariant.LLM_BOOK_BERT_BASE_JAPANESE_V3_NER_WIKIPEDIA_DATASET
-        ):
-            self.sample_text = "大谷翔平は岩手県水沢市出身のプロ野球選手"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -117,8 +105,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.KBLAB_BERT_BASE_SWEDISH_CASED_NER,
-            ModelVariant.LLM_BOOK_BERT_BASE_JAPANESE_V3_NER_WIKIPEDIA_DATASET,
+            ModelVariant.OPENMED_NER_DNADETECT,
         ):
             group = ModelGroup.VULCAN
 
