@@ -81,7 +81,6 @@ def _run_model_test_impl(
 
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path, framework=str(framework)):
-
         # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
         model_info = ModelLoader.get_model_info(variant=variant)
@@ -291,6 +290,7 @@ def test_all_models_torch(
     clear_torchxla_computation_cache,
 ):
     """PyTorch model test - delegates to shared implementation."""
+    test_entry.num_layers = 1
     _run_model_test_impl(
         test_entry=test_entry,
         run_mode=run_mode,

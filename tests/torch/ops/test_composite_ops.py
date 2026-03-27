@@ -430,7 +430,9 @@ def test_patched_topk_values(input_shape, k):
 
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.parametrize(["input_shape", "k"], [((1, 10), 5), ((1, 40), 5)])
+@pytest.mark.parametrize(
+    ["input_shape", "k"], [((1, 10), 5), ((1, 40), 5), ((128, 32), 4)]
+)
 def test_patched_topk_both(input_shape, k):
     """torch.topk patched — both outputs consumed → composite_topk selected."""
 
@@ -441,6 +443,7 @@ def test_patched_topk_both(input_shape, k):
 
         def forward(self, x):
             values, indices = torch.topk(x, self.k)
+            # values, indices = x.topk(self.k)
             return values, indices
 
     options = {"tt_enable_composite_ops": True}
