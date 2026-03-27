@@ -4,7 +4,6 @@
 """
 ESM++ model loader implementation for masked language modeling on protein sequences.
 """
-import torch
 from transformers import AutoModelForMaskedLM
 from typing import Optional
 
