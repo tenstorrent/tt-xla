@@ -3,21 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 MiniMax-M2.5 model loader implementation for causal language modeling.
+
+Uses the native transformers MiniMaxForCausalLM class rather than
+trust_remote_code, since the remote modeling code requires a newer
+transformers version than is currently available.
 """
-import sys
-import typing
-
 import torch
+from transformers import AutoTokenizer, AutoConfig
+from transformers.models.minimax.configuration_minimax import MiniMaxConfig
+from transformers.models.minimax.modeling_minimax import MiniMaxForCausalLM
 from typing import Optional
-
-# The MiniMax-M2.5 remote code uses typing.Unpack which requires Python 3.11+.
-# Backfill from typing_extensions so the dynamic module loads on Python 3.10.
-if not hasattr(typing, "Unpack"):
-    from typing_extensions import Unpack
-
-    typing.Unpack = Unpack
-
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 from ....base import ForgeModel
 from ....config import (
@@ -89,6 +84,29 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _build_native_config(self, base_config=None):
+        """Build a native MiniMaxConfig from the remote minimax_m2 config.
+
+        The M2.5 model uses model_type 'minimax_m2' with trust_remote_code,
+        but the native transformers 'minimax' architecture is compatible.
+        This converts the config to avoid trust_remote_code for model loading.
+        """
+        if base_config is None:
+            base_config = AutoConfig.from_pretrained(
+                self._variant_config.pretrained_model_name, trust_remote_code=True
+            )
+
+        config_dict = base_config.to_dict()
+        # Remove remote-code specific fields
+        config_dict.pop("auto_map", None)
+        config_dict.pop("model_type", None)
+        config_dict.pop("transformers_version", None)
+
+        if self.num_layers is not None:
+            config_dict["num_hidden_layers"] = self.num_layers
+
+        return MiniMaxConfig(**config_dict)
+
     def _load_tokenizer(self, dtype_override=None):
         """Load tokenizer for the current variant.
 
@@ -128,19 +146,15 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {"trust_remote_code": True}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, trust_remote_code=True
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
+        config = self._build_native_config()
+        model_kwargs["config"] = config
 
-        model = AutoModelForCausalLM.from_pretrained(
+        model = MiniMaxForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         ).eval()
 
@@ -191,7 +205,5 @@ class ModelLoader(ForgeModel):
         Returns:
             The configuration object for the MiniMax-M2.5 model.
         """
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, trust_remote_code=True
-        )
+        self.config = self._build_native_config()
         return self.config
