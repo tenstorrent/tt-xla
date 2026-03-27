@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
-    QWEN_3_0_6B_GGUF = "0_6B_GGUF"
+    QWEN_3_8B_GGUF = "8B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_0_6B_GGUF: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-0.6B-GGUF",
+        ModelVariant.QWEN_3_8B_GGUF: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-8B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_0_6B_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_8B_GGUF
 
-    GGUF_FILE = "Qwen3-0.6B-Q8_0.gguf"
+    GGUF_FILE = "qwen3-8b-q4_k_m.gguf"
 
-    sample_text = "Give me a short introduction to large language model."
+    sample_text = "Give me a short introduction to large language models."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -118,7 +118,6 @@ class ModelLoader(ForgeModel):
             messages,
             tokenize=False,
             add_generation_prompt=True,
-            enable_thinking=True,
         )
         prompts = [text]
 
@@ -151,6 +150,7 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
