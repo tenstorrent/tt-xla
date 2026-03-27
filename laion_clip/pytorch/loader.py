@@ -18,7 +18,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -107,6 +106,8 @@ class ModelLoader(ForgeModel):
             self.tokenizer = get_tokenizer(_TOKENIZER_NAME[self._variant])
 
         # Load image from HuggingFace dataset
+        from datasets import load_dataset
+
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
 
