@@ -4,7 +4,6 @@
 """
 Ops-ColQwen3 model loader implementation for multimodal document retrieval embedding tasks.
 """
-import torch
 import torch.nn.functional as F
 from transformers import AutoModel, AutoProcessor
 from typing import Optional
