@@ -20,7 +20,6 @@ from ...config import (
 )
 from ...base import ForgeModel
 from .src.model_utils import pad_inputs
-from ...tools.utils import cast_input_to_type, get_static_cache_decode_inputs
 
 
 class ModelVariant(StrEnum):
@@ -212,6 +211,8 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
             if dtype_override is not None:
                 for key in inputs:
+                    from ...tools.utils import cast_input_to_type
+
                     inputs[key] = cast_input_to_type(inputs[key], dtype_override)
         return inputs
 
@@ -274,6 +275,8 @@ class ModelLoader(ForgeModel):
 
         max_cache_len = getattr(self._variant_config, "max_length", None) or 128
         self.seq_len = 1
+
+        from ...tools.utils import get_static_cache_decode_inputs
 
         return get_static_cache_decode_inputs(
             tokenizer=self.tokenizer,
