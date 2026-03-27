@@ -177,7 +177,13 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
+        # MLX repos may not ship a processor; fall back to the base model
+        processor_name = (
+            "Qwen/Qwen3-VL-30B-A3B-Instruct"
+            if self._variant == ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT
+            else pretrained_model_name
+        )
+        self.processor = AutoProcessor.from_pretrained(processor_name)
 
         model_cls = (
             Qwen3VLMoeForConditionalGeneration
