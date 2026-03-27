@@ -44,12 +44,6 @@ _LORA_FILES = {
     ModelVariant.SDXL_8STEP_LORA: "Hyper-SDXL-8steps-lora.safetensors",
 }
 
-_NUM_INFERENCE_STEPS = {
-    ModelVariant.SDXL_2STEP_LORA: 2,
-    ModelVariant.SDXL_4STEP_LORA: 4,
-    ModelVariant.SDXL_8STEP_LORA: 8,
-}
-
 
 class ModelLoader(ForgeModel):
     """ByteDance Hyper-SD model loader implementation."""
