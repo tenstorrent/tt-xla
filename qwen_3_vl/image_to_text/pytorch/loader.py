@@ -9,6 +9,7 @@ from transformers import (
     Qwen3VLForConditionalGeneration,
     Qwen3VLMoeForConditionalGeneration,
     AutoProcessor,
+    AwqConfig,
 )
 from typing import Optional
 
@@ -33,6 +34,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_4B_THINKING = "4b_thinking"
     QWEN_3_VL_8B_INSTRUCT = "8b_instruct"
     QWEN_3_VL_30B_A3B_INSTRUCT = "30b_a3b_instruct"
+    QWEN_3_VL_4B_INSTRUCT_AWQ = "4b_instruct_awq"
 
 
 class ModelLoader(ForgeModel):
@@ -62,6 +64,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-VL-30B-A3B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_VL_4B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit",
             max_length=128,
         ),
     }
@@ -106,6 +112,7 @@ class ModelLoader(ForgeModel):
             in (
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT,
                 ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
+                ModelVariant.QWEN_3_VL_4B_INSTRUCT_AWQ,
             )
             else ModelGroup.RED
         )
@@ -135,6 +142,16 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # Check if this is an AWQ variant and configure accordingly
+        if self._variant == ModelVariant.QWEN_3_VL_4B_INSTRUCT_AWQ:
+            quantization_config = AwqConfig(version="ipex")
+            model_kwargs["quantization_config"] = quantization_config
+            model_kwargs["device_map"] = "cpu"
+        else:
+            model_kwargs["dtype"] = "auto"
+            model_kwargs["device_map"] = "auto"
+
         model_kwargs |= kwargs
 
         self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
@@ -144,9 +161,7 @@ class ModelLoader(ForgeModel):
             if self._variant in self._MOE_VARIANTS
             else Qwen3VLForConditionalGeneration
         )
-        model = model_cls.from_pretrained(
-            pretrained_model_name, dtype="auto", device_map="auto", **model_kwargs
-        )
+        model = model_cls.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
 
         return model
