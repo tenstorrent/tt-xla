@@ -74,17 +74,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # cazzz307 abliterated variants
-    ABLITERATED_LLAMA_3_2_1B_INSTRUCT = "Abliterated_3.2_1B_Instruct"
-
-    # GraySwanAI variants
-    GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR = "GraySwanAI_3.0_8B_Instruct_RR"
-
-    # NousResearch variants
-    NOUSRESEARCH_LLAMA_3_8B = "NousResearch_3.0_8B"
-
-    # ELYZA variants
-    ELYZA_LLAMA_3_JP_8B = "ELYZA_3.0_JP_8B"
+    # Unsloth BNB 4-bit quantized variants
+    LLAMA_3_2_3B_INSTRUCT_BNB_4BIT = "3.2_3B_Instruct_Bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -192,24 +183,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # cazzz307 abliterated variants
-        ModelVariant.ABLITERATED_LLAMA_3_2_1B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="cazzz307/Abliterated-Llama-3.2-1B-Instruct",
-            max_length=128,
-        ),
-        # GraySwanAI variants
-        ModelVariant.GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR: LLMModelConfig(
-            pretrained_model_name="GraySwanAI/Llama-3-8B-Instruct-RR",
-            max_length=128,
-        ),
-        # NousResearch variants
-        ModelVariant.NOUSRESEARCH_LLAMA_3_8B: LLMModelConfig(
-            pretrained_model_name="NousResearch/Meta-Llama-3-8B",
-            max_length=128,
-        ),
-        # ELYZA variants
-        ModelVariant.ELYZA_LLAMA_3_JP_8B: LLMModelConfig(
-            pretrained_model_name="elyza/Llama-3-ELYZA-JP-8B",
+        # Unsloth BNB 4-bit quantized variants
+        ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Llama-3.2-3B-Instruct-unsloth-bnb-4bit",
             max_length=128,
         ),
     }
@@ -254,11 +230,7 @@ class ModelLoader(ForgeModel):
         if variant in [
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_8B_INSTRUCT_AWQ,
-            ModelVariant.ABLITERATED_LLAMA_3_2_1B_INSTRUCT,
-            ModelVariant.GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR,
-            ModelVariant.NOUSRESEARCH_LLAMA_3_8B,
-            ModelVariant.ELYZA_LLAMA_3_JP_8B,
+            ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -348,10 +320,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is an AWQ variant and configure accordingly
+        # Check if this is a quantized variant and configure accordingly
         if pretrained_model_name in (
             "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "casperhansen/llama-3-8b-instruct-awq",
+            "unsloth/Llama-3.2-3B-Instruct-unsloth-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
 
@@ -553,6 +525,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.LLAMA_2_7B,
             ModelVariant.JACKFRAM_LLAMA_160M,
+            ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
         ]:
             return None
 
