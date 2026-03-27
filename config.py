@@ -98,6 +98,7 @@ class Framework(StrEnum):
     """Framework the model is implemented in"""
 
     JAX = "jax"
+    KERAS = "keras"
     TORCH = "pytorch"
     NUMPY = "numpy"
     ONNX = "onnx"
