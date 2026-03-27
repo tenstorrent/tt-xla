@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_BLOODCANCERDETECT_ELECTRAMED_109M = (
         "NER-BloodCancerDetect-ElectraMed-109M"
     )
+    OPENMED_NER_GENOMEDETECT_ELECTRAMED_109M = "NER-GenomeDetect-ElectraMed-109M"
 
 
 class ModelLoader(ForgeModel):
@@ -40,6 +41,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-ElectraMed-109M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_GENOMEDETECT_ELECTRAMED_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-ElectraMed-109M",
+            max_length=128,
+        ),
     }
 
     _SAMPLE_TEXTS = {
@@ -48,6 +53,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_BLOODCANCERDETECT_ELECTRAMED_109M: (
             "The patient presented with chronic lymphocytic leukemia symptoms."
+        ),
+        ModelVariant.OPENMED_NER_GENOMEDETECT_ELECTRAMED_109M: (
+            "The EGFR gene mutation was identified in lung cancer patients."
         ),
     }
 
