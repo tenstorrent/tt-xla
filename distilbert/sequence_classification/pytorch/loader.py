@@ -62,6 +62,11 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH
 
+    # Variants that require loading from TensorFlow weights
+    _FROM_TF_VARIANTS = {
+        ModelVariant.D4DATA_BIAS_DETECTION_MODEL,
+    }
+
     # Variant-specific sample texts
     _SAMPLE_TEXTS = {
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
@@ -115,11 +120,6 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
-
-    # Variants that require loading from TensorFlow weights
-    _FROM_TF_VARIANTS = {
-        ModelVariant.D4DATA_BIAS_DETECTION_MODEL,
-    }
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load DistilBERT model for sequence classification from Hugging Face.
