@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     GEMMA_2B = "2B"
 
     # Gemma 2.x
+    GEMMA_2_2B = "2_2B"
     GEMMA_2_2B_IT = "2_2B_IT"
     GEMMA_2_2B_JPN_IT = "2_2B_JPN_IT"
     GEMMA_2_9B_IT = "2_9B_IT"
@@ -50,6 +51,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GEMMA_2B: LLMModelConfig(
             pretrained_model_name="google/gemma-2b",
+            max_length=256,
+        ),
+        ModelVariant.GEMMA_2_2B: LLMModelConfig(
+            pretrained_model_name="google/gemma-2-2b",
             max_length=256,
         ),
         ModelVariant.GEMMA_2_2B_IT: LLMModelConfig(
@@ -92,7 +97,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         # Instruct and larger models are RED, others generality
-        if variant == ModelVariant.GEMMA_2_2B_JPN_IT:
+        if variant == ModelVariant.GEMMA_2_2B:
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["IT", "7B", "9B", "27B"]):
             group = ModelGroup.RED
@@ -176,7 +181,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
         self.tokenizer.padding_side = "right"
-        if self._variant == ModelVariant.GEMMA_2B:
+        if self._variant in (ModelVariant.GEMMA_2B, ModelVariant.GEMMA_2_2B):
             input_prompt = prompt or self.sample_text
             inputs = self.tokenizer(
                 input_prompt,
@@ -215,6 +220,7 @@ class ModelLoader(ForgeModel):
         if self._variant not in [
             ModelVariant.GEMMA_1_1_2B_IT,
             ModelVariant.GEMMA_2B,
+            ModelVariant.GEMMA_2_2B,
             ModelVariant.GEMMA_2_2B_IT,
             ModelVariant.GEMMA_2_2B_JPN_IT,
         ]:
@@ -227,6 +233,7 @@ class ModelLoader(ForgeModel):
         if self._variant in [
             ModelVariant.GEMMA_1_1_2B_IT,
             ModelVariant.GEMMA_2B,
+            ModelVariant.GEMMA_2_2B,
             ModelVariant.GEMMA_2_2B_IT,
             ModelVariant.GEMMA_2_2B_JPN_IT,
         ]:
