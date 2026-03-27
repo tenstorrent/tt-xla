@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B = "27B"
     QWEN_3_5_27B_FP8 = "27B_FP8"
     QWEN_3_5_35B_A3B = "35B_A3B"
+    QWEN_3_5_35B_A3B_BASE = "35B_A3B_Base"
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
@@ -78,6 +79,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-35B-A3B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_BASE: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-35B-A3B-Base",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_35B_A3B_FP8: LLMModelConfig(
@@ -270,7 +275,10 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         # Base models use plain text; chat models use chat template
-        if self._variant in (ModelVariant.QWEN_3_5_9B_BASE,):
+        if self._variant in (
+            ModelVariant.QWEN_3_5_9B_BASE,
+            ModelVariant.QWEN_3_5_35B_A3B_BASE,
+        ):
             prompts = [self.sample_text]
         else:
             messages = [{"role": "user", "content": self.sample_text}]
@@ -328,6 +336,7 @@ class ModelLoader(ForgeModel):
         """Check if the current variant is a Mixture of Experts model."""
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
+            ModelVariant.QWEN_3_5_35B_A3B_BASE,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
             ModelVariant.QWEN_3_5_35B_A3B_HUIHUI_ABLITERATED,
             ModelVariant.QWEN_3_5_122B_A10B,
