@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -9,6 +9,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
 
 from ....base import ForgeModel
+from ....tools.utils import cast_input_to_type
 from ....config import (
     ModelConfig,
     ModelInfo,
@@ -24,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Phi 4 model variants."""
 
     PHI_4 = "Phi_4"
-    PHI_4_MINI_INSTRUCT = "Phi_4_Mini_Instruct"
+    PHI_4_MINI_REASONING_MLX_4BIT = "Phi_4_Mini_Reasoning_MLX_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +36,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.PHI_4: ModelConfig(
             pretrained_model_name="microsoft/phi-4",
         ),
-        ModelVariant.PHI_4_MINI_INSTRUCT: ModelConfig(
-            pretrained_model_name="unsloth/Phi-4-mini-instruct",
+        ModelVariant.PHI_4_MINI_REASONING_MLX_4BIT: ModelConfig(
+            pretrained_model_name="lmstudio-community/Phi-4-mini-reasoning-MLX-4bit",
         ),
     }
 
@@ -71,7 +72,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         group = ModelGroup.RED
-        if variant in (ModelVariant.PHI_4_MINI_INSTRUCT,):
+        if variant == ModelVariant.PHI_4_MINI_REASONING_MLX_4BIT:
             group = ModelGroup.VULCAN
         return ModelInfo(
             model="Phi-4",
@@ -152,25 +153,44 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        # Input prompt
-        input_prompt = "Africa is an emerging economy because"
+        # Use chat template for reasoning/instruct variants
+        if self._variant == ModelVariant.PHI_4_MINI_REASONING_MLX_4BIT:
+            input_prompt = [
+                {
+                    "role": "user",
+                    "content": "Africa is an emerging economy because",
+                }
+            ]
+            text = self.tokenizer.apply_chat_template(
+                input_prompt, add_generation_prompt=True, tokenize=False
+            )
+            inputs = self.tokenizer(
+                [text],
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+            )
+        else:
+            input_prompt = "Africa is an emerging economy because"
+            inputs = self.tokenizer(
+                input_prompt,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+            )
 
-        inputs = self.tokenizer(
-            input_prompt,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-        )
-
-        # Return as list of tensors as expected by the test
-        sample_inputs = [inputs["input_ids"], inputs["attention_mask"]]
+        input_ids = inputs["input_ids"]
+        attn_mask = inputs["attention_mask"]
+        if dtype_override is not None:
+            input_ids = cast_input_to_type(input_ids, dtype_override)
+            attn_mask = cast_input_to_type(attn_mask, dtype_override)
 
         # Add batch dimension if needed
         if batch_size > 1:
-            for i in range(len(sample_inputs)):
-                sample_inputs[i] = sample_inputs[i].repeat_interleave(batch_size, dim=0)
+            input_ids = input_ids.repeat_interleave(batch_size, dim=0)
+            attn_mask = attn_mask.repeat_interleave(batch_size, dim=0)
 
-        return sample_inputs
+        return [input_ids, attn_mask]
 
     # TODO - Verify this function correct (was AI_GENERATED)
     def decode_output(self, outputs, dtype_override=None):
