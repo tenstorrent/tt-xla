@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     Olmo_3_7B_Think = "3_7b_think"
     Olmo_3_7B_Instruct = "3_7b_instruct"
+    Olmo_3_7B_Instruct_SFT = "3_7b_instruct_sft"
     Olmo_3_1025_7B = "3_1025_7b"
     Olmo_3_32B_Think = "3_32b_think"
     Olmo_3_1125_32B = "3_1125_32b"
@@ -42,6 +43,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.Olmo_3_7B_Instruct: LLMModelConfig(
             pretrained_model_name="allenai/Olmo-3-7B-Instruct",
+            max_length=256,
+        ),
+        ModelVariant.Olmo_3_7B_Instruct_SFT: LLMModelConfig(
+            pretrained_model_name="allenai/Olmo-3-7B-Instruct-SFT",
             max_length=256,
         ),
         ModelVariant.Olmo_3_1025_7B: LLMModelConfig(
@@ -88,7 +93,11 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
 
-        group = ModelGroup.RED
+        if variant == ModelVariant.Olmo_3_7B_Instruct_SFT:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.RED
+
         return ModelInfo(
             model="olmo_3",
             variant=variant,
