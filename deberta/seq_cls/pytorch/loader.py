@@ -22,8 +22,9 @@ class ModelVariant(StrEnum):
     """Available DeBERTa model variants for sequence classification."""
 
     DEBERTA_XLARGE_MNLI = "XLarge_MNLI"
-    DEV_AUTHOR_EM_CLF = "Dev_Author_EM_Clf"
-    DEBERTA_V3_PROMPT_GUARD = "V3_Prompt_Guard"
+    DEBERTA_V3_XSMALL_MNLI_FEVER_ANLI_LING_BINARY = (
+        "v3_xsmall_mnli_fever_anli_ling_binary"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -33,11 +34,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEBERTA_XLARGE_MNLI: ModelConfig(
             pretrained_model_name="microsoft/deberta-xlarge-mnli",
         ),
-        ModelVariant.DEV_AUTHOR_EM_CLF: ModelConfig(
-            pretrained_model_name="evamxb/dev-author-em-clf",
-        ),
-        ModelVariant.DEBERTA_V3_PROMPT_GUARD: ModelConfig(
-            pretrained_model_name="dmasamba/deberta-v3-prompt-guard-mixed-v5",
+        ModelVariant.DEBERTA_V3_XSMALL_MNLI_FEVER_ANLI_LING_BINARY: ModelConfig(
+            pretrained_model_name="MoritzLaurer/DeBERTa-v3-xsmall-mnli-fever-anli-ling-binary",
         ),
     }
 
@@ -115,15 +113,8 @@ class ModelLoader(ForgeModel):
     def decode_output(self, co_out, framework_model=None):
         logits = co_out[0]
         predicted_class_id = logits.argmax(-1).item()
-        if self._is_nli_variant():
-            labels = ["contradiction", "neutral", "entailment"]
-            print(f"Predicted: {labels[predicted_class_id]}")
-        elif (
-            framework_model
-            and hasattr(framework_model, "config")
-            and hasattr(framework_model.config, "id2label")
-        ):
-            predicted_label = framework_model.config.id2label[predicted_class_id]
-            print(f"Predicted: {predicted_label}")
+        if self._variant == ModelVariant.DEBERTA_V3_XSMALL_MNLI_FEVER_ANLI_LING_BINARY:
+            labels = ["not_entailment", "entailment"]
         else:
-            print(f"Predicted class ID: {predicted_class_id}")
+            labels = ["contradiction", "neutral", "entailment"]
+        print(f"Predicted: {labels[predicted_class_id]}")
