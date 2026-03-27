@@ -24,20 +24,26 @@ The kernel validates batch=32 and vocab%32==0 but has no vocab size guard.
 ## How Production Models Handle This
 
 Every production model (Llama3-70B, DeepSeek-V3, Qwen3) pre-filters with
-ttnn.topk() BEFORE calling ttnn.sampling(). See models/common/sampling/tt_sampling.py.
+ttnn.topk() BEFORE calling ttnn.sampling(). The L1 limit only affects the
+sampling kernel — ttnn.topk() is a different kernel with no such constraint.
+See models/common/sampling/tt_sampling.py.
 
-For multi-device (e.g. Llama3-70B on 8x4 Galaxy):
-  - Vocab sharded across 8 devices: 128256/8 = 16032 tokens/device
-  - Local ttnn.topk(k=32) per device: ~1.2ms each
-  - All-gather 8*32=256 candidates
-  - ttnn.sampling(256 tokens): <0.2ms
+For multi-device (e.g. Llama3-70B on 8x4 Galaxy, 32 devices total):
+  - sampling_all_gather_axis=0 (default), so gather is along rows: 8 devices
+  - The other 4 devices (col axis) handle TP for attention, not vocab sharding
+  - Vocab sharded across 8 row-devices: 128256/8 = 16032 tokens/device
+  - Each device runs ttnn.topk(16K, k=32) -> [1,1,32,32] (~1.2ms)
+    NOTE: topk is a separate kernel, NOT limited by sampling's L1 constraint
+  - All-gather across 8 devices: 8*32 = 256 candidates
+  - ttnn.sampling([1,1,32,256]): <0.2ms — 256 tokens is well within 4K limit
   - Total sampling overhead: ~2-3ms (enabling 80 tok/s)
+  Source: model_config.py:607 (cluster_shape), tt_sampling.py:251 (axis selection)
 
-For single-device (our vLLM case):
+For single-device (our vLLM case, multi_step_reduction=True path):
   - Split vocab in half: 128256/2 = 64128 per half
-  - ttnn.topk(k=32) each half: ~9.3ms each
+  - ttnn.topk(k=32) each half: ~9.3ms each (again, topk has no L1 issue)
   - Concat 2*32=64 candidates
-  - ttnn.sampling(64 tokens): <0.2ms
+  - ttnn.sampling([1,1,32,64]): <0.2ms — 64 tokens is well within 4K limit
   - Total: ~19ms (vs 147ms for the 66-op compiled graph = ~7.7x speedup)
 
 Usage:
