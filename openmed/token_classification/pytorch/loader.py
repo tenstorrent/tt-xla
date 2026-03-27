@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER model loader implementation for biomedical entity recognition.
+OpenMed model loader implementation for token classification (anatomy NER).
 """
 
 import torch
@@ -20,52 +20,28 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available OpenMed NER model variants for token classification."""
+    """Available OpenMed model variants for token classification."""
 
-    ANATOMY_DETECT_TINYMED_66M = "AnatomyDetect-TinyMed-66M"
-    DNA_DETECT_PUBMED_V2_109M = "DNADetect-PubMed-v2-109M"
-    ONCOLOGY_DETECT_TINYMED_135M = "OncologyDetect-TinyMed-135M"
-
-
-_VARIANT_SAMPLE_TEXTS = {
-    ModelVariant.ANATOMY_DETECT_TINYMED_66M: (
-        "The patient complained of pain in the left ventricle region."
-    ),
-    ModelVariant.DNA_DETECT_PUBMED_V2_109M: (
-        "Expression of BRCA1 gene was significantly upregulated in HeLa cells."
-    ),
-    ModelVariant.ONCOLOGY_DETECT_TINYMED_135M: (
-        "Mutations in KRAS gene drive oncogenic transformation."
-    ),
-}
+    OPENMED_NER_ANATOMYDETECT_MODERNMED_149M = "NER-AnatomyDetect-ModernMed-149M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER model loader implementation for biomedical entity recognition."""
+    """OpenMed model loader implementation for anatomy NER."""
 
     _VARIANTS = {
-        ModelVariant.ANATOMY_DETECT_TINYMED_66M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-TinyMed-66M",
-            max_length=128,
-        ),
-        ModelVariant.DNA_DETECT_PUBMED_V2_109M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-PubMed-v2-109M",
-            max_length=128,
-        ),
-        ModelVariant.ONCOLOGY_DETECT_TINYMED_135M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-TinyMed-135M",
+        ModelVariant.OPENMED_NER_ANATOMYDETECT_MODERNMED_149M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-ModernMed-149M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ANATOMY_DETECT_TINYMED_66M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ANATOMYDETECT_MODERNMED_149M
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
-            self._variant,
-            "The patient complained of pain in the left ventricle region.",
+        self.sample_text = (
+            "The patient complained of pain in the left ventricle region."
         )
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
@@ -73,7 +49,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = "anatomy_detect_tinymed_66m"
+            variant_name = "NER-AnatomyDetect-ModernMed-149M"
         return ModelInfo(
             model="OpenMed",
             variant=variant_name,
