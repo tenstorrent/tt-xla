@@ -30,7 +30,7 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.GENERATION_3B_BASE: ModelConfig(
-            pretrained_model_name="bosonai/higgs-audio-v2-generation-3B-base",
+            pretrained_model_name="eustlb/higgs-audio-v2-generation-3B-base",
         ),
     }
 
