@@ -55,6 +55,7 @@ class ModelVariant(StrEnum):
     """Available model variants for Potion."""
 
     POTION_BASE_8M = "minishlab/potion-base-8M"
+    POTION_RETRIEVAL_32M = "minishlab/potion-retrieval-32M"
 
 
 class ModelLoader(ForgeModel):
@@ -63,6 +64,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.POTION_BASE_8M: LLMModelConfig(
             pretrained_model_name="minishlab/potion-base-8M",
+            max_length=128,
+        ),
+        ModelVariant.POTION_RETRIEVAL_32M: LLMModelConfig(
+            pretrained_model_name="minishlab/potion-retrieval-32M",
             max_length=128,
         ),
     }
