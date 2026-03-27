@@ -6,7 +6,7 @@ BGE 1.5 ONNX model loader for embedding generation.
 """
 
 # Reuse the PyTorch ModelLoader as the base
-from ...pytorch.loader import ModelLoader as PyTorchModelLoader
+from ..pytorch.loader import ModelLoader as PyTorchModelLoader
 from ....tools.utils import export_torch_model_to_onnx
 
 
