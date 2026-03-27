@@ -87,7 +87,7 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name,
             config=config,
             device_map="cpu",
-            torch_dtype=torch.float32,
+            dtype=torch.float32,
         )
         model = Qwen3TTSTalkerWrapper(full_model.talker)
         model.eval()
@@ -95,6 +95,6 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None):
         dtype = dtype_override or torch.float32
-        # Talker hidden_size=1024, use a short sequence
-        inputs_embeds = torch.randn(1, 32, 1024, dtype=dtype)
+        # Talker hidden_size=2048, use a short sequence
+        inputs_embeds = torch.randn(1, 32, 2048, dtype=dtype)
         return (inputs_embeds,)
