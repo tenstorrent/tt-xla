@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     BERT_BASE_MULTILINGUAL_CASED = "Base_Multilingual_Cased"
     BIO_CLINICAL_BERT = "Bio_ClinicalBERT"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
+    BIOMED_BERT_BASE_UNCASED_ABSTRACT = "BiomedBERT_Base_Uncased_Abstract"
 
 
 class ModelLoader(ForgeModel):
@@ -51,6 +52,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_LARGE_PORTUGUESE_CASED: LLMModelConfig(
             pretrained_model_name="neuralmind/bert-large-portuguese-cased",
+            max_length=128,
+        ),
+        ModelVariant.BIOMED_BERT_BASE_UNCASED_ABSTRACT: LLMModelConfig(
+            pretrained_model_name="microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract",
             max_length=128,
         ),
     }
@@ -92,6 +97,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
             ModelVariant.BIO_CLINICAL_BERT,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
+            ModelVariant.BIOMED_BERT_BASE_UNCASED_ABSTRACT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
