@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     LARGE = "Large"
     FLAN_T5_SMALL = "Flan_T5_Small"
     FLAN_T5_BASE = "Flan_T5_Base"
+    T5_3B = "T5_3B"
     FLAN_T5_LARGE = "Flan_T5_Large"
 
 
@@ -47,6 +48,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE: LLMModelConfig(
             pretrained_model_name="t5-large",
+            max_length=512,
+        ),
+        ModelVariant.T5_3B: LLMModelConfig(
+            pretrained_model_name="google-t5/t5-3b",
             max_length=512,
         ),
         ModelVariant.FLAN_T5_SMALL: LLMModelConfig(
@@ -98,10 +103,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.T5_3B
+            else ModelGroup.GENERALITY
+        )
         return ModelInfo(
             model="T5",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
