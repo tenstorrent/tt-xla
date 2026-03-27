@@ -45,8 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_3_8B_MLX_4BIT = "8B_MLX_4bit"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
-    QWEN_3_235B_A22B_FP8 = "235B_A22B_FP8"
-    QWEN_3_235B_A22B_THINKING_2507 = "235B_A22B_Thinking_2507"
+    QWEN_3_4B_SAFERL = "4B_SafeRL"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_30B_A3B_NVFP4 = "30B_A3B_Nvfp4"
     QWEN_3_4B_MLX_4BIT = "4B_Mlx_4bit"
@@ -81,8 +80,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-4B-Instruct-2507-FP8",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3-4B-Instruct-2507-4bit",
+        ModelVariant.QWEN_3_4B_SAFERL: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-4B-SafeRL",
             max_length=128,
         ),
         ModelVariant.QWEN_3_8B: LLMModelConfig(
@@ -186,7 +185,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT,
+            ModelVariant.QWEN_3_4B_SAFERL,
             ModelVariant.QWEN_3_8B_AWQ,
             ModelVariant.QWEN_3_8B_MLX_4BIT,
             ModelVariant.QWEN_3_4B_MLX_8BIT,
@@ -371,7 +370,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_MLX_4BIT,
+            ModelVariant.QWEN_3_4B_SAFERL,
         ]:
             text_config = self._get_text_config()
             assert (
@@ -394,7 +393,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_MLX_4BIT,
+            ModelVariant.QWEN_3_4B_SAFERL,
         ]:
             return None
 
