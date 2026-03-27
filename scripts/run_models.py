@@ -156,6 +156,8 @@ def main():
             for worker_idx, chunk in enumerate(chunks)
         ]
 
+        print("Workers started...")
+
         completed = 0
         while completed < len(model_ids):
             worker_index, model_id, rc, reason = result_queue.get()
