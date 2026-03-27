@@ -37,7 +37,7 @@ class ModelVariant(StrEnum):
         "DavidAU/Gemma-3-4B-VL-it-Gemini-Pro-Heretic-Uncensored-Thinking"
     )
     GEMMA_3_12B_IT = "google/gemma-3-12b-it"
-    GEMMA_3_12B_IT_QUANTIZED_W4A16 = "RedHatAI/gemma-3-12b-it-quantized.w4a16"
+    GEMMA_3_12B_IT_NVFP4 = "NeoChen1024/gemma-3-12b-it-NVFP4"
     GEMMA_3_27B_IT = "google/gemma-3-27b-it"
     GEMMA_3_27B_IT_AWQ_INT4 = "gaunernst/gemma-3-27b-it-int4-awq"
 
@@ -58,8 +58,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.GEMMA_3_12B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT),
         ),
-        ModelVariant.GEMMA_3_12B_IT_QUANTIZED_W4A16: LLMModelConfig(
-            pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT_QUANTIZED_W4A16),
+        ModelVariant.GEMMA_3_12B_IT_NVFP4: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT_NVFP4),
         ),
         ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_27B_IT),
@@ -82,7 +82,7 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-        if variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
+        if variant == ModelVariant.GEMMA_3_12B_IT_NVFP4:
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["12b", "27b"]):
             group = ModelGroup.RED
