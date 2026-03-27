@@ -87,7 +87,7 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = FlaxAutoModelForMaskedLM.from_pretrained(
-            self._model_name, **model_kwargs
+            self._model_name, from_pt=True, **model_kwargs
         )
 
         if dtype_override is not None:
