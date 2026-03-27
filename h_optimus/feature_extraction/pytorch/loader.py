@@ -5,7 +5,6 @@
 H-optimus-0 model loader implementation for image feature extraction.
 """
 
-import torch
 from typing import Optional
 
 from ....base import ForgeModel
