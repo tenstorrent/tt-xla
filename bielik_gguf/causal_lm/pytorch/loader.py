@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.BIELIK_4_5B_V3_0_INSTRUCT_GGUF
 
-    GGUF_FILE = "Bielik-4.5B-v3.0-Instruct.Q4_K_M.gguf"
+    GGUF_FILE = "Bielik-4.5B-v3.0-Instruct.Q8_0.gguf"
 
     sample_text = "What is your favorite city?"
 
