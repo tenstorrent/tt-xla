@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Gemma 3 GGUF model variants for causal language modeling."""
 
+    GEMMA_3_1B_IT_GGUF = "1B_IT_GGUF"
     GEMMA_3_4B_IT_GGUF = "4B_IT_GGUF"
 
 
@@ -30,6 +31,10 @@ class ModelLoader(ForgeModel):
     """Gemma 3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.GEMMA_3_1B_IT_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/gemma-3-1b-it-GGUF",
+            max_length=128,
+        ),
         ModelVariant.GEMMA_3_4B_IT_GGUF: LLMModelConfig(
             pretrained_model_name="lmstudio-community/gemma-3-4b-it-GGUF",
             max_length=128,
@@ -38,7 +43,14 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.GEMMA_3_4B_IT_GGUF
 
-    GGUF_FILE = "gemma-3-4b-it-Q4_K_M.gguf"
+    _GGUF_FILES = {
+        ModelVariant.GEMMA_3_1B_IT_GGUF: "gemma-3-1b-it-Q4_K_M.gguf",
+        ModelVariant.GEMMA_3_4B_IT_GGUF: "gemma-3-4b-it-Q4_K_M.gguf",
+    }
+
+    @property
+    def GGUF_FILE(self):
+        return self._GGUF_FILES[self._variant]
 
     sample_text = "What is your favorite city?"
 
