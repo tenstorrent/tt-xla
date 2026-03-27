@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
     BIOBERT_V1_1 = "dmis-lab/biobert-v1.1"
+    TINYBERT_L4_H312_V2 = "nreimers/TinyBERT_L-4_H-312_v2"
 
 
 class ModelLoader(ForgeModel):
@@ -47,6 +48,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BIOBERT_V1_1: LLMModelConfig(
             pretrained_model_name="dmis-lab/biobert-v1.1",
+            max_length=128,
+        ),
+        ModelVariant.TINYBERT_L4_H312_V2: LLMModelConfig(
+            pretrained_model_name="nreimers/TinyBERT_L-4_H-312_v2",
             max_length=128,
         ),
     }
@@ -87,6 +92,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.EMRECAN_BERT_BASE_TURKISH_CASED_MEAN_NLI_STSB_TR: ModelGroup.RED,
             ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: ModelGroup.VULCAN,
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
+            ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
