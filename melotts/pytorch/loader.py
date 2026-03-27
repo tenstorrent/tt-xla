@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MeloTTS Chinese model loader implementation for text-to-speech tasks.
+MeloTTS-French model loader implementation for text-to-speech tasks.
 """
 import torch
 import torch.nn as nn
@@ -21,46 +21,41 @@ from ...config import (
 
 
 class MeloTTSWrapper(nn.Module):
-    """Wrapper around the MeloTTS synthesizer for Chinese TTS.
+    """Wrapper around MeloTTS SynthesizerTrn to expose infer as forward."""
 
-    Exposes the VITS synthesizer's infer method as a clean forward pass
-    that takes pre-computed text tokens, tones, language IDs, and BERT
-    features to produce audio waveforms.
-    """
-
-    def __init__(self, synthesizer):
+    def __init__(self, model):
         super().__init__()
-        self.synthesizer = synthesizer
+        self.model = model
 
-    def forward(self, x, x_lengths, sid, tone, language, bert, ja_bert):
-        audio, attn, mask, (z, z_p, m_p, logs_p) = self.synthesizer.infer(
+    def forward(self, x, x_lengths, sid, tones, lang_ids, bert, ja_bert):
+        audio = self.model.infer(
             x,
             x_lengths,
             sid,
-            tone,
-            language,
+            tones,
+            lang_ids,
             bert,
             ja_bert,
-        )
+        )[0]
         return audio
 
 
 class ModelVariant(StrEnum):
     """Available MeloTTS model variants."""
 
-    MELOTTS_CHINESE = "chinese"
+    MELOTTS_FRENCH = "French"
 
 
 class ModelLoader(ForgeModel):
-    """MeloTTS Chinese model loader implementation for text-to-speech tasks."""
+    """MeloTTS-French model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.MELOTTS_CHINESE: ModelConfig(
-            pretrained_model_name="myshell-ai/MeloTTS-Chinese",
+        ModelVariant.MELOTTS_FRENCH: ModelConfig(
+            pretrained_model_name="myshell-ai/MeloTTS-French",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MELOTTS_CHINESE
+    DEFAULT_VARIANT = ModelVariant.MELOTTS_FRENCH
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -80,31 +75,28 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         from melo.api import TTS
 
-        self._tts = TTS(language="ZH", device="cpu")
+        self._tts = TTS(language="FR", device="cpu")
         model = MeloTTSWrapper(self._tts.model)
         model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
-        dtype = dtype_override or torch.float32
-        # The VITS synthesizer expects:
-        #   x: [batch, seq_len] - text token IDs
-        #   x_lengths: [batch] - sequence lengths
-        #   sid: [batch] - speaker IDs
-        #   tone: [batch, seq_len] - tone IDs (important for Chinese)
-        #   language: [batch, seq_len] - language IDs
-        #   bert: [batch, bert_dim, seq_len] - Chinese BERT features
-        #   ja_bert: [batch, ja_bert_dim, seq_len] - Japanese BERT features (zeros for Chinese)
-        seq_len = 32
-        bert_dim = 1024
-        ja_bert_dim = 768
+        from melo import utils
 
-        x = torch.randint(0, 100, (1, seq_len), dtype=torch.long)
-        x_lengths = torch.tensor([seq_len], dtype=torch.long)
-        sid = torch.tensor([0], dtype=torch.long)
-        tone = torch.randint(0, 5, (1, seq_len), dtype=torch.long)
-        language = torch.zeros(1, seq_len, dtype=torch.long)
-        bert = torch.randn(1, bert_dim, seq_len, dtype=dtype)
-        ja_bert = torch.zeros(1, ja_bert_dim, seq_len, dtype=dtype)
+        text = "Bonjour, ceci est un test."
+        device = "cpu"
+        language = self._tts.language
 
-        return x, x_lengths, sid, tone, language, bert, ja_bert
+        bert, ja_bert, phones, tones, lang_ids = utils.get_text_for_tts_infer(
+            text, language, self._tts.hps, device, self._tts.symbol_to_id
+        )
+
+        x = phones.unsqueeze(0)
+        x_lengths = torch.LongTensor([phones.size(0)])
+        sid = torch.LongTensor([list(self._tts.hps.data.spk2id.values())[0]])
+        tones = tones.unsqueeze(0)
+        lang_ids = lang_ids.unsqueeze(0)
+        bert = bert.unsqueeze(0)
+        ja_bert = ja_bert.unsqueeze(0)
+
+        return x, x_lengths, sid, tones, lang_ids, bert, ja_bert
