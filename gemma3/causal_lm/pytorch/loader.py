@@ -111,12 +111,14 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
-        model_kwargs = {"use_cache": False}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-
+        model_kwargs = {}
         if self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
             model_kwargs["device_map"] = "cpu"
+            self._patch_torchao_int4_config()
+        else:
+            model_kwargs["use_cache"] = False
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
@@ -174,3 +176,37 @@ class ModelLoader(ForgeModel):
             input_ids = cast_input_to_type(input_ids, dtype_override)
             attn_mask = cast_input_to_type(attn_mask, dtype_override)
         return [input_ids, attn_mask]
+
+    @staticmethod
+    def _patch_torchao_int4_config():
+        """Patch torchao Int4WeightOnlyConfig to accept the deprecated 'layout' kwarg.
+
+        Older torchao-quantized models (e.g. pytorch/gemma-3-27b-it-AWQ-INT4) were
+        saved with a 'layout' field that has since been renamed to
+        'int4_tile_packed_ntile'. This shim keeps the loader working until
+        torchao adds its own migration.
+        """
+        try:
+            from torchao.quantization import Int4WeightOnlyConfig
+
+            orig_init = Int4WeightOnlyConfig.__init__
+
+            if getattr(orig_init, "_patched_layout", False):
+                return
+
+            _valid_fields = {
+                f.name for f in __import__("dataclasses").fields(Int4WeightOnlyConfig)
+            }
+
+            def _patched_init(self, *args, layout=None, **kwargs):
+                if layout is not None and "int4_tile_packed_ntile" not in kwargs:
+                    inner_k_tiles = getattr(layout, "inner_k_tiles", 8)
+                    kwargs["int4_tile_packed_ntile"] = inner_k_tiles
+                # Drop any kwargs removed in newer torchao versions
+                kwargs = {k: v for k, v in kwargs.items() if k in _valid_fields}
+                orig_init(self, *args, **kwargs)
+
+            _patched_init._patched_layout = True
+            Int4WeightOnlyConfig.__init__ = _patched_init
+        except ImportError:
+            pass
