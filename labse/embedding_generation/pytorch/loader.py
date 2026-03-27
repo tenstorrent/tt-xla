@@ -9,7 +9,7 @@ Uses the BERT-based Language-agnostic BERT Sentence Embedding model
 across 109 languages in a shared 768-dimensional vector space.
 """
 import torch
-from transformers import AutoModel, AutoTokenizer
+from transformers import BertModel, AutoTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -80,7 +80,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = BertModel.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
 
         return model
