@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     """Available Mistral model variants."""
 
     MISTRAL_7B = "7B"
+    MISTRAL_7B_INSTRUCT_V01 = "7B_INSTRUCT_v01"
     MISTRAL_7B_INSTRUCT_V02 = "7B_INSTRUCT_v02"
     MISTRAL_7B_INSTRUCT_V03 = "7B_INSTRUCT_v03"
     MINISTRAL_3B = "Ministral_3B_Instruct"
@@ -63,6 +64,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MISTRAL_7B: ModelConfig(
             pretrained_model_name="mistralai/Mistral-7B-v0.1",
+        ),
+        ModelVariant.MISTRAL_7B_INSTRUCT_V01: ModelConfig(
+            pretrained_model_name="mistralai/Mistral-7B-Instruct-v0.1",
         ),
         ModelVariant.MISTRAL_7B_INSTRUCT_V02: ModelConfig(
             pretrained_model_name="mistralai/Mistral-7B-Instruct-v0.2",
@@ -129,7 +133,10 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
 
-        if variant == ModelVariant.MISTRAL_7B_INSTRUCT_V02:
+        if variant in [
+            ModelVariant.MISTRAL_7B_INSTRUCT_V01,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V02,
+        ]:
             group = ModelGroup.VULCAN
         elif variant in [
             ModelVariant.MISTRAL_7B_INSTRUCT_V03,
