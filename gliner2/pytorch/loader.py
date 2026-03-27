@@ -3,6 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 GLiNER2 model loader implementation
+
+GLiNER2 is a multi-task information extraction model built on a DeBERTa-v3
+encoder. The gliner2 library's forward() is training-only (returns losses),
+so we extract the encoder backbone and prepare standard transformer inputs
+for inference testing.
 """
 
 from typing import Optional
@@ -53,43 +58,38 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, **kwargs):
-        """Load and return the GLiNER2 model."""
+        """Load the GLiNER2 model and return its DeBERTa encoder backbone."""
         from gliner2 import GLiNER2
 
         model_name = self._variant_config.pretrained_model_name
         model = GLiNER2.from_pretrained(model_name, **kwargs)
         self.model = model
-        return self.model.eval()
+        self.model.eval()
+        # Return the encoder backbone for tensor-level inference testing
+        return self.model.encoder
 
     def load_inputs(self, batch_size=1):
-        """Load and return sample inputs for the GLiNER2 model.
-
-        Uses the GLiNER2 processor and collator to prepare a PreprocessedBatch
-        containing input_ids, attention_mask, and schema metadata.
-        """
-        from gliner2.training.trainer import ExtractorCollator
-
+        """Prepare tokenized inputs for the DeBERTa encoder backbone."""
         self.text = (
             "Cristiano Ronaldo dos Santos Aveiro (Portuguese pronunciation: "
             "[kɾiʃ'tjɐnu ʁɔ'naldu]; born 5 February 1985) is a Portuguese "
             "professional footballer who plays as a forward for and captains "
             "both Saudi Pro League club Al Nassr and the Portugal national team."
         )
-        self.entity_types = ["person", "award", "date", "competitions", "teams"]
 
-        schema = (
-            self.model.create_schema().entities(self.entity_types).build_schema_dict()
+        tokenizer = self.model.processor.tokenizer
+        inputs = tokenizer(
+            self.text,
+            max_length=512,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt",
         )
+        return inputs
 
-        self.model.processor.change_mode(is_training=False)
-        collator = ExtractorCollator(self.model.processor, is_training=False)
-        dataset = list(zip([self.text], [schema]))
-        batch = collator(dataset)
-        self.batch = batch
-        return batch
-
-    def post_processing(self, co_out):
-        """Decode model output into entity predictions."""
+    def decode_output(self, co_out):
+        """Run full GLiNER2 entity extraction and print results."""
+        self.entity_types = ["person", "award", "date", "competitions", "teams"]
         results = self.model.extract_entities(
             self.text, self.entity_types, threshold=0.5
         )
