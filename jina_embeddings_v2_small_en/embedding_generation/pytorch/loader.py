@@ -151,9 +151,7 @@ class ModelLoader(ForgeModel):
 
         # Patch get_head_mask removed in transformers 5.x
         if not hasattr(model, "get_head_mask"):
-            import types as _types
-
-            model.get_head_mask = _types.MethodType(self._get_head_mask, model)
+            model.get_head_mask = self._get_head_mask
 
         weights_path = hf_hub_download(pretrained_model_name, "model.safetensors")
         state_dict = load_file(weights_path)
