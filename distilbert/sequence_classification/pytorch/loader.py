@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
         "distilbert-base-uncased-finetuned-sst-2-english"
     )
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
-    REFUTATION_DETECTOR_DISTILBERT = "refutation-detector-distilbert"
+    MICHELLELI99_NSFW_TEXT_CLASSIFIER = "michelleli99-NSFW_text_classifier"
 
 
 class ModelLoader(ForgeModel):
@@ -41,8 +41,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bhadresh-savani/distilbert-base-uncased-emotion",
             max_length=128,
         ),
-        ModelVariant.REFUTATION_DETECTOR_DISTILBERT: LLMModelConfig(
-            pretrained_model_name="leondz/refutation_detector_distilbert",
+        ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER: LLMModelConfig(
+            pretrained_model_name="michelleli99/NSFW_text_classifier",
             max_length=128,
         ),
     }
@@ -54,7 +54,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
-        ModelVariant.REFUTATION_DETECTOR_DISTILBERT: "Explain why the earth is not flat. The earth is round because of gravity.",
+        ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER: "This is a perfectly normal and safe text about cooking recipes.",
     }
 
     def __init__(self, variant=None):
@@ -88,7 +88,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
-            ModelVariant.REFUTATION_DETECTOR_DISTILBERT,
+            ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
