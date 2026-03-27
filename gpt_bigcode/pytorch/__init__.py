@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-GPT-BigCode PyTorch model implementation for Tenstorrent projects.
+GPT BigCode PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
