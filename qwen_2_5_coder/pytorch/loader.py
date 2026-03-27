@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_CODER_7B_INSTRUCT = "7B_Instruct"
     QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
     QWEN_2_5_CODER_32B_INSTRUCT = "32B_Instruct"
+    QWEN_2_5_CODER_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -76,6 +77,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-Coder-32B-Instruct",
             max_length=128,
         ),
+        ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-Coder-32B-Instruct-AWQ",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -108,7 +113,10 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant == ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT:
             group = ModelGroup.RED
-        if variant == ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4:
+        if variant in [
+            ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4,
+            ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_AWQ,
+        ]:
             group = ModelGroup.VULCAN
 
         return ModelInfo(
@@ -163,8 +171,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # GPTQ variants need device_map="cpu" for CPU-based loading
-        if pretrained_model_name == "Qwen/Qwen2.5-Coder-7B-Instruct-GPTQ-Int4":
+        # Quantized variants need device_map="cpu" for CPU-based loading
+        if pretrained_model_name in (
+            "Qwen/Qwen2.5-Coder-7B-Instruct-GPTQ-Int4",
+            "Qwen/Qwen2.5-Coder-32B-Instruct-AWQ",
+        ):
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
