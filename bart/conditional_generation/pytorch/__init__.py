@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Bart PyTorch model implementation for conditional generation.
+BART Conditional Generation PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

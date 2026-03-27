@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BART model loader implementation for conditional generation (entity linking).
+BART model loader implementation for Conditional Generation.
 """
 
 import torch
@@ -22,23 +22,27 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available BART conditional generation model variants."""
+    """Available BART Conditional Generation model variants."""
 
-    GENRE_LINKING_BLINK = "GENRE_Linking_BLINK"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
-    """BART model loader implementation for conditional generation (entity linking)."""
+    """BART model loader implementation for conditional generation tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.GENRE_LINKING_BLINK: LLMModelConfig(
-            pretrained_model_name="facebook/genre-linking-blink",
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="sshleifer/bart-tiny-random",
+            max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GENRE_LINKING_BLINK
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
-    sample_text = "Einstein was a [START_ENT] German [END_ENT] physicist."
+    # Shared configuration parameters
+    sample_text = "summarize: Studies have shown that regular exercise can improve mental health, boost immune function, and increase overall life expectancy."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -80,10 +84,12 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
+        # Initialize tokenizer with dtype override if specified
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
+        # Load the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
@@ -100,12 +106,15 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The BART model instance for conditional generation.
         """
+        # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
+        # Ensure tokenizer is loaded
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        # Load the model with dtype override if specified
+        model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -114,7 +123,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **model_kwargs
         )
         model.eval()
-
+        # Cache model for use in load_inputs (to avoid reloading)
         self._cached_model = model
         return model
 
@@ -127,16 +136,23 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors that can be fed to the model.
         """
+        # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
+        # Create tokenized inputs
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
         )
 
-        decoder_input_ids = torch.tensor(
-            [[self._cached_model.config.decoder_start_token_id]], dtype=torch.long
+        # BART requires decoder input ids also as an input
+        decoder_start_token_tensor = torch.tensor(
+            self._cached_model.config.decoder_start_token_id,
+            dtype=torch.long,
+        )
+        decoder_input_ids = (
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
         )
         inputs["decoder_input_ids"] = decoder_input_ids
 
