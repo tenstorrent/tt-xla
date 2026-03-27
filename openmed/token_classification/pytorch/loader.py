@@ -28,6 +28,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_DISEASE_DETECT_MODERNMED_149M = (
         "OpenMed/OpenMed-NER-DiseaseDetect-ModernMed-149M"
     )
+    OPENMED_NER_GENOMIC_DETECT_TINYMED_65M = (
+        "OpenMed/OpenMed-NER-GenomicDetect-TinyMed-65M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +44,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_DISEASE_DETECT_MODERNMED_149M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-DiseaseDetect-ModernMed-149M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_GENOMIC_DETECT_TINYMED_65M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-TinyMed-65M",
             max_length=128,
         ),
     }
@@ -63,6 +70,10 @@ class ModelLoader(ForgeModel):
         if self._variant == ModelVariant.OPENMED_NER_DISEASE_DETECT_MODERNMED_149M:
             self.sample_text = (
                 "The patient was diagnosed with diabetes mellitus type 2."
+            )
+        elif self._variant == ModelVariant.OPENMED_NER_GENOMIC_DETECT_TINYMED_65M:
+            self.sample_text = (
+                "The BRCA2 gene is associated with hereditary breast cancer."
             )
         else:
             self.sample_text = (
