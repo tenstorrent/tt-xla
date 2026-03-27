@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_3_8B_MLX_4BIT = "8B_MLX_4bit"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
+    QWEN_3_235B_A22B_FP8 = "235B_A22B_FP8"
     QWEN_3_235B_A22B_THINKING_2507 = "235B_A22B_Thinking_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_8B_BASE_UNSLOTH = "8B_Base_Unsloth"
@@ -131,6 +132,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_235B_A22B_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-235B-A22B-FP8",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_235B_A22B_THINKING_2507: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-235B-A22B-Thinking-2507",
             max_length=128,
@@ -200,6 +205,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_8B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
+            ModelVariant.QWEN_3_235B_A22B_FP8,
             ModelVariant.QWEN_3_235B_A22B_THINKING_2507,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_32B_FP8,
@@ -392,6 +398,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_30B_A3B,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
+            ModelVariant.QWEN_3_235B_A22B_FP8,
             ModelVariant.QWEN_3_235B_A22B_THINKING_2507,
         )
 
