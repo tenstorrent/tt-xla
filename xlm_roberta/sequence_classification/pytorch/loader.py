@@ -23,9 +23,7 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    NYTK_SENTIMENT_HTS5_XLM_ROBERTA_HUNGARIAN = (
-        "NYTK/sentiment-hts5-xlm-roberta-hungarian"
-    )
+    QANASTEK_51_LANGUAGES_CLASSIFIER = "qanastek/51-languages-classifier"
 
 
 class ModelLoader(ForgeModel):
@@ -36,8 +34,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.NYTK_SENTIMENT_HTS5_XLM_ROBERTA_HUNGARIAN: LLMModelConfig(
-            pretrained_model_name="NYTK/sentiment-hts5-xlm-roberta-hungarian",
+        ModelVariant.QANASTEK_51_LANGUAGES_CLASSIFIER: LLMModelConfig(
+            pretrained_model_name="qanastek/51-languages-classifier",
             max_length=128,
         ),
     }
@@ -46,7 +44,7 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
-        ModelVariant.NYTK_SENTIMENT_HTS5_XLM_ROBERTA_HUNGARIAN: "Jó reggelt! majd küldöm az élményhozókat :).",
+        ModelVariant.QANASTEK_51_LANGUAGES_CLASSIFIER: "Bonjour, comment allez-vous aujourd'hui?",
     }
 
     def __init__(self, variant=None):
