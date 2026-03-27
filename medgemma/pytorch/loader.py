@@ -1,12 +1,16 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MedGemma model loader implementation for causal language modeling.
+MedGemma model loader implementation for multimodal medical imaging.
 """
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
+
+from transformers import (
+    AutoProcessor,
+    Gemma3ForConditionalGeneration,
+)
 
 from ...config import (
     LLMModelConfig,
@@ -18,36 +22,33 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import cast_input_to_type
+from ...tools.utils import cast_input_to_type, get_file
+from PIL import Image
 
 
 class ModelVariant(StrEnum):
-    """Available MedGemma model variants for causal LM."""
+    """Available MedGemma model variants."""
 
-    MEDGEMMA_27B_TEXT_IT = "27B_Text_Instruct"
+    MEDGEMMA_27B_IT = "google/medgemma-27b-it"
 
 
 class ModelLoader(ForgeModel):
-    """MedGemma model loader implementation for causal language modeling tasks."""
+    """MedGemma model loader implementation for multimodal medical imaging tasks."""
 
     _VARIANTS = {
-        ModelVariant.MEDGEMMA_27B_TEXT_IT: LLMModelConfig(
-            pretrained_model_name="google/medgemma-27b-text-it",
-            max_length=256,
+        ModelVariant.MEDGEMMA_27B_IT: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.MEDGEMMA_27B_IT),
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MEDGEMMA_27B_TEXT_IT
+    DEFAULT_VARIANT = ModelVariant.MEDGEMMA_27B_IT
 
-    sample_text = "How do you differentiate bacterial from viral pneumonia?"
+    sample_text = "Describe the findings in this chest X-ray."
+    sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.tokenizer = None
-        self.seq_len = None
-        self.num_layers = num_layers
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -58,56 +59,44 @@ class ModelLoader(ForgeModel):
             model="MedGemma",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.NLP_CAUSAL_LM,
+            task=ModelTask.MM_CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        tokenizer_kwargs = {}
+    def _load_processor(self, dtype_override=None):
+        """Load processor for the current variant."""
+        kwargs = {}
         if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
-        )
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-        return self.tokenizer
+            kwargs["torch_dtype"] = dtype_override
+
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        self.processor = AutoProcessor.from_pretrained(pretrained_model_name, **kwargs)
+
+        return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the MedGemma model instance.
+        """Load and return the MedGemma multimodal model instance.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            torch.nn.Module: The MedGemma model instance for causal language modeling.
+            torch.nn.Module: The MedGemma model instance for multimodal medical imaging.
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-        model_kwargs = {"use_cache": False}
+        if self.processor is None:
+            self._load_processor(dtype_override)
+
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
-
         model_kwargs |= kwargs
-        model = AutoModelForCausalLM.from_pretrained(
+
+        model = Gemma3ForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
+
         model.eval()
         self.model = model
         self.config = model.config
@@ -116,56 +105,68 @@ class ModelLoader(ForgeModel):
     def load_inputs(
         self,
         dtype_override=None,
-        batch_size=1,
-        max_new_tokens: int = 256,
         prompt: Optional[str] = None,
+        image_url: Optional[str] = None,
     ):
-        """Load and return sample inputs for the MedGemma model.
+        """Load and return sample inputs for the MedGemma multimodal model.
 
         Returns:
-            list: Input tensors [input_ids, attention_mask] that can be fed to the model.
+            dict: Input tensors and attention masks that can be fed to the model.
         """
-        max_length = self._variant_config.max_length
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-        input_prompt = [
-            {
-                "role": "user",
-                "content": prompt or self.sample_text,
-            }
-        ]
-        input_text = self.tokenizer.apply_chat_template(
-            input_prompt,
-            add_generation_prompt=True,
-            tokenize=False,
-        )
-        inputs = self.tokenizer(
-            [input_text],
-            return_tensors="pt",
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
-        )
-        for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        if self.processor is None:
+            self._load_processor(dtype_override)
 
-        input_ids = inputs["input_ids"]
-        attn_mask = inputs["attention_mask"]
+        image_file = get_file(image_url or self.sample_image_url)
+        image = Image.open(image_file).convert("RGB")
+
+        text_prompt = self.processor.apply_chat_template(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": prompt or self.sample_text},
+                    ],
+                }
+            ],
+            add_generation_prompt=True,
+        )
+
+        inputs = self.processor(
+            text=text_prompt,
+            images=[image],
+            return_tensors="pt",
+        )
+
         if dtype_override is not None:
-            input_ids = cast_input_to_type(input_ids, dtype_override)
-            attn_mask = cast_input_to_type(attn_mask, dtype_override)
-        return [input_ids, attn_mask]
+            inputs["pixel_values"] = cast_input_to_type(
+                inputs["pixel_values"], dtype_override
+            )
+
+        return inputs
 
     def get_mesh_config(self, num_devices: int):
         """Get the mesh configuration for tensor parallel execution."""
         mesh_shape = (1, num_devices)
+        assert (
+            self.config.text_config.num_attention_heads % mesh_shape[1] == 0
+        ), "Attention heads must be divisible by the model axis size"
         return mesh_shape, ("batch", "model")
 
     def load_shard_spec(self, model):
         """Load the sharding specification for tensor parallel execution."""
         shard_specs = {}
 
-        for layer in model.model.layers:
+        for layer in model.vision_tower.vision_model.encoder.layers:
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.out_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.mlp.fc1.weight] = ("model", "batch")
+            shard_specs[layer.mlp.fc2.weight] = ("batch", "model")
+
+        for layer in model.language_model.layers:
             shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
             shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
