@@ -4,7 +4,6 @@
 """
 ColQwen2 model loader implementation for visual document retrieval.
 """
-import torch
 from PIL import Image
 from transformers import ColQwen2ForRetrieval, AutoProcessor
 from typing import Optional
@@ -37,8 +36,6 @@ class ModelLoader(ForgeModel):
     }
 
     DEFAULT_VARIANT = ModelVariant.MICHAELFEIL_COLQWEN2_V0_1
-
-    sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/tasks/car.jpg"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
