@@ -31,9 +31,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_CODER_NEXT = "Next"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
-    QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_4BIT = "30B_A3B_Instruct_GPTQ_4bit"
-    QWEN_3_CODER_480B_A35B_INSTRUCT = "480B_A35B_Instruct"
-    QWEN_3_CODER_NEXT_4BIT = "Next_4bit"
+    QWEN_3_CODER_480B_A35B_INSTRUCT_FP8_DYNAMIC = "480B_A35B_Instruct_FP8_Dynamic"
 
 
 class ModelLoader(ForgeModel):
@@ -49,16 +47,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_4BIT: LLMModelConfig(
-            pretrained_model_name="btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_CODER_480B_A35B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_CODER_NEXT_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3-Coder-Next-4bit",
+        ModelVariant.QWEN_3_CODER_480B_A35B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
+            pretrained_model_name="BCCard/Qwen3-Coder-480B-A35B-Instruct-FP8-Dynamic",
             max_length=128,
         ),
     }
