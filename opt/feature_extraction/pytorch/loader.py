@@ -5,7 +5,7 @@
 OPT model loader implementation for feature extraction with LoRA.
 """
 from transformers import AutoTokenizer
-from peft import PeftModel, AutoPeftModel
+from peft import AutoPeftModel
 from typing import Optional
 
 from ....base import ForgeModel
