@@ -1,134 +1,216 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-InternLM2 model loader implementation for causal language modeling.
+InternLM Causal LM model loader implementation
 """
 
-from typing import Optional
-
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
-    ModelConfig,
-    ModelGroup,
+    LLMModelConfig,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available InternLM2 model variants."""
+    """Available InternLM model variants for causal language modeling."""
 
-    INTERNLM2_1_8B = "1_8B"
-    INTERNLM2_BASE_7B = "Base_7B"
+    INTERNLM_CHAT_7B = "chat_7b"
 
 
 class ModelLoader(ForgeModel):
-    """InternLM2 model loader implementation for causal language modeling tasks."""
+    """InternLM model loader implementation for causal language modeling tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.INTERNLM2_1_8B: ModelConfig(
-            pretrained_model_name="internlm/internlm2-1_8b",
-        ),
-        ModelVariant.INTERNLM2_BASE_7B: ModelConfig(
-            pretrained_model_name="internlm/internlm2-base-7b",
+        ModelVariant.INTERNLM_CHAT_7B: LLMModelConfig(
+            pretrained_model_name="internlm/internlm-chat-7b",
+            max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.INTERNLM2_BASE_7B
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.INTERNLM_CHAT_7B
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
+    # Shared configuration parameters
+    sample_text = "Who would win in a fight - a dinosaur or a cow named Moo Moo?"
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self.tokenizer = None
+        self.config = None
         self.model = None
-        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+        """Implementation method for getting model info with validated variant.
 
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+
+        group = ModelGroup.VULCAN
         return ModelInfo(
-            model="InternLM2",
+            model="internlm",
             variant=variant,
-            group=ModelGroup.VULCAN,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        """Load tokenizer for the current variant.
 
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
+        # Initialize tokenizer with dtype override if specified
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
+        # Load the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the InternLM model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+
+        Returns:
+            torch.nn.Module: The InternLM model instance for causal language modeling.
+        """
+        # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
+        # Ensure tokenizer is loaded
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {"trust_remote_code": True}
+        # Load the model with dtype override if specified
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
         model_kwargs |= kwargs
 
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, trust_remote_code=True
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
-
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        ).eval()
+            pretrained_model_name,
+            trust_remote_code=True,
+            **model_kwargs,
+        )
+        model.config.use_cache = False
+        model.eval()
 
         self.config = model.config
         self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the InternLM model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
+        # Ensure tokenizer is initialized
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        test_input = "What is the capital of France?"
+        # Get max_length from the variant config
+        max_length = self._variant_config.max_length
 
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        prompts = [self.sample_text]
 
+        inputs = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+        )
+
+        # Add batch dimension
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+    def get_mesh_config(self, num_devices: int):
 
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
+        # Prefer (1, N) when heads divide N, otherwise try (2, N/2)
+        if self.config.num_attention_heads % num_devices == 0:
+            mesh_shape = (1, num_devices)
+        elif (
+            self.config.num_attention_heads % (num_devices // 2) == 0
+            and num_devices % 2 == 0
+        ):
+            mesh_shape = (2, num_devices // 2)
+        else:
+            raise ValueError(
+                f"Cannot evenly distribute {self.config.num_attention_heads} heads across {num_devices} devices"
+            )
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("batch", "model")
+
+        return shard_specs
 
     def load_config(self):
+        """Load and return the configuration for the InternLM model variant.
+
+        Returns:
+            The configuration object for the InternLM model.
+        """
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, trust_remote_code=True
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
         )
+
         return self.config
