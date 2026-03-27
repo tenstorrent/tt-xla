@@ -1,8 +1,12 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BLEURT model loader implementation for sequence classification.
+BLEURT-20 model loader implementation for sequence classification.
+
+BLEURT is a learned evaluation metric for natural language generation that scores
+how well a candidate sentence matches a reference sentence, producing a regression
+score where values closer to 1.0 indicate a better match.
 """
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -23,23 +27,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available BLEURT model variants for sequence classification."""
 
-    BASE_128 = "base-128"
+    BLEURT_20 = "BLEURT-20"
 
 
 class ModelLoader(ForgeModel):
-    """BLEURT model loader implementation for sequence classification."""
+    """BLEURT-20 model loader implementation for sequence classification."""
 
     _VARIANTS = {
-        ModelVariant.BASE_128: ModelConfig(
-            pretrained_model_name="Elron/bleurt-base-128",
+        ModelVariant.BLEURT_20: ModelConfig(
+            pretrained_model_name="lucadiliello/BLEURT-20",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE_128
+    DEFAULT_VARIANT = ModelVariant.BLEURT_20
 
     # Sample reference-candidate pairs for testing
     sample_pairs = [
-        ("hello world", "hi universe"),
+        ("a bird chirps by the window", "a bird chirps by the window"),
+        ("a bird chirps by the window", "this looks like a random sentence"),
     ]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -60,21 +65,14 @@ class ModelLoader(ForgeModel):
     def _load_tokenizer(self, dtype_override=None):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
         )
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load BLEURT model for sequence classification.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The BLEURT model instance.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {"return_dict": False}
+        model_kwargs = {"return_dict": False, "trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -87,14 +85,6 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Prepare sample inputs for BLEURT evaluation.
-
-        Args:
-            dtype_override: Optional torch.dtype to override input tensor dtype.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
@@ -104,10 +94,10 @@ class ModelLoader(ForgeModel):
         inputs = self.tokenizer(
             references,
             candidates,
-            padding=True,
+            padding="longest",
             truncation=True,
             return_tensors="pt",
-            max_length=128,
+            max_length=512,
         )
 
         if dtype_override is not None:
