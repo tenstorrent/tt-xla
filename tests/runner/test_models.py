@@ -79,13 +79,13 @@ def _run_model_test_impl(
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
 
+    # Get the model loader and model info from desired model, variant.
+    loader = ModelLoader(variant=variant)
+    model_info = ModelLoader.get_model_info(variant=variant)
+    print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path, framework=str(framework)):
-
-        # Get the model loader and model info from desired model, variant.
-        loader = ModelLoader(variant=variant)
-        model_info = ModelLoader.get_model_info(variant=variant)
-        print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
