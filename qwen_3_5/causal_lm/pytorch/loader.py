@@ -43,12 +43,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_BASE_UNSLOTH = "9B_Base_unsloth"
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_35B_A3B_MLX_4BIT = "35B_A3B_MLX_4bit"
-    QWEN_3_5_9B_MLX_4BIT = "9B_MLX_4bit"
-    QWEN_3_5_9B_BASE_TEXT_NVFP4 = "9B_Base_Text_NVFP4"
-    QWEN_3_5_2B_NVFP4 = "2B_NVFP4"
-    GEOLLM_QWEN_3_5_27B_GGUF = "GeoLLM_27B_GGUF"
-    QWEN_3_5_27B_ABLITERATED_GGUF = "27B_Abliterated_GGUF"
+    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -132,28 +127,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_35B_A3B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-35B-A3B-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-9B-OptiQ-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_BASE_TEXT_NVFP4: LLMModelConfig(
-            pretrained_model_name="osoleve/Qwen3.5-9B-Base-Text-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_2B_NVFP4: LLMModelConfig(
-            pretrained_model_name="AxionML/Qwen3.5-2B-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.GEOLLM_QWEN_3_5_27B_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/GeoLLM-Qwen3.5-27B-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_ABLITERATED_GGUF: LLMModelConfig(
-            pretrained_model_name="khtsly/Qwen3.5-27B-Abliterated-Claude-4.6-Opus-Distilled-32k-GGUF",
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
+            pretrained_model_name="AesSedai/Qwen3.5-35B-A3B-GGUF",
             max_length=128,
         ),
     }
@@ -166,8 +141,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_0_8B_GGUF: "Qwen3.5-0.8B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.GEOLLM_QWEN_3_5_27B_GGUF: "GeoLLM-Qwen3.5-27B.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_27B_ABLITERATED_GGUF: "Qwen3.5-27B-Abliterated-Claude-4.6-Opus-Distilled-32k.Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Q4_K_M/Qwen3.5-35B-A3B-Q4_K_M-00001-of-00002.gguf",
     }
 
     # Shared configuration parameters
@@ -361,7 +335,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
             ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_35B_A3B_MLX_4BIT,
+            ModelVariant.QWEN_3_5_35B_A3B_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
         )
 
