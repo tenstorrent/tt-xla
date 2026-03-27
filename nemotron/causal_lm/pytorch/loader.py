@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
     NEMOTRON_3_SUPER_120B_A12B_NVFP4 = "3_Super_120B_A12B_NVFP4"
+    NEMOTRON_CASCADE_2_30B_A3B = "Cascade_2_30B_A3B"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NEMOTRON_3_SUPER_120B_A12B_NVFP4: LLMModelConfig(
             pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
+            max_length=128,
+        ),
+        ModelVariant.NEMOTRON_CASCADE_2_30B_A3B: LLMModelConfig(
+            pretrained_model_name="nvidia/Nemotron-Cascade-2-30B-A3B",
             max_length=128,
         ),
     }
