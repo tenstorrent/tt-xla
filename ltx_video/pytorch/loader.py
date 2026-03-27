@@ -4,15 +4,16 @@
 """
 LTX-Video model loader for tt_forge_models.
 
-LTX-Video is a text-to-video diffusion model that uses a DiT (Diffusion Transformer)
-architecture to generate video from text prompts.
+LTX-Video is a text-to-video diffusion model using a 3D transformer backbone
+with a T5 text encoder and a video VAE. This loader uses the tiny-random variant
+from optimum-intel-internal-testing for lightweight CI testing.
 
-Repository: https://huggingface.co/Isi99999/LTX-Video
+Repository:
+- https://huggingface.co/optimum-intel-internal-testing/tiny-random-ltx-video
 
 Available subfolders:
 - transformer: LTXVideoTransformer3DModel
 - vae: AutoencoderKLLTXVideo
-- text_encoder: T5 text encoder for prompt conditioning
 """
 
 from typing import Any, Optional
@@ -31,13 +32,13 @@ from ...config import (
     StrEnum,
 )
 
-SUPPORTED_SUBFOLDERS = {"transformer", "vae", "text_encoder"}
+SUPPORTED_SUBFOLDERS = {"transformer", "vae"}
 
 
 class ModelVariant(StrEnum):
     """Available LTX-Video variants."""
 
-    DEFAULT = "default"
+    TINY_RANDOM = "tiny_random"
 
 
 class ModelLoader(ForgeModel):
@@ -47,16 +48,15 @@ class ModelLoader(ForgeModel):
     Supports loading the full pipeline or individual components via subfolder:
     - 'transformer': LTXVideoTransformer3DModel
     - 'vae': AutoencoderKLLTXVideo
-    - 'text_encoder': T5 text encoder for prompt conditioning
     """
 
     _VARIANTS = {
-        ModelVariant.DEFAULT: ModelConfig(
-            pretrained_model_name="Isi99999/LTX-Video",
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-ltx-video",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEFAULT
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
     def __init__(
         self,
@@ -85,74 +85,71 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_pipeline(self, dtype: torch.dtype, **kwargs) -> LTXPipeline:
-        model_kwargs = {"torch_dtype": dtype}
-        model_kwargs |= kwargs
+    def _load_pipeline(self, dtype: torch.dtype) -> LTXPipeline:
         self.pipeline = LTXPipeline.from_pretrained(
             self._variant_config.pretrained_model_name,
-            **model_kwargs,
+            torch_dtype=dtype,
         )
         return self.pipeline
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
-
-        if self.pipeline is None:
-            self._load_pipeline(dtype, **kwargs)
-
-        if self._subfolder == "vae":
-            return self.pipeline.vae
-        elif self._subfolder == "text_encoder":
-            return self.pipeline.text_encoder
-        elif self._subfolder == "transformer" or self._subfolder is None:
-            return self.pipeline.transformer
-
-    def load_inputs(self, dtype_override=None, **kwargs) -> Any:
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
+        dtype = dtype_override if dtype_override is not None else torch.float32
 
         if self.pipeline is None:
             self._load_pipeline(dtype)
 
-        if self._subfolder == "transformer" or self._subfolder is None:
-            return self._load_transformer_inputs(dtype)
-        elif self._subfolder == "vae":
+        if self._subfolder == "vae":
+            return self.pipeline.vae
+        elif self._subfolder == "transformer":
+            return self.pipeline.transformer
+        else:
+            return self.pipeline.transformer
+
+    def load_inputs(self, dtype_override=None, **kwargs) -> Any:
+        dtype = dtype_override if dtype_override is not None else torch.float32
+
+        if self.pipeline is None:
+            self._load_pipeline(dtype)
+
+        if self._subfolder == "vae":
             vae_type = kwargs.get("vae_type", "decoder")
             if vae_type == "decoder":
                 return self._load_vae_decoder_inputs(dtype)
             else:
                 return self._load_vae_encoder_inputs(dtype)
-        elif self._subfolder == "text_encoder":
-            return self._load_text_encoder_inputs(dtype)
+        else:
+            return self._load_transformer_inputs(dtype)
 
     def _load_transformer_inputs(self, dtype: torch.dtype) -> dict:
-        """Prepare synthetic inputs for the LTX-Video transformer."""
+        """Prepare synthetic inputs for the LTXVideo transformer forward pass."""
         batch_size = 1
         config = self.pipeline.transformer.config
 
-        num_latent_frames = 2
+        latent_num_frames = 2
         latent_height = 2
         latent_width = 2
+        video_seq_len = latent_num_frames * latent_height * latent_width
 
-        in_channels = config.in_channels
         hidden_states = torch.randn(
-            batch_size,
-            in_channels,
-            num_latent_frames,
-            latent_height,
-            latent_width,
-            dtype=dtype,
+            batch_size, video_seq_len, config.in_channels, dtype=dtype
         )
 
+        caption_channels = config.caption_channels
         encoder_hidden_states = torch.randn(
-            batch_size, 8, config.cross_attention_dim, dtype=dtype
+            batch_size, 8, caption_channels, dtype=dtype
         )
+        encoder_attention_mask = torch.ones(batch_size, 8, dtype=dtype)
 
         timestep = torch.tensor([0.5], dtype=dtype).expand(batch_size)
 
         return {
             "hidden_states": hidden_states,
             "encoder_hidden_states": encoder_hidden_states,
+            "encoder_attention_mask": encoder_attention_mask,
             "timestep": timestep,
+            "num_frames": latent_num_frames,
+            "height": latent_height,
+            "width": latent_width,
             "return_dict": False,
         }
 
@@ -169,17 +166,9 @@ class ModelLoader(ForgeModel):
             "sample": torch.randn(1, 3, 9, 64, 64, dtype=dtype),
         }
 
-    def _load_text_encoder_inputs(self, dtype: torch.dtype) -> dict:
-        """Prepare synthetic inputs for the text encoder."""
-        return {
-            "input_ids": torch.randint(0, 1000, (1, 16)),
-        }
-
     def unpack_forward_output(self, output: Any) -> torch.Tensor:
         if isinstance(output, tuple):
             return output[0]
         if hasattr(output, "sample"):
             return output.sample
-        if hasattr(output, "last_hidden_state"):
-            return output.last_hidden_state
         return output
