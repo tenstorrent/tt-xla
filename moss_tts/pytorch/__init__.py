@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MOSS-TTS Local Transformer PyTorch model implementation for Tenstorrent projects.
+MOSS-TTS-Realtime PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

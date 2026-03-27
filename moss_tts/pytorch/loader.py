@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MOSS-TTS Local Transformer model loader implementation for text-to-speech tasks
+MOSS-TTS-Realtime model loader implementation for text-to-speech tasks.
 """
-from transformers import AutoModel, AutoProcessor
+import torch
+import torch.nn as nn
 from typing import Optional
 
 from ...base import ForgeModel
@@ -19,33 +20,49 @@ from ...config import (
 )
 
 
-class ModelVariant(StrEnum):
-    """Available MOSS-TTS model variants."""
+class MossTTSRealtimeLanguageWrapper(nn.Module):
+    """Wrapper around the MOSS-TTS-Realtime Qwen3 language backbone.
 
-    LOCAL_TRANSFORMER = "LocalTransformer"
+    Exposes a clean forward pass that takes pre-computed input embeddings
+    and produces hidden states from the language model.
+    """
+
+    def __init__(self, language_model):
+        super().__init__()
+        self.language_model = language_model
+
+    def forward(self, inputs_embeds):
+        outputs = self.language_model(
+            inputs_embeds=inputs_embeds,
+            use_cache=False,
+        )
+        return outputs.last_hidden_state
+
+
+class ModelVariant(StrEnum):
+    """Available MOSS-TTS-Realtime model variants."""
+
+    MOSS_TTS_REALTIME_1_7B = "1.7B"
 
 
 class ModelLoader(ForgeModel):
-    """MOSS-TTS Local Transformer model loader implementation for text-to-speech tasks."""
+    """MOSS-TTS-Realtime model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.LOCAL_TRANSFORMER: ModelConfig(
-            pretrained_model_name="OpenMOSS-Team/MOSS-TTS-Local-Transformer",
+        ModelVariant.MOSS_TTS_REALTIME_1_7B: ModelConfig(
+            pretrained_model_name="OpenMOSS-Team/MOSS-TTS-Realtime",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LOCAL_TRANSFORMER
-
-    sample_text = "Hello, my dog is cute."
+    DEFAULT_VARIANT = ModelVariant.MOSS_TTS_REALTIME_1_7B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="MOSS-TTS",
+            model="MOSS-TTS-Realtime",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_TTS,
@@ -53,41 +70,20 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
-        processor_kwargs = {}
-        if dtype_override is not None:
-            processor_kwargs["torch_dtype"] = dtype_override
+    def load_model(self, *, dtype_override=None, **kwargs):
+        from transformers import AutoModel
 
-        self.processor = AutoProcessor.from_pretrained(
+        full_model = AutoModel.from_pretrained(
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
-            **processor_kwargs,
+            torch_dtype=dtype_override or torch.float32,
         )
-
-        return self.processor
-
-    def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
-
-        model_kwargs = {"trust_remote_code": True}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-
-        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = MossTTSRealtimeLanguageWrapper(full_model.language_model)
         model.eval()
-        self.model = model
-
         return model
 
     def load_inputs(self, dtype_override=None):
-        if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
-
-        messages = self.processor.build_user_message(text=self.sample_text)
-        inputs = self.processor(messages, return_tensors="pt")
-
-        return inputs
+        dtype = dtype_override or torch.float32
+        # Qwen3 language backbone hidden_size=2048, use a short sequence
+        inputs_embeds = torch.randn(1, 32, 2048, dtype=dtype)
+        return (inputs_embeds,)
