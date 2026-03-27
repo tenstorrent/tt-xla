@@ -39,16 +39,12 @@ After adding the new test, let's checkpoint our progress:
 - First run `source .venv/bin/activate && pre-commit run --all-files` to format our code.
 - Next git add the newly added files and git commit them with a nice commit message.
 
-## Phase 5. Test and validate.
-
-Try and run this model, validate that it passes PCC. Use `source .venv/bin/activate`
-to activate the venv which makes the tenstorrent pjrt device plugin available to xla.
-
-If the new test does not pass let's iterate on fixing it.
+## Phase 5. Lint and validate.
 
 Please commit independent, atomic, fixes for each issue that arises with the
 test.  In a loop let's:
-- Fix the test.
+- Double check the changes look good.
+- Fix anything that looks out of place.
 - Run `source .venv/bin/activate && pre-commit run --all-files` to reformat the code.
 - Git commit the changes to checkpoint our progress with a short commit message.
   Describing the fix made for this single issue.
