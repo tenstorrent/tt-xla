@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available OpenMed NER model variants."""
 
     ANATOMY_DETECT_SUPERMEDICAL_355M = "AnatomyDetect-SuperMedical-355M"
+    ANATOMY_DETECT_MULTIMED_335M = "AnatomyDetect-MultiMed-335M"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-SuperMedical-355M",
+        ),
+        ModelVariant.ANATOMY_DETECT_MULTIMED_335M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-MultiMed-335M",
         ),
     }
 
