@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B_FP8 = "27B_FP8"
     QWEN_3_5_35B_A3B = "35B_A3B"
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
-    QWEN_3_5_35B_A3B_AWQ_4BIT = "35B_A3B_Awq_4bit"
+    QWEN_3_5_122B_A10B = "122B_A10B"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
 
@@ -69,8 +69,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3.5-35B-A3B-FP8",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_35B_A3B_AWQ_4BIT: LLMModelConfig(
-            pretrained_model_name="cyankiwi/Qwen3.5-35B-A3B-AWQ-4bit",
+        ModelVariant.QWEN_3_5_122B_A10B: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-122B-A10B",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_9B_GGUF: LLMModelConfig(
@@ -278,7 +278,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_35B_A3B_AWQ_4BIT,
+            ModelVariant.QWEN_3_5_122B_A10B,
         )
 
     def load_shard_spec(self, model):
