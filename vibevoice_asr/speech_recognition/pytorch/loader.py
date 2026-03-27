@@ -12,7 +12,6 @@ variant (scerz/VibeVoice-ASR-4bit) using bitsandbytes NF4 quantization.
 from typing import Optional
 
 import numpy as np
-import torch
 
 from ....base import ForgeModel
 from ....config import (
