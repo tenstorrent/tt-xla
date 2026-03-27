@@ -52,6 +52,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_30B_A3B_GPTQ_INT4 = "30B_A3B_GPTQ_Int4"
+    QWEN_3_0_6B_REVERSE_TEXT_SFT_PRIMEINTELLECT = "0_6B_Reverse_Text_SFT_PrimeIntellect"
 
 
 class ModelLoader(ForgeModel):
@@ -155,6 +156,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B-GPTQ-Int4",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_0_6B_REVERSE_TEXT_SFT_PRIMEINTELLECT: LLMModelConfig(
+            pretrained_model_name="PrimeIntellect/Qwen3-0.6B-Reverse-Text-SFT",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -211,6 +216,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4,
+            ModelVariant.QWEN_3_0_6B_REVERSE_TEXT_SFT_PRIMEINTELLECT,
         ):
             group = ModelGroup.VULCAN
         else:
