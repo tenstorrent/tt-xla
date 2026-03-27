@@ -25,12 +25,12 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa token classification model variants."""
 
     CRYPTO_NER = "CryptoNER"
-    OPENMED_NER_SPECIES_DETECT = "OpenMed/OpenMed-NER-SpeciesDetect-MultiMed-568M"
+    SPANISH_NER = "SpanishNER"
 
 
-_SAMPLE_TEXTS = {
+_VARIANT_SAMPLE_TEXTS = {
     ModelVariant.CRYPTO_NER: "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
-    ModelVariant.OPENMED_NER_SPECIES_DETECT: "Escherichia coli bacteria were found in the water samples collected from the river.",
+    ModelVariant.SPANISH_NER: "Mi nombre es Carlos y vivo en Madrid, trabajo para Google",
 }
 
 
@@ -41,8 +41,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.CRYPTO_NER: ModelConfig(
             pretrained_model_name="covalenthq/cryptoNER",
         ),
-        ModelVariant.OPENMED_NER_SPECIES_DETECT: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-MultiMed-568M",
+        ModelVariant.SPANISH_NER: ModelConfig(
+            pretrained_model_name="MMG/xlm-roberta-large-ner-spanish",
         ),
     }
 
@@ -52,8 +52,8 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        self.sample_text = _SAMPLE_TEXTS.get(
-            self.variant,
+        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name,
             "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
         )
         self.max_length = 128
