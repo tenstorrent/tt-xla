@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Stable Diffusion XL model variants."""
 
     STABLE_DIFFUSION_XL_BASE_1_0 = "Base_1.0"
+    TINY_RANDOM_STABLE_DIFFUSION_XL = "tiny-random-stable-diffusion-xl"
 
 
 class ModelLoader(ForgeModel):
@@ -33,7 +34,10 @@ class ModelLoader(ForgeModel):
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
         ModelVariant.STABLE_DIFFUSION_XL_BASE_1_0: ModelConfig(
-            pretrained_model_name="stable-diffusion-xl-base-1.0",
+            pretrained_model_name="stabilityai/stable-diffusion-xl-base-1.0",
+        ),
+        ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-stable-diffusion-xl",
         ),
     }
 
@@ -66,10 +70,13 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        group = ModelGroup.RED
+        if variant == ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="Stable Diffusion XL",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,

@@ -22,9 +22,7 @@ def load_pipe(variant):
     Returns:
         DiffusionPipeline: Loaded pipeline with components set to eval mode
     """
-    pipe = DiffusionPipeline.from_pretrained(
-        f"stabilityai/{variant}", torch_dtype=torch.float32
-    )
+    pipe = DiffusionPipeline.from_pretrained(variant, torch_dtype=torch.float32)
     modules = [pipe.text_encoder, pipe.unet, pipe.text_encoder_2, pipe.vae]
 
     # Move the pipeline to CPU
