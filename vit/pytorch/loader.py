@@ -5,7 +5,6 @@
 ViT model loader implementation
 """
 
-import timm
 from transformers import ViTForImageClassification
 from torchvision import models
 from typing import Optional
@@ -157,6 +156,8 @@ class ModelLoader(ForgeModel):
 
         if source == ModelSource.TIMM:
             # Load model from TIMM
+            import timm
+
             model = timm.create_model(model_name, pretrained=True)
 
         elif source == ModelSource.HUGGING_FACE:
