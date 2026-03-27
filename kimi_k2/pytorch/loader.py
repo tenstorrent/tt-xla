@@ -3,7 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 Kimi K2 Instruct model loader implementation for causal language modeling.
+
+Uses reduced MoE configuration for testing since the full 1T parameter
+model is too large to load directly.
 """
+
 import os
 import sys
 from typing import Optional
@@ -62,13 +66,12 @@ if not hasattr(DynamicCache, "to_legacy_cache"):
 
     DynamicCache.to_legacy_cache = _to_legacy_cache
 
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.dynamic_module_utils import get_class_from_dynamic_module, get_imports
 
 from ...base import ForgeModel
 from ...config import (
     Framework,
-    ModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -85,21 +88,19 @@ def fixed_get_imports(filename: str | os.PathLike) -> list[str]:
 
 
 class ModelVariant(StrEnum):
-    """Available Kimi K2 model variants."""
+    """Available Kimi K2 Instruct model variants."""
 
-    KIMI_K2_INSTRUCT = "Kimi-K2-Instruct"
+    KIMI_K2_INSTRUCT_0905 = "Kimi-K2-Instruct-0905"
 
 
 class ModelLoader(ForgeModel):
-    """Kimi K2 Instruct model loader implementation for causal language modeling."""
+    """Kimi K2 Instruct model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.KIMI_K2_INSTRUCT: ModelConfig(
-            pretrained_model_name="moonshotai/Kimi-K2-Instruct",
-        ),
+        ModelVariant.KIMI_K2_INSTRUCT_0905: None,
     }
 
-    DEFAULT_VARIANT = ModelVariant.KIMI_K2_INSTRUCT
+    DEFAULT_VARIANT = ModelVariant.KIMI_K2_INSTRUCT_0905
 
     def __init__(
         self,
@@ -107,16 +108,15 @@ class ModelLoader(ForgeModel):
         num_layers: Optional[int] = None,
     ):
         super().__init__(variant)
+        self.model_name = "moonshotai/Kimi-K2-Instruct-0905"
         self.tokenizer = None
+        self.text = "What is machine learning?"
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
-            model="Kimi-K2",
+            model="Kimi-K2-Instruct-0905",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -124,30 +124,11 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, trust_remote_code=True
-        )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        return self.tokenizer
-
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the Kimi K2 text backbone with reduced config for testing.
-
-        The full model is a 1T-parameter MoE causal LM (DeepSeek V3
-        architecture). We load with a reduced configuration for testing.
-        """
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
         with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, trust_remote_code=True
-            )
+            config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
 
+            # Reduce model dimensions for testing
             if self.num_layers is not None:
                 config.num_hidden_layers = self.num_layers
             else:
@@ -171,38 +152,25 @@ class ModelLoader(ForgeModel):
 
             model_class = get_class_from_dynamic_module(
                 "modeling_deepseek.DeepseekV3ForCausalLM",
-                pretrained_model_name,
+                self.model_name,
                 trust_remote_code=True,
             )
             model = model_class(config)
             model.eval()
 
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name, trust_remote_code=True
+        )
+
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer()
+            self.load_model()
 
-        test_input = "What is the capital of France?"
-
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        inputs = self.tokenizer(self.text, return_tensors="pt")
 
         for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, trust_remote_code=True
-        )
-        return self.config
