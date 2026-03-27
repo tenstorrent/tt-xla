@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
 
     GEMMA_3_270M_IT = "270M_Instruct"
     GEMMA_3_1B_IT = "1B_Instruct"
-    GEMMA_3_12B_IT_ABLITERATED = "12B_Instruct_Abliterated"
+    GEMMA_3_1B_IT_QAT_4BIT = "1B_Instruct_QAT_4bit"
     GEMMA_3_27B_IT = "27B_Instruct"
     UNSLOTH_GEMMA_3_270M_IT = "Unsloth_270M_Instruct"
 
@@ -43,8 +43,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/gemma-3-1b-it",
             max_length=256,
         ),
-        ModelVariant.GEMMA_3_12B_IT_ABLITERATED: LLMModelConfig(
-            pretrained_model_name="mlabonne/gemma-3-12b-it-abliterated",
+        ModelVariant.GEMMA_3_1B_IT_QAT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/gemma-3-1b-it-qat-4bit",
             max_length=256,
         ),
         ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
@@ -75,8 +75,8 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         if variant in (
-            ModelVariant.GEMMA_3_12B_IT_ABLITERATED,
             ModelVariant.GEMMA_3_27B_IT,
+            ModelVariant.GEMMA_3_1B_IT_QAT_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
