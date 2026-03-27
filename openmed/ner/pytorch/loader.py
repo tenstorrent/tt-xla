@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER model loader implementation for anatomical entity recognition.
+OpenMed NER model loader implementation for biomedical entity recognition.
 """
 
 import torch
@@ -24,10 +24,11 @@ class ModelVariant(StrEnum):
 
     ANATOMY_DETECT_SUPERMEDICAL_355M = "AnatomyDetect-SuperMedical-355M"
     ANATOMY_DETECT_MULTIMED_335M = "AnatomyDetect-MultiMed-335M"
+    GENOME_DETECT_BIOPATIENT_108M = "GenomeDetect-BioPatient-108M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER model loader implementation for anatomical entity recognition."""
+    """OpenMed NER model loader implementation for biomedical entity recognition."""
 
     _VARIANTS = {
         ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M: ModelConfig(
@@ -36,15 +37,25 @@ class ModelLoader(ForgeModel):
         ModelVariant.ANATOMY_DETECT_MULTIMED_335M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-MultiMed-335M",
         ),
+        ModelVariant.GENOME_DETECT_BIOPATIENT_108M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-BioPatient-108M",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M
 
+    _SAMPLE_TEXTS = {
+        ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M: "The patient complained of pain in the left ventricle region.",
+        ModelVariant.ANATOMY_DETECT_MULTIMED_335M: "The patient complained of pain in the left ventricle region.",
+        ModelVariant.GENOME_DETECT_BIOPATIENT_108M: "The EGFR gene mutation was identified in lung cancer patients.",
+    }
+
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = (
-            "The patient complained of pain in the left ventricle region."
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant,
+            "The patient complained of pain in the left ventricle region.",
         )
         self.max_length = 128
         self.tokenizer = None
@@ -52,7 +63,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = "anatomy_detect"
+            variant_name = "ner"
         return ModelInfo(
             model="OpenMed",
             variant=variant_name,
