@@ -8,13 +8,9 @@ Uses reduced MoE configuration for testing since the full 685B parameter
 model is too large to load directly.
 """
 
-import os
 from typing import Optional
-from unittest.mock import patch
 
-import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-from transformers.dynamic_module_utils import get_imports
 
 from ....base import ForgeModel
 from ....config import (
@@ -24,13 +20,6 @@ from ....config import (
     ModelSource,
     ModelTask,
 )
-
-
-def fixed_get_imports(filename: str | os.PathLike) -> list[str]:
-    imports = get_imports(filename)
-    if not torch.cuda.is_available() and "flash_attn" in imports:
-        imports.remove("flash_attn")
-    return imports
 
 
 class ModelLoader(ForgeModel):
@@ -57,36 +46,30 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        model = None
-        with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
-            config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
+        config = AutoConfig.from_pretrained(self.model_name)
 
-            # Reduce model dimensions for testing
-            if self.num_layers is not None:
-                config.num_hidden_layers = self.num_layers
-            else:
-                config.num_hidden_layers = 6
-            config.num_attention_heads = 16
-            config.hidden_size = 1024
-            config.num_key_value_heads = 16
-            config.intermediate_size = 1024 * 4
-            config.num_experts_per_tok = 2
-            config.q_lora_rank = 256
-            config.use_flash_attention = False
+        # Reduce model dimensions for testing
+        if self.num_layers is not None:
+            config.num_hidden_layers = self.num_layers
+        else:
+            config.num_hidden_layers = 6
+        config.num_attention_heads = 16
+        config.hidden_size = 1024
+        config.num_key_value_heads = 16
+        config.intermediate_size = 1024 * 4
+        config.num_experts_per_tok = 2
+        config.q_lora_rank = 256
 
-            model_kwargs = {
-                "attn_implementation": "eager",
-                "trust_remote_code": True,
-            }
-            if dtype_override is not None:
-                model_kwargs["torch_dtype"] = dtype_override
-            model_kwargs |= kwargs
+        model_kwargs = {
+            "attn_implementation": "eager",
+        }
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
 
-            model = AutoModelForCausalLM.from_config(config, **model_kwargs)
+        model = AutoModelForCausalLM.from_config(config, **model_kwargs)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name, trust_remote_code=True
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         return model
 
