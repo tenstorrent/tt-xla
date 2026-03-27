@@ -35,6 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_122B_A10B_INT4_AUTOROUND = "122B_A10B_INT4_AutoRound"
+    QWEN_3_5_27B_4BIT = "27B_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -84,6 +85,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_122B_A10B_INT4_AUTOROUND: LLMModelConfig(
             pretrained_model_name="Intel/Qwen3.5-122B-A10B-int4-AutoRound",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_27B_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3.5-27B-4bit",
             max_length=128,
         ),
     }
