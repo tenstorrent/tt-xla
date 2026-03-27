@@ -24,6 +24,7 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available T5 v1.1 model variants."""
 
+    LARGE = "Large"
     XXL = "XXL"
 
 
@@ -31,13 +32,17 @@ class ModelLoader(ForgeModel):
     """T5 v1.1 model loader implementation for conditional generation tasks."""
 
     _VARIANTS = {
+        ModelVariant.LARGE: LLMModelConfig(
+            pretrained_model_name="google/t5-v1_1-large",
+            max_length=512,
+        ),
         ModelVariant.XXL: LLMModelConfig(
             pretrained_model_name="google/t5-v1_1-xxl",
             max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.XXL
+    DEFAULT_VARIANT = ModelVariant.LARGE
 
     sample_text = """summarize: Researchers have extensively studied the benefits of having pets,
                     particularly dogs, on human health and well-being. Findings suggest that pet ownership
