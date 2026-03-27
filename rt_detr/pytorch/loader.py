@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     RTDETR_R18VD_COCO_O365 = "R18vd_coco_o365"
     RTDETR_R34VD = "R34vd"
     RTDETR_R50VD = "R50vd"
+    RTDETR_R50VD_COCO_O365 = "R50vd_coco_o365"
     RTDETR_R101VD = "R101vd"
 
 
@@ -47,6 +48,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.RTDETR_R50VD: ModelConfig(
             pretrained_model_name="PekingU/rtdetr_r50vd",
+        ),
+        ModelVariant.RTDETR_R50VD_COCO_O365: ModelConfig(
+            pretrained_model_name="PekingU/rtdetr_r50vd_coco_o365",
         ),
         ModelVariant.RTDETR_R101VD: ModelConfig(
             pretrained_model_name="PekingU/rtdetr_r101vd",
@@ -84,7 +88,10 @@ class ModelLoader(ForgeModel):
             ModelVariant.RTDETR_R18VD,
         ]:
             group = ModelGroup.RED
-        elif variant == ModelVariant.RTDETR_R18VD_COCO_O365:
+        elif variant in [
+            ModelVariant.RTDETR_R18VD_COCO_O365,
+            ModelVariant.RTDETR_R50VD_COCO_O365,
+        ]:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
