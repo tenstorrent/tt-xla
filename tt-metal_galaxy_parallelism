@@ -1,0 +1,122 @@
+Make GPT-OSS-20B run closer to tt-metal on Galaxy.
+
+Target hardware/layout:
+- Galaxy mesh is 4x8
+- Treat mesh columns (size 8) as the tensor-parallel axis
+- Treat mesh rows (size 4) as the extra distributed axis
+- In tt-metal:
+  - Decode uses TP=8 across columns and EP=4 across rows
+  - Prefill uses TP=8 across columns and SP=4 across rows
+- I care primarily about DECODE, especially batch size 128 on 4x8
+
+Important high-level point:
+- Matching weight shard specs alone is NOT enough
+- tt-metal batch-128 decode on 4x8 also changes runtime execution:
+  - users are row-sharded
+  - MoE uses a throughput-experts path
+  - tokens are redistributed with all_to_all dispatch/combine
+  - expert outputs are then reduced across TP columns
+
+GPT-OSS-20B config values:
+- hidden_size = 2880
+- intermediate_size = 2880
+- num_attention_heads = 64
+- num_key_value_heads = 8
+- head_dim = 64
+- num_local_experts = 32
+- num_experts_per_tok = 4
+- vocab_size = 201088
+- num_hidden_layers = 24
+
+How tt-metal parallelizes weights:
+- Most ordinary model weight tensors are sharded over the 8 mesh columns, not over the 4 rows
+- The 4 rows are mainly used for:
+  - EP in decode
+  - SP in prefill
+  - user/page-table/KV row sharding when enabled
+- For decode batch 128 on 4x8, local batch is 32 per row, but execution is NOT equivalent to simple 1x8 batch 32 because the MoE path is different
+
+Closest tt-metal-style shard specs for HF weights:
+- q_proj.weight -> ("model", None)
+- k_proj.weight -> ("model", None)
+- v_proj.weight -> ("model", None)
+- o_proj.weight -> (None, "model")
+- sinks -> ("model",)
+
+- router.weight -> (None, None)
+
+- experts.gate_up_proj -> (None, None, "model")
+- experts.gate_up_proj_bias -> (None, "model")
+- experts.down_proj -> (None, "model", None)
+- experts.down_proj_bias -> safest approximation is replicate: (None, None)
+
+Important caveat:
+- tt-metal does special handling for some biases, especially down_proj_bias
+- It is not just a raw HF tensor shard
+- If exact transformed bias layout is hard to reproduce, replication is safer than incorrect sharding
+
+Shapes on GPT-OSS-20B with model axis = 8 columns:
+- q_proj.weight: [4096, 2880] -> local [512, 2880]
+- k_proj.weight: [512, 2880] -> local [64, 2880]
+- v_proj.weight: [512, 2880] -> local [64, 2880]
+- o_proj.weight: [2880, 4096] -> local [2880, 512]
+- sinks: [64] -> local [8]
+- router.weight: [32, 2880] replicated
+- gate_up_proj: [32, 2880, 5760] -> local [32, 2880, 720]
+- gate_up_proj_bias: [32, 5760] -> local [32, 720]
+- down_proj: [32, 2880, 2880] -> local [32, 360, 2880]
+- down_proj_bias: [32, 2880] special-case in tt-metal
+- embed_tokens.weight: [201088, 2880] replicated
+- norm.weight: [2880] replicated
+- lm_head.weight is transposed and padded before sharding in tt-metal:
+  - raw HF shape [201088, 2880]
+  - tt-metal loaded form is effectively [2880, padded_vocab]
+  - vocab is padded before TP sharding for on-device sampling
+
+Critical decode behavior on 4x8, batch 128:
+- users_row_sharded = True
+- global batch 128 is split across 4 rows => 32 users per row
+- tt-metal uses throughput experts for multi-row + batch > 1
+- this means decode is not just “same as 1x8 with bigger batch”
+
+New decode ops on 4x8 batch 128 that matter:
+- all_to_all_dispatch
+- expert compute on dispatched tokens
+- all_to_all_combine
+- apply router weights and reduce across top-k experts
+- all_reduce across TP columns
+
+Interpretation of those ops:
+- all_to_all_dispatch = send token work to the row/device that should process the selected experts
+- all_to_all_combine = send expert outputs back to the original token owner
+- final all_reduce across columns = merge TP partial outputs
+
+What EP=4 means in tt-metal:
+- EP=4 does NOT mean raw expert weights are simply sharded from 32 experts down to 8 experts per row in the plain tensor layout
+- Raw expert axis in the regular expert tensors still appears as 32
+- EP is realized mainly through runtime routing/distribution/combination across the 4 mesh rows
+- Router still scores all 32 experts
+- Runtime routing remaps/distributes expert work across rows
+
+Decode comparison:
+- 1x8 batch 32 and 4x8 batch 128 have similar per-row local batch size (32), but they are NOT equivalent globally
+- Attention TP-local compute can look similar per row
+- Full MoE decode behavior differs because 4x8 batch 128 adds row-sharded users plus throughput-experts dispatch/combine
+
+What to implement in tt-xla if the goal is “more like tt-metal”:
+1. Fix static shard specs to match the list above
+2. Make logical model axis correspond to TP over 8 columns, not all 32 devices
+3. For decode batch 128 on 4x8:
+   - shard users/batch across the 4 rows
+   - preserve TP over the 8 columns
+   - add MoE token redistribution semantics equivalent to dispatch/combine
+   - add the final TP-column reduction after expert outputs
+4. Do not assume that weight sharding alone reproduces tt-metal behavior
+5. If exact throughput-experts path is too large to implement immediately, first match:
+   - correct weight sharding
+   - row-sharded batch/users
+   - correct router/top-k semantics
+   - explicit expert redistribution across rows
+   - final TP reduction
+
+If there is a tradeoff between matching plain tensor shapes vs matching runtime behavior, prioritize runtime behavior for decode batch 128 on 4x8, because that is where tt-metal differs the most from a simple 1x8 TP-only implementation.

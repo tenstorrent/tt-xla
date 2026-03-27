@@ -91,7 +91,8 @@ def construct_inputs(
         input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
 
     Returns:
-        Dictionary containing input_ids, past_key_values, cache_position, and use_cache
+        Dictionary containing input_ids, past_key_values, cache_position,
+        and use_cache
     """
     if input_prompt_tokens is not None:
         if input_prompt_tokens.ndim != 1:
@@ -213,6 +214,7 @@ def benchmark_llm_torch_xla(
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
+    input_sharding_fn=None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -360,14 +362,22 @@ def benchmark_llm_torch_xla(
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        # Also shard KV cache tensors created in input_args
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+            xs.mark_sharding(
+                layer.keys, mesh, (None, "model", None, None)
+            )
+            xs.mark_sharding(
+                layer.values, mesh, (None, "model", None, None)
+            )
+
+        # Decode-only DP: keep prefill unsharded and apply input sharding
+        # inside decode loop (after step 0) via generate_and_benchmark().
 
         # Apply sharding constraint on lm_head output to all_gather logits
         if hasattr(model, "lm_head") and model.lm_head is not None:
-            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+            hook = sharding_constraint_hook(
+                model.lm_head, mesh, (None, None, None)
+            )
             model.lm_head.register_forward_hook(hook)
 
     # Set XLA compilation options
@@ -378,6 +388,9 @@ def benchmark_llm_torch_xla(
         batch_size=batch_size,
         input_sequence_length=input_sequence_length,
     )
+    if input_sharding_fn is not None:
+        # Avoid cache/artifact collisions between replicated and DP-marked runs.
+        export_model_name = f"{export_model_name}_dp_input_shard"
     options = {
         "optimization_level": optimization_level,
         "enable_trace": trace_enabled,
@@ -401,7 +414,7 @@ def benchmark_llm_torch_xla(
             f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
         )
     # PERFORMANCE BENCHMARK
-    # No logits returned to avoid OOM.
+    # No logits returned to avoid OOM. DP uses mark_sharding on activations inside decode.
     perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
@@ -416,6 +429,8 @@ def benchmark_llm_torch_xla(
         warmup_tokens,
         verbose=False,
         collect_logits=False,
+        mesh=mesh,
+        input_sharding_fn=input_sharding_fn,
     )
 
     tracy.signpost("warmup_complete")
@@ -426,11 +441,18 @@ def benchmark_llm_torch_xla(
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=input_args["past_key_values"],
+        past_key_values=(None if input_sharding_fn is not None else input_args["past_key_values"]),
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
     input_args = transfer_to_device(input_args, device)
+
+    # If a fresh cache is rebuilt for DP, re-apply KV sharding on the new cache.
+    if is_multichip:
+        kv_batch_axis = None
+        for layer in input_args["past_key_values"].layers:
+            xs.mark_sharding(layer.keys, mesh, (kv_batch_axis, "model", None, None))
+            xs.mark_sharding(layer.values, mesh, (kv_batch_axis, "model", None, None))
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
@@ -446,6 +468,8 @@ def benchmark_llm_torch_xla(
         tokenizer=tokenizer,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
+        mesh=mesh,
+        input_sharding_fn=input_sharding_fn,
     )
 
     # ACCURACY BENCHMARK
@@ -480,6 +504,8 @@ def benchmark_llm_torch_xla(
         verbose=False,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=True,
+        mesh=mesh,
+        input_sharding_fn=input_sharding_fn,
     )
 
     # Post-processing: derive predicted tokens for accuracy testing
