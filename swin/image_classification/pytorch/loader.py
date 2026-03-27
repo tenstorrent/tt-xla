@@ -44,9 +44,7 @@ class ModelVariant(StrEnum):
     SWINV2_TINY_HF = "v2_Tiny_Patch4_Window8_256"
 
     # TIMM variants
-    SWINV2_BASE_WINDOW12TO16_192TO256_TIMM = (
-        "v2_Base_Window12to16_192to256_MS_IN22K_FT_IN1K_TIMM"
-    )
+    SWINV2_SMALL_WINDOW16_256_TIMM = "v2_Small_Window16_256_TIMM"
 
     # Torchvision variants
     SWIN_T = "T"
@@ -76,8 +74,8 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
         ),
         # TIMM variants
-        ModelVariant.SWINV2_BASE_WINDOW12TO16_192TO256_TIMM: SwinConfig(
-            pretrained_model_name="swinv2_base_window12to16_192to256.ms_in22k_ft_in1k",
+        ModelVariant.SWINV2_SMALL_WINDOW16_256_TIMM: SwinConfig(
+            pretrained_model_name="hf_hub:timm/swinv2_small_window16_256.ms_in1k",
             source=ModelSource.TIMM,
         ),
         # Torchvision variants
@@ -129,10 +127,7 @@ class ModelLoader(ForgeModel):
 
         if variant == ModelVariant.SWIN_S:
             group = ModelGroup.RED
-        elif variant in [
-            ModelVariant.SWIN_BASE_HF,
-            ModelVariant.SWINV2_BASE_WINDOW12TO16_192TO256_TIMM,
-        ]:
+        elif variant == ModelVariant.SWINV2_SMALL_WINDOW16_256_TIMM:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
@@ -173,9 +168,6 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.TIMM:
-            # Load model from TIMM
-            import timm
-
             model = timm.create_model(model_name, pretrained=True)
 
         elif source == ModelSource.HUGGING_FACE:
