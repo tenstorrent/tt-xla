@@ -52,9 +52,7 @@ class ModelVariant(StrEnum):
     VIT_BASE_PATCH14_DINOV2_LVD142M = "Base_Patch14_DINOv2_LVD142M"
     VIT_BASE_PATCH16_224_AUGREG_IN1K = "Base_Patch16_224_AugReg_IN1K"
     VIT_BASE_PATCH16_224_AUGREG_IN21K = "Base_Patch16_224_AugReg_IN21K"
-    VIT_BASE_PATCH32_CLIP_224_LAION400M_E31 = "Base_Patch32_CLIP_224_LAION400M_E31"
-    VIT_LARGE_PATCH14_CLIP_224_OPENAI = "Large_Patch14_CLIP_224_OpenAI"
-    VIT_SMALL_PATCH8_224_DINO = "Small_Patch8_224_DINO"
+    VIT_SMALL_PATCH32_224_AUGREG_IN21K = "Small_Patch32_224_AugReg_IN21K"
 
 
 class ModelLoader(ForgeModel):
@@ -109,16 +107,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="vit_base_patch16_224.augreg_in21k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.VIT_BASE_PATCH32_CLIP_224_LAION400M_E31: ViTConfig(
-            pretrained_model_name="vit_base_patch32_clip_224.laion400m_e31",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.VIT_LARGE_PATCH14_CLIP_224_OPENAI: ViTConfig(
-            pretrained_model_name="vit_large_patch14_clip_224.openai",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.VIT_SMALL_PATCH8_224_DINO: ViTConfig(
-            pretrained_model_name="vit_small_patch8_224.dino",
+        ModelVariant.VIT_SMALL_PATCH32_224_AUGREG_IN21K: ViTConfig(
+            pretrained_model_name="vit_small_patch32_224.augreg_in21k",
             source=ModelSource.TIMM,
         ),
     }
