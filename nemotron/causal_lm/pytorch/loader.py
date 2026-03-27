@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
     NEMOTRON_3_SUPER_120B_A12B_MLX_9BIT = "3_Super_120B_A12B_MLX_9bit"
     NEMOTRON_3_SUPER_120B_A12B_NVFP4 = "3_Super_120B_A12B_NVFP4"
-    NEMOTRON_4_340B_INSTRUCT = "4_340B_Instruct"
+    UNSLOTH_NEMOTRON_3_SUPER_120B_A12B_NVFP4 = "unsloth_3_Super_120B_A12B_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -51,8 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.NEMOTRON_4_340B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="nvidia/Nemotron-4-340B-Instruct",
+        ModelVariant.UNSLOTH_NEMOTRON_3_SUPER_120B_A12B_NVFP4: LLMModelConfig(
+            pretrained_model_name="unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
             max_length=128,
         ),
     }
@@ -99,7 +99,10 @@ class ModelLoader(ForgeModel):
 
     # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
     # because the packed FP4 weight shapes differ from the model definition.
-    _NVFP4_VARIANTS = {ModelVariant.NEMOTRON_3_SUPER_120B_A12B_NVFP4}
+    _NVFP4_VARIANTS = {
+        ModelVariant.NEMOTRON_3_SUPER_120B_A12B_NVFP4,
+        ModelVariant.UNSLOTH_NEMOTRON_3_SUPER_120B_A12B_NVFP4,
+    }
 
     # Base (non-instruct) variants that lack a chat template.
     _BASE_VARIANTS = {ModelVariant.NEMOTRON_CC_NORWEGIAN_TOWER_9B}
