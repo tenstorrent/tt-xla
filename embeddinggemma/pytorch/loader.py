@@ -32,7 +32,7 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.EMBEDDINGGEMMA_300M: LLMModelConfig(
             pretrained_model_name="unsloth/embeddinggemma-300m",
-            max_length=2048,
+            max_length=256,
         ),
     }
 
@@ -89,7 +89,7 @@ class ModelLoader(ForgeModel):
         if sentence is None:
             sentence = "This is an example sentence for semantic similarity."
 
-        max_length = getattr(self._variant_config, "max_length", 2048)
+        max_length = getattr(self._variant_config, "max_length", 256)
 
         inputs = self.tokenizer(
             sentence,
