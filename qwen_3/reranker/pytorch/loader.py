@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 Reranker model variants for passage ranking."""
 
+    QWEN_3_RERANKER_0_6B = "0_6B"
     QWEN_3_RERANKER_4B = "4B"
 
 
@@ -30,12 +31,15 @@ class ModelLoader(ForgeModel):
     """Qwen 3 Reranker model loader implementation for passage ranking."""
 
     _VARIANTS = {
+        ModelVariant.QWEN_3_RERANKER_0_6B: ModelConfig(
+            pretrained_model_name="Qwen/Qwen3-Reranker-0.6B",
+        ),
         ModelVariant.QWEN_3_RERANKER_4B: ModelConfig(
             pretrained_model_name="Qwen/Qwen3-Reranker-4B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_RERANKER_4B
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_RERANKER_0_6B
 
     # System prompt for the reranker
     _SYSTEM_PROMPT = (
@@ -132,7 +136,6 @@ class ModelLoader(ForgeModel):
             inputs,
             padding=True,
             return_tensors="pt",
-            max_length=max_length,
         )
 
         if dtype_override is not None:
