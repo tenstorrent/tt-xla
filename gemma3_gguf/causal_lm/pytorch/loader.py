@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     GEMMA_3_1B_IT_GGUF = "1B_IT_GGUF"
     GEMMA_3_4B_IT_GGUF = "4B_IT_GGUF"
+    UNSLOTH_GEMMA_3_4B_IT_GGUF = "UNSLOTH_4B_IT_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GEMMA_3_4B_IT_GGUF: LLMModelConfig(
             pretrained_model_name="lmstudio-community/gemma-3-4b-it-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.UNSLOTH_GEMMA_3_4B_IT_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/gemma-3-4b-it-GGUF",
             max_length=128,
         ),
     }
