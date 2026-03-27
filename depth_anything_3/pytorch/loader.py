@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Depth Anything 3 (DA3) metric depth estimation model loader.
+Depth Anything 3 model loader implementation for monocular depth estimation.
 """
 
 import torch
 import torch.nn as nn
-import torchvision.transforms.functional as TF
 import numpy as np
 from typing import Optional
 from datasets import load_dataset
@@ -23,23 +22,18 @@ from ...config import (
 )
 from ...base import ForgeModel
 
-IMAGENET_DATASET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_DATASET_STD = [0.229, 0.224, 0.225]
 
-
-class DA3Wrapper(nn.Module):
+class DepthAnything3Wrapper(nn.Module):
     """Wrapper around DepthAnything3 that takes a preprocessed image tensor
-    and returns metric depth prediction."""
+    and returns depth prediction."""
 
     def __init__(self, model):
         super().__init__()
         self.model = model
 
     def forward(self, pixel_values):
-        # Model expects (B, N, 3, H, W) where N is number of views
-        x = pixel_values.unsqueeze(1)
-        outputs = self.model(x)
-        return outputs["depth"]
+        predictions = self.model.inference(pixel_values)
+        return predictions.depth
 
 
 class ModelVariant(StrEnum):
@@ -49,11 +43,11 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """Depth Anything 3 metric depth estimation model loader."""
+    """Depth Anything 3 model loader implementation."""
 
     _VARIANTS = {
         ModelVariant.LARGE: ModelConfig(
-            pretrained_model_name="depth-anything/da3metric-large",
+            pretrained_model_name="depth-anything/da3-large",
         ),
     }
 
@@ -82,9 +76,8 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model = DepthAnything3.from_pretrained(pretrained_model_name)
-        model.eval()
 
-        wrapper = DA3Wrapper(model)
+        wrapper = DepthAnything3Wrapper(model)
         wrapper.eval()
 
         if dtype_override is not None:
@@ -97,17 +90,6 @@ class ModelLoader(ForgeModel):
         image = dataset[0]["image"].convert("RGB")
 
         rgb = torch.from_numpy(np.array(image)).permute(2, 0, 1).float() / 255.0
-
-        # Resize to 518x518 (ViT-L patch size 14, 518/14 = 37 patches)
-        rgb = TF.resize(rgb, [518, 518])
-
-        # Apply ImageNet normalization
-        rgb = TF.normalize(
-            rgb,
-            mean=IMAGENET_DATASET_MEAN,
-            std=IMAGENET_DATASET_STD,
-        )
-
         rgb = rgb.unsqueeze(0)
 
         if batch_size > 1:
