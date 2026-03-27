@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     COLBERT_IR_COLBERTV2_0 = "colbert-ir/colbertv2.0"
     ANSWERAI_COLBERT_SMALL_V1 = "answerdotai/answerai-colbert-small-v1"
+    LIGHTONAI_GTE_MODERNCOLBERT_V1 = "lightonai/GTE-ModernColBERT-v1"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.ANSWERAI_COLBERT_SMALL_V1: LLMModelConfig(
             pretrained_model_name="answerdotai/answerai-colbert-small-v1",
+            max_length=32,
+        ),
+        ModelVariant.LIGHTONAI_GTE_MODERNCOLBERT_V1: LLMModelConfig(
+            pretrained_model_name="lightonai/GTE-ModernColBERT-v1",
             max_length=32,
         ),
     }
