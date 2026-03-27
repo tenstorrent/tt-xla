@@ -34,14 +34,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
-    QWEN_3_5_35B_A3B_REASONING_DISTILLED = "35B_A3B_Reasoning_Distilled"
-    QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF = "35B_A3B_Reasoning_Distilled_GGUF"
-    QWEN_3_5_35B_A3B_BASE_I1_GGUF = "35B_A3B_Base_i1_GGUF"
-    QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
-    QWEN_3_5_27B_REASONING_DISTILLED_NVFP4 = "27B_Reasoning_Distilled_NVFP4"
-    QWEN_3_5_122B_A10B_HERETIC_INT4 = "122B_A10B_heretic_int4"
-    QWEN_3_5_35B_A3B_MLX_5_5BIT = "35B_A3B_MLX_5.5bit"
+    QWEN_3_5_122B_A10B_INT4_AUTOROUND = "122B_A10B_INT4_AutoRound"
 
 
 class ModelLoader(ForgeModel):
@@ -89,36 +82,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
-            pretrained_model_name="janhq/Qwen3.5-35B-A3B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED: LLMModelConfig(
-            pretrained_model_name="Jackrong/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_BASE_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Base-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_REASONING_DISTILLED_NVFP4: LLMModelConfig(
-            pretrained_model_name="mconcat/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_122B_A10B_GGUF: LLMModelConfig(
-            pretrained_model_name="AesSedai/Qwen3.5-122B-A10B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_122B_A10B_HERETIC_INT4: LLMModelConfig(
-            pretrained_model_name="happypatrick/Qwen3.5-122B-A10B-heretic-int4-AutoRound",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_MLX_5_5BIT: LLMModelConfig(
-            pretrained_model_name="inferencerlabs/Qwen3.5-35B-A3B-MLX-5.5bit",
+        ModelVariant.QWEN_3_5_122B_A10B_INT4_AUTOROUND: LLMModelConfig(
+            pretrained_model_name="Intel/Qwen3.5-122B-A10B-int4-AutoRound",
             max_length=128,
         ),
     }
@@ -238,6 +203,10 @@ class ModelLoader(ForgeModel):
         ):
             model_kwargs["device_map"] = "cpu"
 
+        # AutoRound int4 variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_3_5_122B_A10B_INT4_AUTOROUND:
+            model_kwargs["device_map"] = "cpu"
+
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if hasattr(config, "text_config"):
@@ -340,9 +309,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF,
             ModelVariant.QWEN_3_5_35B_A3B_BASE_I1_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
-            ModelVariant.QWEN_3_5_122B_A10B_GGUF,
-            ModelVariant.QWEN_3_5_122B_A10B_HERETIC_INT4,
-            ModelVariant.QWEN_3_5_35B_A3B_MLX_5_5BIT,
+            ModelVariant.QWEN_3_5_122B_A10B_INT4_AUTOROUND,
         )
 
     def load_shard_spec(self, model):
