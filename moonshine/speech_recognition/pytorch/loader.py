@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -6,6 +6,8 @@
 Moonshine model loader implementation for speech recognition (ASR) using PyTorch.
 """
 
+import numpy as np
+import torch
 from typing import Optional
 
 from ....base import ForgeModel
@@ -23,6 +25,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Moonshine PyTorch speech recognition model variants."""
 
+    BASE = "Base"
     TINY = "Tiny"
 
 
@@ -30,12 +33,15 @@ class ModelLoader(ForgeModel):
     """Moonshine model loader implementation for speech recognition (PyTorch)."""
 
     _VARIANTS = {
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="UsefulSensors/moonshine-base",
+        ),
         ModelVariant.TINY: ModelConfig(
             pretrained_model_name="UsefulSensors/moonshine-tiny",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -55,17 +61,12 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
+    def _load_processor(self):
         from transformers import AutoProcessor
 
-        processor_kwargs = {}
-        if dtype_override is not None:
-            processor_kwargs["dtype"] = dtype_override
-
         self._processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name, **processor_kwargs
+            self._variant_config.pretrained_model_name,
         )
-
         return self._processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
@@ -86,13 +87,11 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        import numpy as np
-
         if self._processor is None:
-            self._load_processor(dtype_override=dtype_override)
+            self._load_processor()
 
         # Generate a synthetic 1-second audio waveform at 16kHz
-        sampling_rate = 16000
+        sampling_rate = self._processor.feature_extractor.sampling_rate
         duration_seconds = 1
         audio_array = np.random.randn(sampling_rate * duration_seconds).astype(
             np.float32
@@ -103,5 +102,11 @@ class ModelLoader(ForgeModel):
             sampling_rate=sampling_rate,
             return_tensors="pt",
         )
+
+        if dtype_override is not None:
+            inputs = {
+                k: v.to(dtype_override) if torch.is_floating_point(v) else v
+                for k, v in inputs.items()
+            }
 
         return inputs
