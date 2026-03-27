@@ -62,14 +62,24 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    @staticmethod
+    def _linearize_table(table: pd.DataFrame) -> str:
+        """Linearize a pandas DataFrame into TAPEX table format."""
+        header = " | ".join(table.columns)
+        rows = []
+        for i, row in table.iterrows():
+            row_str = " | ".join(str(v) for v in row.values)
+            rows.append(f"row {i + 1} : {row_str}")
+        return "col : " + header + " " + " ".join(rows)
+
     def _load_tokenizer(self, dtype_override=None):
-        from transformers import TapexTokenizer
+        from transformers import BartTokenizer
 
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        self._tokenizer = TapexTokenizer.from_pretrained(
+        self._tokenizer = BartTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
@@ -98,10 +108,13 @@ class ModelLoader(ForgeModel):
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
+        input_text = self.sample_query + " " + self._linearize_table(self.sample_table)
+
         inputs = self._tokenizer(
-            table=self.sample_table,
-            query=self.sample_query,
+            input_text,
             return_tensors="pt",
+            max_length=512,
+            truncation=True,
         )
 
         return inputs
