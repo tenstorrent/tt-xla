@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MOSS-TTS model loader implementation for text-to-speech tasks.
+MOSS-TTS Local Transformer model loader implementation for text-to-speech tasks
 """
 import torch
-import torch.nn as nn
+from transformers import AutoModel, AutoProcessor
 from typing import Optional
 
 from ...base import ForgeModel
@@ -20,43 +20,28 @@ from ...config import (
 )
 
 
-class MossTTSWrapper(nn.Module):
-    """Wrapper around the MOSS-TTS backbone.
-
-    Exposes a clean forward pass that takes pre-computed input embeddings
-    and produces logits for speech token prediction.
-    """
-
-    def __init__(self, model):
-        super().__init__()
-        self.model = model.model
-        self.lm_head = model.lm_head
-
-    def forward(self, inputs_embeds):
-        outputs = self.model(inputs_embeds=inputs_embeds, use_cache=False)
-        logits = self.lm_head(outputs.last_hidden_state)
-        return logits
-
-
 class ModelVariant(StrEnum):
     """Available MOSS-TTS model variants."""
 
-    MOSS_TTS_DELAY_8B = "Delay-8B"
+    LOCAL_TRANSFORMER = "LocalTransformer"
 
 
 class ModelLoader(ForgeModel):
-    """MOSS-TTS model loader implementation for text-to-speech tasks."""
+    """MOSS-TTS Local Transformer model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.MOSS_TTS_DELAY_8B: ModelConfig(
-            pretrained_model_name="OpenMOSS-Team/MOSS-TTS",
+        ModelVariant.LOCAL_TRANSFORMER: ModelConfig(
+            pretrained_model_name="OpenMOSS-Team/MOSS-TTS-Local-Transformer",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MOSS_TTS_DELAY_8B
+    DEFAULT_VARIANT = ModelVariant.LOCAL_TRANSFORMER
+
+    sample_text = "Hello, my dog is cute."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -69,21 +54,41 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def load_model(self, *, dtype_override=None, **kwargs):
-        from transformers import AutoModel
+    def _load_processor(self, dtype_override=None):
+        processor_kwargs = {}
+        if dtype_override is not None:
+            processor_kwargs["torch_dtype"] = dtype_override
 
-        full_model = AutoModel.from_pretrained(
+        self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
-            torch_dtype=dtype_override or torch.float32,
-            **kwargs,
+            **processor_kwargs,
         )
-        model = MossTTSWrapper(full_model)
+
+        return self.processor
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        if self.processor is None:
+            self._load_processor(dtype_override=dtype_override)
+
+        model_kwargs = {"trust_remote_code": True}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
+        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
+        self.model = model
+
         return model
 
     def load_inputs(self, dtype_override=None):
-        dtype = dtype_override or torch.float32
-        # Use a short sequence of embeddings matching the model's hidden size
-        inputs_embeds = torch.randn(1, 32, 4096, dtype=dtype)
-        return (inputs_embeds,)
+        if self.processor is None:
+            self._load_processor(dtype_override=dtype_override)
+
+        messages = self.processor.build_user_message(text=self.sample_text)
+        inputs = self.processor(messages, return_tensors="pt")
+
+        return inputs
