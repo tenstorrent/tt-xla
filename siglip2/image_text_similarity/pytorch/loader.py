@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
 
     BASE_PATCH16_384 = "Base_Patch16_384"
     SO400M_PATCH14_384 = "So400m_Patch14_384"
-    SO400M_PATCH16_256 = "So400m_Patch16_256"
+    SO400M_PATCH16_384 = "So400m_Patch16_384"
 
 
 class ModelLoader(ForgeModel):
@@ -39,8 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.SO400M_PATCH14_384: ModelConfig(
             pretrained_model_name="google/siglip2-so400m-patch14-384",
         ),
-        ModelVariant.SO400M_PATCH16_256: ModelConfig(
-            pretrained_model_name="google/siglip2-so400m-patch16-256",
+        ModelVariant.SO400M_PATCH16_384: ModelConfig(
+            pretrained_model_name="google/siglip2-so400m-patch16-384",
         ),
     }
 
