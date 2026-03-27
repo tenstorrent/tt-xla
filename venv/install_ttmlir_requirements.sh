@@ -28,3 +28,20 @@ $PIP install -r $LLVM_REQUIREMENTS_PATH
 
 # Install tt-mlir requirements
 $PIP install -r ${TT_MLIR_ENV_DIR}/build-requirements.txt
+
+# Sync nanobind with tt-metal's pinned version to avoid header/ODR mismatches.
+# tt-metal pins its nanobind version via CPM; we read that version from the
+# CPM source cache (populated once tt-metal has been downloaded) and force-
+# reinstall the matching PyPI package so that the compiler sees consistent headers.
+TT_METAL_CPM_CACHE="${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/.cpmcache"
+NANOBIND_HEADER=$(find "${TT_METAL_CPM_CACHE}/nanobind" -maxdepth 3 -name "nanobind.h" -path "*/include/nanobind/nanobind.h" 2>/dev/null | head -1)
+if [ -n "${NANOBIND_HEADER}" ]; then
+    NB_MAJOR=$(grep "#define NB_VERSION_MAJOR" "${NANOBIND_HEADER}" | awk '{print $3}')
+    NB_MINOR=$(grep "#define NB_VERSION_MINOR" "${NANOBIND_HEADER}" | awk '{print $3}')
+    NB_PATCH=$(grep "#define NB_VERSION_PATCH" "${NANOBIND_HEADER}" | awk '{print $3}')
+    NB_VERSION="${NB_MAJOR}.${NB_MINOR}.${NB_PATCH}"
+    echo "Syncing nanobind to tt-metal's pinned version: ${NB_VERSION}"
+    $PIP install --force-reinstall "nanobind==${NB_VERSION}"
+else
+    echo "tt-metal CPM cache not yet populated; skipping nanobind version sync"
+fi
