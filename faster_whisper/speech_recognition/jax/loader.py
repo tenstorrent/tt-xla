@@ -5,9 +5,9 @@
 """
 Faster Whisper model loader implementation for speech recognition (ASR).
 
-Note: The rhasspy/faster-whisper-tiny-int8 model is a CTranslate2-quantized
-version of OpenAI's Whisper Tiny. Since CTranslate2 format is not compatible
-with JAX/Flax, this loader uses the base openai/whisper-tiny model via
+Note: Faster Whisper models are CTranslate2-quantized versions of OpenAI's
+Whisper models. Since CTranslate2 format is not compatible with JAX/Flax,
+this loader uses the base OpenAI Whisper models via
 FlaxWhisperForConditionalGeneration.
 """
 
