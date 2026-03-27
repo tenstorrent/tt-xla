@@ -56,7 +56,8 @@ class ModelLoader(ForgeModel):
 
     def _load_processor(self):
         self.processor = ViTImageProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name
+            self._variant_config.pretrained_model_name,
+            do_center_crop=True,
         )
         return self.processor
 
