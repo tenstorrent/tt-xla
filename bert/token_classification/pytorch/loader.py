@@ -34,6 +34,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ORGANISMDETECT_PUBMED_109M = (
         "OpenMed/OpenMed-NER-OrganismDetect-PubMed-109M"
     )
+    OPENMED_NER_ONCOLOGYDETECT_BIOPATIENT_108M = (
+        "OpenMed/OpenMed-NER-OncologyDetect-BioPatient-108M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -57,6 +60,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-PubMed-109M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_ONCOLOGYDETECT_BIOPATIENT_108M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-BioPatient-108M",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -78,6 +85,8 @@ class ModelLoader(ForgeModel):
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
         elif self._variant == ModelVariant.OPENMED_NER_ORGANISMDETECT_PUBMED_109M:
             self.sample_text = "Escherichia coli and Drosophila melanogaster are commonly studied model organisms in biology."
+        elif self._variant == ModelVariant.OPENMED_NER_ONCOLOGYDETECT_BIOPATIENT_108M:
+            self.sample_text = "Mutations in KRAS gene drive oncogenic transformation."
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = 128
@@ -101,6 +110,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.OPENMED_NER_ORGANISMDETECT_PUBMED_109M,
+            ModelVariant.OPENMED_NER_ONCOLOGYDETECT_BIOPATIENT_108M,
         ):
             group = ModelGroup.VULCAN
 
