@@ -209,15 +209,15 @@ def generate_and_benchmark(
     output_logits: list[torch.Tensor] = []
     iteration_times: list[int] = []
 
-    # Pre-place teacher forcing tokens on device to avoid per-step transfers.
-    gt_device = None
+    # Prepare teacher forcing tokens on CPU; transfer per-step to avoid
+    # device-side indexing that can segfault on the TT backend.
+    gt_cpu = None
     if ground_truth_tokens is not None:
-        gt_device = (
+        gt_cpu = (
             ground_truth_tokens[:max_tokens_to_generate]
             .view(-1, 1, 1)
             .expand(-1, batch_size, 1)
             .contiguous()
-            .to(device)
         )
 
     with torch.no_grad():
@@ -232,7 +232,7 @@ def generate_and_benchmark(
                 next_token_ids, next_cache_position = model(**input_args)
 
             if ground_truth_tokens is not None:
-                input_args["input_ids"] = gt_device[step]
+                input_args["input_ids"] = gt_cpu[step].to(device)
             else:
                 input_args["input_ids"] = next_token_ids
 
