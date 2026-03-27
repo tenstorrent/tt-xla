@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     DISTILBERT_BASE_MULTILINGUAL_CASED_SENTIMENTS_STUDENT = (
         "lxyuan/distilbert-base-multilingual-cased-sentiments-student"
     )
+    TINY_RANDOM_DISTILBERT = "optimum-intel-internal-testing/tiny-random-distilbert"
 
 
 class ModelLoader(ForgeModel):
@@ -40,6 +41,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DISTILBERT_BASE_MULTILINGUAL_CASED_SENTIMENTS_STUDENT: LLMModelConfig(
             pretrained_model_name="lxyuan/distilbert-base-multilingual-cased-sentiments-student",
+            max_length=128,
+        ),
+        ModelVariant.TINY_RANDOM_DISTILBERT: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-distilbert",
             max_length=128,
         ),
     }
@@ -77,9 +82,9 @@ class ModelLoader(ForgeModel):
             variant_name = "base"
 
         group = ModelGroup.GENERALITY
-        if (
-            variant_name
-            == ModelVariant.DISTILBERT_BASE_MULTILINGUAL_CASED_SENTIMENTS_STUDENT
+        if variant_name in (
+            ModelVariant.DISTILBERT_BASE_MULTILINGUAL_CASED_SENTIMENTS_STUDENT,
+            ModelVariant.TINY_RANDOM_DISTILBERT,
         ):
             group = ModelGroup.VULCAN
 
