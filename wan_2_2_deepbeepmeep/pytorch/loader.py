@@ -14,7 +14,7 @@ architecture with separate high-noise and low-noise expert checkpoints:
 - Low-noise expert: handles later denoising steps (detail refinement)
 
 Available variants:
-- WAN22_T2V_14B_BF16: Text-to-Video 14B, bf16 precision
+- WAN22_T2V_14B_HIGH_BF16: Text-to-Video 14B high-noise expert, bf16 precision
 - WAN22_T2V_5B_BF16: Text-to-Video 5B, bf16 precision
 """
 
@@ -35,23 +35,23 @@ from ...config import (
 
 SINGLE_FILE_REPO = "DeepBeepMeep/Wan2.2"
 BASE_PIPELINE_14B = "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
-BASE_PIPELINE_5B = "Wan-AI/Wan2.2-T2V-5B-Diffusers"
+BASE_PIPELINE_5B = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
 
 
 class ModelVariant(StrEnum):
     """Available DeepBeepMeep/Wan2.2 variants."""
 
-    WAN22_T2V_14B_BF16 = "2.2_T2V_14B_bf16"
+    WAN22_T2V_14B_HIGH_BF16 = "2.2_T2V_14B_HighNoise_bf16"
     WAN22_T2V_5B_BF16 = "2.2_T2V_5B_bf16"
 
 
 _SINGLE_FILES = {
-    ModelVariant.WAN22_T2V_14B_BF16: {
-        "file": "Wan2.2_T2V_14B_bf16.safetensors",
+    ModelVariant.WAN22_T2V_14B_HIGH_BF16: {
+        "file": "wan2.2_text2video_14B_high_mbf16.safetensors",
         "base_pipeline": BASE_PIPELINE_14B,
     },
     ModelVariant.WAN22_T2V_5B_BF16: {
-        "file": "Wan2.2_T2V_5B_bf16.safetensors",
+        "file": "wan2.2_text2video_5B_mbf16.safetensors",
         "base_pipeline": BASE_PIPELINE_5B,
     },
 }
@@ -61,7 +61,7 @@ class ModelLoader(ForgeModel):
     """DeepBeepMeep/Wan2.2 single-file safetensors model loader."""
 
     _VARIANTS = {
-        ModelVariant.WAN22_T2V_14B_BF16: ModelConfig(
+        ModelVariant.WAN22_T2V_14B_HIGH_BF16: ModelConfig(
             pretrained_model_name=SINGLE_FILE_REPO,
         ),
         ModelVariant.WAN22_T2V_5B_BF16: ModelConfig(
