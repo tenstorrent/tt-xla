@@ -85,13 +85,13 @@ class ModelLoader(ForgeModel):
         )
 
     # NLI sample inputs for NLI variants
-    _MNLI_PREMISE = (
+    _NLI_PREMISE = (
         "Calcutta seems to be the only other production center having any "
         "pretensions to artistic creativity at all, but ironically you're "
         "actually more likely to see the works of Satyajit Ray or Mrinal Sen "
         "shown in Europe or North America than in India itself."
     )
-    _MNLI_HYPOTHESIS = "Most of Mrinal Sen's work can be found in European collections."
+    _NLI_HYPOTHESIS = "Most of Mrinal Sen's work can be found in European collections."
 
     def __init__(self, variant=None, num_layers: Optional[int] = None):
         """Initialize ModelLoader with specified variant.
@@ -159,8 +159,8 @@ class ModelLoader(ForgeModel):
         if self._is_nli_variant():
             # NLI uses premise/hypothesis pairs
             inputs = self.tokenizer(
-                self._MNLI_PREMISE,
-                self._MNLI_HYPOTHESIS,
+                self._NLI_PREMISE,
+                self._NLI_HYPOTHESIS,
                 max_length=self.max_length,
                 padding="max_length",
                 truncation=True,
