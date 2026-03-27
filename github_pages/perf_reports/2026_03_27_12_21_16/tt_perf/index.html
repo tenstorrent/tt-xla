@@ -494,12 +494,12 @@
   <div class="container">
     <p style="margin:0 0 10px;font-size:13px"><a href="../../compare_reports.html" style="color:#f5b9d0">Side-by-side comparator</a> · <a href="../../index.html" style="color:#f5b9d0">Perf hub</a></p>
     <h1>GPT-OSS 20B Device Perf</h1>
-    <p class="lead">Dual-axis weight sharding · Galaxy, batch 64</p>
+    <p class="lead">Model-axis TP + DP <code>input_ids</code> · Galaxy, batch 64</p>
     <div class="mesh-axes" role="region" aria-label="Mesh sharding">
       <p class="mesh-axes-caption">Galaxy mesh <strong>4×8</strong> · <code>batch</code> axis <strong>4</strong> (rows) · <code>model</code> axis <strong>8</strong> (columns)</p>
       <dl>
         <dt><code>batch</code></dt>
-        <dd>Weights sharded</dd>
+        <dd>Replicated weights; sharded input tokens; replicated KV</dd>
         <dt><code>model</code></dt>
         <dd>Weights sharded</dd>
       </dl>
@@ -515,30 +515,30 @@
               <th scope="col">Operation</th>
               <th scope="col" class="num">attn</th>
               <th scope="col" class="num">MoE</th>
-              <th scope="col" class="num fusion-col-window">full (6L)</th>
+              <th scope="col" class="num fusion-col-window">full (4L)</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <th scope="row">LayerNorm</th>
               <td><code>LayerNormDeviceOperation</code></td>
-              <td class="num">0</td>
-              <td class="num">0</td>
-              <td class="num">0</td>
+              <td class="num">1</td>
+              <td class="num">1</td>
+              <td class="num">9</td>
             </tr>
             <tr>
               <th scope="row">SDPA decode</th>
               <td><code>SdpaDecodeDeviceOperation</code></td>
+              <td class="num">1</td>
               <td class="num">0</td>
-              <td class="num">0</td>
-              <td class="num">0</td>
+              <td class="num">4</td>
             </tr>
             <tr>
               <th scope="row">RoPE</th>
               <td><code>TernaryDeviceOperation</code></td>
               <td class="num">0</td>
               <td class="num">0</td>
-              <td class="num">0</td>
+              <td class="num">2</td>
             </tr>
           </tbody>
         </table>
@@ -546,45 +546,45 @@
     </div>
 
     <section class="summary">
-      <h2 class="summary-title">Dual-axis test — summary</h2>
-      <p class="summary-text">Merged device times from <code>tt-perf-report</code> for this publish; full-model estimate scales from the six-layer baseline.</p>
+      <h2 class="summary-title">Model-axis + DP input shard — summary</h2>
+      <p class="summary-text">Merged device times from <code>tt-perf-report</code>; full-model estimate scales from the four-layer baseline.</p>
       <div class="stats-grid">
         <div class="stat-card">
           <span class="stat-label">Test configuration</span>
-          <span class="stat-value">Dual-axis shard</span>
-          <span class="stat-detail">Six layers in trace</span>
+          <span class="stat-value">Model-axis + DP input</span>
+          <span class="stat-detail">Four layers in trace</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Even Full Layer Device Perf</span>
-          <span class="stat-value">10.228 ms</span>
-          <span class="stat-detail">representative even layer</span>
+          <span class="stat-value">3.731 ms</span>
+          <span class="stat-detail">representative even layer (2nd even)</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Odd Full Layer Device Perf</span>
-          <span class="stat-value">10.244 ms</span>
-          <span class="stat-detail">representative odd layer</span>
+          <span class="stat-value">3.741 ms</span>
+          <span class="stat-detail">representative odd layer (2nd odd, LM head trimmed)</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Estimated Total Device Perf</span>
-          <span class="stat-value">263.659 ms</span>
-          <span class="stat-detail">6-layer baseline extrapolated to the full model</span>
+          <span class="stat-value">110.895 ms</span>
+          <span class="stat-detail">4-layer baseline extrapolated to the full model</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Device-Perf Tokens/s/User</span>
-          <span class="stat-value">3.79</span>
+          <span class="stat-value">9.02</span>
           <span class="stat-detail">derived from estimated total device time</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">End-to-End Tokens/s/User</span>
-          <span class="stat-value">2.015</span>
-          <span class="stat-detail">measured end-to-end from CI benchmark #879</span>
+          <span class="stat-value">—</span>
+          <span class="stat-detail">full model hangs</span>
         </div>
       </div>
     </section>
 
     <section class="section">
       <div class="section-header">
-        <h2 class="section-title">Dual-Axis Weight-Sharded Reports</h2>
+        <h2 class="section-title">Model-Axis + DP Input-Shard Reports</h2>
       </div>
 
       <div class="full-stack">

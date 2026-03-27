@@ -232,6 +232,13 @@ Always state whether the estimate used:
 - the traced decode device time plus per-layer extrapolation
 - separate even and odd layer measurements
 
+## Publishing to the perf hub (optional)
+
+After HTML reports exist, to add them next to a **previous** publish for side-by-side comparison:
+
+- Follow `.cursor/skills/perf-hub-compare/SKILL.md` for folder layout under `github_pages/perf_reports/`, run `index.html` (mesh, **fusion table** with **full (NL)** column, summary cards), root hub list, and `compare_reports.html` segment wiring.
+- Baseline run can stay unchanged; only the new timestamp folder + comparator pointers need updates unless you are fixing parity.
+
 ## Artifact Layout
 
 Store outputs together, for example:
@@ -339,6 +346,7 @@ If the run fails with a device fatal, follow the `Failure Recovery` section and 
 ## References
 
 - `.cursor/skills/tt-perf-report/SKILL.md`
+- `.cursor/skills/perf-hub-compare/SKILL.md`
 - `.cursor/skills/ccl-ttnn-device-perf/SKILL.md`
 - `tests/benchmark/LAYER_PROFILING_PLAN.md`
 - `tests/benchmark/PROFILING.md`
