@@ -31,6 +31,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_SPECIESDETECT_SUPERMEDICAL_355M = (
         "OpenMed/OpenMed-NER-SpeciesDetect-SuperMedical-355M"
     )
+    OPENMED_NER_DISEASEDETECT_BIGMED_560M = (
+        "OpenMed/OpenMed-NER-DiseaseDetect-BigMed-560M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -48,6 +51,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERMEDICAL_355M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-SuperMedical-355M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_DISEASEDETECT_BIGMED_560M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DiseaseDetect-BigMed-560M",
             max_length=128,
         ),
     }
