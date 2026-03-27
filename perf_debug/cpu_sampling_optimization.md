@@ -4,6 +4,15 @@ Tracking issue: https://github.com/tenstorrent/tt-xla/issues/3940
 
 All numbers measured at Llama 3.1 8B vocab size (128,256) on single-device Wormhole.
 
+## Branch Context
+
+The CPU sampling path being optimized here lives on `kmabee/vllm_demo` (not merged to main). It was put together quickly when device sampling was found to be slow for non-greedy:
+
+- `0edf092de` (2026-03-21): Fix cpu_sampling path never being reached in sample_tokens
+- `0c7ffadac` (2026-03-22): Extend CPU sampling to support temperature, penalties, and top-k/top-p
+
+These commits added the `sample_from_logits_cpu` method that this document analyzes. The proposed fixes build on that implementation.
+
 ## Current State
 
 Non-greedy sampling has three paths today:
