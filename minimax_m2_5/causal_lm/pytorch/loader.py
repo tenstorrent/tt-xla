@@ -4,9 +4,20 @@
 """
 MiniMax-M2.5 model loader implementation for causal language modeling.
 """
+import sys
+import typing
+
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
+
+# The MiniMax-M2.5 remote code uses typing.Unpack which requires Python 3.11+.
+# Backfill from typing_extensions so the dynamic module loads on Python 3.10.
+if not hasattr(typing, "Unpack"):
+    from typing_extensions import Unpack
+
+    typing.Unpack = Unpack
+
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 from ....base import ForgeModel
 from ....config import (
