@@ -440,7 +440,8 @@ def test_patched_topk_both(input_shape, k):
             self.k = k
 
         def forward(self, x):
-            values, indices = torch.topk(x, self.k)
+            # values, indices = torch.topk(x, self.k)
+            values, indices = x.topk(self.k)
             return values, indices
 
     options = {"tt_enable_composite_ops": True}
