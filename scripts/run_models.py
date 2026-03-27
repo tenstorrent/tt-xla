@@ -9,6 +9,7 @@ instances never run git commands against the same working directory.
 """
 
 import argparse
+import datetime
 import json
 import multiprocessing
 import subprocess
@@ -19,6 +20,23 @@ from pathlib import Path
 REPO_DIR = Path(__file__).resolve().parent.parent
 LOG_DIR = REPO_DIR / "scripts" / "logs"
 WORKTREE_DIR = REPO_DIR / ".worktrees"
+
+
+class TeeStream:
+    """Write to both a file and the original stream."""
+
+    def __init__(self, stream, file_handle):
+        self._stream = stream
+        self._file = file_handle
+
+    def write(self, data):
+        self._stream.write(data)
+        self._file.write(data)
+        self._file.flush()
+
+    def flush(self):
+        self._stream.flush()
+        self._file.flush()
 
 
 def get_current_branch() -> str:
@@ -127,6 +145,13 @@ def main():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     WORKTREE_DIR.mkdir(parents=True, exist_ok=True)
 
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    main_log = LOG_DIR / f"run_models_{timestamp}.log"
+    log_fh = open(main_log, "w")
+    sys.stdout = TeeStream(sys.__stdout__, log_fh)
+    sys.stderr = TeeStream(sys.__stderr__, log_fh)
+    print(f"Logging to {main_log}")
+
     base_branch = get_current_branch()
 
     with open(args.json_file) as f:
@@ -172,6 +197,9 @@ def main():
             future.result()
 
     print("All done.")
+    log_fh.close()
+    sys.stdout = sys.__stdout__
+    sys.stderr = sys.__stderr__
 
 
 if __name__ == "__main__":
