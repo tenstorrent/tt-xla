@@ -73,6 +73,9 @@ class ModelVariant(StrEnum):
     # Unsloth BNB 4-bit quantized variants
     LLAMA_3_2_3B_INSTRUCT_BNB_4BIT = "3.2_3B_Instruct_Bnb_4bit"
 
+    # RedHatAI GPTQ W4A16 quantized variants
+    LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16 = "3.1_8B_Instruct_Quantized_W4A16"
+
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
 
@@ -173,9 +176,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
             max_length=128,
         ),
-        # Unsloth BNB 4-bit quantized variants
-        ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Llama-3.2-3B-Instruct-bnb-4bit",
+        # RedHatAI GPTQ W4A16 quantized variants
+        ModelVariant.LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16",
             max_length=128,
         ),
         # Llama 3.3 variants
@@ -270,8 +273,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_DYNAMIC,
-            ModelVariant.UNSLOTH_LLAMA_3_1_8B_BNB_4BIT,
+            ModelVariant.LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -367,10 +369,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         # Check if this is a quantized variant and configure accordingly
-        if pretrained_model_name in [
+        if pretrained_model_name in (
             "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "unsloth/Llama-3.2-3B-Instruct-bnb-4bit",
-        ]:
+            "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16",
+        ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
             model_kwargs["ignore_mismatched_sizes"] = True
