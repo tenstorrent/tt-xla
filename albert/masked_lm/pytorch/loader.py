@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     LARGE_V2 = "Large_v2"
     XLARGE_V2 = "Xlarge_v2"
     XXLARGE_V2 = "Xxlarge_v2"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -70,6 +71,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="albert-xxlarge-v2",
             max_length=128,
         ),
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-albert",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -99,10 +104,14 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.TINY_RANDOM:
+            group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="ALBERT",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_MASKED_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
