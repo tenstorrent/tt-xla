@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for image to text."""
 
-    UNSLOTH_QWEN_3_5_35B_A3B = "unsloth_35b_a3b"
+    QWEN_3_5_9B_NVFP4 = "9B_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -31,14 +31,19 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.UNSLOTH_QWEN_3_5_35B_A3B: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3.5-35B-A3B",
+        ModelVariant.QWEN_3_5_9B_NVFP4: LLMModelConfig(
+            pretrained_model_name="AxionML/Qwen3.5-9B-NVFP4",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.UNSLOTH_QWEN_3_5_35B_A3B
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B_NVFP4
+
+    # Shared configuration parameters
+    sample_image = (
+        "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg"
+    )
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -75,6 +80,7 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The Qwen 3.5 model instance for image to text.
@@ -85,17 +91,13 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model_kwargs["dtype"] = "auto"
-        model_kwargs["device_map"] = "auto"
-
         model_kwargs |= kwargs
 
         self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
 
         model = AutoModelForImageTextToText.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
+        ).eval()
 
         return model
 
@@ -115,7 +117,7 @@ class ModelLoader(ForgeModel):
                 "content": [
                     {
                         "type": "image",
-                        "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
+                        "image": self.sample_image,
                     },
                     {"type": "text", "text": "Describe this image."},
                 ],
