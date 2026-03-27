@@ -62,6 +62,7 @@ class ModelVariant(StrEnum):
     HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K = "Timm_Tf_B0_Aa_In1k"
     HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K = "Timm_V2_Rw_S_Ra2_In1k"
     HF_TIMM_TF_EFFICIENTNETV2_S_IN21K = "Timm_Tf_V2_S_In21k"
+    HF_TIMM_EFFICIENTNETV2_RW_M_AGC_IN1K = "Timm_V2_Rw_M_Agc_In1k"
 
 
 class ModelLoader(ForgeModel):
@@ -173,6 +174,11 @@ class ModelLoader(ForgeModel):
         source=ModelSource.TIMM,
         use_1k_labels=False,
     )
+    HF_TIMM_EFFICIENTNETV2_RW_M_AGC_IN1K_CONFIG = EfficientNetConfig(
+        pretrained_model_name="hf_hub:timm/efficientnetv2_rw_m.agc_in1k",
+        source=ModelSource.TIMM,
+        use_1k_labels=True,
+    )
 
     # Dictionary using the static dataclass instances (for compatibility with existing tests)
     _VARIANTS = {
@@ -194,6 +200,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K: HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K_CONFIG,
         ModelVariant.HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K: HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_S_IN21K: HF_TIMM_TF_EFFICIENTNETV2_S_IN21K_CONFIG,
+        ModelVariant.HF_TIMM_EFFICIENTNETV2_RW_M_AGC_IN1K: HF_TIMM_EFFICIENTNETV2_RW_M_AGC_IN1K_CONFIG,
     }
 
     # Default variant to use
@@ -230,7 +237,11 @@ class ModelLoader(ForgeModel):
             model="EfficientNet",
             variant=variant,
             group=(
-                ModelGroup.RED if variant == ModelVariant.B0 else ModelGroup.GENERALITY
+                ModelGroup.RED
+                if variant == ModelVariant.B0
+                else ModelGroup.VULCAN
+                if variant == ModelVariant.HF_TIMM_EFFICIENTNETV2_RW_M_AGC_IN1K
+                else ModelGroup.GENERALITY
             ),
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
