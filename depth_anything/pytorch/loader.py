@@ -24,19 +24,19 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     """Available Depth Anything model variants."""
 
-    SMALL = "Small"
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
     """Depth Anything model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.SMALL: ModelConfig(
-            pretrained_model_name="LiheYoung/depth-anything-small-hf",
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="LiheYoung/depth-anything-base-hf",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SMALL
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
