@@ -24,11 +24,13 @@ class ModelVariant(StrEnum):
 
     ONCOLOGY_DETECT_SUPERMEDICAL_125M = "OncologyDetect-SuperMedical-125M"
     DISEASE_DETECT_MODERNMED_395M = "DiseaseDetect-ModernMed-395M"
+    BLOOD_CANCER_DETECT_MODERNMED_395M = "BloodCancerDetect-ModernMed-395M"
 
 
 _VARIANT_SAMPLE_TEXTS = {
     ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M: "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
     ModelVariant.DISEASE_DETECT_MODERNMED_395M: "The patient was diagnosed with diabetes mellitus type 2 and chronic obstructive pulmonary disease.",
+    ModelVariant.BLOOD_CANCER_DETECT_MODERNMED_395M: "The patient presented with chronic lymphocytic leukemia symptoms.",
 }
 
 
@@ -41,6 +43,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DISEASE_DETECT_MODERNMED_395M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-DiseaseDetect-ModernMed-395M",
+        ),
+        ModelVariant.BLOOD_CANCER_DETECT_MODERNMED_395M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-ModernMed-395M",
         ),
     }
 
