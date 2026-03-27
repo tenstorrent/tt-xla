@@ -261,7 +261,7 @@ def test_deepseek_v3_2_layer_sparse_moe():
     block = model.layers[1]  # layer_id=1 >= n_dense_layers=1 → MoE
     freqs_cis = model.freqs_cis[:seq_len]
 
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
     block.eval()
 
@@ -343,6 +343,7 @@ def test_deepseek_v3_2_layer_sparse_moe():
         comparison_config=comparison_config,
     )
 
+
 @pytest.mark.llmbox
 def test_deepseek_v3_2_full_sparse_moe():
     """Test full DeepseekV3-2 Transformer with A2aSparseMLP on (2,4) mesh."""
@@ -364,7 +365,7 @@ def test_deepseek_v3_2_full_sparse_moe():
     # but model.to(bf16) converts it. Restore to float32 to match forward's .float() call.
     model.head = model.head.to(torch.float32)
 
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     enable_sparse_mlp(
         model,
         mesh=mesh_shape,

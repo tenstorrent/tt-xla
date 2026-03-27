@@ -162,10 +162,7 @@ class ParallelEmbedding(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        """
-        Initialize weights using Kaiming uniform initialization.
-        """
-        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        pass
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -266,20 +263,7 @@ class Linear(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        """
-        Initialize weights and bias using Kaiming uniform initialization.
-        This matches PyTorch's standard nn.Linear initialization.
-        """
-        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-
-        if self.scale is not None:
-            # Only matters if FP8 quantization is enabled
-            nn.init.constant_(self.scale, 1.0)
-
-        if self.bias is not None:
-            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-            nn.init.uniform_(self.bias, -bound, bound)
+        pass
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -953,14 +937,7 @@ class Gate(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        """
-        Initialize weights using Kaiming uniform initialization.
-        """
-        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-        if self.bias is not None:
-            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-            nn.init.uniform_(self.bias, -bound, bound)
+        pass
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
