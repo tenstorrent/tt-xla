@@ -62,21 +62,35 @@ def run_model(model_id: str, worktree_path: Path):
             stderr=subprocess.STDOUT,
         )
 
-    return model_id, result.returncode
+    reason = ""
+    if result.returncode != 0:
+        try:
+            last_line = log_file.read_text().strip().rsplit("\n", 1)[-1]
+            reason = last_line[:200]
+        except OSError:
+            reason = "could not read log"
+
+    return model_id, result.returncode, reason
 
 
-def run_model_in_worktree(index: int, model_id: str, base_branch: str):
-    """Ensure a worktree exists for this worker, then run the model."""
-    branch = f"{base_branch}-{index}"
-    worktree_path = WORKTREE_DIR / f"worker-{index}"
+def run_worker(worker_index: int, model_ids: list[str], base_branch: str):
+    """Run all assigned models sequentially in this worker's worktree."""
+    branch = f"{base_branch}-{worker_index}"
+    worktree_path = WORKTREE_DIR / f"worker-{worker_index}"
 
     try:
         ensure_worktree(branch, worktree_path)
     except subprocess.CalledProcessError as e:
-        print(f"Failed to create worktree for {model_id}: {e.stderr}", file=sys.stderr)
-        return model_id, 1
+        return [
+            (worker_index, mid, 1, f"worktree creation failed: {e.stderr.strip()}")
+            for mid in model_ids
+        ]
 
-    return run_model(model_id, worktree_path)
+    results = []
+    for mid in model_ids:
+        _, rc, reason = run_model(mid, worktree_path)
+        results.append((worker_index, mid, rc, reason))
+    return results
 
 
 def main():
@@ -124,16 +138,25 @@ def main():
     print(f"Processing {len(model_ids)} models with {args.workers} workers")
     print(f"Base branch: {base_branch}")
 
-    with ProcessPoolExecutor(max_workers=args.workers) as executor:
+    num_workers = min(args.workers, len(model_ids))
+    chunks = [[] for _ in range(num_workers)]
+    for i, mid in enumerate(model_ids):
+        chunks[i % num_workers].append(mid)
+
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = {
-            executor.submit(run_model_in_worktree, i, mid, base_branch): mid
-            for i, mid in enumerate(model_ids)
+            executor.submit(run_worker, worker_idx, chunk, base_branch): worker_idx
+            for worker_idx, chunk in enumerate(chunks)
         }
 
-        for i, future in enumerate(as_completed(futures), 1):
-            model_id, rc = future.result()
-            status = "OK" if rc == 0 else f"FAILED (rc={rc})"
-            print(f"[{i}/{len(model_ids)}] {model_id}: {status}")
+        completed = 0
+        for future in as_completed(futures):
+            for worker_index, model_id, rc, reason in future.result():
+                completed += 1
+                status = "OK" if rc == 0 else f"FAILED (rc={rc}): {reason}"
+                print(
+                    f"[{completed}/{len(model_ids)}] worker-{worker_index} {model_id}: {status}"
+                )
 
     print("All done.")
 
