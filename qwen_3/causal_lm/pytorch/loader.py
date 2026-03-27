@@ -39,7 +39,7 @@ class ModelVariant(StrEnum):
     QWEN_3_32B = "32B"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
-    QWEN_3_32B_AWQ = "32B_AWQ"
+    QWEN_3_30B_A3B_INSTRUCT_2507_FP8 = "30B_A3B_Instruct_2507_FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -87,8 +87,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_32B_AWQ: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-32B-AWQ",
+        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
             max_length=128,
         ),
     }
@@ -129,7 +129,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_32B_AWQ,
+            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -237,6 +237,7 @@ class ModelLoader(ForgeModel):
             enable_thinking = self._variant not in (
                 ModelVariant.QWEN_3_4B_INSTRUCT_2507,
                 ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
+                ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8,
             )
             text = self.tokenizer.apply_chat_template(
                 messages,
@@ -272,6 +273,14 @@ class ModelLoader(ForgeModel):
             ), "Attention heads must be divisible by the model axis size"
         return mesh_shape, ("batch", "model")
 
+    def _is_moe_variant(self):
+        """Check if the current variant is a Mixture of Experts model."""
+        return self._variant in (
+            ModelVariant.QWEN_3_30B_A3B,
+            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
+            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8,
+        )
+
     def load_shard_spec(self, model):
         if self._variant in [
             ModelVariant.QWEN_3_4B,
@@ -281,9 +290,25 @@ class ModelLoader(ForgeModel):
 
         shard_specs = {}
         for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+            if self._is_moe_variant():
+                mlp = layer.mlp
+                if hasattr(mlp, "experts"):
+                    shard_specs[mlp.experts.gate_up_proj] = (None, "model", "batch")
+                    shard_specs[mlp.experts.down_proj] = (None, "batch", "model")
+                if hasattr(mlp, "shared_expert"):
+                    shard_specs[mlp.shared_expert.up_proj.weight] = ("model", "batch")
+                    shard_specs[mlp.shared_expert.gate_proj.weight] = (
+                        "model",
+                        "batch",
+                    )
+                    shard_specs[mlp.shared_expert.down_proj.weight] = (
+                        "batch",
+                        "model",
+                    )
+            else:
+                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
