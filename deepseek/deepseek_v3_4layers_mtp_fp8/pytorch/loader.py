@@ -8,8 +8,6 @@ A compact 4-layer variant of DeepSeek-V3 with FP8 quantization and
 Multi-Token Prediction, intended for CI testing.
 """
 
-from typing import Optional
-
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
