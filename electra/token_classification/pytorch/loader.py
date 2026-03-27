@@ -2,19 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ELECTRA model loader implementation for token classification (NER) task.
+ELECTRA model loader implementation for token classification (NER).
 """
 
 import torch
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForTokenClassification
 from third_party.tt_forge_models.config import (
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    LLMModelConfig,
 )
 from third_party.tt_forge_models.base import ForgeModel
 
@@ -22,42 +22,32 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available ELECTRA token classification model variants."""
 
-    OPENMED_NER_ORGANISM_DETECT = "OpenMed_NER_OrganismDetect_ElectraMed_335M"
-    OPENMED_NER_BLOOD_CANCER_DETECT = "OpenMed_NER_BloodCancerDetect_BioMed_109M"
-
-
-_VARIANT_SAMPLE_TEXTS = {
-    ModelVariant.OPENMED_NER_ORGANISM_DETECT: "Caenorhabditis elegans is a model organism for genetic studies.",
-    ModelVariant.OPENMED_NER_BLOOD_CANCER_DETECT: "The patient was diagnosed with chronic lymphocytic leukemia after presenting with lymphadenopathy.",
-}
+    OPENMED_NER_CHEMICALDETECT_ELECTRAMED_109M = (
+        "OpenMed/OpenMed-NER-ChemicalDetect-ElectraMed-109M"
+    )
 
 
 class ModelLoader(ForgeModel):
-    """ELECTRA model loader implementation for token classification (NER) task."""
+    """ELECTRA model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_ORGANISM_DETECT: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-ElectraMed-335M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_BLOOD_CANCER_DETECT: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-BioMed-109M",
+        ModelVariant.OPENMED_NER_CHEMICALDETECT_ELECTRAMED_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-ElectraMed-109M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ORGANISM_DETECT
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_ELECTRAMED_109M
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
+        self.sample_text = (
+            "The patient was administered acetylsalicylic acid for pain relief."
+        )
         self.tokenizer = None
         self.model = None
-        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
-            self._variant_name,
-            "Caenorhabditis elegans is a model organism for genetic studies.",
-        )
 
     @classmethod
     def _get_model_info(cls, variant=None):
@@ -80,11 +70,12 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = AutoModelForTokenClassification.from_pretrained(
+        model = AutoModelForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
-        self.model.eval()
-        return self.model
+        model.eval()
+        self.model = model
+        return model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
@@ -112,3 +103,4 @@ class ModelLoader(ForgeModel):
 
         print(f"Context: {self.sample_text}")
         print(f"Answer: {predicted_tokens_classes}")
+        return predicted_tokens_classes
