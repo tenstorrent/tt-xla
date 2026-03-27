@@ -5,7 +5,12 @@
 Qwen 3 model loader implementation for causal language modeling.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    AutoConfig,
+    Qwen3ForCausalLM,
+)
 from typing import Optional
 
 from ....base import ForgeModel
@@ -182,20 +187,25 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # AWQ variants need explicit device_map
-        if pretrained_model_name == "Qwen/Qwen3-32B-AWQ":
+        # AWQ variants: use Qwen3ForCausalLM directly with quantization_config
+        # removed so that weights are loaded as plain tensors on CPU.
+        is_awq = pretrained_model_name == "Qwen/Qwen3-32B-AWQ"
+        if is_awq:
             model_kwargs["device_map"] = "cpu"
-
-        model_kwargs |= kwargs
-
-        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            if self.num_layers is not None:
+                config.num_hidden_layers = self.num_layers
+            delattr(config, "quantization_config")
+            model_kwargs["config"] = config
+        elif self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        ).eval()
+        model_kwargs |= kwargs
+
+        model_cls = Qwen3ForCausalLM if is_awq else AutoModelForCausalLM
+        model = model_cls.from_pretrained(pretrained_model_name, **model_kwargs).eval()
 
         self.config = model.config
         self.model = model
