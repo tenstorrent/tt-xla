@@ -57,13 +57,12 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
-        """Load the Shuka processor/pipeline components."""
-        import transformers
+        """Load the Shuka processor for input preparation."""
+        from transformers import AutoProcessor
 
-        self.processor = transformers.pipeline(
-            model=self._variant_config.pretrained_model_name,
+        self.processor = AutoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name,
             trust_remote_code=True,
-            torch_dtype="bfloat16",
         )
 
         return self.processor
@@ -104,6 +103,9 @@ class ModelLoader(ForgeModel):
         if self.model is None:
             self.load_model(dtype_override=dtype_override)
 
+        if self.processor is None:
+            self._load_processor()
+
         model_param = next(self.model.parameters())
         device = model_param.device
         dtype = dtype_override or model_param.dtype
@@ -120,8 +122,25 @@ class ModelLoader(ForgeModel):
             {"role": "user", "content": "<|audio|>"},
         ]
 
-        return {
-            "audio": audio_array,
-            "turns": turns,
-            "sampling_rate": sampling_rate,
-        }
+        text = self.processor.tokenizer.apply_chat_template(
+            turns, add_generation_prompt=True, tokenize=False
+        )
+
+        inputs = self.processor(
+            text=text,
+            audio=audio_array,
+            sampling_rate=sampling_rate,
+            return_tensors="pt",
+        )
+
+        # Cast inputs to match model dtype and device
+        for key in inputs:
+            if (
+                isinstance(inputs[key], torch.Tensor)
+                and inputs[key].is_floating_point()
+            ):
+                inputs[key] = inputs[key].to(device=device, dtype=dtype)
+            elif isinstance(inputs[key], torch.Tensor):
+                inputs[key] = inputs[key].to(device=device)
+
+        return inputs
