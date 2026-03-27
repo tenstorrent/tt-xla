@@ -13,8 +13,6 @@ Requires the TripoSR repository to be cloned at /tmp/triposr_repo.
 import os
 import sys
 
-import torch
-from PIL import Image
 from datasets import load_dataset
 from typing import Optional
 
