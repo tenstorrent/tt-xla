@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
 
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
-    ROBERTA_BASE_GO_EMOTIONS = "Base_Go_Emotions"
+    ROBERTA_LARGE_MNLI = "Large_MNLI"
 
 
 class ModelLoader(ForgeModel):
@@ -37,8 +37,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST: ModelConfig(
             pretrained_model_name="cardiffnlp/twitter-roberta-base-sentiment-latest",
         ),
-        ModelVariant.ROBERTA_BASE_GO_EMOTIONS: ModelConfig(
-            pretrained_model_name="SamLowe/roberta-base-go_emotions",
+        ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
+            pretrained_model_name="FacebookAI/roberta-large-mnli",
         ),
     }
 
@@ -61,7 +61,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
-            ModelVariant.ROBERTA_BASE_GO_EMOTIONS,
+            ModelVariant.ROBERTA_LARGE_MNLI,
         ):
             group = ModelGroup.VULCAN
 
@@ -73,6 +73,15 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
+
+    # NLI sample inputs for MNLI variants
+    _MNLI_PREMISE = (
+        "Calcutta seems to be the only other production center having any "
+        "pretensions to artistic creativity at all, but ironically you're "
+        "actually more likely to see the works of Satyajit Ray or Mrinal Sen "
+        "shown in Europe or North America than in India itself."
+    )
+    _MNLI_HYPOTHESIS = "Most of Mrinal Sen's work can be found in European collections."
 
     def __init__(self, variant=None, num_layers: Optional[int] = None):
         """Initialize ModelLoader with specified variant.
@@ -123,6 +132,10 @@ class ModelLoader(ForgeModel):
         self.model = model
         return model
 
+    def _is_mnli_variant(self):
+        """Check if the current variant is an MNLI model."""
+        return self._variant == ModelVariant.ROBERTA_LARGE_MNLI
+
     def load_inputs(self):
         """Generate sample inputs for Roberta model."""
 
@@ -130,7 +143,19 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self.load_model()  # This will initialize the tokenizer
 
-        # Create tokenized inputs
+        if self._is_mnli_variant():
+            # MNLI uses premise/hypothesis pairs
+            inputs = self.tokenizer(
+                self._MNLI_PREMISE,
+                self._MNLI_HYPOTHESIS,
+                max_length=self.max_length,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt",
+            )
+            return [inputs["input_ids"], inputs["attention_mask"]]
+
+        # Create tokenized inputs for single-text classification
         inputs = self.tokenizer.encode(
             self.text,
             max_length=self.max_length,
@@ -145,10 +170,14 @@ class ModelLoader(ForgeModel):
         """Helper method to decode model outputs into human-readable text.
 
         Args:
-            outputs: Model output from a forward pass
+            co_out: Model output from a forward pass
 
         Returns:
             str: Decoded answer text
         """
         predicted_value = co_out[0].argmax(-1).item()
-        print(f"Predicted Sentiment: {self.model.config.id2label[predicted_value]}")
+        label = self.model.config.id2label[predicted_value]
+        if self._is_mnli_variant():
+            print(f"Predicted Label: {label}")
+        else:
+            print(f"Predicted Sentiment: {label}")
