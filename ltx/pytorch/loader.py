@@ -33,6 +33,8 @@ from ...config import (
 
 SUPPORTED_SUBFOLDERS = {"transformer", "vae", "audio_vae"}
 
+FP8_CHECKPOINT_URL = "https://huggingface.co/Lightricks/LTX-2.3-fp8/blob/main/ltx-2.3-22b-distilled-fp8.safetensors"
+
 
 class ModelVariant(StrEnum):
     """Available LTX-2.3 variants."""
@@ -49,6 +51,9 @@ class ModelLoader(ForgeModel):
     - 'transformer': LTX2VideoTransformer3DModel (~22B params)
     - 'vae': AutoencoderKLLTX2Video
     - 'audio_vae': AutoencoderKLLTX2Audio
+
+    The FP8 variant loads the transformer directly from a single safetensors
+    checkpoint (requires diffusers>=0.38.0.dev0 from GitHub main).
     """
 
     _VARIANTS = {
@@ -74,6 +79,7 @@ class ModelLoader(ForgeModel):
             )
         self._subfolder = subfolder
         self.pipeline: Optional[LTX2Pipeline] = None
+        self._transformer: Optional[LTX2VideoTransformer3DModel] = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -89,29 +95,31 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_fp8_transformer(self, dtype: torch.dtype) -> LTX2VideoTransformer3DModel:
+        """Load the FP8 transformer directly from a single safetensors file."""
+        self._transformer = LTX2VideoTransformer3DModel.from_single_file(
+            FP8_CHECKPOINT_URL,
+            torch_dtype=dtype,
+            cross_attn_mod=True,
+            audio_cross_attn_mod=True,
+            low_cpu_mem_usage=False,
+        )
+        return self._transformer
+
     def _load_pipeline(self, dtype: torch.dtype) -> LTX2Pipeline:
-        if self._variant == ModelVariant.LTX_2_3_FP8:
-            # FP8 repo only has raw safetensors weights; load base pipeline
-            # then replace the transformer with fp8 weights.
-            self.pipeline = LTX2Pipeline.from_pretrained(
-                "Lightricks/LTX-2.3",
-                torch_dtype=dtype,
-            )
-            fp8_transformer = LTX2VideoTransformer3DModel.from_single_file(
-                "https://huggingface.co/Lightricks/LTX-2.3-fp8/blob/main/ltx-2.3-22b-distilled-fp8.safetensors",
-                config=self.pipeline.transformer.config,
-                torch_dtype=dtype,
-            )
-            self.pipeline.transformer = fp8_transformer
-        else:
-            self.pipeline = LTX2Pipeline.from_pretrained(
-                self._variant_config.pretrained_model_name,
-                torch_dtype=dtype,
-            )
+        self.pipeline = LTX2Pipeline.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            torch_dtype=dtype,
+        )
         return self.pipeline
 
     def load_model(self, *, dtype_override=None, **kwargs):
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
+
+        if self._variant == ModelVariant.LTX_2_3_FP8:
+            if self._transformer is None:
+                self._load_fp8_transformer(dtype)
+            return self._transformer
 
         if self.pipeline is None:
             self._load_pipeline(dtype)
@@ -125,6 +133,11 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None, **kwargs) -> Any:
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
+
+        if self._variant == ModelVariant.LTX_2_3_FP8:
+            if self._transformer is None:
+                self._load_fp8_transformer(dtype)
+            return self._load_fp8_transformer_inputs(dtype)
 
         if self.pipeline is None:
             self._load_pipeline(dtype)
@@ -143,6 +156,54 @@ class ModelLoader(ForgeModel):
                 return self._load_audio_vae_decoder_inputs(dtype)
             else:
                 return self._load_audio_vae_encoder_inputs(dtype)
+
+    def _load_fp8_transformer_inputs(self, dtype: torch.dtype) -> dict:
+        """Prepare synthetic inputs for the FP8 LTX2 transformer forward pass."""
+        batch_size = 1
+        config = self._transformer.config
+
+        latent_num_frames = 2
+        latent_height = 2
+        latent_width = 2
+        video_seq_len = latent_num_frames * latent_height * latent_width
+        frame_rate = 24.0
+
+        hidden_states = torch.randn(
+            batch_size, video_seq_len, config.in_channels, dtype=dtype
+        )
+        audio_hidden_states = torch.randn(
+            batch_size, 2, config.audio_in_channels, dtype=dtype
+        )
+
+        caption_channels = config.caption_channels
+        encoder_hidden_states = torch.randn(
+            batch_size, 8, caption_channels, dtype=dtype
+        )
+        audio_encoder_hidden_states = torch.randn(
+            batch_size, 8, caption_channels, dtype=dtype
+        )
+
+        timestep = torch.tensor([0.5], dtype=dtype).expand(batch_size)
+        audio_timestep = torch.tensor([0.5], dtype=dtype).expand(batch_size)
+        sigma = torch.tensor([0.5], dtype=dtype).expand(batch_size)
+        audio_sigma = torch.tensor([0.5], dtype=dtype).expand(batch_size)
+
+        return {
+            "hidden_states": hidden_states,
+            "audio_hidden_states": audio_hidden_states,
+            "encoder_hidden_states": encoder_hidden_states,
+            "audio_encoder_hidden_states": audio_encoder_hidden_states,
+            "timestep": timestep,
+            "audio_timestep": audio_timestep,
+            "sigma": sigma,
+            "audio_sigma": audio_sigma,
+            "num_frames": latent_num_frames,
+            "height": latent_height,
+            "width": latent_width,
+            "fps": frame_rate,
+            "audio_num_frames": 2,
+            "return_dict": False,
+        }
 
     def _load_transformer_inputs(self, dtype: torch.dtype) -> dict:
         """Prepare synthetic inputs for the LTX2 transformer forward pass."""
