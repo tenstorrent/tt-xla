@@ -2,71 +2,69 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Multilingual CLIP text encoder model loader for sentence embedding generation.
+Multilingual CLIP text encoder loader for multilingual text embedding generation.
 
-Uses XLM-RoBERTa with a linear projection to produce CLIP-compatible text embeddings
-supporting 48 languages. Based on the M-CLIP project.
+Uses M-CLIP (Multilingual CLIP) which extends CLIP text encoders to 50+ languages
+via XLM-RoBERTa with a linear projection into CLIP embedding space.
 """
 
-import json
+import torch
+from multilingual_clip import pt_multilingual_clip
+from transformers import AutoTokenizer
 from typing import Optional
 
-import torch
-import torch.nn as nn
-from huggingface_hub import hf_hub_download
-from transformers import AutoConfig, AutoModel, AutoTokenizer
-
+from ...base import ForgeModel
 from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    LLMModelConfig,
 )
-from ...base import ForgeModel
-
-
-class MultilingualCLIPTextEncoder(nn.Module):
-    """XLM-RoBERTa transformer with a linear projection to CLIP embedding space."""
-
-    def __init__(self, transformer, linear_proj):
-        super().__init__()
-        self.transformer = transformer
-        self.LinearTransformation = linear_proj
-
-    def forward(self, input_ids, attention_mask):
-        output = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
-        embs = output[0]
-        mask_expanded = attention_mask.unsqueeze(-1).expand(embs.size()).float()
-        pooled = torch.sum(embs * mask_expanded, dim=1) / mask_expanded.sum(
-            dim=1
-        ).clamp(min=1e-9)
-        return self.LinearTransformation(pooled)
 
 
 class ModelVariant(StrEnum):
     """Available Multilingual CLIP model variants."""
 
-    XLM_ROBERTA_LARGE_VIT_B_32 = "M-CLIP/XLM-Roberta-Large-Vit-B-32"
+    XLM_ROBERTA_LARGE_VIT_B_16PLUS = "XLM-Roberta-Large-Vit-B-16Plus"
+
+
+class MultilingualCLIPTextEncoder(torch.nn.Module):
+    """Wrapper around M-CLIP model that accepts pre-tokenized inputs.
+
+    The original M-CLIP forward() takes raw text strings and a tokenizer.
+    This wrapper accepts input_ids and attention_mask tensors directly,
+    making it compatible with the ForgeModel interface.
+    """
+
+    def __init__(self, mclip_model):
+        super().__init__()
+        self.transformer = mclip_model.transformer
+        self.linear_transformation = mclip_model.LinearTransformation
+
+    def forward(self, input_ids, attention_mask):
+        embs = self.transformer(input_ids=input_ids, attention_mask=attention_mask)[0]
+        embs = (embs * attention_mask.unsqueeze(2)).sum(dim=1) / attention_mask.sum(
+            dim=1
+        )[:, None]
+        return self.linear_transformation(embs)
 
 
 class ModelLoader(ForgeModel):
-    """Multilingual CLIP text encoder model loader."""
+    """Multilingual CLIP text encoder loader for embedding generation."""
 
     _VARIANTS = {
-        ModelVariant.XLM_ROBERTA_LARGE_VIT_B_32: LLMModelConfig(
-            pretrained_model_name="M-CLIP/XLM-Roberta-Large-Vit-B-32",
-            max_length=512,
+        ModelVariant.XLM_ROBERTA_LARGE_VIT_B_16PLUS: ModelConfig(
+            pretrained_model_name="M-CLIP/XLM-Roberta-Large-Vit-B-16Plus",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.XLM_ROBERTA_LARGE_VIT_B_32
+    DEFAULT_VARIANT = ModelVariant.XLM_ROBERTA_LARGE_VIT_B_16PLUS
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.model = None
         self.tokenizer = None
 
     @classmethod
@@ -85,82 +83,60 @@ class ModelLoader(ForgeModel):
 
     def _load_tokenizer(self):
         if self.tokenizer is None:
-            model_name = self._variant_config.pretrained_model_name
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self._variant_config.pretrained_model_name
+            )
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        model_name = self._variant_config.pretrained_model_name
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        # Load the M-CLIP config to get architecture parameters
-        config_path = hf_hub_download(repo_id=model_name, filename="config.json")
-        with open(config_path) as f:
-            mclip_config = json.load(f)
+        mclip_model = pt_multilingual_clip.MultilingualCLIP.from_pretrained(
+            pretrained_model_name
+        )
 
-        model_base = mclip_config["modelBase"]
-        transformer_dims = mclip_config["transformerDimensions"]
-        num_dims = mclip_config["numDims"]
-
-        # Load the checkpoint containing both transformer and projection weights
-        ckpt_path = hf_hub_download(repo_id=model_name, filename="pytorch_model.bin")
-        state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-
-        # Separate transformer and linear projection weights
-        transformer_sd = {}
-        linear_sd = {}
-        for key, value in state_dict.items():
-            if key.startswith("transformer."):
-                transformer_sd[key[len("transformer.") :]] = value
-            elif key.startswith("LinearTransformation."):
-                linear_sd[key[len("LinearTransformation.") :]] = value
-
-        # Build the transformer from config and load weights
-        transformer_config = AutoConfig.from_pretrained(model_base)
-        if dtype_override is not None:
-            transformer_config.torch_dtype = dtype_override
-        transformer = AutoModel.from_config(transformer_config)
-        transformer.load_state_dict(transformer_sd)
-
-        # Build the linear projection and load weights
-        linear_proj = nn.Linear(transformer_dims, num_dims)
-        linear_proj.load_state_dict(linear_sd)
-
-        model = MultilingualCLIPTextEncoder(transformer, linear_proj)
+        model = MultilingualCLIPTextEncoder(mclip_model)
 
         if dtype_override is not None:
             model = model.to(dtype_override)
 
         model.eval()
-        self.model = model
-
         return model
 
-    def load_inputs(self, dtype_override=None, sentence=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        if sentence is None:
-            sentence = "Three blind horses listening to Mozart."
-
-        max_length = getattr(self._variant_config, "max_length", 512)
+        sentences = [
+            "Three blind horses listening to Mozart.",
+            "Älgen är skogens konung!",
+        ]
 
         inputs = self.tokenizer(
-            sentence,
-            padding="max_length",
+            sentences,
+            padding=True,
             truncation=True,
-            max_length=max_length,
+            max_length=512,
             return_tensors="pt",
         )
 
+        if batch_size > 1:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]):
+                    inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
         return inputs
 
-    def decode_output(self, outputs, inputs=None):
-        return outputs
-
     def unpack_forward_output(self, fwd_output):
-        # MultilingualCLIPTextEncoder.forward always returns a plain tensor
-        return fwd_output.flatten()
+        if isinstance(fwd_output, torch.Tensor):
+            return fwd_output.flatten()
+
+        if isinstance(fwd_output, (tuple, list)):
+            tensors = [t.flatten() for t in fwd_output if isinstance(t, torch.Tensor)]
+            if tensors:
+                return torch.cat(tensors, dim=0)
+
+        return fwd_output
