@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     GPT2_LARGE = "Large"
     GPT2_LUMELETO = "Lumeleto"
     GPT2_SEQUENCE_CLASSIFICATION = "Sequence_Classification"
+    TINY_RANDOM = "tiny-random"
 
 
 class ModelLoader(ForgeModel):
@@ -52,6 +53,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GPT2_SEQUENCE_CLASSIFICATION: LLMModelConfig(
             pretrained_model_name="mnoukhov/gpt2-imdb-sentiment-classifier",
+            max_length=256,
+        ),
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="peft-internal-testing/tiny-random-gpt2",
             max_length=256,
         ),
     }
@@ -79,7 +84,7 @@ class ModelLoader(ForgeModel):
 
         group = (
             ModelGroup.VULCAN
-            if variant in (ModelVariant.GPT2_LARGE, ModelVariant.GPT2_LUMELETO)
+            if variant in (ModelVariant.GPT2_LARGE, ModelVariant.TINY_RANDOM)
             else ModelGroup.GENERALITY
         )
 
@@ -109,7 +114,7 @@ class ModelLoader(ForgeModel):
         if self._variant in (
             ModelVariant.GPT2_BASE,
             ModelVariant.GPT2_LARGE,
-            ModelVariant.GPT2_LUMELETO,
+            ModelVariant.TINY_RANDOM,
         ):
             config = GPT2Config.from_pretrained(model_name)
             config_dict = config.to_dict()
@@ -141,7 +146,7 @@ class ModelLoader(ForgeModel):
         if self._variant in (
             ModelVariant.GPT2_BASE,
             ModelVariant.GPT2_LARGE,
-            ModelVariant.GPT2_LUMELETO,
+            ModelVariant.TINY_RANDOM,
         ):
             # Use random input for text generation
             vocab_size = GPT2Config.from_pretrained(
