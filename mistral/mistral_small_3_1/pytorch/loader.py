@@ -7,11 +7,6 @@ Mistral Small 3.1 model loader implementation for multimodal vision-language mod
 
 from typing import Optional
 
-from transformers import (
-    AutoProcessor,
-    Mistral3ForConditionalGeneration,
-)
-
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -23,7 +18,6 @@ from ....config import (
 )
 from ....base import ForgeModel
 from ....tools.utils import cast_input_to_type, get_file
-from PIL import Image
 
 
 class ModelVariant(StrEnum):
@@ -65,6 +59,8 @@ class ModelLoader(ForgeModel):
 
     def _load_processor(self, dtype_override=None):
         """Load processor for the current variant."""
+        from transformers import AutoProcessor
+
         kwargs = {}
         if dtype_override is not None:
             kwargs["torch_dtype"] = dtype_override
@@ -84,6 +80,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The Mistral Small 3.1 model instance.
         """
+        from transformers import Mistral3ForConditionalGeneration
+
         pretrained_model_name = self._variant_config.pretrained_model_name
         if self.processor is None:
             self._load_processor(dtype_override)
@@ -112,6 +110,8 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors that can be fed to the model.
         """
+        from PIL import Image
+
         if self.processor is None:
             self._load_processor(dtype_override)
 
