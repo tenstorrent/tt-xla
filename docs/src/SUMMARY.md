@@ -13,3 +13,4 @@
 - [Building PyTorch XLA from Source](./torch_xla_build.md)
 - [Tools](./tools.md)
     - [Explorer](./tt_explorer.md)
+- [vLLM plugin](./vllm_plugin.md)
