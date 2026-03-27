@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed model loader implementation for named entity recognition.
+OpenMed model loader implementation for token classification.
 """
 
 import torch
@@ -22,49 +22,56 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
-    NER_PROTEINDETECT_MODERNMED_149M = "NER-ProteinDetect-ModernMed-149M"
-    NER_CHEMICALDETECT_BIOMED_109M = "NER-ChemicalDetect-BioMed-109M"
-    NER_CHEMICALDETECT_TINYMED_65M = "NER-ChemicalDetect-TinyMed-65M"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.NER_PROTEINDETECT_MODERNMED_149M: "Casein micelles are the primary protein component of milk.",
-    ModelVariant.NER_CHEMICALDETECT_BIOMED_109M: "The patient was administered acetylsalicylic acid for pain relief.",
-    ModelVariant.NER_CHEMICALDETECT_TINYMED_65M: "The patient was administered acetylsalicylic acid for pain relief.",
-}
+    OPENMED_NER_ANATOMY_DETECT_PUBMED_V2_109M = (
+        "OpenMed/OpenMed-NER-AnatomyDetect-PubMed-v2-109M"
+    )
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed model loader implementation for NER token classification."""
+    """OpenMed model loader implementation for token classification."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.NER_PROTEINDETECT_MODERNMED_149M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ModernMed-149M",
-            max_length=128,
-        ),
-        ModelVariant.NER_CHEMICALDETECT_BIOMED_109M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-BioMed-109M",
-            max_length=128,
-        ),
-        ModelVariant.NER_CHEMICALDETECT_TINYMED_65M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-TinyMed-65M",
+        ModelVariant.OPENMED_NER_ANATOMY_DETECT_PUBMED_V2_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-PubMed-v2-109M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NER_PROTEINDETECT_MODERNMED_149M
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ANATOMY_DETECT_PUBMED_V2_109M
 
     def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional string specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
-        self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = _SAMPLE_TEXTS[self._variant]
-        self.max_length = self._variant_config.max_length
+
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        self.model_name = pretrained_model_name
+        self.sample_text = (
+            "The patient complained of pain in the left ventricle region."
+        )
+        self.max_length = 128
         self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant_name=None):
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         if variant_name is None:
-            variant_name = "ner_proteindetect_modernmed_149m"
+            variant_name = "base"
+
         return ModelInfo(
             model="OpenMed",
             variant=variant_name,
@@ -75,8 +82,20 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load OpenMed model for token classification from Hugging Face.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                            If not provided, the model will use its default dtype (typically float32).
+
+        Returns:
+            torch.nn.Module: The model instance.
+        """
+
+        # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
+        # Load pre-trained model from HuggingFace
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
@@ -90,9 +109,20 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
+        """Prepare sample input for OpenMed token classification.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                            If not provided, the model will use its default dtype (typically float32).
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
         if self.tokenizer is None:
+            # Ensure tokenizer is initialized
             self.load_model(dtype_override=dtype_override)
 
+        # Data preprocessing
         inputs = self.tokenizer(
             self.sample_text,
             max_length=self.max_length,
@@ -104,6 +134,11 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
+        """Decode the model output for token classification.
+
+        Args:
+            co_out: Model output
+        """
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(
@@ -114,4 +149,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"NER Tags: {predicted_tokens_classes}")
+        print(f"Answer: {predicted_tokens_classes}")
