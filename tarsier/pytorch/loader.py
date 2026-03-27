@@ -9,7 +9,7 @@ from typing import Optional
 
 import torch
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoProcessor
+from transformers import LlavaForConditionalGeneration, AutoProcessor
 
 from ...base import ForgeModel
 from ...config import (
@@ -72,7 +72,6 @@ class ModelLoader(ForgeModel):
         model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {
-            "trust_remote_code": True,
             "low_cpu_mem_usage": True,
         }
 
@@ -83,7 +82,9 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
+        model = LlavaForConditionalGeneration.from_pretrained(
+            model_name, **model_kwargs
+        )
         model.eval()
 
         if self.processor is None:
