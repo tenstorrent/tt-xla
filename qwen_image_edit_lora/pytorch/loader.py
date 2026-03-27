@@ -70,10 +70,14 @@ class ModelLoader(ForgeModel):
         dtype = dtype_override if dtype_override is not None else torch.float32
 
         # Load base diffusion transformer
+        model_kwargs = {
+            "subfolder": "transformer",
+            "torch_dtype": dtype,
+        }
+        model_kwargs |= kwargs
         self._transformer = QwenImageTransformer2DModel.from_pretrained(
             BASE_MODEL,
-            subfolder="transformer",
-            torch_dtype=dtype,
+            **model_kwargs,
         )
 
         # Download and apply LoRA weights
