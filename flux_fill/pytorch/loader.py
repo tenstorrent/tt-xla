@@ -5,7 +5,6 @@
 Flux Fill model loader implementation for image inpainting
 """
 import torch
-import numpy as np
 from diffusers import FluxFillPipeline
 from typing import Optional
 
@@ -130,12 +129,10 @@ class ModelLoader(ForgeModel):
 
         max_sequence_length = 256
         prompt = "A cat sitting on a windowsill"
-        num_inference_steps = 1
         height = 128
         width = 128
         num_images_per_prompt = 1
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        num_channels_latents = self.pipe.transformer.config.in_channels
 
         # Text encoding for CLIP
         text_inputs_clip = self.pipe.tokenizer(
