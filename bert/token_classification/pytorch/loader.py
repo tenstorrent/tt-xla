@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
         "dbmdz/bert-large-cased-finetuned-conll03-english"
     )
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
+    HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DSLIM_BERT_BASE_NER: LLMModelConfig(
             pretrained_model_name="dslim/bert-base-NER",
+            max_length=128,
+        ),
+        ModelVariant.HATMIMOHA_ARABIC_NER: LLMModelConfig(
+            pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
     }
@@ -58,7 +63,10 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.sample_text = "HuggingFace is a company based in Paris and New York"
+        if self._variant == ModelVariant.HATMIMOHA_ARABIC_NER:
+            self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
+        else:
+            self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = 128
         self.tokenizer = None
 
@@ -76,7 +84,10 @@ class ModelLoader(ForgeModel):
             variant_name = "base"
 
         group = ModelGroup.GENERALITY
-        if variant_name == ModelVariant.DSLIM_BERT_BASE_NER:
+        if variant_name in (
+            ModelVariant.DSLIM_BERT_BASE_NER,
+            ModelVariant.HATMIMOHA_ARABIC_NER,
+        ):
             group = ModelGroup.VULCAN
 
         return ModelInfo(
