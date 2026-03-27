@@ -68,6 +68,9 @@ class ModelVariant(StrEnum):
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
 
+    # JackFram variants
+    JACKFRAM_LLAMA_160M = "JackFram_160M"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -164,6 +167,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="TinyLlama/TinyLlama_v1.1",
             max_length=128,
         ),
+        # JackFram variants
+        ModelVariant.JACKFRAM_LLAMA_160M: LLMModelConfig(
+            pretrained_model_name="JackFram/llama-160m",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -232,7 +240,7 @@ class ModelLoader(ForgeModel):
         elif variant in [
             ModelVariant.LLAMA_2_7B,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_AWQ_INT4,
+            ModelVariant.JACKFRAM_LLAMA_160M,
         ]:
             group = ModelGroup.VULCAN
         else:
@@ -499,6 +507,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.LLAMA_2_7B,
+            ModelVariant.JACKFRAM_LLAMA_160M,
         ]:
             return None
 
