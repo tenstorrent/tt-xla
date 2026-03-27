@@ -4,10 +4,11 @@
 """
 OTel-LLM model loader implementation for causal language modeling.
 """
-
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
+from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -17,43 +18,58 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
-from ....tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
-    """Available OTel-LLM model variants for causal LM."""
+    """Available OTel-LLM model variants."""
 
-    OTEL_LLM_12B_IT = "12B_Instruct"
+    OTEL_LLM_8_2B_IT = "8_2B_IT"
 
 
 class ModelLoader(ForgeModel):
     """OTel-LLM model loader implementation for causal language modeling tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.OTEL_LLM_12B_IT: LLMModelConfig(
-            pretrained_model_name="farbodtavakkoli/OTel-LLM-12B-IT",
-            max_length=256,
+        ModelVariant.OTEL_LLM_8_2B_IT: LLMModelConfig(
+            pretrained_model_name="farbodtavakkoli/OTel-LLM-8.2B-IT",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OTEL_LLM_12B_IT
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.OTEL_LLM_8_2B_IT
 
-    sample_text = "What is O-RAN and how does it benefit telecom networks?"
+    # Shared configuration parameters
+    sample_text = (
+        "What is O-RAN and how does it differ from traditional RAN architectures?"
+    )
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
         self.tokenizer = None
-        self.seq_len = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+        """Implementation method for getting model info with validated variant.
 
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="OTel-LLM",
             variant=variant,
@@ -64,7 +80,7 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current causal_lm variant.
+        """Load tokenizer for the current variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
@@ -72,86 +88,90 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        # Initialize tokenizer with dtype override if specified
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        # Load the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the OTel-LLM causal_lm model instance.
+        """Load and return the OTel-LLM model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The OTel-LLM model instance for causal language modeling.
         """
+        # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
+
+        # Ensure tokenizer is loaded
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
-        model_kwargs = {"use_cache": False}
+
+        # Load the model with dtype override if specified
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        model_kwargs |= kwargs
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
-        self.model = model
+        ).eval()
+
         self.config = model.config
+        self.model = model
         return model
 
-    def load_inputs(
-        self,
-        dtype_override=None,
-        batch_size=1,
-        max_new_tokens: int = 256,
-        prompt: Optional[str] = None,
-    ):
-        """Load and return sample inputs for the OTel-LLM model.
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the OTel-LLM model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
 
         Returns:
-            dict: Input tensors and attention masks that can be fed to the model.
+            dict: Input tensors that can be fed to the model.
         """
-        max_length = self._variant_config.max_length
+        # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
-        input_prompt = [
-            {
-                "role": "user",
-                "content": prompt or self.sample_text,
-            }
-        ]
-        input_text = self.tokenizer.apply_chat_template(
-            input_prompt,
-            add_generation_prompt=True,
-            tokenize=False,
-        )
-        inputs = self.tokenizer(
-            [input_text],
-            return_tensors="pt",
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
-        )
-        for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        input_ids = inputs["input_ids"]
-        attn_mask = inputs["attention_mask"]
-        if dtype_override is not None:
-            input_ids = cast_input_to_type(input_ids, dtype_override)
-            attn_mask = cast_input_to_type(attn_mask, dtype_override)
-        return [input_ids, attn_mask]
+        # Get max_length from the variant config
+        max_length = self._variant_config.max_length
+
+        # Use chat template for instruction-tuned model
+        messages = [{"role": "user", "content": self.sample_text}]
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+
+        inputs = self.tokenizer(
+            [text],
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+        )
+
+        # Add batch dimension
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        return inputs
