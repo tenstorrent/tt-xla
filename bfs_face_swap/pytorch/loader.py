@@ -38,22 +38,6 @@ _BASE_MODELS = {
     "2511": "Qwen/Qwen-Image-Edit-2511",
 }
 
-# LoRA weight filenames and their corresponding base model version
-_VARIANT_META = {
-    "head_v5_2511": {
-        "lora_file": "bfs_head_v5_2511_original.safetensors",
-        "base_version": "2511",
-    },
-    "head_v3_2509": {
-        "lora_file": "bfs_head_v3_qwen_image_edit_2509.safetensors",
-        "base_version": "2509",
-    },
-    "face_v1_2509": {
-        "lora_file": "bfs_face_v1_qwen_image_edit_2509.safetensors",
-        "base_version": "2509",
-    },
-}
-
 
 class ModelVariant(StrEnum):
     """Available BFS face swap LoRA variants."""
@@ -63,10 +47,11 @@ class ModelVariant(StrEnum):
     FACE_V1_2509 = "Face_V1_2509"
 
 
-_VARIANT_KEYS = {
-    ModelVariant.HEAD_V5_2511: "head_v5_2511",
-    ModelVariant.HEAD_V3_2509: "head_v3_2509",
-    ModelVariant.FACE_V1_2509: "face_v1_2509",
+# LoRA weight filenames per variant
+_LORA_FILES = {
+    ModelVariant.HEAD_V5_2511: "bfs_head_v5_2511_original.safetensors",
+    ModelVariant.HEAD_V3_2509: "bfs_head_v3_qwen_image_edit_2509.safetensors",
+    ModelVariant.FACE_V1_2509: "bfs_face_v1_qwen_image_edit_2509.safetensors",
 }
 
 
@@ -121,10 +106,9 @@ class ModelLoader(ForgeModel):
             torch_dtype=dtype,
         )
 
-        meta = _VARIANT_META[_VARIANT_KEYS[self._variant]]
         self.pipeline.load_lora_weights(
             LORA_REPO,
-            weight_name=meta["lora_file"],
+            weight_name=_LORA_FILES[self._variant],
         )
 
         return self.pipeline
