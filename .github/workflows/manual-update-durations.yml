@@ -13,7 +13,6 @@ permissions:
 
 jobs:
   find-tag:
-    if: github.event.workflow_run.run_attempt == 1
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.find.outputs.tag_name }}
