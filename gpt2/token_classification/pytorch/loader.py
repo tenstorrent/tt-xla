@@ -84,6 +84,7 @@ class ModelLoader(ForgeModel):
         for param in model.parameters():
             param.requires_grad = False
 
+        self.model = model
         model.eval()
         return model
 
@@ -108,4 +109,13 @@ class ModelLoader(ForgeModel):
         predicted_token_class_ids = torch.masked_select(
             predicted_token_class_ids, (inputs["attention_mask"][0] == 1)
         )
-        print(f"Predicted token class IDs: {predicted_token_class_ids}")
+        predicted_tokens_classes = [
+            self.model.config.id2label[t.item()]
+            if hasattr(self.model.config, "id2label") and self.model.config.id2label
+            else t.item()
+            for t in predicted_token_class_ids
+        ]
+
+        sample_text = "HuggingFace is a company based in Paris and New York"
+        print(f"Context: {sample_text}")
+        print(f"Answer: {predicted_tokens_classes}")
