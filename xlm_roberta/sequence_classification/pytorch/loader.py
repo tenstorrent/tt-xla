@@ -23,7 +23,9 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    CLAP_AI_MULTILINGUAL_SENTIMENT = "clapAI/roberta-large-multilingual-sentiment"
+    TEXTDETOX_XLMR_LARGE_TOXICITY_CLASSIFIER = (
+        "textdetox/xlmr-large-toxicity-classifier"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -34,8 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.CLAP_AI_MULTILINGUAL_SENTIMENT: LLMModelConfig(
-            pretrained_model_name="clapAI/roberta-large-multilingual-sentiment",
+        ModelVariant.TEXTDETOX_XLMR_LARGE_TOXICITY_CLASSIFIER: LLMModelConfig(
+            pretrained_model_name="textdetox/xlmr-large-toxicity-classifier",
             max_length=128,
         ),
     }
@@ -44,9 +46,7 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
-        ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT_FINETUNNED: "Great road trip views! @ Shartlesville, Pennsylvania",
-        ModelVariant.XLM_ROBERTA_LARGE_DANISH_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
-        ModelVariant.XLM_ROBERTA_LARGE_POLISH_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
+        ModelVariant.TEXTDETOX_XLMR_LARGE_TOXICITY_CLASSIFIER: "This is a friendly message.",
     }
 
     def __init__(self, variant=None):
@@ -55,8 +55,7 @@ class ModelLoader(ForgeModel):
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
         self.text = self._SAMPLE_TEXTS.get(
-            self._variant,
-            "Great road trip views! @ Shartlesville, Pennsylvania",
+            self._variant, "Great road trip views! @ Shartlesville, Pennsylvania"
         )
 
     @classmethod
