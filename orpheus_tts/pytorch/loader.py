@@ -4,7 +4,6 @@
 """
 Orpheus-TTS model loader implementation for text-to-speech tasks.
 """
-import torch
 from typing import Optional
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
