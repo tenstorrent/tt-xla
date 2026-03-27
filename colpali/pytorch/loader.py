@@ -4,14 +4,9 @@
 """
 ColPali model loader implementation for visual document retrieval.
 """
-
 import torch
-from transformers import (
-    ColPaliForRetrieval,
-    ColPaliProcessor,
-    SiglipImageProcessor,
-    AutoTokenizer,
-)
+from colpali_engine.models import ColPali, ColPaliProcessor
+from PIL import Image
 from typing import Optional
 
 from ...base import ForgeModel
@@ -24,27 +19,27 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
-    """Available ColPali model variants for visual document retrieval."""
+    """Available ColPali model variants."""
 
-    COLPALI_V1_3_HF = "colpali-v1.3-hf"
+    V1_3 = "v1.3"
 
 
 class ModelLoader(ForgeModel):
-    """ColPali model loader implementation for visual document retrieval."""
+    """ColPali model loader for visual document retrieval."""
 
     _VARIANTS = {
-        ModelVariant.COLPALI_V1_3_HF: ModelConfig(
-            pretrained_model_name="vidore/colpali-v1.3-hf",
+        ModelVariant.V1_3: ModelConfig(
+            pretrained_model_name="vidore/colpali-v1.3",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.COLPALI_V1_3_HF
+    DEFAULT_VARIANT = ModelVariant.V1_3
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ColPali model loader."""
         super().__init__(variant)
         self.processor = None
 
@@ -52,7 +47,6 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="ColPali",
             variant=variant,
@@ -63,47 +57,61 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
-        if self.processor is None:
-            model_name = self._variant_config.pretrained_model_name
-            image_processor = SiglipImageProcessor.from_pretrained(model_name)
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.processor = ColPaliProcessor(
-                image_processor=image_processor, tokenizer=tokenizer
-            )
+        self.processor = ColPaliProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        """Load and return the ColPali model instance."""
+        model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        else:
+            model_kwargs["torch_dtype"] = torch.bfloat16
         model_kwargs |= kwargs
 
-        model = ColPaliForRetrieval.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        )
+        model = ColPali.from_pretrained(model_name, **model_kwargs)
         model.eval()
+
+        if self.processor is None:
+            self._load_processor()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return input tensors for ColPali."""
         if self.processor is None:
             self._load_processor()
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        images = [Image.new("RGB", (448, 448), color="white")]
+        batch_images = self.processor.process_images(images)
 
-        inputs = self.processor(
-            images=[image],
-            text=["Describe this image."],
-            return_tensors="pt",
-            padding=True,
-        )
+        for key in batch_images:
+            if torch.is_tensor(batch_images[key]):
+                batch_images[key] = batch_images[key].repeat_interleave(
+                    batch_size, dim=0
+                )
 
         if dtype_override is not None:
-            for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].is_floating_point():
-                    inputs[key] = inputs[key].to(dtype_override)
+            for key in batch_images:
+                if (
+                    torch.is_tensor(batch_images[key])
+                    and batch_images[key].is_floating_point()
+                ):
+                    batch_images[key] = batch_images[key].to(dtype_override)
 
-        return inputs
+        return batch_images
+
+    def post_process(self, outputs):
+        """Post-process ColPali outputs to compute document-query similarity scores."""
+        if self.processor is None:
+            self._load_processor()
+
+        queries = ["What is the document about?"]
+        batch_queries = self.processor.process_queries(queries)
+
+        scores = self.processor.score_multi_vector(outputs, batch_queries)
+        print(f"Document-query similarity scores: {scores}")
