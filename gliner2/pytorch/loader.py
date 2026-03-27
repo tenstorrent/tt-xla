@@ -62,69 +62,37 @@ class ModelLoader(ForgeModel):
         return self.model.eval()
 
     def load_inputs(self, batch_size=1):
-        """Load and return sample inputs for the GLiNER2 model."""
-        text = (
+        """Load and return sample inputs for the GLiNER2 model.
+
+        Uses the GLiNER2 processor and collator to prepare a PreprocessedBatch
+        containing input_ids, attention_mask, and schema metadata.
+        """
+        from gliner2.training.trainer import ExtractorCollator
+
+        self.text = (
             "Cristiano Ronaldo dos Santos Aveiro (Portuguese pronunciation: "
             "[kɾiʃ'tjɐnu ʁɔ'naldu]; born 5 February 1985) is a Portuguese "
             "professional footballer who plays as a forward for and captains "
             "both Saudi Pro League club Al Nassr and the Portugal national team."
         )
-        self.text = text
-        labels = ["person", "award", "date", "competitions", "teams"]
-        entity_types = list(dict.fromkeys(labels))
+        self.entity_types = ["person", "award", "date", "competitions", "teams"]
 
-        (
-            tokens,
-            all_start_token_idx_to_text_idx,
-            all_end_token_idx_to_text_idx,
-        ) = self.model.prepare_inputs(
-            texts=[text],
-        )
-        self.all_start_token_idx_to_text_idx = all_start_token_idx_to_text_idx
-        self.all_end_token_idx_to_text_idx = all_end_token_idx_to_text_idx
-
-        input_x = self.model.prepare_base_input(tokens)
-
-        collator = self.model.data_collator_class(
-            self.model.config,
-            data_processor=self.model.data_processor,
-            return_tokens=True,
-            return_entities=True,
-            return_id_to_classes=True,
-            prepare_labels=False,
+        schema = (
+            self.model.create_schema().entities(self.entity_types).build_schema_dict()
         )
 
-        batch = collator(input_x, entity_types=entity_types)
+        self.model.processor.change_mode(is_training=False)
+        collator = ExtractorCollator(self.model.processor, is_training=False)
+        dataset = list(zip([self.text], [schema]))
+        batch = collator(dataset)
         self.batch = batch
         return batch
 
     def post_processing(self, co_out):
         """Decode model output into entity predictions."""
-        outputs = []
-        decoded = self.model.decoder.decode(
-            self.batch["tokens"],
-            self.batch["id_to_classes"],
-            co_out,
-            flat_ner=True,
-            threshold=0.5,
-            multi_label=False,
+        results = self.model.extract_entities(
+            self.text, self.entity_types, threshold=0.5
         )
-        outputs.extend(decoded)
-        all_entities = []
-        for i, output in enumerate(outputs):
-            start_token_idx_to_text_idx = self.all_start_token_idx_to_text_idx[i]
-            end_token_idx_to_text_idx = self.all_end_token_idx_to_text_idx[i]
-            entities = []
-            for start_token_idx, end_token_idx, ent_type, ent_score in output:
-                start_text_idx = start_token_idx_to_text_idx[start_token_idx]
-                end_text_idx = end_token_idx_to_text_idx[end_token_idx]
-                ent_details = {
-                    "start": start_token_idx_to_text_idx[start_token_idx],
-                    "end": end_token_idx_to_text_idx[end_token_idx],
-                    "text": self.text[start_text_idx:end_text_idx],
-                    "label": ent_type,
-                    "score": ent_score,
-                }
-                entities.append(ent_details)
-            all_entities.append(entities)
-        return all_entities
+        print(f"Text: {self.text}")
+        print(f"Entities: {results}")
+        return results
