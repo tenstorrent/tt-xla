@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
     BIO_CLINICAL_BERT = "Bio_ClinicalBERT"
     BERT_BASE_GERMAN_CASED = "Base_German_Cased"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
-    BERT_BASE_SPANISH_WWM_UNCASED = "Base_Spanish_WWM_Uncased"
+    LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
 
 
 class ModelLoader(ForgeModel):
@@ -59,8 +59,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="neuralmind/bert-large-portuguese-cased",
             max_length=128,
         ),
-        ModelVariant.BERT_BASE_SPANISH_WWM_UNCASED: LLMModelConfig(
-            pretrained_model_name="dccuchile/bert-base-spanish-wwm-uncased",
+        ModelVariant.LEGAL_BERT_BASE_UNCASED: LLMModelConfig(
+            pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
     }
@@ -105,7 +105,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
             ModelVariant.BIO_CLINICAL_BERT,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
-            ModelVariant.BERT_BASE_SPANISH_WWM_UNCASED,
+            ModelVariant.LEGAL_BERT_BASE_UNCASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
