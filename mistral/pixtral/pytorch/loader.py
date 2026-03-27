@@ -7,49 +7,73 @@ Mistral Pixtral model loader implementation
 
 
 import torch
-from transformers import LlavaForConditionalGeneration  # , AutoProcessor
+from transformers import LlavaForConditionalGeneration
+from typing import Optional
 from ....config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
 )
 from ....base import ForgeModel
+
+
+class ModelVariant(StrEnum):
+    """Available Pixtral model variants."""
+
+    PIXTRAL_12B_COMMUNITY = "12B_Community"
+    PIXTRAL_12B_EXPERIMENTAL = "12B_Experimental"
 
 
 class ModelLoader(ForgeModel):
     """Pixtral model loader implementation."""
 
-    def __init__(self, variant=None):
+    _VARIANTS = {
+        ModelVariant.PIXTRAL_12B_COMMUNITY: ModelConfig(
+            pretrained_model_name="mistral-community/pixtral-12b",
+        ),
+        ModelVariant.PIXTRAL_12B_EXPERIMENTAL: ModelConfig(
+            pretrained_model_name="mistral-experimental/pixtral-12b",
+        ),
+    }
+
+    DEFAULT_VARIANT = ModelVariant.PIXTRAL_12B_COMMUNITY
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
 
         Args:
-            variant: Optional string specifying which variant to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
 
-        # Configuration parameters
-        self.model_name = "mistral-community/pixtral-12b"
-        # self.processor = None
-
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant_name is None:
-            variant_name = "base"
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
+        if variant == ModelVariant.PIXTRAL_12B_EXPERIMENTAL:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.RED
+
         return ModelInfo(
-            model="Mistral",
-            variant=variant_name,
-            group=ModelGroup.RED,
+            model="Pixtral",
+            variant=variant,
+            group=group,
             task=ModelTask.MM_VISUAL_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -66,7 +90,7 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The Mistral Pixtral model instance.
 
         """
-        # self.processor = AutoProcessor.from_pretrained(self.model_name)
+        model_name = self._variant_config.pretrained_model_name
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
@@ -75,7 +99,7 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = LlavaForConditionalGeneration.from_pretrained(
-            self.model_name, **model_kwargs
+            model_name, **model_kwargs
         )
         self.model = model
         self.config = model.config
