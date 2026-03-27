@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     """Available MiniMax-M2.5 model variants for causal language modeling."""
 
     MINIMAX_M2_5 = "M2.5"
+    MINIMAX_M2_5_NVFP4 = "M2.5_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MINIMAX_M2_5: LLMModelConfig(
             pretrained_model_name="MiniMaxAI/MiniMax-M2.5",
+            max_length=128,
+        ),
+        ModelVariant.MINIMAX_M2_5_NVFP4: LLMModelConfig(
+            pretrained_model_name="lukealonso/MiniMax-M2.5-NVFP4",
             max_length=128,
         ),
     }
@@ -132,6 +137,10 @@ class ModelLoader(ForgeModel):
 
         return self.tokenizer
 
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.MINIMAX_M2_5_NVFP4}
+
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the MiniMax-M2.5 model instance for this instance's variant.
 
@@ -149,6 +158,8 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
         model_kwargs |= kwargs
 
         config = self._build_native_config()
