@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available HuBERT feature extraction model variants."""
 
     BASE_LS960 = "Base_ls960"
-    CHINESE_LARGE = "Chinese_Large"
+    MHUBERT_147 = "mHuBERT_147"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_LS960: ModelConfig(
             pretrained_model_name="facebook/hubert-base-ls960",
         ),
-        ModelVariant.CHINESE_LARGE: ModelConfig(
-            pretrained_model_name="TencentGameMate/chinese-hubert-large",
+        ModelVariant.MHUBERT_147: ModelConfig(
+            pretrained_model_name="utter-project/mHuBERT-147",
         ),
     }
 
