@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     ESM2_T33_650M_UR50_190K_STEPS = (
         "ProteinSequenceAnnotation/esm2_t33_650M_UR50_190K_steps"
     )
+    ESM2_T36_3B_UR50D = "facebook/esm2_t36_3B_UR50D"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.ESM2_T33_650M_UR50_190K_STEPS: ModelConfig(
             pretrained_model_name="ProteinSequenceAnnotation/esm2_t33_650M_UR50_190K_steps",
+        ),
+        ModelVariant.ESM2_T36_3B_UR50D: ModelConfig(
+            pretrained_model_name="facebook/esm2_t36_3B_UR50D",
         ),
     }
 
