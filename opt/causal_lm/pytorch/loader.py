@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available OPT model variants."""
 
     OPT_125M = "125M"
+    OPT_125M_OPTIMUM_INTEL = "125M-optimum-intel"
     OPT_350M = "350M"
     OPT_1_3B = "1.3b"
     TINY_RANDOM = "tiny-random"
@@ -35,6 +36,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPT_125M: LLMModelConfig(
             pretrained_model_name="facebook/opt-125m",
+            max_length=256,
+        ),
+        ModelVariant.OPT_125M_OPTIMUM_INTEL: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/opt-125m",
             max_length=256,
         ),
         ModelVariant.OPT_350M: LLMModelConfig(
@@ -84,7 +89,8 @@ class ModelLoader(ForgeModel):
         """
         group = (
             ModelGroup.VULCAN
-            if variant == ModelVariant.TINY_RANDOM
+            if variant
+            in (ModelVariant.TINY_RANDOM, ModelVariant.OPT_125M_OPTIMUM_INTEL)
             else ModelGroup.GENERALITY
         )
         return ModelInfo(
