@@ -80,7 +80,7 @@ def test_tensor_parallel_generation_llmbox_small(
     [
         pytest.param("Qwen/Qwen3-32B", False, ""),
         pytest.param("Qwen/Qwen2.5-32B", False, ""),
-        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp8"),
+        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8"),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(

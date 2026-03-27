@@ -96,8 +96,8 @@ def _run_model_test_impl(
             compiler_config = CompilerConfig()
         weights_dtype = None
         if test_metadata.enable_weight_bfp8_conversion:
-            compiler_config.experimental_weight_dtype = "bfp8"
-            weights_dtype = "bfp8"
+            compiler_config.experimental_weight_dtype = "bfp_bf8"
+            weights_dtype = "bfp_bf8"
 
         if ir_dump_path:
             compiler_config.export_path = ir_dump_path

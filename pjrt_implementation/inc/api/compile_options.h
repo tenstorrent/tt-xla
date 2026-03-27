@@ -34,7 +34,7 @@ struct CompileOptions {
   int optimization_level = 0;
 
   // Target dtype for weight conversion in matmul and linear operations.
-  // Valid values: "bfp8", "bfp4". Empty string disables.
+  // Valid values: "bfp_bf8", "bfp_bf4". Empty string disables.
   std::string experimental_weight_dtype = "";
 
   // Override math fidelity for all ttnn operations exposing compute kernel

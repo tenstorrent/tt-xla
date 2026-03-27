@@ -19,7 +19,7 @@ This guide covers best practices and techniques for optimizing the performance o
 
 1. **[Optimization Levels](#1-optimization-levels)** - Compiler optimization levels (0, 1, 2) to balance compile and runtime performance
 2. **[Device Warmup](#2-device-warmup)** - Eliminate first-run overhead by performing warmup iterations
-3. **[Data Formats](#3-data-formats)** - Use bfloat16 and bfloat8_b for faster computation and reduced memory usage
+3. **[Data Formats](#3-data-formats)** - Use bfloat16 and bfloat8_b for faster computation and reduced memory usage, including per-tensor weight dtype overrides for mixed precision
 4. **[Runtime Trace](#4-runtime-trace)** - Reduce host-device communication overhead by recording and replaying command sequences
 5. **[Batch Size Tuning](#5-batch-size-tuning)** - Find the optimal batch size to maximize throughput for your model
 
@@ -124,14 +124,14 @@ bfloat16 (Brain Floating Point 16-bit) provides:
 
 ### bfloat8_b
 
-Enable bfp8 weight conversion using compile options. The model **MUST** be cast to bfloat16 before compilation.
+Enable bfp_bf8 weight conversion using compile options. The model **MUST** be cast to bfloat16 before compilation.
 ```python
 torch_xla.set_custom_compile_options({
-    "experimental_weight_dtype": "bfp8",  # Cast matmul weights to bfloat8_b
+    "experimental_weight_dtype": "bfp_bf8",  # Cast matmul weights to bfloat8_b
 })
 ```
 
-bfloat8_b (Block Float 8-bit) weight conversion casts matmul weights to bfp8 format, providing faster computation and reduced memory usage.
+bfloat8_b (Block Float 8-bit) weight conversion casts matmul weights to bfp_bf8 format, providing faster computation and reduced memory usage.
 
 #### Notes
 
@@ -139,6 +139,84 @@ bfloat8_b (Block Float 8-bit) weight conversion casts matmul weights to bfp8 for
 - **Verify output:** Check that accuracy is acceptable for your use case
 - **Automatic conversion:** Weights are automatically converted during compilation
 - **Not always beneficial:** Profile your specific model to verify improvement
+
+### Per-Tensor Weight Dtype Overrides (Mixed Precision)
+
+When uniform weight conversion causes accuracy degradation in specific layers, you can specify dtype overrides on a per-tensor basis. This lets you keep sensitive layers at higher precision (e.g. `bf16`) while converting the rest to a lower format (e.g. `bfp_bf8` or `bfp_bf4`).
+
+> **Note:** Currently only matmul/linear layer weight overrides are propagated and respected. Convolution weights on lower data types are not yet supported through the compiler.
+
+#### Step 1: Generate a template JSON
+
+Use the `tt-gen-weight-template` CLI to generate a JSON config listing all weight parameters in a model:
+
+```bash
+tt-gen-weight-template --loader third_party/tt_forge_models/llama/causal_lm/pytorch/loader.py
+```
+
+**CLI options:**
+
+| Option | Description |
+|--------|-------------|
+| `--loader` | **(Required)** Path to a model `loader.py` file |
+| `--variant` | Variant enum name (e.g. `LLAMA_3_1_8B`). Defaults to the loader's `DEFAULT_VARIANT` |
+| `--list-variants` | List available variants and exit |
+| `--default-dtype` | Default dtype for all entries: `bfp_bf8` (default), `bfp_bf4`, or `bf16` |
+| `--output-dir` | Override output directory (default: `mixed_precision_configs/` next to the loader) |
+| `--auto-class` | transformers `Auto*` class to use (default: `AutoModelForCausalLM`) |
+
+The output is a JSON file mapping every weight parameter to a dtype string:
+
+```json
+{
+    "model.embed_tokens.weight": "bfp_bf8",
+    "model.layers.0.self_attn.q_proj.weight": "bfp_bf8",
+    "model.layers.0.self_attn.k_proj.weight": "bfp_bf8",
+    "model.layers.0.mlp.gate_proj.weight": "bfp_bf8",
+    "...": "..."
+}
+```
+
+Edit this file to fine-tune per-layer dtypes. You can remove entries for layers you don't want to override, or use glob patterns to target groups of layers:
+
+```json
+{
+    "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
+    "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
+    "model.layers.0.self_attn.q_proj.weight": "bf16"
+}
+```
+
+> **Tip:** To override all layers of a certain type, use wildcard patterns like `model.layers.*.mlp.gate_proj.weight` instead of listing each layer individually.
+
+#### Step 2: Run model tests or benchmarks
+
+The JSON config is **automatically discovered** by both the model test runner and LLM benchmarks. The config file must be located in `mixed_precision_configs/` next to the model's `loader.py` — which is the default output location of `tt-gen-weight-template`.
+
+**Auto-discovery paths:**
+
+- **Model tests** (`tests/runner/test_models.py`): `DynamicTorchModelTester` calls `loader.get_weight_dtype_config_path()` during model initialization and applies overrides automatically.
+- **LLM benchmarks** (`tests/benchmark/benchmarks/llm_benchmark.py`): Same pattern — discovers and applies overrides from the config path.
+
+#### How to identify the loader for a test
+
+Each model test imports its loader in the first lines. For example, `test_llama_3_1_8b` uses:
+
+```
+third_party.tt_forge_models.llama.causal_lm.pytorch.loader
+```
+
+Pass the corresponding file path to the CLI:
+
+```bash
+tt-gen-weight-template --loader third_party/tt_forge_models/llama/causal_lm/pytorch/loader.py
+```
+
+The CLI saves the JSON to `third_party/tt_forge_models/llama/causal_lm/pytorch/mixed_precision_configs/`, which is exactly where the test runner looks for it.
+
+#### How it works
+
+Overrides are applied transparently via `torch.nn.utils.parametrize` — there is **no need** to edit model forward functions or manually insert custom ops. The `apply_weight_dtype_overrides()` function registers a parametrization on each matched weight that injects a `torch.ops.tt.weight_dtype_override` call. During compilation, a C++ frontend pass extracts these annotations and propagates them as per-argument attributes for the tt-mlir weight dtype conversion pass.
 
 ---
 

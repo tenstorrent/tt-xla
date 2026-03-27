@@ -96,7 +96,7 @@ def test_encoder(
         input_sequence_length: Length of input sentence
         data_format: Data format
         required_pcc: Required PCC threshold
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Enable permute matmul fusion
         load_inputs_fn: Optional function to load raw inputs.
             Signature: fn(batch_size) -> List[str]. Defaults to get_default_inputs.

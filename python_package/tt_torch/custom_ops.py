@@ -131,6 +131,79 @@ def _(ctx, grad_output):
 
 
 @torch.library.custom_op(
+    "tt::weight_dtype_override", mutates_args=[], device_types=["cpu", "xla"]
+)
+def weight_dtype_override(tensor: torch.Tensor, dtype_str: str) -> torch.Tensor:
+    """
+    Apply a per-tensor weight dtype constraint for tt-mlir's weight dtype conversion pass.
+
+    This function is a custom registered operator accessible as torch.ops.tt.weight_dtype_override.
+    It creates a stablehlo.custom_call @tt.weight_dtype_override op whose frontend_attributes
+    carry the target dtype. The C++ frontend pass lifts this to a function arg attribute, and
+    the tt-mlir weight dtype conversion pass reads it to insert a typecast for this specific weight.
+
+    Args:
+        tensor: The weight tensor to annotate with a target dtype
+        dtype_str: Target dtype string, one of "bfp_bf4", "bfp_bf8", or "bf16"
+
+    Returns:
+        The tensor with weight dtype constraint metadata applied
+    """
+    if tensor.device.type == "cpu":
+        return tensor.clone()
+
+    assert isinstance(
+        dtype_str, str
+    ), f"dtype_str must be a string, received {type(dtype_str)}"
+    assert dtype_str in [
+        "bfp_bf4",
+        "bfp_bf8",
+        "bf16",
+    ], f"dtype_str must be one of 'bfp_bf4', 'bfp_bf8', or 'bf16', received {dtype_str}"
+
+    frontend_attributes = {"ttcore.weight_dtype": dtype_str}
+
+    # stablehlo_custom_call causes issues within XLA for shapes which are 2D or less.
+    # Workaround: reshape the tensor to 3D, then reshape back after the custom call.
+    original_shape = list(tensor.shape)
+    if len(tensor.shape) < 3:
+        extra_dims = [1] * (3 - len(original_shape))
+        tensor = tensor.reshape((*extra_dims, *original_shape))
+
+    result = stablehlo_custom_call.stablehlo_custom_call(
+        [tensor],
+        "tt.weight_dtype_override",
+        [tensor.shape],
+        [tensor.dtype],
+        frontend_attributes=frontend_attributes,
+    )
+
+    if len(original_shape) < 3:
+        result = result.reshape(original_shape)
+
+    return result
+
+
+@weight_dtype_override.register_fake
+def _(tensor: torch.Tensor, dtype_str: str) -> torch.Tensor:
+    """
+    FakeTensor implementation of torch.ops.tt.weight_dtype_override.
+    This must be implemented in order for dynamo to trace the function.
+    """
+    return tensor.clone()
+
+
+@weight_dtype_override.register_autograd
+def _(ctx, grad_output):
+    """
+    Autograd implementation for weight_dtype_override.
+    This op only applies dtype metadata, so gradients pass through unchanged.
+    Returns gradients for: (tensor, dtype_str)
+    """
+    return grad_output, None
+
+
+@torch.library.custom_op(
     "tt::scaled_dot_product_attention", mutates_args=[], device_types=["xla", "cpu"]
 )
 def scaled_dot_product_attention(
