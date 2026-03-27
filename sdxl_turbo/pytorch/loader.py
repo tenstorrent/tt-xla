@@ -13,6 +13,7 @@ Available variants:
 
 from typing import Optional
 
+import torch
 from diffusers import AutoPipelineForText2Image
 
 from ...base import ForgeModel
@@ -69,9 +70,10 @@ class ModelLoader(ForgeModel):
         Returns:
             AutoPipelineForText2Image: The SDXL-Turbo pipeline instance.
         """
+        dtype = dtype_override if dtype_override is not None else torch.float32
         self.pipeline = AutoPipelineForText2Image.from_pretrained(
             self._variant_config.pretrained_model_name,
-            torch_dtype=dtype_override,
+            torch_dtype=dtype,
             **kwargs,
         )
         return self.pipeline
