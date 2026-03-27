@@ -8,7 +8,7 @@ LLaVA-NeXT (v1.6) model loader implementation for multimodal conditional generat
 from typing import Optional
 
 import torch
-from datasets import load_dataset
+from PIL import Image
 from transformers import LlavaNextForConditionalGeneration, LlavaNextProcessor
 
 from ...base import ForgeModel
@@ -21,7 +21,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import cast_input_to_type
+from ...tools.utils import get_file, cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -103,9 +103,11 @@ class ModelLoader(ForgeModel):
             conversation, padding=True, add_generation_prompt=True
         )
 
-        # Load dataset
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        # Load sample image
+        image_file = get_file(
+            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+        )
+        image = Image.open(image_file)
 
         # Preprocess
         inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
