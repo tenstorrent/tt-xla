@@ -6,9 +6,9 @@ CLIP-ViT-L-Scope sparse autoencoder model loader implementation.
 
 Reference: https://huggingface.co/lewington/CLIP-ViT-L-scope
 """
-import PIL
 import torch
 from clipscope import ConfiguredViT, TopKSAE
+from datasets import load_dataset
 from typing import Optional
 
 from ...base import ForgeModel
@@ -108,7 +108,8 @@ class ModelLoader(ForgeModel):
         """Load and return a sample input image for the model.
 
         Returns:
-            PIL.Image.Image: A sample 224x224 RGB image.
+            PIL.Image.Image: A sample 224x224 RGB image from the cats dataset.
         """
-        image = PIL.Image.new("RGB", (224, 224), (128, 128, 128))
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].resize((224, 224))
         return image
