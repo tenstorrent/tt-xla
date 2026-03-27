@@ -66,7 +66,7 @@ class ModelLoader(ForgeModel):
         model.eval()
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, *, dtype_override=None, **kwargs):
         from transformers import AutoTokenizer
 
         pretrained_model_name = self._variant_config.pretrained_model_name
