@@ -2,14 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen3 Reranker Sequence Classification model loader for passage ranking.
-
-This uses the tomaarsen/Qwen3-Reranker-4B-seq-cls model which converts the
-original Qwen3-Reranker from a CausalLM to a standard SequenceClassification
-architecture, allowing direct logit-based relevance scoring.
-
-Also supports the dolfsai/Qwen3-Reranker-4B-seq-cls-vllm-W4A16 variant which
-is a GPTQ W4A16 quantized version optimized for vLLM inference.
+Qwen3-Reranker sequence classification model loader implementation for passage ranking.
 """
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -28,25 +21,25 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen3 Reranker Sequence Classification model variants."""
+    """Available Qwen3-Reranker-seq-cls model variants for passage ranking."""
 
-    QWEN_3_RERANKER_4B_SEQ_CLS = "4B_seq_cls"
-    QWEN_3_RERANKER_4B_SEQ_CLS_W4A16 = "4B_seq_cls_w4a16"
+    QWEN_3_RERANKER_0_6B_SEQ_CLS = "0_6B-seq-cls"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen3 Reranker Sequence Classification model loader for passage ranking."""
+    """Qwen3-Reranker sequence classification model loader implementation for passage ranking.
+
+    This is a sequence classification conversion of the Qwen3-Reranker model,
+    using AutoModelForSequenceClassification instead of the original causal LM approach.
+    """
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_RERANKER_4B_SEQ_CLS: ModelConfig(
-            pretrained_model_name="tomaarsen/Qwen3-Reranker-4B-seq-cls",
-        ),
-        ModelVariant.QWEN_3_RERANKER_4B_SEQ_CLS_W4A16: ModelConfig(
-            pretrained_model_name="dolfsai/Qwen3-Reranker-4B-seq-cls-vllm-W4A16",
+        ModelVariant.QWEN_3_RERANKER_0_6B_SEQ_CLS: ModelConfig(
+            pretrained_model_name="tomaarsen/Qwen3-Reranker-0.6B-seq-cls",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_RERANKER_4B_SEQ_CLS
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_RERANKER_0_6B_SEQ_CLS
 
     # System prompt for the reranker
     _SYSTEM_PROMPT = (
@@ -57,8 +50,8 @@ class ModelLoader(ForgeModel):
     # Sample query-passage pairs for testing
     sample_pairs = [
         (
-            "What is the capital of China?",
-            "The capital of China is Beijing.",
+            "Which planet is known as the Red Planet?",
+            "Mars, known for its reddish appearance, is often referred to as the Red Planet.",
         ),
     ]
 
@@ -84,23 +77,11 @@ class ModelLoader(ForgeModel):
 
     def _format_input(self, instruction, query, document):
         """Format a query-document pair using the reranker's chat template."""
-        user_content = (
-            f"<Instruct>: {instruction}\n"
-            f"<Query>: {query}\n"
-            f"<Document>: {document}"
+        prefix = (
+            f"<|im_start|>system\n{self._SYSTEM_PROMPT}<|im_end|>\n<|im_start|>user\n"
         )
-        messages = [
-            {"role": "system", "content": self._SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
-        ]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        # Append empty thinking block as per model card
-        text += "<think>\n\n</think>\n\n"
-        return text
+        suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        return f"{prefix}<Instruct>: {instruction}\n<Query>: {query}\n<Document>: {document}{suffix}"
 
     def _load_tokenizer(self, dtype_override=None):
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -114,7 +95,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs = {"return_dict": False}
         if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -128,16 +109,16 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        texts = [
-            self._format_input(self.sample_instruction, query, doc)
-            for query, doc in self.sample_pairs
+        pairs = [
+            self._format_input(self.sample_instruction, query, document)
+            for query, document in self.sample_pairs
         ]
 
         inputs = self.tokenizer(
-            texts,
+            pairs,
             padding=True,
             truncation=True,
-            max_length=512,
+            max_length=8192,
             return_tensors="pt",
         )
 
