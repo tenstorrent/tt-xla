@@ -50,12 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_1_7B_UNSLOTH = "1_7B_Unsloth"
-    QWEN_3_14B_MLX_8BIT = "14B_MLX_8bit"
-    QWEN_3_8B_FP8_DYNAMIC = "8B_FP8_Dynamic"
-    QWEN_3_30B_A3B_W8A8 = "30B_A3B_W8A8"
-    QWEN_3_TINY_SMOKE_MOE_W4A16 = "Tiny_Smoke_Moe_W4A16"
-    QWEN_3_4B_INT8_INT4 = "4B_INT8_INT4"
+    TINY_RANDOM_QWEN3 = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -155,28 +150,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_1_7B_UNSLOTH: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-1.7B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_14B_MLX_8BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-14B-MLX-8bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_8B_FP8_DYNAMIC: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen3-8B-FP8-dynamic",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_W8A8: LLMModelConfig(
-            pretrained_model_name="nytopop/Qwen3-30B-A3B.w8a8",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_TINY_SMOKE_MOE_W4A16: LLMModelConfig(
-            pretrained_model_name="nm-testing/tinysmokeqwen3moe-W4A16-first-only-CTstable",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_4B_INT8_INT4: LLMModelConfig(
-            pretrained_model_name="pytorch/Qwen3-4B-INT8-INT4",
+        ModelVariant.TINY_RANDOM_QWEN3: LLMModelConfig(
+            pretrained_model_name="llamafactory/tiny-random-qwen3",
             max_length=128,
         ),
     }
@@ -232,12 +207,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_1_7B_UNSLOTH,
-            ModelVariant.QWEN_3_14B_MLX_8BIT,
-            ModelVariant.QWEN_3_8B_FP8_DYNAMIC,
-            ModelVariant.QWEN_3_30B_A3B_W8A8,
-            ModelVariant.QWEN_3_TINY_SMOKE_MOE_W4A16,
-            ModelVariant.QWEN_3_4B_INT8_INT4,
+            ModelVariant.TINY_RANDOM_QWEN3,
         ):
             group = ModelGroup.VULCAN
         else:
