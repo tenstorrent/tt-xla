@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B_FP8 = "27B_FP8"
     QWEN_3_5_35B_A3B = "35B_A3B"
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
-    QWEN_3_5_122B_A10B = "122B_A10B"
+    QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
 
@@ -69,8 +69,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3.5-35B-A3B-FP8",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_122B_A10B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3.5-122B-A10B",
+        ModelVariant.QWEN_3_5_4B_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3.5-4B-GGUF",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_9B_GGUF: LLMModelConfig(
@@ -86,8 +86,11 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B
 
-    # GGUF file to use for quantized variant
-    GGUF_FILE = "Qwen3.5-9B-Q4_K_M.gguf"
+    # GGUF files for quantized variants
+    _GGUF_FILES = {
+        ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
+    }
 
     # Shared configuration parameters
     sample_text = "Give me a short introduction to large language model."
@@ -143,7 +146,7 @@ class ModelLoader(ForgeModel):
 
         # Pass gguf_file for GGUF variants
         if self._is_gguf_variant():
-            tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
+            tokenizer_kwargs["gguf_file"] = self._gguf_file
 
         # Load the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -182,7 +185,7 @@ class ModelLoader(ForgeModel):
 
         # Pass gguf_file for GGUF variants
         if self._is_gguf_variant():
-            model_kwargs["gguf_file"] = self.GGUF_FILE
+            model_kwargs["gguf_file"] = self._gguf_file
 
         # GPTQ variants need device_map="cpu" for CPU-based loading
         if self._variant == ModelVariant.QWEN_3_5_35B_A3B_GPTQ_INT4:
@@ -267,7 +270,12 @@ class ModelLoader(ForgeModel):
 
     def _is_gguf_variant(self):
         """Check if the current variant uses GGUF quantization."""
-        return self._variant == ModelVariant.QWEN_3_5_9B_GGUF
+        return self._variant in self._GGUF_FILES
+
+    @property
+    def _gguf_file(self):
+        """Get the GGUF filename for the current variant."""
+        return self._GGUF_FILES.get(self._variant)
 
     def _is_awq_variant(self):
         """Check if the current variant uses AWQ quantization."""
@@ -327,7 +335,7 @@ class ModelLoader(ForgeModel):
         """
         config_kwargs = {}
         if self._is_gguf_variant():
-            config_kwargs["gguf_file"] = self.GGUF_FILE
+            config_kwargs["gguf_file"] = self._gguf_file
 
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name, **config_kwargs
