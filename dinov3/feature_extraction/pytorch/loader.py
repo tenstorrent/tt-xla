@@ -34,7 +34,7 @@ class ModelVariant(StrEnum):
     """Available DINOv3 ViT feature extraction model variants."""
 
     BASE = "Base"
-    SMALL_QKVB = "Small_QKVB"
+    SMALL_PLUS = "Small+"
 
 
 class ModelLoader(ForgeModel):
@@ -51,6 +51,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE: ModelConfig(
             pretrained_model_name="camenduru/dinov3-vitl16-pretrain-lvd1689m",
+        ),
+        ModelVariant.SMALL_PLUS: ModelConfig(
+            pretrained_model_name="facebook/dinov3-vits16plus-pretrain-lvd1689m",
         ),
     }
 
