@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MN-12B-Mag-Mell-R1 GGUF model variants for causal language modeling."""
 
-    MN_12B_MAG_MELL_R1_GGUF = "MN_12B_Mag_Mell_R1_GGUF"
+    MN_12B_MAG_MELL_R1_GGUF = "MN_12B_MAG_MELL_R1_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -31,16 +31,16 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.MN_12B_MAG_MELL_R1_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/MN-12B-Mag-Mell-R1-GGUF",
+            pretrained_model_name="mradermacher/MN-12B-Mag-Mell-R1-GGUF",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.MN_12B_MAG_MELL_R1_GGUF
 
-    GGUF_FILE = "MN-12B-Mag-Mell-R1-Q4_K_M.gguf"
+    GGUF_FILE = "MN-12B-Mag-Mell-R1.Q4_K_M.gguf"
 
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -150,7 +150,6 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
