@@ -36,7 +36,10 @@ class DA3Wrapper(nn.Module):
         self.model = model
 
     def forward(self, pixel_values):
-        return self.model(pixel_values)
+        # Model expects (B, N, 3, H, W) where N is number of views
+        x = pixel_values.unsqueeze(1)
+        outputs = self.model(x)
+        return outputs["depth"]
 
 
 class ModelVariant(StrEnum):
