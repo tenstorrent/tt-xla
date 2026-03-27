@@ -43,6 +43,7 @@ class ModelVariant(StrEnum):
     MAGISTRAL_SMALL_2506 = "Magistral_Small_2506"
     MISTRAL_SMALL_3_1_24B_INSTRUCT_2503 = "mistral_small_3.1_24b_instruct_2503"  # Untested in Transformers; for full testing, please refer to VLLM.
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
+    MINISTRAL_3B_INSTRUCT_2512_BF16 = "Ministral_3B_Instruct_2512_BF16"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
 
 
@@ -59,6 +60,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT_2503,
     }
     _USE_Mistral3ForConditionalGeneration_VARIANTS = {
+        ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
         ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506,
     }
 
@@ -103,6 +105,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT_2503: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Small-3.1-24B-Instruct-2503",
         ),
+        ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16: ModelConfig(
+            pretrained_model_name="mistralai/Ministral-3-3B-Instruct-2512-BF16",
+        ),
         ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         ),
@@ -142,6 +147,7 @@ class ModelLoader(ForgeModel):
         """
 
         if variant in (
+            ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MINISTRAL_14B_REASONING,
