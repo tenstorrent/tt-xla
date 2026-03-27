@@ -34,7 +34,7 @@ class ModelVariant(StrEnum):
     XLS_R_300M_FILIPINO = "XLS_R_300M_Filipino"
     XLSR_53_DUTCH = "XLSR_53_Dutch"
     XLS_R_1B_NYNORSK = "XLS_R_1B_Nynorsk"
-    XLSR_CATALA = "XLSR_Catala"
+    XLSR_53_ESPEAK_CV_FT = "XLSR_53_Espeak_CV_ft"
 
 
 class ModelLoader(ForgeModel):
@@ -74,8 +74,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.XLS_R_1B_NYNORSK: ModelConfig(
             pretrained_model_name="NbAiLab/nb-wav2vec2-1b-nynorsk",
         ),
-        ModelVariant.XLSR_CATALA: ModelConfig(
-            pretrained_model_name="softcatala/wav2vec2-large-xlsr-catala",
+        ModelVariant.XLSR_53_ESPEAK_CV_FT: ModelConfig(
+            pretrained_model_name="facebook/wav2vec2-xlsr-53-espeak-cv-ft",
         ),
     }
 
