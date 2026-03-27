@@ -79,8 +79,8 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    # NLI sample inputs for NLI variants
-    _NLI_PREMISE = (
+    # NLI sample inputs for NLI-based variants
+    _MNLI_PREMISE = (
         "Calcutta seems to be the only other production center having any "
         "pretensions to artistic creativity at all, but ironically you're "
         "actually more likely to see the works of Satyajit Ray or Mrinal Sen "
@@ -152,7 +152,7 @@ class ModelLoader(ForgeModel):
             self.load_model()  # This will initialize the tokenizer
 
         if self._is_nli_variant():
-            # MNLI uses premise/hypothesis pairs
+            # NLI-based variants use premise/hypothesis pairs
             inputs = self.tokenizer(
                 self._NLI_PREMISE,
                 self._NLI_HYPOTHESIS,
