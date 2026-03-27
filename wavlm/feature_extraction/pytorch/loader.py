@@ -24,23 +24,23 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available WavLM feature extraction model variants."""
 
-    TINY_RANDOM = "Tiny Random"
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
     """WavLM model loader implementation for audio feature extraction."""
 
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-WavlmModel",
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="microsoft/wavlm-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self._feature_extractor = None
+        self._processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -56,18 +56,18 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_feature_extractor(self, dtype_override=None):
-        from transformers import AutoFeatureExtractor
+    def _load_processor(self, dtype_override=None):
+        from transformers import Wav2Vec2FeatureExtractor
 
-        feature_extractor_kwargs = {}
+        processor_kwargs = {}
         if dtype_override is not None:
-            feature_extractor_kwargs["dtype"] = dtype_override
+            processor_kwargs["dtype"] = dtype_override
 
-        self._feature_extractor = AutoFeatureExtractor.from_pretrained(
-            self._variant_config.pretrained_model_name, **feature_extractor_kwargs
+        self._processor = Wav2Vec2FeatureExtractor.from_pretrained(
+            self._variant_config.pretrained_model_name, **processor_kwargs
         )
 
-        return self._feature_extractor
+        return self._processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
         from transformers import WavLMModel
@@ -89,8 +89,8 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None):
         import numpy as np
 
-        if self._feature_extractor is None:
-            self._load_feature_extractor(dtype_override=dtype_override)
+        if self._processor is None:
+            self._load_processor(dtype_override=dtype_override)
 
         # Generate a synthetic 1-second audio waveform at 16kHz
         sampling_rate = 16000
@@ -99,7 +99,7 @@ class ModelLoader(ForgeModel):
             np.float32
         )
 
-        inputs = self._feature_extractor(
+        inputs = self._processor(
             audio_array,
             sampling_rate=sampling_rate,
             return_tensors="pt",
