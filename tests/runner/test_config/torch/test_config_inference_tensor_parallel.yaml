@@ -250,3 +250,8 @@ test_config:
       n300-llmbox:
         enable_weight_bfp8_conversion: true
         status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+
+  gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
