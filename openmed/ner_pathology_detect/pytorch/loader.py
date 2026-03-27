@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER PathologyDetect SuperMedical model loader implementation for token classification.
+OpenMed NER PathologyDetect model loader implementation for token classification.
 """
 
 import torch
@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_PATHOLOGYDETECT_SUPERMEDICAL_125M = (
         "OpenMed/OpenMed-NER-PathologyDetect-SuperMedical-125M"
     )
+    OPENMED_NER_PATHOLOGYDETECT_SUPERCLINICAL_434M = (
+        "OpenMed/OpenMed-NER-PathologyDetect-SuperClinical-434M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +36,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_NER_PATHOLOGYDETECT_SUPERMEDICAL_125M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-SuperMedical-125M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_SUPERCLINICAL_434M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-SuperClinical-434M",
             max_length=128,
         ),
     }
