@@ -5,15 +5,40 @@
 """
 Standalone test for ttnn.topk() + ttnn.sampling() pipeline at production vocab sizes.
 
-Key finding: ttnn.sampling() can only handle small vocab sizes (~4096 max) due to
-L1 buffer constraints. Production models (DeepSeek, Llama3-70B) always pre-filter
-with ttnn.topk() first, reducing vocab to ~32-64 tokens before sampling.
+## Vocab Size Limitation (discovered 2026-03-26)
 
-For single-device, the production pattern (from tt_sampling.py) is:
-  1. Split logits in half along vocab dim
-  2. ttnn.topk() each half -> max_top_k results per half
-  3. Concat -> 2 * max_top_k candidates
-  4. ttnn.sampling() on the reduced set
+ttnn.sampling() overflows L1 at vocab_size >= 8192. Three circular buffers in the
+sampling kernel scale with vocab width (Wt = vocab_size / TILE_WIDTH):
+
+  c_12 (final_indices_rm):  Ht * Wt * 4KB   -- holds all final indices row-major
+  c_5  (input_transposed):  Wt * 2KB         -- transposed logit values
+  c_6  (index_transposed):  Wt * 2KB         -- transposed index values
+
+At vocab=4096 these total ~1MB/core (fits in 1.5MB L1). At vocab=8192 they total
+~2.1MB/core (overflow). This is a hard per-core constraint -- sub_core_grids does
+not help because it controls core placement, not per-core buffer sizing.
+
+Source: sampling_program_factory.cpp lines 78-181 (buffer allocation).
+The kernel validates batch=32 and vocab%32==0 but has no vocab size guard.
+
+## How Production Models Handle This
+
+Every production model (Llama3-70B, DeepSeek-V3, Qwen3) pre-filters with
+ttnn.topk() BEFORE calling ttnn.sampling(). See models/common/sampling/tt_sampling.py.
+
+For multi-device (e.g. Llama3-70B on 8x4 Galaxy):
+  - Vocab sharded across 8 devices: 128256/8 = 16032 tokens/device
+  - Local ttnn.topk(k=32) per device: ~1.2ms each
+  - All-gather 8*32=256 candidates
+  - ttnn.sampling(256 tokens): <0.2ms
+  - Total sampling overhead: ~2-3ms (enabling 80 tok/s)
+
+For single-device (our vLLM case):
+  - Split vocab in half: 128256/2 = 64128 per half
+  - ttnn.topk(k=32) each half: ~9.3ms each
+  - Concat 2*32=64 candidates
+  - ttnn.sampling(64 tokens): <0.2ms
+  - Total: ~19ms (vs 147ms for the 66-op compiled graph = ~7.7x speedup)
 
 Usage:
     python perf_debug/test_ttnn_sampling_direct.py
@@ -352,6 +377,149 @@ def test_small_sampling_only(device):
     print("PASS: small_sampling_only (4096)")
 
 
+def test_direct_sampling_vocab_limit(device):
+    """Verify that ttnn.sampling() fails at vocab >= 8192 without topk pre-filtering.
+
+    This documents a hard L1 constraint in the sampling kernel. Three circular
+    buffers (c_5, c_6, c_12) scale with vocab width. At vocab=4096 they fit in
+    1.5MB L1; at vocab=8192 they need ~2.1MB and overflow.
+
+    The kernel does NOT validate this upfront -- it attempts to allocate and
+    crashes with a circular buffer overflow error. Production code (tt_sampling.py)
+    always pre-filters with ttnn.topk() to reduce to ~32-64 tokens first.
+
+    Discovered by calling ttnn.sampling() directly at vocab=128256 (Llama 3.1 8B)
+    and getting: "Statically allocated circular buffers on core range
+    [(x=0,y=0) - (x=10,y=1)] grow to 32990080 B which is beyond max L1 size
+    of 1572864 B"
+    """
+    batch = 32
+
+    # vocab=4096 should work (last size that fits in L1)
+    vocab_ok = 4096
+    logits = torch.randn(1, 1, batch, vocab_ok, dtype=torch.bfloat16)
+    values_tt = ttnn.from_torch(
+        logits, device=device, dtype=ttnn.bfloat16, layout=ttnn.TILE_LAYOUT
+    )
+    indices = (
+        torch.arange(vocab_ok, dtype=torch.int32)
+        .unsqueeze(0)
+        .unsqueeze(0)
+        .expand(1, 1, batch, vocab_ok)
+        .contiguous()
+    )
+    indices_tt = ttnn.from_torch(
+        indices, device=device, dtype=ttnn.int32, layout=ttnn.ROW_MAJOR_LAYOUT
+    )
+    k_tt = ttnn.from_torch(
+        torch.tensor([32] * batch, dtype=torch.int32),
+        device=device,
+        dtype=ttnn.uint32,
+        layout=ttnn.ROW_MAJOR_LAYOUT,
+    )
+    p_tt = ttnn.from_torch(
+        torch.tensor([0.9] * batch),
+        device=device,
+        dtype=ttnn.bfloat16,
+        layout=ttnn.ROW_MAJOR_LAYOUT,
+    )
+    temp_tt = ttnn.from_torch(
+        torch.tensor([1.0] * batch),
+        device=device,
+        dtype=ttnn.bfloat16,
+        layout=ttnn.ROW_MAJOR_LAYOUT,
+    )
+
+    output = ttnn.sampling(values_tt, indices_tt, k=k_tt, p=p_tt, temp=temp_tt, seed=42)
+    result = ttnn.to_torch(output).to(torch.int32)
+    assert result.shape == (1, 1, 1, 32)
+    print(f"  vocab={vocab_ok}: OK (fits in L1)")
+
+    # vocab=8192 should fail with L1 overflow
+    vocab_fail = 8192
+    logits = torch.randn(1, 1, batch, vocab_fail, dtype=torch.bfloat16)
+    values_tt = ttnn.from_torch(
+        logits, device=device, dtype=ttnn.bfloat16, layout=ttnn.TILE_LAYOUT
+    )
+    indices = (
+        torch.arange(vocab_fail, dtype=torch.int32)
+        .unsqueeze(0)
+        .unsqueeze(0)
+        .expand(1, 1, batch, vocab_fail)
+        .contiguous()
+    )
+    indices_tt = ttnn.from_torch(
+        indices, device=device, dtype=ttnn.int32, layout=ttnn.ROW_MAJOR_LAYOUT
+    )
+
+    try:
+        ttnn.sampling(values_tt, indices_tt, k=k_tt, p=p_tt, temp=temp_tt, seed=42)
+        print(
+            f"  vocab={vocab_fail}: unexpectedly succeeded (L1 limit may have changed)"
+        )
+    except RuntimeError as e:
+        assert "beyond max L1 size" in str(e) or "grow to" in str(
+            e
+        ), f"Unexpected error: {e}"
+        print(f"  vocab={vocab_fail}: correctly fails with L1 overflow")
+
+    print("PASS: direct_sampling_vocab_limit")
+
+
+def benchmark_topk_only(device, num_iters=50, warmup=5):
+    """Benchmark ttnn.topk() alone to show where time is spent."""
+    batch = 32
+    print("\n=== Benchmark: ttnn.topk() alone (the dominant cost) ===")
+    for half_vocab in [8000, 16000, 25136, 32064, 64128]:
+        logits = torch.randn(1, 1, batch, half_vocab, dtype=torch.bfloat16)
+        logits_tt = ttnn.from_torch(
+            logits,
+            device=device,
+            dtype=ttnn.bfloat16,
+            layout=ttnn.TILE_LAYOUT,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+        )
+        indices = (
+            torch.arange(half_vocab, dtype=torch.int32)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .expand(1, 1, batch, half_vocab)
+            .contiguous()
+        )
+        indices_tt = ttnn.from_torch(
+            indices,
+            device=device,
+            dtype=ttnn.uint16,
+            layout=ttnn.TILE_LAYOUT,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+        )
+
+        for _ in range(warmup):
+            v, i = ttnn.topk(logits_tt, k=32, dim=-1, indices_tensor=indices_tt)
+            ttnn.deallocate(v)
+            ttnn.deallocate(i)
+        ttnn.synchronize_device(device)
+
+        latencies = []
+        for _ in range(num_iters):
+            start = time.perf_counter()
+            v, i = ttnn.topk(logits_tt, k=32, dim=-1, indices_tensor=indices_tt)
+            ttnn.synchronize_device(device)
+            latencies.append((time.perf_counter() - start) * 1000)
+            ttnn.deallocate(v)
+            ttnn.deallocate(i)
+
+        latencies.sort()
+        p50 = latencies[len(latencies) // 2]
+        equiv_full = half_vocab * 2
+        print(
+            f"  topk(half_vocab={half_vocab:>6}, k=32): P50={p50:.2f}ms  (full vocab={equiv_full})"
+        )
+
+        ttnn.deallocate(logits_tt)
+        ttnn.deallocate(indices_tt)
+
+
 def benchmark_full_pipeline(device, vocab_size, max_top_k=32, num_iters=100, warmup=10):
     """Benchmark the full topk + sampling pipeline."""
     batch = 32
@@ -465,7 +633,13 @@ if __name__ == "__main__":
     device = open_device()
     try:
         print("=" * 60)
-        print("Phase 1: Correctness tests")
+        print("Phase 1a: Vocab size limitation (L1 constraint)")
+        print("=" * 60)
+
+        test_direct_sampling_vocab_limit(device)
+
+        print("\n" + "=" * 60)
+        print("Phase 1b: Correctness tests (topk + sampling pipeline)")
         print("=" * 60)
 
         test_small_sampling_only(device)
@@ -479,6 +653,9 @@ if __name__ == "__main__":
         print("\n" + "=" * 60)
         print("Phase 2: Performance benchmarks")
         print("=" * 60)
+
+        # topk alone (the dominant cost)
+        benchmark_topk_only(device)
 
         # Sampling-only benchmark (reduced vocab after topk)
         benchmark_sampling_only(device, reduced_vocab=64, num_iters=100)
