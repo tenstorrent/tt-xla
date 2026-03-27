@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER PathologyDetect PyTorch model implementation for Tenstorrent projects.
+OpenMed NER PathologyDetect PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant
