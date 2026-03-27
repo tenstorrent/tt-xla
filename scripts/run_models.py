@@ -110,7 +110,7 @@ def main():
         "--limit", type=int, default=0, help="Max models to process (0 = all)"
     )
     parser.add_argument(
-        "--workers", type=int, default=16, help="Max concurrent Claude instances"
+        "--workers", type=int, default=25, help="Max concurrent Claude instances"
     )
     parser.add_argument(
         "json_file",
