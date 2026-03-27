@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     ANATOMY_DETECT_MULTIMED_335M = "AnatomyDetect-MultiMed-335M"
     GENOME_DETECT_BIOPATIENT_108M = "GenomeDetect-BioPatient-108M"
     SPECIES_DETECT_BIOCLINICAL_108M = "SpeciesDetect-BioClinical-108M"
+    PROTEIN_DETECT_MODERNCLINICAL_395M = "ProteinDetect-ModernClinical-395M"
 
 
 class ModelLoader(ForgeModel):
@@ -44,6 +45,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.SPECIES_DETECT_BIOCLINICAL_108M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-BioClinical-108M",
         ),
+        ModelVariant.PROTEIN_DETECT_MODERNCLINICAL_395M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ModernClinical-395M",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M
@@ -53,6 +57,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.ANATOMY_DETECT_MULTIMED_335M: "The patient complained of pain in the left ventricle region.",
         ModelVariant.GENOME_DETECT_BIOPATIENT_108M: "The EGFR gene mutation was identified in lung cancer patients.",
         ModelVariant.SPECIES_DETECT_BIOCLINICAL_108M: "Escherichia coli bacteria were found in the water samples.",
+        ModelVariant.PROTEIN_DETECT_MODERNCLINICAL_395M: "The BRCA1 protein interacts with the p53 tumor suppressor in breast cancer cells.",
     }
 
     def __init__(self, variant=None):
