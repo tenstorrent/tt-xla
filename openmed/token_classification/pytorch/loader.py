@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M = (
         "OpenMed-NER-BloodCancerDetect-MultiMed-568M"
     )
+    OPENMED_NER_DNADETECT_ELECTRAMED_335M = "OpenMed-NER-DNADetect-ElectraMed-335M"
 
 
 class ModelLoader(ForgeModel):
@@ -34,16 +35,29 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-MultiMed-568M",
         ),
+        ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_335M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-ElectraMed-335M",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M
+
+    _VARIANT_SAMPLE_TEXTS = {
+        ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M: (
+            "The patient presented with chronic lymphocytic leukemia symptoms."
+        ),
+        ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_335M: (
+            "The p53 protein binds to the BRCA1 gene promoter region in T cells."
+        ),
+    }
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        self.sample_text = (
-            "The patient presented with chronic lymphocytic leukemia symptoms."
+        self.sample_text = self._VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name,
+            "The patient presented with chronic lymphocytic leukemia symptoms.",
         )
         self.max_length = 128
 
