@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Nemotron model variants for causal language modeling."""
 
     NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
-    NEMOTRON_3_NANO_30B_A3B_NVFP4 = "3_Nano_30B_A3B_NVFP4"
+    NEMOTRON_3_SUPER_120B_A12B_FP8 = "3_Super_120B_A12B_FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -36,8 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
             max_length=128,
         ),
-        ModelVariant.NEMOTRON_3_NANO_30B_A3B_NVFP4: LLMModelConfig(
-            pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
+        ModelVariant.NEMOTRON_3_SUPER_120B_A12B_FP8: LLMModelConfig(
+            pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
             max_length=128,
         ),
     }
@@ -74,6 +74,7 @@ class ModelLoader(ForgeModel):
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
             **tokenizer_kwargs,
         )
 
@@ -88,7 +89,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
