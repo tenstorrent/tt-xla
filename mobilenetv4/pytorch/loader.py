@@ -6,7 +6,7 @@ MobileNetV4 model loader implementation
 """
 
 from typing import Optional
-
+from dataclasses import dataclass
 import timm
 
 from ...config import (
@@ -26,22 +26,31 @@ from ...tools.utils import (
 from datasets import load_dataset
 
 
+@dataclass
+class MobileNetV4Config(ModelConfig):
+    """Configuration specific to MobileNetV4 models"""
+
+    source: ModelSource = ModelSource.TIMM
+
+
 class ModelVariant(StrEnum):
     """Available MobileNetV4 model variants."""
 
-    HYBRID_MEDIUM_E200_R256_IN12K_FT_IN1K = "Hybrid_Medium_E200_R256_In12k_Ft_In1k"
+    MOBILENET_V4_CONV_SMALL = "mobilenetv4_conv_small.e2400_r224_in1k"
 
 
 class ModelLoader(ForgeModel):
     """MobileNetV4 model loader implementation."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.HYBRID_MEDIUM_E200_R256_IN12K_FT_IN1K: ModelConfig(
-            pretrained_model_name="hf_hub:timm/mobilenetv4_hybrid_medium.e200_r256_in12k_ft_in1k",
+        ModelVariant.MOBILENET_V4_CONV_SMALL: MobileNetV4Config(
+            pretrained_model_name="hf_hub:timm/mobilenetv4_conv_small.e2400_r224_in1k",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.HYBRID_MEDIUM_E200_R256_IN12K_FT_IN1K
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.MOBILENET_V4_CONV_SMALL
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -53,6 +62,7 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="MobileNetV4",
             variant=variant,
@@ -66,6 +76,7 @@ class ModelLoader(ForgeModel):
         model_name = self._variant_config.pretrained_model_name
         model = timm.create_model(model_name, pretrained=True)
         model.eval()
+
         self.model = model
 
         if self._preprocessor is not None:
@@ -82,14 +93,18 @@ class ModelLoader(ForgeModel):
     def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
         if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
+
             self._preprocessor = VisionPreprocessor(
                 model_source=ModelSource.TIMM,
                 model_name=model_name,
             )
-            if self.model is not None:
+
+            if hasattr(self, "model") and self.model is not None:
                 self._preprocessor.set_cached_model(self.model)
 
-        model_for_config = self.model if self.model is not None else None
+        model_for_config = None
+        if hasattr(self, "model") and self.model is not None:
+            model_for_config = self.model
 
         return self._preprocessor.preprocess(
             image=image,
@@ -108,13 +123,14 @@ class ModelLoader(ForgeModel):
             batch_size=batch_size,
         )
 
-    def output_postprocess(self, output, top_k=1):
+    def output_postprocess(self, output):
         if self._postprocessor is None:
             model_name = self._variant_config.pretrained_model_name
+
             self._postprocessor = VisionPostprocessor(
                 model_source=ModelSource.TIMM,
                 model_name=model_name,
                 model_instance=self.model,
-                use_1k_labels=True,
             )
-        return self._postprocessor.postprocess(output, top_k=top_k, return_dict=True)
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
