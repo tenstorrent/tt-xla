@@ -67,8 +67,6 @@ class ModelLoader(ForgeModel):
         return self._pipeline
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        from diffusers import UNet2DConditionModel
-
         if self._pipeline is None:
             self._load_pipeline()
 
