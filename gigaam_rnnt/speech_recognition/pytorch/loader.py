@@ -6,7 +6,6 @@
 GigaAM RNNT model loader implementation for speech recognition (ASR) using PyTorch.
 """
 
-import torch
 from typing import Optional
 
 from ....base import ForgeModel
