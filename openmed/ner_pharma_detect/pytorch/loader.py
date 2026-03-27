@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER PharmaDetect SuperClinical model loader implementation for token classification.
+OpenMed NER PharmaDetect model loader implementation for token classification.
 """
 
 import torch
