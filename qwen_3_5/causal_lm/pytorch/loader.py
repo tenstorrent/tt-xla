@@ -40,7 +40,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_BASE_UNSLOTH = "9B_Base_unsloth"
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_4B_AWQ = "4B_Awq"
+    QWEN_3_5_4B_MLX_4BIT = "4B_MLX_4BIT"
 
 
 class ModelLoader(ForgeModel):
@@ -112,8 +112,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_4B_AWQ: LLMModelConfig(
-            pretrained_model_name="QuantTrio/Qwen3.5-4B-AWQ",
+        ModelVariant.QWEN_3_5_4B_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3.5-4B-4bit",
             max_length=128,
         ),
     }
