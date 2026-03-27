@@ -23,24 +23,26 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Phi-3 GGUF model variants for causal language modeling."""
 
-    PHI_3_MINI_4K_INSTRUCT_GGUF = "Mini_4K_Instruct_GGUF"
+    MINI_4K_INSTRUCT_Q4 = "Mini_4K_Instruct_Q4"
 
 
 class ModelLoader(ForgeModel):
     """Phi-3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.PHI_3_MINI_4K_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="brittlewis12/Phi-3-mini-4k-instruct-GGUF",
+        ModelVariant.MINI_4K_INSTRUCT_Q4: LLMModelConfig(
+            pretrained_model_name="microsoft/Phi-3-mini-4k-instruct-gguf",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.PHI_3_MINI_4K_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.MINI_4K_INSTRUCT_Q4
 
-    GGUF_FILE = "Phi-3-mini-4k-instruct-Q4_K_M.gguf"
+    GGUF_FILE = "Phi-3-mini-4k-instruct-q4.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = (
+        "Can you provide ways to eat combinations of bananas and dragonfruits?"
+    )
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -134,21 +136,6 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
-        return mesh_shape, ("batch", "model")
-
-    def load_shard_spec(self, model):
-        shard_specs = {}
-        for layer in model.model.layers:
-            shard_specs[layer.mlp.gate_up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
-
-            shard_specs[layer.self_attn.qkv_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-
-        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
