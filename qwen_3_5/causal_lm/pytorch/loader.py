@@ -43,10 +43,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_BASE_UNSLOTH = "9B_Base_unsloth"
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
-    QWEN_3_5_35B_A3B_ABLITERATED_GGUF = "35B_A3B_ABLITERATED_GGUF"
-    QWEN_3_5_24B_A3B_REASONING_DISTILLED_GGUF = "24B_A3B_REASONING_DISTILLED_GGUF"
-    QWEN_3_5_9B_HERETIC_UNCENSORED_INSTRUCT_GGUF = "9B_HERETIC_UNCENSORED_INSTRUCT_GGUF"
+    QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -130,20 +127,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
-            pretrained_model_name="AesSedai/Qwen3.5-35B-A3B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_ABLITERATED_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Huihui-Qwen3.5-35B-A3B-abliterated-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_24B_A3B_REASONING_DISTILLED_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-24B-A3B-Claude-Opus-Gemini-3.1-Pro-Reasoning-Distilled-heretic-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_HERETIC_UNCENSORED_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-9B-Claude-4.6-OS-HERETIC-UNCENSORED-INSTRUCT-i1-GGUF",
+        ModelVariant.QWEN_3_5_122B_A10B_GGUF: LLMModelConfig(
+            pretrained_model_name="geoffmunn/Qwen3.5-122B-A10B-f16",
             max_length=128,
         ),
     }
@@ -156,10 +141,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_0_8B_GGUF: "Qwen3.5-0.8B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Q4_K_M/Qwen3.5-35B-A3B-Q4_K_M-00001-of-00002.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_ABLITERATED_GGUF: "Huihui-Qwen3.5-35B-A3B-abliterated.Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_24B_A3B_REASONING_DISTILLED_GGUF: "Qwen3.5-24B-A3B-Claude-Opus-Gemini-3.1-Pro-Reasoning-Distilled-heretic.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_9B_HERETIC_UNCENSORED_INSTRUCT_GGUF: "Qwen3.5-9B-Claude-4.6-OS-HERETIC-UNCENSORED-INSTRUCT.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_122B_A10B_GGUF: "Qwen3.5-122B-A10B-f16-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -356,7 +338,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_GGUF,
             ModelVariant.QWEN_3_5_35B_A3B_ABLITERATED_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
-            ModelVariant.QWEN_3_5_24B_A3B_REASONING_DISTILLED_GGUF,
+            ModelVariant.QWEN_3_5_122B_A10B_GGUF,
         )
 
     def load_shard_spec(self, model):
