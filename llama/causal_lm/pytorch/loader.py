@@ -83,11 +83,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # Unsloth variants
-    UNSLOTH_LLAMA_3_2_3B = "Unsloth_3.2_3B"
-
-    # sh0ck0r variants
-    SH0CK0R_L3_3_MS_NEVORIA_70B_HERETIC = "sh0ck0r_L3.3_MS_Nevoria_70B_Heretic"
+    # Unsloth BNB 4-bit quantized variants
+    LLAMA_3_8B_BNB_4BIT = "3.0_8B_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -224,14 +221,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # Unsloth variants
-        ModelVariant.UNSLOTH_LLAMA_3_2_3B: LLMModelConfig(
-            pretrained_model_name="unsloth/Llama-3.2-3B",
-            max_length=128,
-        ),
-        # sh0ck0r variants
-        ModelVariant.SH0CK0R_L3_3_MS_NEVORIA_70B_HERETIC: LLMModelConfig(
-            pretrained_model_name="sh0ck0r/L3.3-MS-Nevoria-70b-heretic",
+        # Unsloth BNB 4-bit quantized variants
+        ModelVariant.LLAMA_3_8B_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/llama-3-8b-bnb-4bit",
             max_length=128,
         ),
     }
@@ -278,8 +270,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.UNSLOTH_LLAMA_3_2_3B,
-            ModelVariant.SH0CK0R_L3_3_MS_NEVORIA_70B_HERETIC,
+            ModelVariant.LLAMA_3_8B_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -374,10 +365,11 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is an AWQ/GPTQ variant and configure accordingly
-        if pretrained_model_name in (
-            "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "TheBloke/Llama-2-7B-Chat-GPTQ",
+        # Check if this is an AWQ or BNB variant and configure accordingly
+        if (
+            pretrained_model_name
+            == "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4"
+            or self._variant == ModelVariant.LLAMA_3_8B_BNB_4BIT
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
