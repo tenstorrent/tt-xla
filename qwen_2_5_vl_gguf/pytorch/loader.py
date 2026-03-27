@@ -77,15 +77,17 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    # Processor is loaded from the original Qwen repo since the GGUF repo
+    # only contains quantized model weights without tokenizer/processor configs.
+    _PROCESSOR_SOURCE = "Qwen/Qwen2.5-VL-7B-Instruct"
+
     def _load_processor(self):
         processor_kwargs = {
             "min_pixels": self.min_pixels,
             "max_pixels": self.max_pixels,
         }
         self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            gguf_file=_GGUF_FILES[self._variant],
-            **processor_kwargs,
+            self._PROCESSOR_SOURCE, **processor_kwargs
         )
         return self.processor
 
