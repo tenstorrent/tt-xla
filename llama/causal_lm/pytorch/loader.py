@@ -119,11 +119,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # OpenPipe variants
-    OPENPIPE_PII_REDACT_GENERAL = "OpenPipe_PII_Redact_General"
-
-    # Fairseq2 variants
-    FAIRSEQ2_DUMMY_LLAMA_3_2_1B = "Fairseq2_Dummy_Llama_3.2_1B"
+    # mlx-community quantized variants
+    LLAMA_3_2_3B_INSTRUCT_4BIT = "3.2_3B_Instruct_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -285,14 +282,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # OpenPipe variants
-        ModelVariant.OPENPIPE_PII_REDACT_GENERAL: LLMModelConfig(
-            pretrained_model_name="OpenPipe/PII-Redact-General",
-            max_length=128,
-        ),
-        # Fairseq2 variants
-        ModelVariant.FAIRSEQ2_DUMMY_LLAMA_3_2_1B: LLMModelConfig(
-            pretrained_model_name="mgleize/fairseq2-dummy-Llama-3.2-1B",
+        # mlx-community quantized variants
+        ModelVariant.LLAMA_3_2_3B_INSTRUCT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Llama-3.2-3B-Instruct-4bit",
             max_length=128,
         ),
     }
@@ -344,12 +336,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_BNB_4BIT,
             ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8,
-            ModelVariant.OPENPIPE_PII_REDACT_GENERAL,
-            ModelVariant.TINYLLAMA_1_1B_INTERMEDIATE,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_MLX_8BIT,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_BNB_4BIT,
-            ModelVariant.FAIRSEQ2_DUMMY_LLAMA_3_2_1B,
+            ModelVariant.LLAMA_3_2_3B_INSTRUCT_4BIT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -454,7 +441,7 @@ class ModelLoader(ForgeModel):
             "unsloth/Llama-3.1-8B-Instruct-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
-        if self._variant in self._NVFP4_VARIANTS:
+        if "mlx-community" in pretrained_model_name:
             model_kwargs["ignore_mismatched_sizes"] = True
 
         model_kwargs |= kwargs
