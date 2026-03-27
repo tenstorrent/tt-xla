@@ -35,6 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B = "35B_A3B"
     QWEN_3_5_35B_A3B_BASE = "35B_A3B_Base"
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
+    QWEN_3_5_0_8B_GGUF = "0.8B_GGUF"
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_2B_BASE_UNSLOTH = "2B_Base_unsloth"
@@ -99,6 +100,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3.5-35B-A3B-FP8",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_0_8B_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3.5-0.8B-GGUF",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_5_4B_GGUF: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen3.5-4B-GGUF",
             max_length=128,
@@ -142,6 +147,7 @@ class ModelLoader(ForgeModel):
 
     # GGUF files for quantized variants
     _GGUF_FILES = {
+        ModelVariant.QWEN_3_5_0_8B_GGUF: "Qwen3.5-0.8B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.HUIHUI_QWEN_3_5_27B_ABLITERATED_GGUF: "Huihui-Qwen3.5-27B-abliterated.Q4_K_M.gguf",
