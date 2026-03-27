@@ -31,10 +31,8 @@ class ModelVariant(StrEnum):
     )
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    CELIUDOS_LEGAL_BERT_LGPD = "celiudos/legal-bert-lgpd"
-    SAMRAWAL_BERT_BASE_UNCASED_CLINICAL_NER = "samrawal/bert-base-uncased_clinical-ner"
-    QCRI_BERT_BASE_MULTILINGUAL_CASED_POS_ENGLISH = (
-        "QCRI/bert-base-multilingual-cased-pos-english"
+    VBLAGOJE_BERT_ENGLISH_UNCASED_FINETUNED_POS = (
+        "vblagoje/bert-english-uncased-finetuned-pos"
     )
 
 
@@ -55,16 +53,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.CELIUDOS_LEGAL_BERT_LGPD: LLMModelConfig(
-            pretrained_model_name="celiudos/legal-bert-lgpd",
-            max_length=512,
-        ),
-        ModelVariant.SAMRAWAL_BERT_BASE_UNCASED_CLINICAL_NER: LLMModelConfig(
-            pretrained_model_name="samrawal/bert-base-uncased_clinical-ner",
-            max_length=128,
-        ),
-        ModelVariant.QCRI_BERT_BASE_MULTILINGUAL_CASED_POS_ENGLISH: LLMModelConfig(
-            pretrained_model_name="QCRI/bert-base-multilingual-cased-pos-english",
+        ModelVariant.VBLAGOJE_BERT_ENGLISH_UNCASED_FINETUNED_POS: LLMModelConfig(
+            pretrained_model_name="vblagoje/bert-english-uncased-finetuned-pos",
             max_length=128,
         ),
     }
@@ -86,16 +76,8 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         if self._variant == ModelVariant.HATMIMOHA_ARABIC_NER:
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.CELIUDOS_LEGAL_BERT_LGPD:
-            self.sample_text = "O autor João da Silva, portador do CPF 123.456.789-00, residente na Rua das Flores, 123, São Paulo"
-        elif self._variant == ModelVariant.SAMRAWAL_BERT_BASE_UNCASED_CLINICAL_NER:
-            self.sample_text = (
-                "The patient was diagnosed with diabetes and prescribed metformin"
-            )
-        elif (
-            self._variant == ModelVariant.QCRI_BERT_BASE_MULTILINGUAL_CASED_POS_ENGLISH
-        ):
-            self.sample_text = "The quick brown fox jumps over the lazy dog"
+        elif self._variant == ModelVariant.VBLAGOJE_BERT_ENGLISH_UNCASED_FINETUNED_POS:
+            self.sample_text = "My name is Wolfgang and I live in Berlin"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -118,9 +100,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.CELIUDOS_LEGAL_BERT_LGPD,
-            ModelVariant.SAMRAWAL_BERT_BASE_UNCASED_CLINICAL_NER,
-            ModelVariant.QCRI_BERT_BASE_MULTILINGUAL_CASED_POS_ENGLISH,
+            ModelVariant.VBLAGOJE_BERT_ENGLISH_UNCASED_FINETUNED_POS,
         ):
             group = ModelGroup.VULCAN
 
