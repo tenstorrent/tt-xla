@@ -7,7 +7,6 @@ BART model loader implementation for conditional generation (entity linking).
 
 import torch
 from transformers import AutoTokenizer, BartForConditionalGeneration
-from transformers.models.bart.modeling_bart import shift_tokens_right
 from typing import Optional
 
 from ....base import ForgeModel
