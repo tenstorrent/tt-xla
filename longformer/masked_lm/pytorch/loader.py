@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available Longformer model variants for masked language modeling."""
 
     LONGFORMER_BASE_4096 = "Base_4096"
+    CLINICAL_LONGFORMER = "Clinical-Longformer"
 
 
 class ModelLoader(ForgeModel):
@@ -30,6 +31,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LONGFORMER_BASE_4096: LLMModelConfig(
             pretrained_model_name="allenai/longformer-base-4096",
+            max_length=512,
+        ),
+        ModelVariant.CLINICAL_LONGFORMER: LLMModelConfig(
+            pretrained_model_name="yikuan8/Clinical-Longformer",
             max_length=512,
         ),
     }
