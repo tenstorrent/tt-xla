@@ -2,52 +2,60 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa model loader implementation for token classification.
+DeBERTa model loader implementation for token classification (NER) task.
 """
 
-from typing import Optional
-
 import torch
+from transformers import AutoModelForTokenClassification, AutoTokenizer
 
-from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
+from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available DeBERTa token classification model variants."""
 
-    GOTUTIYAN_GECTOR_DEBERTA_LARGE_5K = "gotutiyan_gector_deberta_large_5k"
+    OPENMED_NER_GENOMIC_DETECT = "OpenMed_NER_GenomicDetect_SuperClinical_184M"
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.OPENMED_NER_GENOMIC_DETECT: "The BRCA2 gene is associated with hereditary breast cancer.",
+}
 
 
 class ModelLoader(ForgeModel):
-    """DeBERTa model loader implementation for token classification tasks."""
+    """DeBERTa model loader implementation for token classification (NER) task."""
 
     _VARIANTS = {
-        ModelVariant.GOTUTIYAN_GECTOR_DEBERTA_LARGE_5K: LLMModelConfig(
-            pretrained_model_name="gotutiyan/gector-deberta-large-5k",
+        ModelVariant.OPENMED_NER_GENOMIC_DETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-SuperClinical-184M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GOTUTIYAN_GECTOR_DEBERTA_LARGE_5K
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_GENOMIC_DETECT
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    def __init__(self, variant=None):
         super().__init__(variant)
+        self.model_name = self._variant_config.pretrained_model_name
+        self.max_length = self._variant_config.max_length
         self.tokenizer = None
         self.model = None
-        self.max_length = self._variant_config.max_length
-        self.sample_text = "This are a wrong sentences that need to be fixed."
+        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name,
+            "The BRCA2 gene is associated with hereditary breast cancer.",
+        )
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+    def _get_model_info(cls, variant=None):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
@@ -60,23 +68,18 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        from transformers import AutoModelForTokenClassification, AutoTokenizer
-
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForTokenClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
+        self.model = AutoModelForTokenClassification.from_pretrained(
+            self.model_name, **model_kwargs
         )
-        model.eval()
-        self.model = model
-        return model
+        self.model.eval()
+        return self.model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
