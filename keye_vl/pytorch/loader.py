@@ -5,7 +5,7 @@
 Keye-VL model loader implementation for vision-language tasks.
 """
 import torch
-from transformers import AutoModel, AutoProcessor
+from transformers import AutoModelForConditionalGeneration, AutoProcessor
 from typing import Optional
 
 
@@ -136,7 +136,9 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = torch.float32
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = AutoModelForConditionalGeneration.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
         model.eval()
         model = Wrapper(model)
 
