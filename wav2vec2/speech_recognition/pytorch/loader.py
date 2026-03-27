@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 PyTorch speech recognition model variants."""
 
     BASE_960H = "Base_960h"
-    VAKYANSH_SANSKRIT_SAM_60 = "Vakyansh_Sanskrit_Sam_60"
+    LARGE_ROBUST_960H = "Large_Robust_960h"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.VAKYANSH_SANSKRIT_SAM_60: ModelConfig(
-            pretrained_model_name="Harveenchadha/vakyansh-wav2vec2-sanskrit-sam-60",
+        ModelVariant.LARGE_ROBUST_960H: ModelConfig(
+            pretrained_model_name="facebook/wav2vec2-large-robust-ft-libri-960h",
         ),
     }
 
