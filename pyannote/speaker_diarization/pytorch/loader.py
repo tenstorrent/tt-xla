@@ -4,7 +4,7 @@
 """
 Pyannote speaker diarization model loader implementation.
 
-Loads the speaker diarization 3.1 pipeline and extracts its segmentation
+Loads the speaker diarization pipeline and extracts its segmentation
 model for testing, as this is the primary neural network component.
 """
 
@@ -27,6 +27,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Pyannote speaker diarization model variants."""
 
+    DIARIZATION_3_0 = "Diarization_3_0"
     DIARIZATION_3_1 = "Diarization_3_1"
     DIARIZATION_COMMUNITY_1 = "Diarization_Community_1"
 
@@ -34,11 +35,14 @@ class ModelVariant(StrEnum):
 class ModelLoader(ForgeModel):
     """Pyannote speaker diarization model loader implementation.
 
-    Loads the speaker-diarization-3.1 pipeline and extracts its
+    Loads the speaker diarization pipeline and extracts its
     segmentation model for testing.
     """
 
     _VARIANTS = {
+        ModelVariant.DIARIZATION_3_0: ModelConfig(
+            pretrained_model_name="pyannote/speaker-diarization-3.0",
+        ),
         ModelVariant.DIARIZATION_3_1: ModelConfig(
             pretrained_model_name="pyannote/speaker-diarization-3.1",
         ),
