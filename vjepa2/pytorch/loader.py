@@ -1,14 +1,14 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-V-JEPA 2 model loader implementation for video classification.
+V-JEPA 2 model loader implementation for video feature extraction.
 """
 
 from typing import Optional
 
 import numpy as np
-from transformers import AutoModelForVideoClassification, AutoVideoProcessor
+from transformers import AutoModel, AutoVideoProcessor
 
 from ...base import ForgeModel
 from ...config import (
@@ -20,25 +20,24 @@ from ...config import (
     ModelTask,
     StrEnum,
 )
-from ...tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
     """Available V-JEPA 2 model variants."""
 
-    VITL_FPC16_256_SSV2 = "vitl_fpc16_256_ssv2"
+    VITG_FPC64_256 = "vitg_fpc64_256"
 
 
 class ModelLoader(ForgeModel):
-    """V-JEPA 2 model loader for video classification."""
+    """V-JEPA 2 model loader for video feature extraction."""
 
     _VARIANTS = {
-        ModelVariant.VITL_FPC16_256_SSV2: ModelConfig(
-            pretrained_model_name="facebook/vjepa2-vitl-fpc16-256-ssv2",
+        ModelVariant.VITG_FPC64_256: ModelConfig(
+            pretrained_model_name="facebook/vjepa2-vitg-fpc64-256",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.VITL_FPC16_256_SSV2
+    DEFAULT_VARIANT = ModelVariant.VITG_FPC64_256
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize V-JEPA 2 model loader."""
@@ -50,7 +49,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="V-JEPA2",
+            model="V-JEPA 2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_VIDEO_CLS,
@@ -61,10 +60,10 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the V-JEPA 2 model instance."""
         model_name = self._variant_config.pretrained_model_name
-        model = AutoModelForVideoClassification.from_pretrained(model_name, **kwargs)
+        model = AutoModel.from_pretrained(model_name, **kwargs)
         model.eval()
 
-        if dtype_override:
+        if dtype_override is not None:
             model = model.to(dtype_override)
 
         if self.processor is None:
@@ -73,20 +72,23 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return input tensors for V-JEPA 2."""
+        """Load and return sample video inputs for V-JEPA 2.
+
+        Creates synthetic video frames (64 frames of 256x256 RGB) as input.
+        """
         if self.processor is None:
             model_name = self._variant_config.pretrained_model_name
             self.processor = AutoVideoProcessor.from_pretrained(model_name)
 
-        # Create a synthetic video: 16 frames of 256x256 RGB
-        num_frames = 16
-        video = np.random.randint(0, 255, (num_frames, 256, 256, 3), dtype=np.uint8)
+        # Create synthetic video: 64 frames of 256x256 RGB
+        video = np.random.randint(0, 255, (64, 256, 256, 3), dtype=np.uint8)
 
-        inputs = self.processor(list(video), return_tensors="pt")
+        inputs = self.processor(video, return_tensors="pt")
 
-        if dtype_override:
+        if dtype_override is not None:
             inputs = {
-                k: cast_input_to_type(v, dtype_override) for k, v in inputs.items()
+                k: v.to(dtype_override) if hasattr(v, "to") else v
+                for k, v in inputs.items()
             }
 
         return dict(inputs)
