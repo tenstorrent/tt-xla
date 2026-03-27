@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ColQwen2 PyTorch model implementation for visual document retrieval.
+ColQwen2 PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
 

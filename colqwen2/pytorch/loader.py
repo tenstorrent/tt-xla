@@ -4,12 +4,12 @@
 """
 ColQwen2 model loader implementation for visual document retrieval.
 """
-
 import torch
-from colpali_engine.models import ColQwen2, ColQwen2Processor
-from typing import Optional
 from PIL import Image
+from transformers import ColQwen2ForRetrieval, AutoProcessor
+from typing import Optional
 
+from ...base import ForgeModel
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -19,31 +19,26 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...base import ForgeModel
-from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
     """Available ColQwen2 model variants for visual document retrieval."""
 
-    COLQWEN2_V1_0 = "vidore/colqwen2-v1.0"
+    MICHAELFEIL_COLQWEN2_V0_1 = "michaelfeil/colqwen2-v0.1"
 
 
 class ModelLoader(ForgeModel):
-    """ColQwen2 model loader implementation for visual document retrieval.
-
-    ColQwen2 extends Qwen2-VL with a ColBERT late-interaction mechanism to produce
-    multi-vector embeddings for both images and text queries, enabling efficient
-    visual document retrieval.
-    """
+    """ColQwen2 model loader implementation for visual document retrieval."""
 
     _VARIANTS = {
-        ModelVariant.COLQWEN2_V1_0: ModelConfig(
-            pretrained_model_name="vidore/colqwen2-v1.0",
+        ModelVariant.MICHAELFEIL_COLQWEN2_V0_1: ModelConfig(
+            pretrained_model_name="michaelfeil/colqwen2-v0.1",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.COLQWEN2_V1_0
+    DEFAULT_VARIANT = ModelVariant.MICHAELFEIL_COLQWEN2_V0_1
+
+    sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/tasks/car.jpg"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -51,9 +46,6 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="ColQwen2",
             variant=variant,
@@ -64,55 +56,53 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
-        self.processor = ColQwen2Processor.from_pretrained(
-            self._variant_config.pretrained_model_name
+        self.processor = AutoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
         )
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        if self.processor is None:
+            self._load_processor()
+
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = ColQwen2.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+        model = ColQwen2ForRetrieval.from_pretrained(
+            pretrained_model_name,
+            trust_remote_code=True,
+            **model_kwargs,
         )
         model.eval()
+
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
         if self.processor is None:
             self._load_processor()
 
-        image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/tasks/car.jpg"
-        image_path = get_file(image_url)
-        image = Image.open(image_path).convert("RGB")
+        # ColQwen2 processes images for document retrieval
+        image = Image.new("RGB", (224, 224), color=(255, 255, 255))
+        inputs = self.processor(images=[image], return_tensors="pt")
 
-        batch_images = self.processor.process_images([image])
+        if dtype_override is not None and "pixel_values" in inputs:
+            inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
 
-        for key in batch_images:
-            if torch.is_tensor(batch_images[key]):
-                batch_images[key] = batch_images[key].repeat_interleave(
-                    batch_size, dim=0
-                )
-                if dtype_override is not None and batch_images[key].is_floating_point():
-                    batch_images[key] = batch_images[key].to(dtype_override)
-
-        return batch_images
+        return inputs
 
     def decode_output(self, outputs, inputs=None):
-        if isinstance(outputs, (tuple, list)):
+        if hasattr(outputs, "embeddings"):
+            return outputs.embeddings
+        elif isinstance(outputs, (tuple, list)):
             return outputs[0]
-        if isinstance(outputs, torch.Tensor):
-            return outputs
         return outputs
 
     def unpack_forward_output(self, fwd_output):
-        if isinstance(fwd_output, torch.Tensor):
-            return fwd_output.flatten()
-        if isinstance(fwd_output, (tuple, list)):
-            tensors = [t.flatten() for t in fwd_output if isinstance(t, torch.Tensor)]
-            if tensors:
-                return torch.cat(tensors, dim=0)
+        if hasattr(fwd_output, "embeddings") and fwd_output.embeddings is not None:
+            return fwd_output.embeddings.flatten()
         return fwd_output
