@@ -1,0 +1,4 @@
+einops
+huggingface_hub
+timm
+torch
