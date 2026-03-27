@@ -4,43 +4,48 @@
 
 """
 Distil-Whisper model loader implementation for speech recognition (ASR).
+
+Distil-Whisper Large v3 PT-BR is a distilled version of Whisper Large v3,
+fine-tuned for Brazilian Portuguese speech recognition.
 """
 
 from typing import Optional
 
-from ....base import ForgeModel
-from ....config import (
-    ModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
-    Framework,
-    StrEnum,
-)
 import jax.numpy as jnp
 import numpy as np
+
+from ....base import ForgeModel
+from ....config import (
+    Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
+    StrEnum,
+)
 
 
 class ModelVariant(StrEnum):
     """Available Distil-Whisper speech recognition model variants."""
 
-    DISTIL_LARGE_V3 = "Distil_Large_v3"
+    LARGE_V3_PTBR = "Large_v3_ptbr"
 
 
 class ModelLoader(ForgeModel):
     """Distil-Whisper model loader implementation for speech recognition (ASR)."""
 
     _VARIANTS = {
-        ModelVariant.DISTIL_LARGE_V3: ModelConfig(
-            pretrained_model_name="distil-whisper/distil-large-v3",
+        ModelVariant.LARGE_V3_PTBR: ModelConfig(
+            pretrained_model_name="freds0/distil-whisper-large-v3-ptbr",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DISTIL_LARGE_V3
+    DEFAULT_VARIANT = ModelVariant.LARGE_V3_PTBR
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
+
         Args:
             variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
@@ -53,9 +58,11 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Method for getting model info with validated variant.
+
         Args:
             variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
+
         Returns:
             ModelInfo: Information about the model and variant
         """
@@ -120,11 +127,12 @@ class ModelLoader(ForgeModel):
             model = cast_hf_model_to_type(model, dtype_override)
         return model
 
-    def load_inputs(self, dtype_override=None, mesh=None):
+    def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the Distil-Whisper model.
+
         Args:
             dtype_override: Optional dtype to override the model's default dtype.
-            mesh: Optional device mesh for sharding (DataParallel mode).
+
         Returns:
             inputs: Input tensors that can be fed to the model.
         """
