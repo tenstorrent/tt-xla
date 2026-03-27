@@ -5,7 +5,6 @@
 Qwen3-Reranker model loader implementation for passage ranking.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -73,6 +72,8 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        from transformers import AutoTokenizer
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
             padding_side="left",
@@ -100,11 +101,13 @@ class ModelLoader(ForgeModel):
         return text
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        from transformers import AutoModelForCausalLM
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
         if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
