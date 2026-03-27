@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL = (
         "Davlan/distilbert-base-multilingual-cased-ner-hrl"
     )
-    MIRTH_CHONKY_DISTILBERT_BASE_UNCASED_1 = "mirth/chonky_distilbert_base_uncased_1"
+    OPENMED_NER_ONCOLOGY_DETECT = "OpenMed_NER_OncologyDetect_TinyMed_66M"
 
 
 class ModelLoader(ForgeModel):
@@ -37,14 +37,23 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Davlan/distilbert-base-multilingual-cased-ner-hrl",
             max_length=128,
         ),
-        ModelVariant.MIRTH_CHONKY_DISTILBERT_BASE_UNCASED_1: LLMModelConfig(
-            pretrained_model_name="mirth/chonky_distilbert_base_uncased_1",
+        ModelVariant.OPENMED_NER_ONCOLOGY_DETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-TinyMed-66M",
             max_length=128,
         ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL: (
+            "HuggingFace is a company based in Paris and New York"
+        ),
+        ModelVariant.OPENMED_NER_ONCOLOGY_DETECT: (
+            "Mutations in KRAS gene drive oncogenic transformation."
+        ),
+    }
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -58,29 +67,23 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.max_length = 128
+        self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.sample_text = "HuggingFace is a company based in Paris and New York"
+        self.sample_text = self._SAMPLE_TEXTS[self._variant]
+
+    _VARIANT_GROUPS = {
+        ModelVariant.DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL: ModelGroup.GENERALITY,
+        ModelVariant.OPENMED_NER_ONCOLOGY_DETECT: ModelGroup.VULCAN,
+    }
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
-        """Get model information for dashboard and metrics reporting.
-
-        Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
-        if variant_name is None:
-            variant_name = "base"
-        group = ModelGroup.GENERALITY
-        if variant_name in (ModelVariant.MIRTH_CHONKY_DISTILBERT_BASE_UNCASED_1,):
-            group = ModelGroup.VULCAN
+    def _get_model_info(cls, variant=None):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="DistilBERT",
-            variant=variant_name,
-            group=group,
+            variant=variant,
+            group=cls._VARIANT_GROUPS.get(variant, ModelGroup.GENERALITY),
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
