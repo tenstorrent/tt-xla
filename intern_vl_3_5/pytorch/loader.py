@@ -24,7 +24,7 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available InternVL3.5 model variants."""
 
-    INTERN_VL3_5_2B = "2B"
+    INTERN_VL3_5_1B = "1B"
     INTERN_VL3_5_GPT_OSS_20B_A4B = "GPT_OSS_20B_A4B"
 
 
@@ -32,15 +32,15 @@ class ModelLoader(ForgeModel):
     """InternVL3.5 model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.INTERN_VL3_5_2B: LLMModelConfig(
-            pretrained_model_name="OpenGVLab/InternVL3_5-2B-HF",
+        ModelVariant.INTERN_VL3_5_1B: LLMModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL3_5-1B",
         ),
         ModelVariant.INTERN_VL3_5_GPT_OSS_20B_A4B: LLMModelConfig(
             pretrained_model_name="OpenGVLab/InternVL3_5-GPT-OSS-20B-A4B-Preview-HF",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.INTERN_VL3_5_GPT_OSS_20B_A4B
+    DEFAULT_VARIANT = ModelVariant.INTERN_VL3_5_1B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
