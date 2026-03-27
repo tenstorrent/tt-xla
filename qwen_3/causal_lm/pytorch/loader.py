@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
     QWEN_3_8B_BASE = "8B_Base"
     QWEN_3_14B = "14B"
     QWEN_3_32B = "32B"
+    QWEN_3_14B_INSTRUCT_OPENPIPE = "14B_Instruct_OpenPipe"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
@@ -83,6 +84,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_14B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-14B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE: LLMModelConfig(
+            pretrained_model_name="OpenPipe/Qwen3-14B-Instruct",
             max_length=128,
         ),
         ModelVariant.QWEN_3_32B: LLMModelConfig(
@@ -140,6 +145,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_8B_BASE,
+            ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_14B_AWQ,
         ):
@@ -257,7 +263,7 @@ class ModelLoader(ForgeModel):
             # Instruct-2507 variants do not support thinking mode
             enable_thinking = self._variant not in (
                 ModelVariant.QWEN_3_4B_INSTRUCT_2507,
-                ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
+                ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
                 ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
                 ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
             )
