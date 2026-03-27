@@ -25,24 +25,26 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available LFM2 GGUF model variants for causal language modeling."""
 
-    LFM2_8B_A1B_Q4_K_M = "8B_A1B_Q4_K_M"
+    LFM2_24B_A2B_GGUF = "LFM2_24B_A2B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """LFM2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LFM2_8B_A1B_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="LiquidAI/LFM2-8B-A1B-GGUF",
+        ModelVariant.LFM2_24B_A2B_GGUF: LLMModelConfig(
+            pretrained_model_name="LiquidAI/LFM2-24B-A2B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LFM2_8B_A1B_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.LFM2_24B_A2B_GGUF
 
-    GGUF_FILE = "LFM2-8B-A1B-Q4_K_M.gguf"
+    GGUF_FILE = "LFM2-24B-A2B-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = (
+        "What are the key differences between classical and quantum computing?"
+    )
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
