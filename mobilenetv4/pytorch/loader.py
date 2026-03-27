@@ -30,7 +30,7 @@ from datasets import load_dataset
 class MobileNetV4Config(ModelConfig):
     """Configuration specific to MobileNetV4 models"""
 
-    source: ModelSource = ModelSource.TIMM
+    source: ModelSource
 
 
 class ModelVariant(StrEnum):
@@ -46,6 +46,7 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MOBILENET_V4_CONV_SMALL: MobileNetV4Config(
             pretrained_model_name="hf_hub:timm/mobilenetv4_conv_small.e2400_r224_in1k",
+            source=ModelSource.TIMM,
         ),
     }
 
@@ -63,12 +64,14 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        source = cls._VARIANTS[variant].source
+
         return ModelInfo(
             model="MobileNetV4",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TIMM,
+            source=source,
             framework=Framework.TORCH,
         )
 
