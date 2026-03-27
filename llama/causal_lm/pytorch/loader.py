@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     # Llama 3 variants
     LLAMA_3_8B = "3.0_8B"
     LLAMA_3_8B_INSTRUCT = "3.0_8B_Instruct"
+    LLAMA_3_8B_INSTRUCT_BNB_4BIT = "3.0_8B_Instruct_BNB_4bit"
 
     # Llama 3.1 variants
     LLAMA_3_1_8B = "3.1_8B"
@@ -113,6 +114,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_8B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Meta-Llama-3-8B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA_3_8B_INSTRUCT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/llama-3-8b-Instruct-bnb-4bit",
             max_length=128,
         ),
         # Llama 3.1 variants
@@ -294,12 +299,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16,
-            ModelVariant.TINYLLAMA_W8W8_STATIC,
-            ModelVariant.TINYLLAMA_W8A8_DYNAMIC_TOKEN_V2,
-            ModelVariant.META_LLAMA_3_8B_FP8_COMPRESSED_TENSORS,
-            ModelVariant.SYNTHIA_3_70B_V3_5,
+            ModelVariant.LLAMA_3_8B_INSTRUCT_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -395,14 +395,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is a quantized variant and configure accordingly
+        # Check if this is an AWQ or BNB variant and configure accordingly
         if pretrained_model_name in (
             "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16",
-            "RedHatAI/Llama-3.3-70B-Instruct-FP8-block",
-            "nm-testing/tinyllama-oneshot-w8w8-test-static-shape-change",
-            "nm-testing/tinyllama-oneshot-w8a8-dynamic-token-v2",
-            "nm-testing/Meta-Llama-3-8B-FP8-compressed-tensors-test",
+            "unsloth/llama-3-8b-Instruct-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
