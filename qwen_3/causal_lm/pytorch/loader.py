@@ -41,8 +41,7 @@ class ModelVariant(StrEnum):
     QWEN_3_32B = "32B"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
-    QWEN_3_30B_A3B_INSTRUCT_2507_FP8 = "30B_A3B_Instruct_2507_FP8"
-    QWEN_3_4B_AWQ = "4B_AWQ"
+    QWEN_3_235B_A22B_INSTRUCT_2507_FP8 = "235B_A22B_Instruct_2507_FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -98,12 +97,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_4B_AWQ: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-4B-AWQ",
+        ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
             max_length=128,
         ),
     }
@@ -146,8 +141,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_AWQ,
+            ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -222,7 +216,10 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
         elif self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
+            if hasattr(config, "text_config"):
+                config.text_config.num_hidden_layers = self.num_layers
+            else:
+                config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model_kwargs |= kwargs
@@ -261,7 +258,7 @@ class ModelLoader(ForgeModel):
                 ModelVariant.QWEN_3_4B_INSTRUCT_2507,
                 ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
                 ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-                ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8,
+                ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
             )
             text = self.tokenizer.apply_chat_template(
                 messages,
@@ -286,6 +283,12 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
+    def _get_text_config(self):
+        """Get the text config, handling both nested (MoE) and flat config structures."""
+        if hasattr(self.config, "text_config"):
+            return self.config.text_config
+        return self.config
+
     def get_mesh_config(self, num_devices: int):
         mesh_shape = (1, num_devices)
         if self._variant not in [
@@ -294,8 +297,9 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
         ]:
+            text_config = self._get_text_config()
             assert (
-                self.config.num_attention_heads % mesh_shape[1] == 0
+                text_config.num_attention_heads % mesh_shape[1] == 0
             ), "Attention heads must be divisible by the model axis size"
         return mesh_shape, ("batch", "model")
 
@@ -304,7 +308,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_30B_A3B,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8,
+            ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
         )
 
     def load_shard_spec(self, model):
