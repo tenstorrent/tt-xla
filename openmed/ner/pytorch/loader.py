@@ -2,83 +2,51 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER model loader implementation for biomedical entity recognition.
+OpenMed NER model loader implementation for token classification.
 """
 
 import torch
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForTokenClassification
+from ....base import ForgeModel
 from ....config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    ModelConfig,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available OpenMed NER model variants."""
 
-    ANATOMY_DETECT_SUPERMEDICAL_355M = "AnatomyDetect-SuperMedical-355M"
-    ANATOMY_DETECT_MULTIMED_335M = "AnatomyDetect-MultiMed-335M"
-    GENOME_DETECT_BIOPATIENT_108M = "GenomeDetect-BioPatient-108M"
-    SPECIES_DETECT_BIOCLINICAL_108M = "SpeciesDetect-BioClinical-108M"
-    PROTEIN_DETECT_MODERNCLINICAL_395M = "ProteinDetect-ModernClinical-395M"
-    GENOME_DETECT_PUBMED_V2_109M = "GenomeDetect-PubMed-v2-109M"
+    ONCOLOGY_DETECT_SUPERMEDICAL_125M = "OncologyDetect-SuperMedical-125M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER model loader implementation for biomedical entity recognition."""
+    """OpenMed NER model loader implementation for token classification tasks."""
 
     _VARIANTS = {
-        ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-SuperMedical-355M",
-        ),
-        ModelVariant.ANATOMY_DETECT_MULTIMED_335M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-MultiMed-335M",
-        ),
-        ModelVariant.GENOME_DETECT_BIOPATIENT_108M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-BioPatient-108M",
-        ),
-        ModelVariant.SPECIES_DETECT_BIOCLINICAL_108M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-BioClinical-108M",
-        ),
-        ModelVariant.PROTEIN_DETECT_MODERNCLINICAL_395M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ModernClinical-395M",
-        ),
-        ModelVariant.GENOME_DETECT_PUBMED_V2_109M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-PubMed-v2-109M",
+        ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-SuperMedical-125M",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M
-
-    _SAMPLE_TEXTS = {
-        ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M: "The patient complained of pain in the left ventricle region.",
-        ModelVariant.ANATOMY_DETECT_MULTIMED_335M: "The patient complained of pain in the left ventricle region.",
-        ModelVariant.GENOME_DETECT_BIOPATIENT_108M: "The EGFR gene mutation was identified in lung cancer patients.",
-        ModelVariant.SPECIES_DETECT_BIOCLINICAL_108M: "Escherichia coli bacteria were found in the water samples.",
-        ModelVariant.PROTEIN_DETECT_MODERNCLINICAL_395M: "The BRCA1 protein interacts with the p53 tumor suppressor in breast cancer cells.",
-        ModelVariant.GENOME_DETECT_PUBMED_V2_109M: "The EGFR gene mutation was identified in lung cancer patients.",
-    }
+    DEFAULT_VARIANT = ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M
 
     def __init__(self, variant=None):
         super().__init__(variant)
-        self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = self._SAMPLE_TEXTS.get(
-            self._variant,
-            "The patient complained of pain in the left ventricle region.",
-        )
-        self.max_length = 128
         self.tokenizer = None
+        self.model = None
+        self.sample_text = "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells."
+        self.max_length = 128
 
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = "ner"
+            variant_name = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="OpenMed",
             variant=variant_name,
@@ -89,7 +57,9 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -97,10 +67,10 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForTokenClassification.from_pretrained(
-            self.model_name, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
-        self.model = model
         model.eval()
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -128,4 +98,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"NER Tags: {predicted_tokens_classes}")
+        print(f"Predicted Labels: {predicted_tokens_classes}")
