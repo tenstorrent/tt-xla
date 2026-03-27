@@ -115,6 +115,12 @@ struct CompileOptions {
   // default name.
   std::string ttnn_perf_metrics_output_file = "";
 
+  // When true (default for codegen backends), the generated code is exported
+  // but not executed — output tensors are zero-filled.  When false, the
+  // generated Python code is executed via PythonModelRunner and real output
+  // tensors are returned.  Ignored for the TTNNFlatbuffer backend.
+  bool dry_run = true;
+
   // Path that will contain any exported artifacts.
   // This includes: codegen solutions, graph inputs and intermediate IRs.
   // Setting this will enable IR dumping.

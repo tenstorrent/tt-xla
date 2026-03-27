@@ -104,6 +104,20 @@ jobs:
             name: xla-whl-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
             path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
 
+      - name: Build EmitPy-enabled PJRT plugin variant
+        if: inputs.build_type == 'release'
+        shell: bash
+        run: |
+          source venv/activate
+          # Reconfigure with TTXLA_ENABLE_TOOLS=ON to link PythonModelRunner
+          # into pjrt_plugin_tt.so. tt-mlir tools are already built (always ON),
+          # so this only re-links the plugin.
+          cmake -G Ninja -B build -DTTXLA_ENABLE_TOOLS=ON
+          cmake --build build
+          # Copy the variant plugin into the alchemist artifact tree
+          cp ${{ steps.strings.outputs.build-output-dir }}/pjrt_implementation/src/pjrt_plugin_tt.so \
+             ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/lib/pjrt_plugin_tt_emitpy.so
+
       - name: Upload alchemist library and templates
         if: inputs.build_type == 'release'
         id: upload-alchemist
@@ -112,6 +126,8 @@ jobs:
             name: alchemist-lib-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
             path: |
               ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/lib/libtt-alchemist-lib.so
+              ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/lib/libtt-alchemist-python-runner.so
+              ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/lib/pjrt_plugin_tt_emitpy.so
               ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/tools/tt-alchemist/templates
 
       - name: Build vllm plugin wheel

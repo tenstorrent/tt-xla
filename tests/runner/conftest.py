@@ -53,6 +53,12 @@ def pytest_addoption(parser):
         choices=sorted(ALLOWED_ARCHES),
         help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config files",
     )
+    parser.addoption(
+        "--emitpy",
+        action="store_true",
+        default=False,
+        help="Run EmitPy verification: re-run models via codegen_py backend and compare against flatbuffer result",
+    )
 
 
 @pytest.fixture(autouse=True)

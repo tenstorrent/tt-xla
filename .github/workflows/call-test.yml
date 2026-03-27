@@ -131,7 +131,6 @@ jobs:
         else
           echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
         fi
-        echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
         echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
         echo "wheel_release_vllm_tt_artifact_name=vllm-tt-whl-release${{inputs.artifact_suffix}}" >> "$GITHUB_OUTPUT"
         echo "alchemist_artifact_name=alchemist-lib-release${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
@@ -188,6 +187,24 @@ jobs:
           if [[ -d alchemist_artifact/tools ]]; then
             mv alchemist_artifact/tools third_party/tt-mlir/src/tt-mlir/build/
           fi
+        fi
+
+    - name: Setup EmitPy-enabled PJRT plugin
+      if: ${{ matrix.build.require == 'alchemist' && contains(matrix.build.args, '--emitpy') }}
+      shell: bash
+      run: |
+        source venv/activate
+        EMITPY_SO="third_party/tt-mlir/src/tt-mlir/build/lib/pjrt_plugin_tt_emitpy.so"
+        if [[ -f "$EMITPY_SO" ]]; then
+          echo "=== Swapping in EmitPy-enabled PJRT plugin ==="
+          PLUGIN_DIR=$(python -c "import pjrt_plugin_tt; import pathlib; print(pathlib.Path(pjrt_plugin_tt.__file__).parent)")
+          cp "$EMITPY_SO" "$PLUGIN_DIR/pjrt_plugin_tt.so"
+          # Add alchemist libs to LD_LIBRARY_PATH so python-runner's dependencies resolve
+          ALCHEMIST_LIB_DIR="$(pwd)/third_party/tt-mlir/src/tt-mlir/build/lib"
+          echo "LD_LIBRARY_PATH=${ALCHEMIST_LIB_DIR}:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "EmitPy plugin installed, LD_LIBRARY_PATH updated"
+        else
+          echo "WARNING: EmitPy-enabled plugin not found, EmitPy tests will fail"
         fi
 
     - name: Check for re-run attempt

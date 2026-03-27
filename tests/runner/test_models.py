@@ -160,6 +160,23 @@ def _run_model_test_impl(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
 
+                # Deep-copy the CPU model and inputs BEFORE test() moves them to XLA.
+                # EmitPy verification needs a pristine model that dynamo/XLA have never seen.
+                import copy
+
+                emitpy_enabled = request.config.getoption("--emitpy", default=False)
+                cpu_model_copy = None
+                cpu_args_copy = None
+                cpu_kwargs_copy = None
+                if (
+                    emitpy_enabled
+                    and framework == Framework.TORCH
+                    and run_mode == RunMode.INFERENCE
+                ):
+                    cpu_model_copy = copy.deepcopy(tester._workload.model)
+                    cpu_args_copy = copy.deepcopy(list(tester._workload.args))
+                    cpu_kwargs_copy = copy.deepcopy(dict(tester._workload.kwargs))
+
                 comparison_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
@@ -168,6 +185,20 @@ def _run_model_test_impl(
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
                 Evaluator._assert_on_results(comparison_result)
+
+                # EmitPy verification: re-run via codegen_py and compare
+                # against flatbuffer result. Only for passing torch inference tests.
+                if emitpy_enabled and succeeded:
+                    print(
+                        f"Running EmitPy verification for {request.node.nodeid}",
+                        flush=True,
+                    )
+                    tester.verify_emitpy(
+                        cpu_model_copy,
+                        cpu_args_copy,
+                        cpu_kwargs_copy,
+                        assert_exact=test_metadata.emitpy_assert_exact,
+                    )
 
         except Exception as e:
             try:

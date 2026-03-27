@@ -64,6 +64,11 @@ PUBLIC
     TTPJRTUtils
 )
 
+if(TTXLA_ENABLE_TOOLS)
+    target_link_libraries(TTPJRTApi PRIVATE tt-alchemist-python-runner)
+    target_compile_definitions(TTPJRTApi PRIVATE TTXLA_ENABLE_PYTHON_RUNNER)
+endif()
+
 # Enable Tracy profiling if requested
 if(TTXLA_TRACY_ZONES)
     # Define TRACY_ENABLE to enable Tracy zones in the code - this is used in `tracy` headers.
