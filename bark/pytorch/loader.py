@@ -4,7 +4,6 @@
 """
 Bark text-to-audio model loader implementation.
 """
-import torch
 from transformers import AutoProcessor, BarkModel
 from typing import Optional
 
