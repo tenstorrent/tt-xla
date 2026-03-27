@@ -7,7 +7,6 @@ LLaVA-NeXT (v1.6) model loader implementation for multimodal conditional generat
 
 from typing import Optional
 
-import torch
 from PIL import Image
 from transformers import LlavaNextForConditionalGeneration, LlavaNextProcessor
 
