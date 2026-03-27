@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     BERT_BASE_CASED = "Base_Cased"
     BERT_BASE_MULTILINGUAL_CASED = "Base_Multilingual_Cased"
     BIO_CLINICAL_BERT = "Bio_ClinicalBERT"
-    BERT_BASE_GERMAN_CASED = "Base_German_Cased"
+    BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
 
@@ -51,8 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="emilyalsentzer/Bio_ClinicalBERT",
             max_length=128,
         ),
-        ModelVariant.BERT_BASE_GERMAN_CASED: LLMModelConfig(
-            pretrained_model_name="google-bert/bert-base-german-cased",
+        ModelVariant.BIOBERT_BASE_CASED_V1_1: LLMModelConfig(
+            pretrained_model_name="dmis-lab/biobert-base-cased-v1.1",
             max_length=128,
         ),
         ModelVariant.BERT_LARGE_PORTUGUESE_CASED: LLMModelConfig(
@@ -104,6 +104,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_BASE_GERMAN_CASED,
             ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
             ModelVariant.BIO_CLINICAL_BERT,
+            ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
         ):
