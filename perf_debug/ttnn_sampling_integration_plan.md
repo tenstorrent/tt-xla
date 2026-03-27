@@ -1,214 +1,178 @@
-# Plan: Integrate ttnn.sampling() Fused Custom Op
+# Plan: Sub-1ms Non-Greedy Sampling on Device
 
 Tracking issue: https://github.com/tenstorrent/tt-xla/issues/3940
 
-## Overview
+All measurements at Llama 3.1 8B vocab (128,256), single-device Wormhole (Blackhole), batch=32.
 
-Replace the 66-op compiled sampling graph with `ttnn.sampling()` — a native fused kernel in tt-metal that does top-k, top-p, temperature scaling, softmax, and multinomial sampling in a single device op. Follow the same integration pattern as paged attention (`tt::paged_update_cache`).
+## Summary of Findings
 
-Key constraint: `ttnn.sampling()` requires batch dim = 32 (hardcoded). Batch<32 needs padding.
+We discovered that non-greedy sampling can run in **0.89ms on device** — matching greedy argmax — by exploiting multi-core `ttnn.topk()`. The key is padding vocab chunks to power-of-2 sizes under 65536, which triggers the multi-core bitonic sort path (uses all available cores instead of 1).
 
-## Phase 1: Verify the op on hardware
+| Path | Latency | Cores Used | Status |
+|---|---|---|---|
+| Current device (66-op compiled graph) | ~147ms | mixed (cumsum: 1 core) | ships today |
+| Single-core topk + sampling (naive) | 18.76ms | topk: 1 core | measured |
+| **Multi-core topk + sampling** | **0.89ms** | **topk: 110 cores** | **measured, not integrated** |
+| Greedy argmax (device) | <1ms | multi-core | baseline target |
+| Current CPU sampling | 4.7-133ms | N/A (batch dependent) | ships today on kmabee/vllm_demo |
 
-1. **Run the existing tt-metal unit test**:
-   - `third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tests/ttnn/unit_tests/operations/eltwise/test_sampling.py`
-   - If it fails, stop — the kernel doesn't work on our hardware.
+## Phase 1: Verify ttnn.sampling() on hardware (DONE)
 
-2. **Write a standalone test** (`perf_debug/test_ttnn_sampling_direct.py`):
-   - Llama vocab_size=128256, batch=1 padded to 32
-   - Verify output shape [1,1,1,32], token indices in [0, vocab_size)
-   - Test edge cases: temp=0 (greedy), top_k=1, top_p=1.0
-   - Test determinism with same seed
-   - Test that k/p/temp can vary per-user in the batch
+Completed 2026-03-26. See `perf_debug/test_ttnn_sampling_direct.py`.
 
-### Phase 1 results (2026-03-26)
+Key findings:
+- `ttnn.sampling()` overflows L1 at vocab >= 8192 (per-core buffer constraint in `sampling_program_factory.cpp`)
+- Production models always pre-filter with `ttnn.topk()` — sampling only sees ~32-256 tokens
+- All correctness tests pass: determinism, greedy (32/32 argmax match), per-user params, edge cases
 
-**Critical finding: `ttnn.sampling()` overflows L1 at vocab >= 8192.** Three circular buffers in the sampling kernel (`c_12 final_indices_rm`, `c_5 input_transposed`, `c_6 index_transposed`) scale with vocab width. At vocab=4096 they total ~1MB/core (fits in 1.5MB L1); at vocab=8192 they total ~2.1MB/core (overflow). This is a per-core constraint — `sub_core_grids` does not help. Source: `sampling_program_factory.cpp` lines 78-181.
+## Phase 2: Performance benchmarking (DONE)
 
-**Production models never feed full vocab to `ttnn.sampling()`.** The L1 limit only affects the sampling kernel — `ttnn.topk()` is a completely different kernel with no such constraint. Reading `models/common/sampling/tt_sampling.py` revealed the actual pipeline:
+Completed 2026-03-26/27. Tracy profiling confirmed device kernel times.
 
-For multi-device (Llama3-70B on 8×4 Galaxy, 32 devices total):
-1. `sampling_all_gather_axis=0` (default) → gather along rows (8 devices). The 4 col-devices handle TP for attention, not vocab.
-2. Vocab sharded across 8 row-devices: 128K/8 = 16K tokens/device
-3. `ttnn.topk(16K, k=32)` per device → `[1,1,32,32]` (~1.2ms). Topk has NO L1 limit.
-4. All-gather across 8 devices → `[1,1,32,256]` candidates
-5. `ttnn.sampling([1,1,32,256])` → <0.2ms. 256 tokens is well within the ~4K sampling limit.
-6. Total: ~2-3ms (enabling 80 tok/s)
-Source: `model_config.py:607` (cluster_shape=[8,4]), `tt_sampling.py:251` (axis selection)
+### Multi-core topk discovery (2026-03-27)
 
-For single-device (our vLLM case, `multi_step_reduction=True`):
-1. Split logits in half along vocab dim
-2. `ttnn.topk()` each half → `max_top_k` (typically 32) results per half
-3. Concat → `2 * max_top_k` candidates (64 tokens)
-4. Add per-half device offsets to get global vocab indices
-5. `ttnn.sampling()` on the reduced set (64 tokens, well within L1)
+Tracy profiling revealed `ttnn.topk` running on **1 core out of 110**. Investigation of the topk kernel source (`topk_device_operation.cpp`, `topk_utils.cpp`, `topk_constants.hpp`) found that multi-core topk IS fully implemented but gated behind:
 
-This means **the custom op must wrap topk + sampling, not just sampling alone.**
+1. **Input dimension must be power of 2** (bitonic sort algorithm)
+2. **Input dimension must be < 65536** (uint16 index range)
+3. **k must be <= 64**
+4. **Work must divide evenly across cores**
 
-All correctness tests pass with the topk+sampling pipeline:
-- Small vocab direct sampling (4096): PASS
-- Llama vocab (128256) via topk+sampling: PASS
-- OPT vocab (50272) via topk+sampling: PASS
-- Determinism (same seed): PASS
-- Greedy (top_k=1): PASS — 32/32 match argmax
-- Per-user k/p/temp: PASS
-- top_p=1.0 (disabled): PASS
+Our vocab (128,256) fails conditions 1 and 2. Fix: split into 4 chunks of 32064, pad each to 32768 (largest power of 2 under 65536).
 
-Answers to open questions:
-- **temp=0 greedy**: Not tested directly, but top_k=1 with p=0.0 gives exact argmax (32/32 match)
-- **Per-request seeds**: `ttnn.sampling()` takes a single global seed, but production uses `ttnn.manual_seed()` with per-user seeds before calling it
-- **top_k=0 (disabled)**: Not tested — production uses max_top_k=32 as the upper bound
-- **Per-user params**: Confirmed working — k/p/temp can all vary per user
-
-## Phase 2: Performance comparison
-
-1. Benchmark `ttnn.sampling()` over 100 iterations (after warmup) at Llama vocab size
-2. Record mean/min/max latency
-3. Compare against the known 93ms/token baseline from the 66-op graph
-
-### Phase 2 results (2026-03-26)
-
-| Pipeline | Vocab | P50 Latency | Baseline (66-op) | Speedup |
-|---|---|---|---|---|
-| sampling only (reduced vocab=64) | 64 | 0.18ms | — | — |
-| topk + sampling | 50,272 (OPT) | **10.7ms** | ~93ms | **~8.7x** |
-| topk + sampling | 128,256 (Llama) | **46.0ms** | ~147ms | **~3.2x** |
-
-The sampling op itself is sub-millisecond. The bottleneck is `ttnn.topk()` on large vocabs:
-
-| Operation | P50 Latency | Notes |
+| Approach | TopK Cores | P50 Latency |
 |---|---|---|
-| topk(half_vocab=8K, k=32) | 1.2ms | Llama70B per-device equivalent |
-| topk(half_vocab=25K, k=32) | 3.7ms | OPT per-half |
-| topk(half_vocab=64K, k=32) | 9.3ms | Llama per-half |
-| sampling(reduced_vocab=64) | 0.17ms | Post-topk, negligible |
+| topk(128256) single call | 1 | 19.85ms |
+| 2x topk(64128) split-in-half | 1 each | 18.76ms |
+| **4x topk(32768) padded** | **110 each** | **0.89ms** |
+| topk(32768) single call | 110 | 0.18ms |
+| topk(65536) | 1 (falls back) | 10.21ms |
 
-Note: full pipeline measurements include host-side tensor creation overhead (creating ttnn tensors each iteration). In production with persistent device tensors, the actual improvement will be larger.
+Tracy op breakdown for one iteration of the multi-core pipeline (from `ops_perf_results` CSV):
 
-## Phase 3: Custom op registration in tt-xla
+| Op | Cores | Device Time |
+|---|---|---|
+| Slice ×4 (split chunks) | 110 | 0.02ms each |
+| Pad ×4 (to 32768) | — | <0.01ms each |
+| **TopK ×4 (multi-core)** | **110** | **0.18ms each** |
+| Concat ×2 | 2 | <0.01ms |
+| Typecast (uint16→int32) | 2 | <0.01ms |
+| Add (global offsets) | 110 | <0.01ms |
+| Untilize | 1 | <0.01ms |
+| **Sampling** | **32** | **0.03ms** |
 
-**File**: `python_package/tt_torch/custom_ops.py`
+Note: the 46ms number reported earlier was inflated by host-side tensor recreation every iteration. With persistent tensors the single-core path was 18.76ms wall-clock, matching Tracy's 18.4ms device time. The multi-core path is 0.89ms wall-clock.
 
-Follow the `paged_update_cache` pattern exactly (lines 452-503).
+## Phase 3: Integration approach (REVISED)
 
-**Updated after Phase 1**: The custom op must accept pre-topk'd inputs (reduced vocab, ~64 tokens after the split-topk-concat pipeline), NOT the full vocab. The topk reduction happens in the sampler before calling this op, or we create a higher-level op that wraps topk+sampling together.
+### Original plan: custom op (paged_update_cache pattern)
 
-Two options being considered:
-- **Option A**: Custom op wraps only `ttnn.sampling()` (reduced inputs). The topk pipeline is compiled normally via `torch.compile` (torch.topk -> ttnn.topk lowering already exists).
-- **Option B**: Custom op wraps the full topk+sampling pipeline. Avoids compiling topk separately.
+The original plan was to register `tt::sampling` as a custom op following the `paged_update_cache` pattern, with compiler lowering through tt-mlir. However:
 
-1. `@torch.library.custom_op("tt::sampling", mutates_args=[], device_types=["xla", "cpu"])`
-   - Inputs: `input_values` [1,1,32,reduced_vocab], `input_indices` [1,1,32,reduced_vocab], `k` [1,1,32], `p` [1,1,32], `temp` [1,1,32], `seed: int`
-   - XLA path: `stablehlo_custom_call` with target `"tt.sampling"`, seed as frontend attribute
-   - CPU fallback: reference Python implementation (softmax -> top-k -> top-p -> multinomial)
-   - Output: `[1,1,1,32]` int32
+- Custom ops in tt-xla map to **single ttnn ops** at runtime (confirmed by reading `paged_update_cache.cpp` runtime dispatch). The runtime calls one `ttnn::` function, not a sequence.
+- Our pipeline is a **sequence** of ttnn ops (split → pad → topk ×4 → concat → offset-add → untilize → sampling). This can't be a single custom op without creating a new fused kernel in tt-metal.
+- Creating a new fused ttnn kernel is significant tt-metal work and defeats the purpose of reusing existing ops.
 
-2. `@sampling.register_fake` — returns `torch.zeros((1,1,1,32), dtype=torch.int32)`
+### New approach: rewrite sampler torch code (compile-through)
 
-Note: k/p/temp tensors reshaped to [1,1,32] (3D minimum) for `stablehlo_custom_call` compatibility.
+Since `torch.compile(backend="tt")` compiles torch ops → tt-mlir → ttnn ops, we can rewrite the sampler to use torch ops that lower to the right ttnn ops with multi-core-friendly shapes:
 
-## Phase 4: Compiler lowering in tt-mlir
+```python
+# In sampler.py, replace the current 66-op sampling logic with:
+# 1. Pad logits to next multiple of chunk size
+# 2. Split into chunks of 32768 (power of 2, < 65536)
+# 3. torch.topk(k=32) on each chunk → compiles to multi-core ttnn.topk
+# 4. Concat candidates
+# 5. Apply top-p / temperature / Gumbel-max on the small candidate set
+```
 
-~8 files across the compiler. Follow `paged_update_cache` pattern everywhere.
+This approach:
+- Requires **no custom op registration** in tt-xla
+- Requires **no tt-mlir compiler changes**
+- Compiles through the existing `torch.compile(backend="tt")` path
+- Multi-core topk triggers automatically because input shapes are power-of-2 and < 65536
 
-### 4a: TTIR op definition
-- **File**: `third_party/tt-mlir/.../include/ttmlir/Dialect/TTIR/IR/TTIROps.td`
-- Add `TTIR_SamplingOp` following `TTIR_PagedUpdateCacheOp` (line 3222)
-- Arguments: input_values, input_indices, k, p, temp tensors + seed attribute
+**Risk**: the compiler must preserve the power-of-2 shapes through to `ttnn.topk`. If any intermediate pass reshapes or pads differently, multi-core won't trigger. Needs validation.
 
-### 4b: TTNN op definition
-- **File**: `third_party/tt-mlir/.../include/ttmlir/Dialect/TTNN/IR/TTNNOps.td`
-- Add `TTNN_SamplingOp` following `TTNN_PagedUpdateCacheOp` (line 1039)
-- NOT an inplace op (produces new output tensor)
+**Where the padding logic lives**: in `integrations/vllm_plugin/vllm_tt/sampler.py`, as regular torch ops in the compiled function. The pad-to-power-of-2 and chunk-splitting are explicit torch operations that the compiler traces and lowers. This matches how the existing sampler already does explicit torch ops (sort, softmax, etc.) inside the compiled graph.
 
-### 4c: StableHLO -> TTIR conversion
-- **File**: `third_party/tt-mlir/.../lib/Conversion/StableHLOToTTIR/StableHLOToTTIRPatterns.cpp`
-- Add `StableHLOSamplingConversionPattern` matching `funcName == "tt.sampling"` (follow line 6048)
-- Parse seed from frontend_attributes, verify 5 operands + 1 result
+### Fallback: custom op for ttnn.sampling() only
 
-### 4d: TTIR -> TTNN conversion
-- **File**: `third_party/tt-mlir/.../lib/Conversion/TTIRToTTNN/TTIRToTTNN.cpp`
-- Add `SamplingOpConversionPattern` (follow line 741)
+If the compile-through approach doesn't preserve multi-core shapes, fall back to:
+- Use the compile-through path for topk (the expensive part)
+- Register a custom op only for `ttnn.sampling()` (the cheap 0.03ms part that has the L1 vocab limit)
+- This is simpler than the original Phase 3+4 plan since the custom op is just the sampling op, not the full pipeline
 
-### 4e: Flatbuffer schema
-- **New file**: `.../include/ttmlir/Target/TTNN/operations/sampling.fbs`
-- Add `SamplingOp` table with 5 tensor refs + seed attr
-- Add to `OpType` union in `program.fbs`
+### Can the existing 66-op graph be improved?
 
-### 4f: Flatbuffer serialization
-- **File**: `.../lib/Target/TTNN/TTNNToFlatbuffer.cpp`
-- Add `createOp` for SamplingOp (follow line 1632)
+The current 66-op graph's bottlenecks (from original Tracy profiling):
+- Accumulation (cumsum): 24ms on **1 core** — same single-core problem as topk
+- FillPad (ttnn.full ×11): 14ms on **1 core**
+- Sort: 14ms on 110 cores
+- Softmax ×3: 7ms on 110 cores
 
-### 4g: Runtime dispatch
-- **New file**: `.../runtime/lib/ttnn/operations/sampling/sampling.cpp`
-- Extract tensors, call `ttnn::sampling(...)` (follow paged_update_cache runtime)
-- Add dispatch case in `program_executor.cpp` (line 452)
-- Update `CMakeLists.txt` for new operation directory
+The multi-core topk discovery suggests: **if we replaced the sort+cumsum+softmax+multinomial sequence with topk on power-of-2 padded chunks, the existing compiled graph would go from ~93ms to potentially sub-1ms.** The cumsum (24ms, 1 core) and FillPad (14ms, 1 core) are entirely eliminated because topk replaces them.
 
-### 4h: EmitC/EmitPy conversion
-- Add patterns in `TTNNToEmitC.cpp` and `TTNNToEmitPy.cpp`
+This is essentially the same as the "rewrite sampler torch code" approach above — we're replacing the expensive ops with topk, which happens to have an excellent multi-core implementation when shapes are right.
 
-### 4i: MLIR lit test
-- **New file**: `.../test/ttmlir/Conversion/StableHLOToTTIR/transformer/sampling.mlir`
+## Phase 4: Implementation plan
 
-## Phase 5: Sampler integration
+### Step 1: Rewrite sampler torch code
 
-### sampler.py changes
 **File**: `integrations/vllm_plugin/vllm_tt/sampler.py`
 
-Current `Sampler.sample()` (lines 140-204) does: masks -> penalties -> greedy argmax -> temp scaling -> min_p -> top-k/top-p -> softmax -> Gumbel-max -> select.
+Replace the current `apply_top_k_top_p` + softmax + Gumbel-max sequence with:
+1. Pad logits to multiple of 32768
+2. Split into chunks of 32768
+3. `torch.topk(k=32)` per chunk (compiles to multi-core ttnn.topk)
+4. Concat all chunk results → [batch, num_chunks × 32] candidates
+5. Add per-chunk offsets to get global vocab indices
+6. Apply top-p on the small candidate set
+7. Temperature scaling + Gumbel-max on the small candidate set
 
-New fused path replaces steps 3-8:
-1. Apply masks and penalties (steps 1-2 stay as-is — fused op doesn't handle these)
-2. `torch.sort(logits, descending=True)` -> sorted values + indices
-3. Build per-user k/p/temp tensors from `XLASupportedSamplingMetadata`
-4. Pad batch to 32 if needed
-5. Call `torch.ops.tt.sampling(sorted_values, sorted_indices, k, p, temp, seed)`
-6. Unpad back to actual batch size
+### Step 2: Validate compiler preserves shapes
 
-### model_runner.py changes
-**File**: `integrations/vllm_plugin/vllm_tt/model_runner.py`
+Compile the new sampler and check Tracy output:
+- Confirm `TopKDeviceOperation` shows CORE_COUNT > 1
+- Confirm input dimensions are 32768 (power of 2)
 
-- Add precompilation trace for the fused path in `_precompile_sample_from_logits` (line 1817)
-- Branch on config flag in `sample_from_logits` (line 2152)
+### Step 3: Correctness validation
 
-### Feature gate
-`TT_USE_FUSED_SAMPLING=1` env var (default off until validated). Keep old path as fallback.
+- Greedy (temp=0) produces identical tokens vs current path
+- Non-greedy with same seed produces same distribution
+- Run existing sampling tests
 
-## Phase 6: End-to-end validation
+### Step 4: Performance validation
 
-1. Run existing sampling tests with fused path enabled
-2. Greedy decoding: verify identical tokens vs old path
-3. Run OPT-125M inference end-to-end
-4. Measure tokens/sec improvement
+Target: < 1ms total sampling time at Llama vocab, any batch size up to 32.
 
-## Dependency graph
+## CPU Sampling Optimizations (back pocket)
 
-```
-Phase 1 (verify op) -> Phase 2 (benchmark)
-                            |
-               Phase 3 (custom_ops.py)  --+
-                                          +--> Phase 5 (sampler wiring) --> Phase 6 (validation)
-               Phase 4 (tt-mlir)        --+
-```
+Documented in `perf_debug/cpu_sampling_optimization.md`. Two code fixes to `sample_from_logits_cpu` (on `kmabee/vllm_demo` branch) for immediate deployment if device path is blocked:
 
-Phases 3 and 4 can proceed in parallel. Phase 5 requires both.
+1. **Batch topk-first before top-p**: Sort only k elements instead of 128K. Exact equivalence when top_k > 0.
+2. **Gumbel-max trick**: Replace softmax+multinomial with argmax+gumbel_noise. Exact equivalence.
+3. **Config: enable top_k=50**: Makes fixes 1+2 maximally effective.
 
-## Open questions to resolve during Phase 1
+Expected gains with all three (Llama vocab):
 
-1. Does `temp=0` degenerate to argmax, or do we need a separate greedy path?
-2. Does the op support per-request seeds, or just one global seed?
-3. What happens with `top_k=0` (disabled) — does it keep all tokens?
-4. Is `ttnn.sort` on vocab_size=128K tensors reliable? (relates to the known sort+scatter corruption issue)
-5. What's the precision of `sub_core_grids` — can we omit it and let the kernel choose defaults?
+| Batch | Current CPU | Optimized CPU |
+|---|---|---|
+| 1 | 8.7ms | 0.5ms |
+| 8 | 73ms | 0.7ms |
+| 16 | 138ms | ~1ms |
+| 32 | 342ms | 6.3ms |
 
-## Key files reference
+These are easier to deploy today (pure Python changes, no compiler work) and serve as fallback if the device integration hits issues.
+
+## Key files
 
 | File | Role |
 |---|---|
-| `python_package/tt_torch/custom_ops.py` | Custom op registration (paged_update_cache pattern at line 452) |
-| `integrations/vllm_plugin/vllm_tt/sampler.py` | Current 66-op sampling implementation |
-| `integrations/vllm_plugin/vllm_tt/model_runner.py` | Decode loop, sample_from_logits at ~line 2152 |
-| `integrations/vllm_plugin/vllm_tt/metadata.py` | XLASupportedSamplingMetadata with k/p/temp tensors |
-| `third_party/tt-mlir/.../tests/ttnn/unit_tests/operations/eltwise/test_sampling.py` | Existing unit test |
-| `third_party/tt-mlir/.../ttnn/cpp/ttnn/operations/reduction/sampling/` | tt-metal kernel source |
+| `integrations/vllm_plugin/vllm_tt/sampler.py` | Sampler rewrite target |
+| `integrations/vllm_plugin/vllm_tt/model_runner.py` | Decode loop, sample_from_logits |
+| `perf_debug/test_ttnn_sampling_direct.py` | Verification tests and benchmarks |
+| `perf_debug/cpu_sampling_optimization.md` | CPU fallback optimization analysis |
+| `ttnn/.../operations/reduction/topk/device/topk_device_operation.cpp` | Multi-core topk gate logic |
+| `ttnn/.../operations/reduction/topk/device/topk_constants.hpp` | `multi_core_min_width = 8192` |
+| `ttnn/.../operations/reduction/topk/device/topk_utils.cpp` | `find_topk_core_config()` |
