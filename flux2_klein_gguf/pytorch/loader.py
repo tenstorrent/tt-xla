@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -63,8 +63,9 @@ class ModelLoader(ForgeModel):
         compute_dtype = dtype_override if dtype_override is not None else torch.bfloat16
         quantization_config = GGUFQuantizationConfig(compute_dtype=compute_dtype)
 
+        repo_id = self._variant_config.pretrained_model_name
         self.transformer = Flux2Transformer2DModel.from_single_file(
-            f"https://huggingface.co/{self._variant_config.pretrained_model_name}/{self.GGUF_FILE}",
+            f"https://huggingface.co/{repo_id}/resolve/main/{self.GGUF_FILE}",
             quantization_config=quantization_config,
             torch_dtype=compute_dtype,
         )
