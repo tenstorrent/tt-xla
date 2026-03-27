@@ -5,6 +5,7 @@
 HunyuanOCR model loader implementation for image-to-text OCR tasks.
 """
 import torch
+from PIL import Image
 from transformers import AutoProcessor, HunYuanVLForConditionalGeneration
 from typing import Optional
 
@@ -129,24 +130,30 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor(dtype_override=dtype_override)
 
+        img_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/pipeline-cat-chonk.jpeg"
+        image = Image.open(
+            __import__("requests").get(img_url, stream=True).raw
+        ).convert("RGB")
+
         messages = [
             {"role": "system", "content": ""},
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "image",
-                        "image": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/pipeline-cat-chonk.jpeg",
-                    },
+                    {"type": "image", "image": img_url},
                     {"type": "text", "text": "Text Recognition:"},
                 ],
             },
         ]
-        inputs = self.processor.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_dict=True,
+        texts = [
+            self.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        ]
+        inputs = self.processor(
+            text=texts,
+            images=image,
+            padding=True,
             return_tensors="pt",
         )
         # Add batch dimension
