@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     BASE_100H = "Base_100h"
     BASE_960H = "Base_960h"
     LARGE_XLS_R_300M_WELSH = "Large_XLS_R_300M_Welsh"
+    NB_WAV2VEC2_300M_BOKMAAL_V2 = "NB_Wav2Vec2_300M_Bokmaal_v2"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE_XLS_R_300M_WELSH: ModelConfig(
             pretrained_model_name="infinitejoy/wav2vec2-large-xls-r-300m-welsh",
+        ),
+        ModelVariant.NB_WAV2VEC2_300M_BOKMAAL_V2: ModelConfig(
+            pretrained_model_name="NbAiLab/nb-wav2vec2-300m-bokmaal-v2",
         ),
     }
 
