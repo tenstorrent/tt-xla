@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     XLSR_53_HUNGARIAN = "XLSR_53_Hungarian"
     XLS_R_1B_NYNORSK = "XLS_R_1B_Nynorsk"
     XLS_R_300M_UKRAINIAN = "XLS_R_300M_Ukrainian"
+    XLSR_53_PERSIAN = "XLSR_53_Persian"
 
 
 class ModelLoader(ForgeModel):
@@ -80,6 +81,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLS_R_300M_UKRAINIAN: ModelConfig(
             pretrained_model_name="Yehor/w2v-xls-r-uk",
+        ),
+        ModelVariant.XLSR_53_PERSIAN: ModelConfig(
+            pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-persian",
         ),
     }
 
