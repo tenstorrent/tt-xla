@@ -28,9 +28,9 @@ class ModelVariant(StrEnum):
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     DSLIM_BERT_BASE_NER_UNCASED = "dslim/bert-base-NER-uncased"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    AVICHR_HEBERT_NER = "avichr/heBERT_NER"
-    CKIPLAB_BERT_BASE_CHINESE_NER = "ckiplab/bert-base-chinese-ner"
-    KOICHIYASUOKA_BERT_BASE_THAI_UPOS = "KoichiYasuoka/bert-base-thai-upos"
+    CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER = (
+        "CAMeL-Lab/bert-base-arabic-camelbert-mix-ner"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -54,16 +54,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.AVICHR_HEBERT_NER: LLMModelConfig(
-            pretrained_model_name="avichr/heBERT_NER",
-            max_length=128,
-        ),
-        ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER: LLMModelConfig(
-            pretrained_model_name="ckiplab/bert-base-chinese-ner",
-            max_length=128,
-        ),
-        ModelVariant.KOICHIYASUOKA_BERT_BASE_THAI_UPOS: LLMModelConfig(
-            pretrained_model_name="KoichiYasuoka/bert-base-thai-upos",
+        ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER: LLMModelConfig(
+            pretrained_model_name="CAMeL-Lab/bert-base-arabic-camelbert-mix-ner",
             max_length=128,
         ),
     }
@@ -83,7 +75,10 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        if self._variant == ModelVariant.HATMIMOHA_ARABIC_NER:
+        if self._variant in (
+            ModelVariant.HATMIMOHA_ARABIC_NER,
+            ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER,
+        ):
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
         elif self._variant == ModelVariant.AVICHR_HEBERT_NER:
             self.sample_text = "דויד לומד באוניברסיטה העברית שבירושלים"
@@ -114,9 +109,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.AVICHR_HEBERT_NER,
-            ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER,
-            ModelVariant.KOICHIYASUOKA_BERT_BASE_THAI_UPOS,
+            ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER,
         ):
             group = ModelGroup.VULCAN
 
