@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     BASE = "Vit_Base"
     LARGE = "Vit_Large"
     HUGE = "Vit_Huge"
+    TINY_RANDOM = "Vit_Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.HUGE: ModelConfig(
             pretrained_model_name="facebook/sam-vit-huge",
+        ),
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/sam-vit-tiny-random",
         ),
     }
 
@@ -74,10 +78,15 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.TINY_RANDOM
+            else ModelGroup.GENERALITY
+        )
         return ModelInfo(
             model="SAM",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_IMAGE_SEG,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
