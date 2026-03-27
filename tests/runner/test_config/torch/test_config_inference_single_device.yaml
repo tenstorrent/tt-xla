@@ -2437,10 +2437,6 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
-  wan/pytorch-2.2_Ti2v_5B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
-
   monodle/pytorch-Dla34-single_device-inference:
     status: EXPECTED_PASSING
 
