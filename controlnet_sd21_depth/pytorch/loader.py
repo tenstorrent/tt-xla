@@ -5,7 +5,6 @@
 ControlNet SD2.1 Depth model loader implementation
 """
 
-import torch
 from typing import Optional
 
 from ...base import ForgeModel
