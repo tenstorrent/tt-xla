@@ -2,11 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Depth Anything V3 model loader implementation for multi-view depth estimation.
+Depth Anything V3 model loader implementation for monocular depth estimation.
 """
-from PIL import Image
-from depth_anything_3.api import DepthAnything3
+import torch
+import torch.nn as nn
 from typing import Optional
+from PIL import Image
+from datasets import load_dataset
 
 from ...config import (
     ModelConfig,
@@ -20,25 +22,38 @@ from ...config import (
 from ...base import ForgeModel
 
 
+class DepthAnything3Wrapper(nn.Module):
+    """Wrapper around DepthAnything3 that takes a preprocessed image tensor
+    and returns depth prediction."""
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, pixel_values):
+        return self.model(pixel_values)
+
+
 class ModelVariant(StrEnum):
     """Available Depth Anything V3 model variants."""
 
-    GIANT_1_1 = "GIANT-1.1"
+    LARGE_1_1 = "Large-1.1"
 
 
 class ModelLoader(ForgeModel):
     """Depth Anything V3 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.GIANT_1_1: ModelConfig(
-            pretrained_model_name="depth-anything/DA3-GIANT-1.1",
+        ModelVariant.LARGE_1_1: ModelConfig(
+            pretrained_model_name="depth-anything/DA3-LARGE-1.1",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GIANT_1_1
+    DEFAULT_VARIANT = ModelVariant.LARGE_1_1
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -55,18 +70,34 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        from depth_anything_3.api import DepthAnything3
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model = DepthAnything3.from_pretrained(pretrained_model_name)
         model.eval()
 
-        if dtype_override is not None:
-            model = model.to(dtype_override)
+        wrapper = DepthAnything3Wrapper(model)
+        wrapper.eval()
 
-        return model
+        if dtype_override is not None:
+            wrapper = wrapper.to(dtype_override)
+
+        return wrapper
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        image = Image.new("RGB", (640, 480))
-        images = [image] * batch_size
+        dataset = load_dataset("huggingface/cats-image", split="test")
+        image = dataset[0]["image"].convert("RGB")
 
-        return (images,)
+        import numpy as np
+
+        rgb = torch.from_numpy(np.array(image)).permute(2, 0, 1).float() / 255.0
+        rgb = rgb.unsqueeze(0)
+
+        if batch_size > 1:
+            rgb = rgb.expand(batch_size, -1, -1, -1)
+
+        if dtype_override is not None:
+            rgb = rgb.to(dtype_override)
+
+        return rgb
