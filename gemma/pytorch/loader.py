@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
 
     # Gemma 1.x
     GEMMA_2B_IT = "2B_IT"
+    GEMMA_7B_IT = "7B_IT"
     GEMMA_1_1_2B_IT = "1.1_2B_IT"
     GEMMA_1_1_2B_IT_GPTQ = "1.1_2B_IT_GPTQ"
     GEMMA_1_1_7B_IT = "1.1_7B_IT"
@@ -50,6 +51,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GEMMA_2B_IT: LLMModelConfig(
             pretrained_model_name="google/gemma-2b-it",
+        ),
+        ModelVariant.GEMMA_7B_IT: LLMModelConfig(
+            pretrained_model_name="google/gemma-7b-it",
         ),
         ModelVariant.GEMMA_1_1_2B_IT: LLMModelConfig(
             pretrained_model_name="google/gemma-1.1-2b-it",
@@ -111,7 +115,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         # Instruct and larger models are RED, others generality
-        if variant in (ModelVariant.GEMMA_2B_IT, ModelVariant.GEMMA_1_1_2B_IT_GPTQ):
+        if variant in (ModelVariant.GEMMA_2B_IT, ModelVariant.GEMMA_7B_IT):
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["IT", "7B", "9B", "27B"]):
             group = ModelGroup.RED
