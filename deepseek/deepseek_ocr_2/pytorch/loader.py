@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     """Available DeepSeek OCR-2 model variants."""
 
     DEEPSEEK_OCR_2 = "Ocr2"
+    DEEPSEEK_OCR_2_UNSLOTH = "Ocr2-Unsloth"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +37,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DEEPSEEK_OCR_2: ModelConfig(
             pretrained_model_name="deepseek-ai/DeepSeek-OCR-2",
+        ),
+        ModelVariant.DEEPSEEK_OCR_2_UNSLOTH: ModelConfig(
+            pretrained_model_name="unsloth/DeepSeek-OCR-2",
         ),
     }
 
