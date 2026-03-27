@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Contriever model variants for embedding generation."""
 
     FACEBOOK_CONTRIEVER = "facebook/contriever"
+    FACEBOOK_CONTRIEVER_MSMARCO = "facebook/contriever-msmarco"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.FACEBOOK_CONTRIEVER: LLMModelConfig(
             pretrained_model_name="facebook/contriever",
+            max_length=32,
+        ),
+        ModelVariant.FACEBOOK_CONTRIEVER_MSMARCO: LLMModelConfig(
+            pretrained_model_name="facebook/contriever-msmarco",
             max_length=32,
         ),
     }
