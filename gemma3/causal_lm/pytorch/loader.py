@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     GEMMA_3_270M_IT = "270M_Instruct"
     GEMMA_3_1B_IT = "1B_Instruct"
+    GEMMA_3_27B_IT_AWQ_INT4 = "27B_Instruct_AWQ_INT4"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GEMMA_3_1B_IT: LLMModelConfig(
             pretrained_model_name="google/gemma-3-1b-it",
+            max_length=256,
+        ),
+        ModelVariant.GEMMA_3_27B_IT_AWQ_INT4: LLMModelConfig(
+            pretrained_model_name="pytorch/gemma-3-27b-it-AWQ-INT4",
             max_length=256,
         ),
     }
@@ -59,7 +64,10 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
 
         return ModelInfo(
             model="Gemma 3",
@@ -106,6 +114,9 @@ class ModelLoader(ForgeModel):
         model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        if self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
+            model_kwargs["device_map"] = "cpu"
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
