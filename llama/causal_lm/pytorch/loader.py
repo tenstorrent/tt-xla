@@ -58,6 +58,9 @@ class ModelVariant(StrEnum):
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
 
+    # Yahma variants
+    YAHMA_LLAMA_7B = "Yahma_Llama_7B"
+
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
 
@@ -138,6 +141,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="huggyllama/llama-7b",
             max_length=128,
         ),
+        # Yahma variants
+        ModelVariant.YAHMA_LLAMA_7B: LLMModelConfig(
+            pretrained_model_name="yahma/llama-7b-hf",
+            max_length=128,
+        ),
         # TinyLlama variants
         ModelVariant.TINYLLAMA_V1_1: LLMModelConfig(
             pretrained_model_name="TinyLlama/TinyLlama_v1.1",
@@ -209,6 +217,11 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT,
         ]:
             group = ModelGroup.PRIORITY
+        elif variant in [
+            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.YAHMA_LLAMA_7B,
+        ]:
+            group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
 
@@ -468,6 +481,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.HUGGYLLAMA_7B,
+            ModelVariant.YAHMA_LLAMA_7B,
         ]:
             return None
 
