@@ -5,7 +5,7 @@
 FNet model loader implementation for masked language modeling.
 """
 
-from transformers import FNetForMaskedLM, FNetTokenizer, AutoConfig
+from transformers import AutoModelForMaskedLM, AutoTokenizer, AutoConfig
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -86,7 +86,7 @@ class ModelLoader(ForgeModel):
         """
 
         # Initialize tokenizer
-        self.tokenizer = FNetTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
@@ -94,7 +94,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = FNetForMaskedLM.from_pretrained(self.model_name, **model_kwargs)
+        model = AutoModelForMaskedLM.from_pretrained(self.model_name, **model_kwargs)
         model.eval()
         return model
 
