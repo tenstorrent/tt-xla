@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed model loader implementation for token classification (NER).
+OpenMed model loader implementation for protein named entity recognition.
 """
 
 import torch
@@ -22,56 +22,32 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
-    OPENMED_NER_ANATOMYDETECT_MODERNMED_149M = "NER-AnatomyDetect-ModernMed-149M"
-    OPENMED_NER_BLOODCANCERDETECT_ELECTRAMED_109M = (
-        "NER-BloodCancerDetect-ElectraMed-109M"
-    )
-    OPENMED_NER_GENOMEDETECT_ELECTRAMED_109M = "NER-GenomeDetect-ElectraMed-109M"
+    NER_PROTEINDETECT_MODERNMED_149M = "NER-ProteinDetect-ModernMed-149M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed model loader implementation for NER."""
+    """OpenMed model loader implementation for protein NER."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_ANATOMYDETECT_MODERNMED_149M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-ModernMed-149M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_BLOODCANCERDETECT_ELECTRAMED_109M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-ElectraMed-109M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_GENOMEDETECT_ELECTRAMED_109M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-ElectraMed-109M",
+        ModelVariant.NER_PROTEINDETECT_MODERNMED_149M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ModernMed-149M",
             max_length=128,
         ),
     }
 
-    _SAMPLE_TEXTS = {
-        ModelVariant.OPENMED_NER_ANATOMYDETECT_MODERNMED_149M: (
-            "The patient complained of pain in the left ventricle region."
-        ),
-        ModelVariant.OPENMED_NER_BLOODCANCERDETECT_ELECTRAMED_109M: (
-            "The patient presented with chronic lymphocytic leukemia symptoms."
-        ),
-        ModelVariant.OPENMED_NER_GENOMEDETECT_ELECTRAMED_109M: (
-            "The EGFR gene mutation was identified in lung cancer patients."
-        ),
-    }
-
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ANATOMYDETECT_MODERNMED_149M
+    DEFAULT_VARIANT = ModelVariant.NER_PROTEINDETECT_MODERNMED_149M
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = self._SAMPLE_TEXTS[self._variant]
+        self.sample_text = "Casein micelles are the primary protein component of milk."
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = cls.DEFAULT_VARIANT.value
+            variant_name = "ner_proteindetect_modernmed_149m"
         return ModelInfo(
             model="OpenMed",
             variant=variant_name,
