@@ -2,88 +2,54 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed model loader implementation for token classification (NER).
+OpenMed model loader implementation for token classification.
 """
 
 import torch
 from transformers import AutoTokenizer, AutoModelForTokenClassification
-
-from ....base import ForgeModel
-from ....config import (
-    ModelConfig,
+from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
+from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available OpenMed token classification model variants."""
+    """Available OpenMed model variants for token classification."""
 
-    OPENMED_NER_ORGANISMDETECT_MODERNMED_149M = (
-        "OpenMed-NER-OrganismDetect-ModernMed-149M"
-    )
-    OPENMED_NER_PATHOLOGYDETECT_SUPERMEDICAL_355M = (
-        "OpenMed-NER-PathologyDetect-SuperMedical-355M"
-    )
-    OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M = (
-        "OpenMed-NER-PharmaDetect-BioClinical-108M"
-    )
-    OPENMED_PII_ITALIAN_BIOMEDBERT_LARGE_340M_V1 = (
-        "OpenMed-PII-Italian-BiomedBERT-Large-340M-v1"
-    )
+    NER_PHARMADETECT_MODERNMED_149M = "OpenMed/OpenMed-NER-PharmaDetect-ModernMed-149M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed model loader implementation for token classification (NER) tasks."""
+    """OpenMed model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_ORGANISMDETECT_MODERNMED_149M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-ModernMed-149M",
-        ),
-        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_SUPERMEDICAL_355M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-SuperMedical-355M",
-        ),
-        ModelVariant.OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-BioClinical-108M",
-        ),
-        ModelVariant.OPENMED_PII_ITALIAN_BIOMEDBERT_LARGE_340M_V1: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-Italian-BiomedBERT-Large-340M-v1",
+        ModelVariant.NER_PHARMADETECT_MODERNMED_149M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-ModernMed-149M",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ORGANISMDETECT_MODERNMED_149M
-
-    _SAMPLE_TEXTS = {
-        ModelVariant.OPENMED_NER_ORGANISMDETECT_MODERNMED_149M: (
-            "Caenorhabditis elegans is a model organism for genetic studies."
-        ),
-        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_SUPERMEDICAL_355M: (
-            "The biopsy revealed adenocarcinoma with lymphovascular invasion."
-        ),
-        ModelVariant.OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M: (
-            "Administration of metformin reduced glucose levels significantly."
-        ),
-        ModelVariant.OPENMED_PII_ITALIAN_BIOMEDBERT_LARGE_340M_V1: (
-            "Paziente Marco Bianchi nato il 15/03/1985 è stato visitato oggi a Milano."
-        ),
-    }
+    DEFAULT_VARIANT = ModelVariant.NER_PHARMADETECT_MODERNMED_149M
 
     def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
-        self.tokenizer = None
-        self.model = None
-        self.sample_text = self._SAMPLE_TEXTS.get(
-            self._variant,
-            "Caenorhabditis elegans is a model organism for genetic studies.",
+
+        self.model_name = self._variant_config.pretrained_model_name
+        self.sample_text = (
+            "Administration of metformin reduced glucose levels significantly."
         )
         self.max_length = 128
+        self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant_name=None):
+    def _get_model_info(cls, variant_name: str = None):
         if variant_name is None:
             variant_name = cls.DEFAULT_VARIANT
         return ModelInfo(
@@ -96,9 +62,8 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        """Load OpenMed model for token classification from Hugging Face."""
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -106,13 +71,14 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForTokenClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self.model_name, **model_kwargs
         )
-        model.eval()
         self.model = model
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
+        """Prepare sample input for OpenMed token classification."""
         if self.tokenizer is None:
             self.load_model(dtype_override=dtype_override)
 
@@ -127,6 +93,7 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
+        """Decode the model output for token classification."""
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(
@@ -137,4 +104,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"NER Tags: {predicted_tokens_classes}")
+        print(f"Answer: {predicted_tokens_classes}")
