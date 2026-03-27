@@ -8,7 +8,13 @@ LLaVA-NeXT-Video model loader implementation for multimodal conditional generati
 from typing import Optional
 
 import numpy as np
-from transformers import LlavaNextVideoForConditionalGeneration, LlavaNextVideoProcessor
+from transformers import (
+    AutoTokenizer,
+    LlavaNextImageProcessor,
+    LlavaNextVideoForConditionalGeneration,
+    LlavaNextVideoProcessor,
+    LlavaNextVideoVideoProcessor,
+)
 
 from ...base import ForgeModel
 from ...config import (
@@ -59,8 +65,16 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
-        self.processor = LlavaNextVideoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name
+        model_name = self._variant_config.pretrained_model_name
+        image_processor = LlavaNextImageProcessor.from_pretrained(model_name)
+        video_processor = LlavaNextVideoVideoProcessor.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.processor = LlavaNextVideoProcessor(
+            video_processor=video_processor,
+            image_processor=image_processor,
+            tokenizer=tokenizer,
+            patch_size=2,
+            vision_feature_select_strategy="default",
         )
         return self.processor
 
@@ -85,19 +99,7 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        conversation = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "video"},
-                    {"type": "text", "text": "What is shown in this video?"},
-                ],
-            }
-        ]
-
-        text_prompt = self.processor.apply_chat_template(
-            conversation, padding=True, add_generation_prompt=True
-        )
+        text_prompt = "<video>\nWhat is shown in this video?"
 
         # Create a small synthetic video (8 frames of 32x32 RGB)
         video = np.random.randint(0, 255, (8, 32, 32, 3), dtype=np.uint8)
