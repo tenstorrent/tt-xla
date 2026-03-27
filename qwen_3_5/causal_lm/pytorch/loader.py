@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_5_0_8B = "0.8B"
     QWEN_3_5_2B = "2B"
+    QWEN_3_5_2B_BASE = "2B_BASE"
     QWEN_3_5_4B = "4B"
     QWEN_3_5_9B = "9B"
     QWEN_3_5_9B_BASE = "9B_Base"
@@ -61,6 +62,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_2B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-2B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_2B_BASE: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-2B-Base",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_4B: LLMModelConfig(
@@ -295,13 +300,7 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         # Base models use plain text; chat models use chat template
-        if self._variant in (
-            ModelVariant.QWEN_3_5_9B_BASE,
-            ModelVariant.QWEN_3_5_2B_BASE_UNSLOTH,
-            ModelVariant.QWEN_3_5_9B_BASE_UNSLOTH,
-            ModelVariant.QWEN_3_5_35B_A3B_BASE,
-            ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
-        ):
+        if self._variant in (ModelVariant.QWEN_3_5_2B_BASE,):
             prompts = [self.sample_text]
         else:
             messages = [{"role": "user", "content": self.sample_text}]
