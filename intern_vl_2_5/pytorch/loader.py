@@ -115,19 +115,19 @@ def load_image(image_path, input_size=448, max_num=12):
 class ModelVariant(StrEnum):
     """Available InternVL2.5 model variants."""
 
-    INTERN_VL2_5_2B = "2B"
+    INTERN_VL2_5_8B = "8B"
 
 
 class ModelLoader(ForgeModel):
     """InternVL2.5 model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.INTERN_VL2_5_2B: ModelConfig(
-            pretrained_model_name="OpenGVLab/InternVL2_5-2B",
+        ModelVariant.INTERN_VL2_5_8B: ModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL2_5-8B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.INTERN_VL2_5_2B
+    DEFAULT_VARIANT = ModelVariant.INTERN_VL2_5_8B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
