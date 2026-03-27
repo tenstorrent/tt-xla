@@ -44,10 +44,30 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       sh-runner: true
 
+  run-llmbox-accuracy-benchmarks:
+    needs: [build-image, build-ttxla]
+    secrets: inherit
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    with:
+      adv_filter: '[ {"runs-on": "n300-llmbox", "accuracy-testing": true} ]'
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+
+  run-galaxy-accuracy-benchmarks:
+    needs: [build-image, build-ttxla]
+    secrets: inherit
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    with:
+      adv_filter: '[ {"runs-on": "galaxy-wh-6u", "accuracy-testing": true} ]'
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+
   fail-notify:
     needs:
       - run-p150-perf-benchmarks
       - run-n150-accuracy-benchmarks
+      - run-llmbox-accuracy-benchmarks
+      - run-galaxy-accuracy-benchmarks
     if: always()
     runs-on: ubuntu-latest
     steps:
