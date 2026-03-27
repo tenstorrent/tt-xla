@@ -23,17 +23,19 @@ from ...config import (
 class Qwen3TTSTalkerWrapper(nn.Module):
     """Wrapper around the Qwen3-TTS talker backbone.
 
-    Exposes a clean forward pass that takes input token IDs and produces
-    codec logits for speech synthesis.
+    Exposes a clean forward pass that takes pre-computed input embeddings
+    (prefill mode) and produces codec logits for speech synthesis.
     """
 
     def __init__(self, talker):
         super().__init__()
-        self.talker = talker
+        self.model = talker.model
+        self.codec_head = talker.codec_head
 
-    def forward(self, input_ids):
-        outputs = self.talker(input_ids=input_ids, use_cache=False)
-        return outputs.logits
+    def forward(self, inputs_embeds):
+        outputs = self.model(inputs_embeds=inputs_embeds, use_cache=False)
+        logits = self.codec_head(outputs.last_hidden_state)
+        return logits
 
 
 class ModelVariant(StrEnum):
@@ -87,6 +89,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        # Talker vocab_size=3072, use a short sequence of codec token IDs
-        input_ids = torch.randint(0, 3072, (1, 32), dtype=torch.long)
-        return (input_ids,)
+        dtype = dtype_override or torch.float32
+        # Talker hidden_size=2048, use a short sequence of embeddings
+        inputs_embeds = torch.randn(1, 32, 2048, dtype=dtype)
+        return (inputs_embeds,)
