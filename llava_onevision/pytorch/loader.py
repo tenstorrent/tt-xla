@@ -6,7 +6,7 @@ LLaVA-OneVision model loader implementation for multimodal conditional generatio
 """
 
 import torch
-from datasets import load_dataset
+from PIL import Image
 from transformers import LlavaOnevisionForConditionalGeneration, AutoProcessor
 from typing import Optional
 
@@ -20,7 +20,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import cast_input_to_type
+from ...tools.utils import cast_input_to_type, get_file
 
 
 class ModelVariant(StrEnum):
@@ -101,8 +101,8 @@ class ModelLoader(ForgeModel):
             conversation, add_generation_prompt=True
         )
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
+        image = Image.open(image_file)
 
         inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
 
