@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa V3 model loader implementation for zero-shot classification.
+DeBERTa V3 Base model loader implementation for zero-shot classification.
 """
 from typing import Optional
 
@@ -19,21 +19,21 @@ from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available DeBERTa V3 model variants for zero-shot classification."""
+    """Available DeBERTa model variants for zero-shot classification."""
 
-    DEBERTA_V3_XSMALL_ZEROSHOT_V1_1_ALL_33 = "v3_xsmall_zeroshot_v1.1_all_33"
+    DEBERTA_V3_BASE_ZEROSHOT_V2 = "V3_Base_Zeroshot_v2.0"
 
 
 class ModelLoader(ForgeModel):
-    """DeBERTa V3 model loader implementation for zero-shot classification."""
+    """DeBERTa V3 Base model loader for zero-shot classification."""
 
     _VARIANTS = {
-        ModelVariant.DEBERTA_V3_XSMALL_ZEROSHOT_V1_1_ALL_33: ModelConfig(
-            pretrained_model_name="MoritzLaurer/deberta-v3-xsmall-zeroshot-v1.1-all-33",
+        ModelVariant.DEBERTA_V3_BASE_ZEROSHOT_V2: ModelConfig(
+            pretrained_model_name="MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEBERTA_V3_XSMALL_ZEROSHOT_V1_1_ALL_33
+    DEFAULT_VARIANT = ModelVariant.DEBERTA_V3_BASE_ZEROSHOT_V2
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -78,11 +78,11 @@ class ModelLoader(ForgeModel):
                 self._variant_config.pretrained_model_name
             )
 
-        premise = "Angela Merkel is a politician in Germany and leader of the CDU"
-        hypothesis = "This example is about politics"
+        text = "Angela Merkel is a politician in Germany and target of a conspiracy theory."
+        hypothesis = "This text is about politics."
 
         inputs = self.tokenizer(
-            premise,
+            text,
             hypothesis,
             max_length=128,
             padding="max_length",

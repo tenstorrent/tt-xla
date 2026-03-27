@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa V3 XSmall PyTorch implementation for zero-shot classification.
+DeBERTa V3 Base zero-shot classification PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant
