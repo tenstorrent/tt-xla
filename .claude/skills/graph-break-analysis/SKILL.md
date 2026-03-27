@@ -8,7 +8,7 @@ allowed-tools: Bash Read Grep Glob Write Edit Task Fetch
 
 Graph breaks occur when a model, pipeline, or script is split into more graphs than necessary during compilation.
 Graph breaks in TT compilation happen either as a result of torch dynamo tracing, torch_xla tracing or in rare cases as byproduct of torch.export.
-
+Common missconception is that different mlir modules are graph breaks. This is not true, when compiler starts going into mlir (starting with vhlo) those are just versions of the same graph.
 ## When to Use
 
 - User says "I have graph break" or "my model generated many graphs"
@@ -18,8 +18,8 @@ Graph breaks in TT compilation happen either as a result of torch dynamo tracing
 
 - Each graph goes through the compile phase: `vhlo -> stablehlo -> ttir -> ttnn`
 - After each module, the log contains the string: `"------------------ END OF MLIR MODULE ------------------"`
-- Each graph compilation produces 7 of these MLIR module strings: 5 for vhlo/stablehlo, 1 for ttir, and 1 for ttnn
-- If the log file contains 7N of these strings, then the script generated N different graphs
+- Each graph compilation produces 7 or 8 of these MLIR module strings: 5-6 for vhlo/stablehlo, 1 for ttir, and 1 for ttnn
+- If the log file contains N of these strings, then the script generated N//7 or N//8  different graphs (you will see in runtime what is the case).
 
 ## Steps
 
