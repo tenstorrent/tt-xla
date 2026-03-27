@@ -4,15 +4,12 @@
 """
 SigLIP2 model loader implementation for image classification.
 """
-import torch
-from transformers import (
-    AutoImageProcessor,
-    SiglipForImageClassification,
-)
-from datasets import load_dataset
-from typing import Optional
 
-from ....base import ForgeModel
+from typing import Optional
+from dataclasses import dataclass
+import timm
+import torch
+
 from ....config import (
     ModelConfig,
     ModelInfo,
@@ -22,119 +19,117 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....base import ForgeModel
+from ....tools.utils import (
+    VisionPreprocessor,
+    VisionPostprocessor,
+)
+from datasets import load_dataset
+
+
+@dataclass
+class SigLIP2Config(ModelConfig):
+    """Configuration specific to SigLIP2 image classification models"""
+
+    source: ModelSource
 
 
 class ModelVariant(StrEnum):
-    """Available SigLIP2 model variants for image classification."""
+    """Available SigLIP2 image classification model variants."""
 
-    AI_VS_DEEPFAKE_VS_REAL_V2 = "AI-vs-Deepfake-vs-Real-v2.0"
+    VIT_B_32_256 = "ViT_B_32_256"
 
 
 class ModelLoader(ForgeModel):
-    """SigLIP2 model loader implementation for image classification tasks."""
+    """SigLIP2 model loader implementation for image classification."""
 
     _VARIANTS = {
-        ModelVariant.AI_VS_DEEPFAKE_VS_REAL_V2: ModelConfig(
-            pretrained_model_name="prithivMLmods/AI-vs-Deepfake-vs-Real-v2.0",
+        ModelVariant.VIT_B_32_256: SigLIP2Config(
+            pretrained_model_name="hf_hub:timm/ViT-B-32-SigLIP2-256",
+            source=ModelSource.TIMM,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.AI_VS_DEEPFAKE_VS_REAL_V2
+    DEFAULT_VARIANT = ModelVariant.VIT_B_32_256
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
         super().__init__(variant)
-        self.processor = None
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        source = cls._VARIANTS[variant].source
 
         return ModelInfo(
             model="SigLIP2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.HUGGING_FACE,
+            source=source,
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self):
-        """Load image processor for the current variant.
-
-        Returns:
-            The loaded processor instance
-        """
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
-
-        return self.processor
-
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the SigLIP2 model instance for this instance's variant.
+        model_name = self._variant_config.pretrained_model_name
 
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-
-        Returns:
-            torch.nn.Module: The SigLIP2 model instance for image classification.
-        """
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-
-        model = SiglipForImageClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        )
+        model = timm.create_model(model_name, pretrained=True)
         model.eval()
+
+        self.model = model
+
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
+
+        if dtype_override is not None:
+            model = model.to(dtype_override)
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the SigLIP2 model with this instance's variant settings.
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
 
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-            batch_size: Batch size for the inputs.
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
-        if self.processor is None:
-            self._load_processor()
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+            )
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-        inputs = self.processor(images=image, return_tensors="pt")
+        model_for_config = None
+        if hasattr(self, "model") and self.model is not None:
+            model_for_config = self.model
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
 
-        if dtype_override is not None:
-            for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
-                    inputs[key] = inputs[key].to(dtype_override)
+    def output_postprocess(self, output):
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
-        return inputs
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
