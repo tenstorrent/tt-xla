@@ -25,6 +25,14 @@ class ModelVariant(StrEnum):
     """Available LAION CLIP model variants."""
 
     VIT_B_32_LAION2B = "ViT_B_32_laion2B"
+    CONVNEXT_BASE_W_LAION2B = "ConvNeXt_Base_W_laion2B"
+
+
+# Mapping from variant to OpenCLIP tokenizer name
+_TOKENIZER_NAME = {
+    ModelVariant.VIT_B_32_LAION2B: "ViT-B-32",
+    ModelVariant.CONVNEXT_BASE_W_LAION2B: "convnext_base_w",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +41,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.VIT_B_32_LAION2B: ModelConfig(
             pretrained_model_name="hf-hub:laion/CLIP-ViT-B-32-laion2B-s34B-b79K",
+        ),
+        ModelVariant.CONVNEXT_BASE_W_LAION2B: ModelConfig(
+            pretrained_model_name="hf-hub:laion/CLIP-convnext_base_w-laion2B-s13B-b82K-augreg",
         ),
     }
 
@@ -69,7 +80,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model, self.preprocess = create_model_from_pretrained(pretrained_model_name)
-        self.tokenizer = get_tokenizer("ViT-B-32")
+        self.tokenizer = get_tokenizer(_TOKENIZER_NAME[self._variant])
 
         if dtype_override is not None:
             model = model.to(dtype_override)
@@ -93,7 +104,7 @@ class ModelLoader(ForgeModel):
             _, self.preprocess = create_model_from_pretrained(
                 self._variant_config.pretrained_model_name
             )
-            self.tokenizer = get_tokenizer("ViT-B-32")
+            self.tokenizer = get_tokenizer(_TOKENIZER_NAME[self._variant])
 
         # Load image from HuggingFace dataset
         dataset = load_dataset("huggingface/cats-image")["test"]
