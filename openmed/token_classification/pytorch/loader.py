@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
         "OpenMed-NER-BloodCancerDetect-MultiMed-568M"
     )
     OPENMED_NER_DNADETECT_ELECTRAMED_335M = "OpenMed-NER-DNADetect-ElectraMed-335M"
+    OPENMED_NER_GENOMICDETECT_TINYMED_66M = "OpenMed-NER-GenomicDetect-TinyMed-66M"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_335M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-ElectraMed-335M",
         ),
+        ModelVariant.OPENMED_NER_GENOMICDETECT_TINYMED_66M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-TinyMed-66M",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M
@@ -48,6 +52,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_335M: (
             "The p53 protein binds to the BRCA1 gene promoter region in T cells."
+        ),
+        ModelVariant.OPENMED_NER_GENOMICDETECT_TINYMED_66M: (
+            "Mutations in the BRCA1 and TP53 genes were identified in the tumor sample."
         ),
     }
 
