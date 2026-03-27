@@ -8,6 +8,7 @@ MiniCPM-V 2.6 model loader implementation for multimodal visual question answeri
 from typing import Optional
 
 import torch
+import torch.nn as nn
 from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 from transformers.integrations.tensor_parallel import ALL_PARALLEL_STYLES
@@ -31,8 +32,6 @@ if ALL_PARALLEL_STYLES is None:
     mu.ALL_PARALLEL_STYLES = ["rowwise", "colwise", "headwise"]
 
 # Monkey patch Resampler for compatibility - Fixes: Resampler doesn't have _initialize_weights method in torch 2.7.0
-import torch.nn as nn
-
 original_getattr = nn.Module.__getattr__
 
 
