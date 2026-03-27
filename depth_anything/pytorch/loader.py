@@ -6,7 +6,6 @@ Depth Anything model loader implementation for monocular depth estimation.
 """
 import torch
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
-from datasets import load_dataset
 from typing import Optional
 
 from ...config import (
@@ -24,19 +23,19 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     """Available Depth Anything model variants."""
 
-    LARGE = "Large"
+    SMALL = "Small"
 
 
 class ModelLoader(ForgeModel):
     """Depth Anything model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.LARGE: ModelConfig(
-            pretrained_model_name="LiheYoung/depth-anything-large-hf",
+        ModelVariant.SMALL: ModelConfig(
+            pretrained_model_name="LiheYoung/depth-anything-small-hf",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE
+    DEFAULT_VARIANT = ModelVariant.SMALL
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -80,8 +79,9 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        from PIL import Image
+
+        image = Image.new("RGB", (640, 480))
 
         inputs = self.processor(images=image, return_tensors="pt")
 
