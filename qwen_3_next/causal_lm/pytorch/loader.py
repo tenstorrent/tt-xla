@@ -24,8 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Next model variants for causal language modeling."""
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
-    QWEN_3_NEXT_80B_A3B_INSTRUCT_MLX_4BIT = "80B_A3B_Instruct_MLX_4bit"
-    QWEN_3_NEXT_80B_A3B_THINKING_MLX_8BIT = "80B_A3B_Thinking_MLX_8bit"
+    QWEN_3_NEXT_80B_A3B_INSTRUCT_NVFP4 = "80B_A3B_Instruct_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -37,18 +36,18 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-Next-80B-A3B-Instruct-MLX-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING_MLX_8BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3-Next-80B-A3B-Thinking-8bit",
+        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_NVFP4: LLMModelConfig(
+            pretrained_model_name="nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4",
             max_length=128,
         ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT
+
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_NVFP4}
 
     # Shared configuration parameters
     sample_text = "Give me a short introduction to large language model."
@@ -104,6 +103,8 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
         model_kwargs |= kwargs
 
         if self._is_gguf_variant():
