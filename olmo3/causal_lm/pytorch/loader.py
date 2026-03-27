@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
     Olmo_3_1025_7B = "3_1025_7b"
     Olmo_3_32B_Think = "3_32b_think"
     Olmo_3_1125_32B = "3_1125_32b"
-    OTel_LLM_7B_IT = "otel_llm_7b_it"
+    Olmo_3_32B_Think_MLX_8bit = "3_32b_think_mlx_8bit"
 
 
 class ModelLoader(ForgeModel):
@@ -67,8 +67,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="allenai/Olmo-3-32B-Think",
             max_length=256,
         ),
-        ModelVariant.OTel_LLM_7B_IT: LLMModelConfig(
-            pretrained_model_name="farbodtavakkoli/OTel-LLM-7B-IT",
+        ModelVariant.Olmo_3_32B_Think_MLX_8bit: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Olmo-3-32B-Think-MLX-8bit",
             max_length=256,
         ),
     }
@@ -104,9 +104,9 @@ class ModelLoader(ForgeModel):
         """
 
         variant_groups = {
-            ModelVariant.OTel_LLM_7B_IT: ModelGroup.VULCAN,
+            ModelVariant.Olmo_3_32B_Think_MLX_8bit: ModelGroup.VULCAN,
         }
-
+        group = variant_groups.get(variant, ModelGroup.RED)
         return ModelInfo(
             model="olmo_3",
             variant=variant,
