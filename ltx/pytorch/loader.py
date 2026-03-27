@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     """Available LTX-2.3 variants."""
 
     LTX_2_3 = "2.3"
+    LTX_2_3_FP8 = "2.3-fp8"
 
 
 class ModelLoader(ForgeModel):
@@ -52,6 +53,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LTX_2_3: ModelConfig(
             pretrained_model_name="Lightricks/LTX-2.3",
+        ),
+        ModelVariant.LTX_2_3_FP8: ModelConfig(
+            pretrained_model_name="Lightricks/LTX-2.3-fp8",
         ),
     }
 
