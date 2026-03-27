@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     """Available Whisper model variants."""
 
     WHISPER_TINY = "Tiny"
+    WHISPER_TINY_EN = "Tiny_en"
     WHISPER_BASE = "Base"
     WHISPER_BASE_EN = "Base_en"
     WHISPER_SMALL = "Small"
@@ -53,6 +54,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.WHISPER_TINY: ModelConfig(
             pretrained_model_name="openai/whisper-tiny",
+        ),
+        ModelVariant.WHISPER_TINY_EN: ModelConfig(
+            pretrained_model_name="openai/whisper-tiny.en",
         ),
         ModelVariant.WHISPER_BASE: ModelConfig(
             pretrained_model_name="openai/whisper-base",
@@ -102,10 +106,10 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-        if variant == ModelVariant.WHISPER_LARGE_V3:
-            group = ModelGroup.RED
-        elif variant == ModelVariant.WHISPER_MEDIUM_MLX:
+        if variant == ModelVariant.WHISPER_TINY_EN:
             group = ModelGroup.VULCAN
+        elif variant == ModelVariant.WHISPER_LARGE_V3:
+            group = ModelGroup.RED
         else:
             group = ModelGroup.GENERALITY
 
