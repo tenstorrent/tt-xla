@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
-    ROBERTA_BASE_ZEROSHOT_V2 = "Base_Zeroshot_V2"
+    INDONESIAN_ROBERTA_BASE_SENTIMENT = "Indonesian_Base_Sentiment"
 
 
 class ModelLoader(ForgeModel):
@@ -41,8 +41,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
             pretrained_model_name="FacebookAI/roberta-large-mnli",
         ),
-        ModelVariant.ROBERTA_BASE_ZEROSHOT_V2: ModelConfig(
-            pretrained_model_name="MoritzLaurer/roberta-base-zeroshot-v2.0-c",
+        ModelVariant.INDONESIAN_ROBERTA_BASE_SENTIMENT: ModelConfig(
+            pretrained_model_name="w11wo/indonesian-roberta-base-sentiment-classifier",
         ),
     }
 
@@ -66,7 +66,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
             ModelVariant.ROBERTA_LARGE_MNLI,
-            ModelVariant.ROBERTA_BASE_ZEROSHOT_V2,
+            ModelVariant.INDONESIAN_ROBERTA_BASE_SENTIMENT,
         ):
             group = ModelGroup.VULCAN
 
@@ -99,7 +99,10 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.text = """Great road trip views! @ Shartlesville, Pennsylvania"""
+        if self._variant == ModelVariant.INDONESIAN_ROBERTA_BASE_SENTIMENT:
+            self.text = "Jangan sampai saya telpon bos saya ya!"
+        else:
+            self.text = """Great road trip views! @ Shartlesville, Pennsylvania"""
         self.max_length = 128
         self.tokenizer = None
         self.num_layers = num_layers
