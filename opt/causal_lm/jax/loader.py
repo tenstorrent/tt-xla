@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     _6_7B = "6.7b"
     _125M = "125M"
     _350M = "350M"
+    TINY_RANDOM = "tiny-random"
 
 
 class ModelLoader(ForgeModel):
@@ -47,6 +48,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant._350M: LLMModelConfig(
             pretrained_model_name="facebook/opt-350m",
+        ),
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="peft-internal-testing/tiny-random-OPTForCausalLM",
         ),
     }
 
@@ -76,10 +80,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.TINY_RANDOM
+            else ModelGroup.GENERALITY
+        )
         return ModelInfo(
             model="OPT",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.JAX,
@@ -129,7 +138,9 @@ class ModelLoader(ForgeModel):
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        # Load the model
+        # Load the model (use from_pt=True for models without Flax weights)
+        if self._variant == ModelVariant.TINY_RANDOM:
+            model_kwargs["from_pt"] = True
         model = FlaxOPTForCausalLM.from_pretrained(self._model_name, **model_kwargs)
 
         # Cast the model to the dtype_override if provided
