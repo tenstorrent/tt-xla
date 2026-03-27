@@ -10,7 +10,6 @@ This loader handles the ONNX decoder component which reconstructs
 """
 
 import torch
-import numpy as np
 from typing import Optional
 
 from ...base import ForgeModel
