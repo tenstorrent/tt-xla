@@ -83,7 +83,7 @@ class ModelLoader(ForgeModel):
         pipeline = ChronosPipeline.from_pretrained(
             cfg.pretrained_model_name,
             device_map="cpu",
-            dtype=dtype_override or torch.float32,
+            torch_dtype=dtype_override or torch.float32,
         )
 
         self._tokenizer = pipeline.tokenizer
