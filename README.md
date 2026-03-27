@@ -23,6 +23,35 @@ TT-XLA leverages a PJRT interface to integrate JAX (and in the future other fram
 - [Getting Started / How to Run a Model](docs/src/getting_started.md)
 
 -----
+# Quickstart
+
+### On n150
+
+Run JAX single-chip tests:
+```bash
+pytest -v tests/jax/single_chip
+```
+
+Run PyTorch single-chip tests:
+```bash
+pytest -v tests/torch -m single_device
+```
+
+### On llmbox / QB
+
+Run the Llama 3.1 70B tensor parallel benchmark:
+```bash
+pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp
+```
+
+### On galaxy
+
+Run the Llama 3.1 70B galaxy benchmark:
+```bash
+pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy
+```
+
+-----
 # What is This Repo?
 The TT-XLA repository is primarily used to enable running PyTorch and JAX models on Tenstorrent's AI hardware. It's a backend integration between the JAX ecosystem and Tenstorrent's ML accelerators using the PJRT (Portable JAX Runtime) interface.
 
