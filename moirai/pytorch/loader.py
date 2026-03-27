@@ -34,6 +34,7 @@ class MoiraiConfig(ModelConfig):
 class ModelVariant(StrEnum):
     """Available Moirai model variants."""
 
+    SMALL = "small"
     LARGE = "large"
     LARGE_1_0 = "large_1_0"
 
@@ -46,6 +47,14 @@ class ModelLoader(ForgeModel):
     """
 
     _VARIANTS = {
+        ModelVariant.SMALL: MoiraiConfig(
+            pretrained_model_name="Salesforce/moirai-1.1-R-small",
+            context_length=512,
+            prediction_length=64,
+            patch_size=32,
+            target_dim=1,
+            num_samples=100,
+        ),
         ModelVariant.LARGE: MoiraiConfig(
             pretrained_model_name="Salesforce/moirai-1.1-R-large",
             context_length=512,
