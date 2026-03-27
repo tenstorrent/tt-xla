@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen3 TTS PyTorch model implementation for Tenstorrent projects.
+Qwen3-TTS PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
