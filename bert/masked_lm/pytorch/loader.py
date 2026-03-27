@@ -32,17 +32,11 @@ class ModelVariant(StrEnum):
     BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
-    TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2 = "tohoku-nlp/bert-base-japanese-char-v2"
-    DBMDZ_BERT_BASE_FRENCH_EUROPEANA_CASED = "dbmdz/bert-base-french-europeana-cased"
-    CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX = (
-        "CAMeL-Lab/bert-base-arabic-camelbert-mix"
-    )
+    BERT_BASE_ITALIAN_XXL_CASED = "dbmdz/bert-base-italian-xxl-cased"
 
 
 _SAMPLE_TEXTS = {
-    ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2: "東京は日本の[MASK]です。",
-    ModelVariant.DBMDZ_BERT_BASE_FRENCH_EUROPEANA_CASED: "Paris est la [MASK] de la France.",
-    ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX: "الهدف من الحياة هو [MASK] .",
+    ModelVariant.BERT_BASE_ITALIAN_XXL_CASED: "La capitale d'Italia è [MASK].",
 }
 
 
@@ -79,16 +73,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
-        ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2: LLMModelConfig(
-            pretrained_model_name="tohoku-nlp/bert-base-japanese-char-v2",
-            max_length=128,
-        ),
-        ModelVariant.DBMDZ_BERT_BASE_FRENCH_EUROPEANA_CASED: LLMModelConfig(
-            pretrained_model_name="dbmdz/bert-base-french-europeana-cased",
-            max_length=128,
-        ),
-        ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX: LLMModelConfig(
-            pretrained_model_name="CAMeL-Lab/bert-base-arabic-camelbert-mix",
+        ModelVariant.BERT_BASE_ITALIAN_XXL_CASED: LLMModelConfig(
+            pretrained_model_name="dbmdz/bert-base-italian-xxl-cased",
             max_length=128,
         ),
     }
@@ -134,9 +120,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
-            ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2,
-            ModelVariant.DBMDZ_BERT_BASE_FRENCH_EUROPEANA_CASED,
-            ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX,
+            ModelVariant.BERT_BASE_ITALIAN_XXL_CASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
