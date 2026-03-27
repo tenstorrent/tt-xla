@@ -6,7 +6,6 @@
 GLM-4-Voice-Tokenizer model loader implementation for speech tokenization.
 """
 
-import torch
 from typing import Optional
 
 from ...base import ForgeModel
