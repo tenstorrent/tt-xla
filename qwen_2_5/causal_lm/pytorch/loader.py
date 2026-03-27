@@ -44,6 +44,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_MATH_7B = "Math_7B"
     QWEN_2_5_14B_INSTRUCT_AWQ = "14B_Instruct_Awq"
     QWEN_2_5_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
+    QWEN_2_5_72B_INSTRUCT_AWQ = "72B_Instruct_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -123,6 +124,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-32B-Instruct-AWQ",
             max_length=128,
         ),
+        ModelVariant.QWEN_2_5_72B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-72B-Instruct-AWQ",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -173,6 +178,7 @@ class ModelLoader(ForgeModel):
         if variant in [
             ModelVariant.QWEN_2_5_14B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_32B_INSTRUCT_AWQ,
+            ModelVariant.QWEN_2_5_72B_INSTRUCT_AWQ,
         ]:
             group = ModelGroup.VULCAN
 
@@ -232,6 +238,7 @@ class ModelLoader(ForgeModel):
         if pretrained_model_name in (
             "Qwen/Qwen2.5-14B-Instruct-AWQ",
             "Qwen/Qwen2.5-32B-Instruct-AWQ",
+            "Qwen/Qwen2.5-72B-Instruct-AWQ",
         ):
             model_kwargs["device_map"] = "cpu"
 
