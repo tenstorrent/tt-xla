@@ -24,11 +24,15 @@ class ModelVariant(StrEnum):
 
     INDONESIAN_ROBERTA_BASE_POSP_TAGGER = "Indonesian_RoBERTa_Base_POSP_Tagger"
     TNER_ROBERTA_LARGE_TWEETNER7_ALL = "tner/roberta-large-tweetner7-all"
+    OPENMED_NER_ANATOMYDETECT_SUPERMEDICAL_125M = (
+        "OpenMed_NER_AnatomyDetect_SuperMedical_125M"
+    )
 
 
 _VARIANT_SAMPLE_TEXTS = {
     ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER: "Saya sedang membaca buku di perpustakaan",
     ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: "Jacob Collier is an amazing musician from London",
+    ModelVariant.OPENMED_NER_ANATOMYDETECT_SUPERMEDICAL_125M: "The patient complained of pain in the left ventricle region.",
 }
 
 
@@ -41,6 +45,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: ModelConfig(
             pretrained_model_name="tner/roberta-large-tweetner7-all",
+        ),
+        ModelVariant.OPENMED_NER_ANATOMYDETECT_SUPERMEDICAL_125M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-SuperMedical-125M",
         ),
     }
 
