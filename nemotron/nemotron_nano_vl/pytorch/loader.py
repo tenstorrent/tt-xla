@@ -125,9 +125,7 @@ class ModelLoader(ForgeModel):
         )
 
         # Format image tokens into the query
-        num_image_token = (
-            self.model.num_image_token if self.model is not None else 256
-        )
+        num_image_token = self.model.num_image_token if self.model is not None else 256
         parts = query.split("<image>")
         result = parts[0]
         for np_count, part in zip(num_patches_list, parts[1:]):
