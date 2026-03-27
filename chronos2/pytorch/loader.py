@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     CHRONOS_2 = "Chronos_2"
     CHRONOS_2_SMALL = "Chronos_2_Small"
+    CHRONOS_2_SYNTH = "Chronos_2_Synth"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.CHRONOS_2_SMALL: ModelConfig(
             pretrained_model_name="autogluon/chronos-2-small",
+        ),
+        ModelVariant.CHRONOS_2_SYNTH: ModelConfig(
+            pretrained_model_name="autogluon/chronos-2-synth",
         ),
     }
 
