@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed model loader implementation for protein named entity recognition.
+OpenMed model loader implementation for named entity recognition.
 """
 
 import torch
@@ -23,14 +23,25 @@ class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
     NER_PROTEINDETECT_MODERNMED_149M = "NER-ProteinDetect-ModernMed-149M"
+    NER_CHEMICALDETECT_BIOMED_109M = "NER-ChemicalDetect-BioMed-109M"
+
+
+_SAMPLE_TEXTS = {
+    ModelVariant.NER_PROTEINDETECT_MODERNMED_149M: "Casein micelles are the primary protein component of milk.",
+    ModelVariant.NER_CHEMICALDETECT_BIOMED_109M: "The patient was administered acetylsalicylic acid for pain relief.",
+}
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed model loader implementation for protein NER."""
+    """OpenMed model loader implementation for NER token classification."""
 
     _VARIANTS = {
         ModelVariant.NER_PROTEINDETECT_MODERNMED_149M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ModernMed-149M",
+            max_length=128,
+        ),
+        ModelVariant.NER_CHEMICALDETECT_BIOMED_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-BioMed-109M",
             max_length=128,
         ),
     }
@@ -40,7 +51,7 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = "Casein micelles are the primary protein component of milk."
+        self.sample_text = _SAMPLE_TEXTS[self._variant]
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
 
