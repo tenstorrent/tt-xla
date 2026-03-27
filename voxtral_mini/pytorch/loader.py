@@ -40,6 +40,7 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self._processor = None
+        self._model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -70,6 +71,7 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model.to(dtype_override)
 
+        self._model = model
         return model
 
     def _load_processor(self):
@@ -81,8 +83,12 @@ class ModelLoader(ForgeModel):
         return self._processor
 
     def load_inputs(self, dtype_override=None):
+        import torch
+
         if self._processor is None:
             self._load_processor()
+        if self._model is None:
+            self.load_model(dtype_override=dtype_override)
 
         # Generate a synthetic 1-second audio waveform at the expected sampling rate
         sampling_rate = self._processor.feature_extractor.sampling_rate
@@ -92,5 +98,23 @@ class ModelLoader(ForgeModel):
         )
 
         inputs = self._processor(audio_array, return_tensors="pt")
+
+        model_param = next(self._model.parameters())
+        dtype = dtype_override or model_param.dtype
+        device = model_param.device
+
+        # Pre-compute encoder_inputs_embeds from input_features, matching the
+        # generate() pipeline in _prepare_model_inputs. The raw input_features
+        # produce more audio tokens than input_ids, so we embed and slice to
+        # align with the text sequence length.
+        input_features = inputs.pop("input_features").to(device=device, dtype=dtype)
+        seq_len = inputs["input_ids"].shape[1]
+        downsample_factor = self._model.config.downsample_factor
+        with torch.no_grad():
+            encoder_inputs_embeds = self._model.audio_tower.embedder(input_features)
+        encoder_inputs_embeds = encoder_inputs_embeds[
+            :, : seq_len * downsample_factor, :
+        ]
+        inputs["encoder_inputs_embeds"] = encoder_inputs_embeds
 
         return inputs
