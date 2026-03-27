@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 from typing import Optional
-from PIL import Image
 from datasets import load_dataset
 
 from ...config import (
