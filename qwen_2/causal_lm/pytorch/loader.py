@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2 model variants for causal language modeling."""
 
     QWQ_32B = "Qwq_32B"
+    QWEN2_7B_INSTRUCT = "Qwen2_7B_Instruct"
     TINY_QWEN2_2_5 = "tiny_Qwen2ForCausalLM_2.5"
 
 
@@ -34,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWQ_32B: LLMModelConfig(
             pretrained_model_name="Qwen/QwQ-32B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN2_7B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2-7B-Instruct",
             max_length=128,
         ),
         ModelVariant.TINY_QWEN2_2_5: LLMModelConfig(
@@ -74,7 +79,7 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         group = ModelGroup.RED
-        if variant == ModelVariant.TINY_QWEN2_2_5:
+        if variant in (ModelVariant.TINY_QWEN2_2_5, ModelVariant.QWEN2_7B_INSTRUCT):
             group = ModelGroup.VULCAN
 
         return ModelInfo(
