@@ -1,0 +1,80 @@
+name: Create distro docker and run release tests (call)
+
+on:
+  workflow_call:
+    inputs:
+      distro:
+        description: 'Name of the Linux distribution to test on'
+        type: string
+        required: true
+
+jobs:
+  build-release-docker:
+    name: Build ${{ inputs.distro }} Docker image with manylinux wheel
+    runs-on: ubuntu-latest
+    outputs:
+      docker_image: ${{ steps.build-docker.outputs.docker_image }}
+    steps:
+      - name: Fix workspace permissions issue
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Download manylinux wheel
+        uses: actions/download-artifact@v6
+        with:
+          name: xla-whl-manylinux
+          path: .
+
+      - name: Build & push Docker image
+        shell: bash
+        id: build-docker
+        run: |
+          set -eo pipefail
+
+          docker_tag=${{ github.sha }}
+          IMAGE_NAME=ghcr.io/tenstorrent/tt-xla/tt-xla-bare-${{ inputs.distro }}
+
+          if docker manifest inspect $IMAGE_NAME:$docker_tag > /dev/null; then
+            echo "Docker image $IMAGE_NAME:$docker_tag exists"
+          else
+            echo "Building image $IMAGE_NAME:$docker_tag"
+            docker build \
+              --progress=plain \
+              -t $IMAGE_NAME:$docker_tag \
+              -f .github/Dockerfile.release-${{ inputs.distro }} .
+
+            echo "Pushing image $IMAGE_NAME:$docker_tag"
+            docker push $IMAGE_NAME:$docker_tag
+          fi
+
+          echo "docker_image=$IMAGE_NAME:$docker_tag" >> "$GITHUB_OUTPUT"
+
+  basic-tests:
+    needs: [ build-release-docker ]
+    uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@main
+    secrets: inherit
+    with:
+      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+      ref: main
+      project-filter: tt-xla
+
+  demo-tests:
+    needs: [ build-release-docker ]
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
+    secrets: inherit
+    with:
+      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
+      ref: main
+      project-filter: tt-xla
