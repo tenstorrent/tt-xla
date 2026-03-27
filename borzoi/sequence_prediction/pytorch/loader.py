@@ -9,7 +9,7 @@ from DNA sequence at 32bp resolution. It takes 524kb input DNA sequences
 and outputs predicted gene expression tracks.
 """
 import torch
-from transformers import AutoModel, AutoConfig
+from transformers import AutoModel
 from typing import Optional
 
 from third_party.tt_forge_models.config import (
