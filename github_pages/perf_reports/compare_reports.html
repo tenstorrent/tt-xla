@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compare tt-perf-report HTML (side by side)</title>
+  <style>
+    :root {
+      --page-bg: #1b241d;
+      --page-glow: rgba(240, 192, 214, 0.14);
+      --surface: rgba(31, 47, 35, 0.95);
+      --text: #f7eff2;
+      --muted: #d6ccd1;
+      --outline: rgba(126, 160, 126, 0.34);
+      --heading: #f7d6e4;
+      --pink: #f5b9d0;
+      --green-glow: rgba(185, 221, 208, 0.10);
+      --left-accent: rgba(185, 221, 208, 0.35);
+      --right-accent: rgba(255, 209, 154, 0.35);
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, var(--page-glow), transparent 34%),
+        radial-gradient(circle at top right, var(--green-glow), transparent 28%),
+        linear-gradient(180deg, #222d24 0%, var(--page-bg) 100%);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .toolbar {
+      flex: 0 0 auto;
+      padding: 14px 18px 12px;
+      border-bottom: 1px solid var(--outline);
+      background: var(--surface);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 20px;
+    }
+    .toolbar h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--heading);
+      letter-spacing: 0.02em;
+    }
+    .toolbar a {
+      color: var(--pink);
+      font-size: 13px;
+    }
+    .pick {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .pick label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    select {
+      font: inherit;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--outline);
+      background: rgba(25, 39, 28, 0.98);
+      color: var(--text);
+      min-width: 220px;
+      cursor: pointer;
+    }
+    select:focus {
+      outline: 2px solid rgba(240, 107, 154, 0.35);
+      outline-offset: 2px;
+    }
+    .note {
+      margin: 0;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.45;
+      max-width: 720px;
+    }
+    .panes {
+      flex: 1 1 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      min-height: 0;
+    }
+    @media (max-width: 900px) {
+      .panes {
+        grid-template-columns: 1fr;
+      }
+      .pane--left {
+        border-bottom: 1px solid var(--outline);
+      }
+    }
+    .pane {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-height: 70vh;
+    }
+    .pane header {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--outline);
+    }
+    .pane--left header {
+      background: linear-gradient(180deg, rgba(185, 221, 208, 0.08), transparent);
+      border-left: 3px solid var(--left-accent);
+    }
+    .pane--right header {
+      background: linear-gradient(180deg, rgba(255, 209, 154, 0.08), transparent);
+      border-left: 3px solid var(--right-accent);
+    }
+    iframe {
+      flex: 1 1 auto;
+      width: 100%;
+      border: none;
+      background: #141c16;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>Side-by-side reports</h1>
+    <a href="index.html">← Perf hub</a>
+    <a href="2026_03_25_12_13_39/tt_perf/index.html">2026-03-25 index</a>
+    <a href="2026_03_27_12_21_16/tt_perf/index.html">2026-03-27 index</a>
+    <div class="pick">
+      <label for="segment">Report</label>
+      <select id="segment" aria-label="Choose report segment to compare"></select>
+    </div>
+    <p class="note">
+      <strong>Run overview (index.html)</strong> lines up both hub pages. Sharding per axis is only on those pages (mesh box). Layer report names match where both runs ship the same file; graphs differ, so op mix won’t match.
+    </p>
+  </div>
+  <div class="panes">
+    <div class="pane pane--left">
+      <header>2026-03-25 · dual-axis weight-sharded test</header>
+      <iframe id="frame-left" title="2026-03-25 report"></iframe>
+    </div>
+    <div class="pane pane--right">
+      <header>2026-03-27 · model-axis + DP input-shard test</header>
+      <iframe id="frame-right" title="2026-03-27 report"></iframe>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var RUN_A = "2026_03_25_12_13_39/tt_perf/";
+      var RUN_B = "2026_03_27_12_21_16/tt_perf/";
+      var SEGMENTS = [
+        { id: "index", label: "Run overview (index.html)", file: "index.html" },
+        { id: "even_full", label: "Even Full Layer", file: "even_full_performance_report.html" },
+        { id: "odd_full", label: "Odd Full Layer", file: "odd_full_performance_report.html" },
+        {
+          id: "decode_2",
+          label: "Full decode window (03-27 only)",
+          fileLeft: null,
+          fileRight: "decode_2_performance_report.html",
+        },
+        { id: "even_attention", label: "Even Attention Sublayer", file: "even_attention_performance_report.html" },
+        { id: "odd_attention", label: "Odd Attention Sublayer", file: "odd_attention_performance_report.html" },
+        { id: "even_moe", label: "Even MoE Sublayer", file: "even_moe_performance_report.html" },
+        { id: "odd_moe", label: "Representative MoE Sublayer", file: "odd_moe_performance_report.html" },
+      ];
+
+      var select = document.getElementById("segment");
+      var left = document.getElementById("frame-left");
+      var right = document.getElementById("frame-right");
+
+      SEGMENTS.forEach(function (s) {
+        var opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.label;
+        select.appendChild(opt);
+      });
+
+      function segmentById(id) {
+        for (var i = 0; i < SEGMENTS.length; i++) {
+          if (SEGMENTS[i].id === id) return SEGMENTS[i];
+        }
+        return SEGMENTS[0];
+      }
+
+      function applySegment(seg) {
+        var fileR = seg.fileRight != null ? seg.fileRight : seg.file;
+        var fileL = Object.prototype.hasOwnProperty.call(seg, "fileLeft")
+          ? seg.fileLeft
+          : seg.file;
+        left.removeAttribute("srcdoc");
+        if (fileL) {
+          left.src = RUN_A + fileL;
+        } else {
+          left.src = "about:blank";
+          left.srcdoc =
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>body{margin:0;padding:1.25rem 1.5rem;font:14px/1.5 ui-monospace,monospace;background:#141c16;color:#c8d0c8;border-left:3px solid rgba(185,221,208,.4)} a{color:#f5b9d0}</style></head><body><strong>2026-03-25</strong><p>No full decode-window perf HTML in this publish. Use the <strong>2026-03-27</strong> pane, or pick another report.</p></body></html>";
+        }
+        right.src = RUN_B + fileR;
+      }
+
+      function syncFromUrl() {
+        var params = new URLSearchParams(window.location.search);
+        var hash = (window.location.hash || "").replace(/^#/, "");
+        var id = params.get("s") || params.get("segment") || hash || select.value;
+        var seg = segmentById(id);
+        select.value = seg.id;
+        applySegment(seg);
+        if (history.replaceState) {
+          var url = window.location.pathname + "?s=" + encodeURIComponent(seg.id);
+          history.replaceState(null, "", url);
+        }
+      }
+
+      select.addEventListener("change", function () {
+        var seg = segmentById(select.value);
+        applySegment(seg);
+        if (history.replaceState) {
+          var url = window.location.pathname + "?s=" + encodeURIComponent(seg.id);
+          history.replaceState(null, "", url);
+        }
+      });
+
+      window.addEventListener("hashchange", syncFromUrl);
+      syncFromUrl();
+    })();
+  </script>
+</body>
+</html>

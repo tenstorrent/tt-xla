@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TT-XLA perf reports (GitHub Pages)</title>
+  <style>
+    :root {
+      --page-bg: #1b241d;
+      --page-glow: rgba(240, 192, 214, 0.14);
+      --surface: rgba(31, 47, 35, 0.95);
+      --text: #f7eff2;
+      --muted: #d6ccd1;
+      --outline: rgba(126, 160, 126, 0.34);
+      --heading: #f7d6e4;
+      --green-glow: rgba(185, 221, 208, 0.10);
+    }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, var(--page-glow), transparent 34%),
+        radial-gradient(circle at top right, var(--green-glow), transparent 28%),
+        linear-gradient(180deg, #222d24 0%, var(--page-bg) 100%);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+    .container {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 40px 20px 56px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 30px;
+      color: var(--heading);
+    }
+    .lead {
+      margin: 0 0 32px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .runs {
+      display: grid;
+      gap: 14px;
+    }
+    .run-card {
+      display: block;
+      padding: 20px 22px;
+      border: 1px solid var(--outline);
+      border-radius: 14px;
+      background: var(--surface);
+      color: inherit;
+      text-decoration: none;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+      box-shadow: inset 4px 0 0 rgba(240, 107, 154, 0.22);
+    }
+    .run-card:hover {
+      border-color: rgba(240, 107, 154, 0.45);
+      transform: translateY(-1px);
+    }
+    .run-date {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f5b9d0;
+      margin-bottom: 8px;
+    }
+    .run-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff7fb;
+    }
+    .run-desc {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Device perf reports</h1>
+    <p class="lead">Colored <code>tt-perf-report</code> HTML previews and summary cards for GPT-OSS Galaxy runs. Open a dated folder for that run’s overview and layer report links. To line up two publishes, use the <a href="compare_reports.html" style="color:#f5b9d0">side-by-side comparator</a> (run overview, even/odd attention, full layer, MoE, and segments available per publish).</p>
+    <div class="runs">
+      <a class="run-card" href="2026_03_27_12_21_16/tt_perf/index.html">
+        <div class="run-date">2026-03-27</div>
+        <div class="run-title">Model-axis weights + DP input-sharded activations</div>
+        <div class="run-desc">Galaxy, batch 64. Mesh layout is on the hub. Pair with <code>03-25</code> in the comparator.</div>
+      </a>
+      <a class="run-card" href="2026_03_25_12_13_39/tt_perf/index.html">
+        <div class="run-date">2026-03-25</div>
+        <div class="run-title">Dual-axis weight-sharded layout</div>
+        <div class="run-desc">Galaxy, batch 64. Mesh layout is on the hub. Pair with <code>03-27</code> in the comparator.</div>
+      </a>
+    </div>
+  </div>
+</body>
+</html>

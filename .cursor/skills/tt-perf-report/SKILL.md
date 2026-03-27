@@ -1,6 +1,6 @@
 ---
 name: tt-perf-report
-description: Run tt-perf-report on Tracy ops CSV slices, generate report CSV and summary PNG artifacts, and build colored HTML previews of the terminal-style performance report. Use when the user mentions tt-perf-report, performance report HTML, summary PNG, bar chart, stacked report, or report generation from a sliced ops CSV.
+description: Run tt-perf-report on Tracy ops CSV slices, generate report CSV and summary PNG artifacts, and build colored HTML previews of the terminal-style performance report. Use when the user mentions tt-perf-report, performance report HTML, summary PNG, bar chart, stacked report, or report generation from a sliced ops CSV. For publishing under github_pages/perf_reports, wiring compare_reports.html, or fusion tables on hub index pages, use perf-hub-compare.
 ---
 
 # TT Perf Report
@@ -155,7 +155,9 @@ Preferred summary-card pattern:
 - representative odd full-layer device perf
 - estimated total device perf, if the user asked for extrapolation
 - device-perf `tokens/s/user`, if derived from estimated device time
-- end-to-end `tokens/s/user`, if the user provides or asks for a benchmark/CI number
+- end-to-end `tokens/s/user`, if the user provides or asks for a benchmark/CI number; if the full-model benchmark **hangs**, keep value **—** and state that in the detail line (e.g. **full model hangs**)
+
+**Successful fusions table (hub index):** use a real `<table>` with columns **Fusion**, **Operation** (`<code>` op name), **attn**, **MoE**, and **full (NL)** where **N** is the layer count in the traced decode window for that publish (one column — do not add a separate layers column). See `.cursor/skills/perf-hub-compare/SKILL.md` for the full comparator + `github_pages/perf_reports/` workflow.
 
 When mixing numbers from different sources, label them explicitly:
 - `Device-Perf ...` for values derived from Tracy/`tt-perf-report`
@@ -203,9 +205,18 @@ The template is intentionally generic for any model that:
 4. Treat the summary PNG as the default visualization artifact.
 5. If requested, render the saved terminal report as a colored HTML preview using `tt-perf-report-preview.css`.
 
+## GitHub Pages: new run vs baseline
+
+When reports are copied into `github_pages/perf_reports/<stamp>/tt_perf/` and compared to an existing publish, follow `.cursor/skills/perf-hub-compare/SKILL.md` for:
+
+- `index.html` run cards at `github_pages/perf_reports/index.html`
+- `compare_reports.html`: `RUN_A` / `RUN_B`, `SEGMENTS`, asymmetric `decode_2` / missing MoE files
+- fusion table and mesh copy on the per-run hub
+
 ## References
 
 - `tt-perf-report-preview.css`
 - `report_preview_example.html`
 - `index_template.html`
 - `.cursor/skills/layer-profiling/SKILL.md`
+- `.cursor/skills/perf-hub-compare/SKILL.md`
