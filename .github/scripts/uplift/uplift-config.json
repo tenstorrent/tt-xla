@@ -12,5 +12,19 @@
     "path": "venv/requirements-dev.txt",
     "regex": "^[+-]transformers[=<>!~]",
     "test_matrix": "transformers-uplift-qualification.json"
+  },
+  {
+    "name": "torch_xla",
+    "description": "Torch-XLA dependency uplift",
+    "path": "python_package/requirements.txt",
+    "regex": "^[+-]torch-xla@",
+    "test_matrix": "torch-xla-uplift-qualification.json"
+  },
+  {
+    "name": "tt-forge-models",
+    "description": "TT Forge Models submodule uplift",
+    "path": "third_party/tt_forge_models",
+    "regex": "^[+-]Subproject commit",
+    "test_matrix": "forge-models-uplift-qualification.json"
   }
 ]
