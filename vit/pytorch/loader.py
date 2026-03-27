@@ -39,7 +39,7 @@ class ModelVariant(StrEnum):
     BASE = "Base"
     BASE_PATCH16_384 = "Base_Patch16_384"
     LARGE = "Large"
-    SMALL = "Small"
+    BASE_OXFORD_IIIT_PETS = "Base_Oxford_IIIT_Pets"
 
     # Torchvision variants
     VIT_B_16 = "B_16"
@@ -78,8 +78,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/vit-large-patch16-224",
             source=ModelSource.HUGGING_FACE,
         ),
-        ModelVariant.SMALL: ViTConfig(
-            pretrained_model_name="WinKawaks/vit-small-patch16-224",
+        ModelVariant.BASE_OXFORD_IIIT_PETS: ViTConfig(
+            pretrained_model_name="ISxOdin/vit-base-oxford-iiit-pets",
             source=ModelSource.HUGGING_FACE,
         ),
         # Torchvision variants
@@ -151,7 +151,7 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.VULCAN
         elif variant == ModelVariant.BASE:
             group = ModelGroup.RED
-        elif variant == ModelVariant.BASE_PATCH16_384:
+        elif variant == ModelVariant.BASE_OXFORD_IIIT_PETS:
             group = ModelGroup.VULCAN
         elif cls._VARIANTS[variant].source == ModelSource.TIMM:
             group = ModelGroup.VULCAN
