@@ -31,8 +31,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_CODER_NEXT = "Next"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
-    QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4 = "30B_A3B_Instruct_NVFP4"
-    QWEN_3_CODER_30B_A3B_INSTRUCT_W4A16_AWQ = "30B_A3B_Instruct_W4A16_AWQ"
+    QWEN_3_CODER_480B_A35B_INSTRUCT = "480B_A35B_Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -48,12 +47,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4: LLMModelConfig(
-            pretrained_model_name="NVFP4/Qwen3-Coder-30B-A3B-Instruct-FP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_W4A16_AWQ: LLMModelConfig(
-            pretrained_model_name="nm-testing/Qwen3-Coder-30B-A3B-Instruct-W4A16-awq",
+        ModelVariant.QWEN_3_CODER_480B_A35B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-Coder-480B-A35B-Instruct",
             max_length=128,
         ),
     }
