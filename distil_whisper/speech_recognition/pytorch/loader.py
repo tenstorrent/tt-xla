@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Distil-Whisper model loader implementation for speech recognition (ASR).
+Distil-Whisper model loader implementation for speech recognition (ASR) using PyTorch.
 
-Distil-Whisper distil-medium.en is a distilled version of Whisper medium,
-optimized for English speech recognition with reduced decoder layers.
+Distil-small.en is a distilled version of OpenAI's Whisper small.en,
+6x faster with 49% fewer parameters while performing within 1% WER.
 """
 
 from typing import Optional
@@ -27,47 +27,28 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Distil-Whisper speech recognition model variants."""
+    """Available Distil-Whisper PyTorch speech recognition model variants."""
 
-    DISTIL_MEDIUM_EN = "Distil_Medium_En"
+    DISTIL_SMALL_EN = "Distil_small_en"
 
 
 class ModelLoader(ForgeModel):
-    """Distil-Whisper model loader implementation for speech recognition (ASR)."""
+    """Distil-Whisper model loader implementation for speech recognition (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.DISTIL_MEDIUM_EN: ModelConfig(
-            pretrained_model_name="distil-whisper/distil-medium.en",
+        ModelVariant.DISTIL_SMALL_EN: ModelConfig(
+            pretrained_model_name="distil-whisper/distil-small.en",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DISTIL_MEDIUM_EN
+    DEFAULT_VARIANT = ModelVariant.DISTIL_SMALL_EN
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
-
         super().__init__(variant)
         self._processor = None
-        self._model = None
-        self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
-
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
@@ -80,60 +61,46 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_processor(self, dtype_override=None):
+        from transformers import AutoProcessor
+
+        processor_kwargs = {}
+        if dtype_override is not None:
+            processor_kwargs["torch_dtype"] = dtype_override
+
+        self._processor = AutoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name, **processor_kwargs
+        )
+
+        return self._processor
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Distil-Whisper model instance.
-
-        Args:
-            dtype_override: Optional dtype to override the model's default dtype.
-
-        Returns:
-            model: The loaded model instance
-        """
-
-        from transformers import WhisperForConditionalGeneration, WhisperProcessor
+        from transformers import AutoModelForSpeechSeq2Seq
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self._model = WhisperForConditionalGeneration.from_pretrained(
-            self._model_name, use_cache=False, **model_kwargs
+        model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            self._variant_config.pretrained_model_name, **model_kwargs
         )
-        self._processor = WhisperProcessor.from_pretrained(self._model_name)
-
-        self._model.eval()
+        model.eval()
         if dtype_override is not None:
-            self._model.to(dtype_override)
-        return self._model
+            model.to(dtype_override)
+
+        return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the Distil-Whisper model.
+        if self._processor is None:
+            self._load_processor(dtype_override=dtype_override)
 
-        Args:
-            dtype_override: Optional dtype to override the model's default dtype.
-
-        Returns:
-            inputs: Input tensors that can be fed to the model.
-        """
-
-        from transformers import WhisperConfig
-
-        if self._model is None or self._processor is None:
-            self.load_model(dtype_override=dtype_override)
-
-        whisper_config = WhisperConfig.from_pretrained(self._model_name)
-
-        # Generate synthetic 30-second audio at 16kHz to match Whisper's receptive field
+        # Generate synthetic 1-second audio waveform at 16kHz
         sampling_rate = 16000
-        duration_seconds = 30
+        duration_seconds = 1
         audio_array = np.random.randn(sampling_rate * duration_seconds).astype(
             np.float32
         )
-
-        model_param = next(self._model.parameters())
-        device = model_param.device
-        dtype = dtype_override or model_param.dtype
 
         inputs = self._processor(
             audio_array,
@@ -141,12 +108,4 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
 
-        input_features = inputs.input_features.to(device=device, dtype=dtype)
-        decoder_input_ids = torch.full(
-            (1, 2),
-            whisper_config.decoder_start_token_id,
-            dtype=torch.long,
-            device=device,
-        )
-
-        return [input_features, decoder_input_ids]
+        return inputs
