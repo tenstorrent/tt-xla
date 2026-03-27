@@ -24,6 +24,7 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available model variants for paraphrase-MiniLM."""
 
+    PARAPHRASE_MINILM_L3_V2 = "sentence-transformers/paraphrase-MiniLM-L3-v2"
     PARAPHRASE_MINILM_L6_V2 = "sentence-transformers/paraphrase-MiniLM-L6-v2"
 
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     """Sentence-Transformers paraphrase-MiniLM-L6-v2 model loader."""
 
     _VARIANTS = {
+        ModelVariant.PARAPHRASE_MINILM_L3_V2: LLMModelConfig(
+            pretrained_model_name="sentence-transformers/paraphrase-MiniLM-L3-v2",
+            max_length=128,
+        ),
         ModelVariant.PARAPHRASE_MINILM_L6_V2: LLMModelConfig(
             pretrained_model_name="sentence-transformers/paraphrase-MiniLM-L6-v2",
             max_length=128,
