@@ -23,16 +23,16 @@ class ModelVariant(StrEnum):
     """Available RoBERTa token classification model variants."""
 
     INDONESIAN_ROBERTA_BASE_POSP_TAGGER = "Indonesian_RoBERTa_Base_POSP_Tagger"
-    JEAN_BAPTISTE_ROBERTA_LARGE_NER_ENGLISH = "Jean-Baptiste/roberta-large-ner-english"
-    SYSSEC_UTD_PY311_PYLINGUAL_V1_SEGMENTER = "syssec-utd/py311-pylingual-v1-segmenter"
+    PROJECTE_AINA_ROBERTA_BASE_CA_V2_CASED_NER = (
+        "projecte-aina/roberta-base-ca-v2-cased-ner"
+    )
     TNER_ROBERTA_LARGE_TWEETNER7_ALL = "tner/roberta-large-tweetner7-all"
     SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER = "syssec-utd/py39-pylingual-v1-segmenter"
 
 
 _VARIANT_SAMPLE_TEXTS = {
     ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER: "Saya sedang membaca buku di perpustakaan",
-    ModelVariant.JEAN_BAPTISTE_ROBERTA_LARGE_NER_ENGLISH: "Apple was founded by Steve Jobs in Los Altos, California",
-    ModelVariant.SYSSEC_UTD_PY311_PYLINGUAL_V1_SEGMENTER: "LOAD_CONST 0 LOAD_CONST 1 MAKE_FUNCTION 0 STORE_NAME 0 LOAD_CONST 2 RETURN_VALUE",
+    ModelVariant.PROJECTE_AINA_ROBERTA_BASE_CA_V2_CASED_NER: "En Jordi viu a Barcelona i treballa a la Universitat de Catalunya",
     ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: "Jacob Collier is an amazing musician from London",
     ModelVariant.SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER: "LOAD_FAST x LOAD_FAST y BINARY_OP Add RETURN_VALUE",
 }
@@ -45,11 +45,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER: ModelConfig(
             pretrained_model_name="w11wo/indonesian-roberta-base-posp-tagger",
         ),
-        ModelVariant.JEAN_BAPTISTE_ROBERTA_LARGE_NER_ENGLISH: ModelConfig(
-            pretrained_model_name="Jean-Baptiste/roberta-large-ner-english",
-        ),
-        ModelVariant.SYSSEC_UTD_PY311_PYLINGUAL_V1_SEGMENTER: ModelConfig(
-            pretrained_model_name="syssec-utd/py311-pylingual-v1-segmenter",
+        ModelVariant.PROJECTE_AINA_ROBERTA_BASE_CA_V2_CASED_NER: ModelConfig(
+            pretrained_model_name="projecte-aina/roberta-base-ca-v2-cased-ner",
         ),
         ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: ModelConfig(
             pretrained_model_name="tner/roberta-large-tweetner7-all",
