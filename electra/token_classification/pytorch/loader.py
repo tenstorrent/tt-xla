@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ELECTRA model loader implementation for token classification.
+ELECTRA model loader implementation for token classification (NER) task.
 """
 
 import torch
-from transformers import ElectraForTokenClassification, ElectraTokenizerFast
+from transformers import AutoModelForTokenClassification, AutoTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -20,39 +20,38 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ELECTRA model variants for token classification."""
+    """Available ELECTRA token classification model variants."""
 
-    STEVETRAN_OB_NER_MODEL = "SteveTran/ob_ner_model"
+    RV2307_ELECTRA_SMALL_NER = "rv2307/electra-small-ner"
 
 
 class ModelLoader(ForgeModel):
-    """ELECTRA model loader implementation for token classification."""
+    """ELECTRA model loader implementation for token classification (NER) task."""
 
     _VARIANTS = {
-        ModelVariant.STEVETRAN_OB_NER_MODEL: LLMModelConfig(
-            pretrained_model_name="SteveTran/ob_ner_model",
+        ModelVariant.RV2307_ELECTRA_SMALL_NER: LLMModelConfig(
+            pretrained_model_name="rv2307/electra-small-ner",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.STEVETRAN_OB_NER_MODEL
+    DEFAULT_VARIANT = ModelVariant.RV2307_ELECTRA_SMALL_NER
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = "Nike black leather running shoes size 10 for men"
         self.tokenizer = None
         self.model = None
+        self.sample_text = "HuggingFace is a company based in Paris and New York"
 
     @classmethod
-    def _get_model_info(cls, variant_name=None):
-        if variant_name is None:
-            variant_name = "base"
-
+    def _get_model_info(cls, variant=None):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="ELECTRA",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -60,14 +59,14 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = ElectraTokenizerFast.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = ElectraForTokenClassification.from_pretrained(
+        self.model = AutoModelForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
         self.model.eval()
@@ -96,6 +95,5 @@ class ModelLoader(ForgeModel):
         predicted_tokens_classes = [
             self.model.config.id2label[t.item()] for t in predicted_token_class_ids
         ]
-
         print(f"Context: {self.sample_text}")
         print(f"Answer: {predicted_tokens_classes}")
