@@ -25,8 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 PyTorch speech recognition model variants."""
 
     BASE_960H = "Base_960h"
-    XLS_R_300M_PASHTO = "XLS_R_300M_Pashto"
-    NB_1B_BOKMAAL = "NB_1B_Bokmaal"
+    XLSR_MARATHI = "XLSR_Marathi"
 
 
 class ModelLoader(ForgeModel):
@@ -36,11 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.XLS_R_300M_PASHTO: ModelConfig(
-            pretrained_model_name="ihanif/wav2vec2-xls-r-300m-pashto",
-        ),
-        ModelVariant.NB_1B_BOKMAAL: ModelConfig(
-            pretrained_model_name="NbAiLab/nb-wav2vec2-1b-bokmaal",
+        ModelVariant.XLSR_MARATHI: ModelConfig(
+            pretrained_model_name="sumedh/wav2vec2-large-xlsr-marathi",
         ),
     }
 
