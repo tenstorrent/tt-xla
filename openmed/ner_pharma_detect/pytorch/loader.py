@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_PHARMADETECT_SUPERCLINICAL_141M = (
         "OpenMed/OpenMed-NER-PharmaDetect-SuperClinical-141M"
     )
+    OPENMED_NER_PHARMADETECT_TINYMED_82M = (
+        "OpenMed/OpenMed-NER-PharmaDetect-TinyMed-82M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +36,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_NER_PHARMADETECT_SUPERCLINICAL_141M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-SuperClinical-141M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_82M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-TinyMed-82M",
             max_length=128,
         ),
     }
