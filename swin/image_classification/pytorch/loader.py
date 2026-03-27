@@ -21,6 +21,7 @@ import torch
 from typing import Optional
 from dataclasses import dataclass
 from transformers import AutoModelForImageClassification
+import timm
 
 from ....tools.utils import VisionPreprocessor, VisionPostprocessor
 from datasets import load_dataset
@@ -41,9 +42,7 @@ class ModelVariant(StrEnum):
     SWINV2_TINY_HF = "v2_Tiny_Patch4_Window8_256"
 
     # TIMM variants
-    SWINV2_TINY_WINDOW8_256_TIMM = "v2_Tiny_Window8_256_TIMM"
-    SWINV2_SMALL_WINDOW8_256_TIMM = "v2_Small_Window8_256_TIMM"
-    SWIN_SMALL_PATCH4_WINDOW7_224_TIMM = "Small_Patch4_Window7_224_TIMM"
+    SWIN_LARGE_PATCH4_WINDOW12_384 = "Large_Patch4_Window12_384"
 
     # Torchvision variants
     SWIN_T = "T"
@@ -69,16 +68,8 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
         ),
         # TIMM variants
-        ModelVariant.SWINV2_TINY_WINDOW8_256_TIMM: SwinConfig(
-            pretrained_model_name="swinv2_tiny_window8_256.ms_in1k",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.SWINV2_SMALL_WINDOW8_256_TIMM: SwinConfig(
-            pretrained_model_name="swinv2_small_window8_256.ms_in1k",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.SWIN_SMALL_PATCH4_WINDOW7_224_TIMM: SwinConfig(
-            pretrained_model_name="swin_small_patch4_window7_224.ms_in22k_ft_in1k",
+        ModelVariant.SWIN_LARGE_PATCH4_WINDOW12_384: SwinConfig(
+            pretrained_model_name="swin_large_patch4_window12_384.ms_in22k_ft_in1k",
             source=ModelSource.TIMM,
         ),
         # Torchvision variants
@@ -173,8 +164,6 @@ class ModelLoader(ForgeModel):
 
         if source == ModelSource.TIMM:
             # Load model from TIMM
-            import timm
-
             model = timm.create_model(model_name, pretrained=True)
 
         elif source == ModelSource.HUGGING_FACE:
