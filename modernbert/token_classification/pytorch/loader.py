@@ -2,19 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ModernBERT model loader implementation for token classification (NER).
+ModernBERT model loader implementation for token classification.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
+from transformers import AutoModelForTokenClassification, AutoTokenizer
 from third_party.tt_forge_models.config import (
-    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
 from third_party.tt_forge_models.base import ForgeModel
 
@@ -22,8 +22,8 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available ModernBERT token classification model variants."""
 
-    OPENMED_PII_FRENCH_BIOCLINICALMODERN_LARGE_395M_V1 = (
-        "OpenMed/OpenMed-PII-French-BioClinicalModern-Large-395M-v1"
+    OPENMED_NER_ONCOLOGYDETECT_MODERNCLINICAL_395M = (
+        "OpenMed_NER_OncologyDetect_ModernClinical_395M"
     )
 
 
@@ -31,30 +31,29 @@ class ModelLoader(ForgeModel):
     """ModernBERT model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_PII_FRENCH_BIOCLINICALMODERN_LARGE_395M_V1: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-French-BioClinicalModern-Large-395M-v1",
+        ModelVariant.OPENMED_NER_ONCOLOGYDETECT_MODERNCLINICAL_395M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-ModernClinical-395M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_PII_FRENCH_BIOCLINICALMODERN_LARGE_395M_V1
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ONCOLOGYDETECT_MODERNCLINICAL_395M
 
     def __init__(self, variant=None):
         super().__init__(variant)
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        self.model_name = pretrained_model_name
-        self.sample_text = "Patient Jean Martin (né le 15/03/1985, NSS: 1 85 03 75 108 234 67) a été vu aujourd'hui."
-        self.max_length = 128
+        self.model_name = self._variant_config.pretrained_model_name
+        self.max_length = self._variant_config.max_length
+        self.sample_text = "Mutations in KRAS gene drive oncogenic transformation."
         self.tokenizer = None
         self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
-        if variant_name is None:
-            variant_name = "base"
+    def _get_model_info(cls, variant=None):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="ModernBERT",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -69,12 +68,11 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForTokenClassification.from_pretrained(
+        self.model = AutoModelForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
-        model.eval()
-        self.model = model
-        return model
+        self.model.eval()
+        return self.model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
@@ -102,4 +100,3 @@ class ModelLoader(ForgeModel):
 
         print(f"Context: {self.sample_text}")
         print(f"Answer: {predicted_tokens_classes}")
-        return predicted_tokens_classes
