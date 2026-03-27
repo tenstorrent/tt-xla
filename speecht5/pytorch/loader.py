@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
     """Available SpeechT5 model variants."""
 
     TTS = "Tts"
-    CLARTTS_AR = "ClarttsAr"
+    TINY_RANDOM = "Tiny Random"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.TTS: ModelConfig(
             pretrained_model_name="microsoft/speecht5_tts",
         ),
-        ModelVariant.CLARTTS_AR: ModelConfig(
-            pretrained_model_name="MBZUAI/speecht5_tts_clartts_ar",
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-SpeechT5ForTextToSpeech",
         ),
     }
 
@@ -67,14 +67,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        variant_groups = {
-            ModelVariant.TTS: ModelGroup.GENERALITY,
-            ModelVariant.CLARTTS_AR: ModelGroup.VULCAN,
-        }
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.TINY_RANDOM:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="SpeechT5",
             variant=variant,
-            group=variant_groups.get(variant, ModelGroup.GENERALITY),
+            group=group,
             task=ModelTask.MM_TTS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
