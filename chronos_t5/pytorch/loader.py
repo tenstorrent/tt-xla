@@ -31,6 +31,7 @@ class ChronosT5Config(ModelConfig):
 
 class ModelVariant(StrEnum):
     BASE = "base"
+    LARGE = "large"
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +44,11 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE: ChronosT5Config(
             pretrained_model_name="amazon/chronos-t5-base",
+            context_length=512,
+            prediction_length=64,
+        ),
+        ModelVariant.LARGE: ChronosT5Config(
+            pretrained_model_name="amazon/chronos-t5-large",
             context_length=512,
             prediction_length=64,
         ),
