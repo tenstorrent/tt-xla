@@ -1,11 +1,11 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 GLM-4.6V model loader implementation for multimodal conditional generation.
 """
 import torch
-from transformers import AutoProcessor, Glm4vMoeForConditionalGeneration
+from transformers import AutoProcessor, Glm4vForConditionalGeneration
 from typing import Optional
 
 from ....base import ForgeModel
@@ -25,23 +25,19 @@ from PIL import Image
 class ModelVariant(StrEnum):
     """Available GLM-4.6V model variants for multimodal conditional generation."""
 
-    GLM_4_6V = "glm_4_6v"
-    GLM_4_6V_NVFP4 = "glm_4_6v_nvfp4"
+    GLM_4_6V_FLASH = "glm_4_6v_flash"
 
 
 class ModelLoader(ForgeModel):
     """GLM-4.6V model loader implementation for multimodal conditional generation."""
 
     _VARIANTS = {
-        ModelVariant.GLM_4_6V: LLMModelConfig(
-            pretrained_model_name="zai-org/GLM-4.6V",
-        ),
-        ModelVariant.GLM_4_6V_NVFP4: LLMModelConfig(
-            pretrained_model_name="GadflyII/GLM-4.6V-NVFP4",
+        ModelVariant.GLM_4_6V_FLASH: LLMModelConfig(
+            pretrained_model_name="zai-org/GLM-4.6V-Flash",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GLM_4_6V
+    DEFAULT_VARIANT = ModelVariant.GLM_4_6V_FLASH
 
     sample_text = "What do you see in this image?"
     sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"
@@ -72,10 +68,6 @@ class ModelLoader(ForgeModel):
 
         return self.processor
 
-    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
-    # because the packed FP4 weight shapes differ from the model definition.
-    _NVFP4_VARIANTS = {ModelVariant.GLM_4_6V_NVFP4}
-
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -85,11 +77,9 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        if self._variant in self._NVFP4_VARIANTS:
-            model_kwargs["ignore_mismatched_sizes"] = True
         model_kwargs |= kwargs
 
-        model = Glm4vMoeForConditionalGeneration.from_pretrained(
+        model = Glm4vForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
