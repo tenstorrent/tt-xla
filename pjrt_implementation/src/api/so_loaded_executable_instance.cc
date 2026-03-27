@@ -25,7 +25,9 @@
 #include "utils/logging.h"
 #include "utils/status.h"
 
+#ifdef TTXLA_ENABLE_PYTHON_RUNNER
 #include <tools/tt-alchemist/python_runner/python_runner.hpp>
+#endif
 
 namespace tt::pjrt {
 
@@ -130,6 +132,7 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     return tt_pjrt_status::kSuccess;
   }
 
+#ifdef TTXLA_ENABLE_PYTHON_RUNNER
   // Execute the generated Python code via PythonModelRunner.
   tt::alchemist::PythonModelRunner runner;
   runner.addToSysPath(options.export_path.value());
@@ -148,6 +151,12 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
                       m_executable_image->getOutputTypes());
+#else
+  LOG_F(ERROR,
+        "Python codegen execution requested but PythonModelRunner is not "
+        "available (TTXLA_ENABLE_TOOLS is OFF)");
+  return tt_pjrt_status::kInternal;
+#endif
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {

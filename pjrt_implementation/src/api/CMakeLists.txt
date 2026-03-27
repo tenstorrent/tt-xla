@@ -60,10 +60,14 @@ PRIVATE
     protobuf::libprotobuf
     TTMLIRCompiler
     TTMLIRRuntime
-    tt-alchemist-python-runner
 PUBLIC
     TTPJRTUtils
 )
+
+if(TTXLA_ENABLE_TOOLS)
+    target_link_libraries(TTPJRTApi PRIVATE tt-alchemist-python-runner)
+    target_compile_definitions(TTPJRTApi PRIVATE TTXLA_ENABLE_PYTHON_RUNNER)
+endif()
 
 # Enable Tracy profiling if requested
 if(TTXLA_TRACY_ZONES)

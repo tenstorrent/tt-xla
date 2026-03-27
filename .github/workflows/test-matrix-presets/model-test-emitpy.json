@@ -1,4 +1,4 @@
 [
-  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n150 and nightly and expected_passing and single_device and inference", "parallel-groups": 3, "args": "--emitpy" },
-  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and nightly and expected_passing and single_device and inference", "parallel-groups": 3, "args": "--emitpy" }
+  { "runs-on": "n150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n150 and nightly and expected_passing and single_device and inference", "parallel-groups": 3, "args": "--emitpy", "require": "alchemist" },
+  { "runs-on": "p150", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "p150 and nightly and expected_passing and single_device and inference", "parallel-groups": 3, "args": "--emitpy", "require": "alchemist" }
 ]
