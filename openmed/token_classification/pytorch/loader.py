@@ -26,6 +26,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ORGANISMDETECT_MODERNMED_149M = (
         "OpenMed-NER-OrganismDetect-ModernMed-149M"
     )
+    OPENMED_NER_PATHOLOGYDETECT_SUPERMEDICAL_355M = (
+        "OpenMed-NER-PathologyDetect-SuperMedical-355M"
+    )
     OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M = (
         "OpenMed-NER-PharmaDetect-BioClinical-108M"
     )
@@ -38,6 +41,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_ORGANISMDETECT_MODERNMED_149M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-ModernMed-149M",
         ),
+        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_SUPERMEDICAL_355M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-SuperMedical-355M",
+        ),
         ModelVariant.OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-BioClinical-108M",
         ),
@@ -48,6 +54,9 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.OPENMED_NER_ORGANISMDETECT_MODERNMED_149M: (
             "Caenorhabditis elegans is a model organism for genetic studies."
+        ),
+        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_SUPERMEDICAL_355M: (
+            "The biopsy revealed adenocarcinoma with lymphovascular invasion."
         ),
         ModelVariant.OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M: (
             "Administration of metformin reduced glucose levels significantly."
