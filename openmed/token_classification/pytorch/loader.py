@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
     OPENMED_NER_CHEMICALDETECT_MULTIMED_335M = "NER-ChemicalDetect-MultiMed-335M"
+    OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M = "NER-SpeciesDetect-BioPatient-108M"
 
 
 class ModelLoader(ForgeModel):
@@ -33,15 +34,29 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-MultiMed-335M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-BioPatient-108M",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_MULTIMED_335M
 
+    _SAMPLE_TEXTS = {
+        ModelVariant.OPENMED_NER_CHEMICALDETECT_MULTIMED_335M: (
+            "The patient was administered acetylsalicylic acid for pain relief."
+        ),
+        ModelVariant.OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M: (
+            "Escherichia coli bacteria were found in the water samples."
+        ),
+    }
+
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = (
-            "The patient was administered acetylsalicylic acid for pain relief."
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant,
+            self._SAMPLE_TEXTS[self.DEFAULT_VARIANT],
         )
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
