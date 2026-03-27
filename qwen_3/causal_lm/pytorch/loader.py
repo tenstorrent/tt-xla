@@ -50,15 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_32B_NVFP4 = "32B_NVFP4"
-    QWEN_3_4B_BNB_4BIT = "4B_bnb_4bit"
-    QWEN_3_32B_BNB_4BIT = "32B_bnb_4bit"
-    QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT = "30B_A3B_Instruct_2507_AWQ_8bit"
-    QWEN_3_8B_W8A8 = "8B_w8a8"
-    QWEN_3_30B_A3B_MLX_4BIT = "30B_A3B_MLX_4bit"
-    QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT = "235B_A22B_Instruct_2507_MLX_4bit"
-    QWEN_3_235B_A22B_GPTQ_INT4 = "235B_A22B_GPTQ_Int4"
-    QWEN_3_235B_A22B_NVFP4 = "235B_A22B_NVFP4"
+    QWEN_3_1_7B_UNSLOTH = "1_7B_Unsloth"
 
 
 class ModelLoader(ForgeModel):
@@ -158,40 +150,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_32B_NVFP4: LLMModelConfig(
-            pretrained_model_name="nvidia/Qwen3-32B-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_4B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-4B-unsloth-bnb-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_32B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-32B-bnb-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT: LLMModelConfig(
-            pretrained_model_name="cyankiwi/Qwen3-30B-A3B-Instruct-2507-AWQ-8bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_8B_W8A8: LLMModelConfig(
-            pretrained_model_name="nytopop/Qwen3-8B.w8a8",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-MLX-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3-235B-A22B-Instruct-2507-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_235B_A22B_GPTQ_INT4: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-235B-A22B-GPTQ-Int4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_235B_A22B_NVFP4: LLMModelConfig(
-            pretrained_model_name="nvidia/Qwen3-235B-A22B-NVFP4",
+        ModelVariant.QWEN_3_1_7B_UNSLOTH: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-1.7B",
             max_length=128,
         ),
     }
@@ -247,15 +207,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_32B_NVFP4,
-            ModelVariant.QWEN_3_4B_BNB_4BIT,
-            ModelVariant.QWEN_3_32B_BNB_4BIT,
-            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT,
-            ModelVariant.QWEN_3_30B_A3B_MLX_4BIT,
-            ModelVariant.QWEN_3_8B_W8A8,
-            ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT,
-            ModelVariant.QWEN_3_235B_A22B_GPTQ_INT4,
-            ModelVariant.QWEN_3_235B_A22B_NVFP4,
+            ModelVariant.QWEN_3_1_7B_UNSLOTH,
         ):
             group = ModelGroup.VULCAN
         else:
