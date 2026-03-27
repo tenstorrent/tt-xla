@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     """Available Faster Whisper speech recognition model variants."""
 
     TINY_INT8 = "Tiny_int8"
+    LARGE_V3_TURBO = "Large_v3_Turbo"
 
 
 class ModelLoader(ForgeModel):
@@ -40,6 +41,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TINY_INT8: ModelConfig(
             pretrained_model_name="openai/whisper-tiny",
+        ),
+        ModelVariant.LARGE_V3_TURBO: ModelConfig(
+            pretrained_model_name="openai/whisper-large-v3-turbo",
         ),
     }
 
