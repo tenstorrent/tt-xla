@@ -6,7 +6,6 @@ GPT-OSS-Swallow model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-from transformers.utils.quantization_config import Mxfp4Config
 from typing import Optional
 
 from ....base import ForgeModel
@@ -78,12 +77,10 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        quantization_config = Mxfp4Config(dequantize=True)
         self.load_config()
 
         model_kwargs = {
             "config": self.config,
-            "quantization_config": quantization_config,
             "low_cpu_mem_usage": True,
             "trust_remote_code": True,
             "attn_implementation": "eager",
