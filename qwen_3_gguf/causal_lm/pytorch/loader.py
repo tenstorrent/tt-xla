@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
-    QWEN_3_4B_INSTRUCT_2507_GGUF = "4B_Instruct_2507_GGUF"
+    TEICHAI_QWEN_3_14B_CLAUDE_DISTILL_GGUF = "TeichAI_14B_Claude_Distill_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_4B_INSTRUCT_2507_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-4B-Instruct-2507-GGUF",
+        ModelVariant.TEICHAI_QWEN_3_14B_CLAUDE_DISTILL_GGUF: LLMModelConfig(
+            pretrained_model_name="TeichAI/Qwen3-14B-Claude-4.5-Opus-High-Reasoning-Distill-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_4B_INSTRUCT_2507_GGUF
+    DEFAULT_VARIANT = ModelVariant.TEICHAI_QWEN_3_14B_CLAUDE_DISTILL_GGUF
 
-    GGUF_FILE = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+    GGUF_FILE = "Qwen3-14B-Claude-4.5-Opus-Distill.q4_k_m.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -118,7 +118,6 @@ class ModelLoader(ForgeModel):
             messages,
             tokenize=False,
             add_generation_prompt=True,
-            enable_thinking=False,
         )
         prompts = [text]
 
@@ -148,8 +147,11 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
