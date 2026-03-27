@@ -24,19 +24,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available WavLM feature extraction model variants."""
 
-    LARGE = "Large"
+    TINY_RANDOM = "Tiny Random"
 
 
 class ModelLoader(ForgeModel):
     """WavLM model loader implementation for audio feature extraction."""
 
     _VARIANTS = {
-        ModelVariant.LARGE: ModelConfig(
-            pretrained_model_name="microsoft/wavlm-large",
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-WavlmModel",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -57,10 +57,14 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_feature_extractor(self, dtype_override=None):
-        from transformers import Wav2Vec2FeatureExtractor
+        from transformers import AutoFeatureExtractor
 
-        self._feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
-            self._variant_config.pretrained_model_name,
+        feature_extractor_kwargs = {}
+        if dtype_override is not None:
+            feature_extractor_kwargs["dtype"] = dtype_override
+
+        self._feature_extractor = AutoFeatureExtractor.from_pretrained(
+            self._variant_config.pretrained_model_name, **feature_extractor_kwargs
         )
 
         return self._feature_extractor
