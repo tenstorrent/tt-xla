@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available DETR model variants for object detection."""
 
     RESNET_50 = "ResNet50_Backbone"
+    RESNET_101 = "ResNet101_Backbone"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.RESNET_50: ModelConfig(
             pretrained_model_name="facebook/detr-resnet-50",
+        ),
+        ModelVariant.RESNET_101: ModelConfig(
+            pretrained_model_name="facebook/detr-resnet-101",
         ),
     }
 
@@ -61,10 +65,18 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
+        if variant == ModelVariant.RESNET_101:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.RED
+
         return ModelInfo(
             model="DETR",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
