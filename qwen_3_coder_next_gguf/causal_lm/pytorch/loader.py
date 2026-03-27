@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 Coder Next GGUF model variants for causal language modeling."""
 
-    QWEN_3_CODER_NEXT_HERETIC_I1_Q4_K_M = "Heretic_i1_Q4_K_M"
+    QWEN_3_CODER_NEXT_Q2_K_GGUF = "Q2_K_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 Coder Next GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_CODER_NEXT_HERETIC_I1_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3-Coder-Next-heretic-i1-GGUF",
+        ModelVariant.QWEN_3_CODER_NEXT_Q2_K_GGUF: LLMModelConfig(
+            pretrained_model_name="MaziyarPanahi/Qwen3-Coder-Next-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_CODER_NEXT_HERETIC_I1_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_CODER_NEXT_Q2_K_GGUF
 
-    GGUF_FILE = "Qwen3-Coder-Next-heretic.i1-Q4_K_M.gguf"
+    GGUF_FILE = "Qwen3-Coder-Next.Q2_K.gguf"
 
-    sample_text = "Write a Python function that checks if a number is prime."
+    sample_text = "write a quick sort algorithm in Python."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -134,6 +134,24 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("model", "batch")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
