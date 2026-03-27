@@ -44,6 +44,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
+    QWEN_3_5_27B_GUARDPOINT_GGUF = "27B_Guardpoint_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -131,6 +132,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="geoffmunn/Qwen3.5-122B-A10B-f16",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_27B_GUARDPOINT_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-27B-Guardpoint-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -142,6 +147,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_122B_A10B_GGUF: "Qwen3.5-122B-A10B-f16-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_27B_GUARDPOINT_GGUF: "Qwen3.5-27B-Guardpoint-i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
