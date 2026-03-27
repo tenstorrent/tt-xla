@@ -25,8 +25,14 @@ class ModelVariant(StrEnum):
     BERT_BASE_CASED = "Base_Cased"
     BERT_BASE_MULTILINGUAL_CASED = "Base_Multilingual_Cased"
     BIO_CLINICAL_BERT = "Bio_ClinicalBERT"
+    BERT_BASE_GERMAN_CASED = "Base_German_Cased"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     BIOMED_BERT_BASE_UNCASED_ABSTRACT = "BiomedBERT_Base_Uncased_Abstract"
+
+
+_SAMPLE_TEXTS = {
+    ModelVariant.BERT_BASE_GERMAN_CASED: "Berlin ist die [MASK] von Deutschland.",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -48,6 +54,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BIO_CLINICAL_BERT: LLMModelConfig(
             pretrained_model_name="emilyalsentzer/Bio_ClinicalBERT",
+            max_length=128,
+        ),
+        ModelVariant.BERT_BASE_GERMAN_CASED: LLMModelConfig(
+            pretrained_model_name="google-bert/bert-base-german-cased",
             max_length=128,
         ),
         ModelVariant.BERT_LARGE_PORTUGUESE_CASED: LLMModelConfig(
@@ -75,7 +85,9 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.sample_text = "The capital of France is [MASK]."
+        self.sample_text = _SAMPLE_TEXTS.get(
+            self._variant, "The capital of France is [MASK]."
+        )
         self.max_length = 128
         self.tokenizer = None
 
@@ -94,6 +106,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.BERT_BASE_CASED,
+            ModelVariant.BERT_BASE_GERMAN_CASED,
             ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
             ModelVariant.BIO_CLINICAL_BERT,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
