@@ -23,20 +23,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 EAGLE3 model variants for causal language modeling."""
 
-    QWEN_3_8B_EAGLE3 = "8B_Eagle3"
+    QWEN_3_1_7B_EAGLE3 = "1_7B_Eagle3"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 EAGLE3 draft model loader for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_8B_EAGLE3: LLMModelConfig(
-            pretrained_model_name="AngelSlim/Qwen3-8B_eagle3",
+        ModelVariant.QWEN_3_1_7B_EAGLE3: LLMModelConfig(
+            pretrained_model_name="AngelSlim/Qwen3-1.7B_eagle3",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_8B_EAGLE3
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_1_7B_EAGLE3
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -67,7 +67,7 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
-            **tokenizer_kwargs,
+            **tokenizer_kwargs
         )
 
         return self.tokenizer
