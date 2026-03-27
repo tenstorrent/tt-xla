@@ -27,6 +27,9 @@ class ModelVariant(StrEnum):
     NER_PROTEINDETECT_PUBMED_V2_109M = (
         "OpenMed/OpenMed-NER-ProteinDetect-PubMed-v2-109M"
     )
+    NER_ORGANISMDETECT_MODERNCLINICAL_149M = (
+        "OpenMed/OpenMed-NER-OrganismDetect-ModernClinical-149M"
+    )
 
 
 _VARIANT_SAMPLE_TEXTS = {
@@ -38,6 +41,9 @@ _VARIANT_SAMPLE_TEXTS = {
     ),
     ModelVariant.NER_PROTEINDETECT_PUBMED_V2_109M: (
         "Casein micelles are the primary protein component of milk."
+    ),
+    ModelVariant.NER_ORGANISMDETECT_MODERNCLINICAL_149M: (
+        "Caenorhabditis elegans is a model organism for genetic studies."
     ),
 }
 
@@ -56,6 +62,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NER_PROTEINDETECT_PUBMED_V2_109M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-PubMed-v2-109M",
+            max_length=128,
+        ),
+        ModelVariant.NER_ORGANISMDETECT_MODERNCLINICAL_149M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-ModernClinical-149M",
             max_length=128,
         ),
     }
