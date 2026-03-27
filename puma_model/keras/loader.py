@@ -49,11 +49,11 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.UNET_NUCLEI: PumaModelConfig(
             pretrained_model_name="tanjina284/puma_model",
-            filename="unet_nuclei_epoch225_datasetsize16000_fullmodel.keras",
+            filename="unet_nuclei_epoch210_datasetsize16000_fullmodel.keras",
         ),
         ModelVariant.UNETPP_NUCLEI: PumaModelConfig(
             pretrained_model_name="tanjina284/puma_model",
-            filename="unetpp_nuclei_epoch230_datasetsize16000_fullmodel.keras",
+            filename="unetpp_nuclei_epoch210_datasetsize16000_fullmodel.keras",
         ),
         ModelVariant.ATTENTION_NUCLEI: PumaModelConfig(
             pretrained_model_name="tanjina284/puma_model",
@@ -69,7 +69,7 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.SHARP_NUCLEI: PumaModelConfig(
             pretrained_model_name="tanjina284/puma_model",
-            filename="sharp_nuclei_epoch240_datasetsize16000_fullmodel.keras",
+            filename="sharp_nuclei_epoch170_datasetsize16000_fullmodel.keras",
         ),
     }
 
