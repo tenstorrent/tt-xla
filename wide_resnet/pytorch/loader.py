@@ -42,6 +42,7 @@ class ModelVariant(StrEnum):
     # TIMM variants
     TIMM_WIDE_RESNET50_2 = "50_2.timm"
     TIMM_WIDE_RESNET101_2 = "101_2.timm"
+    TIMM_WIDE_RESNET50_2_RACM_IN1K = "50_2.racm_in1k.timm"
 
 
 class ModelLoader(ForgeModel):
@@ -67,6 +68,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="wide_resnet101_2",
             source=ModelSource.TIMM,
         ),
+        ModelVariant.TIMM_WIDE_RESNET50_2_RACM_IN1K: WideResnetConfig(
+            pretrained_model_name="wide_resnet50_2.racm_in1k",
+            source=ModelSource.TIMM,
+        ),
     }
 
     # Default variant to use
@@ -86,10 +91,15 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         source = cls._VARIANTS[variant].source
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.TIMM_WIDE_RESNET50_2_RACM_IN1K
+            else ModelGroup.GENERALITY
+        )
         return ModelInfo(
             model="Wide ResNet",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
