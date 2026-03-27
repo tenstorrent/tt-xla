@@ -29,9 +29,7 @@ SINGLE_FILE = "Unet/v2/NetaYume_Lumina_v2_unet.safetensors"
 
 # Lumina-Image-2.0 architecture constants
 IN_CHANNELS = 16
-HIDDEN_SIZE = 2304
-CAP_FEAT_DIM = 2304
-PATCH_SIZE = 2
+CAP_FEAT_DIM = 2304  # Gemma-2-2b hidden size
 
 
 class ModelVariant(StrEnum):
@@ -78,10 +76,6 @@ class ModelLoader(ForgeModel):
             f"https://huggingface.co/{REPO_ID}/blob/main/{SINGLE_FILE}",
             **load_kwargs,
         )
-
-        if dtype_override is not None:
-            self.transformer = self.transformer.to(dtype_override)
-
         self.transformer.eval()
         return self.transformer
 
