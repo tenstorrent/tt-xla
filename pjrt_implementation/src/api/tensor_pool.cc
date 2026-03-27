@@ -17,7 +17,6 @@
 
 // tt-xla includes
 #include "api/buffer_instance.h"
-#include "utils/assert.h"
 #include "utils/logging.h"
 
 // tracy includes
@@ -60,7 +59,7 @@ bool contains(PjrtTensor *tensor) { return get().contains(tensor); }
 void PjrtTensorPool::insert(PjrtTensor *tensor) {
 
   const std::scoped_lock lock{m_mtx};
-  TT_FATAL(!m_tensors.contains(tensor), "Tensor already exists in the pool");
+  assert(!m_tensors.contains(tensor));
   m_tensors.insert(tensor);
 }
 
@@ -68,7 +67,7 @@ void PjrtTensorPool::insert(PjrtTensor *tensor) {
 void PjrtTensorPool::erase(PjrtTensor *tensor) {
 
   const std::scoped_lock lock{m_mtx};
-  TT_FATAL(m_tensors.contains(tensor), "Tensor not found in the pool");
+  assert(m_tensors.contains(tensor));
   m_tensors.erase(tensor);
 }
 
