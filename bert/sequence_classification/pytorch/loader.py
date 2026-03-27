@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
     NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT = (
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
-    YIYANGHKUST_FINBERT_TONE = "yiyanghkust_FinBERT_Tone"
+    TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
 
 
 class ModelLoader(ForgeModel):
@@ -46,8 +46,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlptown/bert-base-multilingual-uncased-sentiment",
             max_length=128,
         ),
-        ModelVariant.YIYANGHKUST_FINBERT_TONE: LLMModelConfig(
-            pretrained_model_name="yiyanghkust/finbert-tone",
+        ModelVariant.TOMH_TOXIGEN_HATEBERT: LLMModelConfig(
+            pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
     }
@@ -60,7 +60,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2: "the movie was great!",
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
-        ModelVariant.YIYANGHKUST_FINBERT_TONE: "There is a shortage of capital, and we need extra financing.",
+        ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
     }
 
     def __init__(self, variant=None):
@@ -95,7 +95,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
-            ModelVariant.YIYANGHKUST_FINBERT_TONE,
+            ModelVariant.TOMH_TOXIGEN_HATEBERT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
