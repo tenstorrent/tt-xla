@@ -22,6 +22,9 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
+    OPENMED_NER_ONCOLOGYDETECT_TINYMED_82M = (
+        "OpenMed/OpenMed-NER-OncologyDetect-TinyMed-82M"
+    )
     OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M = (
         "OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-434M"
     )
@@ -31,6 +34,10 @@ class ModelLoader(ForgeModel):
     """OpenMed model loader implementation for token classification."""
 
     _VARIANTS = {
+        ModelVariant.OPENMED_NER_ONCOLOGYDETECT_TINYMED_82M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-TinyMed-82M",
+            max_length=128,
+        ),
         ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-434M",
             max_length=128,
@@ -39,11 +46,16 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M
 
+    _SAMPLE_TEXTS = {
+        ModelVariant.OPENMED_NER_ONCOLOGYDETECT_TINYMED_82M: "Mutations in KRAS gene drive oncogenic transformation.",
+        ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
+    }
+
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
+        self.sample_text = self._SAMPLE_TEXTS[self._variant]
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
 
