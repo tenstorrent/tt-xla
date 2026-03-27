@@ -7,7 +7,6 @@ Freepik NSFW Image Detector model loader implementation
 
 from typing import Optional
 from dataclasses import dataclass
-import timm
 
 from ...config import (
     ModelConfig,
@@ -19,11 +18,6 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import (
-    VisionPreprocessor,
-    VisionPostprocessor,
-)
-from datasets import load_dataset
 
 
 @dataclass
@@ -74,6 +68,8 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        import timm
+
         model_name = self._variant_config.pretrained_model_name
 
         model = timm.create_model(model_name, pretrained=True)
@@ -93,6 +89,9 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        from datasets import load_dataset
+        from ...tools.utils import VisionPreprocessor
+
         if image is None:
             dataset = load_dataset("huggingface/cats-image", split="test")
             image = dataset[0]["image"]
@@ -121,6 +120,8 @@ class ModelLoader(ForgeModel):
         )
 
     def output_postprocess(self, output):
+        from ...tools.utils import VisionPostprocessor
+
         if self._postprocessor is None:
             model_name = self._variant_config.pretrained_model_name
             source = self._variant_config.source
