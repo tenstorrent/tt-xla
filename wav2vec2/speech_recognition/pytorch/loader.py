@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 PyTorch speech recognition model variants."""
 
     BASE_960H = "Base_960h"
-    XLSR_53_ENGLISH = "XLSR_53_English"
+    XLS_R_300M_ARMENIAN = "XLS_R_300M_Armenian"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.XLSR_53_ENGLISH: ModelConfig(
-            pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-english",
+        ModelVariant.XLS_R_300M_ARMENIAN: ModelConfig(
+            pretrained_model_name="infinitejoy/wav2vec2-large-xls-r-300m-armenian",
         ),
     }
 
