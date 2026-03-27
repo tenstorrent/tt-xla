@@ -5,6 +5,7 @@
 Molmo2 model loader implementation for multimodal conditional generation.
 """
 import torch
+from PIL import Image
 from transformers import AutoProcessor, AutoModelForImageTextToText
 from typing import Optional
 
@@ -19,7 +20,6 @@ from ....config import (
     StrEnum,
 )
 from ....tools.utils import cast_input_to_type, get_file
-from PIL import Image
 
 
 class ModelVariant(StrEnum):
@@ -58,14 +58,9 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self, dtype_override=None):
-        kwargs = {}
-        if dtype_override is not None:
-            kwargs["torch_dtype"] = dtype_override
-
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
-            **kwargs,
         )
 
         return self.processor
