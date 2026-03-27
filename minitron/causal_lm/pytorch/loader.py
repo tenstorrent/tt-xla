@@ -24,20 +24,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Minitron model variants for causal language modeling."""
 
-    MINITRON_8B_BASE = "8B_Base"
+    MISTRAL_NEMO_MINITRON_8B_INSTRUCT = "Mistral_NeMo_Minitron_8B_Instruct"
 
 
 class ModelLoader(ForgeModel):
     """Minitron model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.MINITRON_8B_BASE: LLMModelConfig(
-            pretrained_model_name="nvidia/Minitron-8B-Base",
+        ModelVariant.MISTRAL_NEMO_MINITRON_8B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="nvidia/Mistral-NeMo-Minitron-8B-Instruct",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MINITRON_8B_BASE
+    DEFAULT_VARIANT = ModelVariant.MISTRAL_NEMO_MINITRON_8B_INSTRUCT
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -102,8 +102,15 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
+        messages = [{"role": "user", "content": self.sample_text}]
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+
         inputs = self.tokenizer(
-            self.sample_text,
+            [text],
             return_tensors="pt",
             padding="max_length",
             truncation=True,
