@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -22,35 +22,38 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available ZeRank model variants for passage ranking."""
 
-    ZERANK_1 = "1"
+    ZERANK_2 = "zerank_2"
 
 
 class ModelLoader(ForgeModel):
     """ZeRank model loader implementation for passage ranking.
 
-    This reranker uses a Qwen3-4B causal LM backbone. Given a query-document pair,
-    it extracts the logit for the "Yes" token at the last position and applies
-    sigmoid scaling to produce a relevance score.
+    This reranker uses a Qwen3 causal LM backbone with a yes/no logit scoring
+    approach to determine document relevance to a query.
     """
 
     _VARIANTS = {
-        ModelVariant.ZERANK_1: ModelConfig(
-            pretrained_model_name="zeroentropy/zerank-1",
+        ModelVariant.ZERANK_2: ModelConfig(
+            pretrained_model_name="zeroentropy/zerank-2",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ZERANK_1
+    DEFAULT_VARIANT = ModelVariant.ZERANK_2
 
-    # Sample query-document pairs for testing
+    # Sample query-passage pairs for testing
     sample_pairs = [
-        ("What is 2+2?", "4"),
-        ("What is 2+2?", "The answer is definitely 1 million"),
+        (
+            "What is 2+2?",
+            "4",
+        ),
+        (
+            "What is 2+2?",
+            "The answer is definitely 1 million",
+        ),
     ]
 
-    # System prompt template for the reranker
-    _SYSTEM_PROMPT_TEMPLATE = (
-        'Determine if the following passage is relevant to the query: "{query}"'
-    )
+    # Prompt template for the reranker
+    _SYSTEM_PROMPT = "You are a relevance judge. Given a query and a document, determine if the document is relevant to the query. Answer only 'Yes' or 'No'."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -72,15 +75,15 @@ class ModelLoader(ForgeModel):
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
+            padding_side="left",
             trust_remote_code=True,
         )
         return self.tokenizer
 
     def _format_input(self, query, document):
         """Format a query-document pair using the reranker's chat template."""
-        system_prompt = self._SYSTEM_PROMPT_TEMPLATE.format(query=query)
         messages = [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": f"Query: {query}"},
             {"role": "user", "content": document},
         ]
         text = self.tokenizer.apply_chat_template(
@@ -95,13 +98,15 @@ class ModelLoader(ForgeModel):
 
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {"trust_remote_code": True}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            pretrained_model_name,
+            trust_remote_code=True,
+            **model_kwargs,
         )
         model.eval()
 
