@@ -1,132 +1,51 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed model loader implementation for token classification (NER).
+OpenMed model loader implementation for token classification.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
-from ....base import ForgeModel
-from ....config import (
-    ModelConfig,
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
+from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available OpenMed token classification model variants."""
+    """Available OpenMed model variants for token classification."""
 
-    OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M = (
-        "OpenMed-NER-BloodCancerDetect-MultiMed-568M"
+    OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M = (
+        "OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-434M"
     )
-    OPENMED_NER_DNADETECT_ELECTRAMED_335M = "OpenMed-NER-DNADetect-ElectraMed-335M"
-    OPENMED_NER_DNADETECT_TINYMED_135M = "OpenMed-NER-DNADetect-TinyMed-135M"
-    OPENMED_NER_GENOMICDETECT_TINYMED_66M = "OpenMed-NER-GenomicDetect-TinyMed-66M"
-    OPENMED_NER_PHARMADETECT_TINYMED_66M = "OpenMed-NER-PharmaDetect-TinyMed-66M"
-    OPENMED_NER_PHARMADETECT_TINYMED_135M = "OpenMed-NER-PharmaDetect-TinyMed-135M"
-    OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1 = (
-        "OpenMed-PII-French-BiomedBERT-Large-340M-v1"
-    )
-    OPENMED_PII_GERMAN_CLINICDISCHARGE_BASE_110M_V1 = (
-        "OpenMed-PII-German-ClinicDischarge-Base-110M-v1"
-    )
-    OPENMED_PII_MCLINICALE5_LARGE_560M_V1 = "OpenMed-PII-mClinicalE5-Large-560M-v1"
-    OPENMED_PII_SNOWFLAKEMED_LARGE_568M_V1 = "OpenMed-PII-SnowflakeMed-Large-568M-v1"
-    OPENMED_PII_SUPERMEDICAL_BASE_125M_V1 = "OpenMed-PII-SuperMedical-Base-125M-v1"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed model loader implementation for token classification tasks."""
+    """OpenMed model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-MultiMed-568M",
-        ),
-        ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_335M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-ElectraMed-335M",
-        ),
-        ModelVariant.OPENMED_NER_DNADETECT_TINYMED_135M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-TinyMed-135M",
-        ),
-        ModelVariant.OPENMED_NER_GENOMICDETECT_TINYMED_66M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-TinyMed-66M",
-        ),
-        ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_66M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-TinyMed-66M",
-        ),
-        ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_135M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-TinyMed-135M",
-        ),
-        ModelVariant.OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-French-BiomedBERT-Large-340M-v1",
-        ),
-        ModelVariant.OPENMED_PII_GERMAN_CLINICDISCHARGE_BASE_110M_V1: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-German-ClinicDischarge-Base-110M-v1",
-        ),
-        ModelVariant.OPENMED_PII_MCLINICALE5_LARGE_560M_V1: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-mClinicalE5-Large-560M-v1",
-        ),
-        ModelVariant.OPENMED_PII_SNOWFLAKEMED_LARGE_568M_V1: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-SnowflakeMed-Large-568M-v1",
-        ),
-        ModelVariant.OPENMED_PII_SUPERMEDICAL_BASE_125M_V1: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-SuperMedical-Base-125M-v1",
+        ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-434M",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M
-
-    _VARIANT_SAMPLE_TEXTS = {
-        ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M: (
-            "The patient presented with chronic lymphocytic leukemia symptoms."
-        ),
-        ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_335M: (
-            "The p53 protein binds to the BRCA1 gene promoter region in T cells."
-        ),
-        ModelVariant.OPENMED_NER_DNADETECT_TINYMED_135M: (
-            "The p53 protein plays a crucial role in tumor suppression."
-        ),
-        ModelVariant.OPENMED_NER_GENOMICDETECT_TINYMED_66M: (
-            "Mutations in the BRCA1 and TP53 genes were identified in the tumor sample."
-        ),
-        ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_66M: (
-            "Administration of metformin reduced glucose levels significantly."
-        ),
-        ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_135M: (
-            "Administration of metformin reduced glucose levels significantly."
-        ),
-        ModelVariant.OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1: (
-            "Le patient Jean Dupont, né le 15 mars 1980, réside au 12 rue de la Paix, Paris."
-        ),
-        ModelVariant.OPENMED_PII_GERMAN_CLINICDISCHARGE_BASE_110M_V1: (
-            "Patient Hans Schmidt (geboren am 15.03.1985, SVN: 12 150385 M 234) wurde heute untersucht."
-        ),
-        ModelVariant.OPENMED_PII_MCLINICALE5_LARGE_560M_V1: (
-            "Dr. Sarah Johnson (SSN: 123-45-6789) can be reached at sarah.johnson@hospital.org or 555-123-4567."
-        ),
-        ModelVariant.OPENMED_PII_SNOWFLAKEMED_LARGE_568M_V1: (
-            "Dr. Sarah Johnson (SSN: 123-45-6789) can be reached at sarah.johnson@hospital.org or 555-123-4567."
-        ),
-        ModelVariant.OPENMED_PII_SUPERMEDICAL_BASE_125M_V1: (
-            "Dr. Sarah Johnson (SSN: 123-45-6789) can be reached at sarah.johnson@hospital.org or 555-123-4567."
-        ),
-    }
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M
 
     def __init__(self, variant=None):
+        """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
+        self.model_name = self._variant_config.pretrained_model_name
+        self.sample_text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
+        self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.model = None
-        self.sample_text = self._VARIANT_SAMPLE_TEXTS.get(
-            self._variant_name,
-            "The patient presented with chronic lymphocytic leukemia symptoms.",
-        )
-        self.max_length = 128
 
     @classmethod
     def _get_model_info(cls, variant_name=None):
@@ -142,9 +61,8 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        """Load OpenMed model for token classification from Hugging Face."""
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -152,13 +70,14 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForTokenClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self.model_name, **model_kwargs
         )
-        model.eval()
         self.model = model
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
+        """Prepare sample input for OpenMed token classification."""
         if self.tokenizer is None:
             self.load_model(dtype_override=dtype_override)
 
@@ -173,6 +92,7 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
+        """Decode the model output for token classification."""
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(
@@ -183,4 +103,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Predicted Labels: {predicted_tokens_classes}")
+        print(f"Answer: {predicted_tokens_classes}")
