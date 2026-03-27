@@ -51,15 +51,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_30B_A3B_GPTQ_INT4 = "30B_A3B_GPTQ_Int4"
-    QWEN_3_0_6B_REVERSE_TEXT_SFT_PRIMEINTELLECT = "0_6B_Reverse_Text_SFT_PrimeIntellect"
-    QWEN_3_30B_A3B_YOYO_V4_GEMINI250_INSTRUCT_DAVIDAU = (
-        "30B_A3B_YOYO_V4_Gemini250_Instruct_DavidAU"
-    )
-    FROGBOSS_32B_2510_MICROSOFT = "FrogBoss_32B_2510_Microsoft"
-    QWEN_3_8B_FP8_UNSLOTH = "8B_FP8_Unsloth"
-    TINY_RANDOM_QWEN3 = "Tiny_Random_Qwen3"
-    TINY_SMOKE_QWEN3_NM_TESTING = "Tiny_Smoke_Qwen3_NM_Testing"
+    QWEN_3_32B_INT4_GPTQ = "32B_Int4_Gptq"
 
 
 class ModelLoader(ForgeModel):
@@ -159,32 +151,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-30B-A3B-GPTQ-Int4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_0_6B_REVERSE_TEXT_SFT_PRIMEINTELLECT: LLMModelConfig(
-            pretrained_model_name="PrimeIntellect/Qwen3-0.6B-Reverse-Text-SFT",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_YOYO_V4_GEMINI250_INSTRUCT_DAVIDAU: LLMModelConfig(
-            pretrained_model_name="DavidAU/Qwen3-30B-A3B-YOYO-V4-Gemini250-Instruct",
-            max_length=128,
-        ),
-        ModelVariant.FROGBOSS_32B_2510_MICROSOFT: LLMModelConfig(
-            pretrained_model_name="microsoft/FrogBoss-32B-2510",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_8B_FP8_UNSLOTH: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-8B-FP8",
-            max_length=128,
-        ),
-        ModelVariant.TINY_RANDOM_QWEN3: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-qwen3",
-            max_length=128,
-        ),
-        ModelVariant.TINY_SMOKE_QWEN3_NM_TESTING: LLMModelConfig(
-            pretrained_model_name="nm-testing/tinysmokeqwen3",
+        ModelVariant.QWEN_3_32B_INT4_GPTQ: LLMModelConfig(
+            pretrained_model_name="AngelSlim/Qwen3-32B_int4_gptq",
             max_length=128,
         ),
     }
@@ -242,13 +210,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4,
-            ModelVariant.QWEN_3_0_6B_REVERSE_TEXT_SFT_PRIMEINTELLECT,
-            ModelVariant.QWEN_3_30B_A3B_YOYO_V4_GEMINI250_INSTRUCT_DAVIDAU,
-            ModelVariant.FROGBOSS_32B_2510_MICROSOFT,
-            ModelVariant.QWEN_3_8B_FP8_UNSLOTH,
-            ModelVariant.TINY_RANDOM_QWEN3,
-            ModelVariant.TINY_SMOKE_QWEN3_NM_TESTING,
+            ModelVariant.QWEN_3_32B_INT4_GPTQ,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -336,14 +298,11 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        # Quantized variants: use Qwen3ForCausalLM directly with quantization_config
-        # removed so that weights are loaded as plain tensors on CPU.
-        is_quantized = pretrained_model_name in (
-            "Qwen/Qwen3-32B-AWQ",
-            "RedHatAI/Qwen3-32B-quantized.w4a16",
-            "noneUsername/Qwen3-32B-abliterated-awq",
-            "RedHatAI/Qwen3-30B-A3B-FP8-block",
-        )
+        # Quantized variants (AWQ/GPTQ): use Qwen3ForCausalLM directly with
+        # quantization_config removed so that weights are loaded as plain tensors on CPU.
+        is_awq = pretrained_model_name == "Qwen/Qwen3-32B-AWQ"
+        is_gptq = self._variant == ModelVariant.QWEN_3_32B_INT4_GPTQ
+        is_quantized = is_awq or is_gptq
         if is_quantized:
             model_kwargs["device_map"] = "cpu"
             config = AutoConfig.from_pretrained(pretrained_model_name)
@@ -361,12 +320,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        if is_quantized:
-            model_cls = (
-                Qwen3MoeForCausalLM if self._is_moe_variant() else Qwen3ForCausalLM
-            )
-        else:
-            model_cls = AutoModelForCausalLM
+        model_cls = Qwen3ForCausalLM if is_quantized else AutoModelForCausalLM
         model = model_cls.from_pretrained(pretrained_model_name, **model_kwargs).eval()
 
         self.config = model.config
