@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
 
     ANATOMY_DETECT_TINYMED_66M = "AnatomyDetect-TinyMed-66M"
     DNA_DETECT_PUBMED_V2_109M = "DNADetect-PubMed-v2-109M"
+    ONCOLOGY_DETECT_TINYMED_135M = "OncologyDetect-TinyMed-135M"
 
 
 _VARIANT_SAMPLE_TEXTS = {
@@ -32,6 +33,9 @@ _VARIANT_SAMPLE_TEXTS = {
     ),
     ModelVariant.DNA_DETECT_PUBMED_V2_109M: (
         "Expression of BRCA1 gene was significantly upregulated in HeLa cells."
+    ),
+    ModelVariant.ONCOLOGY_DETECT_TINYMED_135M: (
+        "Mutations in KRAS gene drive oncogenic transformation."
     ),
 }
 
@@ -46,6 +50,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DNA_DETECT_PUBMED_V2_109M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-PubMed-v2-109M",
+            max_length=128,
+        ),
+        ModelVariant.ONCOLOGY_DETECT_TINYMED_135M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-TinyMed-135M",
             max_length=128,
         ),
     }
