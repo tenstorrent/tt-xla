@@ -88,6 +88,8 @@ pytest -q -m "training and tensor_parallel" tests/runner/test_models.py
 
 Take a look at `model-test-passing.json` and related `.json` files inside `.github/workflows/test-matrix-presets` for seeing how filtering works for CI jobs.
 
+For CI-first branch-pinned validation, dispatch the manual `tt-xla` test workflows on the desired `tt-xla` branch/ref and use the optional `forge_models_ref` input to override `third_party/tt_forge_models` to a non-`main` branch, tag, or SHA without requiring merge-to-main first. The resulting CI artifact bundle should include the native JUnit XML, pytest log, and the emitted `vulcan_ci_identity_*.json` metadata artifact so downstream ingestion can preserve branch/ref identity, hardware identity, and CI run identity.
+
 ## Parallelism modes
 
 - **single_device**: Standard execution on one device.

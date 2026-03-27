@@ -33,6 +33,11 @@ on:
         required: false
         default: false
         type: boolean
+      forge_models_ref:
+        description: 'Optional branch, tag, or SHA override for third_party/tt_forge_models'
+        required: false
+        default: ''
+        type: string
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -109,6 +114,18 @@ jobs:
           venv/
           examples/
 
+    - name: Override tt-forge-models submodule ref
+      if: ${{ inputs.forge_models_ref != '' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if git -C third_party/tt_forge_models fetch --depth 1 origin "${{ inputs.forge_models_ref }}"; then
+          git -C third_party/tt_forge_models checkout --detach FETCH_HEAD
+        else
+          git -C third_party/tt_forge_models checkout --detach "${{ inputs.forge_models_ref }}"
+        fi
+        git -C third_party/tt_forge_models rev-parse HEAD
+
     - name: Fetch job id
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
@@ -125,6 +142,7 @@ jobs:
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
         echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
+        echo "vulcan_identity_path=$(pwd)/vulcan_ci_identity_$JOB_ID.json" >> "$GITHUB_OUTPUT"
         # Override wheel_build to release if matrix.build.require is 'release' or 'alchemist'
         if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" ]]; then
           echo "wheel_build=release" >> "$GITHUB_OUTPUT"
@@ -143,6 +161,41 @@ jobs:
         else
           echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Write Vulcan CI identity artifact
+      shell: bash
+      env:
+        VULCAN_IDENTITY_PATH: ${{ steps.strings.outputs.vulcan_identity_path }}
+      run: |
+        python3 - <<'PY'
+        import json
+        import os
+        import subprocess
+
+        def git_revparse(path):
+            return subprocess.check_output(["git", "-C", path, "rev-parse", "HEAD"], text=True).strip()
+
+        payload = {
+            "github_run_id": os.environ["GITHUB_RUN_ID"],
+            "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+            "github_job": os.environ["GITHUB_JOB"],
+            "github_ref": os.environ["GITHUB_REF"],
+            "github_ref_name": os.environ["GITHUB_REF_NAME"],
+            "github_sha": os.environ["GITHUB_SHA"],
+            "tt_xla_sha": git_revparse("."),
+            "tt_forge_models_requested_ref": """${{ inputs.forge_models_ref }}""",
+            "tt_forge_models_resolved_sha": git_revparse("third_party/tt_forge_models"),
+            "job_id": """${{ steps.fetch-job-id.outputs.job_id }}""",
+            "test_dir": """${{ matrix.build.dir }}""",
+            "test_mark": """${{ matrix.build.test-mark }}""",
+            "runs_on": """${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}""",
+            "parallel_groups": """${{ matrix.build.parallel-groups || 1 }}""",
+            "group_id": """${{ matrix.build.group-id || 1 }}""",
+        }
+
+        with open(os.environ["VULCAN_IDENTITY_PATH"], "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True)
+        PY
 
     - name: Download and install wheels
       shell: bash
@@ -376,6 +429,13 @@ jobs:
       with:
         name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
+
+    - name: Upload Vulcan CI identity
+      uses: actions/upload-artifact@v6
+      if: success() || failure()
+      with:
+        name: vulcan-ci-identity-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.vulcan_identity_path }}
 
     # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
     - name: Upload Benchmark Report
