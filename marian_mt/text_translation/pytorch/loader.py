@@ -23,8 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MarianMT model variants for text translation."""
 
-    OPUS_MT_TC_BIG_FR_EN = "Opus_Mt_Tc_Big_Fr_En"
-    OPUS_MT_EN_ROMANCE = "Opus_Mt_En_Romance"
+    OPUS_MT_JA_EN = "Opus_Mt_Ja_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
     OPUS_MT_NL_UK = "Opus_Mt_Nl_Uk"
 
@@ -33,11 +32,8 @@ class ModelLoader(ForgeModel):
     """MarianMT model loader implementation for text translation."""
 
     _VARIANTS = {
-        ModelVariant.OPUS_MT_TC_BIG_FR_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-tc-big-fr-en",
-        ),
-        ModelVariant.OPUS_MT_EN_ROMANCE: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-ROMANCE",
+        ModelVariant.OPUS_MT_JA_EN: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-ja-en",
         ),
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
@@ -49,11 +45,9 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.OPUS_MT_TC_BIG_FR_EN
 
-    _SAMPLE_TEXTS = {
-        ModelVariant.OPUS_MT_TC_BIG_FR_EN: "La vie est belle et pleine de surprises.",
-        ModelVariant.OPUS_MT_EN_ROMANCE: ">>fr<< The weather is beautiful today and I am happy to be alive.",
+    sample_texts = {
+        ModelVariant.OPUS_MT_JA_EN: "今日はとても良い天気ですね。",
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
-        ModelVariant.OPUS_MT_NL_UK: "Het leven is mooi en vol verrassingen.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -115,7 +109,7 @@ class ModelLoader(ForgeModel):
 
         sample_text = self._SAMPLE_TEXTS.get(self._variant)
         inputs = self._tokenizer(
-            sample_text,
+            self.sample_texts[self._variant],
             return_tensors="pt",
         )
 
