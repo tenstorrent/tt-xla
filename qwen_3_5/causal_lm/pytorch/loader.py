@@ -35,12 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_27B_GGUF = "27B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_35B_A3B_AWQ_8BIT = "35B_A3B_AWQ_8BIT"
-    QWEN_3_5_2B_W4A16 = "2B_W4A16"
-    QWEN_3_5_0_8B_UNREDACTED_MAX_GGUF = "0.8B_Unredacted_MAX_GGUF"
-    QWEN_3_5_35B_A3B_UNCENSORED_GGUF = "35B_A3B_Uncensored_GGUF"
-    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
-    QWEN_3_5_4B_UNREDACTED_MAX_GGUF = "4B_Unredacted_MAX_GGUF"
+    QWEN_3_5_27B_AWQ_BF16_INT4 = "27B_AWQ_BF16_INT4"
 
 
 class ModelLoader(ForgeModel):
@@ -92,28 +87,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT: LLMModelConfig(
-            pretrained_model_name="cyankiwi/Qwen3.5-35B-A3B-AWQ-8bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_2B_W4A16: LLMModelConfig(
-            pretrained_model_name="Ekwav/ane-extraction-qwen3.5-2b-w4a16",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_0_8B_UNREDACTED_MAX_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-0.8B-Unredacted-MAX-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_UNCENSORED_GGUF: LLMModelConfig(
-            pretrained_model_name="LuffyTheFox/Qwen3.5-35B-A3B-Uncensored-HauhauCS-Kullback-Leibler",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_4B_UNREDACTED_MAX_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-4B-Unredacted-MAX-GGUF",
+        ModelVariant.QWEN_3_5_27B_AWQ_BF16_INT4: LLMModelConfig(
+            pretrained_model_name="cyankiwi/Qwen3.5-27B-AWQ-BF16-INT4",
             max_length=128,
         ),
     }
@@ -329,11 +304,7 @@ class ModelLoader(ForgeModel):
 
     def _is_awq_variant(self):
         """Check if the current variant uses AWQ quantization."""
-        return self._variant in (ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT,)
-
-    def _is_compressed_tensors_variant(self):
-        """Check if the current variant uses compressed-tensors quantization."""
-        return self._variant in (ModelVariant.QWEN_3_5_2B_W4A16,)
+        return self._variant in (ModelVariant.QWEN_3_5_27B_AWQ_BF16_INT4,)
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
