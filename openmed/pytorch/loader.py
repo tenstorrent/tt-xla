@@ -24,9 +24,18 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PATHOLOGY_MEDIUM = "ZeroShot-NER-Pathology-Medium-209M"
     OPENMED_ZEROSHOT_NER_PHARMA_TINY = "ZeroShot-NER-Pharma-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_PHARMA_MULTI = "ZeroShot-NER-Pharma-Multi-209M"
-    OPENMED_ZEROSHOT_NER_GENOME_TINY = "ZeroShot-NER-Genome-Tiny-60M"
-    OPENMED_ZEROSHOT_NER_ORGANISM_MEDIUM = "ZeroShot-NER-Organism-Medium-209M"
+    OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM = "ZeroShot-NER-Disease-Medium-209M"
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
+    ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM: "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
+}
+
+_VARIANT_LABELS = {
+    ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ["SPECIES"],
+    ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM: ["DISEASE"],
+}
 
 
 class ModelLoader(ForgeModel):
@@ -45,14 +54,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_MULTI: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pharma-Multi-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-Tiny-60M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_MEDIUM: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Organism-Medium-209M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-Medium-209M"
         ),
     }
 
@@ -157,20 +160,9 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        variant = self._variant or self.DEFAULT_VARIANT
-        if variant == ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MULTI:
-            text = "The patient was diagnosed with diabetes mellitus type 2."
-            labels = ["DISEASE"]
-        elif variant == ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_MEDIUM:
-            text = "Early detection of breast cancer improves survival rates."
-            labels = ["DISEASE"]
-        elif variant == ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_TINY:
-            text = "Administration of metformin reduced glucose levels significantly."
-            labels = ["CHE"]
-        else:
-            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
-            labels = ["SPECIES"]
+        text = _VARIANT_SAMPLE_TEXTS[self._variant_name]
         self.text = [text]
+        labels = _VARIANT_LABELS[self._variant_name]
         entity_types = list(dict.fromkeys(labels))
 
         (
