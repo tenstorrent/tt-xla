@@ -23,6 +23,17 @@ class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
     NER_PHARMADETECT_MODERNMED_149M = "OpenMed/OpenMed-NER-PharmaDetect-ModernMed-149M"
+    NER_GENOMICDETECT_BIOMED_335M = "OpenMed/OpenMed-NER-GenomicDetect-BioMed-335M"
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.NER_PHARMADETECT_MODERNMED_149M: (
+        "Administration of metformin reduced glucose levels significantly."
+    ),
+    ModelVariant.NER_GENOMICDETECT_BIOMED_335M: (
+        "The HeLa cell line was used to study BRCA1 gene expression patterns."
+    ),
+}
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +42,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.NER_PHARMADETECT_MODERNMED_149M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-ModernMed-149M",
+            max_length=128,
+        ),
+        ModelVariant.NER_GENOMICDETECT_BIOMED_335M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-BioMed-335M",
             max_length=128,
         ),
     }
@@ -42,8 +57,9 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = (
-            "Administration of metformin reduced glucose levels significantly."
+        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name,
+            "Administration of metformin reduced glucose levels significantly.",
         )
         self.max_length = 128
         self.tokenizer = None
