@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_4B = "4B"
     QWEN_3_5_9B = "9B"
     QWEN_3_5_27B = "27B"
+    QWEN_3_5_27B_FP8 = "27B_FP8"
     QWEN_3_5_35B_A3B = "35B_A3B"
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
     QWEN_3_5_397B_A17B_FP8 = "397B_A17B_FP8"
@@ -53,6 +54,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_27B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-27B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_27B_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-27B-FP8",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_35B_A3B: LLMModelConfig(
