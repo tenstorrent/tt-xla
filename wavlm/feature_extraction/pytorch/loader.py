@@ -24,19 +24,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available WavLM feature extraction model variants."""
 
-    BASE_PLUS = "Base Plus"
+    LARGE = "Large"
 
 
 class ModelLoader(ForgeModel):
     """WavLM model loader implementation for audio feature extraction."""
 
     _VARIANTS = {
-        ModelVariant.BASE_PLUS: ModelConfig(
-            pretrained_model_name="microsoft/wavlm-base-plus",
+        ModelVariant.LARGE: ModelConfig(
+            pretrained_model_name="microsoft/wavlm-large",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE_PLUS
+    DEFAULT_VARIANT = ModelVariant.LARGE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -57,9 +57,9 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_feature_extractor(self, dtype_override=None):
-        from transformers import Wav2Vec2FeatureExtractor
+        from transformers import WavLMFeatureExtractor
 
-        self._feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
+        self._feature_extractor = WavLMFeatureExtractor.from_pretrained(
             self._variant_config.pretrained_model_name,
         )
 
