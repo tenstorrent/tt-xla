@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     GPT_NEO_125M = "125M"
     GPT_NEO_1_3B = "1_3B"
     GPT_NEO_2_7B = "2_7B"
+    TINYSTORIES_33M = "TinyStories_33M"
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +44,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GPT_NEO_2_7B: LLMModelConfig(
             pretrained_model_name="EleutherAI/gpt-neo-2.7B",
+            max_length=256,
+        ),
+        ModelVariant.TINYSTORIES_33M: LLMModelConfig(
+            pretrained_model_name="roneneldan/TinyStories-33M",
             max_length=256,
         ),
     }
@@ -77,10 +82,15 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.TINYSTORIES_33M
+            else ModelGroup.GENERALITY
+        )
         return ModelInfo(
             model="GPT-Neo",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
