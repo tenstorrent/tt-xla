@@ -8,7 +8,6 @@ LayoutLMv2 document understanding model loader implementation (PyTorch).
 import torch
 from transformers import LayoutLMv2Model, LayoutLMv2Tokenizer
 from typing import Optional
-from PIL import Image
 
 from ...base import ForgeModel
 from ...config import (
@@ -20,7 +19,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
