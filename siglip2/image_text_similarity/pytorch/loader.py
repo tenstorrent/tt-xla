@@ -8,7 +8,7 @@ SigLIP2 model loader implementation for image-text similarity.
 import torch
 from transformers import AutoProcessor, AutoModel
 from typing import Optional
-from transformers.image_utils import load_image
+from datasets import load_dataset
 
 from ....base import ForgeModel
 from ....config import (
@@ -25,27 +25,46 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available SigLIP2 model variants for image-text similarity."""
 
-    SO400M_PATCH16_NAFLEX = "So400m_Patch16_Naflex"
+    SO400M_PATCH14_384 = "So400m_Patch14_384"
 
 
 class ModelLoader(ForgeModel):
     """SigLIP2 model loader implementation for image-text similarity tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.SO400M_PATCH16_NAFLEX: ModelConfig(
-            pretrained_model_name="google/siglip2-so400m-patch16-naflex",
+        ModelVariant.SO400M_PATCH14_384: ModelConfig(
+            pretrained_model_name="google/siglip2-so400m-patch14-384",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SO400M_PATCH16_NAFLEX
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.SO400M_PATCH14_384
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
+
+        # Configuration parameters
         self.processor = None
         self.text_prompts = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="SigLIP2",
             variant=variant,
@@ -56,16 +75,34 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
+        """Load processor for the current variant.
+
+        Returns:
+            The loaded processor instance
+        """
+        # Load the processor
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name
         )
+
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the SigLIP2 model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+
+        Returns:
+            torch.nn.Module: The SigLIP2 model instance for image-text similarity.
+        """
+        # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"return_dict": False}
 
+        # Load the model with dtype override if specified
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -76,13 +113,28 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the SigLIP2 model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+            batch_size: Optional batch size to override the default batch size of 1.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
+        # Ensure processor is initialized
         if self.processor is None:
             self._load_processor()
 
-        image = load_image("http://images.cocodataset.org/val2017/000000039769.jpg")
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
+        # Define text prompts for image-text similarity
         self.text_prompts = ["a photo of 2 cats", "a photo of 2 dogs"]
 
+        # Process both text and images
         inputs = self.processor(
             text=self.text_prompts,
             images=image,
@@ -90,10 +142,12 @@ class ModelLoader(ForgeModel):
             padding="max_length",
         )
 
+        # Replicate tensors for batch size
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
+        # Convert the input dtype to dtype_override if specified
         if dtype_override is not None:
             for key in inputs:
                 if torch.is_tensor(inputs[key]) and inputs[key].dtype == torch.float32:
