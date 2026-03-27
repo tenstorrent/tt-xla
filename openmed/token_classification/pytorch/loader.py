@@ -24,6 +24,9 @@ class ModelVariant(StrEnum):
 
     NER_PHARMADETECT_MODERNMED_149M = "OpenMed/OpenMed-NER-PharmaDetect-ModernMed-149M"
     NER_GENOMICDETECT_BIOMED_335M = "OpenMed/OpenMed-NER-GenomicDetect-BioMed-335M"
+    NER_PROTEINDETECT_PUBMED_V2_109M = (
+        "OpenMed/OpenMed-NER-ProteinDetect-PubMed-v2-109M"
+    )
 
 
 _VARIANT_SAMPLE_TEXTS = {
@@ -32,6 +35,9 @@ _VARIANT_SAMPLE_TEXTS = {
     ),
     ModelVariant.NER_GENOMICDETECT_BIOMED_335M: (
         "The HeLa cell line was used to study BRCA1 gene expression patterns."
+    ),
+    ModelVariant.NER_PROTEINDETECT_PUBMED_V2_109M: (
+        "Casein micelles are the primary protein component of milk."
     ),
 }
 
@@ -46,6 +52,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NER_GENOMICDETECT_BIOMED_335M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-BioMed-335M",
+            max_length=128,
+        ),
+        ModelVariant.NER_PROTEINDETECT_PUBMED_V2_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-PubMed-v2-109M",
             max_length=128,
         ),
     }
