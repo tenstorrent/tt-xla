@@ -28,17 +28,23 @@ class GraniteTTMConfig(ModelConfig):
 
 
 class ModelVariant(StrEnum):
+    R1 = "r1"
     R2 = "r2"
 
 
 class ModelLoader(ForgeModel):
     """Granite TinyTimeMixer model loader for time series forecasting.
 
-    Loads the IBM Granite TTM R2 model for zero-shot and few-shot
+    Loads IBM Granite TTM models for zero-shot and few-shot
     multivariate time series forecasting.
     """
 
     _VARIANTS = {
+        ModelVariant.R1: GraniteTTMConfig(
+            pretrained_model_name="ibm-granite/granite-timeseries-ttm-r1",
+            context_length=512,
+            prediction_length=96,
+        ),
         ModelVariant.R2: GraniteTTMConfig(
             pretrained_model_name="ibm-granite/granite-timeseries-ttm-r2",
             context_length=512,
