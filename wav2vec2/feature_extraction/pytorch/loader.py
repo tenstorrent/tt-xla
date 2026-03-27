@@ -61,13 +61,13 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self, dtype_override=None):
-        from transformers import Wav2Vec2Processor
+        from transformers import Wav2Vec2FeatureExtractor
 
         processor_kwargs = {}
         if dtype_override is not None:
             processor_kwargs["dtype"] = dtype_override
 
-        self._processor = Wav2Vec2Processor.from_pretrained(
+        self._processor = Wav2Vec2FeatureExtractor.from_pretrained(
             self._variant_config.pretrained_model_name, **processor_kwargs
         )
 
