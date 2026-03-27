@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# vLLM serve config for SmolLM3-3B on Tenstorrent hardware
+# SmolLM3 uses Transformers fallback backend (not yet a native vLLM model)
+
+model: HuggingFaceTB/SmolLM3-3B
+model_impl: transformers
+trust_remote_code: false
+
+dtype: bfloat16
+max_model_len: 8192
+max_num_seqs: 32
+max_num_batched_tokens: 8192
+
+gpu_memory_utilization: 0.90
+enforce_eager: false
+
+# Sampling defaults per HF recommendation:
+# temperature: 0.6, top_p: 0.95 — set per-request, not here
+
+host: "0.0.0.0"
+port: 8000
+uvicorn_log_level: "info"
+
+# Tensor parallel (adjust to chip count)
+tensor_parallel_size: 1
+
+# Tokenizer
+tokenizer: HuggingFaceTB/SmolLM3-3B
+
+# Tool-call support (SmolLM3 supports tool use natively)
+enable_auto_tool_choice: true
+tool_call_parser: hermes

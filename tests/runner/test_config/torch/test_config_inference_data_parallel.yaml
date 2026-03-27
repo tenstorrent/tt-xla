@@ -1227,3 +1227,22 @@ test_config:
     supported_archs: [n300]
     status: EXPECTED_PASSING
     required_pcc: 0.98
+
+  # SmolLM3-3B data-parallel
+  smollm3/causal_lm/pytorch-3B_Instruct-data_parallel-inference:
+    supported_archs: [n300]
+    status: UNSPECIFIED
+    bringup_status: NOT_STARTED
+    required_pcc: 0.98
+    assert_pcc: true
+    reason: "SmolLM3-3B data-parallel 2-chip — GQA broadcast correctness"
+    markers: [nightly]
+
+  smollm3/causal_lm/pytorch-3B_Base-data_parallel-inference:
+    supported_archs: [n300]
+    status: UNSPECIFIED
+    bringup_status: NOT_STARTED
+    required_pcc: 0.98
+    assert_pcc: true
+    reason: "SmolLM3-3B-Base data-parallel"
+    markers: [nightly]
