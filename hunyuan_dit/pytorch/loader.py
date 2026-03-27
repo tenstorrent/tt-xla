@@ -112,7 +112,7 @@ class ModelLoader(ForgeModel):
             torch.randn(seq_len, head_dim // 2, dtype=dtype),
         )
 
-        # Pooled CLIP text embeddings (pooled_projection_dim=1024)
+        # Attention masks for text encoders
         text_embedding_mask = torch.ones(batch_size, config.text_len, dtype=dtype)
         encoder_attention_mask = torch.ones(batch_size, config.text_len_t5, dtype=dtype)
 
