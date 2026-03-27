@@ -10,9 +10,10 @@ instances never run git commands against the same working directory.
 
 import argparse
 import json
+import multiprocessing
 import subprocess
 import sys
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
@@ -73,7 +74,12 @@ def run_model(model_id: str, worktree_path: Path):
     return model_id, result.returncode, reason
 
 
-def run_worker(worker_index: int, model_ids: list[str], base_branch: str):
+def run_worker(
+    worker_index: int,
+    model_ids: list[str],
+    base_branch: str,
+    result_queue: multiprocessing.Queue,
+):
     """Run all assigned models sequentially in this worker's worktree."""
     branch = f"{base_branch}-{worker_index}"
     worktree_path = WORKTREE_DIR / f"worker-{worker_index}"
@@ -81,16 +87,15 @@ def run_worker(worker_index: int, model_ids: list[str], base_branch: str):
     try:
         ensure_worktree(branch, worktree_path)
     except subprocess.CalledProcessError as e:
-        return [
-            (worker_index, mid, 1, f"worktree creation failed: {e.stderr.strip()}")
-            for mid in model_ids
-        ]
+        for mid in model_ids:
+            result_queue.put(
+                (worker_index, mid, 1, f"worktree creation failed: {e.stderr.strip()}")
+            )
+        return
 
-    results = []
     for mid in model_ids:
         _, rc, reason = run_model(mid, worktree_path)
-        results.append((worker_index, mid, rc, reason))
-    return results
+        result_queue.put((worker_index, mid, rc, reason))
 
 
 def main():
@@ -143,20 +148,25 @@ def main():
     for i, mid in enumerate(model_ids):
         chunks[i % num_workers].append(mid)
 
+    result_queue = multiprocessing.Queue()
+
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        futures = {
-            executor.submit(run_worker, worker_idx, chunk, base_branch): worker_idx
+        futures = [
+            executor.submit(run_worker, worker_idx, chunk, base_branch, result_queue)
             for worker_idx, chunk in enumerate(chunks)
-        }
+        ]
 
         completed = 0
-        for future in as_completed(futures):
-            for worker_index, model_id, rc, reason in future.result():
-                completed += 1
-                status = "OK" if rc == 0 else f"FAILED (rc={rc}): {reason}"
-                print(
-                    f"[{completed}/{len(model_ids)}] worker-{worker_index} {model_id}: {status}"
-                )
+        while completed < len(model_ids):
+            worker_index, model_id, rc, reason = result_queue.get()
+            completed += 1
+            status = "OK" if rc == 0 else f"FAILED (rc={rc}): {reason}"
+            print(
+                f"[{completed}/{len(model_ids)}] worker-{worker_index} {model_id}: {status}"
+            )
+
+        for future in futures:
+            future.result()
 
     print("All done.")
 
