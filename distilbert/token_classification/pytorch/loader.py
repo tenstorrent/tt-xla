@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
         "Davlan/distilbert-base-multilingual-cased-ner-hrl"
     )
     OPENMED_NER_ONCOLOGY_DETECT = "OpenMed_NER_OncologyDetect_TinyMed_66M"
+    OPENMED_NER_GENOMIC_DETECT = "OpenMed_NER_GenomicDetect_TinyMed_135M"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-TinyMed-66M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_GENOMIC_DETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-TinyMed-135M",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -52,6 +57,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_ONCOLOGY_DETECT: (
             "Mutations in KRAS gene drive oncogenic transformation."
+        ),
+        ModelVariant.OPENMED_NER_GENOMIC_DETECT: (
+            "The BRCA2 gene is associated with hereditary breast cancer."
         ),
     }
 
@@ -74,6 +82,7 @@ class ModelLoader(ForgeModel):
     _VARIANT_GROUPS = {
         ModelVariant.DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL: ModelGroup.GENERALITY,
         ModelVariant.OPENMED_NER_ONCOLOGY_DETECT: ModelGroup.VULCAN,
+        ModelVariant.OPENMED_NER_GENOMIC_DETECT: ModelGroup.VULCAN,
     }
 
     @classmethod
