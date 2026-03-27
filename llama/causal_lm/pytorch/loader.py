@@ -50,7 +50,7 @@ class ModelVariant(StrEnum):
 
     # Llama 3.3 variants
     LLAMA_3_3_70B_INSTRUCT = "3.3_70B_Instruct"
-    LLAMA_3_3_70B_INSTRUCT_AWQ = "3.3_70B_Instruct_AWQ"
+    LLAMA_3_3_70B_INSTRUCT_AWQ = "3.3_70B_Instruct_Awq"
 
     # RedHatAI FP8 quantized variants
     LLAMA_3_2_1B_INSTRUCT_FP8 = "3.2_1B_Instruct_FP8"
@@ -136,9 +136,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="meta-llama/Llama-3.3-70B-Instruct",
             max_length=128,
         ),
-        # AWQ quantized variants
         ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ: LLMModelConfig(
-            pretrained_model_name="casperhansen/llama-3.3-70b-instruct-awq",
+            pretrained_model_name="kosbu/Llama-3.3-70B-Instruct-AWQ",
             max_length=128,
         ),
         # HuggingFace community variants
@@ -194,8 +193,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        # Set group based on variant — VULCAN variants checked first to avoid
-        # being caught by the broad "70B" / "instruct" RED heuristics.
+        # Set group based on variant (instruct variants are RED priority except llama_3_8b_instruct and llama_3_1_405b_instruct variant)
         if variant in [
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
@@ -222,12 +220,6 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT,
         ]:
             group = ModelGroup.PRIORITY
-        elif variant in [
-            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8,
-            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
-            ModelVariant.YAHMA_LLAMA_7B,
-        ]:
-            group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
 
@@ -288,8 +280,9 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
         # Check if this is an AWQ variant and configure accordingly
-        if pretrained_model_name in ("casperhansen/llama-3.3-70b-instruct-awq",):
+        if pretrained_model_name in ("kosbu/Llama-3.3-70B-Instruct-AWQ",):
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
