@@ -4,9 +4,50 @@
 """
 Jina Embeddings v2 Small EN model loader implementation for sentence embedding generation.
 """
+import sys
+import types
+
 import torch
-from transformers import AutoModel, AutoTokenizer
-from typing import Optional
+from transformers import AutoConfig, AutoTokenizer
+from transformers.dynamic_module_utils import get_class_from_dynamic_module
+from huggingface_hub import hf_hub_download
+from safetensors.torch import load_file
+from typing import List, Optional, Set, Tuple
+
+# The jinaai/jina-embeddings-v2-small-en custom code depends on APIs removed
+# in transformers 5.x. Shim them so trust_remote_code=True works.
+
+
+def _find_pruneable_heads_and_indices(
+    heads: Set[int], n_heads: int, head_size: int, already_pruned_heads: Set[int]
+) -> Tuple[Set[int], torch.LongTensor]:
+    mask = torch.ones(n_heads, head_size)
+    heads = set(heads) - already_pruned_heads
+    for head in heads:
+        head = head - sum(1 if h < head else 0 for h in already_pruned_heads)
+        mask[head] = 0
+    mask = mask.view(-1).contiguous().eq(1)
+    index: torch.LongTensor = torch.arange(len(mask))[mask].long()
+    return heads, index
+
+
+if not hasattr(
+    __import__("transformers").pytorch_utils, "find_pruneable_heads_and_indices"
+):
+    import transformers.pytorch_utils
+
+    transformers.pytorch_utils.find_pruneable_heads_and_indices = (
+        _find_pruneable_heads_and_indices
+    )
+
+if "transformers.onnx" not in sys.modules:
+    _onnx_mod = types.ModuleType("transformers.onnx")
+
+    class _OnnxConfig:
+        pass
+
+    _onnx_mod.OnnxConfig = _OnnxConfig
+    sys.modules["transformers.onnx"] = _onnx_mod
 
 from ....base import ForgeModel
 from ....config import (
@@ -72,17 +113,56 @@ class ModelLoader(ForgeModel):
 
         return self.tokenizer
 
+    @staticmethod
+    def _get_head_mask(
+        head_mask: Optional[torch.Tensor],
+        num_hidden_layers: int,
+        is_attention_chunked: bool = False,
+    ) -> List[Optional[torch.Tensor]]:
+        if head_mask is not None:
+            head_mask = head_mask.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+            head_mask = head_mask.expand(num_hidden_layers, -1, -1, -1, -1)
+            if is_attention_chunked:
+                head_mask = head_mask.unsqueeze(-1)
+            return [head_mask[i] for i in range(num_hidden_layers)]
+        return [None] * num_hidden_layers
+
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {"trust_remote_code": True}
+        # The custom JinaBERT code is incompatible with transformers 5.x
+        # (meta device init + removed APIs), so we load manually on CPU.
+        config = AutoConfig.from_pretrained(
+            pretrained_model_name, trust_remote_code=True
+        )
+        if not hasattr(config, "is_decoder"):
+            config.is_decoder = False
+        if not hasattr(config, "add_cross_attention"):
+            config.add_cross_attention = False
+
         if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
+            config.torch_dtype = dtype_override
 
-        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model_class = get_class_from_dynamic_module(
+            "jinaai/jina-bert-implementation--modeling_bert.JinaBertModel",
+            pretrained_model_name,
+        )
+        model = model_class(config)
+
+        # Patch get_head_mask removed in transformers 5.x
+        if not hasattr(model, "get_head_mask"):
+            import types as _types
+
+            model.get_head_mask = _types.MethodType(self._get_head_mask, model)
+
+        weights_path = hf_hub_download(pretrained_model_name, "model.safetensors")
+        state_dict = load_file(weights_path)
+        model.load_state_dict(state_dict, strict=False)
+
+        if dtype_override is not None:
+            model = model.to(dtype_override)
+
         model.eval()
-
         return model
 
     def load_inputs(self, dtype_override=None):
