@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_CODER_NEXT = "Next"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
+    QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_4BIT = "30B_A3B_Instruct_GPTQ_4bit"
     QWEN_3_CODER_480B_A35B_INSTRUCT = "480B_A35B_Instruct"
 
 
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_4BIT: LLMModelConfig(
+            pretrained_model_name="btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit",
             max_length=128,
         ),
         ModelVariant.QWEN_3_CODER_480B_A35B_INSTRUCT: LLMModelConfig(
@@ -140,7 +145,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         # GPTQ variants need device_map="cpu" for CPU-based loading
-        if pretrained_model_name == "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-8bit":
+        if pretrained_model_name in (
+            "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-8bit",
+            "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit",
+        ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
             model_kwargs["ignore_mismatched_sizes"] = True
