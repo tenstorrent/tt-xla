@@ -95,6 +95,9 @@ class ModelVariant(StrEnum):
     # AMD Quark INT8 quantized variants
     LLAMA_3_1_8B_INSTRUCT_W_INT8_A_INT8_SYM = "3.1_8B_Instruct_W_Int8_A_Int8_Sym"
 
+    # Unsloth BnB 4-bit quantized variants
+    LLAMA_3_1_8B_INSTRUCT_BNB_4BIT = "3.1_8B_Instruct_Bnb_4bit"
+
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
 
@@ -220,9 +223,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
             max_length=128,
         ),
-        # AMD Quark INT8 quantized variants
-        ModelVariant.LLAMA_3_1_8B_INSTRUCT_W_INT8_A_INT8_SYM: LLMModelConfig(
-            pretrained_model_name="amd/Llama-3.1-8B-Instruct-w-int8-a-int8-sym-test",
+        # Unsloth BnB 4-bit quantized variants
+        ModelVariant.LLAMA_3_1_8B_INSTRUCT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
             max_length=128,
         ),
         # Llama 3.3 variants
@@ -329,7 +332,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_BNB_4BIT,
             ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_70B_INSTRUCT,
+            ModelVariant.LLAMA_3_1_8B_INSTRUCT_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -428,13 +431,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is a quantized variant and configure accordingly
-        if (
-            pretrained_model_name
-            == "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4"
-        ) or self._variant in (
-            ModelVariant.TINYLLAMA_BNB_4BIT,
-            ModelVariant.LLAMA_3_2_1B_INSTRUCT_BNB_4BIT,
+        # Check if this is an AWQ or BnB variant and configure accordingly
+        if pretrained_model_name in (
+            "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+            "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
