@@ -2,76 +2,54 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER model loader implementation for token classification.
+OpenMed NER model loader implementation for blood cancer entity detection.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
-from ....base import ForgeModel
-from ....config import (
-    ModelConfig,
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
+from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available OpenMed NER model variants."""
+    """Available OpenMed NER model variants for blood cancer detection."""
 
-    ONCOLOGY_DETECT_SUPERMEDICAL_125M = "OncologyDetect-SuperMedical-125M"
-    DISEASE_DETECT_MODERNMED_395M = "DiseaseDetect-ModernMed-395M"
-    BLOOD_CANCER_DETECT_MODERNMED_395M = "BloodCancerDetect-ModernMed-395M"
-    SPECIES_DETECT_TINYMED_65M = "SpeciesDetect-TinyMed-65M"
-
-
-_VARIANT_SAMPLE_TEXTS = {
-    ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M: "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
-    ModelVariant.DISEASE_DETECT_MODERNMED_395M: "The patient was diagnosed with diabetes mellitus type 2 and chronic obstructive pulmonary disease.",
-    ModelVariant.BLOOD_CANCER_DETECT_MODERNMED_395M: "The patient presented with chronic lymphocytic leukemia symptoms.",
-    ModelVariant.SPECIES_DETECT_TINYMED_65M: "Escherichia coli bacteria were found in the water samples.",
-}
+    OPENMED_NER_BLOODCANCER_DETECT = "BloodCancerDetect_SuperClinical_184M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER model loader implementation for token classification tasks."""
+    """OpenMed NER model loader for blood cancer entity detection."""
 
     _VARIANTS = {
-        ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-SuperMedical-125M",
-        ),
-        ModelVariant.DISEASE_DETECT_MODERNMED_395M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-DiseaseDetect-ModernMed-395M",
-        ),
-        ModelVariant.BLOOD_CANCER_DETECT_MODERNMED_395M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-ModernMed-395M",
-        ),
-        ModelVariant.SPECIES_DETECT_TINYMED_65M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-TinyMed-65M",
+        ModelVariant.OPENMED_NER_BLOODCANCER_DETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-SuperClinical-184M",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_BLOODCANCER_DETECT
 
     def __init__(self, variant=None):
         super().__init__(variant)
+        self.model_name = self._variant_config.pretrained_model_name
+        self.sample_text = "The patient presented with chronic lymphocytic leukemia symptoms including lymphadenopathy and splenomegaly."
+        self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.model = None
-        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
-            self._variant_name,
-            "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
-        )
-        self.max_length = 128
 
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = cls.DEFAULT_VARIANT
+            variant_name = "BloodCancerDetect_SuperClinical_184M"
         return ModelInfo(
-            model="OpenMed",
+            model="OpenMed NER",
             variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
@@ -80,9 +58,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -90,10 +66,10 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForTokenClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self.model_name, **model_kwargs
         )
-        model.eval()
         self.model = model
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -121,4 +97,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Predicted Labels: {predicted_tokens_classes}")
+        print(f"NER Tags: {predicted_tokens_classes}")
