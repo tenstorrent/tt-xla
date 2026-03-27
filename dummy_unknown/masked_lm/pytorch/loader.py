@@ -3,9 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 Dummy Unknown (RoBERTa) For Masked LM model loader implementation
+
+This is a tiny dummy RoBERTa model (vocab_size=10, hidden_size=20) intended
+for testing. Because the vocabulary is only 10 tokens, we generate synthetic
+inputs directly rather than using a real tokenizer.
 """
 import torch
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+from transformers import AutoModelForMaskedLM, AutoConfig
 from typing import Optional
 
 from ....base import ForgeModel
@@ -47,7 +51,7 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self.tokenizer = None
+        self.config = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -69,16 +73,16 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self):
-        """Load tokenizer for the current variant.
+    def _load_config(self):
+        """Load model config for the current variant.
 
         Returns:
-            The loaded tokenizer instance
+            The loaded config instance
         """
-        self.tokenizer = AutoTokenizer.from_pretrained(
+        self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name
         )
-        return self.tokenizer
+        return self.config
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Dummy Unknown model instance for this instance's variant.
@@ -92,8 +96,8 @@ class ModelLoader(ForgeModel):
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        if self.config is None:
+            self._load_config()
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -109,6 +113,9 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the Dummy Unknown model.
 
+        This model has a tiny vocabulary (vocab_size=10), so we generate
+        synthetic input_ids within the valid range rather than using a tokenizer.
+
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
             batch_size: Optional batch size to override the default batch size of 1.
@@ -116,12 +123,17 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors (input_ids, attention_mask) that can be fed to the model.
         """
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        if self.config is None:
+            self._load_config()
 
-        test_input = "The capital of France is <mask>."
+        seq_length = 8
+        vocab_size = self.config.vocab_size
 
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        # Generate random token IDs within the valid vocabulary range
+        input_ids = torch.randint(0, vocab_size, (1, seq_length))
+        attention_mask = torch.ones(1, seq_length, dtype=torch.long)
+
+        inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
@@ -136,24 +148,13 @@ class ModelLoader(ForgeModel):
             outputs: Model output from a forward pass
 
         Returns:
-            str: Decoded predicted token for the mask position
+            str: String representation of the predicted token IDs
         """
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
         if isinstance(outputs, list):
             logits = outputs[0].logits if hasattr(outputs[0], "logits") else outputs[0]
         else:
             logits = outputs.logits if hasattr(outputs, "logits") else outputs
 
-        inputs = self.load_inputs()
+        predicted_token_ids = logits[0].argmax(axis=-1)
 
-        mask_token_index = (inputs["input_ids"] == self.tokenizer.mask_token_id)[
-            0
-        ].nonzero(as_tuple=True)[0]
-
-        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
-
-        output = self.tokenizer.decode(predicted_token_id)
-
-        return f"Output: {output}"
+        return f"Output token IDs: {predicted_token_ids.tolist()}"
