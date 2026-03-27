@@ -25,7 +25,13 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa token classification model variants."""
 
     CRYPTO_NER = "CryptoNER"
-    AR86BAT_MULTILANG_PII_NER = "Ar86Bat/multilang-pii-ner"
+    OPENMED_NER_SPECIES_DETECT = "OpenMed/OpenMed-NER-SpeciesDetect-MultiMed-568M"
+
+
+_SAMPLE_TEXTS = {
+    ModelVariant.CRYPTO_NER: "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
+    ModelVariant.OPENMED_NER_SPECIES_DETECT: "Escherichia coli bacteria were found in the water samples collected from the river.",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +41,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.CRYPTO_NER: ModelConfig(
             pretrained_model_name="covalenthq/cryptoNER",
         ),
-        ModelVariant.AR86BAT_MULTILANG_PII_NER: ModelConfig(
-            pretrained_model_name="Ar86Bat/multilang-pii-ner",
+        ModelVariant.OPENMED_NER_SPECIES_DETECT: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-MultiMed-568M",
         ),
     }
 
@@ -46,12 +52,10 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        if self._variant == ModelVariant.AR86BAT_MULTILANG_PII_NER:
-            self.sample_text = "John Doe was born on 12/12/1990 and lives in Berlin."
-        else:
-            self.sample_text = (
-                "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday"
-            )
+        self.sample_text = _SAMPLE_TEXTS.get(
+            self.variant,
+            "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
+        )
         self.max_length = 128
 
     @classmethod
