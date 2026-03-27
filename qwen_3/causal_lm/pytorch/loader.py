@@ -41,7 +41,7 @@ class ModelVariant(StrEnum):
     QWEN_3_32B = "32B"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
-    QWEN_3_235B_A22B_INSTRUCT_2507_FP8 = "235B_A22B_Instruct_2507_FP8"
+    QWEN_3_14B_AWQ = "14B_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -97,8 +97,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
+        ModelVariant.QWEN_3_14B_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
     }
@@ -141,7 +141,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
+            ModelVariant.QWEN_3_14B_AWQ,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -198,8 +198,9 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # AWQ variants need CPU device map for dequantization
-        if pretrained_model_name == "Qwen/Qwen3-4B-AWQ":
+
+        # Check if this is an AWQ variant and configure accordingly
+        if pretrained_model_name == "Qwen/Qwen3-14B-AWQ":
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
