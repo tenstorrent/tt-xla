@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available LFM2 GGUF model variants for causal language modeling."""
 
-    LFM2_24B_A2B_GGUF = "24B_A2B_GGUF"
+    LFM2_1_2B_EXTRACT_GGUF = "1.2B_Extract_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """LFM2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LFM2_24B_A2B_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/LFM2-24B-A2B-GGUF",
+        ModelVariant.LFM2_1_2B_EXTRACT_GGUF: LLMModelConfig(
+            pretrained_model_name="LiquidAI/LFM2-1.2B-Extract-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LFM2_24B_A2B_GGUF
+    DEFAULT_VARIANT = ModelVariant.LFM2_1_2B_EXTRACT_GGUF
 
-    GGUF_FILE = "LFM2-24B-A2B-Q4_K_M.gguf"
+    GGUF_FILE = "LFM2-1.2B-Extract-Q4_K_M.gguf"
 
-    sample_text = "The quick brown fox jumps over the lazy dog."
+    sample_text = "Extract the invoice number and total amount from this document."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
