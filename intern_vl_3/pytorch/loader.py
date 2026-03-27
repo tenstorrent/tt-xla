@@ -5,17 +5,18 @@
 InternVL3 model loader implementation for multimodal visual question answering.
 """
 
+from typing import Optional
+
 import torch
 import torchvision.transforms as T
 from PIL import Image
 from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoModel, AutoTokenizer
-from typing import Optional
 
 from ...tools.utils import get_file
 from ...base import ForgeModel
 from ...config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -122,7 +123,7 @@ class ModelLoader(ForgeModel):
     """InternVL3 model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.INTERN_VL3_14B: ModelConfig(
+        ModelVariant.INTERN_VL3_14B: LLMModelConfig(
             pretrained_model_name="OpenGVLab/InternVL3-14B",
         ),
     }
