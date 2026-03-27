@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_32B_NVFP4 = "32B_NVFP4"
+    QWEN_3_4B_BNB_4BIT = "4B_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -149,6 +150,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nvidia/Qwen3-32B-NVFP4",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_4B_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-4B-unsloth-bnb-4bit",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -202,6 +207,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_32B_NVFP4,
+            ModelVariant.QWEN_3_4B_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -263,26 +269,13 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
-        # because the packed FP4 weight shapes differ from the model definition.
-        if self._variant in self._NVFP4_VARIANTS:
-            model_kwargs["ignore_mismatched_sizes"] = True
-
-        # Check if this is a quantized variant (AWQ/GPTQ) and configure accordingly
-        if pretrained_model_name in (
-            "Qwen/Qwen3-8B-AWQ",
-            "JunHowie/Qwen3-30B-A3B-Instruct-2507-GPTQ-Int4",
-            "unsloth/Qwen3-4B-Thinking-2507-unsloth-bnb-4bit",
-            "unsloth/Qwen3-4B-Instruct-2507-bnb-4bit",
-            "unsloth/Qwen3-30B-A3B-Instruct-2507",
-            "cyankiwi/Qwen3-30B-A3B-Thinking-2507-AWQ-4bit",
-        ):
+        # Check if this is an AWQ or BnB variant and configure accordingly
+        if pretrained_model_name in ("Qwen/Qwen3-8B-AWQ",):
             model_kwargs["device_map"] = "cpu"
 
-        # NVFP4 variants require ignore_mismatched_sizes because the packed
-        # FP4 weight shapes differ from the model definition.
-        if self._variant in self._NVFP4_VARIANTS:
-            model_kwargs["ignore_mismatched_sizes"] = True
+        # BnB variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_3_4B_BNB_4BIT:
+            model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
 
