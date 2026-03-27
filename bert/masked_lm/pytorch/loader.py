@@ -32,21 +32,11 @@ class ModelVariant(StrEnum):
     BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
-    BERT_UNCASED_L2_H256_A4 = "bert_uncased_L-2_H-256_A-4"
-    GBERT_BASE = "deepset/gbert-base"
-    BERT_BASE_ROMANIAN_CASED_V1 = "dumitrescustefan/bert-base-romanian-cased-v1"
-    BERT_BASE_FINNISH_CASED_V1 = "TurkuNLP/bert-base-finnish-cased-v1"
-    BERT_BASE_ARABERTV02_TWITTER = "aubmindlab/bert-base-arabertv02-twitter"
-    MACBERT4CSC_BASE_CHINESE = "shibing624/macbert4csc-base-chinese"
-    BERT_BASE_HISTORIC_MULTILINGUAL_CASED = (
-        "dbmdz/bert-base-historic-multilingual-cased"
-    )
-    BERT_BASE_CANTONESE = "indiejoseph/bert-base-cantonese"
+    TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2 = "tohoku-nlp/bert-base-japanese-char-v2"
 
 
 _SAMPLE_TEXTS = {
-    ModelVariant.MACBERT4CSC_BASE_CHINESE: "今天新情很好",
-    ModelVariant.BERT_BASE_CANTONESE: "今日天氣好[MASK]。",
+    ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2: "東京は日本の[MASK]です。",
 }
 
 
@@ -83,36 +73,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
-        ModelVariant.BERT_UNCASED_L2_H256_A4: LLMModelConfig(
-            pretrained_model_name="google/bert_uncased_L-2_H-256_A-4",
-            max_length=128,
-        ),
-        ModelVariant.GBERT_BASE: LLMModelConfig(
-            pretrained_model_name="deepset/gbert-base",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_ROMANIAN_CASED_V1: LLMModelConfig(
-            pretrained_model_name="dumitrescustefan/bert-base-romanian-cased-v1",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_FINNISH_CASED_V1: LLMModelConfig(
-            pretrained_model_name="TurkuNLP/bert-base-finnish-cased-v1",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_ARABERTV02_TWITTER: LLMModelConfig(
-            pretrained_model_name="aubmindlab/bert-base-arabertv02-twitter",
-            max_length=64,
-        ),
-        ModelVariant.MACBERT4CSC_BASE_CHINESE: LLMModelConfig(
-            pretrained_model_name="shibing624/macbert4csc-base-chinese",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_HISTORIC_MULTILINGUAL_CASED: LLMModelConfig(
-            pretrained_model_name="dbmdz/bert-base-historic-multilingual-cased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_CANTONESE: LLMModelConfig(
-            pretrained_model_name="indiejoseph/bert-base-cantonese",
+        ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2: LLMModelConfig(
+            pretrained_model_name="tohoku-nlp/bert-base-japanese-char-v2",
             max_length=128,
         ),
     }
@@ -158,14 +120,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
-            ModelVariant.BERT_UNCASED_L2_H256_A4,
-            ModelVariant.GBERT_BASE,
-            ModelVariant.BERT_BASE_ROMANIAN_CASED_V1,
-            ModelVariant.BERT_BASE_FINNISH_CASED_V1,
-            ModelVariant.BERT_BASE_ARABERTV02_TWITTER,
-            ModelVariant.MACBERT4CSC_BASE_CHINESE,
-            ModelVariant.BERT_BASE_HISTORIC_MULTILINGUAL_CASED,
-            ModelVariant.BERT_BASE_CANTONESE,
+            ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
@@ -189,7 +144,7 @@ class ModelLoader(ForgeModel):
         """
 
         # Initialize tokenizer
-        if self._variant == ModelVariant.BERT_BASE_JAPANESE_V3:
+        if self._variant == ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2:
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         else:
             self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
