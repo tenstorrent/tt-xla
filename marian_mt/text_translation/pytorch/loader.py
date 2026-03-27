@@ -31,14 +31,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_ROA_EN = "Opus_Mt_Roa_En"
     OPUS_MT_EU_EN = "Opus_Mt_Eu_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
-    OPUS_MT_ROMANCE_EN = "Opus_Mt_Romance_En"
-    OPUS_MT_EN_ZLW = "Opus_Mt_En_Zlw"
-    OPUS_MT_EN_FI = "Opus_Mt_En_Fi"
-    OPUS_MT_EN_NL = "Opus_Mt_En_Nl"
-    OPUS_MT_EN_UK = "Opus_Mt_En_Uk"
-    OPUS_MT_TC_BIG_KO_EN = "Opus_Mt_Tc_Big_Ko_En"
-    OPUS_MT_JAP_EN = "Opus_Mt_Jap_En"
-    OPUS_MT_EN_MUL = "Opus_Mt_En_Mul"
+    OPUS_MT_EN_IT = "Opus_Mt_En_It"
 
 
 class ModelLoader(ForgeModel):
@@ -69,29 +62,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
-        ModelVariant.OPUS_MT_ROMANCE_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-ROMANCE-en",
-        ),
-        ModelVariant.OPUS_MT_EN_ZLW: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-zlw",
-        ),
-        ModelVariant.OPUS_MT_EN_FI: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-fi",
-        ),
-        ModelVariant.OPUS_MT_EN_NL: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-nl",
-        ),
-        ModelVariant.OPUS_MT_EN_UK: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-uk",
-        ),
-        ModelVariant.OPUS_MT_TC_BIG_KO_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-tc-big-ko-en",
-        ),
-        ModelVariant.OPUS_MT_JAP_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-jap-en",
-        ),
-        ModelVariant.OPUS_MT_EN_MUL: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-mul",
+        ModelVariant.OPUS_MT_EN_IT: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-en-it",
         ),
     }
 
@@ -99,14 +71,7 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
-        ModelVariant.OPUS_MT_ROMANCE_EN: "Bonjour le monde, il fait très beau aujourd'hui.",
-        ModelVariant.OPUS_MT_EN_ZLW: ">>pol<< The weather is beautiful today.",
-        ModelVariant.OPUS_MT_EN_FI: "The weather is beautiful today.",
-        ModelVariant.OPUS_MT_EN_NL: "My friends are cool but they eat too many carbs.",
-        ModelVariant.OPUS_MT_EN_UK: "My name is Wolfgang and I live in Berlin.",
-        ModelVariant.OPUS_MT_TC_BIG_KO_EN: "2, 4, 6 등은 짝수이다.",
-        ModelVariant.OPUS_MT_JAP_EN: "今日はとても良い天気です。",
-        ModelVariant.OPUS_MT_EN_MUL: ">>fra<< The weather is beautiful today.",
+        ModelVariant.OPUS_MT_EN_IT: "My name is Wolfgang and I live in Berlin.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
