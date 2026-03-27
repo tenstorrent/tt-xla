@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available mxbai-rerank model variants for passage ranking."""
 
     BASE_V1 = "base-v1"
+    LARGE_V1 = "large-v1"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE_V1: ModelConfig(
             pretrained_model_name="mixedbread-ai/mxbai-rerank-base-v1",
+        ),
+        ModelVariant.LARGE_V1: ModelConfig(
+            pretrained_model_name="mixedbread-ai/mxbai-rerank-large-v1",
         ),
     }
 
