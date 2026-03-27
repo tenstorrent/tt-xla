@@ -25,11 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 PyTorch speech recognition model variants."""
 
     BASE_960H = "Base_960h"
-    LARGE_XLSR_53_BRETON = "Large_XLSR_53_Breton"
-    LARGE_XLSR_JAVANESE = "Large_XLSR_Javanese"
-    COMMONPHONE = "CommonPhone"
-    LARGE_XLSR_ESTONIAN = "Large_XLSR_Estonian"
-    INDICWAV2VEC_HINDI = "IndicWav2Vec_Hindi"
+    XLSR_53_PUNJABI = "XLSR_53_Punjabi"
 
 
 class ModelLoader(ForgeModel):
@@ -39,20 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.LARGE_XLSR_53_BRETON: ModelConfig(
-            pretrained_model_name="Marxav/wav2vec2-large-xlsr-53-breton",
-        ),
-        ModelVariant.LARGE_XLSR_JAVANESE: ModelConfig(
-            pretrained_model_name="cahya/wav2vec2-large-xlsr-javanese",
-        ),
-        ModelVariant.COMMONPHONE: ModelConfig(
-            pretrained_model_name="pklumpp/Wav2Vec2_CommonPhone",
-        ),
-        ModelVariant.LARGE_XLSR_ESTONIAN: ModelConfig(
-            pretrained_model_name="manandey/wav2vec2-large-xlsr-estonian",
-        ),
-        ModelVariant.INDICWAV2VEC_HINDI: ModelConfig(
-            pretrained_model_name="ai4bharat/indicwav2vec-hindi",
+        ModelVariant.XLSR_53_PUNJABI: ModelConfig(
+            pretrained_model_name="kingabzpro/wav2vec2-large-xlsr-53-punjabi",
         ),
     }
 
