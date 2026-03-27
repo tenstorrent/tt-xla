@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
     """Available MiniMax-M2.5 model variants for causal language modeling."""
 
     MINIMAX_M2_5 = "M2.5"
-    MINIMAX_M2_5_AWQ = "M2.5_Awq"
+    MINIMAX_M2_5_MLX_8BIT = "M2.5-MLX-8bit"
 
 
 class ModelLoader(ForgeModel):
@@ -42,8 +42,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="MiniMaxAI/MiniMax-M2.5",
             max_length=128,
         ),
-        ModelVariant.MINIMAX_M2_5_AWQ: LLMModelConfig(
-            pretrained_model_name="QuantTrio/MiniMax-M2.5-AWQ",
+        ModelVariant.MINIMAX_M2_5_MLX_8BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/MiniMax-M2.5-MLX-8bit",
             max_length=128,
         ),
     }
