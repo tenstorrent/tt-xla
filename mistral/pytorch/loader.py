@@ -47,8 +47,7 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     CODESTRAL_22B_V01 = "Codestral_22B_v01"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MISTRAL_7B_INSTRUCT_V02_BNB_4BIT = "7B_INSTRUCT_v02_bnb_4bit"
-    MISTRAL_V03_TINY_RANDOM = "v0.3_tiny_random"
+    MISTRAL_7B_INSTRUCT_V03_GPTQ = "7B_INSTRUCT_v03_GPTQ"
 
 
 class ModelLoader(ForgeModel):
@@ -130,11 +129,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.MISTRAL_7B_INSTRUCT_V02_BNB_4BIT: ModelConfig(
-            pretrained_model_name="unsloth/mistral-7b-instruct-v0.2-bnb-4bit",
-        ),
-        ModelVariant.MISTRAL_V03_TINY_RANDOM: ModelConfig(
-            pretrained_model_name="yujiepan/mistral-v0.3-tiny-random",
+        ModelVariant.MISTRAL_7B_INSTRUCT_V03_GPTQ: ModelConfig(
+            pretrained_model_name="thesven/Mistral-7B-Instruct-v0.3-GPTQ",
         ),
     }
 
@@ -172,9 +168,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_7B_INSTRUCT_V02_BNB_4BIT,
-            ModelVariant.MISTRAL_V03_TINY_RANDOM,
-            ModelVariant.MISTRAL_SMALL_24B_BASE_2501,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V03_GPTQ,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
@@ -259,10 +253,10 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        # BnB variants need device_map="cpu" for CPU-based loading
+        # Quantized variants need device_map="cpu" for CPU-based loading
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_7B_INSTRUCT_V02_BNB_4BIT,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V03_GPTQ,
         ):
             model_kwargs["device_map"] = "cpu"
 
