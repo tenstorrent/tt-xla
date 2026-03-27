@@ -30,11 +30,8 @@ class ModelVariant(StrEnum):
         "Davlan/bert-base-multilingual-cased-ner-hrl"
     )
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    MRM8488_BERT_SPANISH_CASED_FINETUNED_NER = (
-        "mrm8488/bert-spanish-cased-finetuned-ner"
-    )
-    JTLICARDO_BPMN_INFORMATION_EXTRACTION_V2 = (
-        "jtlicardo/bpmn-information-extraction-v2"
+    CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MSA_NER = (
+        "CAMeL-Lab/bert-base-arabic-camelbert-msa-ner"
     )
 
 
@@ -59,12 +56,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.MRM8488_BERT_SPANISH_CASED_FINETUNED_NER: LLMModelConfig(
-            pretrained_model_name="mrm8488/bert-spanish-cased-finetuned-ner",
-            max_length=128,
-        ),
-        ModelVariant.JTLICARDO_BPMN_INFORMATION_EXTRACTION_V2: LLMModelConfig(
-            pretrained_model_name="jtlicardo/bpmn-information-extraction-v2",
+        ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MSA_NER: LLMModelConfig(
+            pretrained_model_name="CAMeL-Lab/bert-base-arabic-camelbert-msa-ner",
             max_length=128,
         ),
     }
@@ -86,15 +79,11 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         if self._variant in (
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER,
+            ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MSA_NER,
         ):
-            self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.MRM8488_BERT_SPANISH_CASED_FINETUNED_NER:
             self.sample_text = (
-                "Barcelona es una ciudad de España donde nació Pablo Picasso"
+                "إمارة أبوظبي هي إحدى إمارات دولة الإمارات العربية المتحدة السبع"
             )
-        elif self._variant == ModelVariant.JTLICARDO_BPMN_INFORMATION_EXTRACTION_V2:
-            self.sample_text = "The manager reviews the document and sends it to the client for approval"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -119,8 +108,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.MRM8488_BERT_SPANISH_CASED_FINETUNED_NER,
-            ModelVariant.JTLICARDO_BPMN_INFORMATION_EXTRACTION_V2,
+            ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MSA_NER,
         ):
             group = ModelGroup.VULCAN
 
