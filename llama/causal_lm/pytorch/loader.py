@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
 
     # Llama 3.3 variants
     LLAMA_3_3_70B_INSTRUCT = "3.3_70B_Instruct"
+    LLAMA_3_3_70B_INSTRUCT_AWQ = "3.3_70B_Instruct_AWQ"
 
     # RedHatAI FP8 quantized variants
     LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
@@ -127,6 +128,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="meta-llama/Llama-3.3-70B-Instruct",
             max_length=128,
         ),
+        # AWQ quantized variants
+        ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="casperhansen/llama-3.3-70b-instruct-awq",
+            max_length=128,
+        ),
         # HuggingFace community variants
         ModelVariant.HUGGYLLAMA_7B: LLMModelConfig(
             pretrained_model_name="huggyllama/llama-7b",
@@ -199,6 +205,7 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.PRIORITY
         elif variant in [
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
         ]:
             group = ModelGroup.VULCAN
         else:
@@ -261,6 +268,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        # Check if this is an AWQ variant and configure accordingly
+        if pretrained_model_name in ("casperhansen/llama-3.3-70b-instruct-awq",):
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
@@ -420,6 +431,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_70B,
             ModelVariant.LLAMA_3_1_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
         ]:
