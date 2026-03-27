@@ -47,7 +47,7 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.LARGE: ModelConfig(
-            pretrained_model_name="depth-anything/da3-large",
+            pretrained_model_name="depth-anything/DA3-LARGE",
         ),
     }
 
