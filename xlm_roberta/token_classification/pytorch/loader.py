@@ -25,15 +25,7 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa token classification model variants."""
 
     CRYPTO_NER = "CryptoNER"
-    TNER_ONTONOTES5 = "TNER-OntoNotes5"
-    OPENMED_NER_DNADETECT_BIGMED_278M = "OpenMed-NER-DNADetect-BigMed-278M"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.CRYPTO_NER: "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
-    ModelVariant.TNER_ONTONOTES5: "My name is Wolfgang and I live in Berlin",
-    ModelVariant.OPENMED_NER_DNADETECT_BIGMED_278M: "The p53 protein plays a crucial role in tumor suppression by regulating BRCA1 gene expression.",
-}
+    YEAJINMIN_NER_NEWSBI = "yeajinmin/NER-NewsBI-150142-e3b4"
 
 
 class ModelLoader(ForgeModel):
@@ -43,11 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.CRYPTO_NER: ModelConfig(
             pretrained_model_name="covalenthq/cryptoNER",
         ),
-        ModelVariant.TNER_ONTONOTES5: ModelConfig(
-            pretrained_model_name="asahi417/tner-xlm-roberta-base-ontonotes5",
-        ),
-        ModelVariant.OPENMED_NER_DNADETECT_BIGMED_278M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-BigMed-278M",
+        ModelVariant.YEAJINMIN_NER_NEWSBI: ModelConfig(
+            pretrained_model_name="yeajinmin/NER-NewsBI-150142-e3b4",
         ),
     }
 
@@ -57,10 +46,12 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        self.sample_text = _SAMPLE_TEXTS.get(
-            self._variant,
-            "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
-        )
+        if self._variant == ModelVariant.YEAJINMIN_NER_NEWSBI:
+            self.sample_text = "삼성전자는 서울에서 새로운 반도체 공장을 발표했다"
+        else:
+            self.sample_text = (
+                "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday"
+            )
         self.max_length = 128
 
     @classmethod
