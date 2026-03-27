@@ -8,11 +8,8 @@ allowed-tools: Bash Read Grep Glob Write Edit Task Fetch
 
 Graph breaks occur when a model, pipeline, or script is split into more graphs than necessary during compilation.
 Graph breaks in TT compilation happen either as a result of torch dynamo tracing, torch_xla tracing or in rare cases as byproduct of torch.export.
-Common missconception is that different mlir modules are graph breaks. This is not true, when compiler starts going into mlir (starting with vhlo) those are just versions of the same graph.
-## When to Use
+Common misconception is that different mlir modules are graph breaks. This is not true, when compiler starts going into mlir (starting with vhlo) those are just versions of the same graph.
 
-- User says "I have graph break" or "my model generated many graphs"
-- Debugging excessive graph generation during compilation
 
 ## Context
 
