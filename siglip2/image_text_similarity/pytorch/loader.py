@@ -8,7 +8,7 @@ SigLIP2 model loader implementation for image-text similarity.
 import torch
 from transformers import AutoProcessor, AutoModel
 from typing import Optional
-from datasets import load_dataset
+from transformers.image_utils import load_image
 
 from ....base import ForgeModel
 from ....config import (
@@ -79,8 +79,7 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        image = load_image("http://images.cocodataset.org/val2017/000000039769.jpg")
 
         self.text_prompts = ["a photo of 2 cats", "a photo of 2 dogs"]
 
