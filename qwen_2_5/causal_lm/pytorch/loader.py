@@ -43,7 +43,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_72B = "72B"
     QWEN_2_5_MATH_1_5B = "Math_1.5B"
     QWEN_2_5_MATH_7B = "Math_7B"
-    QWEN_2_5_3B_INSTRUCT_AWQ = "3B_Instruct_Awq"
+    QWEN_2_5_MATH_7B_INSTRUCT = "Math_7B_Instruct"
     QWEN_2_5_14B_INSTRUCT_AWQ = "14B_Instruct_Awq"
     QWEN_2_5_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
     QWEN_2_5_14B_INSTRUCT_1M_AWQ = "14B_Instruct_1M_Awq"
@@ -124,8 +124,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-Math-7B",
             max_length=128,
         ),
-        ModelVariant.QWEN_2_5_3B_INSTRUCT_AWQ: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2.5-3B-Instruct-AWQ",
+        ModelVariant.QWEN_2_5_MATH_7B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-Math-7B-Instruct",
             max_length=128,
         ),
         ModelVariant.QWEN_2_5_14B_INSTRUCT_AWQ: LLMModelConfig(
@@ -199,7 +199,7 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.RED
         if variant in [
             ModelVariant.QWEN_2_5_MATH_1_5B,
-            ModelVariant.QWEN_2_5_3B_INSTRUCT_AWQ,
+            ModelVariant.QWEN_2_5_MATH_7B_INSTRUCT,
             ModelVariant.QWEN_2_5_14B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_32B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_14B_INSTRUCT_1M_AWQ,
