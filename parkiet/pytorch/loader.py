@@ -4,7 +4,6 @@
 """
 Parkiet model loader implementation for text-to-speech tasks.
 """
-import torch
 from transformers import AutoModel, AutoProcessor
 from typing import Optional
 
