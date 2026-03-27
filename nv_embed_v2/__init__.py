@@ -4,4 +4,3 @@
 """
 NV-Embed-v2 model implementation for Tenstorrent projects.
 """
-from .embedding_generation.pytorch import ModelLoader
