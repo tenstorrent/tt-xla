@@ -59,14 +59,10 @@ class ModelLoader(ForgeModel):
 
     def _load_tokenizer(self, dtype_override=None):
         """Load tokenizer for the current variant."""
-        from transformers import AutoTokenizer
+        from transformers import MarianTokenizer
 
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-
-        self._tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        self._tokenizer = MarianTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name,
         )
 
         return self._tokenizer
