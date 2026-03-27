@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 Coder GGUF model variants for causal language modeling."""
 
-    QWEN_2_5_CODER_14B_INSTRUCT_GGUF = "14B_Instruct_GGUF"
+    QWEN_2_5_CODER_14B_Q8_0_GGUF = "14B_Q8_0_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 2.5 Coder GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/Qwen2.5-Coder-14B-Instruct-GGUF",
+        ModelVariant.QWEN_2_5_CODER_14B_Q8_0_GGUF: LLMModelConfig(
+            pretrained_model_name="ggml-org/Qwen2.5-Coder-14B-Q8_0-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_14B_Q8_0_GGUF
 
-    GGUF_FILE = "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
+    GGUF_FILE = "qwen2.5-coder-14b-q8_0.gguf"
 
     sample_text = "write a quick sort algorithm."
 
@@ -110,10 +110,9 @@ class ModelLoader(ForgeModel):
 
         messages = [
             {
-                "role": "system",
-                "content": "You are Qwen, created by TT Cloud. You are a helpful assistant.",
-            },
-            {"role": "user", "content": self.sample_text},
+                "role": "user",
+                "content": self.sample_text,
+            }
         ]
         text = self.tokenizer.apply_chat_template(
             messages,
