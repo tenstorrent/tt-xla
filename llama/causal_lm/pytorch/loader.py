@@ -53,6 +53,7 @@ class ModelVariant(StrEnum):
     LLAMA_3_3_70B_INSTRUCT_AWQ = "3.3_70B_Instruct_AWQ"
 
     # RedHatAI FP8 quantized variants
+    LLAMA_3_2_1B_INSTRUCT_FP8 = "3.2_1B_Instruct_FP8"
     LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
 
     # HuggingFace community variants
@@ -122,6 +123,10 @@ class ModelLoader(ForgeModel):
             max_length=128,
         ),
         # RedHatAI FP8 quantized variants
+        ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Llama-3.2-1B-Instruct-FP8",
+            max_length=128,
+        ),
         ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
             pretrained_model_name="RedHatAI/Llama-3.2-1B-Instruct-FP8-dynamic",
             max_length=128,
@@ -218,6 +223,7 @@ class ModelLoader(ForgeModel):
         ]:
             group = ModelGroup.PRIORITY
         elif variant in [
+            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.YAHMA_LLAMA_7B,
         ]:
@@ -479,6 +485,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT,
             ModelVariant.LLAMA_3_2_3B,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT,
+            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.YAHMA_LLAMA_7B,
