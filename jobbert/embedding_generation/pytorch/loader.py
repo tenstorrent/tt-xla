@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-JobBERT-v2 model loader implementation for sentence embedding generation.
+JobBERT model loader implementation for sentence embedding generation.
 """
 import torch
 from transformers import AutoModel, AutoTokenizer
@@ -24,14 +24,18 @@ class ModelVariant(StrEnum):
     """Available JobBERT model variants for embedding generation."""
 
     JOBBERT_V2 = "JobBERT-v2"
+    JOBBERT_V3 = "JobBERT-v3"
 
 
 class ModelLoader(ForgeModel):
-    """JobBERT-v2 model loader implementation for sentence embedding generation."""
+    """JobBERT model loader implementation for sentence embedding generation."""
 
     _VARIANTS = {
         ModelVariant.JOBBERT_V2: ModelConfig(
             pretrained_model_name="TechWolf/JobBERT-v2",
+        ),
+        ModelVariant.JOBBERT_V3: ModelConfig(
+            pretrained_model_name="TechWolf/JobBERT-v3",
         ),
     }
 
