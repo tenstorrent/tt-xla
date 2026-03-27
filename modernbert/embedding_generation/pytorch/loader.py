@@ -9,8 +9,8 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
 
-from ....base import ForgeModel
-from ....config import (
+from third_party.tt_forge_models.base import ForgeModel
+from third_party.tt_forge_models.config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
