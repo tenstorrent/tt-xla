@@ -7,8 +7,6 @@ RoBERTa model loader implementation for token classification (POS tagging).
 
 import torch
 from transformers import AutoTokenizer, AutoModelForTokenClassification
-from typing import Optional
-
 from ....base import ForgeModel
 from ....config import (
     ModelConfig,
@@ -25,6 +23,13 @@ class ModelVariant(StrEnum):
     """Available RoBERTa token classification model variants."""
 
     INDONESIAN_ROBERTA_BASE_POSP_TAGGER = "Indonesian_RoBERTa_Base_POSP_Tagger"
+    TNER_ROBERTA_LARGE_TWEETNER7_ALL = "tner/roberta-large-tweetner7-all"
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER: "Saya sedang membaca buku di perpustakaan",
+    ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: "Jacob Collier is an amazing musician from London",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +39,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER: ModelConfig(
             pretrained_model_name="w11wo/indonesian-roberta-base-posp-tagger",
         ),
+        ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: ModelConfig(
+            pretrained_model_name="tner/roberta-large-tweetner7-all",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER
@@ -42,7 +50,9 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        self.sample_text = "Saya sedang membaca buku di perpustakaan"
+        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name, "Saya sedang membaca buku di perpustakaan"
+        )
         self.max_length = 128
 
     @classmethod
@@ -100,4 +110,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Predicted POS Tags: {predicted_tokens_classes}")
+        print(f"Predicted Labels: {predicted_tokens_classes}")
