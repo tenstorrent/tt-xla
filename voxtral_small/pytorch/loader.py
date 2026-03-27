@@ -83,8 +83,6 @@ class ModelLoader(ForgeModel):
         return self._processor
 
     def load_inputs(self, dtype_override=None):
-        import torch
-
         if self._processor is None:
             self._load_processor()
         if self._model is None:
