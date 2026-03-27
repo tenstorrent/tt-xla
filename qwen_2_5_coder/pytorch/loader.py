@@ -36,9 +36,8 @@ class ModelVariant(StrEnum):
     QWEN_2_5_CODER_7B_BNB_4BIT = "7B_bnb_4bit"
     QWEN_2_5_CODER_14B_BNB_4BIT = "14B_bnb_4bit"
     QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
-    QWEN_2_5_CODER_14B_INSTRUCT_4BIT = "14B_Instruct_4bit"
-    QWEN_2_5_CODER_32B_INSTRUCT = "32B_Instruct"
     QWEN_2_5_CODER_7B_INSTRUCT_BNB_4BIT = "7B_Instruct_bnb_4bit"
+    QWEN_2_5_CODER_32B_INSTRUCT = "32B_Instruct"
     QWEN_2_5_CODER_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
     QWEN_2_5_CODER_32B_INSTRUCT_MLX_8BIT = "32B_Instruct_MLX_8bit"
 
