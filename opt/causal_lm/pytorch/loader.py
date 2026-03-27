@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     OPT_125M = "125M"
     OPT_350M = "350M"
     OPT_1_3B = "1.3b"
+    TINY_RANDOM = "tiny-random"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +43,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPT_1_3B: LLMModelConfig(
             pretrained_model_name="facebook/opt-1.3b",
+            max_length=256,
+        ),
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="peft-internal-testing/tiny-random-OPTForCausalLM",
             max_length=256,
         ),
     }
@@ -77,10 +82,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.TINY_RANDOM
+            else ModelGroup.GENERALITY
+        )
         return ModelInfo(
             model="OPT",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
