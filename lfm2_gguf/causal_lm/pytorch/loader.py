@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available LFM2 GGUF model variants for causal language modeling."""
 
-    LFM2_350M_EXTRACT_GGUF = "350M_Extract_GGUF"
+    LFM2_2_6B_GGUF = "lfm2_2_6b_gguf"
 
 
 class ModelLoader(ForgeModel):
     """LFM2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LFM2_350M_EXTRACT_GGUF: LLMModelConfig(
-            pretrained_model_name="LiquidAI/LFM2-350M-Extract-GGUF",
+        ModelVariant.LFM2_2_6B_GGUF: LLMModelConfig(
+            pretrained_model_name="LiquidAI/LFM2-2.6B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LFM2_350M_EXTRACT_GGUF
+    DEFAULT_VARIANT = ModelVariant.LFM2_2_6B_GGUF
 
-    GGUF_FILE = "LFM2-350M-Extract-Q4_K_M.gguf"
+    GGUF_FILE = "LFM2-2.6B-Q4_K_M.gguf"
 
-    sample_text = "Extract the key information from the following text."
+    sample_text = "The quick brown fox jumps over the lazy dog."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -68,7 +68,9 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -95,7 +97,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            pretrained_model_name, trust_remote_code=True, **model_kwargs
         ).eval()
 
         self.config = model.config
@@ -109,22 +111,17 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         messages = [
-            {
-                "role": "user",
-                "content": self.sample_text,
-            }
+            {"role": "user", "content": self.sample_text},
         ]
         text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
+            messages, tokenize=False, add_generation_prompt=True
         )
         prompts = [text]
 
         inputs = self.tokenizer(
             prompts,
             return_tensors="pt",
-            padding=True,
+            padding="max_length",
             truncation=True,
             max_length=max_length,
         )
