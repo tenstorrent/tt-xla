@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER DNADetect PyTorch implementation.
+OpenMed NER DNADetect TinyMed PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

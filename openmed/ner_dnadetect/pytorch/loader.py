@@ -2,55 +2,54 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER DNADetect model loader implementation for token classification.
+OpenMed NER DNADetect TinyMed model loader implementation for token classification.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
-from typing import Optional
-
-from ....base import ForgeModel
-from ....config import (
-    ModelConfig,
+from transformers import DistilBertForTokenClassification, AutoTokenizer
+from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
+from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available OpenMed NER DNADetect model variants."""
+    """Available OpenMed NER DNADetect model variants for token classification."""
 
-    TINYMED_66M = "TinyMed-66M"
+    OPENMED_NER_DNADETECT_TINYMED_65M = "OpenMed-NER-DNADetect-TinyMed-65M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER DNADetect model loader implementation for token classification."""
+    """OpenMed NER DNADetect TinyMed model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.TINYMED_66M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-TinyMed-66M",
+        ModelVariant.OPENMED_NER_DNADETECT_TINYMED_65M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-TinyMed-65M",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINYMED_66M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_DNADETECT_TINYMED_65M
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    def __init__(self, variant=None):
         super().__init__(variant)
+        self.model_name = self._variant_config.pretrained_model_name
+        self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.model = None
         self.sample_text = "The p53 protein plays a crucial role in tumor suppression."
-        self.max_length = 128
 
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = cls.DEFAULT_VARIANT
+            variant_name = "ner_dnadetect_tinymed_65m"
         return ModelInfo(
-            model="OpenMed-NER-DNADetect",
+            model="OpenMed",
             variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
@@ -59,20 +58,18 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForTokenClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
+        model = DistilBertForTokenClassification.from_pretrained(
+            self.model_name, **model_kwargs
         )
-        model.eval()
         self.model = model
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -89,15 +86,20 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def decode_output(self, co_out):
+    def decode_output(self, co_out, framework_model=None):
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(
             predicted_token_class_ids, (inputs["attention_mask"][0] == 1)
         )
-        predicted_tokens_classes = [
-            self.model.config.id2label[t.item()] for t in predicted_token_class_ids
-        ]
 
-        print(f"Context: {self.sample_text}")
-        print(f"Predicted NER Tags: {predicted_tokens_classes}")
+        model = framework_model if framework_model else self.model
+        if model and hasattr(model, "config") and hasattr(model.config, "id2label"):
+            predicted_tokens_classes = [
+                model.config.id2label[t.item()] for t in predicted_token_class_ids
+            ]
+            print(f"Context: {self.sample_text}")
+            print(f"NER Tags: {predicted_tokens_classes}")
+        else:
+            print(f"Context: {self.sample_text}")
+            print(f"Predicted token class IDs: {predicted_token_class_ids.tolist()}")
