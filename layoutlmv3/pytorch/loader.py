@@ -5,7 +5,8 @@
 LayoutLMv3 model loader implementation
 """
 import torch
-from transformers import LayoutLMv3Model, LayoutLMv3Processor
+import numpy as np
+from transformers import LayoutLMv3Model, LayoutLMv3TokenizerFast
 from typing import Optional
 from PIL import Image
 
@@ -19,7 +20,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
@@ -55,7 +55,7 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
+        self.tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -68,21 +68,17 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
-        processor_kwargs = {"apply_ocr": False}
-        if dtype_override is not None:
-            processor_kwargs["torch_dtype"] = dtype_override
-
-        self.processor = LayoutLMv3Processor.from_pretrained(
-            self._variant_config.pretrained_model_name, **processor_kwargs
+    def _load_tokenizer(self):
+        self.tokenizer = LayoutLMv3TokenizerFast.from_pretrained(
+            self._variant_config.pretrained_model_name
         )
-        return self.processor
+        return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+        if self.tokenizer is None:
+            self._load_tokenizer()
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -95,19 +91,22 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+        if self.tokenizer is None:
+            self._load_tokenizer()
 
-        # Create a simple white document image
+        # Tokenize words with bounding boxes
+        inputs = self.tokenizer(self.words, boxes=self.boxes, return_tensors="pt")
+
+        # Create a simple white document image and convert to pixel_values
         image = Image.new("RGB", (224, 224), color=(255, 255, 255))
-
-        # Process with manually provided words and bounding boxes
-        inputs = self.processor(
-            image,
-            self.words,
-            boxes=self.boxes,
-            return_tensors="pt",
+        pixel_values = (
+            torch.tensor(np.array(image)).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         )
+
+        if dtype_override is not None:
+            pixel_values = pixel_values.to(dtype_override)
+
+        inputs["pixel_values"] = pixel_values
 
         # Handle batch size
         for key in inputs:
