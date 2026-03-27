@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Flair model implementation for Tenstorrent projects.
+Flair NER Token Classification PyTorch implementation.
 """
+from .loader import ModelLoader, ModelVariant
