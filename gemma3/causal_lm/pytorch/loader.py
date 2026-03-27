@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
 
     GEMMA_3_270M_IT = "270M_Instruct"
     GEMMA_3_1B_IT = "1B_Instruct"
-    GEMMA_3_27B_IT_AWQ_INT4 = "27B_Instruct_AWQ_INT4"
+    GEMMA_3_27B_IT = "27B_Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -41,8 +41,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/gemma-3-1b-it",
             max_length=256,
         ),
-        ModelVariant.GEMMA_3_27B_IT_AWQ_INT4: LLMModelConfig(
-            pretrained_model_name="pytorch/gemma-3-27b-it-AWQ-INT4",
+        ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
+            pretrained_model_name="google/gemma-3-27b-it",
             max_length=256,
         ),
     }
@@ -64,7 +64,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
+        if variant == ModelVariant.GEMMA_3_27B_IT:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
@@ -177,36 +177,26 @@ class ModelLoader(ForgeModel):
             attn_mask = cast_input_to_type(attn_mask, dtype_override)
         return [input_ids, attn_mask]
 
-    @staticmethod
-    def _patch_torchao_int4_config():
-        """Patch torchao Int4WeightOnlyConfig to accept the deprecated 'layout' kwarg.
+    def get_mesh_config(self, num_devices: int):
+        """Get the mesh configuration for tensor parallel execution."""
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
 
-        Older torchao-quantized models (e.g. pytorch/gemma-3-27b-it-AWQ-INT4) were
-        saved with a 'layout' field that has since been renamed to
-        'int4_tile_packed_ntile'. This shim keeps the loader working until
-        torchao adds its own migration.
-        """
-        try:
-            from torchao.quantization import Int4WeightOnlyConfig
+    def load_shard_spec(self, model):
+        """Load the sharding specification for tensor parallel execution."""
+        if self._variant != ModelVariant.GEMMA_3_27B_IT:
+            return None
 
-            orig_init = Int4WeightOnlyConfig.__init__
+        shard_specs = {}
 
-            if getattr(orig_init, "_patched_layout", False):
-                return
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
-            _valid_fields = {
-                f.name for f in __import__("dataclasses").fields(Int4WeightOnlyConfig)
-            }
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
-            def _patched_init(self, *args, layout=None, **kwargs):
-                if layout is not None and "int4_tile_packed_ntile" not in kwargs:
-                    inner_k_tiles = getattr(layout, "inner_k_tiles", 8)
-                    kwargs["int4_tile_packed_ntile"] = inner_k_tiles
-                # Drop any kwargs removed in newer torchao versions
-                kwargs = {k: v for k, v in kwargs.items() if k in _valid_fields}
-                orig_init(self, *args, **kwargs)
-
-            _patched_init._patched_layout = True
-            Int4WeightOnlyConfig.__init__ = _patched_init
-        except ImportError:
-            pass
+        return shard_specs
