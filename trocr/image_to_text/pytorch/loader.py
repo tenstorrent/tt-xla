@@ -77,6 +77,17 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name, **model_kwargs
         )
         model.eval()
+
+        # Fix sinusoidal positional embeddings left on meta device after loading
+        embed_positions = model.decoder.model.decoder.embed_positions
+        if hasattr(embed_positions, "weights") and embed_positions.weights is not None:
+            if embed_positions.weights.device.type == "meta":
+                embed_positions.weights = embed_positions.get_embedding(
+                    embed_positions.weights.shape[0],
+                    embed_positions.embedding_dim,
+                    embed_positions.padding_idx,
+                )
+
         if dtype_override is not None:
             model.to(dtype_override)
 
