@@ -50,7 +50,7 @@ class ModelLoader(ForgeModel):
             prediction_length=64,
         ),
         ModelVariant.MINI: ChronosT5Config(
-            pretrained_model_name="amazon/chronos-t5-mini",
+            pretrained_model_name="autogluon/chronos-t5-mini",
             context_length=512,
             prediction_length=64,
         ),
