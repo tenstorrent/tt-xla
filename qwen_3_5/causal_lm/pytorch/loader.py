@@ -40,17 +40,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_BASE_UNSLOTH = "9B_Base_unsloth"
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
-    QWEN_3_5_4B_MLX_4BIT = "4B_MLX_4BIT"
-    QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
-    QWEN_3_5_27B_ESPER3_1_I1_GGUF = "27B_Esper3.1_i1_GGUF"
-    QWEN_3_5_35B_A3B_MLX_MXFP4 = "35B_A3B_MLX_MXFP4"
-    QWEN_3_5_35B_A3B_TEXT_MLX_QX64_HI = "35B_A3B_Text_MLX_qx64_hi"
-    QWEN_3_5_122B_A10B_MLX_8BIT = "122B_A10B_MLX_8BIT"
-    QWEN_3_5_397B_A17B_MLX_8BIT = "397B_A17B_MLX_8BIT"
-    QWEN_3_5_27B_CLAUDE_4_6_OS_INSTRUCT_MXFP8_MLX = (
-        "27B_Claude_4.6_OS_INSTRUCT_mxfp8_mlx"
-    )
+    QWEN_3_5_2B_UNCENSORED_HAUHAUCS_AGGRESSIVE = "2B_Uncensored_HauhauCS_Aggressive"
 
 
 class ModelLoader(ForgeModel):
@@ -122,40 +112,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
-            pretrained_model_name="llmfan46/Qwen3.5-35B-A3B-heretic-v2-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_4B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-4B-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_122B_A10B_GGUF: LLMModelConfig(
-            pretrained_model_name="Mungert/Qwen3.5-122B-A10B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_ESPER3_1_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-27B-Esper3.1-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_MLX_MXFP4: LLMModelConfig(
-            pretrained_model_name="RepublicOfKorokke/Qwen3.5-35B-A3B-mlx-lm-mxfp4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_TEXT_MLX_QX64_HI: LLMModelConfig(
-            pretrained_model_name="nightmedia/Qwen3.5-35B-A3B-Text-qx64-hi-mlx",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_122B_A10B_MLX_8BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-122B-A10B-8bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_397B_A17B_MLX_8BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-397B-A17B-8bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_CLAUDE_4_6_OS_INSTRUCT_MXFP8_MLX: LLMModelConfig(
-            pretrained_model_name="nightmedia/Qwen3.5-27B-Claude-4.6-OS-INSTRUCT-mxfp8-mlx",
+        ModelVariant.QWEN_3_5_2B_UNCENSORED_HAUHAUCS_AGGRESSIVE: LLMModelConfig(
+            pretrained_model_name="HauhauCS/Qwen3.5-2B-Uncensored-HauhauCS-Aggressive",
             max_length=128,
         ),
     }
