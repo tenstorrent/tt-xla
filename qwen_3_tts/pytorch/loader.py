@@ -4,6 +4,10 @@
 """
 Qwen3-TTS-12Hz-0.6B-Base model loader implementation for text-to-speech tasks.
 """
+import sys
+import types
+import os
+
 import torch
 from typing import Optional
 
@@ -17,6 +21,42 @@ from ...config import (
     Framework,
     StrEnum,
 )
+
+
+def _stub_qwen_tts_deps():
+    """Stub heavy qwen_tts dependencies to avoid importing torchaudio/sox."""
+    if "qwen_tts" in sys.modules:
+        return
+
+    # The qwen_tts top-level __init__ imports torchaudio (via tokenizer_25hz)
+    # which requires sox and native libs not always available. Stub the package
+    # hierarchy so we can import only config + modeling modules.
+    site_pkg = os.path.join(
+        sys.prefix,
+        "lib",
+        f"python{sys.version_info.major}.{sys.version_info.minor}",
+        "site-packages",
+        "qwen_tts",
+    )
+
+    for name, suffix in [
+        ("qwen_tts", ""),
+        ("qwen_tts.core", "/core"),
+        ("qwen_tts.core.models", "/core/models"),
+        ("qwen_tts.inference", "/inference"),
+    ]:
+        m = types.ModuleType(name)
+        m.__path__ = [site_pkg + suffix]
+        m.__package__ = name
+        sys.modules[name] = m
+
+    tok = types.ModuleType("qwen_tts.inference.qwen3_tts_tokenizer")
+    tok.Qwen3TTSTokenizer = type(
+        "Qwen3TTSTokenizer",
+        (),
+        {"from_pretrained": classmethod(lambda cls, *a, **kw: None)},
+    )
+    sys.modules["qwen_tts.inference.qwen3_tts_tokenizer"] = tok
 
 
 class ModelVariant(StrEnum):
@@ -52,9 +92,11 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Qwen3-TTS model."""
-        from qwen_tts.core.models import (
-            Qwen3TTSConfig,
+        """Load and return the Qwen3-TTS talker model."""
+        _stub_qwen_tts_deps()
+
+        from qwen_tts.core.models.configuration_qwen3_tts import Qwen3TTSConfig
+        from qwen_tts.core.models.modeling_qwen3_tts import (
             Qwen3TTSForConditionalGeneration,
         )
         from transformers import AutoConfig, AutoModel
@@ -64,26 +106,27 @@ class ModelLoader(ForgeModel):
         AutoConfig.register("qwen3_tts", Qwen3TTSConfig)
         AutoModel.register(Qwen3TTSConfig, Qwen3TTSForConditionalGeneration)
 
-        model = AutoModel.from_pretrained(
+        full_model = AutoModel.from_pretrained(
             pretrained_model_name,
-            torch_dtype=dtype_override if dtype_override is not None else torch.float32,
+            dtype=dtype_override if dtype_override is not None else torch.float32,
         )
 
-        model.eval()
-        self.model = model
-        return model
+        full_model.eval()
+        self.model = full_model
+        return full_model.talker
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the Qwen3-TTS model."""
+        """Load and return sample inputs for the Qwen3-TTS talker model."""
         talker_config = self.model.config.talker_config
 
         seq_len = 128
-        vocab_size = talker_config.vocab_size
+        hidden_size = talker_config.hidden_size
 
-        input_ids = torch.randint(0, vocab_size, (1, seq_len))
+        # The talker expects inputs_embeds (not input_ids) for prefill mode
+        inputs_embeds = torch.randn(1, seq_len, hidden_size)
         attention_mask = torch.ones(1, seq_len, dtype=torch.long)
 
         return {
-            "input_ids": input_ids,
+            "inputs_embeds": inputs_embeds,
             "attention_mask": attention_mask,
         }
