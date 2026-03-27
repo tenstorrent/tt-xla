@@ -4,18 +4,20 @@
 """
 InternLM2 model loader implementation for causal language modeling.
 """
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+
 from typing import Optional
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
@@ -23,50 +25,33 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available InternLM2 model variants."""
 
-    INTERNLM2_BASE_20B = "InternLM2_Base_20B"
+    INTERNLM2_5_7B_CHAT = "2.5_7B_Chat"
 
 
 class ModelLoader(ForgeModel):
     """InternLM2 model loader implementation for causal language modeling tasks."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.INTERNLM2_BASE_20B: LLMModelConfig(
-            pretrained_model_name="internlm/internlm2-base-20b",
+        ModelVariant.INTERNLM2_5_7B_CHAT: ModelConfig(
+            pretrained_model_name="internlm/internlm2_5-7b-chat",
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.INTERNLM2_BASE_20B
-
-    # Shared configuration parameters
-    sample_text = "Explain the concept of artificial intelligence in simple terms."
+    DEFAULT_VARIANT = ModelVariant.INTERNLM2_5_7B_CHAT
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
-        """
         super().__init__(variant)
         self.tokenizer = None
+        self.model = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
 
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         return ModelInfo(
             model="InternLM2",
             variant=variant,
@@ -77,39 +62,26 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
-        tokenizer_kwargs = {"trust_remote_code": True}
+        tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            pretrained_model_name, trust_remote_code=True, **tokenizer_kwargs
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the InternLM2 model instance for this instance's variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The InternLM2 model instance for causal language modeling.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
-        model_kwargs = {"trust_remote_code": True}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -122,52 +94,37 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        )
+            pretrained_model_name, trust_remote_code=True, **model_kwargs
+        ).eval()
 
+        self.config = model.config
+        self.model = model
         return model
 
-    def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the InternLM2 model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-
-        Returns:
-            list: Input tensors that can be fed to the model.
-        """
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
-        inputs = self.tokenizer(
-            self.sample_text,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-        )
+        test_input = "What is the capital of France?"
+
+        inputs = self.tokenizer(test_input, return_tensors="pt")
+
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, outputs, inputs=None):
-        """Helper method to decode model outputs into human-readable text.
-
-        Args:
-            outputs: Model output from a forward pass
-            inputs: Optional input tensors used to generate the outputs
-
-        Returns:
-            str: Decoded prediction for the next tokens
-        """
+    def decode_output(self, outputs, dtype_override=None):
         if self.tokenizer is None:
-            self._load_tokenizer()
+            self._load_tokenizer(dtype_override)
 
-        if inputs is None:
-            inputs = self.load_inputs()
+        next_token_logits = outputs.logits[:, -1]
+        next_token = next_token_logits.softmax(dim=-1).argmax()
+        return self.tokenizer.decode([next_token])
 
-        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-        predicted_token_ids = logits.argmax(dim=-1)
-        predicted_text = self.tokenizer.decode(
-            predicted_token_ids[0], skip_special_tokens=True
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, trust_remote_code=True
         )
-
-        return predicted_text
+        return self.config
