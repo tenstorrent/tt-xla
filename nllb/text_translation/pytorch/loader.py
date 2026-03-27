@@ -130,6 +130,11 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
 
+        # Seq2seq models need decoder_input_ids for the forward pass.
+        # Use the target language BOS token to start decoding.
+        target_lang_id = self._tokenizer.convert_tokens_to_ids("fra_Latn")
+        inputs["decoder_input_ids"] = torch.tensor([[target_lang_id]])
+
         if dtype_override is not None:
             for key, value in inputs.items():
                 if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
