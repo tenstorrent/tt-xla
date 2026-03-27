@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -26,7 +26,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for image to text."""
 
-    QWEN_3_5_2B_4BIT = "2b_4bit"
+    QWEN_3_5_9B_PARO = "9b_paro"
 
 
 class ModelLoader(ForgeModel):
@@ -34,14 +34,14 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.QWEN_3_5_2B_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-2B-4bit",
+        ModelVariant.QWEN_3_5_9B_PARO: LLMModelConfig(
+            pretrained_model_name="z-lab/Qwen3.5-9B-PARO",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_2B_4BIT
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B_PARO
 
     # Shared configuration parameters
     sample_image = (
@@ -69,6 +69,8 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="Qwen 3.5",
             variant=variant,
@@ -95,6 +97,9 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # Quantized variant loads with device_map="cpu"
+        model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
 
