@@ -74,8 +74,9 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs["dtype"] = (
+            dtype_override if dtype_override is not None else torch.float32
+        )
         model_kwargs |= kwargs
 
         model = AutoModelForImageSegmentation.from_pretrained(
