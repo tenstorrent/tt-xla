@@ -299,11 +299,17 @@ class CMakeBuildPy(build_py):
 
         code_coverage = "OFF"
         enable_explorer = "OFF"
+        cmake_build_type = "Release"
+        runtime_debug = "OFF"
 
         if config.build_type == "codecov":
             code_coverage = "ON"
         if config.enable_explorer:
             enable_explorer = "ON"
+        if config.build_type in ("debug", "codecov"):
+            cmake_build_type = "Debug"
+        if config.build_type == "debug":
+            runtime_debug = "ON"
 
         cmake_args = [
             "-G",
@@ -316,6 +322,8 @@ class CMakeBuildPy(build_py):
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
             "-DTT_USE_SYSTEM_SFPI=ON",
+            "-DCMAKE_BUILD_TYPE=" + cmake_build_type,
+            "-DTT_RUNTIME_DEBUG=" + runtime_debug,
         ]
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]

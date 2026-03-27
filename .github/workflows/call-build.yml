@@ -51,6 +51,7 @@ jobs:
       build_release: ${{ steps.generate-name.outputs.build_release || steps.check-artifact.outputs.build_release }}
       build_explorer: ${{ steps.generate-name.outputs.build_explorer || steps.check-artifact.outputs.build_explorer }}
       build_manylinux: ${{ steps.generate-name.outputs.build_manylinux || steps.check-artifact.outputs.build_manylinux }}
+      build_debug: ${{ steps.generate-name.outputs.build_debug || steps.check-artifact.outputs.build_debug }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -97,8 +98,8 @@ jobs:
 
           for build_type in ${build_types//,/ }; do
             # Validate build type
-            if [[ ! "$build_type" =~ ^(release|explorer|manylinux)$ ]]; then
-              echo "Invalid build type: $build_type. Must be one of: release, explorer, manylinux"
+            if [[ ! "$build_type" =~ ^(release|explorer|manylinux|debug)$ ]]; then
+              echo "Invalid build type: $build_type. Must be one of: release, explorer, manylinux, debug"
               exit 1
             fi
 
@@ -170,5 +171,17 @@ jobs:
     with:
       mlir_override: ${{ inputs.mlir_override }}
       docker-image: ${{ inputs.docker_image_manylinux }}
+      artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
+
+  build-ttxla-debug:
+    needs: check-existing-artifact
+    if: ${{ !needs.check-existing-artifact.outputs.artifacts_run_id && needs.check-existing-artifact.outputs.build_debug == 'true' }}
+    uses: ./.github/workflows/call-build-ttxla.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+      docker_image: ${{ inputs.docker_image }}
+      build_type: debug
       artifact_suffix: ${{ needs.check-existing-artifact.outputs.artifact_suffix }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
