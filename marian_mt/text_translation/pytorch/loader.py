@@ -23,21 +23,21 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MarianMT model variants for text translation."""
 
-    OPUS_MT_EN_FR = "Opus_Mt_En_Fr"
+    OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
 
 
 class ModelLoader(ForgeModel):
     """MarianMT model loader implementation for text translation."""
 
     _VARIANTS = {
-        ModelVariant.OPUS_MT_EN_FR: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-fr",
+        ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPUS_MT_EN_FR
+    DEFAULT_VARIANT = ModelVariant.OPUS_MT_TR_EN
 
-    sample_text = "My name is Wolfgang and I live in Berlin."
+    sample_text = "Merhaba dünya, bugün hava çok güzel."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
@@ -59,10 +59,14 @@ class ModelLoader(ForgeModel):
 
     def _load_tokenizer(self, dtype_override=None):
         """Load tokenizer for the current variant."""
-        from transformers import MarianTokenizer
+        from transformers import AutoTokenizer
 
-        self._tokenizer = MarianTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
         return self._tokenizer
