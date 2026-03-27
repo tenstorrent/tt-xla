@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Isaac GR00T model variants."""
 
     GROOT_N1_5_3B = "Gr00t_N1.5_3B"
+    GROOT_N1_6_3B = "Gr00t_N1.6_3B"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GROOT_N1_5_3B: ModelConfig(
             pretrained_model_name="nvidia/GR00T-N1.5-3B",
+        ),
+        ModelVariant.GROOT_N1_6_3B: ModelConfig(
+            pretrained_model_name="nvidia/GR00T-N1.6-3B",
         ),
     }
 
@@ -78,10 +82,17 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.GROOT_N1_6_3B
+            else ModelGroup.RED
+        )
         return ModelInfo(
             model="ISAAC-GR00T",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.MM_ACTION_PREDICTION,
             source=ModelSource.GITHUB,
             framework=Framework.TORCH,
