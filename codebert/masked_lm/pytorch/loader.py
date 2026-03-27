@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available CodeBERT Masked LM model variants."""
 
     CODEBERT_JAVA = "neulab/codebert-java"
+    CODEBERT_PYTHON = "neulab/codebert-python"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.CODEBERT_JAVA: ModelConfig(
             pretrained_model_name="neulab/codebert-java",
+        ),
+        ModelVariant.CODEBERT_PYTHON: ModelConfig(
+            pretrained_model_name="neulab/codebert-python",
         ),
     }
 
@@ -85,7 +89,10 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        test_input = "public static void <mask>() {}"
+        if self._variant == ModelVariant.CODEBERT_PYTHON:
+            test_input = "def <mask>(self):"
+        else:
+            test_input = "public static void <mask>() {}"
         inputs = self.tokenizer(test_input, return_tensors="pt")
 
         for key in inputs:
