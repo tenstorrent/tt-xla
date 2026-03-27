@@ -485,6 +485,8 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     if mlp_type == "sparse" and arch != "llmbox":
         # Cannot run sparse MLP on galaxy due to hang: https://github.com/tenstorrent/tt-xla/issues/3941
         pytest.skip("Sparse MLP test only supported on llmbox arch")
+    if variant == GPTOSSModelVariant.GPT_OSS_120B and arch == "single_device":
+        pytest.skip("120B model too large for single device")
     if mlp_type != "sparse":
         request.node.add_marker(
             pytest.mark.filecheck(["matmul_with_activation_silu.ttnn.mlir"])
