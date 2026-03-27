@@ -15,6 +15,7 @@ from flair.models import SequenceTagger
 from transformers import AutoTokenizer
 from typing import Optional
 
+from ....base import ForgeModel
 from ....config import (
     ModelConfig,
     ModelInfo,
@@ -24,13 +25,12 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available Flair NER model variants."""
 
-    NER_SPANISH_LARGE = "flair/ner-spanish-large"
+    NER_ENGLISH_LARGE = "flair/ner-english-large"
 
 
 class FlairNERWrapper(nn.Module):
@@ -54,21 +54,21 @@ class FlairNERWrapper(nn.Module):
 
 
 class ModelLoader(ForgeModel):
-    """Flair NER model loader implementation for Spanish token classification."""
+    """Flair NER model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.NER_SPANISH_LARGE: ModelConfig(
-            pretrained_model_name="flair/ner-spanish-large",
+        ModelVariant.NER_ENGLISH_LARGE: ModelConfig(
+            pretrained_model_name="flair/ner-english-large",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NER_SPANISH_LARGE
+    DEFAULT_VARIANT = ModelVariant.NER_ENGLISH_LARGE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        self.sample_text = "George Washington fue a Washington"
+        self.sample_text = "George Washington went to Washington"
         self.max_length = 128
 
     @classmethod
