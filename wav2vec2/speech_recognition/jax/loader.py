@@ -35,7 +35,7 @@ class ModelVariant(StrEnum):
     XLSR_53_DUTCH = "XLSR_53_Dutch"
     XLSR_53_HUNGARIAN = "XLSR_53_Hungarian"
     XLS_R_1B_NYNORSK = "XLS_R_1B_Nynorsk"
-    XLSR_53_ESPEAK_CV_FT = "XLSR_53_Espeak_CV_ft"
+    XLS_R_300M_UKRAINIAN = "XLS_R_300M_Ukrainian"
 
 
 class ModelLoader(ForgeModel):
@@ -78,8 +78,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.XLS_R_1B_NYNORSK: ModelConfig(
             pretrained_model_name="NbAiLab/nb-wav2vec2-1b-nynorsk",
         ),
-        ModelVariant.XLSR_53_ESPEAK_CV_FT: ModelConfig(
-            pretrained_model_name="facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+        ModelVariant.XLS_R_300M_UKRAINIAN: ModelConfig(
+            pretrained_model_name="Yehor/w2v-xls-r-uk",
         ),
     }
 
