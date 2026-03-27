@@ -1,11 +1,11 @@
 # Coding Standards — tt-xla
 
-## C++17 Standards
+## C++20 Standards
 
 ### Naming Conventions
 - **Classes**: PascalCase — `BufferInstance`, `ClientInstance`, `ErrorInstance`
 - **Methods**: camelCase — `createInstance()`, `bindApi()`, `copyToHost()`
-- **Member variables**: snake_case with trailing underscore or prefixed — `data_type_`, `num_dims_`
+- **Member variables**: snake_case with `m_` prefix — `m_data_type`, `m_num_dims`
 - **Static members**: `s_` prefix — `s_copy_to_host_internal_mutex`
 - **Constants / Enums**: PascalCase enum class with camelCase values — `enum class tt_pjrt_status { kSuccess, kInvalidArgument }`
 - **Namespaces**: lowercase — `tt::pjrt`, `tt::pjrt::internal`
@@ -15,7 +15,7 @@
 
 **Header files (`.h`)**:
 ```cpp
-// SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+// SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 // SPDX-License-Identifier: Apache-2.0
 
 #ifndef TT_XLA_PJRT_IMPLEMENTATION_INC_API_EXAMPLE_H_
@@ -43,7 +43,10 @@ namespace tt::pjrt {
 
 class Example {
 public:
+    // Factory method
     static std::unique_ptr<Example> createInstance(/* params */);
+
+    // Destructor
     ~Example();
 
     // Public API
@@ -56,15 +59,14 @@ public:
     static Example *unwrap(PJRT_Example *ptr) {
         return reinterpret_cast<Example *>(ptr);
     }
+
+    // Wrap to opaque pointer
     operator PJRT_Example *() {
         return reinterpret_cast<PJRT_Example *>(this);
     }
 
 private:
     Example(/* params */);
-
-    // Private make_unique enabler
-    struct make_unique_enabler;
 };
 
 } // namespace tt::pjrt
@@ -74,7 +76,7 @@ private:
 
 **Source files (`.cc`)**:
 ```cpp
-// SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+// SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 // SPDX-License-Identifier: Apache-2.0
 
 #include "pjrt_implementation/inc/api/example.h"
@@ -83,13 +85,13 @@ private:
 
 namespace tt::pjrt {
 
-// Private enabler for std::make_unique with private constructor
-struct Example::make_unique_enabler : public Example {
-    make_unique_enabler(/* params */) : Example(/* params */) {}
-};
-
 std::unique_ptr<Example> Example::createInstance(/* params */) {
-    return std::make_unique<make_unique_enabler>(/* params */);
+    return std::unique_ptr<Example>(new Example(/* params */));
+}
+
+tt_pjrt_status Example::doWork() {
+    // Implementation
+    return tt_pjrt_status::kSuccess;
 }
 
 } // namespace tt::pjrt
@@ -99,7 +101,7 @@ std::unique_ptr<Example> Example::createInstance(/* params */) {
 1. **Owned objects**: Always `std::unique_ptr<T>`. Use `std::make_unique<T>(...)`.
 2. **Shared ownership** (rare): `std::shared_ptr<T>` only when multiple owners are unavoidable.
 3. **Borrowed references**: Raw pointer `T*` — caller retains ownership.
-4. **Factory pattern**: `static std::unique_ptr<T> createInstance(...)` with private constructor + `make_unique_enabler` struct.
+4. **Factory pattern**: `static std::unique_ptr<T> createInstance(...)` with private constructor.
 5. **No manual delete**: If you write `delete`, refactor to use smart pointers.
 
 ### Error Handling Rules
@@ -175,7 +177,7 @@ def test_example():
 ### SPDX Header
 Every Python file:
 ```python
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 ```

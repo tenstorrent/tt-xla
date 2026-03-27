@@ -14,7 +14,7 @@
 - [ ] Functions return `tt_pjrt_status` (not exceptions, not bool)
 - [ ] All error paths logged with `LOG_F(ERROR, ...)`
 - [ ] `tt_pjrt_status_is_ok(status)` checked before proceeding
-- [ ] `ErrorInstance::makeError()` used for error propagation to PJRT layer
+- [ ] `ErrorInstance::makeError()` used for error creation to propagate to PJRT client
 - [ ] No silent error swallowing — every failure is either handled or propagated
 
 ### Thread Safety

@@ -13,7 +13,7 @@ delete buffer;  // Leak if exception or early return
 
 **Right:**
 ```cpp
-auto buffer = BufferInstance::createInstance(data_type, dims, num_dims, device, memory);
+std::unique_ptr<BufferInstance> buffer = BufferInstance::createInstance(data_type, dims, num_dims, device, memory);
 // Automatically cleaned up when unique_ptr goes out of scope
 ```
 
@@ -230,7 +230,7 @@ import jax
 
 **Right:**
 ```python
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
