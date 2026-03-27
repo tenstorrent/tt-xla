@@ -6,6 +6,9 @@ InternVL3 model loader implementation for multimodal visual question answering.
 """
 
 import torch
+import torchvision.transforms as T
+from PIL import Image
+from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoTokenizer, AutoModel
 from typing import Optional
 
@@ -19,6 +22,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
+from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -89,10 +93,6 @@ class ModelLoader(ForgeModel):
         question = "<image>\nWhat is shown in this image?"
         image_url = "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
 
-        from PIL import Image
-        import torchvision.transforms as T
-        from torchvision.transforms.functional import InterpolationMode
-
         IMAGENET_MEAN = (0.485, 0.456, 0.406)
         IMAGENET_STD = (0.229, 0.224, 0.225)
 
@@ -109,11 +109,8 @@ class ModelLoader(ForgeModel):
                 ]
             )
 
-        import requests
-        from io import BytesIO
-
-        response = requests.get(image_url)
-        image = Image.open(BytesIO(response.content)).convert("RGB")
+        image_path = get_file(image_url)
+        image = Image.open(image_path).convert("RGB")
 
         transform = build_transform()
         pixel_dtype = dtype_override if dtype_override is not None else torch.bfloat16
