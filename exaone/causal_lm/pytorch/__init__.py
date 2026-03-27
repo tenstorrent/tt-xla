@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-EXAONE causal language modeling loader exports
+EXAONE PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
