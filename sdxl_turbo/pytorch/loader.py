@@ -72,6 +72,7 @@ class ModelLoader(ForgeModel):
         self.pipeline = AutoPipelineForText2Image.from_pretrained(
             self._variant_config.pretrained_model_name,
             torch_dtype=dtype_override,
+            **kwargs,
         )
         return self.pipeline
 
