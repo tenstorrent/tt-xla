@@ -9,6 +9,7 @@ from typing import Optional
 from dataclasses import dataclass
 
 import torch
+from huggingface_hub import hf_hub_download
 from stable_baselines3 import PPO
 
 from ...config import (
@@ -70,7 +71,13 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The PPO MLP policy network in eval mode.
         """
         model_name = self._variant_config.pretrained_model_name
-        ppo_model = PPO.load(model_name)
+        model_path = hf_hub_download(
+            repo_id=model_name,
+            filename="ppo-seals-CartPole-v0.zip",
+        )
+        # Remove .zip extension as SB3 appends it automatically
+        model_path = model_path.removesuffix(".zip")
+        ppo_model = PPO.load(model_path)
         policy = ppo_model.policy
         policy.eval()
 
