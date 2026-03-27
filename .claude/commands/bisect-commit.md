@@ -1,42 +1,29 @@
 # Bisect a test failure between two tt-xla commits
 
-Given a regression JSON file (or explicit arguments), find the exact commit that introduced a test failure by:
-1. Running the test on the bad commit to capture the error message
-2. Git-bisecting between good and bad to pinpoint the first bad commit
+Given a test ID, a known-bad commit, a known-good commit, and an error message, find the exact commit that introduced a failure by:
+1. Running the test on the bad commit to reproduce the error
+2. Running the test on the good commit to verify expected behaviour
+3. Git-bisecting between good and bad to pinpoint the first bad commit
 
-Each test run: checks out the commit, sources venv, updates submodules, downloads and installs the wheel built by CI for that commit, then runs the test.
+Each test run follows a fixed sequence: restart chip → source venv → checkout commit → update submodules → download and install CI wheel → run test. Full output of every run is saved as `<commit_hash>.log` inside the test's log directory.
 
 ## Usage
 
 ```
-/bisect-commit <regression_json_path>
-/bisect-commit <test_id> <good_commit> <bad_commit>
+/bisect-commit test_id="<id>" first_bad_sha="<sha>" last_good_sha="<sha>" known_error="<error>" [expected_good_outcome="<outcome>"] [log_dir="<path>"]
 ```
 
 **Arguments** (from `$ARGUMENTS`):
-
-**Option A — JSON file (preferred):**
-- `regression_json_path` — path to a regression JSON file, e.g. `investigation/regression_densenet_pytorch-169-single_device-inference.json`
-
-The JSON file must contain:
-```json
-{
-  "test_id": "densenet/pytorch-169-single_device-inference",
-  "good_sha": "c77995f6c200de122b33bb5b408cc02dcc31dd65",
-  "bad_sha":  "1e5781dc41ca608cc3d8c5f9aeeaea21e0b53706"
-}
-```
-(`good_run_id`, `bad_run_id`, `good_run_date`, `bad_run_date` are optional extra context.)
-
-**Option B — explicit arguments:**
-- `test_id` — pytest test ID, e.g. `densenet/pytorch-169-single_device-inference`
-- `good_commit` — the known-good commit SHA (full or short)
-- `bad_commit` — the known-bad commit SHA (full or short)
+- `test_id` — pytest test ID, e.g. `inception/pytorch-v4_OSMR-data_parallel-inference`
+- `first_bad_sha` — the known-bad commit SHA (full or short)
+- `last_good_sha` — the known-good commit SHA (full or short)
+- `known_error` — the error message observed on the bad commit (used as reference for bisect)
+- `expected_good_outcome` — *(optional)* what to expect on the good commit; defaults to `"test passes"`
+- `log_dir` — *(optional)* directory to write per-commit log files; defaults to `bisection/bisect/<test_id_slug>_<short_bad_sha>/`
 
 **Examples:**
 ```
-/bisect-commit investigation/regression_densenet_pytorch-169-single_device-inference.json
-/bisect-commit densenet/pytorch-169-single_device-inference abc1234 def5678
+/bisect-commit test_id="inception/pytorch-v4_OSMR-data_parallel-inference" first_bad_sha="afe4486f" last_good_sha="1e5781dc" known_error="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.97." log_dir="bisection/bisect/inception_pytorch-v4_OSMR-data_parallel-inference_n150"
 ```
 
 ---
@@ -54,182 +41,237 @@ Use `REPO_ROOT` throughout — never hardcode the local path.
 
 ---
 
-### Phase 1 — Parse arguments and load inputs
+### Phase 1 — Parse arguments
 
-Check `$ARGUMENTS`:
-
-- If it ends in `.json` (or contains a path with `/`), treat it as **Option A**:
-  - Read the file (resolve relative to `$REPO_ROOT` if not absolute)
-  - Extract `test_id`, `good_sha`, `bad_sha` from the JSON
-  - If `good_run_date` / `bad_run_date` are present, display them for context
-
-- Otherwise treat as **Option B**: first token = `test_id`, second = `good_commit`, third = `bad_commit`
+Parse `$ARGUMENTS` as key=value pairs (values may be quoted with `"` or `'`). Extract:
+- `test_id`
+- `first_bad_sha`
+- `last_good_sha`
+- `known_error`
+- `expected_good_outcome` (default: `"test passes"`)
+- `log_dir` (default: derive below)
 
 Resolve both SHAs to full 40-char hashes:
 ```bash
 cd "$REPO_ROOT"
-git rev-parse <good_sha>
-git rev-parse <bad_sha>
+git fetch --quiet
+FULL_BAD=$(git rev-parse <first_bad_sha>)
+FULL_GOOD=$(git rev-parse <last_good_sha>)
+SHORT_BAD=${FULL_BAD:0:8}
+SHORT_GOOD=${FULL_GOOD:0:8}
 ```
 
-Count commits in range (for estimating bisect steps):
+If `log_dir` was not provided, derive it:
 ```bash
-git rev-list --count <good_sha>..<bad_sha>
+# Replace / with _ in test_id to form a safe slug
+TEST_SLUG=$(echo "<test_id>" | tr '/' '_' | tr ' ' '_')
+LOG_DIR="$REPO_ROOT/bisection/bisect/${TEST_SLUG}_${SHORT_BAD}"
+```
+Otherwise resolve it relative to `$REPO_ROOT` if not absolute.
+
+Create the log directory:
+```bash
+mkdir -p "$LOG_DIR"
 ```
 
-Show the user:
+Count commits in range:
+```bash
+git rev-list --count ${FULL_GOOD}..${FULL_BAD}
 ```
-test_id:       <test_id>
-good:          <full_good_sha>  (<good_run_date if available>)
-bad:           <full_bad_sha>   (<bad_run_date if available>)
-commits in range: N
+
+Print:
+```
+test_id:               <test_id>
+first_bad_sha:         <FULL_BAD>
+last_good_sha:         <FULL_GOOD>
+known_error:           <known_error>
+expected_good_outcome: <expected_good_outcome>
+log_dir:               <LOG_DIR>
+commits in range:      N
 estimated bisect steps: ceil(log2(N))
 ```
 
 ---
 
-### Phase 2 — Understand the CI failure before touching the chip
+### Run sequence helper
 
-**Never run the test locally first without knowing what CI saw.** Running on a dirty chip produces false errors that lead bisect astray. Always establish the ground-truth failure from CI logs before any local execution.
-
-#### 2a. Fetch the CI failure from GitHub Actions
-
-If the JSON contains `bad_run_url` (e.g. `https://github.com/tenstorrent/tt-xla/actions/runs/<run_id>/job/<job_id>`), extract the job ID from the URL:
+Every time a test must be executed at a specific commit, follow this exact sequence. This sequence is used in Phase 2, Phase 3, and the bisect script in Phase 4.
 
 ```bash
-# Extract job_id from bad_run_url
-JOB_ID=$(echo "<bad_run_url>" | grep -oP '(?<=/job/)\d+')
-
-# Download job logs
-gh api "repos/$GITHUB_REPO/actions/jobs/$JOB_ID/logs" > /tmp/ci_bad_job.log 2>&1 || true
-```
-
-If `bad_run_url` is not present but `bad_run_id` is, find the failed job for the test:
-```bash
-# List jobs for the run and find the one related to this test
-gh api "repos/$GITHUB_REPO/actions/runs/<bad_run_id>/jobs?per_page=100" \
-  --jq '.jobs[] | select(.conclusion == "failure") | {id: .id, name: .name}' | head -20
-# Then download the relevant job log
-gh api "repos/$GITHUB_REPO/actions/jobs/<job_id>/logs" > /tmp/ci_bad_job.log 2>&1 || true
-```
-
-Search the CI log for the test failure and extract the raw error:
-```bash
-grep -A 30 "<test_id>\|FAILED\|PASSED\|Error\|assert\|Timeout\|Aborted" \
-  /tmp/ci_bad_job.log | head -60
-```
-
-Show the user the raw CI error output as-is. This is the reference error — do not interpret or classify it, just present it:
-```
-CI error (raw):
-<paste of the relevant lines from the CI log>
-```
-
-This raw CI error is the ground truth. All subsequent steps (local reproduction and bisect) use this exact output as the reference.
-
-#### 2b. Reset chip and reproduce locally
-
-**Always reset the chip before running the test locally:**
-```bash
-tt-smi -r 2>/dev/null || true
+# Step 1 — Restart chip
+echo "=== Restarting chip ==="
+tt-smi -r 2>/dev/null || {
+  echo "tt-smi not found or failed — reinstalling"
+  deactivate 2>/dev/null || true
+  pip uninstall tt-smi -y 2>/dev/null || true
+  source "$REPO_ROOT/venv/bin/activate"
+  pip install tt-smi
+  tt-smi -r
+}
 sleep 3
-```
 
-Install the CI wheel for the bad commit (follow the wheel-install helper below), then:
-
-```bash
-cd "$REPO_ROOT"
-git checkout <bad_sha>
+# Step 2 — Activate venv
+echo "=== Activating venv ==="
 source "$REPO_ROOT/venv/bin/activate"
-git submodule update --init
+
+# Step 3 — Checkout the commit
+echo "=== Checking out <COMMIT> ==="
+cd "$REPO_ROOT"
+git checkout <COMMIT>
+
+# Step 4 — Update submodules
+echo "=== Updating submodules ==="
+git submodule update --init 2>&1 | tail -5
+
+# Step 5 — Download CI wheel
+echo "=== Finding CI wheel for <SHORT> ==="
+RUN_ID=$(gh api "repos/$GITHUB_REPO/actions/runs?head_sha=<COMMIT>&event=push&per_page=1000" \
+  --jq '.workflow_runs[] | select(.name == "On push") | .id' 2>/dev/null | head -1)
+if [ -z "$RUN_ID" ]; then
+  echo "No 'On push' CI run found for <COMMIT> — cannot install wheel"
+  exit 1
+fi
+WHEEL_DIR="/tmp/bisect_wheels/<SHORT>"
+rm -rf "$WHEEL_DIR"
+mkdir -p "$WHEEL_DIR"
+gh run download "$RUN_ID" \
+  --repo "$GITHUB_REPO" \
+  --dir "$WHEEL_DIR" \
+  --name "xla-whl-release-<SHORT>" 2>&1
+WHEEL=$(find "$WHEEL_DIR" -name "*.whl" | head -1)
+if [ -z "$WHEEL" ]; then
+  echo "Wheel artifact not found or expired for <SHORT>"
+  exit 1
+fi
+
+# Step 6 — Install wheel
+echo "=== Installing wheel: $WHEEL ==="
+uv pip install "$WHEEL" --quiet
+
+# Step 7 — Run test, log to <SHORT>.log
+LOG="$LOG_DIR/<SHORT>.log"
+echo "=== Running test: $TEST_ID ==="
+pytest "tests/runner/test_models.py::test_all_models_torch[$TEST_ID]" \
+  --no-header -rN \
+  --timeout=300 \
+  2>&1 | tee "$LOG"
+PYTEST_EXIT=${PIPESTATUS[0]}
 ```
-
-Install the wheel, then run:
-```bash
-pytest "tests/runner/test_models.py::test_all_models_torch[<test_id>]" \
-  --no-header -rN --timeout=300 \
-  2>&1 | tee /tmp/bisect_bad_run.log
-```
-
-Extract the key error message:
-```bash
-grep -A 20 "FAILED\|AssertionError\|Error\|PCC\|assert\|Timeout\|Aborted" /tmp/bisect_bad_run.log | head -40
-```
-
-**Compare local output with the CI error:**
-
-- If local output **matches** the CI error → confirmed reproduction. Proceed to Phase 3 using the CI error as the reference.
-- If local result is **PASSED** → the failure may not reproduce in isolation. Stop and report to user.
-- If local error is **different** from CI → chip state issue is likely. Reset chip again (`tt-smi -r`, sleep 3) and retry once. If still different, report both outputs to the user and ask how to proceed — do not bisect on a false error.
-
-Report to the user:
-```
-CI error (raw):    <snippet from CI log>
-Local error (raw): <snippet from local run>
-Match:             YES / NO
-```
-
-If match is NO and the user wants to continue anyway, ask them to confirm which error to use as the bisect reference before proceeding to Phase 3.
 
 ---
 
-### Phase 3 — Create the bisect run script
+### Phase 2 — Reproduce error on bad commit
 
-Determine the log directory — named after the test slug and short bad SHA so it's easy to find:
-```
-LOG_DIR=/tmp/bisect_<test_id_slug>_<short_bad_sha>
-```
-For example: `/tmp/bisect_densenet_pytorch-169-single_device-inference_1e5781d`
+Run the full run sequence for `$FULL_BAD`. Log goes to `$LOG_DIR/$SHORT_BAD.log`.
 
-Create it:
+After the run, extract and display the error:
 ```bash
-mkdir -p "$LOG_DIR"
+grep -A 20 "FAILED\|AssertionError\|Error\|PCC\|assert\|Timeout\|Aborted\|signal" \
+  "$LOG_DIR/$SHORT_BAD.log" | head -40
 ```
 
-Each bisect step writes its full output to `$LOG_DIR/<short_commit>.log`. A running summary is appended to `$LOG_DIR/bisect_summary.log`.
+**Compare local output with `known_error`:**
 
-Write `/tmp/bisect_commit_test.sh`:
+- If the error **matches** (same type and root cause) → confirmed. Print `REPRODUCED: YES`. Proceed to Phase 3.
+- If the test **passed** → reproduction failed. Print `REPRODUCED: NO (test passed on bad commit)`. Stop and report.
+- If the error is **different** → chip may be in a bad state. Reset chip again and retry once. If still different, print both outputs, report to user, and stop — do not bisect on a false error.
+
+Print:
+```
+Phase 2 — Bad commit reproduction
+SHA:           <FULL_BAD>
+Known error:   <known_error>
+Local error:   <snippet from log>
+Reproduced:    YES / NO
+```
+
+---
+
+### Phase 3 — Verify good commit
+
+Run the full run sequence for `$FULL_GOOD`. Log goes to `$LOG_DIR/$SHORT_GOOD.log`.
+
+After the run, classify the result against `expected_good_outcome`:
+- If `expected_good_outcome` is `"test passes"` (default):
+  - Test passed → `GOOD_VERIFIED: YES`
+  - Test failed → `GOOD_VERIFIED: NO` — print the error; stop and report unless user says to continue
+- If `expected_good_outcome` is a specific error:
+  - Error matches expected → `GOOD_VERIFIED: YES`
+  - Error doesn't match → `GOOD_VERIFIED: NO` — print both expected and actual; stop and ask user how to proceed
+
+Print:
+```
+Phase 3 — Good commit verification
+SHA:              <FULL_GOOD>
+Expected outcome: <expected_good_outcome>
+Actual result:    <PASSED / FAILED with snippet>
+Good verified:    YES / NO
+```
+
+If `GOOD_VERIFIED: NO` and user wants to continue anyway, note this in the report and proceed to Phase 4.
+
+---
+
+### Phase 4 — Run git bisect
+
+Write `$LOG_DIR/bisect_run.sh`:
 
 ```bash
 #!/usr/bin/env bash
 # Auto-generated by /bisect-commit skill
 set -euo pipefail
 
-REPO=__REPO_ROOT__
-GITHUB_REPO=__GITHUB_REPO__
+REPO="__REPO_ROOT__"
+GITHUB_REPO="__GITHUB_REPO__"
 TEST_ID="__TEST_ID__"
 LOG_DIR="__LOG_DIR__"
 SUMMARY="$LOG_DIR/bisect_summary.log"
 
 cd "$REPO"
 COMMIT=$(git rev-parse HEAD)
-SHORT=${COMMIT:0:7}
+SHORT=${COMMIT:0:8}
 LOG="$LOG_DIR/$SHORT.log"
 
-echo ""
-echo "======================================================"
-echo "=== BISECT STEP: $COMMIT ==="
-echo "======================================================"
+echo "" | tee -a "$SUMMARY"
+echo "=====================================================" | tee -a "$SUMMARY"
+echo "=== BISECT STEP: $COMMIT ===" | tee -a "$SUMMARY"
+echo "=====================================================" | tee -a "$SUMMARY"
 
-# ---- Activate venv ----
+# ---- Step 1: Restart chip ----
+echo "=== Restarting chip ===" | tee -a "$SUMMARY"
+tt-smi -r 2>/dev/null || {
+  echo "tt-smi not found or failed — reinstalling" | tee -a "$SUMMARY"
+  deactivate 2>/dev/null || true
+  pip uninstall tt-smi -y 2>/dev/null || true
+  source "$REPO/venv/bin/activate"
+  pip install tt-smi
+  tt-smi -r
+}
+sleep 3
+
+# ---- Step 2: Activate venv ----
+echo "=== Activating venv ===" | tee -a "$SUMMARY"
 source "$REPO/venv/bin/activate"
 
-# ---- Update submodules ----
-echo "=== Updating submodules ==="
+# ---- Step 3: Already at this commit via git bisect ----
+echo "=== At commit: $COMMIT ===" | tee -a "$SUMMARY"
+
+# ---- Step 4: Update submodules ----
+echo "=== Updating submodules ===" | tee -a "$SUMMARY"
 git submodule update --init 2>&1 | tail -5
 
-# ---- Download and install CI wheel ----
-echo "=== Finding CI wheel for $SHORT ==="
-
+# ---- Step 5: Download CI wheel ----
+echo "=== Finding CI wheel for $SHORT ===" | tee -a "$SUMMARY"
 RUN_ID=$(gh api "repos/$GITHUB_REPO/actions/runs?head_sha=$COMMIT&event=push&per_page=1000" \
   --jq '.workflow_runs[] | select(.name == "On push") | .id' 2>/dev/null | head -1)
 
 if [ -z "$RUN_ID" ]; then
-  echo "No 'On push' CI run found for $COMMIT — skipping commit (exit 125)"
+  echo "No 'On push' CI run found for $COMMIT — skipping (exit 125)" | tee -a "$SUMMARY"
+  echo "$SHORT  SKIPPED  (no CI run)" >> "$SUMMARY"
   exit 125
 fi
 
-echo "CI run ID: $RUN_ID"
+echo "CI run ID: $RUN_ID" | tee -a "$SUMMARY"
 WHEEL_DIR="/tmp/bisect_wheels/$SHORT"
 rm -rf "$WHEEL_DIR"
 mkdir -p "$WHEEL_DIR"
@@ -237,26 +279,21 @@ mkdir -p "$WHEEL_DIR"
 gh run download "$RUN_ID" \
   --repo "$GITHUB_REPO" \
   --dir "$WHEEL_DIR" \
-  --name "xla-whl-release-$SHORT" 2>&1
+  --name "xla-whl-release-$SHORT" 2>&1 | tee -a "$SUMMARY"
 
 WHEEL=$(find "$WHEEL_DIR" -name "*.whl" | head -1)
 if [ -z "$WHEEL" ]; then
-  echo "Wheel not found in $WHEEL_DIR — artifact may have expired. Skipping commit (exit 125)"
+  echo "Wheel not found — artifact may have expired. Skipping (exit 125)" | tee -a "$SUMMARY"
   echo "$SHORT  SKIPPED  (no wheel)" >> "$SUMMARY"
   exit 125
 fi
 
-echo "Installing wheel: $WHEEL"
+# ---- Step 6: Install wheel ----
+echo "=== Installing wheel: $WHEEL ===" | tee -a "$SUMMARY"
 uv pip install "$WHEEL" --quiet
 
-# ---- Reset chip before each test run ----
-# This prevents a prior test leaving the chip in a bad state from causing false failures
-echo "=== Resetting chip ==="
-tt-smi -r 2>/dev/null || true
-sleep 3
-
-# ---- Run the test — full output saved to per-commit log ----
-echo "=== Running test: $TEST_ID ==="
+# ---- Step 7: Run test ----
+echo "=== Running test: $TEST_ID ===" | tee -a "$SUMMARY"
 pytest "tests/runner/test_models.py::test_all_models_torch[$TEST_ID]" \
   --no-header -rN \
   --timeout=300 \
@@ -264,65 +301,69 @@ pytest "tests/runner/test_models.py::test_all_models_torch[$TEST_ID]" \
 
 PYTEST_EXIT=${PIPESTATUS[0]}
 
-# Skip if test wasn't collected (didn't exist yet at this commit)
+# Skip if test wasn't collected at this commit
 if grep -q "no tests ran\|collected 0 items" "$LOG"; then
-  echo "TEST NOT COLLECTED — skipping commit (exit 125)"
+  echo "TEST NOT COLLECTED — skipping (exit 125)" | tee -a "$SUMMARY"
   echo "$SHORT  SKIPPED  (not collected)" >> "$SUMMARY"
   exit 125
 fi
 
 if [ $PYTEST_EXIT -eq 0 ]; then
-  echo "TEST PASSED"
+  echo "TEST PASSED" | tee -a "$SUMMARY"
   echo "$SHORT  PASSED" >> "$SUMMARY"
   exit 0
 else
-  echo "TEST FAILED"
+  echo "TEST FAILED" | tee -a "$SUMMARY"
   echo "$SHORT  FAILED" >> "$SUMMARY"
   exit 1
 fi
 ```
 
-Substitute `__REPO_ROOT__` with `$REPO_ROOT`, `__GITHUB_REPO__` with `$GITHUB_REPO`, `__TEST_ID__` with the actual test_id value, and `__LOG_DIR__` with the log directory path, then:
+Substitute `__REPO_ROOT__`, `__GITHUB_REPO__`, `__TEST_ID__`, `__LOG_DIR__` with actual values, then:
 ```bash
-chmod +x /tmp/bisect_commit_test.sh
+chmod +x "$LOG_DIR/bisect_run.sh"
 ```
 
----
-
-### Phase 4 — Run git bisect
-
+Run bisect:
 ```bash
 cd "$REPO_ROOT"
 git bisect reset   # clean up any previous bisect state
 git bisect start
-git bisect bad <bad_sha>
-git bisect good <good_sha>
-git bisect run /tmp/bisect_commit_test.sh
+git bisect bad "$FULL_BAD"
+git bisect good "$FULL_GOOD"
+git bisect run "$LOG_DIR/bisect_run.sh"
 ```
 
-Print each bisect step result for the user as it runs. Each step shows: commit SHA, result (PASSED / FAILED / skipped), and any error snippet.
+Print each bisect step result as it runs: commit SHA, result (PASSED / FAILED / SKIPPED), and any error snippet.
 
-When a step is **skipped** (`exit 125`), note the reason (no CI run, expired artifact, build failure, test not collected).
+When a step is **skipped** (`exit 125`), note the reason (no CI run, expired artifact, test not collected).
 
 ---
 
 ### Phase 5 — Report results
 
-When `git bisect run` completes:
-
-**5a. Show the first bad commit:**
+When `git bisect run` completes, git identifies the blame commit — the earliest commit where the test fails. Capture it:
 ```bash
-git show --stat <first_bad_sha>
+BLAME_SHA=$(git rev-parse refs/bisect/bad)
+BLAME_SHORT=${BLAME_SHA:0:8}
+```
+
+`BLAME_SHA` is the commit that **introduced** the regression. It is NOT the same as the input `first_bad_sha` (which was just the known-bad starting point of the range).
+
+**5a. Show the blame commit:**
+```bash
+git show --stat "$BLAME_SHA"
 ```
 
 **5b. Find the associated PR:**
 ```bash
-gh api "repos/$GITHUB_REPO/commits/<first_bad_sha>/pulls" --jq '.[].html_url'
+gh api "repos/$GITHUB_REPO/commits/$BLAME_SHA/pulls" --jq '.[].html_url'
 ```
 
-**5c. Show the failure from the first-bad commit's log:**
+**5c. Show the failure log for the blame commit:**
 ```bash
-grep -A 15 "FAILED\|AssertionError\|Error\|assert\|Timeout\|Aborted" "$LOG_DIR/<first_bad_short>.log" | head -30
+grep -A 15 "FAILED\|AssertionError\|Error\|assert\|Timeout\|Aborted" \
+  "$LOG_DIR/${BLAME_SHORT}.log" | head -30
 ```
 
 **5d. Show the full bisect summary:**
@@ -330,63 +371,58 @@ grep -A 15 "FAILED\|AssertionError\|Error\|assert\|Timeout\|Aborted" "$LOG_DIR/<
 cat "$LOG_DIR/bisect_summary.log"
 ```
 
-**5e. Clean up:**
+**5e. Clean up bisect state:**
 ```bash
 git bisect reset
 ```
 
-**5f. Write findings to `investigation/bisect_<short_bad_sha>_<test_id_slug>.md`:**
+**5f. Write findings to `$LOG_DIR/bisect_result.md`:**
 
 ```markdown
-# Bisect: <test_id>
+# Bisect Result: <test_id>
 
-**Range:** <good_sha> → <bad_sha>
-**First bad commit:** <first_bad_sha>
+**Range:** <FULL_GOOD> (last_good_sha) → <FULL_BAD> (first_bad_sha)
+**Blame commit:** <BLAME_SHA>
 **PR:** <pr_url>
-**Date:** <commit date>
-**Logs:** `<LOG_DIR>/`
+**Commit date:** <commit date>
+**Log directory:** `<LOG_DIR>/`
 
-## CI error (reference)
+## Known error (reference)
 
-<paste of the raw CI error from Phase 2>
+<known_error>
+
+## Phase 2 — Bad commit reproduction
+
+SHA: <FULL_BAD>
+Reproduced: YES/NO
+Error snippet:
+<snippet>
+
+## Phase 3 — Good commit verification
+
+SHA: <FULL_GOOD>
+Expected: <expected_good_outcome>
+Result: PASSED/FAILED
+Snippet:
+<snippet>
 
 ## Bisect summary
 
 <contents of $LOG_DIR/bisect_summary.log>
 ← annotate the first bad commit line
 
-## Error on first bad commit
+## Error on blame commit
 
-<paste of key lines from $LOG_DIR/<first_bad_short>.log>
+<paste of key lines from $LOG_DIR/<BLAME_SHORT>.log>
 ```
 
----
-
-### Wheel install helper
-
-Use this procedure whenever you need to install the CI wheel for a given commit SHA:
-
-```bash
-COMMIT=<full_sha>
-SHORT=${COMMIT:0:7}
-
-# Find the "On push" run for this commit
-RUN_ID=$(gh api "repos/$GITHUB_REPO/actions/runs?head_sha=$COMMIT&event=push&per_page=1000" \
-  --jq '.workflow_runs[] | select(.name == "On push") | .id' | head -1)
-
-echo "Run ID: $RUN_ID"
-
-# Download the wheel artifact
-WHEEL_DIR="wheels/$SHORT"
-mkdir -p "$WHEEL_DIR"
-gh run download "$RUN_ID" \
-  --repo "$GITHUB_REPO" \
-  --dir "$WHEEL_DIR" \
-  --name "xla-whl-release-$SHORT"
-
-# Install
-WHEEL=$(find "$WHEEL_DIR" -name "*.whl" | head -1)
-uv pip install "$WHEEL"
+Also print the result path:
+```
+Bisect complete.
+Blame commit: <BLAME_SHA>
+PR:           <pr_url>
+Result written to: <LOG_DIR>/bisect_result.md
+Logs in:          <LOG_DIR>/
 ```
 
 ---
@@ -395,12 +431,15 @@ uv pip install "$WHEEL"
 
 | Situation | Action |
 |-----------|--------|
+| `tt-smi` command not found | Deactivate env, `pip uninstall tt-smi -y`, `source venv/activate`, `pip install tt-smi`, retry `tt-smi -r` |
 | `gh api` returns no "On push" run for a commit | `exit 125` — skip commit (no CI wheel available) |
 | Artifact download fails / artifact expired | `exit 125` — skip commit |
 | Wheel installs but test not collected | `exit 125` — commit predates the test |
-| Build from source fails | `exit 125` — skip commit |
-| Test hangs beyond `--timeout=300` | Pytest exits non-zero → FAILED; investigate if it keeps happening |
-| Chip error / TT device not responding | Run `tt-smi -r` to reset. If `tt-smi` is missing: `pip install tt-smi`, then retry |
-| All commits skipped (no artifacts in range) | Report to user — the artifact retention window may have passed. Offer to build from source instead by modifying the bisect script |
+| Test hangs beyond `--timeout=300` | Pytest exits non-zero → FAILED |
+| Chip error / TT device not responding | Run `tt-smi -r` again. If still failing, apply the full tt-smi reinstall procedure |
+| All commits skipped (no artifacts in range) | Report to user — artifact retention window may have passed |
+| Bad commit doesn't reproduce the error | Stop, report both errors to user — do not bisect on a false reference |
+| Good commit doesn't match expected outcome | Stop, report, ask user how to proceed before bisecting |
 | `git bisect` lands on a merge commit | Normal — bisect will find the merge commit if that's where the regression landed |
 | Detached HEAD warnings | Expected during bisect — ignore |
+| Any other unexpected error mid-bisect | Investigate root cause, fix it, then resume bisect with `git bisect run "$LOG_DIR/bisect_run.sh"` |
