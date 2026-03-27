@@ -52,6 +52,9 @@ class ModelVariant(StrEnum):
     LLAMA_3_3_70B_INSTRUCT = "3.3_70B_Instruct"
     LLAMA_3_3_70B_INSTRUCT_AWQ = "3.3_70B_Instruct_Awq"
 
+    # casperhansen AWQ quantized variants
+    LLAMA_3_8B_INSTRUCT_AWQ = "3.0_8B_Instruct_Awq"
+
     # RedHatAI FP8 quantized variants
     LLAMA_3_2_1B_INSTRUCT_FP8 = "3.2_1B_Instruct_FP8"
     LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
@@ -142,6 +145,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
             max_length=128,
         ),
+        # casperhansen AWQ quantized variants
+        ModelVariant.LLAMA_3_8B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="casperhansen/llama-3-8b-instruct-awq",
+            max_length=128,
+        ),
         # Llama 3.3 variants
         ModelVariant.LLAMA_3_3_70B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Llama-3.3-70B-Instruct",
@@ -214,6 +222,7 @@ class ModelLoader(ForgeModel):
         if variant in [
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
+            ModelVariant.LLAMA_3_8B_INSTRUCT_AWQ,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -304,9 +313,9 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         # Check if this is an AWQ variant and configure accordingly
-        if (
-            pretrained_model_name
-            == "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4"
+        if pretrained_model_name in (
+            "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+            "casperhansen/llama-3-8b-instruct-awq",
         ):
             model_kwargs["device_map"] = "cpu"
 
