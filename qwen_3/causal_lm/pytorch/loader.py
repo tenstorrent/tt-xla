@@ -34,7 +34,7 @@ class ModelVariant(StrEnum):
     QWEN_3_32B = "32B"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
-    QWEN_3_30B_A3B_THINKING_2507 = "30B_A3B_Thinking_2507"
+    QWEN_3_235B_A22B = "235B_A22B"
 
 
 class ModelLoader(ForgeModel):
@@ -82,8 +82,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_30B_A3B_THINKING_2507: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-30B-A3B-Thinking-2507",
+        ModelVariant.QWEN_3_235B_A22B: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-235B-A22B",
             max_length=128,
         ),
     }
@@ -124,7 +124,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_30B_A3B_THINKING_2507,
+            ModelVariant.QWEN_3_235B_A22B,
         ):
             group = ModelGroup.VULCAN
         else:
