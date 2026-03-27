@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa token classification model variants."""
 
     CRYPTO_NER = "CryptoNER"
-    YEAJINMIN_NER_NEWSBI = "yeajinmin/NER-NewsBI-150142-e3b4"
+    CONLL03_ENGLISH = "CoNLL03English"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.CRYPTO_NER: ModelConfig(
             pretrained_model_name="covalenthq/cryptoNER",
         ),
-        ModelVariant.YEAJINMIN_NER_NEWSBI: ModelConfig(
-            pretrained_model_name="yeajinmin/NER-NewsBI-150142-e3b4",
+        ModelVariant.CONLL03_ENGLISH: ModelConfig(
+            pretrained_model_name="FacebookAI/xlm-roberta-large-finetuned-conll03-english",
         ),
     }
 
