@@ -96,9 +96,10 @@ class ModelLoader(ForgeModel):
     def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
         if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
             self._preprocessor = VisionPreprocessor(
-                model_source=ModelSource.TIMM,
+                model_source=source,
                 model_name=model_name,
             )
 
@@ -129,9 +130,10 @@ class ModelLoader(ForgeModel):
     def output_postprocess(self, output):
         if self._postprocessor is None:
             model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
 
             self._postprocessor = VisionPostprocessor(
-                model_source=ModelSource.TIMM,
+                model_source=source,
                 model_name=model_name,
                 model_instance=self.model,
             )
