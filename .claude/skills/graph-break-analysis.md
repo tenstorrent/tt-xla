@@ -1,40 +1,58 @@
 ---
 name: graph-break-analysis
-description: Guide for doing graph break analysis for some model/script and the log file search analysis.
-allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Task, Fetch
+description: Analyzes and debugs graph breaks in PyTorch/XLA model compilation. Use when a model generates more graphs than expected during compilation, the user mentions "graph break", or when debugging excessive graph generation in tt-xla pipelines.
+allowed-tools: Bash Read Grep Glob Write Edit Task Fetch
 ---
 
-Graph breaks are term used when some model/pipeline/script is broken into more graphs during compilation than  needed.
+# Graph Break Analysis
 
-Use Case: Debugging many generated graphs
-Trigger: User says "I have graph break" or "my model generated many graphs"
+Graph breaks occur when a model, pipeline, or script is split into more graphs than necessary during compilation.
 
-Context:
-- each graph goes through compile phase vhlo->stablehlo->ttir->ttnn
-- after each module there is a string in the log "------------------ END OF MLIR MODULE ------------------"
-- each graph compilation has 7 of these mlir module strings: 5 for vhlo/stablehlo, 1 ttir and 1 ttnn
-- that means that if the log file contains 7N of these strings, then the whole script generated N different graphs.
+## When to Use
 
-Steps to follow:
-- You should search for these strings to find out what are these graphs.
-- When you find what are these graphs, try to link them to the source model which caused them (location markers can help with that, look them up in the log)
-- If you don't see dynamo logs, instruct the user to turn on dynamo logs with `TORCH_LOGS="+dynamo" TORCHDYNAMO_VERBOSE=1` and run the model execution again for easier debugging
-- If you don't see locations in the compiler (example format loc("/root/tt-xla/venv/lib/python3.12/site-packages/diffusers/models/embeddings.py":1813:0)), then instruct the user to turn on locations in tt-xla with `XLA_HLO_DEBUG=1` and run the model again
-- Ideally, find the python/pytorch implementation of all models used in the given script - this will help you find the culprits (either search for local implementations or search web for huggingface or similar libraries)
-- for analysis, use 5 research agents in parallel
+- User says "I have graph break" or "my model generated many graphs"
+- Debugging excessive graph generation during compilation
 
-Deliverables:
-A detailed markdown report of what is causing the graph breaks (sorted by most important/frequent decreasingly)
-For each one of them, ideally provide a python script that gives a repro for that graph break. Repro should be in format similar to this:
-```
+## Context
+
+- Each graph goes through the compile phase: `vhlo -> stablehlo -> ttir -> ttnn`
+- After each module, the log contains the string: `"------------------ END OF MLIR MODULE ------------------"`
+- Each graph compilation produces 7 of these MLIR module strings: 5 for vhlo/stablehlo, 1 for ttir, and 1 for ttnn
+- If the log file contains 7N of these strings, then the script generated N different graphs
+
+## Steps
+
+1. Search for `"------------------ END OF MLIR MODULE ------------------"` strings in the log to determine the number of graphs
+2. Identify each graph and link them to the source model that caused them (location markers in the log can help)
+3. If dynamo logs are not present, instruct the user to enable them:
+   ```bash
+   TORCH_LOGS="+dynamo" TORCHDYNAMO_VERBOSE=1
+   ```
+   Then re-run the model execution
+4. If location information is missing from the compiler output (example format: `loc("/root/tt-xla/venv/lib/python3.12/site-packages/diffusers/models/embeddings.py":1813:0)`), instruct the user to enable locations:
+   ```bash
+   XLA_HLO_DEBUG=1
+   ```
+   Then re-run the model
+5. Find the Python/PyTorch implementation of all models used in the script — search locally or on the web (e.g., HuggingFace, similar libraries) to identify the culprits
+6. Use 5 research agents in parallel for analysis
+
+## Deliverables
+
+Produce a detailed markdown report of what is causing the graph breaks, sorted by most important/frequent (descending).
+
+For each graph break, provide a Python script that reproduces it. Use this format:
+
+```python
 import torch_xla
 import torch_xla.runtime as xr
 # other imports
-# add any global patches or functions or variables or env vars that were present in original file, to ensure the reproduction
+# add any global patches, functions, variables, or env vars from the original file
 
 def main():
     xr.set_device_type("TT")
-    # add any custom compile options, e.g. torch_xla.set_custom_compile_options({"optimization_level": 1})
+    # add any custom compile options, e.g.:
+    # torch_xla.set_custom_compile_options({"optimization_level": 1})
 
     full_model = load_the_original_full_model()
     model = full_model.submodule.where.we.want.graphbreak.repro
@@ -48,6 +66,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 ```
-Please think hard and make this graph break report like instructed
+
+Think carefully and produce a thorough graph break report as instructed.
