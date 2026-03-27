@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Coder model variants for causal language modeling."""
 
     QWEN_3_CODER_NEXT = "Next"
-    QWEN_3_CODER_30B_A3B_INSTRUCT = "Qwen3-Coder-30B-A3B-Instruct"
+    QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -128,7 +128,14 @@ class ModelLoader(ForgeModel):
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
+            if hasattr(config, "text_config"):
+                config.text_config.num_hidden_layers = self.num_layers
+                if hasattr(config.text_config, "layer_types"):
+                    config.text_config.layer_types = config.text_config.layer_types[
+                        : self.num_layers
+                    ]
+            else:
+                config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
