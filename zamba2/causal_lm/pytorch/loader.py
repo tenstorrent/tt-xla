@@ -13,7 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    ModelConfig,
+    LLMModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -32,8 +32,9 @@ class ModelLoader(ForgeModel):
     """Zamba2 model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.ZAMBA2_1_2B_INSTRUCT: ModelConfig(
+        ModelVariant.ZAMBA2_1_2B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Zyphra/Zamba2-1.2B-instruct",
+            max_length=128,
         ),
     }
 
@@ -69,7 +70,7 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            pretrained_model_name, trust_remote_code=True, **tokenizer_kwargs
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -88,12 +89,14 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, trust_remote_code=True
+            )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            pretrained_model_name, trust_remote_code=True, **model_kwargs
         ).eval()
 
         self.config = model.config
@@ -124,6 +127,6 @@ class ModelLoader(ForgeModel):
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
+            self._variant_config.pretrained_model_name, trust_remote_code=True
         )
         return self.config
