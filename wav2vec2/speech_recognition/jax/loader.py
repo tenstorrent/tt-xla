@@ -40,7 +40,7 @@ class ModelVariant(StrEnum):
     XLS_R_300M_TURKISH = "XLS_R_300M_Turkish"
     XLSR_53_SPANISH = "XLSR_53_Spanish"
     XLSR_53_TELUGU = "XLSR_53_Telugu"
-    XLSR_53_FAROESE_100H = "XLSR_53_Faroese_100h"
+    XLSR_KHMER = "XLSR_Khmer"
 
 
 class ModelLoader(ForgeModel):
@@ -95,8 +95,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.XLSR_53_TELUGU: ModelConfig(
             pretrained_model_name="anuragshas/wav2vec2-large-xlsr-53-telugu",
         ),
-        ModelVariant.XLSR_53_FAROESE_100H: ModelConfig(
-            pretrained_model_name="carlosdanielhernandezmena/wav2vec2-large-xlsr-53-faroese-100h",
+        ModelVariant.XLSR_KHMER: ModelConfig(
+            pretrained_model_name="gagan3012/wav2vec2-xlsr-khmer",
         ),
     }
 
