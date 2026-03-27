@@ -4,7 +4,6 @@
 """
 Qwen3 Sequence Classification loader implementation
 """
-import torch
 from transformers import AutoTokenizer, Qwen3ForSequenceClassification
 from ....config import (
     ModelInfo,
