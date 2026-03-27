@@ -101,7 +101,6 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.BERT_BASE_CASED,
-            ModelVariant.BERT_BASE_GERMAN_CASED,
             ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
             ModelVariant.BIO_CLINICAL_BERT,
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
