@@ -169,6 +169,8 @@ void BufferInstance::copyFromHost(
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
     EventInstance **out_done_with_host_buffer_event) {
 
+  
+      
   TT_FATAL(
       data_type == m_data_type,
       "m_data_type and data_type do not match: m_data_type={}, data_type={}",
@@ -183,6 +185,16 @@ void BufferInstance::copyFromHost(
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape =
       calculateShape(dims, num_dims, m_data_type);
+
+  std::size_t host_buffer_size_bytes =
+      (num_byte_strides > 0 && num_dims > 0)
+          ? static_cast<std::size_t>(byte_strides[0]) * dims[0]
+          : [&]() { std::size_t b = element_size; for (auto d : shape) { b *= d; } return b; }();
+  std::string shape_str = "[";
+  for (size_t i = 0; i < num_dims; i++) { if (i) { shape_str += ", "; } shape_str += std::to_string(dims[i]); }
+  shape_str += "]";
+  LOG_F(INFO, "BufferInstance::copyFromHost uid=%lu host_buffer=%p size_bytes=%zu shape=%s", getUID(), host_buffer, host_buffer_size_bytes, shape_str.c_str());
+
   std::vector<std::uint32_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
