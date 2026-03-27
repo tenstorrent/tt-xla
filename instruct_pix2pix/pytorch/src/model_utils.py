@@ -111,11 +111,7 @@ def instruct_pix2pix_preprocessing(
     )
 
     if do_classifier_free_guidance:
-        uncond_image_latents = torch.zeros_like(image_latents)
         image_latents = torch.cat([image_latents, image_latents, image_latents])
-        uncond_image_latents = torch.cat(
-            [uncond_image_latents, uncond_image_latents, uncond_image_latents]
-        )
 
     # 3. Prepare timesteps
     timesteps, num_inference_steps = retrieve_timesteps(
