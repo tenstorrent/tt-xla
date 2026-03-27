@@ -2,14 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LTX-2.3 model loader for tt_forge_models.
+LTX model loader for tt_forge_models.
 
-LTX-2.3 is a 22B parameter DiT (Diffusion Transformer) audio-video foundation model
-by Lightricks. It generates synchronized video and audio within a single model.
-Repository: https://huggingface.co/Lightricks/LTX-2.3
+LTX-2 is a 19B parameter and LTX-2.3 is a 22B parameter DiT (Diffusion Transformer)
+audio-video foundation model by Lightricks. They generate synchronized video and audio
+within a single model.
+
+Repositories:
+- https://huggingface.co/Lightricks/LTX-2
+- https://huggingface.co/Lightricks/LTX-2.3
 
 Available subfolders:
-- transformer: LTX2VideoTransformer3DModel (~22B params)
+- transformer: LTX2VideoTransformer3DModel
 - vae: AutoencoderKLLTX2Video
 - audio_vae: AutoencoderKLLTX2Audio
 """
@@ -37,8 +41,9 @@ FP8_CHECKPOINT_URL = "https://huggingface.co/Lightricks/LTX-2.3-fp8/blob/main/lt
 
 
 class ModelVariant(StrEnum):
-    """Available LTX-2.3 variants."""
+    """Available LTX variants."""
 
+    LTX_2 = "2"
     LTX_2_3 = "2.3"
     LTX_2_3_FP8 = "2.3-fp8"
 
@@ -57,6 +62,9 @@ class ModelLoader(ForgeModel):
     """
 
     _VARIANTS = {
+        ModelVariant.LTX_2: ModelConfig(
+            pretrained_model_name="Lightricks/LTX-2",
+        ),
         ModelVariant.LTX_2_3: ModelConfig(
             pretrained_model_name="Lightricks/LTX-2.3",
         ),
