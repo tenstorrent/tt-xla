@@ -5,8 +5,6 @@
 Docling Layout Heron model loader implementation for document layout detection.
 """
 import torch
-from transformers import RTDetrV2ForObjectDetection, RTDetrImageProcessor
-from datasets import load_dataset
 from typing import Optional
 
 from ...base import ForgeModel
@@ -57,12 +55,16 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
+        from transformers import RTDetrImageProcessor
+
         self.processor = RTDetrImageProcessor.from_pretrained(
             self._variant_config.pretrained_model_name
         )
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        from transformers import RTDetrV2ForObjectDetection
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.processor is None:
@@ -81,11 +83,14 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        import requests
+        from PIL import Image
+
         if self.processor is None:
             self._load_processor()
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        url = "https://huggingface.co/spaces/ds4sd/SmolDocling-256M-Demo/resolve/main/example_images/annual_rep_14.png"
+        image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
 
         inputs = self.processor(images=image, return_tensors="pt")
 
