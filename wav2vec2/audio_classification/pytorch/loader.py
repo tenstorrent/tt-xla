@@ -56,13 +56,13 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self, dtype_override=None):
-        from transformers import Wav2Vec2Processor
+        from transformers import Wav2Vec2FeatureExtractor
 
         processor_kwargs = {}
         if dtype_override is not None:
             processor_kwargs["dtype"] = dtype_override
 
-        self._processor = Wav2Vec2Processor.from_pretrained(
+        self._processor = Wav2Vec2FeatureExtractor.from_pretrained(
             self._variant_config.pretrained_model_name, **processor_kwargs
         )
 
@@ -103,7 +103,7 @@ class ModelLoader(ForgeModel):
                 self.config = config
                 self.wav2vec2 = Wav2Vec2Model(config)
                 self.classifier = RegressionHead(config)
-                self.init_weights()
+                self.post_init()
 
             def forward(self, input_values):
                 outputs = self.wav2vec2(input_values)
@@ -112,12 +112,18 @@ class ModelLoader(ForgeModel):
                 logits = self.classifier(hidden_states)
                 return hidden_states, logits
 
-        # Load config with workaround for vocab_size=None
-        config = Wav2Vec2Config.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            vocab_size=1,
-            num_labels=3,
+        # Load config with workaround for vocab_size=None in upstream config
+        import json
+        from huggingface_hub import hf_hub_download
+
+        config_path = hf_hub_download(
+            self._variant_config.pretrained_model_name, "config.json"
         )
+        with open(config_path) as f:
+            config_dict = json.load(f)
+        config_dict["vocab_size"] = config_dict.get("vocab_size") or 1
+        config_dict["num_labels"] = config_dict.get("num_labels") or 3
+        config = Wav2Vec2Config(**config_dict)
 
         model_kwargs = {}
         if dtype_override is not None:
