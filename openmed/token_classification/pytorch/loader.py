@@ -28,6 +28,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M = (
         "OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-434M"
     )
+    OPENMED_NER_DISEASEDETECT_BIOCLINICAL_108M = (
+        "OpenMed/OpenMed-NER-DiseaseDetect-BioClinical-108M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +45,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-434M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_DISEASEDETECT_BIOCLINICAL_108M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DiseaseDetect-BioClinical-108M",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M
@@ -49,6 +56,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.OPENMED_NER_ONCOLOGYDETECT_TINYMED_82M: "Mutations in KRAS gene drive oncogenic transformation.",
         ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
+        ModelVariant.OPENMED_NER_DISEASEDETECT_BIOCLINICAL_108M: "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
     }
 
     def __init__(self, variant=None):
