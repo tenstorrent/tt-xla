@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available BETO model variants for sentiment analysis."""
 
     BETO_SENTIMENT_ANALYSIS = "finiteautomata_Beto_Sentiment_Analysis"
+    IGNACIO_AVE_BETO_SENTIMENT_SPANISH = "ignacio_ave_Beto_Sentiment_Analysis_Spanish"
 
 
 class ModelLoader(ForgeModel):
@@ -33,13 +34,20 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="finiteautomata/beto-sentiment-analysis",
             max_length=128,
         ),
+        ModelVariant.IGNACIO_AVE_BETO_SENTIMENT_SPANISH: LLMModelConfig(
+            pretrained_model_name="ignacio-ave/beto-sentiment-analysis-spanish",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.BETO_SENTIMENT_ANALYSIS
 
-    # Sample Spanish text for sentiment analysis
-    sample_text = "Me encanta este producto, es maravilloso!"
+    # Variant-specific sample texts
+    _SAMPLE_TEXTS = {
+        ModelVariant.BETO_SENTIMENT_ANALYSIS: "Me encanta este producto, es maravilloso!",
+        ModelVariant.IGNACIO_AVE_BETO_SENTIMENT_SPANISH: "Este servicio es excelente, estoy muy contento!",
+    }
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -52,6 +60,9 @@ class ModelLoader(ForgeModel):
 
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant, "Me encanta este producto, es maravilloso!"
+        )
         self.tokenizer = None
 
     @classmethod
