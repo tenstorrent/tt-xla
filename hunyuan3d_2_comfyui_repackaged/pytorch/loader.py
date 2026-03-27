@@ -153,7 +153,7 @@ class ModelLoader(ForgeModel):
         """Load sample inputs for the Hunyuan3DDiT model.
 
         Returns:
-            tuple: Positional args (x, t, contexts) for the model forward pass.
+            dict: Input tensors (x, t, contexts) for the model forward pass.
         """
         dtype = dtype_override or torch.float32
 
@@ -165,6 +165,5 @@ class ModelLoader(ForgeModel):
 
         # contexts: image conditioning dict with 'main' key [B, seq_len, context_in_dim]
         cond = torch.randn(batch_size, COND_SEQ_LEN, CONTEXT_IN_DIM, dtype=dtype)
-        contexts = {"main": cond}
 
-        return x, t, contexts
+        return {"x": x, "t": t, "contexts": {"main": cond}}
