@@ -417,6 +417,91 @@ def test_kimi_k2_layer_sparse_moe():
     )
 
 
+@pytest.mark.llmbox
+def test_kimi_k2_layer_sparse_moe_no_cache():
+    """Same as test_kimi_k2_layer_sparse_moe but with use_cache=False to isolate
+    whether the MLACache / index_copy_ path is the source of the hang."""
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    config = DeepseekV3Config.from_json_file(config_path)
+    config._attn_implementation = "eager"
+    config.num_hidden_layers = 2
+
+    layer = DeepseekV3DecoderLayer(config, layer_idx=1)
+    layer = layer.eval().to(torch.bfloat16)
+
+    batch_size = 64
+    seq_len = 1
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    # Without a cache, kv_seq_len == q_len, so mask is [batch, 1, seq_len, seq_len].
+    attention_mask = torch.rand(
+        batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16
+    )
+    position_ids = torch.arange(seq_len).unsqueeze(0)
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (4, 16)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+    enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
+
+    def get_shard_spec(layer, args, kwargs):
+        shard_specs = {}
+
+        shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
+        shard_specs[args[1]] = ("_axis_1", None, None, None)
+
+        # Attention: TP on axis_1 for head parallelism
+        shard_specs[layer.self_attn.q_b_proj.weight] = ("_axis_0", None)
+        shard_specs[layer.self_attn.kv_b_proj.weight] = ("_axis_0", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "_axis_0")
+
+        shard_specs[layer.self_attn.q_a_proj.weight] = (None, "_axis_0")
+        shard_specs[layer.self_attn.kv_a_proj_with_mqa.weight] = (None, "_axis_0")
+
+        # A2aSparseMLP: experts compound-sharded (axis_0, axis_1)
+        mlp_wrapper = layer.mlp
+        mlp = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
+        shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
+        shard_specs[mlp.experts.gate_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.up_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.down_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
+
+        shared = getattr(mlp_wrapper, "shared_experts", None)
+        if shared is not None:
+            shard_specs[shared.gate_proj.weight] = (None, "_axis_0")
+            shard_specs[shared.up_proj.weight] = (None, "_axis_0")
+            shard_specs[shared.down_proj.weight] = ("_axis_0", None)
+
+        shard_specs[layer.input_layernorm.weight] = ("_axis_0",)
+        shard_specs[layer.post_attention_layernorm.weight] = ("_axis_0",)
+
+        return shard_specs
+
+    run_graph_test(
+        layer,
+        [
+            hidden_states,
+            attention_mask,
+            position_ids,
+            None,   # past_key_value — disabled
+            False,  # output_attentions
+            False,  # use_cache — disabled
+            None,   # cache_position — not needed without cache
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
 def test_kimi_k2_full():
     """Test full Kimi K2 model (DeepseekV3Model) with A2aSparseMLP on (2,4) mesh."""
 
