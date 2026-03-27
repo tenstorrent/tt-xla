@@ -61,13 +61,9 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
-        kwargs = {"trust_remote_code": True}
-        if dtype_override is not None:
-            kwargs["torch_dtype"] = dtype_override
-
+    def _load_processor(self):
         self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name, **kwargs
+            self._variant_config.pretrained_model_name, trust_remote_code=True
         )
 
         return self.processor
@@ -76,7 +72,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+            self._load_processor()
 
         model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
@@ -94,7 +90,7 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+            self._load_processor()
 
         image_file = get_file(self.sample_image_url)
         image = Image.open(image_file).convert("RGB")
