@@ -23,6 +23,13 @@ class ModelVariant(StrEnum):
     """Available OpenMed NER model variants."""
 
     ONCOLOGY_DETECT_SUPERMEDICAL_125M = "OncologyDetect-SuperMedical-125M"
+    DISEASE_DETECT_MODERNMED_395M = "DiseaseDetect-ModernMed-395M"
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M: "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
+    ModelVariant.DISEASE_DETECT_MODERNMED_395M: "The patient was diagnosed with diabetes mellitus type 2 and chronic obstructive pulmonary disease.",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +39,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-SuperMedical-125M",
         ),
+        ModelVariant.DISEASE_DETECT_MODERNMED_395M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DiseaseDetect-ModernMed-395M",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.ONCOLOGY_DETECT_SUPERMEDICAL_125M
@@ -40,7 +50,10 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        self.sample_text = "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells."
+        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name,
+            "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
+        )
         self.max_length = 128
 
     @classmethod
