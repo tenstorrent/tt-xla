@@ -47,6 +47,7 @@ class ModelVariant(StrEnum):
 
     # TIMM variants
     VIT_BASE_PATCH14_DINOV2_LVD142M = "Base_Patch14_DINOv2_LVD142M"
+    VIT_TINY_R_S16_P8_224_AUGREG_IN21K = "Tiny_R_S16_P8_224_AugReg_IN21K"
 
 
 class ModelLoader(ForgeModel):
@@ -87,6 +88,10 @@ class ModelLoader(ForgeModel):
         # TIMM variants
         ModelVariant.VIT_BASE_PATCH14_DINOV2_LVD142M: ViTConfig(
             pretrained_model_name="vit_base_patch14_dinov2.lvd142m",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.VIT_TINY_R_S16_P8_224_AUGREG_IN21K: ViTConfig(
+            pretrained_model_name="vit_tiny_r_s16_p8_224.augreg_in21k",
             source=ModelSource.TIMM,
         ),
     }
