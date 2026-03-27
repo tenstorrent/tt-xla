@@ -100,7 +100,7 @@ class ModelLoader(ForgeModel):
             self.BASE_MODEL_NAME, **model_kwargs
         )
         model = PeftModel.from_pretrained(
-            base_model, self._variant_config.pretrained_model_name
+            base_model, self._variant_config.pretrained_model_name, **kwargs
         )
         model = model.merge_and_unload()
         model.eval()
