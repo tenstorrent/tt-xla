@@ -9,7 +9,6 @@ import torch
 from transformers import AutoModelForImageTextToText, AutoProcessor
 from typing import Optional
 
-from ...tools.utils import get_file
 from ...base import ForgeModel
 from ...config import (
     ModelConfig,
@@ -87,15 +86,14 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        image_file = get_file(
-            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
-        )
-
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image", "image": image_file},
+                    {
+                        "type": "image",
+                        "url": "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg",
+                    },
                     {"type": "text", "text": "What is shown in this image?"},
                 ],
             },
