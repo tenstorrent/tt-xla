@@ -12,7 +12,6 @@ Distil-small.en is a distilled version of OpenAI's Whisper small.en,
 from typing import Optional
 
 import numpy as np
-import torch
 
 from ....base import ForgeModel
 from ....config import (
@@ -64,12 +63,8 @@ class ModelLoader(ForgeModel):
     def _load_processor(self, dtype_override=None):
         from transformers import AutoProcessor
 
-        processor_kwargs = {}
-        if dtype_override is not None:
-            processor_kwargs["torch_dtype"] = dtype_override
-
         self._processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name, **processor_kwargs
+            self._variant_config.pretrained_model_name,
         )
 
         return self._processor
