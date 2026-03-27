@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     MINI_128K = "Mini_128K_Instruct"
     MINI_4K = "Mini_4K_Instruct"
     MINI_4K_GPTQ_4BIT = "Mini_4K_Instruct_GPTQ_4bit"
+    TINY_RANDOM = "Tiny Random"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MINI_4K_GPTQ_4BIT: ModelConfig(
             pretrained_model_name="kaitchup/Phi-3-mini-4k-instruct-gptq-4bit"
+        ),
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-Phi3ForCausalLM"
         ),
     }
 
@@ -61,7 +65,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         group = ModelGroup.RED
-        if variant == ModelVariant.MINI_4K_GPTQ_4BIT:
+        if variant in (ModelVariant.MINI_4K_GPTQ_4BIT, ModelVariant.TINY_RANDOM):
             group = ModelGroup.VULCAN
         return ModelInfo(
             model="Phi-3",
