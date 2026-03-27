@@ -58,6 +58,11 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load the SpeechBrain ResNet-TDNN model."""
+        import torchaudio
+
+        if not hasattr(torchaudio, "list_audio_backends"):
+            torchaudio.list_audio_backends = lambda: []
+
         from speechbrain.inference.speaker import EncoderClassifier
 
         classifier = EncoderClassifier.from_hparams(
