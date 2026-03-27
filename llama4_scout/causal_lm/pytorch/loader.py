@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Llama 4 Scout model loader implementation for causal language modeling.
+Llama-4-Scout model loader implementation for causal language modeling.
 """
 
 from typing import Optional
@@ -13,7 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    LLMModelConfig,
+    ModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -23,24 +23,21 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Llama 4 Scout model variants for causal language modeling."""
+    """Available Llama-4-Scout model variants."""
 
-    SCOUT_17B_16E_INSTRUCT_AWQ = "17B_16E_Instruct_AWQ"
+    SCOUT_17B_16E_INSTRUCT_NVFP4 = "17B_16E_Instruct_NVFP4"
 
 
 class ModelLoader(ForgeModel):
-    """Llama 4 Scout model loader implementation for causal language modeling tasks."""
+    """Llama-4-Scout model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.SCOUT_17B_16E_INSTRUCT_AWQ: LLMModelConfig(
-            pretrained_model_name="kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ",
-            max_length=128,
+        ModelVariant.SCOUT_17B_16E_INSTRUCT_NVFP4: ModelConfig(
+            pretrained_model_name="nvidia/Llama-4-Scout-17B-16E-Instruct-NVFP4",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SCOUT_17B_16E_INSTRUCT_AWQ
-
-    sample_text = "Give me a short introduction to large language model."
+    DEFAULT_VARIANT = ModelVariant.SCOUT_17B_16E_INSTRUCT_NVFP4
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -74,9 +71,7 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name, **tokenizer_kwargs
         )
-
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -86,17 +81,15 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        model_kwargs = {"device_map": "cpu"}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        config = AutoConfig.from_pretrained(pretrained_model_name)
         if self.num_layers is not None:
-            config.text_config.num_hidden_layers = self.num_layers
-        if hasattr(config, "quantization_config"):
-            delattr(config, "quantization_config")
-        model_kwargs["config"] = config
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
@@ -110,22 +103,9 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        max_length = self._variant_config.max_length
+        test_input = "Give me a short introduction to large language model."
 
-        messages = [{"role": "user", "content": self.sample_text}]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-
-        inputs = self.tokenizer(
-            [text],
-            return_tensors="pt",
-            padding="max_length",
-            truncation=True,
-            max_length=max_length,
-        )
+        inputs = self.tokenizer(test_input, return_tensors="pt")
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
