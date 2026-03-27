@@ -51,15 +51,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
-    UNSLOTH_QWEN_3_14B = "unsloth_14B"
-    QWEN_3_32B_QUANTIZED_W4A16 = "32B_Quantized_W4A16"
-    NONEUSERNAME_QWEN_3_32B_ABLITERATED_AWQ = "noneUsername_32B_Abliterated_Awq"
-    REDHATAI_QWEN_3_30B_A3B_FP8_BLOCK = "RedHatAI_30B_A3B_FP8_Block"
-    UNSLOTH_QWEN_3_235B_A22B_GGUF = "unsloth_235B_A22B_GGUF"
-    TINY_RANDOM_QWEN3 = "Tiny_Random"
-    MICHAELBENAYOUN_TINY_4KV_HEADS_4LAYERS_RANDOM = (
-        "michaelbenayoun_Tiny_4KV_Heads_4Layers_Random"
-    )
+    QWEN_3_30B_A3B_GPTQ_INT4 = "30B_A3B_GPTQ_Int4"
 
 
 class ModelLoader(ForgeModel):
@@ -159,32 +151,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.UNSLOTH_QWEN_3_14B: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-14B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_32B_QUANTIZED_W4A16: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen3-32B-quantized.w4a16",
-            max_length=128,
-        ),
-        ModelVariant.NONEUSERNAME_QWEN_3_32B_ABLITERATED_AWQ: LLMModelConfig(
-            pretrained_model_name="noneUsername/Qwen3-32B-abliterated-awq",
-            max_length=128,
-        ),
-        ModelVariant.REDHATAI_QWEN_3_30B_A3B_FP8_BLOCK: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen3-30B-A3B-FP8-block",
-            max_length=128,
-        ),
-        ModelVariant.UNSLOTH_QWEN_3_235B_A22B_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-235B-A22B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.TINY_RANDOM_QWEN3: LLMModelConfig(
-            pretrained_model_name="llamafactory/tiny-random-qwen3",
-            max_length=128,
-        ),
-        ModelVariant.MICHAELBENAYOUN_TINY_4KV_HEADS_4LAYERS_RANDOM: LLMModelConfig(
-            pretrained_model_name="michaelbenayoun/qwen3-tiny-4kv-heads-4layers-random",
+        ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-30B-A3B-GPTQ-Int4",
             max_length=128,
         ),
     }
@@ -242,13 +210,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.UNSLOTH_QWEN_3_14B,
-            ModelVariant.QWEN_3_32B_QUANTIZED_W4A16,
-            ModelVariant.NONEUSERNAME_QWEN_3_32B_ABLITERATED_AWQ,
-            ModelVariant.REDHATAI_QWEN_3_30B_A3B_FP8_BLOCK,
-            ModelVariant.UNSLOTH_QWEN_3_235B_A22B_GGUF,
-            ModelVariant.TINY_RANDOM_QWEN3,
-            ModelVariant.MICHAELBENAYOUN_TINY_4KV_HEADS_4LAYERS_RANDOM,
+            ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -330,9 +292,9 @@ class ModelLoader(ForgeModel):
         ):
             model_kwargs["device_map"] = "cpu"
 
-        # Pass gguf_file for GGUF variants
-        if self._is_gguf_variant():
-            model_kwargs["gguf_file"] = self._gguf_file
+        # GPTQ variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4:
+            model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
 
@@ -459,8 +421,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B,
             ModelVariant.QWEN_3_30B_A3B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT,
-            ModelVariant.QWEN_3_30B_A3B_MLX_4BIT,
+            ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
             ModelVariant.REDHATAI_QWEN_3_30B_A3B_FP8_BLOCK,
             ModelVariant.UNSLOTH_QWEN_3_235B_A22B_GGUF,
