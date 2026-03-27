@@ -7,7 +7,6 @@ PaliGemma2 model loader implementation for image-text-to-text generation.
 
 from typing import Optional
 
-import torch
 from PIL import Image
 from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
 
