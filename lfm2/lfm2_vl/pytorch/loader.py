@@ -23,7 +23,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import cast_input_to_type, get_file
+from ....tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
