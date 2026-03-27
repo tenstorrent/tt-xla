@@ -24,23 +24,7 @@ class ModelVariant(StrEnum):
     """Available FLUX.2 model variants."""
 
     DEV = "Dev"
-    KLEIN_4B_SDNQ_4BIT = "Klein-4B-SDNQ-4bit"
-    DEEPBEEPMEEP_DEV = "DeepBeepMeep-Dev"
-
-
-# Variants that do not use guidance embeddings
-_NO_GUIDANCE_VARIANTS = {ModelVariant.KLEIN_4B_SDNQ_4BIT}
-
-# Variants that require sdnq quantization support
-_SDNQ_VARIANTS = {ModelVariant.KLEIN_4B_SDNQ_4BIT}
-
-# Variants that use single-file loading
-_SINGLE_FILE_VARIANTS = {ModelVariant.DEEPBEEPMEEP_DEV}
-
-# Single-file checkpoint URLs
-_SINGLE_FILE_URLS = {
-    ModelVariant.DEEPBEEPMEEP_DEV: "https://huggingface.co/DeepBeepMeep/Flux2/blob/main/flux2-dev.safetensors",
-}
+    KLEIN_BASE_9B = "Klein Base 9B"
 
 
 class ModelLoader(ForgeModel):
@@ -50,11 +34,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEV: ModelConfig(
             pretrained_model_name="black-forest-labs/FLUX.2-dev",
         ),
-        ModelVariant.KLEIN_4B_SDNQ_4BIT: ModelConfig(
-            pretrained_model_name="Disty0/FLUX.2-klein-4B-SDNQ-4bit-dynamic",
-        ),
-        ModelVariant.DEEPBEEPMEEP_DEV: ModelConfig(
-            pretrained_model_name="DeepBeepMeep/Flux2",
+        ModelVariant.KLEIN_BASE_9B: ModelConfig(
+            pretrained_model_name="black-forest-labs/FLUX.2-klein-base-9B",
         ),
     }
 
