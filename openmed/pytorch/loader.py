@@ -66,7 +66,7 @@ class ModelLoader(ForgeModel):
         Returns a batch suitable for the GLiNER model forward pass.
         """
         text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
-        self.text = text
+        self.text = [text]
         labels = ["SPECIES"]
         entity_types = list(dict.fromkeys(labels))
 
