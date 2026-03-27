@@ -36,16 +36,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_27B_NVFP4 = "27B_NVFP4"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_2B_GGUF = "2B_GGUF"
-    QWEN_3_5_2B_REASONING_DISTILLED_GGUF = "2B_Reasoning_Distilled_GGUF"
-    QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
-    QWEN_3_5_397B_A17B_MLX_4BIT = "397B_A17B_MLX_4bit"
-    QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF = "35B_A3B_Heretic_MXFP4_GGUF"
-    QWEN_3_5_4B_IMATRIX_GGUF = "4B_imatrix_GGUF"
-    QWEN_3_5_35B_A3B_W4A16 = "35B_A3B_W4A16"
-    QWEN_3_5_2B_MLX_8BIT = "2B_MLX_8bit"
-    QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF = "35B_A3B_Reasoning_Distilled_GGUF"
-    QWEN_3_5_0_8B_ABLITERATED_I1_GGUF = "0.8B_Abliterated_i1_GGUF"
+    QWEN_3_5_35B_A3B_SEHYO_NVFP4 = "35B_A3B_Sehyo_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -101,44 +92,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_2B_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3.5-2B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_2B_REASONING_DISTILLED_GGUF: LLMModelConfig(
-            pretrained_model_name="Jackrong/Qwen3.5-2B-Claude-4.6-Opus-Reasoning-Distilled-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_122B_A10B_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3.5-122B-A10B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_397B_A17B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3.5-397B-A17B-MLX-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF: LLMModelConfig(
-            pretrained_model_name="tvall43/Qwen3.5-35B-A3B-heretic-mxfp4-gguf",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_4B_IMATRIX_GGUF: LLMModelConfig(
-            pretrained_model_name="ZuzeTt/Qwen3.5-4B-imatrix-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_W4A16: LLMModelConfig(
-            pretrained_model_name="apolo13x/Qwen3.5-35B-A3B-quantized.w4a16",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_2B_MLX_8BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-2B-MLX-8bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: LLMModelConfig(
-            pretrained_model_name="Momix-44/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_0_8B_ABLITERATED_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Huihui-Qwen3.5-0.8B-abliterated-i1-GGUF",
+        ModelVariant.QWEN_3_5_35B_A3B_SEHYO_NVFP4: LLMModelConfig(
+            pretrained_model_name="Sehyo/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
     }
