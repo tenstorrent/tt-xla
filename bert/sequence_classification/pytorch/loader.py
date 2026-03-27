@@ -27,14 +27,7 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION = (
-        "gokuls_Tiny_Bert_Sst2_MobileBert_Distillation"
-    )
-    NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE = (
-        "naoki_hosokawa_Ses_Mail_Classifier_Bert_Japanese"
-    )
-    ADAMCODD_TINYBERT_EMOTION_BALANCED = "AdamCodd_TinyBERT_Emotion_Balanced"
-    POLTEXTLAB_HUNEMBERT3 = "poltextlab_HunEmBERT3"
+    HARSHA901_TINYBERT_IMDB_SENTIMENT = "Harsha901_TinyBERT_IMDB_Sentiment"
 
 
 class ModelLoader(ForgeModel):
@@ -58,20 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION: LLMModelConfig(
-            pretrained_model_name="gokuls/tiny-bert-sst2-mobilebert-distillation",
-            max_length=128,
-        ),
-        ModelVariant.NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE: LLMModelConfig(
-            pretrained_model_name="naoki-hosokawa/ses-mail-classifier-bert-japanese",
-            max_length=512,
-        ),
-        ModelVariant.ADAMCODD_TINYBERT_EMOTION_BALANCED: LLMModelConfig(
-            pretrained_model_name="AdamCodd/tinybert-emotion-balanced",
-            max_length=128,
-        ),
-        ModelVariant.POLTEXTLAB_HUNEMBERT3: LLMModelConfig(
-            pretrained_model_name="poltextlab/HunEmBERT3",
+        ModelVariant.HARSHA901_TINYBERT_IMDB_SENTIMENT: LLMModelConfig(
+            pretrained_model_name="Harsha901/tinybert-imdb-sentiment-analysis-model",
             max_length=128,
         ),
     }
@@ -90,10 +71,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION: "the movie was great!",
-        ModelVariant.NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE: "【案件】Java開発 60万〜80万 渋谷 即日〜長期 面談1回",
-        ModelVariant.ADAMCODD_TINYBERT_EMOTION_BALANCED: "I am so happy and excited about this wonderful news!",
-        ModelVariant.POLTEXTLAB_HUNEMBERT3: "A kormány új intézkedéseket jelentett be a gazdaság élénkítésére.",
+        ModelVariant.HARSHA901_TINYBERT_IMDB_SENTIMENT: "This movie was absolutely amazing!",
     }
 
     def __init__(self, variant=None):
@@ -129,10 +107,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION,
-            ModelVariant.NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE,
-            ModelVariant.ADAMCODD_TINYBERT_EMOTION_BALANCED,
-            ModelVariant.POLTEXTLAB_HUNEMBERT3,
+            ModelVariant.HARSHA901_TINYBERT_IMDB_SENTIMENT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
