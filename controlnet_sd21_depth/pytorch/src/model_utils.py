@@ -6,7 +6,6 @@
 Helper functions for ControlNet SD2.1 Depth model loading and processing.
 """
 
-from typing import Optional, Tuple
 import torch
 from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
