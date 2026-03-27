@@ -52,9 +52,6 @@ class ModelLoader(ForgeModel):
         ),
     ]
 
-    # Prompt template for the reranker
-    _SYSTEM_PROMPT = "You are a relevance judge. Given a query and a document, determine if the document is relevant to the query. Answer only 'Yes' or 'No'."
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
