@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2 model variants for causal language modeling."""
 
     QWQ_32B = "Qwq_32B"
+    QWEN2_7B = "Qwen2_7B"
     QWEN2_7B_INSTRUCT = "Qwen2_7B_Instruct"
     QWEN2_1_5B_INSTRUCT_GPTQ_INT4 = "Qwen2_1.5B_Instruct_GPTQ_Int4"
     TINY_QWEN2_2_5 = "tiny_Qwen2ForCausalLM_2.5"
@@ -37,6 +38,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWQ_32B: LLMModelConfig(
             pretrained_model_name="Qwen/QwQ-32B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN2_7B: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2-7B",
             max_length=128,
         ),
         ModelVariant.QWEN2_7B_INSTRUCT: LLMModelConfig(
@@ -91,8 +96,8 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.RED
         if variant in (
             ModelVariant.TINY_QWEN2_2_5,
+            ModelVariant.QWEN2_7B,
             ModelVariant.QWEN2_7B_INSTRUCT,
-            ModelVariant.QWEN2_1_5B_INSTRUCT_FP8,
         ):
             group = ModelGroup.VULCAN
 
@@ -184,12 +189,15 @@ class ModelLoader(ForgeModel):
         # Get max_length from the variant config
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
-        chat_kwargs = {"tokenize": False, "add_generation_prompt": True}
-        if self._variant == ModelVariant.QWQ_32B:
-            chat_kwargs["enable_thinking"] = True
-        text = self.tokenizer.apply_chat_template(messages, **chat_kwargs)
-        prompts = [text]
+        if self._variant == ModelVariant.QWEN2_7B:
+            prompts = [self.sample_text]
+        else:
+            messages = [{"role": "user", "content": self.sample_text}]
+            chat_kwargs = {"tokenize": False, "add_generation_prompt": True}
+            if self._variant == ModelVariant.QWQ_32B:
+                chat_kwargs["enable_thinking"] = True
+            text = self.tokenizer.apply_chat_template(messages, **chat_kwargs)
+            prompts = [text]
 
         inputs = self.tokenizer(
             prompts,
