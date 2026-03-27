@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     PARAPHRASE_MULTILINGUAL_MINILM_L12_V2 = (
         "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
+    RUBERT_TINY2 = "cointegrated/rubert-tiny2"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +43,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: LLMModelConfig(
             pretrained_model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            max_length=128,
+        ),
+        ModelVariant.RUBERT_TINY2: LLMModelConfig(
+            pretrained_model_name="cointegrated/rubert-tiny2",
             max_length=128,
         ),
     }
@@ -81,6 +86,7 @@ class ModelLoader(ForgeModel):
         variant_groups = {
             ModelVariant.EMRECAN_BERT_BASE_TURKISH_CASED_MEAN_NLI_STSB_TR: ModelGroup.RED,
             ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: ModelGroup.VULCAN,
+            ModelVariant.RUBERT_TINY2: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
