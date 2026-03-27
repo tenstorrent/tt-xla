@@ -7,8 +7,10 @@ BigVGAN v2 Neural Vocoder model loader implementation.
 BigVGAN is a universal neural vocoder that generates high-quality audio
 waveforms from mel spectrograms.
 """
+import json
+
 import torch
-import bigvgan as bigvgan_module
+from huggingface_hub import hf_hub_download
 from typing import Optional
 
 from ...base import ForgeModel
@@ -57,17 +59,35 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the BigVGAN model instance.
 
+        Manually downloads config and weights from HuggingFace Hub to avoid
+        compatibility issues between the bigvgan package and huggingface_hub.
+
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
             torch.nn.Module: The BigVGAN vocoder model instance.
         """
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        from bigvgan.bigvgan import BigVGAN
+        from bigvgan.env import AttrDict
 
-        model = bigvgan_module.BigVGAN.from_pretrained(
-            pretrained_model_name, use_cuda_kernel=False
-        )
+        repo_id = self._variant_config.pretrained_model_name
+
+        config_path = hf_hub_download(repo_id=repo_id, filename="config.json")
+        with open(config_path) as f:
+            h = AttrDict(json.load(f))
+
+        model = BigVGAN(h, use_cuda_kernel=False)
+
+        weights_path = hf_hub_download(repo_id=repo_id, filename="bigvgan_generator.pt")
+        checkpoint = torch.load(weights_path, map_location="cpu")
+
+        try:
+            model.load_state_dict(checkpoint["generator"])
+        except RuntimeError:
+            model.remove_weight_norm()
+            model.load_state_dict(checkpoint["generator"])
+
         model.remove_weight_norm()
         model.eval()
 
