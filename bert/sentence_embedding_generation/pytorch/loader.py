@@ -31,7 +31,9 @@ class ModelVariant(StrEnum):
     )
     BIOBERT_V1_1 = "dmis-lab/biobert-v1.1"
     TINYBERT_L4_H312_V2 = "nreimers/TinyBERT_L-4_H-312_v2"
-    LLMWARE_INDUSTRY_BERT_CONTRACTS_V0_1 = "llmware/industry-bert-contracts-v0.1"
+    SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS_V2 = (
+        "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -55,8 +57,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nreimers/TinyBERT_L-4_H-312_v2",
             max_length=128,
         ),
-        ModelVariant.LLMWARE_INDUSTRY_BERT_CONTRACTS_V0_1: LLMModelConfig(
-            pretrained_model_name="llmware/industry-bert-contracts-v0.1",
+        ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS_V2: LLMModelConfig(
+            pretrained_model_name="sonoisa/sentence-bert-base-ja-mean-tokens-v2",
             max_length=128,
         ),
     }
@@ -98,7 +100,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: ModelGroup.VULCAN,
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
-            ModelVariant.LLMWARE_INDUSTRY_BERT_CONTRACTS_V0_1: ModelGroup.VULCAN,
+            ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS_V2: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
@@ -173,9 +175,12 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        # Use provided sentence or default
+        # Use provided sentence or variant-appropriate default
         if sentence is None:
-            sentence = "Bu örnek bir cümle"
+            variant_sentences = {
+                ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS_V2: "これはテスト文です",
+            }
+            sentence = variant_sentences.get(self._variant, "Bu örnek bir cümle")
 
         # Get max_length from parameter, config, or default
         if max_length is None:
