@@ -9,7 +9,6 @@ Qwen 2.5 VL GGUF model wrapper for extracting logits from model outputs.
 import torch
 
 
-# https://github.com/tenstorrent/tt-xla/issues/1661
 class Wrapper(torch.nn.Module):
     def __init__(self, model):
         super().__init__()

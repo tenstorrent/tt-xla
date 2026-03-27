@@ -8,7 +8,6 @@ import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from typing import Optional
 
-
 from ...base import ForgeModel
 from ...config import (
     LLMModelConfig,
@@ -28,18 +27,22 @@ class ModelVariant(StrEnum):
     QWEN_2_5_VL_7B_INSTRUCT_GGUF = "7B_Instruct_GGUF"
 
 
+# Map variants to their GGUF filenames
+_GGUF_FILES = {
+    ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_GGUF: "Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+}
+
+
 class ModelLoader(ForgeModel):
     """Qwen 2.5 VL GGUF model loader implementation for vision-language tasks."""
 
     _VARIANTS = {
         ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
+            pretrained_model_name="lmstudio-community/Qwen2.5-VL-7B-Instruct-GGUF",
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_GGUF
-
-    GGUF_FILE = "Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf"
 
     # Shared configuration parameters
     messages = [
@@ -79,28 +82,25 @@ class ModelLoader(ForgeModel):
             "min_pixels": self.min_pixels,
             "max_pixels": self.max_pixels,
         }
-
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
+            gguf_file=_GGUF_FILES[self._variant],
             **processor_kwargs,
         )
-
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
+        gguf_file = _GGUF_FILES[self._variant]
 
-        model_kwargs = {
-            "low_cpu_mem_usage": True,
-            "use_cache": False,
-            "gguf_file": self.GGUF_FILE,
-        }
+        model_kwargs = {"low_cpu_mem_usage": True, "use_cache": False}
 
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         else:
             model_kwargs["torch_dtype"] = torch.float32
         model_kwargs |= kwargs
+        model_kwargs["gguf_file"] = gguf_file
 
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
