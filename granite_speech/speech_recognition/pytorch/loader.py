@@ -11,7 +11,6 @@ supporting multilingual ASR and bidirectional speech translation across 6 langua
 from typing import Optional
 
 import numpy as np
-import torch
 
 from ....base import ForgeModel
 from ....config import (
