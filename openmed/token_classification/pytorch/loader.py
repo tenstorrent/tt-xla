@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed model loader implementation for token classification (anatomy NER).
+OpenMed model loader implementation for token classification (NER).
 """
 
 import torch
@@ -23,15 +23,31 @@ class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
     OPENMED_NER_ANATOMYDETECT_MODERNMED_149M = "NER-AnatomyDetect-ModernMed-149M"
+    OPENMED_NER_BLOODCANCERDETECT_ELECTRAMED_109M = (
+        "NER-BloodCancerDetect-ElectraMed-109M"
+    )
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed model loader implementation for anatomy NER."""
+    """OpenMed model loader implementation for NER."""
 
     _VARIANTS = {
         ModelVariant.OPENMED_NER_ANATOMYDETECT_MODERNMED_149M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-ModernMed-149M",
             max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_BLOODCANCERDETECT_ELECTRAMED_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-ElectraMed-109M",
+            max_length=128,
+        ),
+    }
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.OPENMED_NER_ANATOMYDETECT_MODERNMED_149M: (
+            "The patient complained of pain in the left ventricle region."
+        ),
+        ModelVariant.OPENMED_NER_BLOODCANCERDETECT_ELECTRAMED_109M: (
+            "The patient presented with chronic lymphocytic leukemia symptoms."
         ),
     }
 
@@ -40,16 +56,14 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = (
-            "The patient complained of pain in the left ventricle region."
-        )
+        self.sample_text = self._SAMPLE_TEXTS[self._variant]
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = "NER-AnatomyDetect-ModernMed-149M"
+            variant_name = cls.DEFAULT_VARIANT.value
         return ModelInfo(
             model="OpenMed",
             variant=variant_name,
