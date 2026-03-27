@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_SPECIES_TINY = "ZeroShot-NER-Species-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PHARMA_MULTI = "ZeroShot-NER-Pharma-Multi-209M"
+    OPENMED_ZEROSHOT_NER_GENOME_TINY = "ZeroShot-NER-Genome-Tiny-60M"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_MULTI: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pharma-Multi-209M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_TINY: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-Tiny-60M"
         ),
     }
 
@@ -141,21 +145,9 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_LARGE:
-            text = "Administration of metformin reduced glucose levels significantly."
-            labels = ["CHE"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_BASE:
-            text = "The patient was diagnosed with diabetes mellitus type 2."
-            labels = ["DISEASE"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_BLOODCANCER_MULTI:
-            text = "The patient presented with chronic lymphocytic leukemia symptoms."
-            labels = ["CL"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_LARGE:
-            text = "The patient complained of pain in the left ventricle region."
-            labels = ["Anatomy"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_SMALL:
-            text = "The patient was administered acetylsalicylic acid for pain relief."
-            labels = ["CHEM"]
+        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_TINY:
+            text = "The EGFR gene mutation was identified in lung cancer patients."
+            labels = ["GENE/PROTEIN"]
         else:
             text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
             labels = ["SPECIES"]
