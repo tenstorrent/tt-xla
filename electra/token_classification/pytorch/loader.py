@@ -22,36 +22,37 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available ELECTRA token classification model variants."""
 
-    RV2307_ELECTRA_SMALL_NER = "rv2307/electra-small-ner"
+    OPENMED_NER_BLOOD_CANCER_DETECT = "OpenMed_NER_BloodCancerDetect"
 
 
 class ModelLoader(ForgeModel):
     """ELECTRA model loader implementation for token classification (NER) task."""
 
     _VARIANTS = {
-        ModelVariant.RV2307_ELECTRA_SMALL_NER: LLMModelConfig(
-            pretrained_model_name="rv2307/electra-small-ner",
+        ModelVariant.OPENMED_NER_BLOOD_CANCER_DETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-ElectraMed-33M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.RV2307_ELECTRA_SMALL_NER
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_BLOOD_CANCER_DETECT
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
+        self.sample_text = (
+            "The patient presented with chronic lymphocytic leukemia symptoms."
+        )
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.model = None
-        self.sample_text = "HuggingFace is a company based in Paris and New York"
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name=None):
+        if variant_name is None:
+            variant_name = "openmed_ner_blood_cancer_detect"
         return ModelInfo(
             model="ELECTRA",
-            variant=variant,
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -66,11 +67,12 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = AutoModelForTokenClassification.from_pretrained(
+        model = AutoModelForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
-        self.model.eval()
-        return self.model
+        self.model = model
+        model.eval()
+        return model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
@@ -95,5 +97,6 @@ class ModelLoader(ForgeModel):
         predicted_tokens_classes = [
             self.model.config.id2label[t.item()] for t in predicted_token_class_ids
         ]
+
         print(f"Context: {self.sample_text}")
-        print(f"Answer: {predicted_tokens_classes}")
+        print(f"NER Tags: {predicted_tokens_classes}")
