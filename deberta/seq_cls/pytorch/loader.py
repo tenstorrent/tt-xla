@@ -4,7 +4,6 @@
 """
 DeBERTa model loader implementation for sequence classification (NLI).
 """
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from typing import Optional
 
 from ....config import (
@@ -54,6 +53,8 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
@@ -71,7 +72,11 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
-            self.load_model(dtype_override=dtype_override)
+            from transformers import AutoTokenizer
+
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self._variant_config.pretrained_model_name
+            )
 
         premise = "A man is eating food."
         hypothesis = "A man is eating a meal."
@@ -90,5 +95,5 @@ class ModelLoader(ForgeModel):
     def decode_output(self, co_out):
         logits = co_out[0]
         predicted_class_id = logits.argmax(-1).item()
-        labels = ["entailment", "neutral", "contradiction"]
+        labels = ["contradiction", "neutral", "entailment"]
         print(f"Predicted: {labels[predicted_class_id]}")
