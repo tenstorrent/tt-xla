@@ -31,7 +31,9 @@ class ModelVariant(StrEnum):
     )
     BIOBERT_V1_1 = "dmis-lab/biobert-v1.1"
     TINYBERT_L4_H312_V2 = "nreimers/TinyBERT_L-4_H-312_v2"
-    KOBERT = "monologg/kobert"
+    SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS = (
+        "sonoisa/sentence-bert-base-ja-mean-tokens"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -55,8 +57,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nreimers/TinyBERT_L-4_H-312_v2",
             max_length=128,
         ),
-        ModelVariant.KOBERT: LLMModelConfig(
-            pretrained_model_name="monologg/kobert",
+        ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS: LLMModelConfig(
+            pretrained_model_name="sonoisa/sentence-bert-base-ja-mean-tokens",
             max_length=128,
         ),
     }
@@ -98,7 +100,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: ModelGroup.VULCAN,
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
-            ModelVariant.KOBERT: ModelGroup.VULCAN,
+            ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
