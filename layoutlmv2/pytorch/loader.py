@@ -77,16 +77,26 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        text = "Invoice Number: 12345"
+        words = ["Invoice", "Number:", "12345", "Date:", "2024-01-15"]
+        boxes = [
+            [100, 50, 200, 80],
+            [210, 50, 330, 80],
+            [340, 50, 420, 80],
+            [100, 100, 180, 130],
+            [190, 100, 340, 130],
+        ]
+
         encoding = self.tokenizer(
-            text, return_tensors="pt", padding="max_length", max_length=512
+            words,
+            boxes=boxes,
+            return_tensors="pt",
+            padding="max_length",
+            max_length=512,
         )
 
         input_ids = encoding["input_ids"]
         attention_mask = encoding["attention_mask"]
-
-        seq_len = input_ids.shape[1]
-        bbox = torch.zeros(1, seq_len, 4, dtype=torch.long)
+        bbox = encoding["bbox"]
 
         image = torch.zeros(1, 3, 224, 224)
 
