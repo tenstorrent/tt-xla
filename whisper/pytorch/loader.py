@@ -5,7 +5,9 @@
 Whisper model loader implementation
 """
 
+import numpy as np
 import torch
+from huggingface_hub import hf_hub_download
 from transformers import (
     WhisperProcessor,
     WhisperForConditionalGeneration,
@@ -142,7 +144,13 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        if self._variant == ModelVariant.WHISPER_LARGE_V3:
+        if self._variant == ModelVariant.WHISPER_MEDIUM_MLX:
+            self.model = self._load_mlx_model(pretrained_model_name, **model_kwargs)
+            self.processor = WhisperProcessor.from_pretrained(
+                "openai/whisper-medium", use_cache=False
+            )
+            self.feature_extractor = None
+        elif self._variant == ModelVariant.WHISPER_LARGE_V3:
             self.model = WhisperModel.from_pretrained(
                 pretrained_model_name, **model_kwargs
             )
@@ -163,6 +171,33 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             self.model.to(dtype_override)
         return self.model
+
+    @staticmethod
+    def _load_mlx_model(pretrained_model_name, **model_kwargs):
+        """Load a Whisper model from an MLX-community .npz weights file."""
+
+        config = WhisperConfig.from_pretrained(pretrained_model_name)
+        model = WhisperForConditionalGeneration(config)
+
+        npz_path = hf_hub_download(pretrained_model_name, "weights.npz")
+        mlx_weights = np.load(npz_path)
+
+        state_dict = model.state_dict()
+        for key in state_dict:
+            mlx_key = key
+            if mlx_key in mlx_weights:
+                tensor = torch.from_numpy(mlx_weights[mlx_key].copy())
+                if tensor.shape != state_dict[key].shape:
+                    tensor = tensor.reshape(state_dict[key].shape)
+                state_dict[key] = tensor
+
+        model.load_state_dict(state_dict)
+
+        dtype_override = model_kwargs.get("torch_dtype")
+        if dtype_override is not None:
+            model.to(dtype_override)
+
+        return model
 
     def load_inputs(self, dtype_override=None):
         """Generate sample inputs for Whisper model."""
