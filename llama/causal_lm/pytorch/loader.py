@@ -113,11 +113,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # open-unlearning variants
-    TOFU_LLAMA_3_1_8B_INSTRUCT_FULL = "Tofu_3.1_8B_Instruct_Full"
-
-    # NousResearch variants
-    NOUSRESEARCH_LLAMA_3_1_70B_INSTRUCT = "NousResearch_3.1_70B_Instruct"
+    # OpenPipe variants
+    OPENPIPE_PII_REDACT_GENERAL = "OpenPipe_PII_Redact_General"
 
 
 class ModelLoader(ForgeModel):
@@ -274,14 +271,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # open-unlearning variants
-        ModelVariant.TOFU_LLAMA_3_1_8B_INSTRUCT_FULL: LLMModelConfig(
-            pretrained_model_name="open-unlearning/tofu_Llama-3.1-8B-Instruct_full",
-            max_length=128,
-        ),
-        # NousResearch variants
-        ModelVariant.NOUSRESEARCH_LLAMA_3_1_70B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="NousResearch/Meta-Llama-3.1-70B-Instruct",
+        # OpenPipe variants
+        ModelVariant.OPENPIPE_PII_REDACT_GENERAL: LLMModelConfig(
+            pretrained_model_name="OpenPipe/PII-Redact-General",
             max_length=128,
         ),
     }
@@ -333,10 +325,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_BNB_4BIT,
             ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_MLX_4BIT,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_BNB_4BIT,
-            ModelVariant.TOFU_LLAMA_3_1_8B_INSTRUCT_FULL,
-            ModelVariant.NOUSRESEARCH_LLAMA_3_1_70B_INSTRUCT,
+            ModelVariant.OPENPIPE_PII_REDACT_GENERAL,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -653,7 +642,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_2_7B,
             ModelVariant.LLAMA_2_7B_GPTQ,
             ModelVariant.JACKFRAM_LLAMA_160M,
-            ModelVariant.JDCHANG_LLAMA3_SMALL,
+            ModelVariant.OPENPIPE_PII_REDACT_GENERAL,
         ]:
             return None
 
