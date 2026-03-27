@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     GEMMA_3_270M = "270M"
     GEMMA_3_270M_IT = "270M_Instruct"
+    GEMMA_3_1B_PT = "1B_Pretrained"
     GEMMA_3_1B_IT = "1B_Instruct"
     GEMMA_3_1B_IT_QAT_4BIT = "1B_Instruct_QAT_4bit"
     GEMMA_3_27B_IT = "27B_Instruct"
@@ -42,6 +43,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GEMMA_3_270M_IT: LLMModelConfig(
             pretrained_model_name="google/gemma-3-270m-it",
+            max_length=256,
+        ),
+        ModelVariant.GEMMA_3_1B_PT: LLMModelConfig(
+            pretrained_model_name="google/gemma-3-1b-pt",
             max_length=256,
         ),
         ModelVariant.GEMMA_3_1B_IT: LLMModelConfig(
@@ -79,7 +84,11 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant in (ModelVariant.GEMMA_3_270M, ModelVariant.GEMMA_3_27B_IT):
+        if variant in (
+            ModelVariant.GEMMA_3_270M,
+            ModelVariant.GEMMA_3_1B_PT,
+            ModelVariant.GEMMA_3_27B_IT,
+        ):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
@@ -160,7 +169,7 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
-        if self._variant == ModelVariant.GEMMA_3_270M:
+        if self._variant in (ModelVariant.GEMMA_3_270M, ModelVariant.GEMMA_3_1B_PT):
             inputs = self.tokenizer(
                 prompt or self.sample_text,
                 return_tensors="pt",
