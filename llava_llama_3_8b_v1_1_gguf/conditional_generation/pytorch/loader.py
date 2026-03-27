@@ -7,7 +7,6 @@ LLaVA-Llama-3-8B-v1.1 GGUF model loader implementation for multimodal conditiona
 
 from typing import Optional
 
-import torch
 from datasets import load_dataset
 from transformers import LlavaForConditionalGeneration, AutoProcessor, AutoConfig
 
