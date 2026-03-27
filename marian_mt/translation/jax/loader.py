@@ -114,7 +114,9 @@ class ModelLoader(ForgeModel):
             model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = FlaxMarianMTModel.from_pretrained(self._model_name, **model_kwargs)
+        model = FlaxMarianMTModel.from_pretrained(
+            self._model_name, from_pt=True, **model_kwargs
+        )
 
         # Cast the model to the dtype_override if provided
         if dtype_override is not None:
