@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OTel-Reranker model loader implementation for passage ranking.
+OTel Reranker model loader implementation for passage ranking.
 """
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -21,28 +21,31 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available OTel-Reranker model variants for passage ranking."""
+    """Available OTel Reranker model variants for passage ranking."""
 
-    OTEL_RERANKER_8B = "8B"
+    OTEL_RERANKER_4B = "4B"
 
 
 class ModelLoader(ForgeModel):
-    """OTel-Reranker model loader implementation for passage ranking."""
+    """OTel Reranker model loader implementation for passage ranking."""
 
     _VARIANTS = {
-        ModelVariant.OTEL_RERANKER_8B: ModelConfig(
-            pretrained_model_name="farbodtavakkoli/OTel-Reranker-8B",
+        ModelVariant.OTEL_RERANKER_4B: ModelConfig(
+            pretrained_model_name="farbodtavakkoli/OTel-Reranker-4B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OTEL_RERANKER_8B
+    DEFAULT_VARIANT = ModelVariant.OTEL_RERANKER_4B
 
     # Sample query-passage pairs for testing
     sample_pairs = [
-        ("what is 5G?", "hi"),
         (
-            "what is 5G?",
-            "5G is the fifth generation of mobile network technology, designed to deliver faster speeds, lower latency, and greater capacity than previous generations.",
+            "What is O-RAN?",
+            "O-RAN is an open radio access network architecture that promotes interoperability and openness in cellular networks.",
+        ),
+        (
+            "What is O-RAN?",
+            "The weather is nice today.",
         ),
     ]
 
@@ -72,7 +75,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs = {"return_dict": False}
         if dtype_override is not None:
-            model_kwargs["dtype"] = dtype_override
+            model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModelForSequenceClassification.from_pretrained(
