@@ -26,11 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE_100H = "Base_100h"
     BASE_960H = "Base_960h"
-    LARGE_960H = "Large_960h"
-    LARGE_XLSR_KN = "Large_XLSR_Kn"
-    LARGE_XLSR_53_MONGOLIAN = "Large_XLSR_53_Mongolian"
-    NB_300M_NYNORSK = "NB_300m_Nynorsk"
-    FRENCH_PHONEMIZER_V2 = "French_Phonemizer_v2"
+    XLSR_KAZAKH = "XLSR_Kazakh"
 
 
 class ModelLoader(ForgeModel):
@@ -43,20 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.LARGE_960H: ModelConfig(
-            pretrained_model_name="facebook/wav2vec2-large-960h",
-        ),
-        ModelVariant.LARGE_XLSR_KN: ModelConfig(
-            pretrained_model_name="amoghsgopadi/wav2vec2-large-xlsr-kn",
-        ),
-        ModelVariant.LARGE_XLSR_53_MONGOLIAN: ModelConfig(
-            pretrained_model_name="anton-l/wav2vec2-large-xlsr-53-mongolian",
-        ),
-        ModelVariant.NB_300M_NYNORSK: ModelConfig(
-            pretrained_model_name="NbAiLab/nb-wav2vec2-300m-nynorsk",
-        ),
-        ModelVariant.FRENCH_PHONEMIZER_V2: ModelConfig(
-            pretrained_model_name="Cnam-LMSSC/wav2vec2-french-phonemizer-v2",
+        ModelVariant.XLSR_KAZAKH: ModelConfig(
+            pretrained_model_name="aismlv/wav2vec2-large-xlsr-kazakh",
         ),
     }
 
