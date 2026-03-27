@@ -50,7 +50,7 @@ class ModelVariant(StrEnum):
         "Small_24B_INSTRUCT_2501_Quantized_W8A8"
     )
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MISTRAL_SMALL_24B_INSTRUCT_2501_AWQ = "Small_24B_INSTRUCT_2501_AWQ"
+    MISTRAL_7B_INSTRUCT_V03_BNB_4BIT = "7B_instruct_v03_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -135,8 +135,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_AWQ: ModelConfig(
-            pretrained_model_name="casperhansen/mistral-small-24b-instruct-2501-awq",
+        ModelVariant.MISTRAL_7B_INSTRUCT_V03_BNB_4BIT: ModelConfig(
+            pretrained_model_name="unsloth/mistral-7b-instruct-v0.3-bnb-4bit",
         ),
     }
 
@@ -174,6 +174,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V03_BNB_4BIT,
             ModelVariant.DEVSTRAL_2_123B_INSTRUCT_2512,
         ):
             group = ModelGroup.VULCAN
@@ -259,11 +260,10 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        # Quantized variants need device_map="cpu" for CPU-based loading
+        # BnB variants need device_map="cpu" for CPU-based loading
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_QUANTIZED_W8A8,
-            ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_AWQ,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V03_BNB_4BIT,
         ):
             model_kwargs["device_map"] = "cpu"
 
