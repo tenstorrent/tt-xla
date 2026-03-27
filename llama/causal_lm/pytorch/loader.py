@@ -62,6 +62,9 @@ class ModelVariant(StrEnum):
     # hugging-quants AWQ INT4 quantized variants
     LLAMA_3_1_8B_INSTRUCT_AWQ_INT4 = "3.1_8B_Instruct_Awq_Int4"
 
+    # NVIDIA NVFP4 quantized variants
+    LLAMA_3_1_8B_INSTRUCT_NVFP4 = "3.1_8B_Instruct_Nvfp4"
+
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
 
@@ -149,9 +152,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
             max_length=128,
         ),
-        # casperhansen AWQ quantized variants
-        ModelVariant.LLAMA_3_8B_INSTRUCT_AWQ: LLMModelConfig(
-            pretrained_model_name="casperhansen/llama-3-8b-instruct-awq",
+        # NVIDIA NVFP4 quantized variants
+        ModelVariant.LLAMA_3_1_8B_INSTRUCT_NVFP4: LLMModelConfig(
+            pretrained_model_name="nvidia/Llama-3.1-8B-Instruct-NVFP4",
             max_length=128,
         ),
         # Llama 3.3 variants
@@ -235,7 +238,7 @@ class ModelLoader(ForgeModel):
         if variant in [
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
+            ModelVariant.LLAMA_3_1_8B_INSTRUCT_NVFP4,
         ]:
             group = ModelGroup.VULCAN
         elif (
