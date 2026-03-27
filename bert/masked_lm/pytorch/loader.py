@@ -32,16 +32,11 @@ class ModelVariant(StrEnum):
     BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
-    BERT_BASE_ITALIAN_XXL_CASED = "dbmdz/bert-base-italian-xxl-cased"
-    BERT_SMALL_UNCASED = "Small_Uncased"
-    BERT_BASE_SWEDISH_CASED = "KBLab/bert-base-swedish-cased"
-    BIOBERTPT_ALL = "pucpr/biobertpt-all"
+    BERT_KOR_BASE = "kykim/bert-kor-base"
 
 
 _SAMPLE_TEXTS = {
-    ModelVariant.BERT_BASE_ITALIAN_XXL_CASED: "La capitale d'Italia è [MASK].",
-    ModelVariant.BERT_BASE_SWEDISH_CASED: "Stockholm är huvudstaden i [MASK].",
-    ModelVariant.BIOBERTPT_ALL: "O paciente foi diagnosticado com [MASK].",
+    ModelVariant.BERT_KOR_BASE: "한국의 수도는 [MASK]이다.",
 }
 
 
@@ -78,20 +73,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
-        ModelVariant.BERT_BASE_ITALIAN_XXL_CASED: LLMModelConfig(
-            pretrained_model_name="dbmdz/bert-base-italian-xxl-cased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_SMALL_UNCASED: LLMModelConfig(
-            pretrained_model_name="google/bert_uncased_L-4_H-512_A-8",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_SWEDISH_CASED: LLMModelConfig(
-            pretrained_model_name="KBLab/bert-base-swedish-cased",
-            max_length=128,
-        ),
-        ModelVariant.BIOBERTPT_ALL: LLMModelConfig(
-            pretrained_model_name="pucpr/biobertpt-all",
+        ModelVariant.BERT_KOR_BASE: LLMModelConfig(
+            pretrained_model_name="kykim/bert-kor-base",
             max_length=128,
         ),
     }
@@ -137,10 +120,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
-            ModelVariant.BERT_BASE_ITALIAN_XXL_CASED,
-            ModelVariant.BERT_SMALL_UNCASED,
-            ModelVariant.BERT_BASE_SWEDISH_CASED,
-            ModelVariant.BIOBERTPT_ALL,
+            ModelVariant.BERT_KOR_BASE,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
