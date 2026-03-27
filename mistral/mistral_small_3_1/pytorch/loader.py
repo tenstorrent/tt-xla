@@ -17,7 +17,6 @@ from ....config import (
     StrEnum,
 )
 from ....base import ForgeModel
-from ....tools.utils import cast_input_to_type, get_file
 
 
 class ModelVariant(StrEnum):
@@ -111,6 +110,7 @@ class ModelLoader(ForgeModel):
             dict: Input tensors that can be fed to the model.
         """
         from PIL import Image
+        from ....tools.utils import cast_input_to_type, get_file
 
         if self.processor is None:
             self._load_processor(dtype_override)
