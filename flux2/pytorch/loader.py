@@ -5,8 +5,7 @@
 FLUX.2 model loader implementation for text-to-image generation
 """
 import torch
-import numpy as np
-from diffusers import Flux2Pipeline
+from diffusers.models import Flux2Transformer2DModel
 from typing import Optional
 
 from ...base import ForgeModel
@@ -40,7 +39,7 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.pipe = None
+        self.transformer = None
         self.guidance_scale = 4.0
 
     @classmethod
@@ -57,87 +56,83 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_pipeline(self, dtype_override=None):
-        pipe_kwargs = {
-            "use_safetensors": True,
-        }
+    def load_model(self, *, dtype_override=None, **kwargs):
+        load_kwargs = {"use_safetensors": True}
         if dtype_override is not None:
-            pipe_kwargs["torch_dtype"] = dtype_override
+            load_kwargs["torch_dtype"] = dtype_override
 
-        self.pipe = Flux2Pipeline.from_pretrained(
-            self._variant_config.pretrained_model_name, **pipe_kwargs
+        self.transformer = Flux2Transformer2DModel.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            subfolder="transformer",
+            **load_kwargs,
         )
 
-        return self.pipe
-
-    def load_model(self, *, dtype_override=None, **kwargs):
-        if self.pipe is None:
-            self._load_pipeline(dtype_override=dtype_override)
-
         if dtype_override is not None:
-            self.pipe.transformer = self.pipe.transformer.to(dtype_override)
+            self.transformer = self.transformer.to(dtype_override)
 
-        return self.pipe.transformer
+        return self.transformer
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.pipe is None:
-            self._load_pipeline(dtype_override=dtype_override)
+        if self.transformer is None:
+            self.load_model(dtype_override=dtype_override)
 
-        max_sequence_length = 512
-        prompt = "An astronaut riding a horse in a futuristic city"
-        num_inference_steps = 1
+        dtype = dtype_override if dtype_override is not None else torch.bfloat16
+        config = self.transformer.config
+
+        # Image dimensions
         height = 128
         width = 128
-        num_images_per_prompt = 1
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        num_channels_latents = self.pipe.transformer.config.in_channels // 4
+        vae_scale_factor = 8
+        num_channels_latents = config.in_channels // 4
 
-        # Encode prompt
-        prompt_embeds, text_ids = self.pipe.encode_prompt(
-            prompt=prompt,
-            num_images_per_prompt=num_images_per_prompt,
-            max_sequence_length=max_sequence_length,
+        # Prepare latents: VAE compresses by vae_scale_factor, then pack 2x2 patches
+        height_latent = 2 * (height // (vae_scale_factor * 2))
+        width_latent = 2 * (width // (vae_scale_factor * 2))
+        h_packed = height_latent // 2
+        w_packed = width_latent // 2
+
+        # Create latent tensor (B, C, H, W) then pack to (B, H*W, C)
+        latents = torch.randn(
+            batch_size, num_channels_latents * 4, h_packed, w_packed, dtype=dtype
         )
-        prompt_embeds = prompt_embeds.to(dtype=dtype)
-        text_ids = text_ids.to(dtype=dtype)
-
-        # Repeat for batch size
-        if batch_size > 1:
-            prompt_embeds = prompt_embeds.repeat(batch_size, 1, 1)
-            text_ids = text_ids.repeat(batch_size, 1, 1)
-
-        # Prepare latents
-        height_latent = 2 * (int(height) // (self.pipe.vae_scale_factor * 2))
-        width_latent = 2 * (int(width) // (self.pipe.vae_scale_factor * 2))
-
-        shape = (
-            batch_size * num_images_per_prompt,
-            num_channels_latents * 4,
-            height_latent // 2,
-            width_latent // 2,
-        )
-        latents = torch.randn(shape, dtype=dtype)
 
         # Prepare latent image IDs (B, H*W, 4)
-        latent_ids = self.pipe._prepare_latent_ids(latents)
-        latent_ids = latent_ids.to(dtype=dtype)
+        t = torch.arange(1)
+        h = torch.arange(h_packed)
+        w = torch.arange(w_packed)
+        l = torch.arange(1)
+        latent_ids = torch.cartesian_prod(t, h, w, l)
+        latent_ids = latent_ids.unsqueeze(0).expand(batch_size, -1, -1).to(dtype=dtype)
 
         # Pack latents: (B, C, H, W) -> (B, H*W, C)
-        latents = self.pipe._pack_latents(latents)
-
-        # Prepare guidance
-        guidance = torch.full(
-            [batch_size * num_images_per_prompt], self.guidance_scale, dtype=dtype
+        latents = latents.reshape(batch_size, num_channels_latents * 4, -1).permute(
+            0, 2, 1
         )
 
-        # Prepare timestep
-        timestep = torch.tensor([1.0], dtype=dtype).expand(
-            batch_size * num_images_per_prompt
+        # Prompt embeddings: use random tensors matching joint_attention_dim
+        max_sequence_length = 256
+        joint_attention_dim = config.joint_attention_dim
+        prompt_embeds = torch.randn(
+            batch_size, max_sequence_length, joint_attention_dim, dtype=dtype
         )
+
+        # Text IDs (B, seq_len, 4)
+        t = torch.arange(1)
+        h = torch.arange(1)
+        w = torch.arange(1)
+        l = torch.arange(max_sequence_length)
+        text_ids = torch.cartesian_prod(t, h, w, l)
+        text_ids = text_ids.unsqueeze(0).expand(batch_size, -1, -1).to(dtype=dtype)
+
+        # Guidance
+        guidance = torch.full([batch_size], self.guidance_scale, dtype=dtype)
+
+        # Timestep
+        timestep = torch.tensor([1.0 / 1000], dtype=dtype).expand(batch_size)
 
         inputs = {
             "hidden_states": latents,
-            "timestep": timestep / 1000,
+            "timestep": timestep,
             "guidance": guidance,
             "encoder_hidden_states": prompt_embeds,
             "txt_ids": text_ids,
