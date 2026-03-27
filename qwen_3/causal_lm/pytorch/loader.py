@@ -192,7 +192,7 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # AWQ variants need to be loaded on CPU for dequantization
+        # AWQ variants need CPU device map for dequantization
         if pretrained_model_name == "Qwen/Qwen3-4B-AWQ":
             model_kwargs["device_map"] = "cpu"
 
