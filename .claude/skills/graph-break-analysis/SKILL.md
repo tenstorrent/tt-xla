@@ -18,22 +18,19 @@ Common misconception is that different mlir modules are graph breaks. This is no
 - Each graph compilation produces 7 or 8 of these MLIR module strings: 5-6 for vhlo/stablehlo, 1 for ttir, and 1 for ttnn
 - If the log file contains N of these strings, then the script generated N//7 or N//8  different graphs (you will see in runtime what is the case).
 
+## Requirements for analysis
+- If user's log doesn't meet these criteria, don't proceed with analysis and instead instruct the user to rerun with adequate changes.
+- The user must run a model script and dump outputs into a single log file <file>.log
+- The user must run (has ran) the script with following flags `TORCH_LOGS="+dynamo" XLA_HLO_DEBUG=1`. Go through the log file and find out if that is the case. 
+- `TORCH_LOGS="+dynamo"`: example of the lines you will see in the log: "venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py", "venv/lib/python3.12/site-packages/torch/_dynamo/", "symbolic_convert.py", "Step 1: torchdynamo start tracing forward /root/tt-xla/graph_break_demo.py", "TRACE starts_line". If these are present you have this variable enabled, if not, then not.
+- `XLA_HLO_DEBUG=1`: example of the lines you will see in the log: loc("/path/to/tt-xla/venv/lib/python3.12/site-packages/path/to/file.py:lines")
+
 ## Steps
 
 1. Search for `"------------------ END OF MLIR MODULE ------------------"` strings in the log to determine the number of graphs
 2. Identify each graph and link them to the source model that caused them (location markers in the log can help)
-3. If dynamo logs are not present, instruct the user to enable them:
-   ```bash
-   TORCH_LOGS="+dynamo" TORCHDYNAMO_VERBOSE=1
-   ```
-   Then re-run the model execution
-4. If location information is missing from the compiler output (example format: `loc("/root/tt-xla/venv/lib/python3.12/site-packages/diffusers/models/embeddings.py":1813:0)`), instruct the user to enable locations:
-   ```bash
-   XLA_HLO_DEBUG=1
-   ```
-   Then re-run the model
-5. Find the Python/PyTorch implementation of all models used in the script — search locally or on the web (e.g., HuggingFace, similar libraries) to identify the culprits
-6. Use 5 research agents in parallel for analysis
+3. Find the Python/PyTorch implementation of all models used in the script — search locally or on the web (e.g., HuggingFace, similar libraries) to identify the culprits
+4. Use 5 research agents in parallel for analysis
 
 ## Deliverables
 
