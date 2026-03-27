@@ -32,18 +32,7 @@ class ModelVariant(StrEnum):
     BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
-    BERT_L6_H768_UNCASED = "gaunernst/bert-L6-H768-uncased"
-    BERT_BASE_DUTCH_CASED = "wietsedv/bert-base-dutch-cased"
-    CHINESE_MACBERT_LARGE = "hfl/chinese-macbert-large"
-    BERT_UNCASED_L4_H128_A2 = "google/bert_uncased_L-4_H-128_A-2"
-    BERT_UNCASED_L10_H128_A2 = "google/bert_uncased_L-10_H-128_A-2"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.BERT_LARGE_PORTUGUESE_CASED: "A capital de Portugal é [MASK].",
-    ModelVariant.BERT_BASE_DUTCH_CASED: "Amsterdam is de hoofdstad van [MASK].",
-    ModelVariant.CHINESE_MACBERT_LARGE: "巴黎是[MASK]国的首都。",
-}
+    BERT_BASE_ARABERTV2 = "aubmindlab/bert-base-arabertv2"
 
 
 class ModelLoader(ForgeModel):
@@ -79,24 +68,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
-        ModelVariant.BERT_L6_H768_UNCASED: LLMModelConfig(
-            pretrained_model_name="gaunernst/bert-L6-H768-uncased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_DUTCH_CASED: LLMModelConfig(
-            pretrained_model_name="wietsedv/bert-base-dutch-cased",
-            max_length=128,
-        ),
-        ModelVariant.CHINESE_MACBERT_LARGE: LLMModelConfig(
-            pretrained_model_name="hfl/chinese-macbert-large",
-            max_length=128,
-        ),
-        ModelVariant.BERT_UNCASED_L4_H128_A2: LLMModelConfig(
-            pretrained_model_name="google/bert_uncased_L-4_H-128_A-2",
-            max_length=128,
-        ),
-        ModelVariant.BERT_UNCASED_L10_H128_A2: LLMModelConfig(
-            pretrained_model_name="google/bert_uncased_L-10_H-128_A-2",
+        ModelVariant.BERT_BASE_ARABERTV2: LLMModelConfig(
+            pretrained_model_name="aubmindlab/bert-base-arabertv2",
             max_length=128,
         ),
     }
@@ -142,11 +115,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
-            ModelVariant.BERT_L6_H768_UNCASED,
-            ModelVariant.BERT_BASE_DUTCH_CASED,
-            ModelVariant.CHINESE_MACBERT_LARGE,
-            ModelVariant.BERT_UNCASED_L4_H128_A2,
-            ModelVariant.BERT_UNCASED_L10_H128_A2,
+            ModelVariant.BERT_BASE_ARABERTV2,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
