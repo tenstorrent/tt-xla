@@ -32,8 +32,7 @@ class ModelVariant(StrEnum):
     DISTILL_QWEN_7B_UNSLOTH_BNB_4BIT = "Distill_Qwen_7B_unsloth_bnb_4bit"
     DISTILL_QWEN_14B = "Distill_Qwen_14B"
     DISTILL_LLAMA_8B = "Distill_Llama_8B"
-    DISTILL_QWEN_7B_AWQ = "Distill_Qwen_7B_AWQ"
-    DISTILL_QWEN_1_5B_QUANTIZED_W8A8 = "Distill_Qwen_1_5B_Quantized_W8A8"
+    DISTILL_QWEN_1_5B_GGUF = "Distill_Qwen_1_5B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -60,15 +59,14 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
             max_length=2048,
         ),
-        ModelVariant.DISTILL_QWEN_7B_AWQ: LLMModelConfig(
-            pretrained_model_name="casperhansen/deepseek-r1-distill-qwen-7b-awq",
+        ModelVariant.DISTILL_QWEN_1_5B_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF",
             max_length=2048,
         ),
-        # RedHatAI INT8 quantized variant
-        ModelVariant.DISTILL_QWEN_1_5B_QUANTIZED_W8A8: LLMModelConfig(
-            pretrained_model_name="RedHatAI/DeepSeek-R1-Distill-Qwen-1.5B-quantized.w8a8",
-            max_length=2048,
-        ),
+    }
+
+    _GGUF_FILES = {
+        ModelVariant.DISTILL_QWEN_1_5B_GGUF: "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
     }
 
     DEFAULT_VARIANT = ModelVariant.DISTILL_QWEN_1_5B
@@ -90,10 +88,21 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _is_gguf_variant(self):
+        """Check if the current variant uses GGUF quantization."""
+        return self._variant in self._GGUF_FILES
+
+    @property
+    def _gguf_file(self):
+        """Get the GGUF filename for the current variant."""
+        return self._GGUF_FILES.get(self._variant)
+
     def _load_tokenizer(self, dtype_override=None):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+        if self._is_gguf_variant():
+            tokenizer_kwargs["gguf_file"] = self._gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
@@ -109,14 +118,8 @@ class ModelLoader(ForgeModel):
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-
-        # Quantized variants require explicit CPU device mapping
-        if self._variant in (
-            ModelVariant.DISTILL_QWEN_7B_AWQ,
-            ModelVariant.DISTILL_QWEN_1_5B_QUANTIZED_W8A8,
-        ):
-            model_kwargs["device_map"] = "cpu"
-
+        if self._is_gguf_variant():
+            model_kwargs["gguf_file"] = self._gguf_file
         model_kwargs |= kwargs
 
         # Quantized variants need device_map="cpu" for CPU-based loading
