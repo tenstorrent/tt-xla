@@ -2,13 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen3-TTS-12Hz-0.6B-Base model loader implementation for text-to-speech tasks.
+Qwen3 TTS model loader implementation for text-to-speech tasks.
 """
-import sys
-import types
-import os
-
 import torch
+import torch.nn as nn
 from typing import Optional
 
 from ...base import ForgeModel
@@ -23,62 +20,48 @@ from ...config import (
 )
 
 
-def _stub_qwen_tts_deps():
-    """Stub heavy qwen_tts dependencies to avoid importing torchaudio/sox."""
-    if "qwen_tts" in sys.modules:
-        return
+class Qwen3TTSTalkerWrapper(nn.Module):
+    """Wrapper around the Qwen3 TTS talker backbone.
 
-    # The qwen_tts top-level __init__ imports torchaudio (via tokenizer_25hz)
-    # which requires sox and native libs not always available. Stub the package
-    # hierarchy so we can import only config + modeling modules.
-    site_pkg = os.path.join(
-        sys.prefix,
-        "lib",
-        f"python{sys.version_info.major}.{sys.version_info.minor}",
-        "site-packages",
-        "qwen_tts",
-    )
+    Exposes a clean forward pass that takes pre-computed input embeddings
+    and produces codec logits via the talker transformer and codec head.
+    """
 
-    for name, suffix in [
-        ("qwen_tts", ""),
-        ("qwen_tts.core", "/core"),
-        ("qwen_tts.core.models", "/core/models"),
-        ("qwen_tts.inference", "/inference"),
-    ]:
-        m = types.ModuleType(name)
-        m.__path__ = [site_pkg + suffix]
-        m.__package__ = name
-        sys.modules[name] = m
+    def __init__(self, talker):
+        super().__init__()
+        self.talker = talker
 
-    tok = types.ModuleType("qwen_tts.inference.qwen3_tts_tokenizer")
-    tok.Qwen3TTSTokenizer = type(
-        "Qwen3TTSTokenizer",
-        (),
-        {"from_pretrained": classmethod(lambda cls, *a, **kw: None)},
-    )
-    sys.modules["qwen_tts.inference.qwen3_tts_tokenizer"] = tok
+    def forward(self, inputs_embeds):
+        outputs = self.talker.model.forward(
+            input_ids=None,
+            inputs_embeds=inputs_embeds,
+            output_hidden_states=False,
+            use_cache=False,
+        )
+        hidden_states = outputs.last_hidden_state
+        codec_logits = self.talker.codec_head(hidden_states)
+        return codec_logits
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen3-TTS model variants."""
+    """Available Qwen3 TTS model variants."""
 
-    TTS_12HZ_0_6B_BASE = "TTS_12Hz_0.6B_Base"
+    QWEN3_TTS_12HZ_CUSTOM_VOICE = "12Hz-1.7B-CustomVoice"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen3-TTS model loader implementation for text-to-speech tasks."""
+    """Qwen3 TTS model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.TTS_12HZ_0_6B_BASE: ModelConfig(
-            pretrained_model_name="Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+        ModelVariant.QWEN3_TTS_12HZ_CUSTOM_VOICE: ModelConfig(
+            pretrained_model_name="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TTS_12HZ_0_6B_BASE
+    DEFAULT_VARIANT = ModelVariant.QWEN3_TTS_12HZ_CUSTOM_VOICE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -92,41 +75,26 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Qwen3-TTS talker model."""
-        _stub_qwen_tts_deps()
-
-        from qwen_tts.core.models.configuration_qwen3_tts import Qwen3TTSConfig
-        from qwen_tts.core.models.modeling_qwen3_tts import (
+        from qwen_tts.core.models import (
+            Qwen3TTSConfig,
             Qwen3TTSForConditionalGeneration,
         )
-        from transformers import AutoConfig, AutoModel
 
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        AutoConfig.register("qwen3_tts", Qwen3TTSConfig)
-        AutoModel.register(Qwen3TTSConfig, Qwen3TTSForConditionalGeneration)
-
-        full_model = AutoModel.from_pretrained(
-            pretrained_model_name,
-            dtype=dtype_override if dtype_override is not None else torch.float32,
+        config = Qwen3TTSConfig.from_pretrained(
+            self._variant_config.pretrained_model_name,
         )
-
-        full_model.eval()
-        self.model = full_model
-        return full_model.talker
+        full_model = Qwen3TTSForConditionalGeneration.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            config=config,
+            device_map="cpu",
+            torch_dtype=torch.float32,
+        )
+        model = Qwen3TTSTalkerWrapper(full_model.talker)
+        model.eval()
+        return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the Qwen3-TTS talker model."""
-        talker_config = self.model.config.talker_config
-
-        seq_len = 128
-        hidden_size = talker_config.hidden_size
-
-        # The talker expects inputs_embeds (not input_ids) for prefill mode
-        inputs_embeds = torch.randn(1, seq_len, hidden_size)
-        attention_mask = torch.ones(1, seq_len, dtype=torch.long)
-
-        return {
-            "inputs_embeds": inputs_embeds,
-            "attention_mask": attention_mask,
-        }
+        dtype = dtype_override or torch.float32
+        # Talker hidden_size=1024, use a short sequence
+        inputs_embeds = torch.randn(1, 32, 1024, dtype=dtype)
+        return (inputs_embeds,)
