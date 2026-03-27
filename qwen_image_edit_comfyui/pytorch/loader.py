@@ -134,8 +134,6 @@ class ModelLoader(ForgeModel):
         img_dim = 64
         # joint_attention_dim from config = 3584
         text_dim = 3584
-        # Small sequence lengths for testing
-        img_seq_len = 64
         txt_seq_len = 32
 
         # img_seq_len must equal frame * height * width for positional encoding
