@@ -58,7 +58,6 @@ class ModelLoader(ForgeModel):
         config.num_key_value_heads = 16
         config.intermediate_size = 1024 * 4
         config.num_experts_per_tok = 2
-        config.q_lora_rank = 256
 
         model_kwargs = {
             "trust_remote_code": True,
