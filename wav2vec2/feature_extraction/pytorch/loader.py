@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 feature extraction model variants."""
 
     BASE = "Base"
+    BASE_VI = "Base_VI"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base",
+        ),
+        ModelVariant.BASE_VI: ModelConfig(
+            pretrained_model_name="nguyenvulebinh/wav2vec2-base-vi",
         ),
     }
 
