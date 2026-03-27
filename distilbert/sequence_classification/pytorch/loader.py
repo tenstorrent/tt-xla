@@ -24,6 +24,9 @@ class ModelVariant(StrEnum):
     DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH = (
         "distilbert-base-uncased-finetuned-sst-2-english"
     )
+    DISTILBERT_BASE_MULTILINGUAL_CASED_SENTIMENTS_STUDENT = (
+        "lxyuan/distilbert-base-multilingual-cased-sentiments-student"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +36,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: LLMModelConfig(
             pretrained_model_name="distilbert-base-uncased-finetuned-sst-2-english",
+            max_length=128,
+        ),
+        ModelVariant.DISTILBERT_BASE_MULTILINGUAL_CASED_SENTIMENTS_STUDENT: LLMModelConfig(
+            pretrained_model_name="lxyuan/distilbert-base-multilingual-cased-sentiments-student",
             max_length=128,
         ),
     }
@@ -68,10 +75,18 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
+
+        group = ModelGroup.GENERALITY
+        if (
+            variant_name
+            == ModelVariant.DISTILBERT_BASE_MULTILINGUAL_CASED_SENTIMENTS_STUDENT
+        ):
+            group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="DistilBERT",
             variant=variant_name,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
