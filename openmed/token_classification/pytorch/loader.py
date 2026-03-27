@@ -24,6 +24,7 @@ from ....base import ForgeModel
 class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
+    OPENMED_NER_ANATOMYDETECT_MULTIMED_568M = "NER-AnatomyDetect-MultiMed-568M"
     OPENMED_NER_DNADETECT_MULTIMED_568M = "NER-DNADetect-MultiMed-568M"
 
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     """OpenMed model loader implementation for token classification."""
 
     _VARIANTS = {
+        ModelVariant.OPENMED_NER_ANATOMYDETECT_MULTIMED_568M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-MultiMed-568M",
+            max_length=128,
+        ),
         ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-MultiMed-568M",
             max_length=128,
@@ -39,12 +44,19 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M
 
-    sample_text = "The p53 protein plays a crucial role in tumor suppression."
+    _VARIANT_SAMPLE_TEXTS = {
+        ModelVariant.OPENMED_NER_ANATOMYDETECT_MULTIMED_568M: "The patient complained of pain in the left ventricle region.",
+        ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M: "The p53 protein plays a crucial role in tumor suppression.",
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
         self.tokenizer = None
+        self.sample_text = self._VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name,
+            "The p53 protein plays a crucial role in tumor suppression.",
+        )
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None):
