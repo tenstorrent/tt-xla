@@ -7,7 +7,7 @@ ChatGLM3 model loader implementation for causal language modeling.
 import torch
 from typing import Optional
 
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from transformers import AutoTokenizer, AutoModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
