@@ -25,12 +25,14 @@ class ModelVariant(StrEnum):
 
     VIT_B_32_LAION2B = "ViT_B_32_laion2B"
     CONVNEXT_BASE_W_LAION2B = "ConvNeXt_Base_W_laion2B"
+    VIT_B_32_XLM_ROBERTA_BASE_LAION5B = "ViT_B_32_xlm_roberta_base_laion5B"
 
 
 # Mapping from variant to OpenCLIP tokenizer name
 _TOKENIZER_NAME = {
     ModelVariant.VIT_B_32_LAION2B: "ViT-B-32",
     ModelVariant.CONVNEXT_BASE_W_LAION2B: "convnext_base_w",
+    ModelVariant.VIT_B_32_XLM_ROBERTA_BASE_LAION5B: "ViT-B-32-xlm-roberta-base",
 }
 
 
@@ -43,6 +45,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.CONVNEXT_BASE_W_LAION2B: ModelConfig(
             pretrained_model_name="hf-hub:laion/CLIP-convnext_base_w-laion2B-s13B-b82K-augreg",
+        ),
+        ModelVariant.VIT_B_32_XLM_ROBERTA_BASE_LAION5B: ModelConfig(
+            pretrained_model_name="hf-hub:laion/CLIP-ViT-B-32-xlm-roberta-base-laion5B-s13B-b90k",
         ),
     }
 
