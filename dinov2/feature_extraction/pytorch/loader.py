@@ -6,7 +6,6 @@ DINOv2 model loader implementation for feature extraction (PyTorch/TIMM).
 """
 
 import timm
-import torch
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from datasets import load_dataset
