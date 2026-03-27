@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-GPT-OSS Heretic GGUF model loader implementation for causal language modeling.
+GPT-OSS Heretic Uncensored GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available GPT-OSS Heretic GGUF model variants for causal language modeling."""
+    """Available GPT-OSS Heretic Uncensored GGUF model variants for causal language modeling."""
 
-    GPT_OSS_120B_HERETIC_V2_GGUF = "120B_heretic_v2_GGUF"
+    GPT_OSS_20B_HERETIC_GGUF = "20B_Heretic_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """GPT-OSS Heretic GGUF model loader implementation for causal language modeling tasks."""
+    """GPT-OSS Heretic Uncensored GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GPT_OSS_120B_HERETIC_V2_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/gpt-oss-120b-heretic-v2-i1-GGUF",
+        ModelVariant.GPT_OSS_20B_HERETIC_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GPT_OSS_120B_HERETIC_V2_GGUF
+    DEFAULT_VARIANT = ModelVariant.GPT_OSS_20B_HERETIC_GGUF
 
-    GGUF_FILE = "gpt-oss-120b-heretic-v2.i1-IQ1_S.gguf"
+    GGUF_FILE = "OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored.i1-Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
@@ -142,13 +142,18 @@ class ModelLoader(ForgeModel):
     def load_shard_spec(self, model):
         shard_specs = {}
         for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+            shard_specs[layer.mlp.router.weight] = (None, "batch")
+            shard_specs[layer.mlp.experts.gate_up_proj] = ("model", "batch", None)
+            shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+            shard_specs[layer.mlp.experts.down_proj] = ("model", None, "batch")
+            shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         return shard_specs
 
