@@ -51,6 +51,7 @@ class ModelVariant(StrEnum):
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_32B_NVFP4 = "32B_NVFP4"
     QWEN_3_4B_BNB_4BIT = "4B_bnb_4bit"
+    QWEN_3_32B_BNB_4BIT = "32B_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -154,6 +155,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3-4B-unsloth-bnb-4bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_32B_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-32B-bnb-4bit",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -208,6 +213,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_32B_NVFP4,
             ModelVariant.QWEN_3_4B_BNB_4BIT,
+            ModelVariant.QWEN_3_32B_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -274,7 +280,10 @@ class ModelLoader(ForgeModel):
             model_kwargs["device_map"] = "cpu"
 
         # BnB variants need device_map="cpu" for CPU-based loading
-        if self._variant == ModelVariant.QWEN_3_4B_BNB_4BIT:
+        if self._variant in (
+            ModelVariant.QWEN_3_4B_BNB_4BIT,
+            ModelVariant.QWEN_3_32B_BNB_4BIT,
+        ):
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
