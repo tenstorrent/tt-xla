@@ -20,8 +20,8 @@ from pathlib import Path
 import torch
 import transformers
 from llm_utils.decode_utils import (
+    assert_eval_no_dropout,
     extract_topk,
-    generate_and_benchmark,
     init_static_cache,
 )
 from loguru import logger
@@ -109,18 +109,20 @@ def generate_reference_outputs(total_length, output_file, model_name):
     ground_truth_tokens = tokens_1d[split_point:]  # [decode_len]
     decode_len = len(ground_truth_tokens)
 
-    logger.info(
-        f"Generating reference topk with shared decode logic (split_point={split_point})"
-    )
-    output_logits, _ = generate_and_benchmark(
-        model=model,
-        input_args=input_args,
-        device=device,
-        max_tokens_to_generate=decode_len,
-        read_logits_fn=lambda output: output.logits,
-        ground_truth_tokens=ground_truth_tokens,
-        verbose=True,
-    )
+    logger.info(f"Generating reference topk on CPU (split_point={split_point})")
+    assert_eval_no_dropout(model)
+
+    output_logits = []
+    with torch.no_grad():
+        for step in range(decode_len):
+            output = model(**input_args)
+            logits = output.logits
+            output_logits.append(logits)
+
+            # Teacher forcing: feed ground truth token as next input
+            input_args["input_ids"] = ground_truth_tokens[step].view(1, 1)
+            cache_pos = input_args["cache_position"]
+            input_args["cache_position"] = cache_pos[-1:] + 1
 
     # Post-processing: extract top-k predictions from raw logits
     all_top1 = []
