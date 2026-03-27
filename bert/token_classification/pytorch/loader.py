@@ -32,7 +32,7 @@ class ModelVariant(StrEnum):
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     DSLIM_BERT_BASE_NER_UNCASED = "dslim/bert-base-NER-uncased"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    ALVAROALON2_BIOBERT_DISEASES_NER = "alvaroalon2/biobert_diseases_ner"
+    AVICHR_HEBERT_NER = "avichr/heBERT_NER"
 
 
 class ModelLoader(ForgeModel):
@@ -56,8 +56,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.ALVAROALON2_BIOBERT_DISEASES_NER: LLMModelConfig(
-            pretrained_model_name="alvaroalon2/biobert_diseases_ner",
+        ModelVariant.AVICHR_HEBERT_NER: LLMModelConfig(
+            pretrained_model_name="avichr/heBERT_NER",
             max_length=128,
         ),
     }
@@ -79,8 +79,8 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         if self._variant == ModelVariant.HATMIMOHA_ARABIC_NER:
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.ALVAROALON2_BIOBERT_DISEASES_NER:
-            self.sample_text = "The patient was diagnosed with chronic obstructive pulmonary disease and type 2 diabetes"
+        elif self._variant == ModelVariant.AVICHR_HEBERT_NER:
+            self.sample_text = "דויד לומד באוניברסיטה העברית שבירושלים"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -104,7 +104,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.ALVAROALON2_BIOBERT_DISEASES_NER,
+            ModelVariant.AVICHR_HEBERT_NER,
         ):
             group = ModelGroup.VULCAN
 
