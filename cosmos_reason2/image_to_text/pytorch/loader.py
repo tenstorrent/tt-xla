@@ -5,10 +5,7 @@
 Cosmos Reason2 model loader implementation for image to text.
 """
 
-from transformers import (
-    Qwen3VLForConditionalGeneration,
-    AutoProcessor,
-)
+from transformers import Qwen3VLForConditionalGeneration, AutoProcessor
 from typing import Optional
 
 from ....base import ForgeModel
@@ -26,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Cosmos Reason2 model variants for image to text."""
 
-    COSMOS_REASON2_2B_W4A16_EDGE2 = "2b_w4a16_edge2"
+    COSMOS_REASON2_8B = "8b"
 
 
 class ModelLoader(ForgeModel):
@@ -34,14 +31,14 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.COSMOS_REASON2_2B_W4A16_EDGE2: LLMModelConfig(
-            pretrained_model_name="embedl/Cosmos-Reason2-2B-W4A16-Edge2",
+        ModelVariant.COSMOS_REASON2_8B: LLMModelConfig(
+            pretrained_model_name="nvidia/Cosmos-Reason2-8B",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.COSMOS_REASON2_2B_W4A16_EDGE2
+    DEFAULT_VARIANT = ModelVariant.COSMOS_REASON2_8B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -67,7 +64,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="Cosmos-Reason2",
+            model="cosmos_reason2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_IMAGE_TO_TEXT,
@@ -80,6 +77,7 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The Cosmos Reason2 model instance for image to text.
@@ -89,12 +87,16 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        else:
+            model_kwargs["dtype"] = "auto"
+            model_kwargs["device_map"] = "auto"
+
         model_kwargs |= kwargs
 
         self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
 
         model = Qwen3VLForConditionalGeneration.from_pretrained(
-            pretrained_model_name, dtype="auto", device_map="auto", **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         model.eval()
 
