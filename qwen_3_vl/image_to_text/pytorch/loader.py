@@ -34,8 +34,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_8B_INSTRUCT = "8b_instruct"
     QWEN_3_VL_8B_INSTRUCT_FP8 = "8b_instruct_fp8"
     QWEN_3_VL_30B_A3B_INSTRUCT = "30b_a3b_instruct"
-    QWEN_3_VL_30B_A3B_THINKING_FP8 = "30b_a3b_thinking_fp8"
-    QWEN_3_VL_8B_INSTRUCT_UNSLOTH_BNB_4BIT = "8b_instruct_unsloth_bnb_4bit"
+    QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT = "30b_a3b_instruct_mlx_5bit"
     QWEN_3_VL_32B_INSTRUCT = "32b_instruct"
     HUIHUI_QWEN_3_VL_4B_INSTRUCT_ABLITERATED = "huihui_4b_instruct_abliterated"
 
@@ -77,8 +76,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-VL-30B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_VL_30B_A3B_THINKING_FP8: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-VL-30B-A3B-Thinking-FP8",
+        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-VL-30B-A3B-Instruct-MLX-5bit",
             max_length=128,
         ),
         ModelVariant.QWEN_3_VL_32B_INSTRUCT: LLMModelConfig(
@@ -94,7 +93,7 @@ class ModelLoader(ForgeModel):
     # Variants that use the MoE architecture
     _MOE_VARIANTS = {
         ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
-        ModelVariant.QWEN_3_VL_30B_A3B_THINKING_FP8,
+        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT,
     }
 
     # Default variant to use
@@ -136,7 +135,7 @@ class ModelLoader(ForgeModel):
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT_FP8,
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT_UNSLOTH_BNB_4BIT,
                 ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
-                ModelVariant.QWEN_3_VL_30B_A3B_THINKING_FP8,
+                ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT,
                 ModelVariant.QWEN_3_VL_32B_INSTRUCT,
                 ModelVariant.HUIHUI_QWEN_3_VL_4B_INSTRUCT_ABLITERATED,
             )
