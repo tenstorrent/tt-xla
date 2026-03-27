@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 PyTorch speech recognition model variants."""
 
     BASE_960H = "Base_960h"
-    LARGE_ROBUST_960H = "Large_Robust_960h"
+    XLSR_53_ESTONIAN = "XLSR_53_Estonian"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.LARGE_ROBUST_960H: ModelConfig(
-            pretrained_model_name="facebook/wav2vec2-large-robust-ft-libri-960h",
+        ModelVariant.XLSR_53_ESTONIAN: ModelConfig(
+            pretrained_model_name="anton-l/wav2vec2-large-xlsr-53-estonian",
         ),
     }
 
