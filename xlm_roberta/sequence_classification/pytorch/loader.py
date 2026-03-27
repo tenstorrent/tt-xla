@@ -6,7 +6,6 @@ XLM-RoBERTa model loader implementation for sequence classification (sentiment a
 """
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
 from ....config import (
     ModelInfo,
     ModelGroup,
