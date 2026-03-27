@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     """Available BigVGAN model variants."""
 
     V2_22KHZ_80BAND_256X = "v2_22khz_80band_256x"
+    V2_44KHZ_128BAND_512X = "v2_44khz_128band_512x"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.V2_22KHZ_80BAND_256X: ModelConfig(
             pretrained_model_name="nvidia/bigvgan_v2_22khz_80band_256x",
+        ),
+        ModelVariant.V2_44KHZ_128BAND_512X: ModelConfig(
+            pretrained_model_name="nvidia/bigvgan_v2_44khz_128band_512x",
         ),
     }
 
@@ -106,10 +110,15 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the input tensor's dtype.
 
         Returns:
-            torch.Tensor: Mel spectrogram tensor with shape (1, 80, 256).
+            torch.Tensor: Mel spectrogram tensor.
         """
+        mel_bins_map = {
+            ModelVariant.V2_22KHZ_80BAND_256X: 80,
+            ModelVariant.V2_44KHZ_128BAND_512X: 128,
+        }
+        mel_bins = mel_bins_map[self._variant]
         # Shape: (batch_size, num_mel_bins, sequence_length)
-        mel = torch.randn(1, 80, 256)
+        mel = torch.randn(1, mel_bins, 256)
 
         if dtype_override is not None:
             mel = mel.to(dtype_override)
