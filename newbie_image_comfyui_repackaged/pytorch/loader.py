@@ -128,8 +128,6 @@ class ModelLoader(ForgeModel):
 
         Returns tokenized text inputs appropriate for the selected variant.
         """
-        dtype = kwargs.get("dtype_override", torch.float32)
-
         if self._tokenizer is None:
             if self._variant == ModelVariant.GEMMA_3_TEXT_ENCODER:
                 self._tokenizer = AutoTokenizer.from_pretrained(GEMMA_REPO)
