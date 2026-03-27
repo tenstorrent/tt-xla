@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_CHEMICALDETECT_ELECTRAMED_109M = (
         "OpenMed/OpenMed-NER-ChemicalDetect-ElectraMed-109M"
     )
+    OPENMED_NER_PATHOLOGYDETECT_ELECTRAMED_335M = (
+        "OpenMed/OpenMed-NER-PathologyDetect-ElectraMed-335M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +38,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-ElectraMed-109M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_ELECTRAMED_335M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-ElectraMed-335M",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_ELECTRAMED_109M
@@ -43,9 +50,14 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = (
-            "The patient was administered acetylsalicylic acid for pain relief."
-        )
+        if self._variant == ModelVariant.OPENMED_NER_PATHOLOGYDETECT_ELECTRAMED_335M:
+            self.sample_text = (
+                "Early detection of breast cancer improves survival rates."
+            )
+        else:
+            self.sample_text = (
+                "The patient was administered acetylsalicylic acid for pain relief."
+            )
         self.tokenizer = None
         self.model = None
 
