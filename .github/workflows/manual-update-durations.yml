@@ -22,6 +22,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.TT_FORGE_RELEASER }}
         run: |
+          gh api rate_limit
           TAG=$(gh release list -R tenstorrent/tt-xla --limit 20 --json tagName \
             | jq -r '[.[] | select(.tagName | test("^[0-9]+\\.[0-9]+\\.[0-9]+\\.dev[0-9]+$"))] | .[0].tagName')
           echo "tag_name=$TAG" >> $GITHUB_OUTPUT
