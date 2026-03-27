@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
+    QWEN_3_32B_ABLITERATED_AWQ = "32B_Abliterated_Awq"
     QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4 = "30B_A3B_Instruct_2507_NVFP4"
 
 
@@ -121,6 +122,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_32B_ABLITERATED_AWQ: LLMModelConfig(
+            pretrained_model_name="jnvdx666/Qwen3-32B-abliterated-awq",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4: LLMModelConfig(
             pretrained_model_name="NVFP4/Qwen3-30B-A3B-Instruct-2507-FP4",
             max_length=128,
@@ -170,6 +175,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_14B_AWQ,
+            ModelVariant.QWEN_3_32B_ABLITERATED_AWQ,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4,
         ):
             group = ModelGroup.VULCAN
@@ -239,7 +245,10 @@ class ModelLoader(ForgeModel):
 
         # AWQ variants: use Qwen3ForCausalLM directly with quantization_config
         # removed so that weights are loaded as plain tensors on CPU.
-        is_awq = pretrained_model_name == "Qwen/Qwen3-32B-AWQ"
+        is_awq = pretrained_model_name in (
+            "Qwen/Qwen3-32B-AWQ",
+            "jnvdx666/Qwen3-32B-abliterated-awq",
+        )
         if is_awq:
             model_kwargs["device_map"] = "cpu"
             config = AutoConfig.from_pretrained(pretrained_model_name)
