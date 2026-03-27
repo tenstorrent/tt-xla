@@ -101,14 +101,7 @@ class ModelVariant(StrEnum):
 
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
-    TINYLLAMA_W8W8_STATIC = "Tinyllama_W8W8_Static"
-    TINYLLAMA_W8A8_DYNAMIC_TOKEN_V2 = "Tinyllama_W8A8_Dynamic_Token_v2"
-
-    # nm-testing FP8 compressed-tensors variants
-    META_LLAMA_3_8B_FP8_COMPRESSED_TENSORS = "Meta_Llama_3_8B_FP8_Compressed_Tensors"
-
-    # AMD Quark variants
-    AMD_QUARK_TINY_LLAMA = "Amd_Quark_Tiny_Llama"
+    TINYLLAMA_1_1B_CHAT_V0_3_AWQ = "Tinyllama_1.1B_Chat_v0.3_Awq"
 
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
@@ -252,22 +245,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="TinyLlama/TinyLlama_v1.1",
             max_length=128,
         ),
-        ModelVariant.TINYLLAMA_W8W8_STATIC: LLMModelConfig(
-            pretrained_model_name="nm-testing/tinyllama-oneshot-w8w8-test-static-shape-change",
-            max_length=128,
-        ),
-        ModelVariant.TINYLLAMA_W8A8_DYNAMIC_TOKEN_V2: LLMModelConfig(
-            pretrained_model_name="nm-testing/tinyllama-oneshot-w8a8-dynamic-token-v2",
-            max_length=128,
-        ),
-        # nm-testing FP8 compressed-tensors variants
-        ModelVariant.META_LLAMA_3_8B_FP8_COMPRESSED_TENSORS: LLMModelConfig(
-            pretrained_model_name="nm-testing/Meta-Llama-3-8B-FP8-compressed-tensors-test",
-            max_length=128,
-        ),
-        # AMD Quark variants
-        ModelVariant.AMD_QUARK_TINY_LLAMA: LLMModelConfig(
-            pretrained_model_name="amd-quark/tiny-llama-fast-tokenizer",
+        ModelVariant.TINYLLAMA_1_1B_CHAT_V0_3_AWQ: LLMModelConfig(
+            pretrained_model_name="TheBloke/TinyLlama-1.1B-Chat-v0.3-AWQ",
             max_length=128,
         ),
         # JackFram variants
@@ -335,12 +314,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_UNSLOTH,
-            ModelVariant.LLAMA_2_70B_CHAT,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_W_INT8_A_INT8_SYM,
-            ModelVariant.UNICHAT_LLAMA3_CHINESE_8B,
-            ModelVariant.OPENBUDDY_LLAMA3_70B,
-            ModelVariant.NMAGIC_LLAMA_3_1_8B_INSTRUCT_FP8,
+            ModelVariant.TINYLLAMA_1_1B_CHAT_V0_3_AWQ,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -438,10 +412,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is an AWQ/BNB variant and configure accordingly
+        # Check if this is an AWQ variant and configure accordingly
         if pretrained_model_name in (
             "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "unsloth/Llama-3.2-1B-bnb-4bit",
+            "TheBloke/TinyLlama-1.1B-Chat-v0.3-AWQ",
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
