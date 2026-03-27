@@ -46,7 +46,7 @@ class ModelVariant(StrEnum):
     TINY = "Tiny"
 
     # TIMM variants
-    DEIT_BASE_PATCH16_224_FB_IN1K = "Base_Patch16_224_FB_IN1K"
+    DEIT_TINY_PATCH16_224_FB_IN1K = "Tiny_Patch16_224_FB_IN1K"
 
 
 class ModelLoader(ForgeModel):
@@ -76,8 +76,8 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
         ),
         # TIMM variants
-        ModelVariant.DEIT_BASE_PATCH16_224_FB_IN1K: DeitConfig(
-            pretrained_model_name="deit_base_patch16_224.fb_in1k",
+        ModelVariant.DEIT_TINY_PATCH16_224_FB_IN1K: DeitConfig(
+            pretrained_model_name="deit_tiny_patch16_224.fb_in1k",
             source=ModelSource.TIMM,
         ),
     }
@@ -126,6 +126,12 @@ class ModelLoader(ForgeModel):
         else:
             group = ModelGroup.GENERALITY
 
+        # Determine model group
+        if cls._VARIANTS[variant].source == ModelSource.TIMM:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="DeiT",
             variant=variant,
@@ -154,7 +160,6 @@ class ModelLoader(ForgeModel):
             import timm
 
             model = timm.create_model(pretrained_model_name, pretrained=True)
-
         elif source == ModelSource.HUGGING_FACE:
             # Load pre-trained model from HuggingFace
             model = ViTForImageClassification.from_pretrained(
