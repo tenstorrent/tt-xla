@@ -46,6 +46,9 @@ class ModelVariant(StrEnum):
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
 
+    # TRL internal testing variants
+    TINY_LLAMA_3_2 = "Tiny_3.2"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for sequence classification tasks."""
@@ -113,6 +116,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="huggyllama/llama-7b",
             max_length=128,
         ),
+        # TRL internal testing variants
+        ModelVariant.TINY_LLAMA_3_2: LLMModelConfig(
+            pretrained_model_name="trl-internal-testing/tiny-LlamaForSequenceClassification-3.2",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -145,10 +153,15 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        if variant == ModelVariant.TINY_LLAMA_3_2:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="Llama",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
