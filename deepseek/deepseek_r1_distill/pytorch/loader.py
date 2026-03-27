@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     DISTILL_QWEN_7B_UNSLOTH_BNB_4BIT = "Distill_Qwen_7B_unsloth_bnb_4bit"
     DISTILL_QWEN_14B = "Distill_Qwen_14B"
     DISTILL_LLAMA_8B = "Distill_Llama_8B"
+    DISTILL_QWEN_7B_AWQ = "Distill_Qwen_7B_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -56,6 +57,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DISTILL_LLAMA_8B: LLMModelConfig(
             pretrained_model_name="deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+            max_length=2048,
+        ),
+        ModelVariant.DISTILL_QWEN_7B_AWQ: LLMModelConfig(
+            pretrained_model_name="casperhansen/deepseek-r1-distill-qwen-7b-awq",
             max_length=2048,
         ),
     }
@@ -98,6 +103,14 @@ class ModelLoader(ForgeModel):
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # AWQ quantized variants require explicit CPU device mapping
+        if (
+            self._variant_config.pretrained_model_name
+            == "casperhansen/deepseek-r1-distill-qwen-7b-awq"
+        ):
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         # Quantized variants need device_map="cpu" for CPU-based loading
