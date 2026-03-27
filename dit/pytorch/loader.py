@@ -2,9 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DiT (Diffusion Transformer) model loader implementation
+DiT model loader implementation for document image classification
 """
+import torch
+from transformers import AutoImageProcessor, BeitForImageClassification
+from datasets import load_dataset
+from typing import Optional
 
+from ...base import ForgeModel
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -14,44 +19,44 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...base import ForgeModel
-import torch
-from diffusers import DiTPipeline
-from typing import Optional
 
 
 class ModelVariant(StrEnum):
     """Available DiT model variants."""
 
-    XL_2_256 = "XL-2-256"
+    BASE_FINETUNED_RVLCDIP = "Base_Finetuned_RVLCDIP"
 
 
 class ModelLoader(ForgeModel):
-    """DiT (Diffusion Transformer) model loader implementation."""
+    """DiT model loader implementation for document image classification tasks."""
 
+    # Dictionary of available model variants
     _VARIANTS = {
-        ModelVariant.XL_2_256: ModelConfig(
-            pretrained_model_name="facebook/DiT-XL-2-256",
+        ModelVariant.BASE_FINETUNED_RVLCDIP: ModelConfig(
+            pretrained_model_name="microsoft/dit-base-finetuned-rvlcdip",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.XL_2_256
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.BASE_FINETUNED_RVLCDIP
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
 
         Args:
-            variant: Optional string specifying which variant to use.
+            variant: Optional ModelVariant specifying which variant to use.
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
+        self.processor = None
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
-        """Get model information for dashboard and metrics reporting.
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
 
         Args:
-            variant: Optional variant name string. If None, uses default.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
             ModelInfo: Information about the model and variant
@@ -60,61 +65,68 @@ class ModelLoader(ForgeModel):
             model="DiT",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CONDITIONAL_GENERATION,
+            task=ModelTask.CV_IMAGE_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
+    def _load_processor(self):
+        """Load image processor for the current variant.
+
+        Returns:
+            The loaded processor instance
+        """
+        self.processor = AutoImageProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+        return self.processor
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the DiT transformer model.
+        """Load and return the DiT model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use torch.bfloat16.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            DiTTransformer2DModel: The pre-trained DiT transformer model.
+            torch.nn.Module: The DiT model instance for document image classification.
         """
-        dtype = dtype_override or torch.bfloat16
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        pipe = DiTPipeline.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            torch_dtype=dtype,
-            **kwargs,
+        if self.processor is None:
+            self._load_processor()
+
+        model = BeitForImageClassification.from_pretrained(
+            pretrained_model_name, **kwargs
         )
 
-        self.scheduler = pipe.scheduler
-        self.in_channels = pipe.transformer.config.in_channels
-        return pipe.transformer
+        if dtype_override is not None:
+            model = model.to(dtype_override)
+        return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the DiT transformer model.
+        """Load and return sample inputs for the DiT model with this instance's variant settings.
 
         Args:
-            dtype_override: Optional torch.dtype to override the input dtype.
-            batch_size: Optional batch size for the inputs.
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Optional batch size to override the default batch size of 1.
 
         Returns:
-            dict: Dictionary containing hidden_states, timestep, and class_labels.
+            dict: Input tensors that can be fed to the model.
         """
-        dtype = dtype_override or torch.bfloat16
+        if self.processor is None:
+            self._load_processor()
 
-        # DiT-XL-2-256 operates on 256x256 images, latent space is 32x32
-        latent_size = 256 // 8
-        latents = torch.randn(
-            (batch_size, self.in_channels, latent_size, latent_size), dtype=dtype
-        )
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
-        # Set up scheduler and get a timestep
-        num_inference_steps = 1
-        self.scheduler.set_timesteps(num_inference_steps)
-        timestep = self.scheduler.timesteps[0]
+        inputs = self.processor(images=image, return_tensors="pt")
 
-        # Class-conditional: use ImageNet class label (e.g., 207 = golden retriever)
-        class_labels = torch.tensor([207] * batch_size)
+        if dtype_override is not None:
+            inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
 
-        return {
-            "hidden_states": latents,
-            "timestep": timestep,
-            "class_labels": class_labels,
-        }
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        return inputs
