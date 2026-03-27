@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-lmstudio-community/Qwen2.5-32B-Instruct-GGUF model loader implementation for causal language modeling.
+Qwen 2.5 32B Instruct GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -23,20 +23,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 32B Instruct GGUF model variants for causal language modeling."""
 
-    QWEN_2_5_32B_INSTRUCT_Q4_K_M = "32B_Instruct_Q4_K_M"
+    QWEN_2_5_32B_INSTRUCT_GGUF = "32B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 2.5 32B Instruct GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_32B_INSTRUCT_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen2.5-32B-Instruct-GGUF",
+        ModelVariant.QWEN_2_5_32B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="bartowski/Qwen2.5-32B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_32B_INSTRUCT_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_32B_INSTRUCT_GGUF
 
     GGUF_FILE = "Qwen2.5-32B-Instruct-Q4_K_M.gguf"
 
