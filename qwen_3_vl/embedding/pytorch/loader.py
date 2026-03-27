@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 VL Embedding model variants."""
 
     QWEN_3_VL_EMBEDDING_2B = "Embedding_2B"
+    QWEN_3_VL_EMBEDDING_8B = "Embedding_8B"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_VL_EMBEDDING_2B: ModelConfig(
             pretrained_model_name="Qwen/Qwen3-VL-Embedding-2B",
+        ),
+        ModelVariant.QWEN_3_VL_EMBEDDING_8B: ModelConfig(
+            pretrained_model_name="Qwen/Qwen3-VL-Embedding-8B",
         ),
     }
 
