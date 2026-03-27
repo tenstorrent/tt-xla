@@ -48,7 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
     QWEN_2_5_14B_INSTRUCT_GPTQ_INT8 = "14B_Instruct_Gptq_Int8"
     QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
-    QWEN_2_5_1_5B_BNB_4BIT = "1.5B_Bnb_4bit"
+    QWEN_2_5_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
 
 
 class ModelLoader(ForgeModel):
@@ -145,9 +145,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Qwen2.5-1.5B-quantized.w8a8",
             max_length=128,
         ),
-        # Unsloth BNB 4-bit quantized variant
-        ModelVariant.QWEN_2_5_1_5B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-1.5B-unsloth-bnb-4bit",
+        ModelVariant.QWEN_2_5_7B_INSTRUCT_GPTQ_INT4: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4",
             max_length=128,
         ),
     }
@@ -204,7 +203,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_32B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_14B_INSTRUCT_GPTQ_INT8,
             ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
-            ModelVariant.QWEN_2_5_1_5B_BNB_4BIT,
+            ModelVariant.QWEN_2_5_7B_INSTRUCT_GPTQ_INT4,
         ]:
             group = ModelGroup.VULCAN
 
@@ -260,12 +259,12 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ or BNB variant and configure accordingly
+        # Check if this is a quantized variant (AWQ/GPTQ) and configure accordingly
         if pretrained_model_name in (
             "Qwen/Qwen2.5-14B-Instruct-AWQ",
             "Qwen/Qwen2.5-32B-Instruct-AWQ",
             "Qwen/Qwen2.5-72B-Instruct-AWQ",
-            "unsloth/Qwen2.5-1.5B-unsloth-bnb-4bit",
+            "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4",
         ):
             model_kwargs["device_map"] = "cpu"
 
