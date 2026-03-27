@@ -30,6 +30,25 @@ if ALL_PARALLEL_STYLES is None:
 
     mu.ALL_PARALLEL_STYLES = ["rowwise", "colwise", "headwise"]
 
+# Monkey patch Resampler for compatibility - Fixes: Resampler doesn't have _initialize_weights method in torch 2.7.0
+import torch.nn as nn
+
+original_getattr = nn.Module.__getattr__
+
+
+def patched_getattr(self, name):
+    if name == "_initialize_weights" and self.__class__.__name__ == "Resampler":
+
+        def _initialize_weights(module_self):
+            if hasattr(module_self, "_init_weights"):
+                module_self._init_weights(module_self)
+
+        return _initialize_weights
+    return original_getattr(self, name)
+
+
+nn.Module.__getattr__ = patched_getattr
+
 
 class ModelVariant(StrEnum):
     """Available MiniCPM-V 2.6 model variants."""
@@ -110,10 +129,11 @@ class ModelLoader(ForgeModel):
         if image is None:
             raise ValueError("Image input is required for MiniCPM-V inference")
 
-        msgs = [{"role": "user", "content": [question, image]}]
+        msgs = [{"role": "user", "content": question}]
 
         with torch.no_grad():
             result = self.model.chat(
+                image=image,
                 msgs=msgs,
                 tokenizer=self.tokenizer,
                 sampling=False,
