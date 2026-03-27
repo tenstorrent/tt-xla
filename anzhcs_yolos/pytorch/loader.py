@@ -4,7 +4,6 @@
 """
 Anzhc's YOLOs model loader implementation
 """
-import torch
 from torchvision import transforms
 from datasets import load_dataset
 from typing import Optional
