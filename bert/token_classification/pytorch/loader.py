@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
         "dbmdz/bert-large-cased-finetuned-conll03-english"
     )
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
+    DSLIM_BERT_BASE_NER_UNCASED = "dslim/bert-base-NER-uncased"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
     GRAVITEE_IO_BERT_SMALL_PII_DETECTION = "gravitee-io/bert-small-pii-detection"
 
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DSLIM_BERT_BASE_NER: LLMModelConfig(
             pretrained_model_name="dslim/bert-base-NER",
+            max_length=128,
+        ),
+        ModelVariant.DSLIM_BERT_BASE_NER_UNCASED: LLMModelConfig(
+            pretrained_model_name="dslim/bert-base-NER-uncased",
             max_length=128,
         ),
         ModelVariant.HATMIMOHA_ARABIC_NER: LLMModelConfig(
@@ -97,6 +102,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.DSLIM_BERT_BASE_NER,
+            ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.GRAVITEE_IO_BERT_SMALL_PII_DETECTION,
         ):
