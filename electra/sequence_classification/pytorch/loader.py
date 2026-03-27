@@ -2,56 +2,70 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ELECTRA model loader implementation for sequence classification task.
+ELECTRA model loader implementation for sequence classification (QNLI).
 """
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from typing import Optional
 
-from transformers import ElectraForSequenceClassification, ElectraTokenizerFast
-from third_party.tt_forge_models.config import (
+from ....base import ForgeModel
+from ....config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    LLMModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available ELECTRA sequence classification model variants."""
 
-    CIRCULUS_KOELECTRA_EMOTION_V1 = "circulus_KoElectra_Emotion_v1"
+    QNLI_ELECTRA_BASE = "qnli-electra-base"
 
 
 class ModelLoader(ForgeModel):
-    """ELECTRA model loader implementation for sequence classification task."""
+    """ELECTRA model loader implementation for sequence classification (QNLI)."""
 
     _VARIANTS = {
-        ModelVariant.CIRCULUS_KOELECTRA_EMOTION_V1: LLMModelConfig(
-            pretrained_model_name="circulus/koelectra-emotion-v1",
-            max_length=128,
+        ModelVariant.QNLI_ELECTRA_BASE: ModelConfig(
+            pretrained_model_name="cross-encoder/qnli-electra-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CIRCULUS_KOELECTRA_EMOTION_V1
+    DEFAULT_VARIANT = ModelVariant.QNLI_ELECTRA_BASE
 
-    _SAMPLE_TEXTS = {
-        ModelVariant.CIRCULUS_KOELECTRA_EMOTION_V1: "오늘 정말 기분이 좋아요",
-    }
+    # Sample question-paragraph pair for QNLI testing
+    sample_pairs = [
+        (
+            "How many people live in Berlin?",
+            "Berlin had a population of 3,520,031 registered inhabitants in an area of 891.82 square kilometers.",
+        ),
+    ]
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
-        self.model_name = self._variant_config.pretrained_model_name
-        self.max_length = self._variant_config.max_length
-        self.review = self._SAMPLE_TEXTS.get(self._variant, "오늘 정말 기분이 좋아요")
         self.tokenizer = None
-        self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="ELECTRA",
             variant=variant,
@@ -61,34 +75,71 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = ElectraTokenizerFast.from_pretrained(self.model_name)
+    def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
 
-        model_kwargs = {}
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name,
+        )
+
+        return self.tokenizer
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the ELECTRA model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            torch.nn.Module: The ELECTRA model instance for sequence classification.
+        """
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        model_kwargs = {"return_dict": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = ElectraForSequenceClassification.from_pretrained(
-            self.model_name, **model_kwargs
+        model = AutoModelForSequenceClassification.from_pretrained(
+            pretrained_model_name, **model_kwargs
         )
-        self.model.eval()
-        return self.model
+        model.eval()
+
+        return model
 
     def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the ELECTRA model.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
         if self.tokenizer is None:
-            self.load_model(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
+
+        queries = [pair[0] for pair in self.sample_pairs]
+        passages = [pair[1] for pair in self.sample_pairs]
 
         inputs = self.tokenizer(
-            self.review,
-            max_length=self.max_length,
-            padding="max_length",
+            queries,
+            passages,
+            padding=True,
             truncation=True,
             return_tensors="pt",
         )
 
-        return inputs
+        if dtype_override is not None:
+            for key, value in inputs.items():
+                if isinstance(value, torch.Tensor):
+                    if value.dtype == torch.float32:
+                        inputs[key] = value.to(dtype_override)
 
-    def decode_output(self, co_out):
-        predicted_value = co_out[0].argmax(-1).item()
-        print(f"Predicted Emotion: {self.model.config.id2label[predicted_value]}")
+        return inputs
