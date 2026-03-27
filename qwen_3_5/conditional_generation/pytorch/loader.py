@@ -5,6 +5,7 @@
 Qwen 3.5 MoE model loader implementation for multimodal conditional generation.
 """
 import torch
+from PIL import Image
 from transformers import AutoProcessor, Qwen3_5MoeForConditionalGeneration
 from typing import Optional
 
@@ -19,7 +20,6 @@ from ....config import (
     StrEnum,
 )
 from ....tools.utils import cast_input_to_type, get_file
-from PIL import Image
 
 
 class ModelVariant(StrEnum):
@@ -60,13 +60,9 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
-        kwargs = {}
-        if dtype_override is not None:
-            kwargs["torch_dtype"] = dtype_override
-
+    def _load_processor(self):
         self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name, **kwargs
+            self._variant_config.pretrained_model_name,
         )
 
         return self.processor
@@ -75,7 +71,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+            self._load_processor()
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -92,7 +88,7 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+            self._load_processor()
 
         image_file = get_file(self.sample_image_url)
         image = Image.open(image_file).convert("RGB")
