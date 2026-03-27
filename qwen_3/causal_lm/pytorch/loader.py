@@ -40,6 +40,7 @@ class ModelVariant(StrEnum):
     QWEN_3_8B_BASE = "8B_Base"
     QWEN_3_14B = "14B"
     QWEN_3_32B = "32B"
+    QWEN_3_32B_FP8 = "32B_FP8"
     QWEN_3_8B_AWQ = "8B_Awq"
     QWEN_3_8B_MLX_4BIT = "8B_MLX_4bit"
     QWEN_3_30B_A3B = "30B_A3b"
@@ -111,6 +112,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-32B",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_32B_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-32B-FP8",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_30B_A3B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-30B-A3B",
             max_length=128,
@@ -180,9 +185,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_32B_ABLITERATED_AWQ,
-            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4,
-            ModelVariant.QWEN_3_14B_FP8,
+            ModelVariant.QWEN_3_32B_FP8,
         ):
             group = ModelGroup.VULCAN
         else:
