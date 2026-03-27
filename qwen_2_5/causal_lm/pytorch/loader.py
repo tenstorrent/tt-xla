@@ -48,8 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
     QWEN_2_5_14B_INSTRUCT_GPTQ_INT8 = "14B_Instruct_Gptq_Int8"
     QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
-    QWEN_2_5_0_5B_BNB_4BIT = "0.5B_bnb_4bit"
-    QWEN_2_5_72B_INSTRUCT_GPTQ_INT4 = "72B_Instruct_GPTQ_Int4"
+    QWEN_2_5_1_5B_INSTRUCT_BNB_4BIT = "1.5B_Instruct_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -147,13 +146,8 @@ class ModelLoader(ForgeModel):
             max_length=128,
         ),
         # Unsloth BnB 4-bit quantized variant
-        ModelVariant.QWEN_2_5_0_5B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-0.5B-unsloth-bnb-4bit",
-            max_length=128,
-        ),
-        # GPTQ 4-bit quantized variant
-        ModelVariant.QWEN_2_5_72B_INSTRUCT_GPTQ_INT4: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2.5-72B-Instruct-GPTQ-Int4",
+        ModelVariant.QWEN_2_5_1_5B_INSTRUCT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen2.5-1.5B-Instruct-unsloth-bnb-4bit",
             max_length=128,
         ),
     }
@@ -210,8 +204,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_32B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_14B_INSTRUCT_GPTQ_INT8,
             ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
-            ModelVariant.QWEN_2_5_0_5B_BNB_4BIT,
-            ModelVariant.QWEN_2_5_72B_INSTRUCT_GPTQ_INT4,
+            ModelVariant.QWEN_2_5_1_5B_INSTRUCT_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
 
@@ -274,9 +267,8 @@ class ModelLoader(ForgeModel):
                 "Qwen/Qwen2.5-14B-Instruct-AWQ",
                 "Qwen/Qwen2.5-32B-Instruct-AWQ",
                 "Qwen/Qwen2.5-72B-Instruct-AWQ",
-                "Qwen/Qwen2.5-72B-Instruct-GPTQ-Int4",
             )
-            or self._variant == ModelVariant.QWEN_2_5_0_5B_BNB_4BIT
+            or self._variant == ModelVariant.QWEN_2_5_1_5B_INSTRUCT_BNB_4BIT
         ):
             model_kwargs["device_map"] = "cpu"
 
