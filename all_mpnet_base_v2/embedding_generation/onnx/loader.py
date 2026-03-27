@@ -6,7 +6,7 @@ All-MPNet-Base-V2 ONNX model loader.
 """
 
 # Reuse the PyTorch ModelLoader as the base
-from ...pytorch.loader import ModelLoader as PyTorchModelLoader
+from ..pytorch.loader import ModelLoader as PyTorchModelLoader
 from ....tools.utils import export_torch_model_to_onnx
 
 
