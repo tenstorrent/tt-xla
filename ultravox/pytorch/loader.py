@@ -5,6 +5,11 @@
 Ultravox model loader implementation for speech language modeling.
 """
 
+import json
+import os
+import shutil
+import tempfile
+
 import numpy as np
 from typing import Optional
 
@@ -40,6 +45,7 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.processor = None
+        self._patched_dir = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -55,12 +61,76 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _get_patched_model_dir(self):
+        """Create a local directory with a patched config.json that avoids gated repo access.
+
+        The Ultravox custom config tries to fetch the gated Llama config from
+        HuggingFace at init time. We create a patched local copy with
+        text_model_id set to null and text_config provided inline.
+        """
+        if self._patched_dir is not None:
+            return self._patched_dir
+
+        from huggingface_hub import hf_hub_download, model_info
+
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        config_path = hf_hub_download(pretrained_model_name, "config.json")
+        with open(config_path) as f:
+            config_dict = json.load(f)
+
+        # Nullify text_model_id to prevent fetching the gated Llama config.
+        # Provide a text_config dict so the custom UltravoxConfig uses it.
+        config_dict["text_model_id"] = None
+        if "text_config" not in config_dict or not isinstance(
+            config_dict.get("text_config"), dict
+        ):
+            # Llama-3.2-1B-Instruct config parameters
+            config_dict["text_config"] = {
+                "model_type": "llama",
+                "hidden_size": 2048,
+                "intermediate_size": 8192,
+                "num_attention_heads": 32,
+                "num_hidden_layers": 16,
+                "num_key_value_heads": 8,
+                "vocab_size": 128256,
+                "max_position_embeddings": 131072,
+                "rms_norm_eps": 1e-5,
+                "rope_theta": 500000.0,
+            }
+
+        tmpdir = tempfile.mkdtemp()
+
+        with open(os.path.join(tmpdir, "config.json"), "w") as f:
+            json.dump(config_dict, f)
+
+        # Copy all .py and tokenizer files from the repo
+        info = model_info(pretrained_model_name)
+        for sibling in info.siblings:
+            fname = sibling.rfilename
+            if (
+                fname.endswith(".py")
+                or "tokenizer" in fname
+                or fname.endswith(".model")
+            ):
+                src = hf_hub_download(pretrained_model_name, fname)
+                shutil.copy2(src, os.path.join(tmpdir, fname))
+
+        self._patched_dir = tmpdir
+        return tmpdir
+
+    def _cleanup_patched_dir(self):
+        if self._patched_dir is not None:
+            shutil.rmtree(self._patched_dir, ignore_errors=True)
+            self._patched_dir = None
+
     def _load_processor(self):
         """Load processor for the current variant."""
         from transformers import AutoProcessor
 
+        patched_dir = self._get_patched_model_dir()
         self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name,
+            patched_dir,
             trust_remote_code=True,
         )
 
@@ -78,6 +148,11 @@ class ModelLoader(ForgeModel):
         import transformers
 
         pretrained_model_name = self._variant_config.pretrained_model_name
+        patched_dir = self._get_patched_model_dir()
+
+        config = transformers.AutoConfig.from_pretrained(
+            patched_dir, trust_remote_code=True
+        )
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -86,6 +161,7 @@ class ModelLoader(ForgeModel):
 
         model = transformers.AutoModel.from_pretrained(
             pretrained_model_name,
+            config=config,
             trust_remote_code=True,
             **model_kwargs,
         )
@@ -112,7 +188,7 @@ class ModelLoader(ForgeModel):
         turns = [
             {
                 "role": "user",
-                "content": "Describe what you hear in this audio.",
+                "content": "<|audio|>\nDescribe what you hear in this audio.",
             },
         ]
 
