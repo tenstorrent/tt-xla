@@ -74,8 +74,11 @@ class ModelLoader(ForgeModel):
         seq_length = 524288
         x = torch.zeros(1, 4, seq_length)
         # Create a simple repeating ACGT pattern
-        for i in range(seq_length):
-            x[0, i % 4, i] = 1.0
+        positions = torch.arange(seq_length)
+        x[0, 0, positions % 4 == 0] = 1.0  # A
+        x[0, 1, positions % 4 == 1] = 1.0  # C
+        x[0, 2, positions % 4 == 2] = 1.0  # G
+        x[0, 3, positions % 4 == 3] = 1.0  # T
 
         if dtype_override is not None:
             x = x.to(dtype_override)
