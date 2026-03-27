@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 import torch
 from diffusers import LTX2Pipeline
+from diffusers.models import LTX2VideoTransformer3DModel
 
 from ...base import ForgeModel
 from ...config import (
@@ -89,10 +90,24 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_pipeline(self, dtype: torch.dtype) -> LTX2Pipeline:
-        self.pipeline = LTX2Pipeline.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            torch_dtype=dtype,
-        )
+        if self._variant == ModelVariant.LTX_2_3_FP8:
+            # FP8 repo only has raw safetensors weights; load base pipeline
+            # then replace the transformer with fp8 weights.
+            self.pipeline = LTX2Pipeline.from_pretrained(
+                "Lightricks/LTX-2.3",
+                torch_dtype=dtype,
+            )
+            fp8_transformer = LTX2VideoTransformer3DModel.from_single_file(
+                "https://huggingface.co/Lightricks/LTX-2.3-fp8/blob/main/ltx-2.3-22b-distilled-fp8.safetensors",
+                config=self.pipeline.transformer.config,
+                torch_dtype=dtype,
+            )
+            self.pipeline.transformer = fp8_transformer
+        else:
+            self.pipeline = LTX2Pipeline.from_pretrained(
+                self._variant_config.pretrained_model_name,
+                torch_dtype=dtype,
+            )
         return self.pipeline
 
     def load_model(self, *, dtype_override=None, **kwargs):
