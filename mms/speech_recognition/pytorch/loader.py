@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available MMS PyTorch speech recognition model variants."""
 
     MMS_1B_ALL = "MMS_1B_All"
-    MMS_1B_FL102 = "MMS_1B_FL102"
+    WAV2VEC2_LARGE_MMS_1B_AZERBAIJANI = "Wav2Vec2_Large_MMS_1B_Azerbaijani"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MMS_1B_ALL: ModelConfig(
             pretrained_model_name="facebook/mms-1b-all",
         ),
-        ModelVariant.MMS_1B_FL102: ModelConfig(
-            pretrained_model_name="facebook/mms-1b-fl102",
+        ModelVariant.WAV2VEC2_LARGE_MMS_1B_AZERBAIJANI: ModelConfig(
+            pretrained_model_name="nijatzeynalov/wav2vec2-large-mms-1b-azerbaijani-common_voice15.0",
         ),
     }
 
