@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available BGE Reranker model variants for passage ranking."""
 
     BASE = "base"
+    LARGE = "large"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE: ModelConfig(
             pretrained_model_name="BAAI/bge-reranker-base",
+        ),
+        ModelVariant.LARGE: ModelConfig(
+            pretrained_model_name="BAAI/bge-reranker-large",
         ),
     }
 
