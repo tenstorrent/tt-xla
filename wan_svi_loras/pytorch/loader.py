@@ -97,6 +97,7 @@ class ModelLoader(ForgeModel):
         self.pipeline = WanImageToVideoPipeline.from_pretrained(
             self._variant_config.pretrained_model_name,
             torch_dtype=dtype,
+            **kwargs,
         )
 
         lora_file = _LORA_FILES[self._variant]
