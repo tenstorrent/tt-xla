@@ -57,9 +57,9 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_feature_extractor(self, dtype_override=None):
-        from transformers import WavLMFeatureExtractor
+        from transformers import Wav2Vec2FeatureExtractor
 
-        self._feature_extractor = WavLMFeatureExtractor.from_pretrained(
+        self._feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
             self._variant_config.pretrained_model_name,
         )
 
