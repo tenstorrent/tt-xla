@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
     OPENMED_NER_CHEMICALDETECT_MULTIMED_335M = "NER-ChemicalDetect-MultiMed-335M"
+    OPENMED_NER_GENOMEDETECT_MULTIMED_568M = "NER-GenomeDetect-MultiMed-568M"
     OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M = "NER-SpeciesDetect-BioPatient-108M"
 
 
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_NER_CHEMICALDETECT_MULTIMED_335M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-MultiMed-335M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_GENOMEDETECT_MULTIMED_568M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-MultiMed-568M",
             max_length=128,
         ),
         ModelVariant.OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M: LLMModelConfig(
@@ -45,6 +50,9 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.OPENMED_NER_CHEMICALDETECT_MULTIMED_335M: (
             "The patient was administered acetylsalicylic acid for pain relief."
+        ),
+        ModelVariant.OPENMED_NER_GENOMEDETECT_MULTIMED_568M: (
+            "The EGFR gene mutation was identified in lung cancer patients."
         ),
         ModelVariant.OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M: (
             "Escherichia coli bacteria were found in the water samples."
