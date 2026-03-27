@@ -12,16 +12,14 @@ from diffusers import StableDiffusionXLControlNetPipeline, ControlNetModel
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
-from huggingface_hub import hf_hub_download
 from PIL import Image
 
 
-def load_instantid_pipe(controlnet_repo, ip_adapter_repo, base_model_name):
-    """Load InstantID pipeline with ControlNet and IP-Adapter.
+def load_instantid_pipe(controlnet_repo, base_model_name):
+    """Load InstantID pipeline with ControlNet.
 
     Args:
         controlnet_repo: HuggingFace repo containing the ControlNet model
-        ip_adapter_repo: HuggingFace repo containing the IP-Adapter weights
         base_model_name: Base SDXL model name on HuggingFace
 
     Returns:

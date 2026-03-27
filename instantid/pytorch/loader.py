@@ -73,9 +73,7 @@ class ModelLoader(ForgeModel):
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        self.pipeline = load_instantid_pipe(
-            pretrained_model_name, pretrained_model_name, self.base_model
-        )
+        self.pipeline = load_instantid_pipe(pretrained_model_name, self.base_model)
 
         if dtype_override is not None:
             self.pipeline = self.pipeline.to(dtype_override)
