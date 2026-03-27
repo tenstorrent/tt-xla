@@ -3,13 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Wav2Vec2 model loader implementation for age and gender audio classification.
+Wav2Vec2 model loader implementation for audio classification (emotion recognition).
 """
 
 from typing import Optional
-
-import torch
-import torch.nn as nn
 
 from ....base import ForgeModel
 from ....config import (
@@ -23,73 +20,22 @@ from ....config import (
 )
 
 
-class ModelHead(nn.Module):
-    """Classification head."""
-
-    def __init__(self, config, num_labels):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.dropout = nn.Dropout(config.final_dropout)
-        self.out_proj = nn.Linear(config.hidden_size, num_labels)
-
-    def forward(self, features, **kwargs):
-        x = features
-        x = self.dropout(x)
-        x = self.dense(x)
-        x = torch.tanh(x)
-        x = self.dropout(x)
-        x = self.out_proj(x)
-        return x
-
-
-class AgeGenderModel(torch.nn.Module):
-    """Wav2Vec2-based age and gender classification model.
-
-    Wraps the pretrained model from audeering/wav2vec2-large-robust-24-ft-age-gender.
-    """
-
-    @staticmethod
-    def from_pretrained(model_name):
-        from transformers.models.wav2vec2.modeling_wav2vec2 import (
-            Wav2Vec2PreTrainedModel,
-            Wav2Vec2Model,
-        )
-
-        class _AgeGenderModel(Wav2Vec2PreTrainedModel):
-            def __init__(self, config):
-                super().__init__(config)
-                self.wav2vec2 = Wav2Vec2Model(config)
-                self.age = ModelHead(config, 1)
-                self.gender = ModelHead(config, 3)
-                self.init_weights()
-
-            def forward(self, input_values):
-                outputs = self.wav2vec2(input_values)
-                hidden_states = outputs[0]
-                hidden_states = torch.mean(hidden_states, dim=1)
-                logits_age = self.age(hidden_states)
-                logits_gender = torch.softmax(self.gender(hidden_states), dim=1)
-                return hidden_states, logits_age, logits_gender
-
-        return _AgeGenderModel.from_pretrained(model_name)
-
-
 class ModelVariant(StrEnum):
-    """Available Wav2Vec2 age/gender model variants."""
+    """Available Wav2Vec2 audio classification model variants."""
 
-    LARGE_ROBUST_24 = "Large_Robust_24"
+    LARGE_ROBUST_12_FT_EMOTION_MSP_DIM = "Large_Robust_12_FT_Emotion_MSP_Dim"
 
 
 class ModelLoader(ForgeModel):
-    """Wav2Vec2 model loader for age and gender audio classification."""
+    """Wav2Vec2 model loader implementation for audio classification (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.LARGE_ROBUST_24: ModelConfig(
-            pretrained_model_name="audeering/wav2vec2-large-robust-24-ft-age-gender",
+        ModelVariant.LARGE_ROBUST_12_FT_EMOTION_MSP_DIM: ModelConfig(
+            pretrained_model_name="audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE_ROBUST_24
+    DEFAULT_VARIANT = ModelVariant.LARGE_ROBUST_12_FT_EMOTION_MSP_DIM
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -123,8 +69,65 @@ class ModelLoader(ForgeModel):
         return self._processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        model = AgeGenderModel.from_pretrained(
-            self._variant_config.pretrained_model_name
+        import torch
+        import torch.nn as nn
+        from transformers import Wav2Vec2Config
+        from transformers.models.wav2vec2.modeling_wav2vec2 import (
+            Wav2Vec2Model,
+            Wav2Vec2PreTrainedModel,
+        )
+
+        class RegressionHead(nn.Module):
+            """Classification head for emotion regression."""
+
+            def __init__(self, config):
+                super().__init__()
+                self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+                self.dropout = nn.Dropout(config.final_dropout)
+                self.out_proj = nn.Linear(config.hidden_size, config.num_labels)
+
+            def forward(self, features, **kwargs):
+                x = features
+                x = self.dropout(x)
+                x = self.dense(x)
+                x = torch.tanh(x)
+                x = self.dropout(x)
+                x = self.out_proj(x)
+                return x
+
+        class EmotionModel(Wav2Vec2PreTrainedModel):
+            """Speech emotion classifier."""
+
+            def __init__(self, config):
+                super().__init__(config)
+                self.config = config
+                self.wav2vec2 = Wav2Vec2Model(config)
+                self.classifier = RegressionHead(config)
+                self.init_weights()
+
+            def forward(self, input_values):
+                outputs = self.wav2vec2(input_values)
+                hidden_states = outputs[0]
+                hidden_states = torch.mean(hidden_states, dim=1)
+                logits = self.classifier(hidden_states)
+                return hidden_states, logits
+
+        # Load config with workaround for vocab_size=None
+        config = Wav2Vec2Config.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            vocab_size=1,
+            num_labels=3,
+        )
+
+        model_kwargs = {}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
+        model = EmotionModel.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            config=config,
+            **model_kwargs,
         )
         model.eval()
         if dtype_override is not None:
