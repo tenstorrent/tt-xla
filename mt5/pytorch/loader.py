@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MT5 model loader implementation
+MT5 PyTorch model loader implementation
 """
 
 import torch
@@ -24,20 +24,30 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available MT5 model variants."""
 
-    TINY_RANDOM = "Tiny_Random"
+    BASE = "Base"
+    LARGE = "Large"
+    XL = "Xl"
 
 
 class ModelLoader(ForgeModel):
     """MT5 model loader implementation for conditional generation tasks."""
 
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="optimum-internal-testing/tiny-random-mt5",
+        ModelVariant.BASE: LLMModelConfig(
+            pretrained_model_name="google/mt5-base",
+            max_length=512,
+        ),
+        ModelVariant.LARGE: LLMModelConfig(
+            pretrained_model_name="google/mt5-large",
+            max_length=512,
+        ),
+        ModelVariant.XL: LLMModelConfig(
+            pretrained_model_name="google/mt5-xl",
             max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     sample_text = """summarize: Researchers have extensively studied the benefits of having pets,
                     particularly dogs, on human health and well-being. Findings suggest that pet ownership
