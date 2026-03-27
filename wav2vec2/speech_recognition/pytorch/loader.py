@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 PyTorch speech recognition model variants."""
 
     BASE_960H = "Base_960h"
-    XLS_R_300M_SINHALA = "XLS_R_300M_Sinhala"
+    LARGE_ES_VOXPOPULI = "Large_ES_VoxPopuli"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.XLS_R_300M_SINHALA: ModelConfig(
-            pretrained_model_name="SpideyDLK/wav2vec2-large-xls-r-300m-sinhala-low-LR-part1",
+        ModelVariant.LARGE_ES_VOXPOPULI: ModelConfig(
+            pretrained_model_name="facebook/wav2vec2-large-es-voxpopuli",
         ),
     }
 
