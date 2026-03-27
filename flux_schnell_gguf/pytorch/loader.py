@@ -5,7 +5,8 @@
 FLUX.1-schnell GGUF model loader implementation for text-to-image generation
 """
 import torch
-from diffusers import GGUFQuantizationConfig, FluxTransformer2DModel
+from diffusers import GGUFQuantizationConfig
+from diffusers.models import FluxTransformer2DModel
 from typing import Optional
 
 from ...base import ForgeModel
