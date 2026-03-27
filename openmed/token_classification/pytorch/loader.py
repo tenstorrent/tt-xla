@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     OPENMED_NER_ANATOMYDETECT_MULTIMED_568M = "NER-AnatomyDetect-MultiMed-568M"
     OPENMED_NER_DNADETECT_MULTIMED_568M = "NER-DNADetect-MultiMed-568M"
+    OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M = "NER-PathologyDetect-BioPatient-108M"
 
 
 class ModelLoader(ForgeModel):
@@ -40,6 +41,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-MultiMed-568M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-BioPatient-108M",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M
@@ -47,6 +52,7 @@ class ModelLoader(ForgeModel):
     _VARIANT_SAMPLE_TEXTS = {
         ModelVariant.OPENMED_NER_ANATOMYDETECT_MULTIMED_568M: "The patient complained of pain in the left ventricle region.",
         ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M: "The p53 protein plays a crucial role in tumor suppression.",
+        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M: "Early detection of breast cancer improves survival rates.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
