@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER model loader implementation for anatomical entity recognition.
+OpenMed NER model loader implementation for biomedical entity recognition.
 """
 
 import torch
@@ -23,14 +23,29 @@ class ModelVariant(StrEnum):
     """Available OpenMed NER model variants for token classification."""
 
     ANATOMY_DETECT_TINYMED_66M = "AnatomyDetect-TinyMed-66M"
+    DNA_DETECT_PUBMED_V2_109M = "DNADetect-PubMed-v2-109M"
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.ANATOMY_DETECT_TINYMED_66M: (
+        "The patient complained of pain in the left ventricle region."
+    ),
+    ModelVariant.DNA_DETECT_PUBMED_V2_109M: (
+        "Expression of BRCA1 gene was significantly upregulated in HeLa cells."
+    ),
+}
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER model loader implementation for anatomical entity recognition."""
+    """OpenMed NER model loader implementation for biomedical entity recognition."""
 
     _VARIANTS = {
         ModelVariant.ANATOMY_DETECT_TINYMED_66M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-TinyMed-66M",
+            max_length=128,
+        ),
+        ModelVariant.DNA_DETECT_PUBMED_V2_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-PubMed-v2-109M",
             max_length=128,
         ),
     }
@@ -40,8 +55,9 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.sample_text = (
-            "The patient complained of pain in the left ventricle region."
+        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
+            self._variant,
+            "The patient complained of pain in the left ventricle region.",
         )
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
