@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     """Available multilingual E5 model variants."""
 
     MULTILINGUAL_E5_LARGE = "intfloat/multilingual-e5-large"
+    EMBEDIC_BASE = "djovak/embedic-base"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.MULTILINGUAL_E5_LARGE: LLMModelConfig(
             pretrained_model_name="intfloat/multilingual-e5-large",
             max_length=128,
+        ),
+        ModelVariant.EMBEDIC_BASE: LLMModelConfig(
+            pretrained_model_name="djovak/embedic-base",
+            max_length=512,
         ),
     }
 
