@@ -10,8 +10,8 @@ from transformers import AutoTokenizer, GPT2ForTokenClassification
 from peft import PeftModel
 from typing import Optional
 
-from ...base import ForgeModel
-from ...config import (
+from ....base import ForgeModel
+from ....config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
