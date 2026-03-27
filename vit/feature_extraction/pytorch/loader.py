@@ -1,12 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 """
-ViT feature extraction model loader implementation for PyTorch (TIMM).
+ViT feature extraction model loader implementation for PyTorch.
 """
 
 from typing import Optional
-from datasets import load_dataset
 
 from ....base import ForgeModel
 from ....config import (
@@ -18,25 +18,24 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import VisionPreprocessor
 
 
 class ModelVariant(StrEnum):
     """Available ViT feature extraction model variants."""
 
-    SO400M_PATCH14_SIGLIP_384 = "So400m_Patch14_SigLIP_384"
+    LARGE_PATCH16_224_IN_21K = "Large_Patch16_224_In_21K"
 
 
 class ModelLoader(ForgeModel):
-    """ViT feature extraction model loader implementation for PyTorch (TIMM)."""
+    """ViT feature extraction model loader implementation for PyTorch."""
 
     _VARIANTS = {
-        ModelVariant.SO400M_PATCH14_SIGLIP_384: ModelConfig(
-            pretrained_model_name="vit_so400m_patch14_siglip_384.webli",
+        ModelVariant.LARGE_PATCH16_224_IN_21K: ModelConfig(
+            pretrained_model_name="google/vit-large-patch16-224-in21k",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SO400M_PATCH14_SIGLIP_384
+    DEFAULT_VARIANT = ModelVariant.LARGE_PATCH16_224_IN_21K
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -46,8 +45,8 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self.model = None
-        self._preprocessor = None
+        self._processor = None
+        self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -68,63 +67,59 @@ class ModelLoader(ForgeModel):
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_IMAGE_FE,
-            source=ModelSource.TIMM,
+            source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the ViT feature extraction model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
+    def _load_processor(self):
+        """Load image processor for the current variant.
 
         Returns:
-            torch.nn.Module: The ViT model instance.
+            processor: The loaded image processor instance
         """
-        import timm
+        from transformers import ViTImageProcessor
 
-        model_name = self._variant_config.pretrained_model_name
+        self._processor = ViTImageProcessor.from_pretrained(self._model_name)
 
-        model = timm.create_model(model_name, pretrained=True)
-        model.eval()
+        return self._processor
 
-        self.model = model
+    def load_model(self, *, dtype_override=None, **kwargs):
+        """Load the ViT feature extraction model with the current variant settings.
 
-        if self._preprocessor is not None:
-            self._preprocessor.set_cached_model(model)
+        Args:
+            dtype_override: Optional dtype to override the model's default dtype.
+
+        Returns:
+            model: The loaded ViT model instance
+        """
+        from transformers import ViTModel
+
+        model = ViTModel.from_pretrained(self._model_name, **kwargs)
 
         if dtype_override is not None:
             model = model.to(dtype_override)
 
+        model.eval()
+
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
-        """Load and return sample inputs for the model.
+    def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the ViT model with this instance's variant settings.
 
         Args:
-            dtype_override: Optional torch.dtype override.
-            batch_size: Batch size (default: 1).
-            image: Optional input image. If None, loads from HuggingFace datasets.
+            dtype_override: Optional dtype to override the model's default dtype.
 
         Returns:
-            torch.Tensor: Preprocessed input tensor.
+            inputs: Input tensors that can be fed to the model.
         """
-        if image is None:
-            dataset = load_dataset("huggingface/cats-image", split="test")
-            image = dataset[0]["image"]
+        from datasets import load_dataset
 
-        if self._preprocessor is None:
-            model_name = self._variant_config.pretrained_model_name
-            self._preprocessor = VisionPreprocessor(
-                model_source=ModelSource.TIMM,
-                model_name=model_name,
-            )
-            if self.model is not None:
-                self._preprocessor.set_cached_model(self.model)
+        if self._processor is None:
+            self._load_processor()
 
-        return self._preprocessor.preprocess(
-            image=image,
-            dtype_override=dtype_override,
-            batch_size=batch_size,
-            model_for_config=self.model,
-        )
+        dataset = load_dataset("huggingface/cats-image", split="test")
+        image = dataset[0]["image"]
+
+        inputs = self._processor(image, return_tensors="pt")
+
+        return inputs
