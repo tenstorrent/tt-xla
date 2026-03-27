@@ -33,7 +33,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
-    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
+    QWEN_3_5_27B_GGUF = "27B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_INSTRUCT_HERETIC_UNCENSORED_GGUF = (
         "9B_Claude_4.6_HighIQ_INSTRUCT_HERETIC_UNCENSORED_GGUF"
@@ -86,8 +86,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3.5-9B-GGUF",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
-            pretrained_model_name="tatsuyaaaaaaa/Qwen3.5-35B-A3B-gguf",
+        ModelVariant.QWEN_3_5_27B_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3.5-27B-GGUF",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_35B_A3B_NVFP4: LLMModelConfig(
@@ -127,11 +127,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_INSTRUCT_HERETIC_UNCENSORED_GGUF: "Qwen3.5-9B-Claude-4.6-HighIQ-INSTRUCT-HERETIC-UNCENSORED.Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_9B_HERETIC_GGUF: "Qwen3.5-9B-heretic.Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_ANTIREP_27B_GGUF: "Qwen3.5-Antirep-27B.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_HERETIC_GGUF: "Qwen3.5-35B-A3B-heretic.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_CREATIVE_19B_A3B_REAP_GGUF: "Qwen3.5-Creative-19B-A3B-REAP.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_27B_GGUF: "Qwen3.5-27B-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
