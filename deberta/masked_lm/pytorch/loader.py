@@ -5,6 +5,7 @@
 DeBERTa V3 model loader implementation for masked language modeling.
 """
 
+import torch
 from transformers import AutoTokenizer, DebertaV2ForMaskedLM
 from third_party.tt_forge_models.config import (
     ModelInfo,
@@ -21,6 +22,7 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available DeBERTa V3 model variants for masked language modeling."""
 
+    DEBERTA_V3_SMALL = "V3_Small"
     DEBERTA_V3_BASE = "V3_Base"
     MDEBERTA_V3_BASE = "mDeBERTa_V3_Base"
 
@@ -29,6 +31,10 @@ class ModelLoader(ForgeModel):
     """DeBERTa V3 model loader implementation for masked language modeling."""
 
     _VARIANTS = {
+        ModelVariant.DEBERTA_V3_SMALL: LLMModelConfig(
+            pretrained_model_name="microsoft/deberta-v3-small",
+            max_length=128,
+        ),
         ModelVariant.DEBERTA_V3_BASE: LLMModelConfig(
             pretrained_model_name="microsoft/deberta-v3-base",
             max_length=128,
@@ -61,6 +67,23 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    # Weight key mapping for mDeBERTa checkpoints which use different naming
+    _MDEBERTA_KEY_MAP = {
+        "lm_predictions.lm_head.dense.weight": "cls.predictions.transform.dense.weight",
+        "lm_predictions.lm_head.dense.bias": "cls.predictions.transform.dense.bias",
+        "lm_predictions.lm_head.LayerNorm.weight": "cls.predictions.transform.LayerNorm.weight",
+        "lm_predictions.lm_head.LayerNorm.bias": "cls.predictions.transform.LayerNorm.bias",
+        "lm_predictions.lm_head.bias": "cls.predictions.bias",
+    }
+
+    def _remap_mdeberta_state_dict(self, state_dict):
+        """Remap mDeBERTa checkpoint keys to match DebertaV2ForMaskedLM."""
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            new_key = self._MDEBERTA_KEY_MAP.get(key, key)
+            new_state_dict[new_key] = value
+        return new_state_dict
+
     def load_model(self, *, dtype_override=None, **kwargs):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
@@ -69,7 +92,21 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = DebertaV2ForMaskedLM.from_pretrained(self.model_name, **model_kwargs)
+        if self._variant == ModelVariant.MDEBERTA_V3_BASE:
+            # mDeBERTa uses different weight key names; load with remapping
+            model = DebertaV2ForMaskedLM.from_pretrained(
+                self.model_name, **model_kwargs, ignore_mismatched_sizes=True
+            )
+            state_dict = torch.hub.load_state_dict_from_url(
+                f"https://huggingface.co/{self.model_name}/resolve/main/pytorch_model.bin",
+                map_location="cpu",
+            )
+            remapped = self._remap_mdeberta_state_dict(state_dict)
+            model.load_state_dict(remapped, strict=False)
+        else:
+            model = DebertaV2ForMaskedLM.from_pretrained(
+                self.model_name, **model_kwargs
+            )
         model.eval()
         return model
 
