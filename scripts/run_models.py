@@ -148,7 +148,8 @@ def main():
     for i, mid in enumerate(model_ids):
         chunks[i % num_workers].append(mid)
 
-    result_queue = multiprocessing.Queue()
+    manager = multiprocessing.Manager()
+    result_queue = manager.Queue()
 
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = [
