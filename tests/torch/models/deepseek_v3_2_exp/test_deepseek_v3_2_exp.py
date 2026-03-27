@@ -294,7 +294,7 @@ def test_deepseek_v3_2_moe_only():
             None,
             None,
         )
-        shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.proj_bias] = (("_axis_0", "_axis_1"), None)
         shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
         shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
 
@@ -507,7 +507,12 @@ def test_deepseek_v3_2_full_sparse_moe():
                 # A2aSparseMLPWithSharedExperts (MoE layer)
                 mlp = ffn.mlp
                 shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
-                shard_specs[mlp.experts.gate_up_proj] = (
+                shard_specs[mlp.experts.gate_proj] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
+                )
+                shard_specs[mlp.experts.up_proj] = (
                     ("_axis_0", "_axis_1"),
                     None,
                     None,
@@ -517,7 +522,11 @@ def test_deepseek_v3_2_full_sparse_moe():
                     None,
                     None,
                 )
-                shard_specs[mlp.experts.gate_up_proj_bias] = (
+                shard_specs[mlp.experts.gate_proj_bias] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                )
+                shard_specs[mlp.experts.up_proj_bias] = (
                     ("_axis_0", "_axis_1"),
                     None,
                 )
