@@ -120,7 +120,7 @@ def load_image(image_path, input_size=448, max_num=12):
 class ModelVariant(StrEnum):
     """Available InternVL3.5 model variants."""
 
-    INTERN_VL3_5_1B = "1B"
+    INTERN_VL3_5_8B = "8B"
     INTERN_VL3_5_GPT_OSS_20B_A4B = "GPT_OSS_20B_A4B"
     INTERN_VL3_5_GPT_OSS_20B_A4B_PREVIEW = "GPT_OSS_20B_A4B_Preview"
 
@@ -129,8 +129,8 @@ class ModelLoader(ForgeModel):
     """InternVL3.5 model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.INTERN_VL3_5_1B: LLMModelConfig(
-            pretrained_model_name="OpenGVLab/InternVL3_5-1B",
+        ModelVariant.INTERN_VL3_5_8B: LLMModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL3_5-8B-HF",
         ),
         ModelVariant.INTERN_VL3_5_GPT_OSS_20B_A4B: LLMModelConfig(
             pretrained_model_name="OpenGVLab/InternVL3_5-GPT-OSS-20B-A4B-Preview-HF",
