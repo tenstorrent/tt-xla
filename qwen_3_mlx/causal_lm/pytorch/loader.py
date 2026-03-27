@@ -23,30 +23,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 MLX model variants for causal language modeling."""
 
-    QWEN_3_30B_A3B_4BIT = "30B_A3B_4bit"
-    QWEN_3_30B_A3B_INSTRUCT_2507_MLX_4BIT = "30B_A3B_Instruct_2507_MLX_4bit"
-    QWEN_3_30B_A3B_INSTRUCT_2507_MLX_8BIT = "30B_A3B_Instruct_2507_MLX_8bit"
+    QWEN_3_4B_INSTRUCT_2507_MLX_6BIT = "4B_Instruct_2507_MLX_6bit"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 MLX model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_30B_A3B_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3-30B-A3B-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_8BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-8bit",
+        ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_6BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-4B-Instruct-2507-MLX-6bit",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_4BIT
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_6BIT
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -113,18 +103,14 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        # Base models use plain text; chat models use chat template
-        if self._variant == ModelVariant.QWEN_3_30B_A3B_4BIT:
-            prompts = [self.sample_text]
-        else:
-            messages = [{"role": "user", "content": self.sample_text}]
-            text = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
-                enable_thinking=False,
-            )
-            prompts = [text]
+        messages = [{"role": "user", "content": self.sample_text}]
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        prompts = [text]
 
         inputs = self.tokenizer(
             prompts,
