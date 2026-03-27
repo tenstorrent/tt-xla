@@ -121,7 +121,7 @@ class ModelLoader(ForgeModel):
             config = AutoConfig.from_pretrained(
                 pretrained_model_name, trust_remote_code=True
             )
-            config.num_hidden_layers = self.num_layers
+            config.n_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModel.from_pretrained(
