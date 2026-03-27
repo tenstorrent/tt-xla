@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
 
     DEBERTA_V3_SMALL = "V3_Small"
     DEBERTA_V3_BASE = "V3_Base"
+    DEBERTA_V3_LARGE = "V3_Large"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +36,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DEBERTA_V3_BASE: LLMModelConfig(
             pretrained_model_name="microsoft/deberta-v3-base",
+            max_length=128,
+        ),
+        ModelVariant.DEBERTA_V3_LARGE: LLMModelConfig(
+            pretrained_model_name="microsoft/deberta-v3-large",
             max_length=128,
         ),
     }
