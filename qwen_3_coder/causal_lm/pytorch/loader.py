@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Coder model variants for causal language modeling."""
 
     QWEN_3_CODER_NEXT = "Next"
+    QWEN_3_CODER_NEXT_NVFP4 = "Next_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_CODER_NEXT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-Coder-Next",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_CODER_NEXT_NVFP4: LLMModelConfig(
+            pretrained_model_name="GadflyII/Qwen3-Coder-Next-NVFP4",
             max_length=128,
         ),
     }
@@ -116,6 +121,14 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # NVFP4 variant needs device_map="cpu" for CPU-based loading
+        if (
+            self._variant_config.pretrained_model_name
+            == "GadflyII/Qwen3-Coder-Next-NVFP4"
+        ):
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
