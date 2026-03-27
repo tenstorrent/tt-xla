@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
     BERT_LARGE_CASED_WHOLE_WORD_MASKING_FINETUNED_SQUAD = (
         "bert-large-cased-whole-word-masking-finetuned-squad"
     )
-    CSARRON_BERT_BASE_UNCASED_SQUAD_V1 = "csarron-bert-base-uncased-squad-v1"
+    DEEPSET_BERT_BASE_CASED_SQUAD2 = "deepset-bert-base-cased-squad2"
 
 
 class ModelLoader(ForgeModel):
@@ -43,8 +43,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bert-large-cased-whole-word-masking-finetuned-squad",
             max_length=384,
         ),
-        ModelVariant.CSARRON_BERT_BASE_UNCASED_SQUAD_V1: LLMModelConfig(
-            pretrained_model_name="csarron/bert-base-uncased-squad-v1",
+        ModelVariant.DEEPSET_BERT_BASE_CASED_SQUAD2: LLMModelConfig(
+            pretrained_model_name="deepset/bert-base-cased-squad2",
             max_length=384,
         ),
     }
@@ -91,12 +91,9 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
-
-        if variant_name == ModelVariant.CSARRON_BERT_BASE_UNCASED_SQUAD_V1:
+        group = ModelGroup.GENERALITY
+        if variant_name in (ModelVariant.DEEPSET_BERT_BASE_CASED_SQUAD2,):
             group = ModelGroup.VULCAN
-        else:
-            group = ModelGroup.GENERALITY
-
         return ModelInfo(
             model="BERT",
             variant=variant_name,
