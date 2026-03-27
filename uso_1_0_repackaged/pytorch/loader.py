@@ -15,7 +15,6 @@ Available variants:
 
 from typing import Any, Optional
 
-import numpy as np
 import torch
 from diffusers import AutoencoderTiny, FluxPipeline  # type: ignore[import]
 
