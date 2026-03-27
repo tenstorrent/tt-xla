@@ -4,7 +4,6 @@
 """
 REVE Positions model loader for EEG electrode position feature extraction.
 """
-import torch
 from typing import Optional
 
 from ....config import (
