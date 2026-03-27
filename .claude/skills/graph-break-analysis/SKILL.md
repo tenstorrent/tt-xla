@@ -29,7 +29,7 @@ Common misconception is that different mlir modules are graph breaks. This is no
 
 1. Search for `"------------------ END OF MLIR MODULE ------------------"` strings in the log to determine the number of graphs
 2. Identify each graph and link them to the source model that caused them (location markers in the log can help)
-3. Find the Python/PyTorch implementation of all models used in the script — search locally or on the web (e.g., HuggingFace, similar libraries) to identify the culprits
+3. Find the Python/PyTorch implementation of all models used in the script — search locally or on the web (e.g., HuggingFace, similar libraries) to identify the culprits. Always first search locally, looking at the 1. imports that lead to custom implementation 2. imports that lead to third party implementation (e.g. /path/to/tt-xla/venv/lib/python3.12/site-packages/path/to/[transformers/diffusers]). Only then if you don't find locally, then search the web. This decreases the chance of having discrepancy in model impl. 
 4. Use 5 research agents in parallel for analysis
 
 ## Deliverables
