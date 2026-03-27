@@ -4,9 +4,11 @@
 """
 Distil-Whisper model loader implementation for speech recognition (ASR).
 
-Distil-Whisper Large v2 is a distilled version of OpenAI's Whisper Large v2,
-offering 6x faster inference with comparable accuracy for English ASR.
+Distil-Whisper Large v3 French (dec16) is a distilled version of Whisper Large v3,
+fine-tuned for French speech recognition with 16 decoder layers.
 """
+
+from typing import Optional
 
 import numpy as np
 import torch
@@ -15,7 +17,6 @@ from transformers import (
     WhisperForConditionalGeneration,
     WhisperProcessor,
 )
-from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
@@ -30,21 +31,21 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Distil-Whisper PyTorch model variants."""
+    """Available Distil-Whisper speech recognition model variants."""
 
-    LARGE_V2 = "Large_v2"
+    LARGE_V3_FR_DEC16 = "Large_v3_fr_dec16"
 
 
 class ModelLoader(ForgeModel):
     """Distil-Whisper PyTorch model loader implementation for speech recognition (ASR)."""
 
     _VARIANTS = {
-        ModelVariant.LARGE_V2: ModelConfig(
-            pretrained_model_name="distil-whisper/distil-large-v2",
+        ModelVariant.LARGE_V3_FR_DEC16: ModelConfig(
+            pretrained_model_name="bofenghuang/whisper-large-v3-french-distil-dec16",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE_V2
+    DEFAULT_VARIANT = ModelVariant.LARGE_V3_FR_DEC16
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None):
@@ -65,7 +66,7 @@ class ModelLoader(ForgeModel):
         self.model = None
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load a Distil-Whisper model from Hugging Face."""
+        """Load the Distil-Whisper French model from Hugging Face."""
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"use_cache": False}
@@ -84,7 +85,7 @@ class ModelLoader(ForgeModel):
         return self.model
 
     def load_inputs(self, dtype_override=None):
-        """Generate sample inputs for Distil-Whisper model."""
+        """Generate sample inputs for Distil-Whisper French model."""
         if self.model is None or self.processor is None:
             self.load_model()
 
@@ -95,7 +96,7 @@ class ModelLoader(ForgeModel):
         model_param = next(self.model.parameters())
         device, dtype = model_param.device, dtype_override or model_param.dtype
 
-        # Generate synthetic 3-second audio at 16kHz
+        # Generate synthetic audio and process through the feature extractor
         sample_audio = np.random.randn(16000 * 3).astype(np.float32)
         processor_output = self.processor(
             sample_audio, return_tensors="pt", sampling_rate=16000
