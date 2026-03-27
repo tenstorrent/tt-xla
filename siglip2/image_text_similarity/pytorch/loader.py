@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""
+SigLIP 2 model loader implementation for image-text similarity.
+"""
+
+import torch
+from transformers import AutoProcessor, AutoModel
+from typing import Optional
+from PIL import Image
+from datasets import load_dataset
+
+from ....base import ForgeModel
+from ....config import (
+    ModelConfig,
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+    StrEnum,
+)
+
+
+class ModelVariant(StrEnum):
+    """Available SigLIP 2 model variants for image-text similarity."""
+
+    BASE_PATCH16_224 = "Base_Patch16_224"
+
+
+class ModelLoader(ForgeModel):
+    """SigLIP 2 model loader implementation for image-text similarity tasks."""
+
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.BASE_PATCH16_224: ModelConfig(
+            pretrained_model_name="google/siglip2-base-patch16-224",
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.BASE_PATCH16_224
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        super().__init__(variant)
+
+        # Configuration parameters
+        self.processor = None
+        self.text_prompts = None
+
+    @classmethod
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        return ModelInfo(
+            model="SigLIP2",
+            variant=variant,
+            group=ModelGroup.VULCAN,
+            task=ModelTask.MM_IMAGE_TEXT_SIM,
+            source=ModelSource.HUGGING_FACE,
+            framework=Framework.TORCH,
+        )
+
+    def _load_processor(self):
+        self.processor = AutoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+        return self.processor
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        model_kwargs = {"return_dict": False}
+
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
+        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model.eval()
+
+        return model
+
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        if self.processor is None:
+            self._load_processor()
+
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
+
+        # Define text prompts for image-text similarity
+        self.text_prompts = ["a photo of 2 cats", "a photo of 2 dogs"]
+
+        # Process both text and images
+        inputs = self.processor(
+            text=self.text_prompts,
+            images=image,
+            return_tensors="pt",
+            padding="max_length",
+        )
+
+        # Replicate tensors for batch size
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        # Convert the input dtype to dtype_override if specified
+        if dtype_override is not None:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]) and inputs[key].dtype == torch.float32:
+                    inputs[key] = inputs[key].to(dtype_override)
+
+        return inputs
