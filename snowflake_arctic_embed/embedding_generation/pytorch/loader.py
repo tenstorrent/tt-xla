@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Snowflake Arctic Embed L v2.0 model loader implementation for sentence embedding generation.
+Snowflake Arctic Embed model loader implementation for sentence embedding generation.
 """
 
 import torch
@@ -24,13 +24,17 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Snowflake Arctic Embed model variants for embedding generation."""
 
+    SNOWFLAKE_ARCTIC_EMBED_L = "snowflake-arctic-embed-l"
     SNOWFLAKE_ARCTIC_EMBED_L_V2 = "snowflake-arctic-embed-l-v2.0"
 
 
 class ModelLoader(ForgeModel):
-    """Snowflake Arctic Embed L v2.0 model loader implementation for sentence embedding generation."""
+    """Snowflake Arctic Embed model loader implementation for sentence embedding generation."""
 
     _VARIANTS = {
+        ModelVariant.SNOWFLAKE_ARCTIC_EMBED_L: ModelConfig(
+            pretrained_model_name="Snowflake/snowflake-arctic-embed-l",
+        ),
         ModelVariant.SNOWFLAKE_ARCTIC_EMBED_L_V2: ModelConfig(
             pretrained_model_name="Snowflake/snowflake-arctic-embed-l-v2.0",
         ),
