@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
 
     WHISPER_TINY = "Tiny"
     WHISPER_BASE = "Base"
+    WHISPER_BASE_EN = "Base_en"
     WHISPER_SMALL = "Small"
     WHISPER_SMALL_EN = "Small_en"
     WHISPER_MEDIUM = "Medium"
@@ -51,6 +52,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.WHISPER_BASE: ModelConfig(
             pretrained_model_name="openai/whisper-base",
+        ),
+        ModelVariant.WHISPER_BASE_EN: ModelConfig(
+            pretrained_model_name="openai/whisper-base.en",
         ),
         ModelVariant.WHISPER_SMALL: ModelConfig(
             pretrained_model_name="openai/whisper-small",
@@ -95,7 +99,7 @@ class ModelLoader(ForgeModel):
                 ModelGroup.RED
                 if variant == ModelVariant.WHISPER_LARGE_V3
                 else ModelGroup.VULCAN
-                if variant == ModelVariant.WHISPER_SMALL_EN
+                if variant == ModelVariant.WHISPER_BASE_EN
                 else ModelGroup.GENERALITY
             ),
             task=ModelTask.AUDIO_ASR,
