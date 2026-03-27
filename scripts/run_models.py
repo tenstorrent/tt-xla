@@ -76,7 +76,7 @@ def run_model(model_id: str, worktree_path: Path):
 
 def run_worker(
     worker_index: int,
-    model_ids: list[str],
+    model_ids,
     base_branch: str,
     result_queue: multiprocessing.Queue,
 ):
