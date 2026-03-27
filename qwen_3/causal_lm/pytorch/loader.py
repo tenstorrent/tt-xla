@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     QWEN_3_0_6B = "0_6B"
     QWEN_3_1_7B = "1_7B"
     QWEN_3_4B = "4B"
+    QWEN_3_4B_BASE = "4B_Base"
     QWEN_3_4B_INSTRUCT_2507 = "4B_Instruct_2507"
     QWEN_3_4B_INSTRUCT_2507_FP8 = "4B_Instruct_2507_FP8"
     QWEN_3_8B = "8B"
@@ -59,6 +60,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_4B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-4B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_4B_BASE: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-4B-Base",
             max_length=128,
         ),
         ModelVariant.QWEN_3_4B_INSTRUCT_2507: LLMModelConfig(
@@ -136,6 +141,7 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         if variant in (
+            ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_8B_BASE,
@@ -246,7 +252,7 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         # Base models use plain text; chat models use chat template
-        if self._variant == ModelVariant.QWEN_3_8B_BASE:
+        if self._variant in (ModelVariant.QWEN_3_4B_BASE, ModelVariant.QWEN_3_8B_BASE):
             prompts = [self.sample_text]
         else:
             messages = [{"role": "user", "content": self.sample_text}]
@@ -284,6 +290,7 @@ class ModelLoader(ForgeModel):
         mesh_shape = (1, num_devices)
         if self._variant not in [
             ModelVariant.QWEN_3_4B,
+            ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
         ]:
@@ -303,6 +310,7 @@ class ModelLoader(ForgeModel):
     def load_shard_spec(self, model):
         if self._variant in [
             ModelVariant.QWEN_3_4B,
+            ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
         ]:
