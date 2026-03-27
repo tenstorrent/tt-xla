@@ -20,10 +20,10 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ELECTRA model variants for token classification."""
+    """Available ELECTRA token classification model variants."""
 
-    RICHIELO_SMALL_E_CZECH_FINETUNED_NER_WIKIANN = (
-        "richielo/small-e-czech-finetuned-ner-wikiann"
+    OPENMED_NER_SPECIESDETECT_ELECTRAMED_335M = (
+        "OpenMed_NER_SpeciesDetect_ElectraMed_335M"
     )
 
 
@@ -31,29 +31,29 @@ class ModelLoader(ForgeModel):
     """ELECTRA model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.RICHIELO_SMALL_E_CZECH_FINETUNED_NER_WIKIANN: LLMModelConfig(
-            pretrained_model_name="richielo/small-e-czech-finetuned-ner-wikiann",
+        ModelVariant.OPENMED_NER_SPECIESDETECT_ELECTRAMED_335M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-ElectraMed-335M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.RICHIELO_SMALL_E_CZECH_FINETUNED_NER_WIKIANN
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_SPECIESDETECT_ELECTRAMED_335M
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = "Praha je hlavní město České republiky a sídlo prezidenta"
+        self.sample_text = "Escherichia coli bacteria were found in the water samples."
         self.tokenizer = None
         self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant_name=None):
-        if variant_name is None:
-            variant_name = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant=None):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="ELECTRA",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
