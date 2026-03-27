@@ -86,20 +86,26 @@ def tt_create_sliding_window_causal_mask(
     device = cache_position.device
     min_val = torch.finfo(dtype).min
 
-    kv_slots = torch.arange(sliding_window, device=device)
-    total_tokens_seen = cache_position[-1] + 1
-    real_pos = total_tokens_seen - sliding_window + kv_slots
+    buffer_pos = torch.arange(sliding_window, device=device)
 
-    valid = real_pos >= 0
-    causal = real_pos.unsqueeze(0) <= cache_position.unsqueeze(1)
-    in_window = real_pos.unsqueeze(0) > (cache_position.unsqueeze(1) - sliding_window)
+    if query_length == 1:
+        kv_pos = (cache_position[0] + 1) - sliding_window + buffer_pos
+    else:
+        kv_pos = torch.cat((
+            cache_position[0] - sliding_window + buffer_pos,
+            cache_position,
+        ))
+
+    valid = kv_pos >= 0
+    causal = kv_pos.unsqueeze(0) <= cache_position.unsqueeze(1)
+    in_window = kv_pos.unsqueeze(0) > (cache_position.unsqueeze(1) - sliding_window)
 
     mask = valid.unsqueeze(0) & causal & in_window
 
     if attention_mask is not None and attention_mask.ndim == 2:
         padding_mask = attention_mask.to(device=device, dtype=torch.bool)
-        real_pos_idx = real_pos.clamp(min=0).long()
-        padding = padding_mask[:, real_pos_idx]
+        kv_pos_idx = kv_pos.clamp(min=0).long()
+        padding = padding_mask[:, kv_pos_idx]
         mask = mask.unsqueeze(0).unsqueeze(0) & padding.unsqueeze(1).unsqueeze(1)
     else:
         mask = mask.unsqueeze(0).unsqueeze(0).expand(batch_size, 1, -1, -1)
@@ -143,16 +149,27 @@ class TTStaticSlidingWindowLayer(StaticLayer):
 
         n = key_states.shape[-2]
 
-        new_keys = self.keys.roll(-n, dims=-2)
-        new_values = self.values.roll(-n, dims=-2)
+        # Cat old buffer + new tokens before mutating (n > 1 only).
+        # Shape is always (max_cache_len + n) — both static.
+        if n > 1:
+            full_key_states = torch.cat((self.keys, key_states), dim=-2)
+            full_value_states = torch.cat((self.values, value_states), dim=-2)
 
-        new_keys[:, :, -n:] = key_states
-        new_values[:, :, -n:] = value_states
+        if n >= self.max_cache_len:
+            self.keys.copy_(key_states[:, :, -self.max_cache_len :, :])
+            self.values.copy_(value_states[:, :, -self.max_cache_len :, :])
+        else:
+            # Roll left by n and write new tokens into the rightmost n slots.
+            new_keys = self.keys.roll(-n, dims=-2)
+            new_values = self.values.roll(-n, dims=-2)
+            new_keys[:, :, -n:] = key_states
+            new_values[:, :, -n:] = value_states
+            self.keys.copy_(new_keys)
+            self.values.copy_(new_values)
 
-        self.keys.copy_(new_keys)
-        self.values.copy_(new_values)
-
-        return self.keys, self.values
+        if n == 1:
+            return self.keys, self.values
+        return full_key_states, full_value_states
 
     def get_mask_sizes(self, cache_position: torch.Tensor) -> tuple[int, int]:
         """Return constant (kv_length, kv_offset) — used by create_causal_mask."""
