@@ -23,24 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
-    QWEN_3_8B_DEEPSEEK_V3_2_SPECIALE_DISTILL_GGUF = (
-        "8B_DeepSeek_v3_2_Speciale_Distill_GGUF"
-    )
+    QWEN_3_4B_F16_Q2_K_GGUF = "4B_F16_Q2_K_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_8B_DEEPSEEK_V3_2_SPECIALE_DISTILL_GGUF: LLMModelConfig(
-            pretrained_model_name="TeichAI/Qwen3-8B-DeepSeek-v3.2-Speciale-Distill-GGUF",
+        ModelVariant.QWEN_3_4B_F16_Q2_K_GGUF: LLMModelConfig(
+            pretrained_model_name="geoffmunn/Qwen3-4B-f16",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_8B_DEEPSEEK_V3_2_SPECIALE_DISTILL_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_4B_F16_Q2_K_GGUF
 
-    GGUF_FILE = "Qwen3-8B-DeepSeek-v3.2-Speciale-Distill.q4_k_m.gguf"
+    GGUF_FILE = "Qwen3-4B-f16:Q2_K.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -149,12 +147,9 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+            shard_specs[layer.self_attn.o_proj.weight] = ("model", "batch")
         shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
