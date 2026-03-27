@@ -57,17 +57,18 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load pretrained PP-OCRv5 server detection model (Paddle)."""
+        import os
+
         from paddlex.inference import create_predictor
 
         predictor = create_predictor(model_name="PP-OCRv5_server_det")
-        model = paddle.jit.load(predictor.model_dir + "/inference")
+        model = paddle.jit.load(os.path.join(str(predictor.model_dir), "inference"))
         model.eval()
         return model
 
     def load_inputs(self, dtype_override=None, batch_size: int = 1):
         """Prepare sample input for PP-OCRv5 detection model (Paddle)."""
         import numpy as np
-        from paddle.vision import transforms as p_transforms
 
         image_file = get_file(
             "https://github.com/pytorch/hub/raw/master/images/dog.jpg"
