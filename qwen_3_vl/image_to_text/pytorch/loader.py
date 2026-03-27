@@ -9,7 +9,6 @@ from transformers import (
     Qwen3VLForConditionalGeneration,
     Qwen3VLMoeForConditionalGeneration,
     AutoProcessor,
-    AwqConfig,
 )
 from typing import Optional
 
@@ -143,10 +142,8 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ variant and configure accordingly
+        # AWQ variant loads with device_map="cpu" to keep quantized weights on CPU
         if self._variant == ModelVariant.QWEN_3_VL_4B_INSTRUCT_AWQ:
-            quantization_config = AwqConfig(version="ipex")
-            model_kwargs["quantization_config"] = quantization_config
             model_kwargs["device_map"] = "cpu"
         else:
             model_kwargs["dtype"] = "auto"
