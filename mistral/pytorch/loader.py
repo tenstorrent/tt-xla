@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_24B_INSTRUCT_2501 = "Small_24B_INSTRUCT_2501"
     MISTRAL_SMALL_24B_INSTRUCT_2501_FP8_DYNAMIC = "Small_24B_INSTRUCT_2501_FP8_Dynamic"
     MISTRAL_LARGE_INSTRUCT_2411 = "Large_INSTRUCT_2411"
+    MISTRAL_NEMO_BASE_2407 = "Nemo_BASE_2407"
     MISTRAL_NEMO_INSTRUCT_2407 = "Nemo_INSTRUCT_2407"
     MISTRAL_NEMO_INSTRUCT_2407_LENIENT_CHATFIX = "Nemo_INSTRUCT_2407_lenient_chatfix"
     DEVSTRAL_SMALL_2505 = "Devstral_Small_2505"
@@ -103,6 +104,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MISTRAL_LARGE_INSTRUCT_2411: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Large-Instruct-2411",
+        ),
+        ModelVariant.MISTRAL_NEMO_BASE_2407: ModelConfig(
+            pretrained_model_name="mistralai/Mistral-Nemo-Base-2407",
         ),
         ModelVariant.MISTRAL_NEMO_INSTRUCT_2407: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Nemo-Instruct-2407",
@@ -176,8 +180,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MAGISTRAL_SMALL_2506_FP8,
-            ModelVariant.UNSLOTH_MISTRAL_NEMO_INSTRUCT_2407,
+            ModelVariant.MISTRAL_NEMO_BASE_2407,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
