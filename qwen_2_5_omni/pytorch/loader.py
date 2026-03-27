@@ -6,6 +6,7 @@ Qwen 2.5 Omni model loader implementation for multimodal tasks.
 """
 import torch
 from transformers import (
+    AwqConfig,
     Qwen2_5OmniThinkerForConditionalGeneration,
     Qwen2_5OmniProcessor,
 )
@@ -28,6 +29,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2.5 Omni model variants."""
 
     QWEN_2_5_OMNI_7B = "7B"
+    QWEN_2_5_OMNI_7B_AWQ = "7B_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +38,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_2_5_OMNI_7B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2.5-Omni-7B",
+        ),
+        ModelVariant.QWEN_2_5_OMNI_7B_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-Omni-7B-AWQ",
         ),
     }
 
@@ -90,6 +95,11 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"low_cpu_mem_usage": True}
+
+        if pretrained_model_name == "Qwen/Qwen2.5-Omni-7B-AWQ":
+            quantization_config = AwqConfig(version="ipex")
+            model_kwargs["quantization_config"] = quantization_config
+            model_kwargs["device_map"] = "cpu"
 
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
