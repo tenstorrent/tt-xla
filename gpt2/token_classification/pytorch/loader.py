@@ -12,7 +12,7 @@ from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -34,8 +34,9 @@ class ModelLoader(ForgeModel):
     """GPT-2 LoRA model loader for token classification tasks."""
 
     _VARIANTS = {
-        ModelVariant.TINY_GPT2_TOKEN_CLS_LORA: ModelConfig(
+        ModelVariant.TINY_GPT2_TOKEN_CLS_LORA: LLMModelConfig(
             pretrained_model_name="peft-internal-testing/tiny_GPT2ForTokenClassification-lora",
+            max_length=128,
         ),
     }
 
