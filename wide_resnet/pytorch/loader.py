@@ -42,6 +42,7 @@ class ModelVariant(StrEnum):
     # TIMM variants
     TIMM_WIDE_RESNET50_2 = "50_2.timm"
     TIMM_WIDE_RESNET101_2 = "101_2.timm"
+    TIMM_WIDE_RESNET101_2_TV_IN1K = "101_2.tv_in1k.timm"
     TIMM_WIDE_RESNET50_2_RACM_IN1K = "50_2.racm_in1k.timm"
 
 
@@ -66,6 +67,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.TIMM_WIDE_RESNET101_2: WideResnetConfig(
             pretrained_model_name="wide_resnet101_2",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.TIMM_WIDE_RESNET101_2_TV_IN1K: WideResnetConfig(
+            pretrained_model_name="wide_resnet101_2.tv_in1k",
             source=ModelSource.TIMM,
         ),
         ModelVariant.TIMM_WIDE_RESNET50_2_RACM_IN1K: WideResnetConfig(
@@ -93,7 +98,11 @@ class ModelLoader(ForgeModel):
         source = cls._VARIANTS[variant].source
         group = (
             ModelGroup.VULCAN
-            if variant == ModelVariant.TIMM_WIDE_RESNET50_2_RACM_IN1K
+            if variant
+            in (
+                ModelVariant.TIMM_WIDE_RESNET50_2_RACM_IN1K,
+                ModelVariant.TIMM_WIDE_RESNET101_2_TV_IN1K,
+            )
             else ModelGroup.GENERALITY
         )
         return ModelInfo(
