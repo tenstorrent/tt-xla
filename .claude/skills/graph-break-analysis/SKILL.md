@@ -7,6 +7,7 @@ allowed-tools: Bash Read Grep Glob Write Edit Task Fetch
 # Graph Break Analysis
 
 Graph breaks occur when a model, pipeline, or script is split into more graphs than necessary during compilation.
+Graph breaks in TT compilation happen either as a result of torch dynamo tracing, torch_xla tracing or in rare cases as byproduct of torch.export.
 
 ## When to Use
 
