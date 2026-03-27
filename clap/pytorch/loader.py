@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     HTSAT_FUSED = "HTSAT_Fused"
     HTSAT_UNFUSED = "HTSAT_Unfused"
     LARGER_CLAP_GENERAL = "Larger_General"
+    LARGER_CLAP_MUSIC = "Larger_Music"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGER_CLAP_GENERAL: ModelConfig(
             pretrained_model_name="laion/larger_clap_general",
+        ),
+        ModelVariant.LARGER_CLAP_MUSIC: ModelConfig(
+            pretrained_model_name="laion/larger_clap_music",
         ),
     }
 
