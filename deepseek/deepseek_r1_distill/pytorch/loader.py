@@ -32,7 +32,7 @@ class ModelVariant(StrEnum):
     DISTILL_QWEN_7B_UNSLOTH_BNB_4BIT = "Distill_Qwen_7B_unsloth_bnb_4bit"
     DISTILL_QWEN_14B = "Distill_Qwen_14B"
     DISTILL_LLAMA_8B = "Distill_Llama_8B"
-    DISTILL_QWEN_1_5B_GGUF = "Distill_Qwen_1_5B_GGUF"
+    DISTILL_LLAMA_70B_AWQ = "Distill_Llama_70B_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -59,14 +59,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
             max_length=2048,
         ),
-        ModelVariant.DISTILL_QWEN_1_5B_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF",
+        ModelVariant.DISTILL_LLAMA_70B_AWQ: LLMModelConfig(
+            pretrained_model_name="casperhansen/deepseek-r1-distill-llama-70b-awq",
             max_length=2048,
         ),
-    }
-
-    _GGUF_FILES = {
-        ModelVariant.DISTILL_QWEN_1_5B_GGUF: "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
     }
 
     DEFAULT_VARIANT = ModelVariant.DISTILL_QWEN_1_5B
@@ -76,6 +72,8 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
+
+    _AWQ_VARIANTS = frozenset({ModelVariant.DISTILL_LLAMA_70B_AWQ})
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -118,8 +116,10 @@ class ModelLoader(ForgeModel):
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        if self._is_gguf_variant():
-            model_kwargs["gguf_file"] = self._gguf_file
+
+        if self._variant in self._AWQ_VARIANTS:
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         # Quantized variants need device_map="cpu" for CPU-based loading
