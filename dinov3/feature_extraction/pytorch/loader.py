@@ -25,26 +25,41 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available DINOv3 ViT feature extraction model variants."""
 
-    LARGE = "Large"
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
     """DINOv3 ViT model loader implementation for feature extraction (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.LARGE: ModelConfig(
-            pretrained_model_name="facebook/dinov3-vitl16-pretrain-lvd1689m",
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="facebook/dinov3-vitb16-pretrain-lvd1689m",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
@@ -58,11 +73,24 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
+        """Load image processor for the current variant.
+
+        Returns:
+            The loaded processor instance
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.processor = DINOv3ViTImageProcessor.from_pretrained(pretrained_model_name)
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the DINOv3 ViT model instance.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            torch.nn.Module: The DINOv3 ViT model instance for feature extraction.
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
@@ -76,6 +104,15 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the DINOv3 ViT model.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
         if self.processor is None:
             self._load_processor()
 
