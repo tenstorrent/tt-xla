@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_BASE = "9B_Base"
     QWEN_3_5_27B = "27B"
     QWEN_3_5_27B_FP8 = "27B_FP8"
+    QWEN_3_5_27B_NVFP4 = "27B_NVFP4"
     QWEN_3_5_35B_A3B = "35B_A3B"
     QWEN_3_5_35B_A3B_BASE = "35B_A3B_Base"
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
@@ -80,6 +81,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_27B_FP8: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-27B-FP8",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_27B_NVFP4: LLMModelConfig(
+            pretrained_model_name="apolo13x/Qwen3.5-27B-NVFP4",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_35B_A3B: LLMModelConfig(
