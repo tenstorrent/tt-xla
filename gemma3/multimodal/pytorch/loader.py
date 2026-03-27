@@ -32,6 +32,9 @@ class ModelVariant(StrEnum):
 
     GEMMA_3_4B_IT = "google/gemma-3-4b-it"
     GEMMA_3_4B_IT_QAT_4BIT = "mlx-community/gemma-3-4b-it-qat-bf16"
+    GEMMA_3_4B_VL_HERETIC_UNCENSORED = (
+        "DavidAU/Gemma-3-4B-VL-it-Gemini-Pro-Heretic-Uncensored-Thinking"
+    )
     GEMMA_3_12B_IT = "google/gemma-3-12b-it"
     GEMMA_3_12B_PT = "google/gemma-3-12b-pt"
     GEMMA_3_27B_IT = "google/gemma-3-27b-it"
@@ -46,6 +49,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GEMMA_3_4B_IT_QAT_4BIT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_4B_IT_QAT_4BIT),
+        ),
+        ModelVariant.GEMMA_3_4B_VL_HERETIC_UNCENSORED: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.GEMMA_3_4B_VL_HERETIC_UNCENSORED),
         ),
         ModelVariant.GEMMA_3_12B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT),
@@ -75,7 +81,10 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["12b", "27b"]):
             group = ModelGroup.RED
-        elif variant == ModelVariant.GEMMA_3_4B_IT_QAT_4BIT:
+        elif variant in (
+            ModelVariant.GEMMA_3_4B_IT_QAT_4BIT,
+            ModelVariant.GEMMA_3_4B_VL_HERETIC_UNCENSORED,
+        ):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
