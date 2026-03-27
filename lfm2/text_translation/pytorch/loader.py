@@ -11,8 +11,8 @@ from typing import Optional
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from ...base import ForgeModel
-from ...config import (
+from ....base import ForgeModel
+from ....config import (
     Framework,
     LLMModelConfig,
     ModelGroup,
