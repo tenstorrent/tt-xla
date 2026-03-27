@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
 
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
-    ROBERTA_HATE_SPEECH_DYNABENCH_R4 = "Hate_Speech_Dynabench_R4"
+    ROBERTA_BASE_GO_EMOTIONS = "Base_Go_Emotions"
 
 
 class ModelLoader(ForgeModel):
@@ -37,8 +37,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST: ModelConfig(
             pretrained_model_name="cardiffnlp/twitter-roberta-base-sentiment-latest",
         ),
-        ModelVariant.ROBERTA_HATE_SPEECH_DYNABENCH_R4: ModelConfig(
-            pretrained_model_name="facebook/roberta-hate-speech-dynabench-r4-target",
+        ModelVariant.ROBERTA_BASE_GO_EMOTIONS: ModelConfig(
+            pretrained_model_name="SamLowe/roberta-base-go_emotions",
         ),
     }
 
@@ -61,7 +61,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
-            ModelVariant.ROBERTA_HATE_SPEECH_DYNABENCH_R4,
+            ModelVariant.ROBERTA_BASE_GO_EMOTIONS,
         ):
             group = ModelGroup.VULCAN
 
