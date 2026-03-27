@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     BASE_VI = "Base_VI"
+    XLS_R_1B = "XLS_R_1B"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BASE_VI: ModelConfig(
             pretrained_model_name="nguyenvulebinh/wav2vec2-base-vi",
+        ),
+        ModelVariant.XLS_R_1B: ModelConfig(
+            pretrained_model_name="facebook/wav2vec2-xls-r-1b",
         ),
     }
 
