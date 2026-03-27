@@ -18,7 +18,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from diffusers import AutoPipelineForText2Image
+from diffusers import StableDiffusionPipeline
 
 
 class ModelVariant(StrEnum):
@@ -59,10 +59,10 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            AutoPipelineForText2Image: The pre-trained SD-Turbo pipeline.
+            StableDiffusionPipeline: The pre-trained SD-Turbo pipeline.
         """
         dtype = dtype_override or torch.bfloat16
-        pipe = AutoPipelineForText2Image.from_pretrained(
+        pipe = StableDiffusionPipeline.from_pretrained(
             self._variant_config.pretrained_model_name, torch_dtype=dtype, **kwargs
         )
         return pipe
