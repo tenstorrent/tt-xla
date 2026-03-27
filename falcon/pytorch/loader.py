@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     FALCON_10B = "3_10B_Base"
     FALCON_MAMBA_7B = "3_Mamba_7B_Base"
     FALCON_7B_INSTRUCT = "7B_Instruct"
+    FALCON_40B_INSTRUCT = "40B_Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.FALCON_7B_INSTRUCT: ModelConfig(
             pretrained_model_name="tiiuae/falcon-7b-instruct",
         ),
+        ModelVariant.FALCON_40B_INSTRUCT: ModelConfig(
+            pretrained_model_name="tiiuae/falcon-40b-instruct",
+        ),
     }
 
     # Default variant to use
@@ -79,6 +83,8 @@ class ModelLoader(ForgeModel):
             ModelVariant.FALCON_10B,
         ]:
             group = ModelGroup.RED
+        elif variant == ModelVariant.FALCON_40B_INSTRUCT:
+            group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
 
@@ -157,7 +163,10 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self.load_model()  # This will initialize the tokenizer
 
-        if self._variant == ModelVariant.FALCON_7B_INSTRUCT:
+        if self._variant in [
+            ModelVariant.FALCON_7B_INSTRUCT,
+            ModelVariant.FALCON_40B_INSTRUCT,
+        ]:
             inputs = self.tokenizer(self.input_text_2, return_tensors="pt")
         else:
             inputs = self.tokenizer(
@@ -251,7 +260,10 @@ class ModelLoader(ForgeModel):
                 shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
                 shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
                 shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
-        elif self._variant == ModelVariant.FALCON_7B_INSTRUCT:
+        elif self._variant in [
+            ModelVariant.FALCON_7B_INSTRUCT,
+            ModelVariant.FALCON_40B_INSTRUCT,
+        ]:
             for layer in layers_container:
                 shard_specs[layer.mlp.dense_h_to_4h.weight] = ("model", None)
                 shard_specs[layer.mlp.dense_4h_to_h.weight] = (None, "model")
