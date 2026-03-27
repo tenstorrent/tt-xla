@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     GLM_4_9B_CHAT_1M = "4_9B_Chat_1M"
     GLM_4_7 = "4.7"
     GLM_4_7_FLASH = "4.7_Flash"
+    GLM_4_7_FLASH_AWQ = "4.7_Flash_Awq"
     GLM_4_5 = "4.5"
     GLM_4_5_AIR = "4.5_Air"
 
@@ -51,6 +52,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GLM_4_7_FLASH: LLMModelConfig(
             pretrained_model_name="zai-org/GLM-4.7-Flash",
+            max_length=128,
+        ),
+        ModelVariant.GLM_4_7_FLASH_AWQ: LLMModelConfig(
+            pretrained_model_name="QuantTrio/GLM-4.7-Flash-AWQ",
             max_length=128,
         ),
         ModelVariant.GLM_4_5: LLMModelConfig(
@@ -99,7 +104,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.GLM_4_9B_CHAT_1M):
+        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.GLM_4_7_FLASH_AWQ):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
