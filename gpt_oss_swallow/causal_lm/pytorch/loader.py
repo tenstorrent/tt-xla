@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-GPT-OSS-Swallow GGUF model loader implementation for causal language modeling.
+GPT-OSS-Swallow model loader implementation for causal language modeling.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers.utils.quantization_config import Mxfp4Config
 from typing import Optional
 
 from ....base import ForgeModel
@@ -21,39 +22,39 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available GPT-OSS-Swallow GGUF model variants for causal language modeling."""
+    """Available GPT-OSS-Swallow model variants for causal language modeling."""
 
-    GPT_OSS_SWALLOW_120B_RL_GGUF = "120B_RL_GGUF"
+    GPT_OSS_SWALLOW_120B_RL = "120B_RL"
 
 
 class ModelLoader(ForgeModel):
-    """GPT-OSS-Swallow GGUF model loader implementation for causal language modeling tasks."""
+    """GPT-OSS-Swallow model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GPT_OSS_SWALLOW_120B_RL_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/GPT-OSS-Swallow-120B-RL-v0.1-i1-GGUF",
-            max_length=128,
+        ModelVariant.GPT_OSS_SWALLOW_120B_RL: LLMModelConfig(
+            pretrained_model_name="tokyotech-llm/GPT-OSS-Swallow-120B-RL-v0.1",
+            max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GPT_OSS_SWALLOW_120B_RL_GGUF
+    DEFAULT_VARIANT = ModelVariant.GPT_OSS_SWALLOW_120B_RL
 
-    GGUF_FILE = "GPT-OSS-Swallow-120B-RL-v0.1.i1-Q4_K_M.gguf"
-
-    sample_text = "What is your favorite city?"
+    messages = [
+        {"role": "user", "content": "Who are you?"},
+    ]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
-        self.tokenizer = None
         self.config = None
+        self.tokenizer = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="GPT-OSS-Swallow GGUF",
+            model="GPT-OSS-Swallow",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -65,78 +66,62 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
+        quantization_config = Mxfp4Config(dequantize=True)
+        self.load_config()
+
         model_kwargs = {
+            "config": self.config,
+            "quantization_config": quantization_config,
+            "low_cpu_mem_usage": True,
             "trust_remote_code": True,
             "attn_implementation": "eager",
         }
+
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        else:
+            model_kwargs["torch_dtype"] = torch.bfloat16
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
-
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name,
-                gguf_file=self.GGUF_FILE,
-                trust_remote_code=True,
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        ).eval()
+            self._variant_config.pretrained_model_name, **model_kwargs
+        )
+        model.eval()
 
-        self.config = model.config
         self.model = model
+
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        max_length = self._variant_config.max_length
-
-        messages = [
-            {
-                "role": "user",
-                "content": self.sample_text,
-            }
-        ]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
+        inputs = self.tokenizer.apply_chat_template(
+            self.messages,
             add_generation_prompt=True,
-        )
-        prompts = [text]
-
-        inputs = self.tokenizer(
-            prompts,
+            tokenize=True,
+            return_dict=True,
             return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=max_length,
+            padding="max_length",
+            max_length=128,
         )
-
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        if (
+            hasattr(self.model.config, "sliding_window")
+            and self.model.config.sliding_window is not None
+        ):
+            self.model.config.sliding_window = inputs["input_ids"].shape[1]
 
         return inputs
 
@@ -146,7 +131,8 @@ class ModelLoader(ForgeModel):
         elif num_devices == 8:  # llmbox
             mesh_shape = (2, 4)
         else:
-            mesh_shape = (1, num_devices)
+            raise ValueError("GPT-OSS-Swallow is only supported on llmbox and galaxy")
+
         return mesh_shape, ("batch", "model")
 
     def load_shard_spec(self, model):
@@ -180,8 +166,9 @@ class ModelLoader(ForgeModel):
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            gguf_file=self.GGUF_FILE,
-            trust_remote_code=True,
+            self._variant_config.pretrained_model_name, trust_remote_code=True
         )
+        if self.num_layers is not None:
+            self.config.num_hidden_layers = self.num_layers
+
         return self.config
