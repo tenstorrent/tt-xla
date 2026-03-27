@@ -4,6 +4,7 @@
 """
 MiniCOIL v1 ONNX model loader implementation for sparse text embedding generation.
 """
+import torch
 import onnx
 from transformers import AutoTokenizer
 from huggingface_hub import hf_hub_download
@@ -96,8 +97,6 @@ class ModelLoader(ForgeModel):
         )
 
         if dtype_override is not None:
-            import torch
-
             for key, value in inputs.items():
                 if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
                     inputs[key] = value.to(dtype_override)
