@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
+    ROBERTA_LARGE_NLI = "Large_NLI"
     FTROBERTALLM = "FtRoBERTaLLM"
 
 
@@ -40,6 +41,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
             pretrained_model_name="FacebookAI/roberta-large-mnli",
+        ),
+        ModelVariant.ROBERTA_LARGE_NLI: ModelConfig(
+            pretrained_model_name="ynie/roberta-large-snli_mnli_fever_anli_R1_R2_R3-nli",
         ),
         ModelVariant.FTROBERTALLM: ModelConfig(
             pretrained_model_name="zhx123/ftrobertallm",
@@ -66,6 +70,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
             ModelVariant.ROBERTA_LARGE_MNLI,
+            ModelVariant.ROBERTA_LARGE_NLI,
             ModelVariant.FTROBERTALLM,
         ):
             group = ModelGroup.VULCAN
@@ -79,7 +84,7 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    # NLI sample inputs for MNLI variants
+    # NLI sample inputs for NLI variants
     _MNLI_PREMISE = (
         "Calcutta seems to be the only other production center having any "
         "pretensions to artistic creativity at all, but ironically you're "
@@ -137,9 +142,12 @@ class ModelLoader(ForgeModel):
         self.model = model
         return model
 
-    def _is_mnli_variant(self):
-        """Check if the current variant is an MNLI model."""
-        return self._variant == ModelVariant.ROBERTA_LARGE_MNLI
+    def _is_nli_variant(self):
+        """Check if the current variant is an NLI model."""
+        return self._variant in (
+            ModelVariant.ROBERTA_LARGE_MNLI,
+            ModelVariant.ROBERTA_LARGE_NLI,
+        )
 
     def load_inputs(self):
         """Generate sample inputs for Roberta model."""
@@ -148,8 +156,8 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self.load_model()  # This will initialize the tokenizer
 
-        if self._is_mnli_variant():
-            # MNLI uses premise/hypothesis pairs
+        if self._is_nli_variant():
+            # NLI uses premise/hypothesis pairs
             inputs = self.tokenizer(
                 self._MNLI_PREMISE,
                 self._MNLI_HYPOTHESIS,
@@ -182,7 +190,7 @@ class ModelLoader(ForgeModel):
         """
         predicted_value = co_out[0].argmax(-1).item()
         label = self.model.config.id2label[predicted_value]
-        if self._is_mnli_variant():
+        if self._is_nli_variant():
             print(f"Predicted Label: {label}")
         else:
             print(f"Predicted Sentiment: {label}")
