@@ -6,7 +6,6 @@ SigLIP ViT model loader implementation for feature extraction via timm.
 """
 
 import timm
-import torch
 from datasets import load_dataset
 from typing import Optional
 
