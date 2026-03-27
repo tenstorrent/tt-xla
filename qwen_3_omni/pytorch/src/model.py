@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Qwen 3 Omni MoE Thinker model wrapper for extracting logits from model outputs.
+Qwen 3 Omni MoE model wrapper for extracting logits from model outputs.
 """
 
 import torch

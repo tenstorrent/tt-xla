@@ -6,8 +6,8 @@ Qwen 3 Omni MoE model loader implementation for multimodal tasks.
 """
 import torch
 from transformers import (
-    AutoModelForConditionalGeneration,
-    AutoProcessor,
+    Qwen3OmniMoeForConditionalGeneration,
+    Qwen3OmniMoeProcessor,
 )
 from typing import Optional
 
@@ -27,19 +27,19 @@ from .src.model import Wrapper
 class ModelVariant(StrEnum):
     """Available Qwen 3 Omni MoE model variants."""
 
-    QWEN_3_OMNI_30B_A3B_THINKING = "30B_A3B_Thinking"
+    QWEN_3_OMNI_30B_A3B_AWQ = "30B-A3B-AWQ-4bit"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen 3 Omni MoE Thinker model loader implementation for multimodal tasks."""
+    """Qwen 3 Omni MoE model loader implementation for multimodal tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_OMNI_30B_A3B_THINKING: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-Omni-30B-A3B-Thinking",
+        ModelVariant.QWEN_3_OMNI_30B_A3B_AWQ: LLMModelConfig(
+            pretrained_model_name="cyankiwi/Qwen3-Omni-30B-A3B-Instruct-AWQ-4bit",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_OMNI_30B_A3B_THINKING
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_OMNI_30B_A3B_AWQ
 
     messages = [
         {
@@ -80,13 +80,13 @@ class ModelLoader(ForgeModel):
             "min_pixels": self.min_pixels,
             "max_pixels": self.max_pixels,
         }
-        self.processor = AutoProcessor.from_pretrained(
+        self.processor = Qwen3OmniMoeProcessor.from_pretrained(
             self._variant_config.pretrained_model_name, **processor_kwargs
         )
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Qwen 3 Omni MoE Thinker model instance."""
+        """Load and return the Qwen 3 Omni MoE model instance."""
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"low_cpu_mem_usage": True}
@@ -97,7 +97,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = torch.float32
         model_kwargs |= kwargs
 
-        model = AutoModelForConditionalGeneration.from_pretrained(
+        model = Qwen3OmniMoeForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.config.use_cache = False
@@ -107,7 +107,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the Qwen 3 Omni MoE model."""
+        """Load and return sample inputs for the Qwen 3 Omni model."""
         if self.processor is None:
             self._load_processor()
 
@@ -115,19 +115,19 @@ class ModelLoader(ForgeModel):
             self.messages, tokenize=False, add_generation_prompt=True
         )
 
-        from qwen_omni_utils import process_vision_info
+        from qwen_omni_utils import process_mm_info
 
-        image_inputs, video_inputs = process_vision_info(self.messages)
+        audios, images, videos = process_mm_info(self.messages, use_audio_in_video=True)
 
         inputs = self.processor(
             text=[text],
-            images=image_inputs,
-            videos=video_inputs,
+            images=images,
+            videos=videos,
             padding=True,
             return_tensors="pt",
         )
 
-        if dtype_override is not None and "pixel_values" in inputs:
+        if dtype_override is not None:
             inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
 
         return inputs

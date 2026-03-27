@@ -3,6 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Qwen 3 Omni MoE PyTorch model implementation for Tenstorrent projects.
+Qwen 3 Omni PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
