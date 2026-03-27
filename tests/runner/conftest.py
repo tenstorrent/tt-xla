@@ -175,6 +175,9 @@ def pytest_collection_modifyitems(config, items):
             elif model_group == ModelGroup.VULCAN:
                 item.add_marker(pytest.mark.vulcan)
 
+            if model_group == ModelGroup.VULCAN:
+                item.add_marker(pytest.mark.vulcan)
+
             # Apply schedule markers if not already specified in config
             has_schedule_marker = any(
                 m in config_markers for m in ("nightly", "weekly")
