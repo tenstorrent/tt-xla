@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ANATOMY_DETECT_PUBMED_V2_109M = (
         "OpenMed/OpenMed-NER-AnatomyDetect-PubMed-v2-109M"
     )
+    OPENMED_NER_DISEASE_DETECT_MODERNMED_149M = (
+        "OpenMed/OpenMed-NER-DiseaseDetect-ModernMed-149M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +37,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_NER_ANATOMY_DETECT_PUBMED_V2_109M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-PubMed-v2-109M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_DISEASE_DETECT_MODERNMED_149M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DiseaseDetect-ModernMed-149M",
             max_length=128,
         ),
     }
@@ -53,9 +60,14 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.sample_text = (
-            "The patient complained of pain in the left ventricle region."
-        )
+        if self._variant == ModelVariant.OPENMED_NER_DISEASE_DETECT_MODERNMED_149M:
+            self.sample_text = (
+                "The patient was diagnosed with diabetes mellitus type 2."
+            )
+        else:
+            self.sample_text = (
+                "The patient complained of pain in the left ventricle region."
+            )
         self.max_length = 128
         self.tokenizer = None
 
