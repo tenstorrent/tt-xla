@@ -130,17 +130,26 @@ class ModelLoader(ForgeModel):
         dtype = kwargs.get("dtype_override", torch.float32)
         batch_size = kwargs.get("batch_size", 1)
 
-        # Sequence length for packed hidden states (small for testing)
-        seq_len = 256
-        # Qwen-Image-Edit transformer inner_dim from config (typically 3072)
-        inner_dim = 3072
+        # From model config: in_channels=64 (img_in linear input dimension)
+        img_dim = 64
+        # joint_attention_dim from config = 3584
+        text_dim = 3584
+        # Small sequence lengths for testing
+        img_seq_len = 64
+        txt_seq_len = 32
 
-        hidden_states = torch.randn(batch_size, seq_len, inner_dim, dtype=dtype)
-        encoder_hidden_states = torch.randn(batch_size, 64, inner_dim, dtype=dtype)
-        encoder_hidden_states_mask = torch.ones(batch_size, 64, dtype=dtype)
+        # img_seq_len must equal frame * height * width for positional encoding
+        frame, height, width = 1, 8, 8
+        img_seq_len = frame * height * width
+
+        hidden_states = torch.randn(batch_size, img_seq_len, img_dim, dtype=dtype)
+        encoder_hidden_states = torch.randn(
+            batch_size, txt_seq_len, text_dim, dtype=dtype
+        )
+        encoder_hidden_states_mask = torch.ones(batch_size, txt_seq_len, dtype=dtype)
         timestep = torch.tensor([500.0] * batch_size, dtype=dtype)
-        img_shapes = torch.tensor([[16, 16]] * batch_size, dtype=torch.long)
-        txt_seq_lens = torch.tensor([64] * batch_size, dtype=torch.long)
+        # img_shapes: list of (frame, height, width) tuples per batch item
+        img_shapes = [(frame, height, width)] * batch_size
 
         return {
             "hidden_states": hidden_states,
@@ -148,5 +157,4 @@ class ModelLoader(ForgeModel):
             "encoder_hidden_states_mask": encoder_hidden_states_mask,
             "timestep": timestep,
             "img_shapes": img_shapes,
-            "txt_seq_lens": txt_seq_lens,
         }
