@@ -41,6 +41,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT = "30b_a3b_instruct_mlx_5bit"
     QWEN_3_VL_32B_INSTRUCT = "32b_instruct"
     QWEN_3_VL_4B_INSTRUCT_BNB_4BIT = "4b_instruct_bnb_4bit"
+    QWEN_3_VL_30B_A3B_INSTRUCT_MLX_8BIT = "30b_a3b_instruct_mlx_8bit"
 
 
 class ModelLoader(ForgeModel):
@@ -100,12 +101,16 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3-VL-4B-Instruct-unsloth-bnb-4bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_8BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-VL-30B-A3B-Instruct-MLX-8bit",
+            max_length=128,
+        ),
     }
 
     # Variants that use the MoE architecture
     _MOE_VARIANTS = {
         ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
-        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT,
+        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_8BIT,
     }
 
     # Default variant to use
@@ -151,6 +156,7 @@ class ModelLoader(ForgeModel):
                 ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT,
                 ModelVariant.QWEN_3_VL_32B_INSTRUCT,
                 ModelVariant.QWEN_3_VL_4B_INSTRUCT_BNB_4BIT,
+                ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_8BIT,
             )
             else ModelGroup.RED
         )
@@ -187,6 +193,10 @@ class ModelLoader(ForgeModel):
         else:
             model_kwargs["dtype"] = "auto"
             model_kwargs["device_map"] = "auto"
+
+        # MLX variants may have mismatched tensor layouts
+        if self._variant == ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_8BIT:
+            model_kwargs["ignore_mismatched_sizes"] = True
 
         model_kwargs |= kwargs
 
