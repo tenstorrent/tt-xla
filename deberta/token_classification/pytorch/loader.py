@@ -24,10 +24,12 @@ class ModelVariant(StrEnum):
     """Available DeBERTa token classification model variants."""
 
     OPENMED_NER_GENOMIC_DETECT = "OpenMed_NER_GenomicDetect_SuperClinical_184M"
+    OPENMED_NER_PROTEIN_DETECT = "OpenMed_NER_ProteinDetect_SuperClinical_184M"
 
 
 _VARIANT_SAMPLE_TEXTS = {
     ModelVariant.OPENMED_NER_GENOMIC_DETECT: "The BRCA2 gene is associated with hereditary breast cancer.",
+    ModelVariant.OPENMED_NER_PROTEIN_DETECT: "The Maillard reaction is responsible for the browning of many foods.",
 }
 
 
@@ -37,6 +39,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_NER_GENOMIC_DETECT: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-SuperClinical-184M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_PROTEIN_DETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-SuperClinical-184M",
             max_length=128,
         ),
     }
