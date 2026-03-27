@@ -23,6 +23,9 @@ class ModelVariant(StrEnum):
     """Available RoBERTa token classification model variants."""
 
     INDONESIAN_ROBERTA_BASE_POSP_TAGGER = "Indonesian_RoBERTa_Base_POSP_Tagger"
+    ML6TEAM_KEYPHRASE_EXTRACTION_KBIR_INSPEC = (
+        "ml6team/keyphrase-extraction-kbir-inspec"
+    )
     PROJECTE_AINA_ROBERTA_BASE_CA_V2_CASED_NER = (
         "projecte-aina/roberta-base-ca-v2-cased-ner"
     )
@@ -32,6 +35,7 @@ class ModelVariant(StrEnum):
 
 _VARIANT_SAMPLE_TEXTS = {
     ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER: "Saya sedang membaca buku di perpustakaan",
+    ModelVariant.ML6TEAM_KEYPHRASE_EXTRACTION_KBIR_INSPEC: "Keyphrase extraction is a technique in text analysis where you extract important keyphrases from a document.",
     ModelVariant.PROJECTE_AINA_ROBERTA_BASE_CA_V2_CASED_NER: "En Jordi viu a Barcelona i treballa a la Universitat de Catalunya",
     ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: "Jacob Collier is an amazing musician from London",
     ModelVariant.SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER: "LOAD_FAST x LOAD_FAST y BINARY_OP Add RETURN_VALUE",
@@ -44,6 +48,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER: ModelConfig(
             pretrained_model_name="w11wo/indonesian-roberta-base-posp-tagger",
+        ),
+        ModelVariant.ML6TEAM_KEYPHRASE_EXTRACTION_KBIR_INSPEC: ModelConfig(
+            pretrained_model_name="ml6team/keyphrase-extraction-kbir-inspec",
         ),
         ModelVariant.PROJECTE_AINA_ROBERTA_BASE_CA_V2_CASED_NER: ModelConfig(
             pretrained_model_name="projecte-aina/roberta-base-ca-v2-cased-ner",
