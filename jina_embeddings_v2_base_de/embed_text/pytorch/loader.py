@@ -4,9 +4,107 @@
 """
 Jina Embeddings v2 Base DE model loader implementation for sentence embedding generation.
 """
+import sys
+import types
+
 import torch
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoTokenizer
 from typing import Optional
+
+
+def _patch_transformers_compat():
+    """Patch missing transformers modules needed by jina-embeddings-v2 custom code.
+
+    The jina-embeddings-v2 model uses custom code written for older transformers
+    versions. This patches:
+    - transformers.onnx (removed in transformers 5.x)
+    - find_pruneable_heads_and_indices (removed in transformers 5.x)
+    - PreTrainedModel.get_head_mask (removed in transformers 5.x)
+    """
+    if "transformers.onnx" not in sys.modules:
+        onnx_module = types.ModuleType("transformers.onnx")
+
+        class OnnxConfig:
+            pass
+
+        onnx_module.OnnxConfig = OnnxConfig
+        sys.modules["transformers.onnx"] = onnx_module
+
+    from transformers import pytorch_utils
+
+    if not hasattr(pytorch_utils, "find_pruneable_heads_and_indices"):
+
+        def find_pruneable_heads_and_indices(heads, n_heads, head_size, already_pruned):
+            mask = torch.ones(n_heads, head_size)
+            for head in heads:
+                if head not in already_pruned:
+                    mask[head] = 0
+            mask = mask.view(-1).contiguous().eq(1)
+            index = torch.arange(len(mask))[mask].long()
+            return heads, index
+
+        pytorch_utils.find_pruneable_heads_and_indices = (
+            find_pruneable_heads_and_indices
+        )
+
+    from transformers import PreTrainedModel
+
+    if not hasattr(PreTrainedModel, "get_head_mask"):
+
+        def get_head_mask(
+            self, head_mask, num_hidden_layers, is_attention_chunked=False
+        ):
+            if head_mask is not None:
+                head_mask = self._convert_head_mask_to_5d(head_mask, num_hidden_layers)
+                if is_attention_chunked:
+                    head_mask = head_mask.unsqueeze(-1)
+            else:
+                head_mask = [None] * num_hidden_layers
+            return head_mask
+
+        PreTrainedModel.get_head_mask = get_head_mask
+
+
+_patch_transformers_compat()
+
+
+def _load_jina_v2_model(pretrained_model_name, **model_kwargs):
+    """Load jina-embeddings-v2 model, working around transformers 5.x incompatibilities.
+
+    The custom JinaBert code computes ALiBi tensors during __init__, which fails
+    with transformers 5.x meta-device initialization. We manually instantiate
+    the model class on CPU and then load the weights.
+    """
+    from transformers import AutoConfig
+    from transformers.dynamic_module_utils import get_class_from_dynamic_module
+    from huggingface_hub import hf_hub_download
+    import safetensors.torch
+
+    config = AutoConfig.from_pretrained(pretrained_model_name, trust_remote_code=True)
+    if not hasattr(config, "is_decoder"):
+        config.is_decoder = False
+    if not hasattr(config, "add_cross_attention"):
+        config.add_cross_attention = False
+
+    model_kwargs.pop("trust_remote_code", None)
+    dtype = model_kwargs.pop("torch_dtype", None)
+
+    cls = get_class_from_dynamic_module(
+        config.auto_map["AutoModel"],
+        pretrained_model_name,
+        trust_remote_code=True,
+    )
+    model = cls(config)
+
+    weights_file = hf_hub_download(pretrained_model_name, "model.safetensors")
+    state_dict = safetensors.torch.load_file(weights_file)
+    model.load_state_dict(state_dict, strict=False)
+
+    if dtype is not None:
+        model = model.to(dtype)
+
+    return model
+
 
 from ....base import ForgeModel
 from ....config import (
@@ -78,7 +176,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = _load_jina_v2_model(pretrained_model_name, **model_kwargs)
         model.eval()
 
         return model
