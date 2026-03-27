@@ -40,19 +40,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_BASE_UNSLOTH = "9B_Base_unsloth"
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_2B_UNCENSORED_HAUHAUCS_AGGRESSIVE = "2B_Uncensored_HauhauCS_Aggressive"
-    QWEN_3_5_27B_HERETIC = "27B_heretic"
-    QWEN_3_5_9B_HERETIC_V2_GGUF = "9B_heretic_v2_GGUF"
-    QWEN_3_5_27B_CLAUDE_4_6_OPUS_ABLITERATED = "27B_Claude_4.6_Opus_abliterated"
-    QWEN_3_5_4B_TATSUYAAAAAAA_GGUF = "4B_tatsuyaaaaaaa_GGUF"
-    QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF = "35B_A3B_Derestricted_i1_GGUF"
-    QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_THINKING_HERETIC_UNCENSORED = (
-        "9B_Claude_4.6_HighIQ_THINKING_HERETIC_UNCENSORED"
-    )
-    QWEN_3_5_2B_ABLITERATED_I1_GGUF = "2B_Abliterated_i1_GGUF"
-    QWEN_3_5_9B_AWQ_BF16_INT4 = "9B_AWQ_BF16_INT4"
-    QWEN_3_5_4B_ABLITERATED = "4B_Abliterated"
-    QWEN_3_5_0_8B_ROMARCHIVE_GGUF = "0.8B_Romarchive_GGUF"
+    HUIHUI_QWEN_3_5_27B_ABLITERATED_GGUF = "HUIHUI_27B_ABLITERATED_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -124,48 +112,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_2B_UNCENSORED_HAUHAUCS_AGGRESSIVE: LLMModelConfig(
-            pretrained_model_name="HauhauCS/Qwen3.5-2B-Uncensored-HauhauCS-Aggressive",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_HERETIC: LLMModelConfig(
-            pretrained_model_name="coder3101/Qwen3.5-27B-heretic",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_HERETIC_V2_GGUF: LLMModelConfig(
-            pretrained_model_name="AIImageStudio/Qwen3.5-9b-heretic-v2-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_CLAUDE_4_6_OPUS_ABLITERATED: LLMModelConfig(
-            pretrained_model_name="huihui-ai/Huihui-Qwen3.5-27B-Claude-4.6-Opus-abliterated",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_4B_TATSUYAAAAAAA_GGUF: LLMModelConfig(
-            pretrained_model_name="tatsuyaaaaaaa/Qwen3.5-4B-gguf",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Derestricted-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_THINKING_HERETIC_UNCENSORED: LLMModelConfig(
-            pretrained_model_name="DavidAU/Qwen3.5-9B-Claude-4.6-HighIQ-THINKING-HERETIC-UNCENSORED",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_2B_ABLITERATED_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-2B_Abliterated-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_AWQ_BF16_INT4: LLMModelConfig(
-            pretrained_model_name="cyankiwi/Qwen3.5-9B-AWQ-BF16-INT4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_4B_ABLITERATED: LLMModelConfig(
-            pretrained_model_name="SicariusSicariiStuff/Qwen3.5-4B_Abliterated",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_0_8B_ROMARCHIVE_GGUF: LLMModelConfig(
-            pretrained_model_name="Romarchive/Qwen3.5-0.8B-GGUF",
+        ModelVariant.HUIHUI_QWEN_3_5_27B_ABLITERATED_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Huihui-Qwen3.5-27B-abliterated-GGUF",
             max_length=128,
         ),
     }
@@ -177,11 +125,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_9B_HERETIC_V2_GGUF: "Qwen3.5-9b-heretic-v2-q8_0.gguf",
-        ModelVariant.QWEN_3_5_4B_TATSUYAAAAAAA_GGUF: "Qwen3.5-4B_Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF: "Qwen3.5-35B-A3B-Derestricted.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_2B_ABLITERATED_I1_GGUF: "Qwen3.5-2B_Abliterated.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_0_8B_ROMARCHIVE_GGUF: "Qwen3.5-0.8B-Q4_K_M.gguf",
+        ModelVariant.HUIHUI_QWEN_3_5_27B_ABLITERATED_GGUF: "Huihui-Qwen3.5-27B-abliterated.Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
