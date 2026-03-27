@@ -29,7 +29,8 @@ class FsmnVADWrapper(nn.Module):
         self.encoder = encoder
 
     def forward(self, feats):
-        return self.encoder(feats)
+        output, _ = self.encoder(feats)
+        return output
 
 
 class ModelVariant(StrEnum):
