@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER DNADetect TinyMed model loader implementation for token classification.
+OpenMed NER DNADetect model loader implementation for biomedical entity detection.
 """
 
 import torch
-from transformers import DistilBertForTokenClassification, AutoTokenizer
+from transformers import AutoModelForTokenClassification, AutoTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -20,36 +20,36 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available OpenMed NER DNADetect model variants for token classification."""
+    """Available OpenMed NER DNADetect model variants."""
 
-    OPENMED_NER_DNADETECT_TINYMED_65M = "OpenMed-NER-DNADetect-TinyMed-65M"
+    OPENMED_NER_DNADETECT_ELECTRAMED_33M = "DNADetect_ElectraMed_33M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER DNADetect TinyMed model loader implementation for token classification."""
+    """OpenMed NER DNADetect model loader for biomedical entity detection."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_DNADETECT_TINYMED_65M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-TinyMed-65M",
+        ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_33M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-ElectraMed-33M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_DNADETECT_TINYMED_65M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_33M
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
+        self.sample_text = "The p53 protein plays a crucial role in tumor suppression."
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.sample_text = "The p53 protein plays a crucial role in tumor suppression."
 
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = "ner_dnadetect_tinymed_65m"
+            variant_name = "DNADetect_ElectraMed_33M"
         return ModelInfo(
-            model="OpenMed",
+            model="OpenMed NER DNADetect",
             variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
@@ -65,7 +65,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = DistilBertForTokenClassification.from_pretrained(
+        model = AutoModelForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
         self.model = model
@@ -86,20 +86,15 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def decode_output(self, co_out, framework_model=None):
+    def decode_output(self, co_out):
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(
             predicted_token_class_ids, (inputs["attention_mask"][0] == 1)
         )
+        predicted_tokens_classes = [
+            self.model.config.id2label[t.item()] for t in predicted_token_class_ids
+        ]
 
-        model = framework_model if framework_model else self.model
-        if model and hasattr(model, "config") and hasattr(model.config, "id2label"):
-            predicted_tokens_classes = [
-                model.config.id2label[t.item()] for t in predicted_token_class_ids
-            ]
-            print(f"Context: {self.sample_text}")
-            print(f"NER Tags: {predicted_tokens_classes}")
-        else:
-            print(f"Context: {self.sample_text}")
-            print(f"Predicted token class IDs: {predicted_token_class_ids.tolist()}")
+        print(f"Context: {self.sample_text}")
+        print(f"NER Tags: {predicted_tokens_classes}")
