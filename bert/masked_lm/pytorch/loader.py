@@ -27,12 +27,7 @@ class ModelVariant(StrEnum):
     BIO_CLINICAL_BERT = "Bio_ClinicalBERT"
     BERT_BASE_GERMAN_CASED = "Base_German_Cased"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
-    BIOMED_BERT_BASE_UNCASED_ABSTRACT = "BiomedBERT_Base_Uncased_Abstract"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.BERT_BASE_GERMAN_CASED: "Berlin ist die [MASK] von Deutschland.",
-}
+    BERT_TINY = "Tiny"
 
 
 class ModelLoader(ForgeModel):
@@ -64,8 +59,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="neuralmind/bert-large-portuguese-cased",
             max_length=128,
         ),
-        ModelVariant.BIOMED_BERT_BASE_UNCASED_ABSTRACT: LLMModelConfig(
-            pretrained_model_name="microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract",
+        ModelVariant.BERT_TINY: LLMModelConfig(
+            pretrained_model_name="prajjwal1/bert-tiny",
             max_length=128,
         ),
     }
@@ -110,7 +105,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_BASE_MULTILINGUAL_CASED,
             ModelVariant.BIO_CLINICAL_BERT,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
-            ModelVariant.BIOMED_BERT_BASE_UNCASED_ABSTRACT,
+            ModelVariant.BERT_TINY,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
