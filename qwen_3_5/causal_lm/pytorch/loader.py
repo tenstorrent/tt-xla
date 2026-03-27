@@ -219,20 +219,7 @@ class ModelLoader(ForgeModel):
         if self._is_gguf_variant():
             model_kwargs["gguf_file"] = self._gguf_file
 
-        # AWQ variants: load on CPU with quantization_config removed
-        if self._variant == ModelVariant.QWEN_3_5_4B_AWQ:
-            model_kwargs["device_map"] = "cpu"
-            config = AutoConfig.from_pretrained(pretrained_model_name)
-            if self.num_layers is not None:
-                if hasattr(config, "text_config"):
-                    config.text_config.num_hidden_layers = self.num_layers
-                else:
-                    config.num_hidden_layers = self.num_layers
-            if hasattr(config, "quantization_config"):
-                delattr(config, "quantization_config")
-            model_kwargs["config"] = config
-
-        if self.num_layers is not None and "config" not in model_kwargs:
+        if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if hasattr(config, "text_config"):
                 config.text_config.num_hidden_layers = self.num_layers
@@ -326,6 +313,10 @@ class ModelLoader(ForgeModel):
     def _gguf_file(self):
         """Get the GGUF filename for the current variant."""
         return self._GGUF_FILES.get(self._variant)
+
+    def _is_awq_variant(self):
+        """Check if the current variant uses AWQ quantization."""
+        return False
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
