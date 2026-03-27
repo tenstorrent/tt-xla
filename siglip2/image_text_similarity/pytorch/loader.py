@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available SigLIP2 model variants for image-text similarity."""
 
-    BASE_PATCH16_256 = "Base_Patch16_256"
+    BASE_PATCH16_512 = "Base_Patch16_512"
     SO400M_PATCH14_384 = "So400m_Patch14_384"
     SO400M_PATCH16_256 = "So400m_Patch16_256"
 
@@ -33,8 +33,8 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.BASE_PATCH16_256: ModelConfig(
-            pretrained_model_name="google/siglip2-base-patch16-256",
+        ModelVariant.BASE_PATCH16_512: ModelConfig(
+            pretrained_model_name="google/siglip2-base-patch16-512",
         ),
         ModelVariant.SO400M_PATCH14_384: ModelConfig(
             pretrained_model_name="google/siglip2-so400m-patch14-384",
