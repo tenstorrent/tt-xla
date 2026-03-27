@@ -14,7 +14,8 @@ from typing import Optional
 
 from femr.models.transformer import FEMRModel
 
-from third_party.tt_forge_models.config import (
+from ....base import ForgeModel
+from ....config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -23,7 +24,6 @@ from third_party.tt_forge_models.config import (
     StrEnum,
     ModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
