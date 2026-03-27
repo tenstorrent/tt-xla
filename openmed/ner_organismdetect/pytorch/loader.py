@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ORGANISMDETECT_ELECTRAMED_33M = (
         "OpenMed-NER-OrganismDetect-ElectraMed-33M"
     )
+    OPENMED_NER_ORGANISMDETECT_ELECTRAMED_560M = (
+        "OpenMed-NER-OrganismDetect-ElectraMed-560M"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +36,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_NER_ORGANISMDETECT_ELECTRAMED_33M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-ElectraMed-33M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_ORGANISMDETECT_ELECTRAMED_560M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-ElectraMed-560M",
             max_length=128,
         ),
     }
