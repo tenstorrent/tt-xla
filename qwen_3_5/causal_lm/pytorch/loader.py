@@ -40,6 +40,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_BASE_UNSLOTH = "9B_Base_unsloth"
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
+    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
     QWEN_3_5_4B_MLX_4BIT = "4B_MLX_4BIT"
 
 
@@ -112,6 +113,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
+            pretrained_model_name="llmfan46/Qwen3.5-35B-A3B-heretic-v2-GGUF",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_5_4B_MLX_4BIT: LLMModelConfig(
             pretrained_model_name="mlx-community/Qwen3.5-4B-4bit",
             max_length=128,
@@ -125,7 +130,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_24B_A3B_REAP_0_32_GGUF: "Qwen3.5-24B-A3B-REAP-0.32-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Qwen3.5-35B-A3B-heretic-v2-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -325,6 +330,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
             ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
+            ModelVariant.QWEN_3_5_35B_A3B_GGUF,
         )
 
     def load_shard_spec(self, model):
