@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
     ROBERTA_TOXICITY_CLASSIFIER = "Toxicity_Classifier"
+    ROBERTA_BASE_EMOTION = "Base_Emotion"
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +44,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.ROBERTA_TOXICITY_CLASSIFIER: ModelConfig(
             pretrained_model_name="s-nlp/roberta_toxicity_classifier",
+        ),
+        ModelVariant.ROBERTA_BASE_EMOTION: ModelConfig(
+            pretrained_model_name="cardiffnlp/twitter-roberta-base-emotion",
         ),
     }
 
@@ -67,6 +71,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
             ModelVariant.ROBERTA_LARGE_MNLI,
             ModelVariant.ROBERTA_TOXICITY_CLASSIFIER,
+            ModelVariant.ROBERTA_BASE_EMOTION,
         ):
             group = ModelGroup.VULCAN
 
