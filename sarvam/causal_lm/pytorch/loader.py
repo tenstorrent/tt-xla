@@ -25,21 +25,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Sarvam model variants."""
 
-    SARVAM_30B_UNCENSORED = "30B_Uncensored"
+    SARVAM_30B = "30B"
 
 
 class ModelLoader(ForgeModel):
     """Sarvam model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.SARVAM_30B_UNCENSORED: ModelConfig(
-            pretrained_model_name="aoxo/sarvam-30b-uncensored",
+        ModelVariant.SARVAM_30B: ModelConfig(
+            pretrained_model_name="sarvamai/sarvam-30b",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SARVAM_30B_UNCENSORED
-
-    sample_text = "What is the capital of India?"
+    DEFAULT_VARIANT = ModelVariant.SARVAM_30B
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -66,15 +64,14 @@ class ModelLoader(ForgeModel):
     def _load_tokenizer(self, dtype_override=None):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        tokenizer_kwargs = {"trust_remote_code": True}
+        tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name, **tokenizer_kwargs
         )
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -108,12 +105,9 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        inputs = self.tokenizer(
-            self.sample_text,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-        )
+        test_input = "What is the capital of India?"
+
+        inputs = self.tokenizer(test_input, return_tensors="pt")
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
