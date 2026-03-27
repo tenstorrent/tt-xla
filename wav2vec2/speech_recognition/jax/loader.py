@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     XLSR_HINDI = "XLSR_Hindi"
     XLSR_53_POLISH = "XLSR_53_Polish"
     XLS_R_300M_FILIPINO = "XLS_R_300M_Filipino"
+    XLSR_53_DUTCH = "XLSR_53_Dutch"
     XLS_R_1B_NYNORSK = "XLS_R_1B_Nynorsk"
 
 
@@ -59,6 +60,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLSR_HINDI: ModelConfig(
             pretrained_model_name="theainerd/Wav2Vec2-large-xlsr-hindi",
+        ),
+        ModelVariant.XLSR_53_DUTCH: ModelConfig(
+            pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-dutch",
         ),
         ModelVariant.XLSR_53_POLISH: ModelConfig(
             pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-polish",
