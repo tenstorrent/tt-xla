@@ -9,7 +9,6 @@ import torch
 from transformers import AutoProcessor, AutoModel
 from typing import Optional
 from PIL import Image
-from datasets import load_dataset
 
 from ....base import ForgeModel
 from ....config import (
@@ -84,9 +83,8 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        # Load image from HuggingFace dataset
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        # Use a synthetic PIL image
+        image = Image.new("RGB", (224, 224))
 
         # Define text prompts for image-text similarity
         self.text_prompts = ["a photo of 2 cats", "a photo of 2 dogs"]
