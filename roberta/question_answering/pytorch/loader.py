@@ -6,7 +6,6 @@ RoBERTa model loader implementation for question answering.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 from typing import Optional
 
 from ....base import ForgeModel
@@ -67,6 +66,8 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        from transformers import AutoModelForQuestionAnswering, AutoTokenizer
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
