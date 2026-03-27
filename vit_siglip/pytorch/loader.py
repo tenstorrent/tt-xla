@@ -7,7 +7,6 @@ ViT-SigLIP model loader implementation for image-text similarity using OpenCLIP.
 import torch
 import torch.nn.functional as F
 from typing import Optional
-from PIL import Image
 
 from ...base import ForgeModel
 from ...config import (
