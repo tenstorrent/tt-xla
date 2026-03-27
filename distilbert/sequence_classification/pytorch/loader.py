@@ -26,6 +26,9 @@ class ModelVariant(StrEnum):
     )
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
     MICHELLELI99_NSFW_TEXT_CLASSIFIER = "michelleli99-NSFW_text_classifier"
+    AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION = (
+        "amansolanki-autonlp-Tweet-Sentiment-Extraction-20114061"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +48,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="michelleli99/NSFW_text_classifier",
             max_length=128,
         ),
+        ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION: LLMModelConfig(
+            pretrained_model_name="amansolanki/autonlp-Tweet-Sentiment-Extraction-20114061",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -55,6 +62,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
         ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER: "This is a perfectly normal and safe text about cooking recipes.",
+        ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION: "I love this sunny weather, it makes me so happy!",
     }
 
     def __init__(self, variant=None):
@@ -89,6 +97,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
             ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER,
+            ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
