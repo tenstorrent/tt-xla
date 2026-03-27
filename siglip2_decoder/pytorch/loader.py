@@ -6,7 +6,9 @@ SigLIP2 Decoder model loader implementation for image-to-image reconstruction.
 """
 
 from typing import Optional
-from transformers import ViTMAEForPreTraining, AutoImageProcessor
+import torch
+from transformers import ViTMAEForPreTraining, ViTMAEConfig, ViTImageProcessor
+from huggingface_hub import hf_hub_download
 from datasets import load_dataset
 
 from ...config import (
@@ -59,22 +61,31 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
 
-        self.feature_extractor = AutoImageProcessor.from_pretrained(model_name)
+        config = ViTMAEConfig.from_pretrained(model_name)
+        self.feature_extractor = ViTImageProcessor(
+            size={"height": config.image_size, "width": config.image_size},
+            do_normalize=True,
+        )
 
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-
-        model = ViTMAEForPreTraining.from_pretrained(model_name, **model_kwargs)
+        model = ViTMAEForPreTraining(config)
+        weights_path = hf_hub_download(repo_id=model_name, filename="model.pt")
+        state_dict = torch.load(weights_path, map_location="cpu", weights_only=True)
+        model.load_state_dict(state_dict, strict=False)
         model.eval()
+
+        if dtype_override is not None:
+            model = model.to(dtype_override)
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.feature_extractor is None:
             model_name = self._variant_config.pretrained_model_name
-            self.feature_extractor = AutoImageProcessor.from_pretrained(model_name)
+            config = ViTMAEConfig.from_pretrained(model_name)
+            self.feature_extractor = ViTImageProcessor(
+                size={"height": config.image_size, "width": config.image_size},
+                do_normalize=True,
+            )
 
         dataset = load_dataset("huggingface/cats-image", split="test")
         image = dataset[0]["image"]
