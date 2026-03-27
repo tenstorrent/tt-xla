@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION = (
         "amansolanki-autonlp-Tweet-Sentiment-Extraction-20114061"
     )
+    D4DATA_BIAS_DETECTION_MODEL = "d4data-bias-detection-model"
 
 
 class ModelLoader(ForgeModel):
@@ -52,6 +53,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="amansolanki/autonlp-Tweet-Sentiment-Extraction-20114061",
             max_length=128,
         ),
+        ModelVariant.D4DATA_BIAS_DETECTION_MODEL: LLMModelConfig(
+            pretrained_model_name="d4data/bias-detection-model",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -63,6 +68,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
         ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER: "This is a perfectly normal and safe text about cooking recipes.",
         ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION: "I love this sunny weather, it makes me so happy!",
+        ModelVariant.D4DATA_BIAS_DETECTION_MODEL: "The politician was biased in their reporting of the events.",
     }
 
     def __init__(self, variant=None):
@@ -98,6 +104,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
             ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER,
             ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION,
+            ModelVariant.D4DATA_BIAS_DETECTION_MODEL,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
@@ -108,6 +115,11 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
+
+    # Variants that require loading from TensorFlow weights
+    _FROM_TF_VARIANTS = {
+        ModelVariant.D4DATA_BIAS_DETECTION_MODEL,
+    }
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load DistilBERT model for sequence classification from Hugging Face.
@@ -127,6 +139,8 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        if self._variant in self._FROM_TF_VARIANTS:
+            model_kwargs["from_tf"] = True
         model_kwargs |= kwargs
 
         model = DistilBertForSequenceClassification.from_pretrained(
