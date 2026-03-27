@@ -4,7 +4,6 @@
 """
 OPT LoRA model loader implementation for question answering.
 """
-import torch
 from transformers import OPTForQuestionAnswering, AutoTokenizer
 from peft import PeftModel
 from typing import Optional
