@@ -22,8 +22,7 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_SPECIES_MULTI = "ZeroShot-NER-Species-Multi-209M"
-    OPENMED_ZEROSHOT_NER_GENOME_BASE = "ZeroShot-NER-Genome-Base-220M"
+    OPENMED_ZEROSHOT_NER_DISEASE_LARGE = "ZeroShot-NER-Disease-Large-459M"
 
 
 class ModelLoader(ForgeModel):
@@ -36,11 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_MULTI: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Multi-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_BASE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-Base-220M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_LARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-Large-459M"
         ),
     }
 
@@ -72,18 +68,14 @@ class ModelLoader(ForgeModel):
         self.model = model
         return self.model.eval()
 
-    _VARIANT_SAMPLES = {
-        ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_BASE: {
-            "text": "Administration of metformin reduced glucose levels significantly compared to placebo.",
-            "labels": ["CHE"],
-        },
+    _SAMPLE_INPUTS = {
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: {
             "text": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
             "labels": ["SPECIES"],
         },
-        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_XLARGE: {
-            "text": "Escherichia coli bacteria were found in the water samples.",
-            "labels": ["SPECIES"],
+        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_LARGE: {
+            "text": "The patient was diagnosed with diabetes mellitus type 2 and chronic obstructive pulmonary disease.",
+            "labels": ["DISEASE"],
         },
     }
 
@@ -92,13 +84,10 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_BASE:
-            text = "The EGFR gene mutation was identified in lung cancer patients."
-            labels = ["GENE/PROTEIN"]
-        else:
-            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
-            labels = ["SPECIES"]
+        sample = self._SAMPLE_INPUTS[self._variant]
+        text = sample["text"]
         self.text = [text]
+        labels = sample["labels"]
         entity_types = list(dict.fromkeys(labels))
 
         (
