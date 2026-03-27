@@ -4,18 +4,19 @@
 """
 xLAM model loader implementation for causal language modeling.
 """
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    LLMModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
@@ -23,25 +24,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available xLAM model variants for causal language modeling."""
 
-    XLAM_2_1B_FC_R = "xlam_2_1b_fc_r"
+    XLAM_8X7B_R = "xlam_8x7b_r"
 
 
 class ModelLoader(ForgeModel):
     """xLAM model loader implementation for causal language modeling tasks."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.XLAM_2_1B_FC_R: LLMModelConfig(
-            pretrained_model_name="Salesforce/xLAM-2-1b-fc-r",
+        ModelVariant.XLAM_8X7B_R: LLMModelConfig(
+            pretrained_model_name="Salesforce/xLAM-8x7b-r",
             max_length=128,
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.XLAM_2_1B_FC_R
+    DEFAULT_VARIANT = ModelVariant.XLAM_8X7B_R
 
-    # Sample text for causal LM
-    sample_text = "The quick brown fox jumps over the lazy dog."
+    sample_text = "What is the capital of France?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -70,6 +68,7 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name,
             **tokenizer_kwargs,
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
