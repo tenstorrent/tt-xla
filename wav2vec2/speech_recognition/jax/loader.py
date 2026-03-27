@@ -33,7 +33,7 @@ class ModelVariant(StrEnum):
     XLSR_53_POLISH = "XLSR_53_Polish"
     XLS_R_300M_FILIPINO = "XLS_R_300M_Filipino"
     XLSR_53_DUTCH = "XLSR_53_Dutch"
-    XLSR_53_HUNGARIAN = "XLSR_53_Hungarian"
+    XLS_R_300M_URDU = "XLS_R_300M_Urdu"
     XLS_R_1B_NYNORSK = "XLS_R_1B_Nynorsk"
     XLS_R_300M_TURKISH = "XLS_R_300M_Turkish"
     XLSR_53_TELUGU = "XLSR_53_Telugu"
@@ -75,6 +75,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLS_R_300M_FILIPINO: ModelConfig(
             pretrained_model_name="Khalsuu/filipino-wav2vec2-l-xls-r-300m-official",
+        ),
+        ModelVariant.XLS_R_300M_URDU: ModelConfig(
+            pretrained_model_name="kingabzpro/wav2vec2-large-xls-r-300m-Urdu",
         ),
         ModelVariant.XLS_R_1B_NYNORSK: ModelConfig(
             pretrained_model_name="NbAiLab/nb-wav2vec2-1b-nynorsk",
