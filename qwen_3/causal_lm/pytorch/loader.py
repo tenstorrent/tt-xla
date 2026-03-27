@@ -47,8 +47,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_4B_SAFERL = "4B_SafeRL"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_30B_A3B_NVFP4 = "30B_A3B_Nvfp4"
-    QWEN_3_4B_MLX_4BIT = "4B_Mlx_4bit"
+    QWEN_3_30B_A3B_NVFP4 = "30B_A3B_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -141,17 +140,17 @@ class ModelLoader(ForgeModel):
             max_length=128,
         ),
         ModelVariant.QWEN_3_30B_A3B_NVFP4: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen3-30B-A3B-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_4B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-4B-MLX-4bit",
+            pretrained_model_name="nvidia/Qwen3-30B-A3B-NVFP4",
             max_length=128,
         ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.QWEN_3_0_6B
+
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.QWEN_3_30B_A3B_NVFP4}
 
     # Shared configuration parameters
     sample_text = "Give me a short introduction to large language model."
@@ -197,7 +196,6 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_235B_A22B_THINKING_2507,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_30B_A3B_NVFP4,
-            ModelVariant.QWEN_3_4B_MLX_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -266,6 +264,8 @@ class ModelLoader(ForgeModel):
         ):
             model_kwargs["device_map"] = "cpu"
 
+        # NVFP4 variants require ignore_mismatched_sizes because the packed
+        # FP4 weight shapes differ from the model definition.
         if self._variant in self._NVFP4_VARIANTS:
             model_kwargs["ignore_mismatched_sizes"] = True
 
