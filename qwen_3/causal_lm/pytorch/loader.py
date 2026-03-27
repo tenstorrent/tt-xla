@@ -35,7 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_4B_BASE = "4B_Base"
     QWEN_3_4B_INSTRUCT_2507 = "4B_Instruct_2507"
     QWEN_3_4B_INSTRUCT_2507_FP8 = "4B_Instruct_2507_FP8"
-    QWEN_3_4B_INSTRUCT_2507_UNSLOTH = "4B_Instruct_2507_Unsloth"
+    QWEN_3_4B_INSTRUCT_2507_4BIT = "4B_Instruct_2507_4bit"
     QWEN_3_8B = "8B"
     QWEN_3_8B_BASE = "8B_Base"
     QWEN_3_14B = "14B"
@@ -76,8 +76,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-4B-Instruct-2507-FP8",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_4B_INSTRUCT_2507_UNSLOTH: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-4B-Instruct-2507",
+        ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3-4B-Instruct-2507-4bit",
             max_length=128,
         ),
         ModelVariant.QWEN_3_8B: LLMModelConfig(
@@ -157,7 +157,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_4B_INSTRUCT_2507_UNSLOTH,
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT,
             ModelVariant.QWEN_3_8B_AWQ,
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
@@ -283,7 +283,7 @@ class ModelLoader(ForgeModel):
             # Instruct-2507 variants do not support thinking mode
             enable_thinking = self._variant not in (
                 ModelVariant.QWEN_3_4B_INSTRUCT_2507,
-                ModelVariant.QWEN_3_4B_INSTRUCT_2507_UNSLOTH,
+                ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT,
                 ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
                 ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
                 ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
@@ -324,7 +324,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_MLX_4BIT,
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT,
         ]:
             text_config = self._get_text_config()
             assert (
@@ -346,7 +346,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_MLX_4BIT,
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT,
         ]:
             return None
 
