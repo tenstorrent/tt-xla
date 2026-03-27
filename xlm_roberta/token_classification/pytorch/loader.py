@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-XLM-RoBERTa model loader implementation for token classification (punctuation prediction).
+XLM-RoBERTa model loader implementation for token classification (NER).
 """
 
 import torch
@@ -24,25 +24,27 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available XLM-RoBERTa token classification model variants."""
 
-    KREDOR_PUNCTUATE_ALL = "kredor_punctuate_all"
+    CRYPTO_NER = "CryptoNER"
 
 
 class ModelLoader(ForgeModel):
     """XLM-RoBERTa model loader implementation for token classification tasks."""
 
     _VARIANTS = {
-        ModelVariant.KREDOR_PUNCTUATE_ALL: ModelConfig(
-            pretrained_model_name="kredor/punctuate-all",
+        ModelVariant.CRYPTO_NER: ModelConfig(
+            pretrained_model_name="covalenthq/cryptoNER",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.KREDOR_PUNCTUATE_ALL
+    DEFAULT_VARIANT = ModelVariant.CRYPTO_NER
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        self.sample_text = "my name is john and i live in new york city"
+        self.sample_text = (
+            "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday"
+        )
         self.max_length = 128
 
     @classmethod
@@ -100,4 +102,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Predicted Punctuation: {predicted_tokens_classes}")
+        print(f"Predicted NER Tags: {predicted_tokens_classes}")
