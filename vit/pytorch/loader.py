@@ -53,6 +53,7 @@ class ModelVariant(StrEnum):
     VIT_BASE_PATCH16_224_AUGREG_IN1K = "Base_Patch16_224_AugReg_IN1K"
     VIT_BASE_PATCH16_224_AUGREG_IN21K = "Base_Patch16_224_AugReg_IN21K"
     VIT_LARGE_PATCH14_CLIP_224_METACLIP_2PT5B = "Large_Patch14_CLIP_224_MetaCLIP_2pt5B"
+    VIT_LARGE_PATCH14_CLIP_336_OPENAI = "Large_Patch14_CLIP_336_OpenAI"
 
 
 class ModelLoader(ForgeModel):
@@ -117,6 +118,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.VIT_LARGE_PATCH14_CLIP_224_METACLIP_2PT5B: ViTConfig(
             pretrained_model_name="vit_large_patch14_clip_224.metaclip_2pt5b",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.VIT_LARGE_PATCH14_CLIP_336_OPENAI: ViTConfig(
+            pretrained_model_name="vit_large_patch14_clip_336.openai",
             source=ModelSource.TIMM,
         ),
     }
