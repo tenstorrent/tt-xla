@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Nemotron model variants for causal language modeling."""
 
     NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
+    NEMOTRON_3_NANO_30B_A3B_NVFP4 = "3_Nano_30B_A3B_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.NEMOTRON_3_NANO_30B_A3B_FP8: LLMModelConfig(
             pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
+            max_length=128,
+        ),
+        ModelVariant.NEMOTRON_3_NANO_30B_A3B_NVFP4: LLMModelConfig(
+            pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
             max_length=128,
         ),
     }
