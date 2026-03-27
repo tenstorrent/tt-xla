@@ -1,0 +1,2 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torchaudio==2.9.0
