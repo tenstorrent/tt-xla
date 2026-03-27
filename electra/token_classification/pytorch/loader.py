@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ELECTRA model loader implementation for token classification (NER).
+ELECTRA model loader implementation for token classification (NER) task.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
+from transformers import AutoModelForTokenClassification, AutoTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -22,20 +22,31 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available ELECTRA token classification model variants."""
 
-    OPENMED_NER_ONCOLOGYDETECT_BIOMED_335M = "OpenMed-NER-OncologyDetect-BioMed-335M"
+    OPENMED_NER_ORGANISM_DETECT = "OpenMed_NER_OrganismDetect_ElectraMed_335M"
+    OPENMED_NER_BLOOD_CANCER_DETECT = "OpenMed_NER_BloodCancerDetect_BioMed_109M"
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.OPENMED_NER_ORGANISM_DETECT: "Caenorhabditis elegans is a model organism for genetic studies.",
+    ModelVariant.OPENMED_NER_BLOOD_CANCER_DETECT: "The patient was diagnosed with chronic lymphocytic leukemia after presenting with lymphadenopathy.",
+}
 
 
 class ModelLoader(ForgeModel):
-    """ELECTRA model loader implementation for token classification (NER)."""
+    """ELECTRA model loader implementation for token classification (NER) task."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_ONCOLOGYDETECT_BIOMED_335M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-BioMed-335M",
+        ModelVariant.OPENMED_NER_ORGANISM_DETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-ElectraMed-335M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_BLOOD_CANCER_DETECT: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-BloodCancerDetect-BioMed-109M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ONCOLOGYDETECT_BIOMED_335M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ORGANISM_DETECT
 
     def __init__(self, variant=None):
         super().__init__(variant)
@@ -43,7 +54,10 @@ class ModelLoader(ForgeModel):
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
         self.model = None
-        self.sample_text = "Mutations in KRAS gene drive oncogenic transformation in lung adenocarcinoma cells."
+        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name,
+            "Caenorhabditis elegans is a model organism for genetic studies.",
+        )
 
     @classmethod
     def _get_model_info(cls, variant=None):
@@ -97,4 +111,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Predicted Labels: {predicted_tokens_classes}")
+        print(f"Answer: {predicted_tokens_classes}")
