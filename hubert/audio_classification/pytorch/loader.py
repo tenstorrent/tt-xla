@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-HuBERT model loader implementation for audio classification (music genre classification).
+HuBERT model loader implementation for audio classification (speech emotion recognition).
 """
 
 from typing import Optional
@@ -23,19 +23,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available HuBERT audio classification model variants."""
 
-    MUSICAL_GENRES_V1 = "Musical_genres_V1"
+    BASE_CH_SPEECH_EMOTION = "Base_CH_Speech_Emotion"
 
 
 class ModelLoader(ForgeModel):
-    """HuBERT model loader implementation for audio classification."""
+    """HuBERT model loader implementation for audio classification (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.MUSICAL_GENRES_V1: ModelConfig(
-            pretrained_model_name="SeyedAli/Musical-genres-Classification-Hubert-V1",
+        ModelVariant.BASE_CH_SPEECH_EMOTION: ModelConfig(
+            pretrained_model_name="xmj2002/hubert-base-ch-speech-emotion-recognition",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MUSICAL_GENRES_V1
+    DEFAULT_VARIANT = ModelVariant.BASE_CH_SPEECH_EMOTION
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -69,15 +69,52 @@ class ModelLoader(ForgeModel):
         return self._processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        from transformers import HubertForSequenceClassification
+        import torch
+        import torch.nn as nn
+        from transformers import HubertPreTrainedModel, HubertModel
+
+        class HubertClassificationHead(nn.Module):
+            """Classification head for speech emotion recognition."""
+
+            def __init__(self, config):
+                super().__init__()
+                self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+                self.dropout = nn.Dropout(config.final_dropout)
+                self.out_proj = nn.Linear(config.hidden_size, config.num_labels)
+
+            def forward(self, features, **kwargs):
+                x = features
+                x = self.dropout(x)
+                x = self.dense(x)
+                x = torch.tanh(x)
+                x = self.dropout(x)
+                x = self.out_proj(x)
+                return x
+
+        class HubertForSpeechClassification(HubertPreTrainedModel):
+            """HuBERT-based speech emotion classifier."""
+
+            def __init__(self, config):
+                super().__init__(config)
+                self.hubert = HubertModel(config)
+                self.classifier = HubertClassificationHead(config)
+                self.post_init()
+
+            def forward(self, input_values):
+                outputs = self.hubert(input_values)
+                hidden_states = outputs[0]
+                hidden_states = torch.mean(hidden_states, dim=1)
+                logits = self.classifier(hidden_states)
+                return logits
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = HubertForSequenceClassification.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+        model = HubertForSpeechClassification.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            **model_kwargs,
         )
         model.eval()
         if dtype_override is not None:
