@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 GGUF model variants for causal language modeling."""
 
+    QWEN_2_5_0_5B_INSTRUCT_GGUF = "0.5B_Instruct_GGUF"
     QWEN_2_5_1_5B_INSTRUCT_GGUF = "1.5B_Instruct_GGUF"
     QWEN_2_5_3B_INSTRUCT_GGUF = "3B_Instruct_GGUF"
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     """Qwen 2.5 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.QWEN_2_5_0_5B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+            max_length=128,
+        ),
         ModelVariant.QWEN_2_5_1_5B_INSTRUCT_GGUF: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2.5-1.5B-Instruct-GGUF",
             max_length=128,
@@ -44,8 +49,8 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.QWEN_2_5_1_5B_INSTRUCT_GGUF
 
     _GGUF_FILES = {
+        ModelVariant.QWEN_2_5_0_5B_INSTRUCT_GGUF: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
         ModelVariant.QWEN_2_5_1_5B_INSTRUCT_GGUF: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-        ModelVariant.QWEN_2_5_3B_INSTRUCT_GGUF: "Qwen2.5-3B-Instruct-Q4_K_M.gguf",
     }
 
     sample_text = "Give me a short introduction to large language models."
@@ -62,6 +67,10 @@ class ModelLoader(ForgeModel):
     @property
     def _gguf_file(self):
         """Get the GGUF filename for the current variant."""
+        return self._GGUF_FILES[self._variant]
+
+    @property
+    def gguf_file(self):
         return self._GGUF_FILES[self._variant]
 
     @classmethod
