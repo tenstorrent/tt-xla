@@ -42,6 +42,7 @@ class ModelVariant(StrEnum):
     MAGISTRAL_SMALL_2506 = "Magistral_Small_2506"
     MISTRAL_SMALL_3_1_24B_INSTRUCT_2503 = "mistral_small_3.1_24b_instruct_2503"  # Untested in Transformers; for full testing, please refer to VLLM.
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
+    MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -101,6 +102,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         ),
+        ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
+            pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
+        ),
     }
 
     # Default variant to use
@@ -133,10 +137,10 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
 
-        if variant in [
-            ModelVariant.MISTRAL_7B_INSTRUCT_V01,
+        if variant in (
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
-        ]:
+            ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
+        ):
             group = ModelGroup.VULCAN
         elif variant in [
             ModelVariant.MISTRAL_7B_INSTRUCT_V03,
@@ -219,6 +223,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
+
+        # BnB variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.MISTRAL_7B_V03_BNB_4BIT:
+            model_kwargs["device_map"] = "cpu"
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
