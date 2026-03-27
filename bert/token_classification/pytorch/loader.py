@@ -31,9 +31,8 @@ class ModelVariant(StrEnum):
     )
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    LUNARLIST_POS_THAI = "lunarlist/pos_thai"
-    OPENMED_PII_ITALIAN_CLINICALE5_BASE = (
-        "OpenMed/OpenMed-PII-Italian-ClinicalE5-Base-109M-v1"
+    OPENMED_NER_ORGANISMDETECT_PUBMED_109M = (
+        "OpenMed/OpenMed-NER-OrganismDetect-PubMed-109M"
     )
 
 
@@ -54,12 +53,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.LUNARLIST_POS_THAI: LLMModelConfig(
-            pretrained_model_name="lunarlist/pos_thai",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_PII_ITALIAN_CLINICALE5_BASE: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-Italian-ClinicalE5-Base-109M-v1",
+        ModelVariant.OPENMED_NER_ORGANISMDETECT_PUBMED_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-PubMed-109M",
             max_length=128,
         ),
     }
@@ -81,10 +76,8 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         if self._variant == ModelVariant.HATMIMOHA_ARABIC_NER:
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.LUNARLIST_POS_THAI:
-            self.sample_text = "ฉันไปโรงเรียนทุกวัน"
-        elif self._variant == ModelVariant.OPENMED_PII_ITALIAN_CLINICALE5_BASE:
-            self.sample_text = "Il paziente Mario Rossi, codice fiscale RSSMRA80A01H501Z, è stato visitato presso l'ospedale di Roma."
+        elif self._variant == ModelVariant.OPENMED_NER_ORGANISMDETECT_PUBMED_109M:
+            self.sample_text = "Escherichia coli and Drosophila melanogaster are commonly studied model organisms in biology."
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = 128
@@ -107,8 +100,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.LUNARLIST_POS_THAI,
-            ModelVariant.OPENMED_PII_ITALIAN_CLINICALE5_BASE,
+            ModelVariant.OPENMED_NER_ORGANISMDETECT_PUBMED_109M,
         ):
             group = ModelGroup.VULCAN
 
