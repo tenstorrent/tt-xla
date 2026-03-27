@@ -40,6 +40,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_30B_A3B_INSTRUCT_2507_FP8 = "30B_A3B_Instruct_2507_FP8"
+    QWEN_3_4B_AWQ = "4B_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -91,6 +92,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_4B_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-4B-AWQ",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -130,6 +135,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_FP8,
+            ModelVariant.QWEN_3_4B_AWQ,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -186,6 +192,11 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        # AWQ variants need to be loaded on CPU for dequantization
+        if pretrained_model_name == "Qwen/Qwen3-4B-AWQ":
+            model_kwargs["device_map"] = "cpu"
+
+        model_kwargs |= kwargs
 
         # AWQ variants: use Qwen3ForCausalLM directly with quantization_config
         # removed so that weights are loaded as plain tensors on CPU.
@@ -267,6 +278,7 @@ class ModelLoader(ForgeModel):
         if self._variant not in [
             ModelVariant.QWEN_3_4B,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
+            ModelVariant.QWEN_3_4B_AWQ,
         ]:
             assert (
                 self.config.num_attention_heads % mesh_shape[1] == 0
@@ -285,6 +297,7 @@ class ModelLoader(ForgeModel):
         if self._variant in [
             ModelVariant.QWEN_3_4B,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
+            ModelVariant.QWEN_3_4B_AWQ,
         ]:
             return None
 
