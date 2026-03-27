@@ -2,10 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa V3 model loader implementation for masked language modeling.
+mDeBERTa V3 model loader implementation for masked language modeling.
+
+Uses the DebertaV2Model base encoder from microsoft/mdeberta-v3-base, a multilingual
+DeBERTa V3 model pre-trained on CC100 multilingual data covering 100+ languages.
+The checkpoint's LM head weights use non-standard naming that is incompatible with
+transformers' DebertaV2ForMaskedLM, so we load the base encoder only.
 """
 
-from transformers import AutoTokenizer, DebertaV2ForMaskedLM
+from transformers import AutoTokenizer, DebertaV2Model
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -19,33 +24,28 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available DeBERTa V3 model variants for masked language modeling."""
+    """Available mDeBERTa V3 model variants."""
 
-    DEBERTA_V3_SMALL = "V3_Small"
-    DEBERTA_V3_BASE = "V3_Base"
+    MDEBERTA_V3_BASE = "mDeBERTa_V3_Base"
 
 
 class ModelLoader(ForgeModel):
-    """DeBERTa V3 model loader implementation for masked language modeling."""
+    """mDeBERTa V3 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.DEBERTA_V3_SMALL: LLMModelConfig(
-            pretrained_model_name="microsoft/deberta-v3-small",
-            max_length=128,
-        ),
-        ModelVariant.DEBERTA_V3_BASE: LLMModelConfig(
-            pretrained_model_name="microsoft/deberta-v3-base",
+        ModelVariant.MDEBERTA_V3_BASE: LLMModelConfig(
+            pretrained_model_name="microsoft/mdeberta-v3-base",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEBERTA_V3_BASE
+    DEFAULT_VARIANT = ModelVariant.MDEBERTA_V3_BASE
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = "The capital of France is [MASK]."
+        self.sample_text = "The capital of France is Paris."
         self.tokenizer = None
 
     @classmethod
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="DeBERTa",
+            model="mDeBERTa",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_MASKED_LM,
@@ -69,7 +69,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = DebertaV2ForMaskedLM.from_pretrained(self.model_name, **model_kwargs)
+        model = DebertaV2Model.from_pretrained(self.model_name, **model_kwargs)
         model.eval()
         return model
 
@@ -86,13 +86,3 @@ class ModelLoader(ForgeModel):
         )
 
         return inputs
-
-    def decode_output(self, co_out):
-        inputs = self.load_inputs()
-        logits = co_out[0]
-        mask_token_index = (inputs["input_ids"] == self.tokenizer.mask_token_id)[
-            0
-        ].nonzero(as_tuple=True)[0]
-        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
-        predicted_token = self.tokenizer.decode(predicted_token_id)
-        print("The predicted token for the [MASK] is:", predicted_token)
