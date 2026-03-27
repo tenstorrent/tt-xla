@@ -25,9 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 PyTorch speech recognition model variants."""
 
     BASE_960H = "Base_960h"
-    XLSR_53_PUNJABI = "XLSR_53_Punjabi"
-    XLSR_PA_IN = "XLSR_pa_IN"
-    BLOOM_SPEECH_MYA = "Bloom_Speech_Mya"
+    LARGE_XLSR_KN = "Large_XLSR_Kn"
 
 
 class ModelLoader(ForgeModel):
@@ -37,14 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.XLSR_53_PUNJABI: ModelConfig(
-            pretrained_model_name="kingabzpro/wav2vec2-large-xlsr-53-punjabi",
-        ),
-        ModelVariant.XLSR_PA_IN: ModelConfig(
-            pretrained_model_name="danurahul/wav2vec2-large-xlsr-pa-IN",
-        ),
-        ModelVariant.BLOOM_SPEECH_MYA: ModelConfig(
-            pretrained_model_name="sil-ai/wav2vec2-bloom-speech-mya",
+        ModelVariant.LARGE_XLSR_KN: ModelConfig(
+            pretrained_model_name="amoghsgopadi/wav2vec2-large-xlsr-kn",
         ),
     }
 
