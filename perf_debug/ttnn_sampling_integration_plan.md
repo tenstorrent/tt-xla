@@ -23,9 +23,20 @@ Key constraint: `ttnn.sampling()` requires batch dim = 32 (hardcoded). Batch<32 
 
 ### Phase 1 results (2026-03-26)
 
-**Critical finding: `ttnn.sampling()` overflows L1 at vocab >= 8192.** Circular buffers need ~33MB at Llama vocab (128256) but only ~1.5MB L1 per core. The existing unit test only uses tiny vocab sizes (64, 256).
+**Critical finding: `ttnn.sampling()` overflows L1 at vocab >= 8192.** Three circular buffers in the sampling kernel (`c_12 final_indices_rm`, `c_5 input_transposed`, `c_6 index_transposed`) scale with vocab width. At vocab=4096 they total ~1MB/core (fits in 1.5MB L1); at vocab=8192 they total ~2.1MB/core (overflow). This is a per-core constraint — `sub_core_grids` does not help. Source: `sampling_program_factory.cpp` lines 78-181.
 
-**Production models never feed full vocab to `ttnn.sampling()`.** Reading `models/common/sampling/tt_sampling.py` revealed the actual pipeline:
+**Production models never feed full vocab to `ttnn.sampling()`.** The L1 limit only affects the sampling kernel — `ttnn.topk()` is a completely different kernel with no such constraint. Reading `models/common/sampling/tt_sampling.py` revealed the actual pipeline:
+
+For multi-device (Llama3-70B on 8×4 Galaxy, 32 devices total):
+1. `sampling_all_gather_axis=0` (default) → gather along rows (8 devices). The 4 col-devices handle TP for attention, not vocab.
+2. Vocab sharded across 8 row-devices: 128K/8 = 16K tokens/device
+3. `ttnn.topk(16K, k=32)` per device → `[1,1,32,32]` (~1.2ms). Topk has NO L1 limit.
+4. All-gather across 8 devices → `[1,1,32,256]` candidates
+5. `ttnn.sampling([1,1,32,256])` → <0.2ms. 256 tokens is well within the ~4K sampling limit.
+6. Total: ~2-3ms (enabling 80 tok/s)
+Source: `model_config.py:607` (cluster_shape=[8,4]), `tt_sampling.py:251` (axis selection)
+
+For single-device (our vLLM case, `multi_step_reduction=True`):
 1. Split logits in half along vocab dim
 2. `ttnn.topk()` each half → `max_top_k` (typically 32) results per half
 3. Concat → `2 * max_top_k` candidates (64 tokens)
@@ -63,7 +74,16 @@ Answers to open questions:
 | topk + sampling | 50,272 (OPT) | **10.7ms** | ~93ms | **~8.7x** |
 | topk + sampling | 128,256 (Llama) | **46.0ms** | ~147ms | **~3.2x** |
 
-The sampling op itself is sub-millisecond. The bottleneck is `ttnn.topk()` on large vocabs. Note: these measurements include host-side tensor creation overhead (creating ttnn tensors each iteration). In production with persistent device tensors, the actual improvement will be larger.
+The sampling op itself is sub-millisecond. The bottleneck is `ttnn.topk()` on large vocabs:
+
+| Operation | P50 Latency | Notes |
+|---|---|---|
+| topk(half_vocab=8K, k=32) | 1.2ms | Llama70B per-device equivalent |
+| topk(half_vocab=25K, k=32) | 3.7ms | OPT per-half |
+| topk(half_vocab=64K, k=32) | 9.3ms | Llama per-half |
+| sampling(reduced_vocab=64) | 0.17ms | Post-topk, negligible |
+
+Note: full pipeline measurements include host-side tensor creation overhead (creating ttnn tensors each iteration). In production with persistent device tensors, the actual improvement will be larger.
 
 ## Phase 3: Custom op registration in tt-xla
 
