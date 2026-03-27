@@ -48,11 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_3_235B_A22B_FP8 = "235B_A22B_FP8"
     QWEN_3_235B_A22B_THINKING_2507 = "235B_A22B_Thinking_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_8B_BASE_UNSLOTH = "8B_Base_Unsloth"
-    QWEN_3_32B_NVFP4 = "32B_NVFP4"
-    QWEN_3_1_7B_W2G64_GPTQ_V2 = "1_7B_W2G64_GPTQ_V2"
-    QWEN_3_0_6B_Q4F16_1_MLC = "0_6B_Q4F16_1_MLC"
-    QWEN_3_30B_A3B_NSFW_JP_ARATAKO = "30B_A3B_NSFW_JP_Aratako"
+    QWEN_3_1_7B_4BIT_MLX = "1_7B_4bit_Mlx"
 
 
 class ModelLoader(ForgeModel):
@@ -144,20 +140,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_32B_NVFP4: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen3-32B-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_1_7B_W2G64_GPTQ_V2: LLMModelConfig(
-            pretrained_model_name="XXXXyu/Qwen3-1.7B-w2g64-gptq_v2",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_0_6B_Q4F16_1_MLC: LLMModelConfig(
-            pretrained_model_name="mlc-ai/Qwen3-0.6B-q4f16_1-MLC",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_NSFW_JP_ARATAKO: LLMModelConfig(
-            pretrained_model_name="Aratako/Qwen3-30B-A3B-NSFW-JP",
+        ModelVariant.QWEN_3_1_7B_4BIT_MLX: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3-1.7B-4bit",
             max_length=128,
         ),
     }
@@ -208,11 +192,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_235B_A22B_FP8,
             ModelVariant.QWEN_3_235B_A22B_THINKING_2507,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_32B_FP8,
-            ModelVariant.QWEN_3_32B_NVFP4,
-            ModelVariant.QWEN_3_1_7B_W2G64_GPTQ_V2,
-            ModelVariant.QWEN_3_0_6B_Q4F16_1_MLC,
-            ModelVariant.QWEN_3_30B_A3B_NSFW_JP_ARATAKO,
+            ModelVariant.QWEN_3_1_7B_4BIT_MLX,
         ):
             group = ModelGroup.VULCAN
         else:
