@@ -1,11 +1,11 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 Nemotron GGUF model loader implementation for causal language modeling.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
 from ....base import ForgeModel
@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Nemotron GGUF model variants for causal language modeling."""
 
-    NEMOTRON_3_SUPER_120B_A12B_GGUF = "3_Super_120B_A12B_GGUF"
+    NEMOTRON_NANO_12B_V2_GGUF = "Nano_12B_v2_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Nemotron GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.NEMOTRON_3_SUPER_120B_A12B_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/NVIDIA-Nemotron-3-Super-120B-A12B-BF16-heretic-GGUF",
+        ModelVariant.NEMOTRON_NANO_12B_V2_GGUF: LLMModelConfig(
+            pretrained_model_name="MaziyarPanahi/NVIDIA-Nemotron-Nano-12B-v2-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NEMOTRON_3_SUPER_120B_A12B_GGUF
+    DEFAULT_VARIANT = ModelVariant.NEMOTRON_NANO_12B_V2_GGUF
 
-    GGUF_FILE = "NVIDIA-Nemotron-3-Super-120B-A12B-BF16-heretic.Q4_K_M.gguf"
+    GGUF_FILE = "NVIDIA-Nemotron-Nano-12B-v2.Q4_K_M.gguf"
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -47,13 +47,11 @@ class ModelLoader(ForgeModel):
     ):
         super().__init__(variant)
         self.tokenizer = None
+        self.config = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="Nemotron GGUF",
             variant=variant,
@@ -83,18 +81,25 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {"trust_remote_code": True}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
         model_kwargs["gguf_file"] = self.GGUF_FILE
 
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, gguf_file=self.GGUF_FILE
+            )
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
+
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
-        self.config = model.config
+        ).eval()
 
+        self.config = model.config
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
@@ -103,17 +108,23 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
+        messages = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
             add_generation_prompt=True,
         )
+        prompts = [text]
 
         inputs = self.tokenizer(
-            [text],
+            prompts,
             return_tensors="pt",
-            padding="max_length",
+            padding=True,
             truncation=True,
             max_length=max_length,
         )
