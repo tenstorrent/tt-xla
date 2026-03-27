@@ -62,6 +62,7 @@ class ModelLoader(ForgeModel):
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name,
             torch_dtype=dtype,
+            **kwargs,
         )
         model.eval()
         return model
