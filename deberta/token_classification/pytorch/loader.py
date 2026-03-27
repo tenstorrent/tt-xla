@@ -2,71 +2,61 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa model loader implementation for token classification (NER) task.
+DeBERTa model loader implementation for token classification (NER).
 """
 
 import torch
-from transformers import AutoModelForTokenClassification, AutoTokenizer
-
-from ....config import (
+from transformers import AutoTokenizer, AutoModelForTokenClassification
+from third_party.tt_forge_models.config import (
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    LLMModelConfig,
 )
-from ....base import ForgeModel
+from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available DeBERTa token classification model variants."""
 
-    OPENMED_NER_GENOMIC_DETECT = "OpenMed_NER_GenomicDetect_SuperClinical_184M"
-    OPENMED_NER_PROTEIN_DETECT = "OpenMed_NER_ProteinDetect_SuperClinical_184M"
-
-
-_VARIANT_SAMPLE_TEXTS = {
-    ModelVariant.OPENMED_NER_GENOMIC_DETECT: "The BRCA2 gene is associated with hereditary breast cancer.",
-    ModelVariant.OPENMED_NER_PROTEIN_DETECT: "The Maillard reaction is responsible for the browning of many foods.",
-}
+    OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M = (
+        "OpenMed/OpenMed-NER-ChemicalDetect-SuperClinical-434M"
+    )
 
 
 class ModelLoader(ForgeModel):
-    """DeBERTa model loader implementation for token classification (NER) task."""
+    """DeBERTa model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_GENOMIC_DETECT: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-SuperClinical-184M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_PROTEIN_DETECT: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-SuperClinical-184M",
+        ModelVariant.OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-SuperClinical-434M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_GENOMIC_DETECT
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M
 
     def __init__(self, variant=None):
         super().__init__(variant)
-        self.model_name = self._variant_config.pretrained_model_name
-        self.max_length = self._variant_config.max_length
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        self.model_name = pretrained_model_name
+        self.sample_text = (
+            "The patient was administered acetylsalicylic acid for pain relief."
+        )
+        self.max_length = 128
         self.tokenizer = None
         self.model = None
-        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
-            self._variant_name,
-            "The BRCA2 gene is associated with hereditary breast cancer.",
-        )
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name: str = None):
+        if variant_name is None:
+            variant_name = "base"
         return ModelInfo(
             model="DeBERTa",
-            variant=variant,
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -81,11 +71,12 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = AutoModelForTokenClassification.from_pretrained(
+        model = AutoModelForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
-        self.model.eval()
-        return self.model
+        model.eval()
+        self.model = model
+        return model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
@@ -113,3 +104,4 @@ class ModelLoader(ForgeModel):
 
         print(f"Context: {self.sample_text}")
         print(f"Answer: {predicted_tokens_classes}")
+        return predicted_tokens_classes
