@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DistilUSE Base Multilingual PyTorch implementation.
+DistilUSE Base Multilingual Cased PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Sentence-Transformers distiluse-base-multilingual-cased-v2 model loader
+Sentence-Transformers distiluse-base-multilingual-cased-v1 model loader
 for sentence embedding generation.
 """
 import torch
@@ -22,24 +22,24 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available model variants for distiluse-base-multilingual."""
+    """Available model variants for distiluse-base-multilingual-cased."""
 
-    DISTILUSE_BASE_MULTILINGUAL_CASED_V2 = (
-        "sentence-transformers/distiluse-base-multilingual-cased-v2"
+    DISTILUSE_BASE_MULTILINGUAL_CASED_V1 = (
+        "sentence-transformers/distiluse-base-multilingual-cased-v1"
     )
 
 
 class ModelLoader(ForgeModel):
-    """Sentence-Transformers distiluse-base-multilingual-cased-v2 model loader."""
+    """Sentence-Transformers distiluse-base-multilingual-cased-v1 model loader."""
 
     _VARIANTS = {
-        ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED_V2: LLMModelConfig(
-            pretrained_model_name="sentence-transformers/distiluse-base-multilingual-cased-v2",
+        ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED_V1: LLMModelConfig(
+            pretrained_model_name="sentence-transformers/distiluse-base-multilingual-cased-v1",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED_V2
+    DEFAULT_VARIANT = ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED_V1
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -52,7 +52,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="distiluse-base-multilingual",
+            model="distiluse-base-multilingual-cased",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_EMBED_GEN,
@@ -75,7 +75,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs = {}
         if dtype_override is not None:
-            model_kwargs["dtype"] = dtype_override
+            model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModel.from_pretrained(model_name, **model_kwargs)

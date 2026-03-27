@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DistilUSE Base Multilingual model implementation for Tenstorrent projects.
+DistilUSE Base Multilingual Cased model implementation for Tenstorrent projects.
 """
 from .pytorch import ModelLoader
