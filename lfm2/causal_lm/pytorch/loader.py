@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available LFM2 MoE model variants for causal language modeling."""
 
     LFM2_24B_A2B = "lfm2_24b_a2b"
+    TINY_RANDOM_LFM2 = "tiny_random_lfm2"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LFM2_24B_A2B: LLMModelConfig(
             pretrained_model_name="LiquidAI/LFM2-24B-A2B",
+            max_length=128,
+        ),
+        ModelVariant.TINY_RANDOM_LFM2: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-lfm2",
             max_length=128,
         ),
     }
