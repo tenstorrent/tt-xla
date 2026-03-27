@@ -242,6 +242,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GEMMA_3_4B_IT,
             ModelVariant.GEMMA_3_4B_IT_QAT_4BIT,
             ModelVariant.GEMMA_3_12B_IT,
+            ModelVariant.GEMMA_3_12B_IT_NVFP4,
         ]:
             assert (
                 self.config.text_config.num_attention_heads % mesh_shape[1] == 0
