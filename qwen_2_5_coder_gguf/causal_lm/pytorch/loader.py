@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 Coder GGUF model variants for causal language modeling."""
 
-    QWEN_2_5_CODER_32B_INSTRUCT_GGUF = "32B_Instruct_GGUF"
+    QWEN_2_5_CODER_0_5B_Q8_0_GGUF = "0.5B_Q8_0_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 2.5 Coder GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/Qwen2.5-Coder-32B-Instruct-GGUF",
+        ModelVariant.QWEN_2_5_CODER_0_5B_Q8_0_GGUF: LLMModelConfig(
+            pretrained_model_name="ggml-org/Qwen2.5-Coder-0.5B-Q8_0-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_0_5B_Q8_0_GGUF
 
-    GGUF_FILE = "Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf"
+    GGUF_FILE = "qwen2.5-coder-0.5b-q8_0.gguf"
 
-    sample_text = "Write a Python function to compute the Fibonacci sequence."
+    sample_text = "write a quick sort algorithm."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -147,12 +147,9 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+            shard_specs[layer.self_attn.o_proj.weight] = ("model", "batch")
         shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
