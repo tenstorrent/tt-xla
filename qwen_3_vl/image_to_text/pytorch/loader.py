@@ -177,10 +177,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         # Quantized variants load with device_map="cpu" to keep quantized weights on CPU
-        if self._variant in (
-            ModelVariant.QWEN_3_VL_4B_INSTRUCT_AWQ,
-            ModelVariant.QWEN_3_VL_2B_INSTRUCT_BNB_4BIT,
-        ):
+        if self._variant in (ModelVariant.QWEN_3_VL_2B_INSTRUCT_BNB_4BIT,):
             model_kwargs["device_map"] = "cpu"
         else:
             model_kwargs["dtype"] = "auto"
