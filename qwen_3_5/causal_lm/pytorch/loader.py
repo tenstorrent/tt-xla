@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B = "27B"
     QWEN_3_5_35B_A3B = "35B_A3B"
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
+    QWEN_3_5_35B_A3B_GPTQ_INT4 = "35B_A3B_GPTQ_Int4"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
 
 
@@ -60,6 +61,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_FP8: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-35B-A3B-FP8",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_GPTQ_INT4: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3.5-35B-A3B-GPTQ-Int4",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_9B_GGUF: LLMModelConfig(
@@ -164,6 +169,10 @@ class ModelLoader(ForgeModel):
         if self._is_gguf_variant():
             model_kwargs["gguf_file"] = self.GGUF_FILE
 
+        # GPTQ variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_3_5_35B_A3B_GPTQ_INT4:
+            model_kwargs["device_map"] = "cpu"
+
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if hasattr(config, "text_config"):
@@ -250,6 +259,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
+            ModelVariant.QWEN_3_5_35B_A3B_GPTQ_INT4,
         )
 
     def load_shard_spec(self, model):
