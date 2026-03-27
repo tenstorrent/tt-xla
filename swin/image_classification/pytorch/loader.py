@@ -39,6 +39,9 @@ class ModelVariant(StrEnum):
     SWIN_TINY_HF = "Tiny_Patch4_Window7_224"
     SWINV2_TINY_HF = "v2_Tiny_Patch4_Window8_256"
 
+    # TIMM variants
+    SWIN_BASE_PATCH4_WINDOW7_224_MS_IN22K = "Base_Patch4_Window7_224_MS_IN22K"
+
     # Torchvision variants
     SWIN_T = "T"
     SWIN_S = "S"
@@ -61,6 +64,11 @@ class ModelLoader(ForgeModel):
         ModelVariant.SWINV2_TINY_HF: SwinConfig(
             pretrained_model_name="microsoft/swinv2-tiny-patch4-window8-256",
             source=ModelSource.HUGGING_FACE,
+        ),
+        # TIMM variants
+        ModelVariant.SWIN_BASE_PATCH4_WINDOW7_224_MS_IN22K: SwinConfig(
+            pretrained_model_name="swin_base_patch4_window7_224.ms_in22k",
+            source=ModelSource.TIMM,
         ),
         # Torchvision variants
         ModelVariant.SWIN_T: SwinConfig(
@@ -109,12 +117,18 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
+        # Determine model group
+        if variant == ModelVariant.SWIN_S:
+            group = ModelGroup.RED
+        elif cls._VARIANTS[variant].source == ModelSource.TIMM:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="Swin",
             variant=variant,
-            group=ModelGroup.RED
-            if variant == ModelVariant.SWIN_S
-            else ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
@@ -146,7 +160,13 @@ class ModelLoader(ForgeModel):
         model_name = self._variant_config.pretrained_model_name
         source = self._variant_config.source
 
-        if source == ModelSource.HUGGING_FACE:
+        if source == ModelSource.TIMM:
+            # Load model from TIMM
+            import timm
+
+            model = timm.create_model(model_name, pretrained=True)
+
+        elif source == ModelSource.HUGGING_FACE:
             # Load model from HuggingFace
             model = AutoModelForImageClassification.from_pretrained(
                 model_name, **kwargs
