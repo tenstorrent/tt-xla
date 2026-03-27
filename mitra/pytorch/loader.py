@@ -67,8 +67,13 @@ class ModelLoader(ForgeModel):
         """
         from autogluon.tabular.models.mitra._internal.models.tab2d import Tab2D
 
+        model_kwargs = {"device": "cpu"}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
         model = Tab2D.from_pretrained(
-            self._variant_config.pretrained_model_name, device="cpu"
+            self._variant_config.pretrained_model_name, **model_kwargs
         )
         model.eval()
         return model
