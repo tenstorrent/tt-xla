@@ -4,8 +4,8 @@
 """
 KoBART model loader implementation for summarization.
 """
-from transformers import BartForConditionalGeneration, PreTrainedTokenizerFast
-from transformers.models.bart.modeling_bart import shift_tokens_right
+
+import torch
 from typing import Optional
 
 from ....base import ForgeModel
@@ -21,27 +21,29 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available KoBART summarization model variants."""
+    """Available KoBART model variants for summarization."""
 
-    BASE = "Base"
+    V3 = "V3"
 
 
 class ModelLoader(ForgeModel):
-    """KoBART model loader implementation for summarization tasks."""
+    """KoBART model loader implementation for summarization."""
 
     _VARIANTS = {
-        ModelVariant.BASE: LLMModelConfig(
-            pretrained_model_name="gogamza/kobart-summarization",
+        ModelVariant.V3: LLMModelConfig(
+            pretrained_model_name="EbanLee/kobart-summary-v3",
+            max_length=1026,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE
+    DEFAULT_VARIANT = ModelVariant.V3
 
     sample_text = (
-        "과거를 떠올려보자. , , , "
-        "독보적인 매체는 TV였다. 음악을 좋아하는 사람들은 음악 방송을 기다리고 "
-        "기다리다가 한 주에 한두번 하는 음악 방송을 보곤 했다. 그게 아니라면 "
-        "라디오를 통해서 음악을 들을 수 있었다."
+        "서울특별시는 대한민국의 수도이자 최대 도시이다. "
+        "서울의 인구는 약 950만 명으로, 대한민국 전체 인구의 약 18%를 차지한다. "
+        "서울은 정치, 경제, 문화의 중심지로서 대한민국의 발전을 이끌어 왔다. "
+        "또한 서울은 세계적으로도 중요한 도시로 인정받고 있으며, "
+        "많은 국제기구와 다국적 기업의 본부가 위치해 있다."
     )
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -53,6 +55,7 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self.tokenizer = None
+        self._cached_model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -83,6 +86,8 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
+        from transformers import PreTrainedTokenizerFast
+
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
@@ -100,14 +105,16 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            torch.nn.Module: The KoBART model instance for summarization.
+            torch.nn.Module: The KoBART model instance for conditional generation.
         """
+        from transformers import BartForConditionalGeneration
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -115,6 +122,8 @@ class ModelLoader(ForgeModel):
         model = BartForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
+        model.eval()
+        self._cached_model = model
 
         return model
 
@@ -125,27 +134,26 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
 
         Returns:
-            list: Input tensors that can be fed to the model.
+            dict: Input tensors that can be fed to the model.
         """
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs_dict = self.tokenizer(
+        inputs = self.tokenizer(
             self.sample_text,
+            truncation=True,
+            max_length=self._variant_config.max_length,
             return_tensors="pt",
         )
 
-        model = self.load_model()
-        decoder_input_ids = shift_tokens_right(
-            inputs_dict["input_ids"],
-            model.config.pad_token_id,
-            model.config.decoder_start_token_id,
+        # BART conditional generation requires decoder_input_ids
+        decoder_start_token_tensor = torch.tensor(
+            self._cached_model.config.decoder_start_token_id,
+            dtype=torch.long,
         )
-
-        inputs = [
-            inputs_dict["input_ids"],
-            inputs_dict["attention_mask"],
-            decoder_input_ids,
-        ]
+        decoder_input_ids = (
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
+        )
+        inputs["decoder_input_ids"] = decoder_input_ids
 
         return inputs
