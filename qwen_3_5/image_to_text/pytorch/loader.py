@@ -5,13 +5,12 @@
 Qwen 3.5 model loader implementation for image to text.
 """
 
+from transformers import AutoModelForImageTextToText, AutoProcessor
 from typing import Optional
-
-from transformers import AutoModelForImageTextToText, AutoProcessor, AutoConfig
 
 from ....base import ForgeModel
 from ....config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -24,42 +23,44 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for image to text."""
 
-    QWEN_3_5_4B_BASE_GGUF = "4B_Base_GGUF"
+    UNSLOTH_QWEN_3_5_35B_A3B = "unsloth_35b_a3b"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen 3.5 model loader for image to text tasks."""
+    """Qwen 3.5 model loader implementation for image to text tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.QWEN_3_5_4B_BASE_GGUF: ModelConfig(
-            pretrained_model_name="titan0115/Qwen3.5-4B-Base",
+        ModelVariant.UNSLOTH_QWEN_3_5_35B_A3B: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3.5-35B-A3B",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_4B_BASE_GGUF
-
-    _GGUF_FILES = {
-        ModelVariant.QWEN_3_5_4B_BASE_GGUF: "Qwen3.5-4B-Base-Q4_K_M.gguf",
-    }
-
-    _PROCESSOR_NAME = "Qwen/Qwen3.5-4B-Base"
-
-    sample_text = "Describe this image."
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.UNSLOTH_QWEN_3_5_35B_A3B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize Qwen 3.5 image to text model loader."""
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self.processor = None
-        self.config = None
-
-    @property
-    def gguf_file(self):
-        return self._GGUF_FILES[self._variant]
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="Qwen 3.5",
             variant=variant,
@@ -69,36 +70,45 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self):
-        self.processor = AutoProcessor.from_pretrained(self._PROCESSOR_NAME)
-        return self.processor
-
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Qwen 3.5 model instance for image to text."""
+        """Load and return the Qwen 3.5 model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            torch.nn.Module: The Qwen 3.5 model instance for image to text.
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        model_kwargs["dtype"] = "auto"
+        model_kwargs["device_map"] = "auto"
+
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.gguf_file
+
+        self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
 
         model = AutoModelForImageTextToText.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
-
-        self.config = model.config
-
-        if self.processor is None:
-            self._load_processor()
+        )
+        model.eval()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return input tensors for Qwen 3.5 image to text."""
-        if self.processor is None:
-            self._load_processor()
+        """Load and return sample inputs for the Qwen 3.5 model with this instance's variant settings.
 
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
         messages = [
             {
                 "role": "user",
@@ -107,7 +117,7 @@ class ModelLoader(ForgeModel):
                         "type": "image",
                         "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
                     },
-                    {"type": "text", "text": self.sample_text},
+                    {"type": "text", "text": "Describe this image."},
                 ],
             }
         ]
@@ -120,9 +130,3 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
         return inputs
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
-        )
-        return self.config
