@@ -37,7 +37,7 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.GEMMA_3_270M: LLMModelConfig(
-            pretrained_model_name="unsloth/gemma-3-270m",
+            pretrained_model_name="google/gemma-3-270m",
             max_length=256,
         ),
         ModelVariant.GEMMA_3_270M_IT: LLMModelConfig(
@@ -160,16 +160,19 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
-        raw_text = prompt or self.sample_text
-        if self._variant in (
-            ModelVariant.GEMMA_3_270M_IT,
-            ModelVariant.GEMMA_3_1B_IT,
-            ModelVariant.GEMMA_3_27B_IT,
-        ):
+        if self._variant == ModelVariant.GEMMA_3_270M:
+            inputs = self.tokenizer(
+                prompt or self.sample_text,
+                return_tensors="pt",
+                max_length=max_length,
+                padding="max_length",
+                truncation=True,
+            )
+        else:
             input_prompt = [
                 {
                     "role": "user",
-                    "content": raw_text,
+                    "content": prompt or self.sample_text,
                 }
             ]
             input_text = self.tokenizer.apply_chat_template(
@@ -177,15 +180,13 @@ class ModelLoader(ForgeModel):
                 add_generation_prompt=True,
                 tokenize=False,
             )
-        else:
-            input_text = raw_text
-        inputs = self.tokenizer(
-            [input_text],
-            return_tensors="pt",
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
-        )
+            inputs = self.tokenizer(
+                [input_text],
+                return_tensors="pt",
+                max_length=max_length,
+                padding="max_length",
+                truncation=True,
+            )
         for key in inputs:
             inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
