@@ -6,12 +6,9 @@ FLUX.1-Kontext-dev model loader implementation for image editing.
 """
 
 import torch
-import numpy as np
 from diffusers import FluxKontextPipeline, AutoencoderTiny
-from PIL import Image
 from typing import Optional
 
-from ...tools.utils import get_file
 from ...base import ForgeModel
 from ...config import (
     ModelConfig,
@@ -106,12 +103,6 @@ class ModelLoader(ForgeModel):
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
         num_channels_latents = self.pipe.transformer.config.in_channels // 4
 
-        # Load a sample input image for editing
-        image_file = get_file(
-            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
-        )
-        input_image = Image.open(image_file).convert("RGB").resize((width, height))
-
         # Text encoding for CLIP
         text_inputs_clip = self.pipe.tokenizer(
             prompt,
@@ -156,14 +147,7 @@ class ModelLoader(ForgeModel):
         # Create text IDs
         text_ids = torch.zeros(prompt_embeds.shape[1], 3).to(dtype=dtype)
 
-        # Encode the input image to latent space
-        image_tensor = (
-            torch.from_numpy(np.array(input_image)).permute(2, 0, 1).unsqueeze(0)
-        )
-        image_tensor = image_tensor.to(dtype=dtype) / 127.5 - 1.0
-        image_latents = self.pipe.vae.encode(image_tensor).latents
-
-        # Create latents (noise + image latents for editing)
+        # Create latents
         height_latent = 2 * (int(height) // (self.pipe.vae_scale_factor * 2))
         width_latent = 2 * (int(width) // (self.pipe.vae_scale_factor * 2))
 
