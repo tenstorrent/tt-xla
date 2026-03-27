@@ -25,9 +25,7 @@ class ModelVariant(StrEnum):
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
-    ROBERTA_LARGE_NLI = "Large_NLI"
-    FTROBERTALLM = "FtRoBERTaLLM"
-    TINY_RANDOM = "Tiny_Random"
+    ROBERTA_BASE_ZEROSHOT_V2 = "Base_Zeroshot_V2"
 
 
 class ModelLoader(ForgeModel):
@@ -43,14 +41,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
             pretrained_model_name="FacebookAI/roberta-large-mnli",
         ),
-        ModelVariant.ROBERTA_LARGE_NLI: ModelConfig(
-            pretrained_model_name="ynie/roberta-large-snli_mnli_fever_anli_R1_R2_R3-nli",
-        ),
-        ModelVariant.FTROBERTALLM: ModelConfig(
-            pretrained_model_name="zhx123/ftrobertallm",
-        ),
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="peft-internal-testing/tiny-random-RobertaForSequenceClassification",
+        ModelVariant.ROBERTA_BASE_ZEROSHOT_V2: ModelConfig(
+            pretrained_model_name="MoritzLaurer/roberta-base-zeroshot-v2.0-c",
         ),
     }
 
@@ -74,9 +66,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
             ModelVariant.ROBERTA_LARGE_MNLI,
-            ModelVariant.ROBERTA_LARGE_NLI,
-            ModelVariant.FTROBERTALLM,
-            ModelVariant.TINY_RANDOM,
+            ModelVariant.ROBERTA_BASE_ZEROSHOT_V2,
         ):
             group = ModelGroup.VULCAN
 
@@ -148,10 +138,10 @@ class ModelLoader(ForgeModel):
         return model
 
     def _is_nli_variant(self):
-        """Check if the current variant is an NLI model."""
+        """Check if the current variant is an NLI-based model."""
         return self._variant in (
             ModelVariant.ROBERTA_LARGE_MNLI,
-            ModelVariant.ROBERTA_LARGE_NLI,
+            ModelVariant.ROBERTA_BASE_ZEROSHOT_V2,
         )
 
     def load_inputs(self):
@@ -162,7 +152,7 @@ class ModelLoader(ForgeModel):
             self.load_model()  # This will initialize the tokenizer
 
         if self._is_nli_variant():
-            # NLI uses premise/hypothesis pairs
+            # MNLI uses premise/hypothesis pairs
             inputs = self.tokenizer(
                 self._NLI_PREMISE,
                 self._NLI_HYPOTHESIS,
