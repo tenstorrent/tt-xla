@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     # HuggingFace variants
     RESNET_50_HF = "ResNet50_HuggingFace"
     RESNET_50_HF_HIGH_RES = "ResNet50_HuggingFace_High_Resolution"
+    RESNET_10_HF = "ResNet10_HuggingFace"
 
     # TIMM variants
     RESNET_50_TIMM = "ResNet50_TIMM"
@@ -54,7 +55,6 @@ class ModelVariant(StrEnum):
     RESNET_50_A1_IN1K_TIMM = "ResNet50_A1_IN1K_TIMM"
     TEST_RESNET_R160_IN1K_TIMM = "TestResNet_R160_IN1K_TIMM"
     TINY_RANDOM_HF = "TinyRandom_HuggingFace"
-    RESNET_10_HF = "ResNet10_HuggingFace"
 
     # Torchvision variants
     RESNET_18 = "ResNet18"
