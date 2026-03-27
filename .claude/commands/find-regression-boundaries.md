@@ -34,7 +34,7 @@ All bisection data lives under `$REPO_ROOT/bisection/`:
 - `bisection/logs/` — cached run logs (shared across all subagents)
 - `bisection/logs/index.json` — source of truth: which runs are downloaded
 - `bisection/logs/run_{run_id}/` — extracted logs for a run
-- `bisection/regression_report_{run_id}.json` — final output of this skill
+- `bisection/regression_report_<stem>.json` — final output of this skill (stem derived from input filename, e.g. `run_23375485557_failures.json` → `regression_report_23375485557.json`)
 
 ---
 
@@ -90,43 +90,11 @@ Runs to search (newest → oldest):
 
 ---
 
-### Phase 3 — Ensure logs are cached for all runs
+### Phase 3 — Verify logs are cached
 
-For each run in the list, check `$REPO_ROOT/bisection/logs/index.json`. For any run not yet cached, download and extract the logs **before** launching subagents — this avoids race conditions where multiple subagents try to download the same run simultaneously.
+**This skill does not download logs.** The starting run's logs were already downloaded by `/collect-failures`. Logs for all *previous* runs (the ones to walk back through) must also be present before this skill runs — download them manually or use `.claude/scripts/run_regression_batches.py` which handles downloading and then invokes this skill per batch.
 
-**Cache procedure for a single run** (repeat for each uncached run):
-
-1. Fetch run metadata (sha, date):
-```bash
-gh api "repos/<github_repo>/actions/runs/<run_id>" \
-  --jq '{id: .id, workflow_id: .workflow_id, workflow_name: (.name), head_sha: .head_sha, created_at: .created_at}'
-```
-
-2. Create the directory:
-```bash
-mkdir -p "$REPO_ROOT/bisection/logs/run_<run_id>"
-```
-
-3. Download the full logs ZIP:
-```bash
-gh api "repos/<github_repo>/actions/runs/<run_id>/logs" \
-  > "$REPO_ROOT/bisection/logs/run_<run_id>.zip"
-```
-
-4. Extract:
-```bash
-cd "$REPO_ROOT/bisection/logs/run_<run_id>"
-unzip -o ../run_<run_id>.zip
-```
-
-5. Remove ZIP:
-```bash
-rm "$REPO_ROOT/bisection/logs/run_<run_id>.zip"
-```
-
-6. Update `$REPO_ROOT/bisection/logs/index.json` with the new entry (merge — do not overwrite existing entries).
-
-Print progress as each run is downloaded: `Downloaded logs for run <run_id> (<date>)`.
+Check that `$REPO_ROOT/bisection/logs/index.json` contains entries for all runs in the list. If any run is missing, print a warning and skip it during investigation (treat as `DOWNLOAD_FAILED`).
 
 ---
 
@@ -172,6 +140,8 @@ For each run (starting at index 0, going to older runs):
 
 1. Search the cached logs for the test_id **on the correct machine type**.
 
+   **Always search for the exact `test_id` string — never attempt partial matches, fuzzy matching, or substitutions.** If the exact string is not present in the logs, the test does not exist in that run. Do not try to find renamed or similar variants; that is not your job and will produce incorrect boundaries.
+
    Log file names encode the machine type in their job name (e.g. `...test n150...`, `...test n300...`). First narrow to log files for the correct machine type:
    ```bash
    grep -rln "<test_id>" <REPO_ROOT>/bisection/logs/run_<run_id>/ | grep -i "<machine_type>"
@@ -211,9 +181,9 @@ The `TT_FATAL` line contains the actual error (e.g. `Out of Memory: Not enough s
    **3a. Check if the test was collected but the job was killed before it ran:**
    The pytest log prints all collected test IDs at the very start of the job (with no status suffix). If a job is killed mid-run, tests that were collected but not yet executed will appear in the collection output but have no result line.
 
-   Search for the test_id anywhere in the log (collection line has no trailing status):
+   Search for the test_id anywhere in the log (collection line has no trailing status). Use both torch and jax test function names:
    ```bash
-   grep -rn "test_all_models_torch\[<test_id>\]" <REPO_ROOT>/bisection/logs/run_<run_id>/
+   grep -rn "test_all_models_torch\[<test_id>\]\|test_all_models_jax\[<test_id>\]" <REPO_ROOT>/bisection/logs/run_<run_id>/
    ```
    - If a line is found with no PASSED/FAILED/ERROR suffix → **NOT_RUN** — skip this run, continue to older
    - If no line found at all → **NOT_FOUND** — stop here
@@ -223,17 +193,15 @@ The `TT_FATAL` line contains the actual error (e.g. `Out of Memory: Not enough s
    **PCC errors** — both errors contain `PCC comparison failed`:
    - Extract the calculated PCC value from each error (the number after `pcc=`)
    - Compute the absolute difference between the two PCC values
-   - Difference < 0.1 → **SAME_ERROR**, continue to older run
-   - Difference >= 0.1 → **DIFFERENT_ERROR**, stop immediately
+   - Difference < 0.1 → record as **FAILED** with the error message, continue to older run
+   - Difference >= 0.1 → record as **DIFFERENT_ERROR**, stop immediately
 
    **Non-PCC errors** (crash, OOM, compile error, etc.):
-   - Same error type and root cause → **SAME_ERROR**, continue to older run
-   - Different error type or root cause → **DIFFERENT_ERROR**, stop immediately
+   - Same error type and root cause → record as **FAILED** with the error message, continue to older run
+   - Different error type or root cause → record as **DIFFERENT_ERROR**, stop immediately
 
    **Mixed** (one is PCC, other is not):
-   - Always **DIFFERENT_ERROR**, stop immediately
-
-   - If PASSED: record as PASSED, **stop immediately — do not check any more runs**
+   - Always record as **DIFFERENT_ERROR**, stop immediately
 
 **IMPORTANT: As soon as you record PASSED, DIFFERENT_ERROR, or NOT_FOUND, you MUST stop. Do not process any further runs.**
 
@@ -243,12 +211,12 @@ These are hard stops — the moment any of these is hit, record it and return th
 
 | Condition | boundary_found | first_bad | last_good |
 |-----------|---------------|-----------|-----------|
-| Current run is PASSED | **true** | most recent SAME_ERROR run | this run (PASSED) |
-| Current run is DIFFERENT_ERROR | **true** | most recent SAME_ERROR run | this run (DIFFERENT_ERROR) |
-| Current run is NOT_FOUND | **true** | starting run | NOT_FOUND |
-| Reached 10 runs back with only SAME_ERROR/NOT_RUN | **false** | — | regression predates available history |
+| Current run is PASSED | **true** | oldest FAILED run in the walk | this run (PASSED) |
+| Current run is DIFFERENT_ERROR | **true** | oldest FAILED run in the walk | this run (DIFFERENT_ERROR) |
+| Current run is NOT_FOUND | **true** | oldest FAILED run in the walk | NOT_FOUND |
+| Reached 10 runs back with only FAILED/NOT_RUN | **false** | — | regression predates available history |
 
-**"most recent SAME_ERROR run"** — this is always at minimum the starting run (index 0). Even if the very first run checked (index 1) is PASSED or DIFFERENT_ERROR, the boundary is still valid: first_bad = starting run, last_good = run at index 1.
+**"oldest FAILED run in the walk"** — this is always at minimum the starting run (index 0), since the starting run is always FAILED (it is the source run where the failure was observed). Even if the very first run checked (index 1) is PASSED or DIFFERENT_ERROR, the boundary is still valid: first_bad = starting run, last_good = run at index 1.
 
 ## Output
 
@@ -262,17 +230,17 @@ Return a JSON object (do not write any files):
   "first_bad_run_id": <run_id>,
   "first_bad_run_date": "<date>",
   "first_bad_sha": "<sha>",
-  "last_good_run_id": <run_id>,
-  "last_good_run_date": "<date>",
-  "last_good_sha": "<sha>",
+  "last_good_run_id": <run_id>,        // null when last_good_status is NOT_FOUND
+  "last_good_run_date": "<date>",      // null when last_good_status is NOT_FOUND
+  "last_good_sha": "<sha>",            // null when last_good_status is NOT_FOUND
   "last_good_status": "PASSED | DIFFERENT_ERROR | NOT_FOUND",
   "last_good_raw_error": "<raw error from last_good run, or null if PASSED/NOT_FOUND>",
   "known_error": "<the original error from the starting run>",
   "runs_checked": [
-    {"run_id": ..., "date": "...", "status": "SAME_ERROR | DIFFERENT_ERROR | PASSED | NOT_RUN | NOT_FOUND", "raw_error": "<always include the error message, or null for PASSED/NOT_RUN/NOT_FOUND>"}
+    {"run_id": ..., "date": "...", "status": "FAILED | DIFFERENT_ERROR | PASSED | NOT_RUN | NOT_FOUND", "raw_error": "<always include the error message, or null for PASSED/NOT_RUN/NOT_FOUND>"}
   ]
 
-IMPORTANT: every entry in runs_checked MUST have a raw_error field. For SAME_ERROR and DIFFERENT_ERROR always include the actual error message extracted from that run's logs — never omit it.
+IMPORTANT: every entry in runs_checked MUST have a raw_error field. For FAILED and DIFFERENT_ERROR always include the actual error message extracted from that run's logs — never omit it.
 }
 ```
 
@@ -283,7 +251,7 @@ If no boundary found (ran out of history):
   "machine_type": "<machine_type>",
   "machine_name": "<machine_name>",
   "boundary_found": false,
-  "reason": "Reached 10 run limit with no boundary | NOT_FOUND before any SAME_ERROR",
+  "reason": "Reached 10 run limit with no boundary",
   "known_error": "<original error>",
   "runs_checked": [...]
 }
@@ -296,7 +264,17 @@ If no boundary found (ran out of history):
 
 After all subagents complete, collect their JSON outputs.
 
-Save to `$REPO_ROOT/bisection/regression_report_<run_id>.json`:
+**Derive the output filename from the input filename** (not from `run_id`):
+- Take the basename of the input file (e.g. `batch_0_23375485557_failures.json`)
+- Strip the `_failures.json` suffix → `batch_0_23375485557`
+- Strip a leading `run_` prefix if present → e.g. `run_23375485557` → `23375485557`
+- Output path: `$REPO_ROOT/bisection/regression_report_<stem>.json`
+
+Examples:
+- `batch_0_23375485557_failures.json` → `bisection/regression_report_batch_0_23375485557.json`
+- `run_23375485557_failures.json` → `bisection/regression_report_23375485557.json`
+
+Save to that path:
 ```json
 {
   "source_run_id": <run_id>,
@@ -347,7 +325,7 @@ yoloworld/pytorch-Xlarge_640-single_device-inference      | n150     | 2026-03-1
 mobilenetv3/pytorch-small-single_device-inference         | n150     | (boundary not found — reached limit)
 ...
 
-Saved to: bisection/regression_report_<run_id>.json
+Saved to: bisection/regression_report_<stem>.json
 ```
 
 ---
@@ -359,6 +337,5 @@ Saved to: bisection/regression_report_<run_id>.json
 | `git rev-parse` fails (not inside a repo) | Stop and tell the user to run this from inside the repository |
 | Failures JSON not found | Report path tried, tell user to run `/collect-failures` first |
 | Fewer than 2 runs available in history | Report to user — not enough history to find a boundary |
-| Log ZIP download fails for a run | Skip that run in the walk, note it in the result as `DOWNLOAD_FAILED` |
 | Subagent returns malformed JSON | Use empty runs_checked and mark boundary_found: false with reason "subagent error" |
 | All tests hit the 10-run limit | Warn user — the regression may predate available history; suggest fetching more runs manually |

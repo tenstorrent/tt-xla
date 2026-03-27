@@ -76,7 +76,7 @@ gh api "repos/$GITHUB_REPO/actions/runs/<run_id>/jobs?per_page=100" \
 
 If there are more than 100 jobs, fetch additional pages until `.jobs` is empty.
 
-Partition into four buckets based on `conclusion`:
+Partition into three active buckets based on `conclusion`:
 - **failed** — `conclusion == "failure"` → full log parsing (individual tests + error messages)
 - **cancelled** — `conclusion == "cancelled"` → full log parsing (individual tests + error messages); these are jobs killed with SIGKILL (signal 9)
 - **timed_out** — `conclusion == "timed_out"` → limited log parsing (see Phase 5)
@@ -187,7 +187,7 @@ grep -ic "has timed out\|timed out after\|The operation was canceled" "<log_file
 
 If this matches (count > 0), **do not process it in Phase 4.** Move it to the `timed_out` bucket and process it in Phase 5.
 
-Use the full timeout message line as the `raw_error` for the timed_out_jobs entry:
+Save the full timeout message line as the timeout reason (used as `last_test_executing` context):
 ```bash
 grep -i "has timed out\|timed out after\|The operation was canceled" "<log_file>" | head -3
 ```
@@ -208,7 +208,7 @@ If "Last test: <test_id>" appears, use that as `last_test_executing`. Otherwise 
 - `PASSED`, `XFAIL`, `SKIPPED`
 
 ```bash
-grep -n "FAILED tests/.*test_all_models_torch" "<log_file>"
+grep -n "FAILED tests/.*test_all_models_torch\|FAILED tests/.*test_all_models_jax" "<log_file>"
 grep -n "CRASHED with signal" "<log_file>"
 ```
 
@@ -232,7 +232,7 @@ FAILED tests/runner/test_models.py::test_all_models_torch[<test_id>] - tests/run
 
 **Always extract the error from section A**, not section B:
 ```bash
-grep -A 30 "____.*test_all_models_torch\[<test_id>\].*____" <log_file> | grep "^[^Z]*E   "
+grep -A 30 "____.*test_all_models_torch\[<test_id>\].*____\|____.*test_all_models_jax\[<test_id>\].*____" <log_file> | grep "^[^Z]*E   "
 ```
 
 Strip the leading timestamp and `E   ` prefix. If no `E   AssertionError` line is found, fall back to the `FAILED` summary line.
