@@ -4,7 +4,6 @@
 """
 Qwen2.5 Sequence Classification (Reward Model) loader implementation
 """
-import torch
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
 
