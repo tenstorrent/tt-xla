@@ -5,7 +5,6 @@
 SPECTER2 model loader for scientific document feature extraction.
 """
 import torch
-from transformers import AutoModel, AutoTokenizer
 from typing import Optional
 
 from third_party.tt_forge_models.config import (
@@ -59,12 +58,16 @@ class ModelLoader(ForgeModel):
 
     def _load_tokenizer(self):
         if self.tokenizer is None:
+            from transformers import AutoTokenizer
+
             model_name = self._variant_config.pretrained_model_name
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        from transformers import AutoModel
+
         if self.tokenizer is None:
             self._load_tokenizer()
 
