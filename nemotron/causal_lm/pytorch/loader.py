@@ -83,6 +83,10 @@ class ModelLoader(ForgeModel):
 
         return self.tokenizer
 
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.NEMOTRON_3_SUPER_120B_A12B_NVFP4}
+
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -92,6 +96,8 @@ class ModelLoader(ForgeModel):
         model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
         model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
