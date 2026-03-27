@@ -24,33 +24,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PATHOLOGY_MEDIUM = "ZeroShot-NER-Pathology-Medium-209M"
     OPENMED_ZEROSHOT_NER_PHARMA_TINY = "ZeroShot-NER-Pharma-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM = "ZeroShot-NER-Disease-Medium-209M"
-    OPENMED_ZEROSHOT_NER_CHEMICAL_LARGE = "ZeroShot-NER-Chemical-Large-459M"
-    OPENMED_ZEROSHOT_NER_PATHOLOGY_BASE = "ZeroShot-NER-Pathology-Base-220M"
-    OPENMED_ZEROSHOT_NER_DNA_LARGE = "ZeroShot-NER-DNA-Large-459M"
-
-
-_VARIANT_SAMPLE_TEXTS = {
-    ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
-    ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM: "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
-    ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_LARGE: "The patient was administered acetylsalicylic acid for pain relief.",
-    ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_BASE: "Early detection of breast cancer improves survival rates.",
-    ModelVariant.OPENMED_ZEROSHOT_NER_DNA_LARGE: "The p53 protein plays a crucial role in tumor suppression.",
-}
-
-_VARIANT_LABELS = {
-    ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ["SPECIES"],
-    ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM: ["DISEASE"],
-    ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_LARGE: ["CHEM"],
-    ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_BASE: ["DISEASE"],
-    ModelVariant.OPENMED_ZEROSHOT_NER_DNA_LARGE: [
-        "DNA",
-        "RNA",
-        "cell_line",
-        "cell_type",
-        "protein",
-    ],
-}
+    OPENMED_ZEROSHOT_NER_SPECIES_BASE = "ZeroShot-NER-Species-Base-220M"
 
 
 class ModelLoader(ForgeModel):
@@ -69,17 +43,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-Medium-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Chemical-Large-459M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_BASE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Base-220M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DNA_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-Large-459M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_BASE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Base-220M"
         ),
     }
 
