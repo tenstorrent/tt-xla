@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-MMS (Massively Multilingual Speech) model loader implementation for language identification using PyTorch.
+MMS model loader implementation for language identification.
 """
 
 from typing import Optional
@@ -23,19 +23,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MMS language identification model variants."""
 
-    MMS_LID_126 = "MMS_LID_126"
+    MMS_LID_1024 = "MMS_LID_1024"
 
 
 class ModelLoader(ForgeModel):
     """MMS model loader implementation for language identification (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.MMS_LID_126: ModelConfig(
-            pretrained_model_name="facebook/mms-lid-126",
+        ModelVariant.MMS_LID_1024: ModelConfig(
+            pretrained_model_name="facebook/mms-lid-1024",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MMS_LID_126
+    DEFAULT_VARIANT = ModelVariant.MMS_LID_1024
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
