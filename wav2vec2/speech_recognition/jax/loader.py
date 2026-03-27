@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     XLSR_53_POLISH = "XLSR_53_Polish"
     XLS_R_300M_FILIPINO = "XLS_R_300M_Filipino"
     XLSR_53_DUTCH = "XLSR_53_Dutch"
+    XLSR_53_HUNGARIAN = "XLSR_53_Hungarian"
     XLS_R_1B_NYNORSK = "XLS_R_1B_Nynorsk"
     XLSR_53_ESPEAK_CV_FT = "XLSR_53_Espeak_CV_ft"
 
@@ -67,6 +68,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLSR_53_POLISH: ModelConfig(
             pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-polish",
+        ),
+        ModelVariant.XLSR_53_HUNGARIAN: ModelConfig(
+            pretrained_model_name="jonatasgrosman/wav2vec2-large-xlsr-53-hungarian",
         ),
         ModelVariant.XLS_R_300M_FILIPINO: ModelConfig(
             pretrained_model_name="Khalsuu/filipino-wav2vec2-l-xls-r-300m-official",
