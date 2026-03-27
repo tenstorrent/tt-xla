@@ -11,7 +11,7 @@ from torchvision import models
 import torch
 import timm
 
-from transformers import ResNetForImageClassification
+from transformers import AutoModel, ResNetForImageClassification
 from datasets import load_dataset
 from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 
@@ -36,6 +36,7 @@ class ResNetConfig(ModelConfig):
     high_res_size: tuple = (
         None  # None means use default size, otherwise (width, height)
     )
+    trust_remote_code: bool = False
 
 
 class ModelVariant(StrEnum):
@@ -53,6 +54,7 @@ class ModelVariant(StrEnum):
     RESNET_50_A1_IN1K_TIMM = "ResNet50_A1_IN1K_TIMM"
     TEST_RESNET_R160_IN1K_TIMM = "TestResNet_R160_IN1K_TIMM"
     TINY_RANDOM_HF = "TinyRandom_HuggingFace"
+    RESNET_10_HF = "ResNet10_HuggingFace"
 
     # Torchvision variants
     RESNET_18 = "ResNet18"
@@ -107,6 +109,11 @@ class ModelLoader(ForgeModel):
         ModelVariant.TINY_RANDOM_HF: ResNetConfig(
             pretrained_model_name="peft-internal-testing/tiny-random-ResNetForImageClassification",
             source=ModelSource.HUGGING_FACE,
+        ),
+        ModelVariant.RESNET_10_HF: ResNetConfig(
+            pretrained_model_name="helper2424/resnet10",
+            source=ModelSource.HUGGING_FACE,
+            trust_remote_code=True,
         ),
         # Torchvision variants
         ModelVariant.RESNET_18: ResNetConfig(
@@ -178,6 +185,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.RESNET_50_A1_IN1K_TIMM,
             ModelVariant.TEST_RESNET_R160_IN1K_TIMM,
             ModelVariant.TINY_RANDOM_HF,
+            ModelVariant.RESNET_10_HF,
         ]:
             group = ModelGroup.VULCAN
         else:
@@ -208,7 +216,14 @@ class ModelLoader(ForgeModel):
 
         if source == ModelSource.HUGGING_FACE:
             # Load model from HuggingFace
-            model = ResNetForImageClassification.from_pretrained(model_name, **kwargs)
+            if self._variant_config.trust_remote_code:
+                model = AutoModel.from_pretrained(
+                    model_name, trust_remote_code=True, **kwargs
+                )
+            else:
+                model = ResNetForImageClassification.from_pretrained(
+                    model_name, **kwargs
+                )
 
         elif source == ModelSource.TIMM:
             # Load model using timm
