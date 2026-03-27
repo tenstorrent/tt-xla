@@ -53,7 +53,6 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
-        self.sample_text = self._SAMPLE_TEXTS[self._variant]
         self._tokenizer = None
         self._model = None
         self.sample_text = self._SAMPLE_TEXTS.get(
@@ -110,7 +109,7 @@ class ModelLoader(ForgeModel):
 
         sample_text = self._SAMPLE_TEXTS.get(self._variant)
         inputs = self._tokenizer(
-            sample_text,
+            self._SAMPLE_TEXTS[self._variant],
             return_tensors="pt",
         )
 
