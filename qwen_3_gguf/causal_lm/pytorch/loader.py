@@ -40,7 +40,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_8B_DEEPSEEK_V3_2_SPECIALE_DISTILL_GGUF
 
-    GGUF_FILE = "Qwen3-8B-DeepSeek-v3.2-Speciale-Distill-Q4_K_M.gguf"
+    GGUF_FILE = "Qwen3-8B-DeepSeek-v3.2-Speciale-Distill.q4_k_m.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
