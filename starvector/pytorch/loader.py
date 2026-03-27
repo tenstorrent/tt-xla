@@ -5,7 +5,6 @@
 StarVector model loader implementation for image-to-SVG generation.
 """
 
-import torch
 from typing import Optional
 from transformers import AutoModelForCausalLM, AutoProcessor
 from datasets import load_dataset
