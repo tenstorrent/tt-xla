@@ -2,16 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-UMT5 (Universal Multilingual T5) encoder model loader for embedding generation.
+UMT5 model loader implementation
 """
 
 import torch
-from transformers import AutoTokenizer, UMT5EncoderModel
+from transformers import AutoTokenizer, UMT5ForConditionalGeneration, AutoConfig
 from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -22,40 +22,43 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available UMT5 encoder model variants."""
+    """Available UMT5 model variants."""
 
-    UMT5_XXL = "UMT5_XXL"
+    XXL = "XXL"
 
 
 class ModelLoader(ForgeModel):
-    """UMT5 encoder model loader for embedding generation."""
+    """UMT5 model loader implementation for conditional generation tasks."""
 
     _VARIANTS = {
-        ModelVariant.UMT5_XXL: ModelConfig(
+        ModelVariant.XXL: LLMModelConfig(
             pretrained_model_name="google/umt5-xxl",
+            max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.UMT5_XXL
+    DEFAULT_VARIANT = ModelVariant.XXL
 
-    sample_sentences = [
-        "The quick brown fox jumps over the lazy dog.",
-    ]
+    sample_text = """summarize: Researchers have extensively studied the benefits of having pets,
+                    particularly dogs, on human health and well-being. Findings suggest that pet ownership
+                    can lead to improved mental health, reduced stress levels, and even physical health benefits
+                    such as lower blood pressure and increased physical activity levels due to regular walks."""
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
         super().__init__(variant)
         self.tokenizer = None
+        self._cached_model = None
+        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="UMT5",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.NLP_EMBED_GEN,
+            task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -74,14 +77,26 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {}
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
+
+        config = AutoConfig.from_pretrained(pretrained_model_name)
+        config.use_cache = False
+
+        if self.num_layers is not None:
+            config.num_layers = self.num_layers
+            config.num_decoder_layers = self.num_layers
+
+        model_kwargs = {"config": config}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = UMT5EncoderModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = UMT5ForConditionalGeneration.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
         model.eval()
-
+        self._cached_model = model
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -89,19 +104,17 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
-            self.sample_sentences,
-            padding="max_length",
-            truncation=True,
-            max_length=128,
+            self.sample_text,
             return_tensors="pt",
         )
 
-        if dtype_override is not None:
-            for key, value in inputs.items():
-                if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
-                    inputs[key] = value.to(dtype_override)
+        decoder_start_token_tensor = torch.tensor(
+            self._cached_model.generation_config.decoder_start_token_id,
+            dtype=torch.long,
+        )
+        decoder_input_ids = (
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
+        )
+        inputs["decoder_input_ids"] = decoder_input_ids
 
         return inputs
-
-    def unpack_forward_output(self, fwd_output) -> torch.Tensor:
-        return fwd_output.last_hidden_state
