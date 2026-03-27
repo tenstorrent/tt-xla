@@ -17,8 +17,6 @@ import sys
 import types
 
 import torch
-from huggingface_hub import hf_hub_download
-from safetensors.torch import load_file
 from typing import Optional
 
 from ...base import ForgeModel
@@ -74,9 +72,6 @@ class ModelLoader(ForgeModel):
     }
 
     DEFAULT_VARIANT = ModelVariant.DIT_V2
-
-    # DiT checkpoint path within the HF repo
-    _CKPT_SUBFOLDER = "hunyuan3d-dit-v2-0"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
