@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available OLMo 2 model variants for causal language modeling."""
 
     OLMo_2_0425_1B = "0425_1b"
+    OLMo_2_1124_7B = "1124_7b"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OLMo_2_0425_1B: LLMModelConfig(
             pretrained_model_name="allenai/OLMo-2-0425-1B",
+            max_length=256,
+        ),
+        ModelVariant.OLMo_2_1124_7B: LLMModelConfig(
+            pretrained_model_name="allenai/OLMo-2-1124-7B",
             max_length=256,
         ),
     }
