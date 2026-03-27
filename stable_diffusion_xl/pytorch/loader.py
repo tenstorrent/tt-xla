@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     STABLE_DIFFUSION_XL_BASE_1_0 = "Base_1.0"
     TINY_RANDOM_STABLE_DIFFUSION_XL = "tiny-random-stable-diffusion-xl"
+    DVINE82_XL = "dvine82-xl"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL: ModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-stable-diffusion-xl",
+        ),
+        ModelVariant.DVINE82_XL: ModelConfig(
+            pretrained_model_name="martineux/dvine82-xl",
         ),
     }
 
@@ -71,7 +75,10 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         group = ModelGroup.RED
-        if variant == ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL:
+        if variant in (
+            ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL,
+            ModelVariant.DVINE82_XL,
+        ):
             group = ModelGroup.VULCAN
         return ModelInfo(
             model="Stable Diffusion XL",
