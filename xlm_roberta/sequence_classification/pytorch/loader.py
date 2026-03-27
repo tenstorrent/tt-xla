@@ -23,11 +23,7 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    TWITTER_XLM_ROBERTA_BASE_SENTIMENT_FINETUNNED = (
-        "citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
-    )
-    XLM_ROBERTA_LARGE_DANISH_CAP_V3 = "poltextlab/xlm-roberta-large-danish-cap-v3"
-    XLM_ROBERTA_LARGE_POLISH_CAP_V3 = "poltextlab/xlm-roberta-large-polish-cap-v3"
+    CLAP_AI_MULTILINGUAL_SENTIMENT = "clapAI/roberta-large-multilingual-sentiment"
 
 
 class ModelLoader(ForgeModel):
@@ -38,16 +34,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT_FINETUNNED: LLMModelConfig(
-            pretrained_model_name="citizenlab/twitter-xlm-roberta-base-sentiment-finetunned",
-            max_length=128,
-        ),
-        ModelVariant.XLM_ROBERTA_LARGE_DANISH_CAP_V3: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-danish-cap-v3",
-            max_length=128,
-        ),
-        ModelVariant.XLM_ROBERTA_LARGE_POLISH_CAP_V3: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-polish-cap-v3",
+        ModelVariant.CLAP_AI_MULTILINGUAL_SENTIMENT: LLMModelConfig(
+            pretrained_model_name="clapAI/roberta-large-multilingual-sentiment",
             max_length=128,
         ),
     }
