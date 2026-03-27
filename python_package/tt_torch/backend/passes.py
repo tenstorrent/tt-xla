@@ -10,6 +10,78 @@ from tt_torch.fusion_providers import FusionProvider
 from ttxla_tools.logging import logger
 
 
+def rewrite_interpolate_to_matmul(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Rewrite F.interpolate(mode='bilinear'/'nearest') to the matmul-based implementation.
+
+    AOTAutograd's functionalization trace decomposes F.interpolate via the C++
+    CompositeImplicitAutograd kernel into gather/index ops before the Python
+    decomposition table is consulted.  This pass rewrites the calls at the FX
+    graph level so they use our efficient matmul-based interpolation instead.
+    """
+    from tt_torch.backend.decompositions import (
+        upsample_linear_vec,
+        upsample_nearest_vec,
+    )
+
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if (
+            node.op != "call_function"
+            or node.target is not torch.nn.functional.interpolate
+        ):
+            continue
+
+        # Extract arguments — F.interpolate(input, size=, scale_factor=, mode=, align_corners=, ...)
+        input_node = node.args[0] if node.args else node.kwargs.get("input")
+        size = node.kwargs.get("size", node.args[1] if len(node.args) > 1 else None)
+        scale_factor = node.kwargs.get("scale_factor", None)
+        mode = node.kwargs.get("mode", "nearest")
+        align_corners = node.kwargs.get("align_corners", False)
+
+        # Normalize size to a list or None
+        if size is not None:
+            if isinstance(size, int):
+                output_size = [size, size]
+            else:
+                output_size = list(size)
+            scale_factors = None
+        else:
+            output_size = None
+            if isinstance(scale_factor, (int, float)):
+                scale_factors = [float(scale_factor), float(scale_factor)]
+            elif scale_factor is not None:
+                scale_factors = [float(s) for s in scale_factor]
+            else:
+                continue
+
+        # Use the vec wrappers which handle output_size/scale_factor normalization
+        if mode == "bilinear":
+            replacement_fn = upsample_linear_vec
+            new_args = (input_node, output_size, align_corners, scale_factors)
+        elif mode == "nearest":
+            replacement_fn = upsample_nearest_vec
+            new_args = (input_node, output_size, scale_factors)
+        else:
+            continue
+
+        with graph.inserting_after(node):
+            new_node = graph.call_function(
+                replacement_fn,
+                args=new_args,
+            )
+            node.replace_all_uses_with(new_node)
+            graph.erase_node(node)
+            modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
 def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     """
     Rewrite call_module nodes targeting AdaptiveAvgPool1d/2d with output_size=1/(1,1)
@@ -128,8 +200,7 @@ def insert_argument_type_markers(
         if out_spec.kind == OutputKind.BUFFER_MUTATION:
             mutated_buffer_targets.add(out_spec.target)
 
-    get_attr_target_type_dict = {}
-    placeholder_target_type_dict = {}
+    input_type_dict = {}
     for in_spec in input_signature:
         type_str = None
         if in_spec.kind == InputKind.USER_INPUT:
@@ -154,22 +225,21 @@ def insert_argument_type_markers(
         else:
             assert False, f"Unexpected input kind: {in_spec.kind}"
 
+        # Index by target (for get_attr nodes) and by arg.name (for placeholder
+        # nodes in the AOTAutograd path).
         if in_spec.target is not None:
-            get_attr_target_type_dict[in_spec.target] = type_str
-        else:
-            placeholder_target_type_dict[in_spec.arg.name] = type_str
+            input_type_dict[in_spec.target] = type_str
+        input_type_dict[in_spec.arg.name] = type_str
 
     for input_node in input_nodes:
         users = list(input_node.users.keys())
         if len(users) == 0:
             continue
 
-        argument_type = None
-        if input_node.target in get_attr_target_type_dict:
-            argument_type = get_attr_target_type_dict[input_node.target]
-        elif input_node.name in placeholder_target_type_dict:
-            argument_type = placeholder_target_type_dict[input_node.name]
-        else:
+        argument_type = input_type_dict.get(input_node.target) or input_type_dict.get(
+            input_node.name
+        )
+        if argument_type is None:
             continue
 
         mangled_name = input_node.target if input_node.target else input_node.name
@@ -267,10 +337,9 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
                 node.meta["original_aten"]._name != "aten::_to_copy"
                 and node.args[1] == torch.float32
             )
-            is_redundant_cast = (
-                "tensor_meta" in node.args[0].meta
-                and node.args[0].meta["tensor_meta"].dtype == node.args[1]
-            )
+            node_meta = node.args[0].meta
+            meta_val = node_meta.get("tensor_meta") or node_meta.get("val")
+            is_redundant_cast = meta_val is not None and meta_val.dtype == node.args[1]
 
             if is_unwanted_dtype_promotion or is_redundant_cast:
                 node.replace_all_uses_with(node.args[0])
