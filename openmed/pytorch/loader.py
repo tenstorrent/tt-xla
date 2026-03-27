@@ -96,8 +96,7 @@ class ModelLoader(ForgeModel):
         return batch
 
     def post_processing(self, co_out):
-        outputs = []
-        decoded12 = self.model.decoder.decode(
+        decoded = self.model.decoder.decode(
             self.batch["tokens"],
             self.batch["id_to_classes"],
             co_out,
@@ -105,23 +104,21 @@ class ModelLoader(ForgeModel):
             threshold=0.5,
             multi_label=False,
         )
-        outputs.extend(decoded12)
         all_entities = []
-        for i, output in enumerate(outputs):
+        for i, spans in enumerate(decoded):
             start_token_idx_to_text_idx = self.all_start_token_idx_to_text_idx[i]
             end_token_idx_to_text_idx = self.all_end_token_idx_to_text_idx[i]
             entities = []
-            for start_token_idx, end_token_idx, ent_type, ent_score in output:
-                start_text_idx = start_token_idx_to_text_idx[start_token_idx]
-                end_text_idx = end_token_idx_to_text_idx[end_token_idx]
+            for span in spans:
+                start_text_idx = start_token_idx_to_text_idx[span.start]
+                end_text_idx = end_token_idx_to_text_idx[span.end]
                 ent_details = {
-                    "start": start_token_idx_to_text_idx[start_token_idx],
-                    "end": end_token_idx_to_text_idx[end_token_idx],
+                    "start": start_text_idx,
+                    "end": end_text_idx,
                     "text": self.text[i][start_text_idx:end_text_idx],
-                    "label": ent_type,
-                    "score": ent_score,
+                    "label": span.entity_type,
+                    "score": span.score,
                 }
                 entities.append(ent_details)
-
             all_entities.append(entities)
         return all_entities
