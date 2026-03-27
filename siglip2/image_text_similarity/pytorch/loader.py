@@ -6,9 +6,7 @@ SigLIP2 model loader implementation for image-text similarity.
 """
 
 import torch
-from transformers import AutoProcessor, AutoModel
 from typing import Optional
-from datasets import load_dataset
 
 from ....base import ForgeModel
 from ....config import (
@@ -80,7 +78,8 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded processor instance
         """
-        # Load the processor
+        from transformers import AutoProcessor
+
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name
         )
@@ -97,12 +96,12 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The SigLIP2 model instance for image-text similarity.
         """
-        # Get the pretrained model name from the instance's variant config
+        from transformers import AutoModel
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"return_dict": False}
 
-        # Load the model with dtype override if specified
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -123,18 +122,16 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors that can be fed to the model.
         """
-        # Ensure processor is initialized
+        from datasets import load_dataset
+
         if self.processor is None:
             self._load_processor()
 
-        # Load image from HuggingFace dataset
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
 
-        # Define text prompts for image-text similarity
         self.text_prompts = ["a photo of 2 cats", "a photo of 2 dogs"]
 
-        # Process both text and images
         inputs = self.processor(
             text=self.text_prompts,
             images=image,
@@ -142,12 +139,10 @@ class ModelLoader(ForgeModel):
             padding="max_length",
         )
 
-        # Replicate tensors for batch size
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        # Convert the input dtype to dtype_override if specified
         if dtype_override is not None:
             for key in inputs:
                 if torch.is_tensor(inputs[key]) and inputs[key].dtype == torch.float32:
