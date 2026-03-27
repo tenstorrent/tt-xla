@@ -55,6 +55,11 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2
 
+    # Variant-specific tokenizer overrides (when model repo has mismatched tokenizer)
+    _TOKENIZER_OVERRIDES = {
+        ModelVariant.TOMH_TOXIGEN_HATEBERT: "bert-base-uncased",
+    }
+
     # Variant-specific sample texts
     _SAMPLE_TEXTS = {
         ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_SST_2: "the movie was great!",
@@ -118,8 +123,9 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The BERT model instance.
         """
 
-        # Initialize tokenizer
-        self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
+        # Initialize tokenizer (use override if model repo has mismatched tokenizer)
+        tokenizer_name = self._TOKENIZER_OVERRIDES.get(self._variant, self.model_name)
+        self.tokenizer = BertTokenizer.from_pretrained(tokenizer_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
