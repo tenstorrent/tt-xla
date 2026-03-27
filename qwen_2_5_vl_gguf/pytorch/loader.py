@@ -82,7 +82,6 @@ class ModelLoader(ForgeModel):
 
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
-            gguf_file=self.GGUF_FILE,
             **processor_kwargs,
         )
 
