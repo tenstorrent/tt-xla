@@ -7,96 +7,52 @@ OpenMed model loader implementation for token classification.
 
 import torch
 from transformers import AutoModelForTokenClassification, AutoTokenizer
-from typing import Optional
-
-from ....config import (
+from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
-    LLMModelConfig,
     StrEnum,
+    LLMModelConfig,
 )
-from ....base import ForgeModel
+from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available OpenMed model variants for token classification."""
 
-    OPENMED_NER_ANATOMYDETECT_MULTIMED_568M = "NER-AnatomyDetect-MultiMed-568M"
-    OPENMED_NER_DNADETECT_MULTIMED_568M = "NER-DNADetect-MultiMed-568M"
-    OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M = "NER-PathologyDetect-BioPatient-108M"
-    OPENMED_NER_PROTEINDETECT_MODERNMED_395M = "NER-ProteinDetect-ModernMed-395M"
-    OPENMED_PII_ITALIAN_CLINICALLONGFORMER_BASE_149M_V1 = (
-        "PII-Italian-ClinicalLongformer-Base-149M-v1"
-    )
-    OPENMED_PII_BIOMEDELECTRA_BASE_110M_V1 = "PII-BiomedELECTRA-Base-110M-v1"
-    OPENMED_PII_SUPERCLINICAL_SMALL_44M_V1 = "PII-SuperClinical-Small-44M-v1"
+    OPENMED_NER_CHEMICALDETECT_MULTIMED_335M = "NER-ChemicalDetect-MultiMed-335M"
 
 
 class ModelLoader(ForgeModel):
     """OpenMed model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_ANATOMYDETECT_MULTIMED_568M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-MultiMed-568M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-MultiMed-568M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-BioPatient-108M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_PROTEINDETECT_MODERNMED_395M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ModernMed-395M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_PII_ITALIAN_CLINICALLONGFORMER_BASE_149M_V1: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-Italian-ClinicalLongformer-Base-149M-v1",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_PII_BIOMEDELECTRA_BASE_110M_V1: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-BiomedELECTRA-Base-110M-v1",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_PII_SUPERCLINICAL_SMALL_44M_V1: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1",
+        ModelVariant.OPENMED_NER_CHEMICALDETECT_MULTIMED_335M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-MultiMed-335M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_MULTIMED_335M
 
-    _VARIANT_SAMPLE_TEXTS = {
-        ModelVariant.OPENMED_NER_ANATOMYDETECT_MULTIMED_568M: "The patient complained of pain in the left ventricle region.",
-        ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M: "The p53 protein plays a crucial role in tumor suppression.",
-        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M: "Early detection of breast cancer improves survival rates.",
-        ModelVariant.OPENMED_NER_PROTEINDETECT_MODERNMED_395M: "The BRCA1 protein and p53 are involved in DNA damage response and tumor suppression pathways.",
-        ModelVariant.OPENMED_PII_ITALIAN_CLINICALLONGFORMER_BASE_149M_V1: "Dr. Marco Rossi può essere contattato a marco.rossi@ospedale.it o al +39 333 123 4567.",
-        ModelVariant.OPENMED_PII_BIOMEDELECTRA_BASE_110M_V1: "Patient John Smith (DOB: 03/15/1985, SSN: 123-45-6789) was seen today. Contact: john.smith@email.com, Phone: (555) 123-4567.",
-        ModelVariant.OPENMED_PII_SUPERCLINICAL_SMALL_44M_V1: "Patient John Smith, DOB 03/15/1985, SSN 123-45-6789, was admitted to Springfield General Hospital on January 10, 2024.",
-    }
-
-    def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant."""
+    def __init__(self, variant=None):
         super().__init__(variant)
-        self.tokenizer = None
-        self.sample_text = self._VARIANT_SAMPLE_TEXTS.get(
-            self._variant_name,
-            "The p53 protein plays a crucial role in tumor suppression.",
+        self.model_name = self._variant_config.pretrained_model_name
+        self.sample_text = (
+            "The patient was administered acetylsalicylic acid for pain relief."
         )
+        self.max_length = self._variant_config.max_length
+        self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name=None):
+        if variant_name is None:
+            variant_name = "NER-ChemicalDetect-MultiMed-335M"
         return ModelInfo(
             model="OpenMed",
-            variant=variant,
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -104,10 +60,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load OpenMed model for token classification from Hugging Face."""
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -115,20 +68,19 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForTokenClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self.model_name, **model_kwargs
         )
         self.model = model
         model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Prepare sample input for OpenMed token classification."""
         if self.tokenizer is None:
             self.load_model(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
             self.sample_text,
-            max_length=self._variant_config.max_length,
+            max_length=self.max_length,
             padding="max_length",
             truncation=True,
             return_tensors="pt",
@@ -137,7 +89,6 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
-        """Decode the model output for token classification."""
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(
@@ -148,4 +99,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Answer: {predicted_tokens_classes}")
+        print(f"NER Tags: {predicted_tokens_classes}")

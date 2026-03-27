@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed Token Classification PyTorch implementation.
+OpenMed Token Classification PyTorch model implementation.
 """
 from .loader import ModelLoader, ModelVariant
