@@ -181,8 +181,14 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        # Set group based on variant (instruct variants are RED priority except llama_3_8b_instruct and llama_3_1_405b_instruct variant)
-        if (
+        # Set group based on variant — VULCAN variants checked first to avoid
+        # being caught by the broad "70B" / "instruct" RED heuristics.
+        if variant in [
+            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
+        ]:
+            group = ModelGroup.VULCAN
+        elif (
             (
                 "instruct" in variant.value
                 and (
@@ -203,11 +209,6 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT,
         ]:
             group = ModelGroup.PRIORITY
-        elif variant in [
-            ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-        ]:
-            group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
 
