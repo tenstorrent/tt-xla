@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.OMNICODER_9B_GGUF
 
-    GGUF_FILE = "OmniCoder-9B-Q4_K_M.gguf"
+    GGUF_FILE = "omnicoder-9b-q4_k_m.gguf"
 
     sample_text = "Write a quick sort algorithm in Python."
 
