@@ -7,6 +7,7 @@ import os
 
 import numpy as np
 import pytest
+import torch_xla.distributed.spmd as xs
 from benchmarks.llm_benchmark import benchmark_llm_torch_xla
 from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
@@ -57,6 +58,7 @@ def test_llm(
     request=None,
     accuracy_testing: bool = False,
     max_output_tokens=None,
+    input_sharding_fn=None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -146,6 +148,7 @@ def test_llm(
         model_name_for_accuracy=model_name_for_accuracy,
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
+        input_sharding_fn=input_sharding_fn,
     )
 
     if output_file:
@@ -1110,6 +1113,69 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+def _batch_parallel_input_sharding_fn(mesh, input_args):
+    """Data-parallel style batch sharding (activations only).
+
+    Matches non-xfail DP patterns (vLLM plugin / examples): shard only
+    activation inputs on the batch axis and keep parameter sharding policy
+    independent.
+    """
+    xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
+
+
+def _gpt_oss_galaxy_mesh_config_fn(model_loader, num_devices):
+    """4x8 wormhole_galaxy mesh (benchmark-only; forge loader stays upstream main)."""
+
+    if num_devices != 32:
+        raise ValueError(
+            "GPT-OSS wormhole_galaxy benchmarks expect 32 devices (4x8 mesh)."
+        )
+    return (4, 8), ("batch", "model")
+
+
+def _gpt_oss_galaxy_shard_spec_fn(model_loader, model):
+    """Galaxy TP shard layout (variant-aware 20B vs 120B); kept in tests, not tt-forge-models."""
+
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import ModelVariant
+
+    variant = model_loader._variant
+    # 20B: TP on "model" only (replicate on batch). 120B: batch axis for capacity.
+    batch_axis = (
+        None if variant and variant == ModelVariant.GPT_OSS_20B else "batch"
+    )
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, batch_axis)
+    shard_specs[model.model.norm.weight] = (batch_axis,)
+
+    # lm_head sharding causes 20B hang: https://github.com/tenstorrent/tt-xla/issues/3484
+    if variant and variant == ModelVariant.GPT_OSS_120B:
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+    else:
+        shard_specs[model.lm_head.weight] = (None, None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.q_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.k_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.v_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.o_proj.weight] = (batch_axis, "model")
+        shard_specs[layer.self_attn.o_proj.bias] = (batch_axis,)
+        shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.mlp.router.weight] = (None, batch_axis)
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", batch_axis, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, batch_axis)
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", batch_axis)
+        shard_specs[layer.input_layernorm.weight] = (batch_axis,)
+        shard_specs[layer.post_attention_layernorm.weight] = (batch_axis,)
+
+    return shard_specs
+
+
 def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1184,9 +1250,12 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
-        batch_size=64,  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
+        batch_size=64,
+        input_sharding_fn=_batch_parallel_input_sharding_fn,
         arch="wormhole_galaxy",
         optimization_level=1,
+        mesh_config_fn=_gpt_oss_galaxy_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_galaxy_shard_spec_fn,
     )
 
 
@@ -1209,4 +1278,6 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         batch_size=64,  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
+        mesh_config_fn=_gpt_oss_galaxy_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_galaxy_shard_spec_fn,
     )

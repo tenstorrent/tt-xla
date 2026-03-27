@@ -121,6 +121,8 @@ def generate_and_benchmark(
     tokenizer: Optional[object] = None,
     verbose: bool = True,
     ground_truth_tokens: Optional[torch.Tensor] = None,
+    mesh=None,
+    input_sharding_fn: Optional[Callable] = None,
 ) -> tuple[list[torch.Tensor], list[int]]:
     """Unified decode loop for benchmarks, accuracy testing, and reference generation.
 
@@ -193,6 +195,8 @@ def generate_and_benchmark(
                 )
             else:
                 input_args["input_ids"] = next_token_ids.unsqueeze(-1).to(device)
+            if mesh is not None and input_sharding_fn is not None:
+                input_sharding_fn(mesh, input_args)
 
             # Advance cache_position: take last position, add 1.
             # reshape(-1)[-1:] normalizes from [prefill_len] to [1] on step 0.

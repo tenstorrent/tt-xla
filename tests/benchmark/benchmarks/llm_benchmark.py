@@ -88,7 +88,8 @@ def construct_inputs(
         input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
 
     Returns:
-        Dictionary containing input_ids, past_key_values, cache_position, and use_cache
+        Dictionary containing input_ids, past_key_values, cache_position,
+        and use_cache
     """
     if input_prompt_tokens is not None:
         if input_prompt_tokens.ndim != 1:
@@ -210,6 +211,7 @@ def benchmark_llm_torch_xla(
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
+    input_sharding_fn=None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -357,14 +359,22 @@ def benchmark_llm_torch_xla(
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        # Also shard KV cache tensors created in input_args
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+            xs.mark_sharding(
+                layer.keys, mesh, (None, "model", None, None)
+            )
+            xs.mark_sharding(
+                layer.values, mesh, (None, "model", None, None)
+            )
+
+        # Decode-only DP: keep prefill unsharded and apply input sharding
+        # inside decode loop (after step 0) via generate_and_benchmark().
 
         # Apply sharding constraint on lm_head output to all_gather logits
         if hasattr(model, "lm_head") and model.lm_head is not None:
-            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+            hook = sharding_constraint_hook(
+                model.lm_head, mesh, (None, None, None)
+            )
             model.lm_head.register_forward_hook(hook)
 
     # Set XLA compilation options
@@ -375,6 +385,9 @@ def benchmark_llm_torch_xla(
         batch_size=batch_size,
         input_sequence_length=input_sequence_length,
     )
+    if input_sharding_fn is not None:
+        # Avoid cache/artifact collisions between replicated and DP-marked runs.
+        export_model_name = f"{export_model_name}_dp_input_shard"
     options = {
         "optimization_level": optimization_level,
         "enable_trace": trace_enabled,
@@ -390,13 +403,14 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
-    # Compile model
+    # Match non-xfail DP paths (e.g. vLLM plugin) by keeping the default
+    # torch.compile backend flow and expressing DP via input mark_sharding.
     compiled_model = torch.compile(model, backend="tt")
 
     # Warmup run
     print("Warming up...")
     warmup_tokens = min(MIN_STEPS, max_output_tokens)
-    _, _ = generate_and_benchmark(
+    warmup_logits, _ = generate_and_benchmark(
         compiled_model,
         input_args,
         device,
@@ -404,6 +418,14 @@ def benchmark_llm_torch_xla(
         read_logits_fn=read_logits_fn,
         tokenizer=tokenizer,
         verbose=False,
+        mesh=mesh,
+        input_sharding_fn=input_sharding_fn,
+    )
+    wl = warmup_logits[0].to(torch.float32).flatten()
+    print(
+        f"Warmup step0 logits: shape={list(warmup_logits[0].shape)}, "
+        f"std={wl.std().item():.6f}, min={wl.min().item():.4f}, "
+        f"max={wl.max().item():.4f}, nonzero={wl.nonzero().shape[0]}/{wl.numel()}"
     )
 
     tracy.signpost("warmup_complete")
@@ -414,11 +436,20 @@ def benchmark_llm_torch_xla(
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=input_args["past_key_values"],
+        past_key_values=(None if input_sharding_fn is not None else input_args["past_key_values"]),
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
     input_args = transfer_to_device(input_args, device)
+
+    # If a fresh cache is rebuilt for DP, re-apply KV sharding on the new cache.
+    if is_multichip:
+        kv_batch_axis = None
+        for layer in input_args["past_key_values"].layers:
+            xs.mark_sharding(layer.keys, mesh, (kv_batch_axis, "model", None, None))
+            xs.mark_sharding(layer.values, mesh, (kv_batch_axis, "model", None, None))
+
+    # Decode-only DP: prefill of benchmark run stays unsharded.
 
     # Run benchmark once
     print(f"\nStarting benchmark...")
@@ -434,6 +465,18 @@ def benchmark_llm_torch_xla(
         tokenizer=tokenizer,
         verbose=True,
         ground_truth_tokens=ground_truth_for_benchmark,
+        mesh=mesh,
+        input_sharding_fn=input_sharding_fn,
+    )
+    b0 = output_logits[0].to(torch.float32)
+    b0f = b0.flatten()
+    b00 = b0[0][0].flatten()
+    print(
+        f"Benchmark step0 logits: shape={list(output_logits[0].shape)}, "
+        f"std={b0f.std().item():.6f}, min={b0f.min().item():.4f}, "
+        f"max={b0f.max().item():.4f}, nonzero={b0f.nonzero().shape[0]}/{b0f.numel()}, "
+        f"cmp_slice_std={b00.std().item():.6f}, cmp_slice_min={b00.min().item():.4f}, "
+        f"cmp_slice_max={b00.max().item():.4f}, cmp_slice_nonzero={b00.nonzero().shape[0]}/{b00.numel()}"
     )
 
     # Post-processing: derive predicted tokens for accuracy testing
