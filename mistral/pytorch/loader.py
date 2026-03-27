@@ -50,8 +50,7 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     DEVSTRAL_SMALL_2_24B_INSTRUCT_2512 = "Devstral_Small_2_24B_Instruct_2512"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MISTRAL_7B_UTTERANCE = "7B_utterance"
-    TINY_RANDOM = "tiny_random"
+    MINISTRAL_3_14B_REASONING_AWQ_4BIT = "Ministral_3_14B_Reasoning_AWQ_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -71,7 +70,7 @@ class ModelLoader(ForgeModel):
     _USE_Mistral3ForConditionalGeneration_VARIANTS = {
         ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
         ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506,
-        ModelVariant.DEVSTRAL_SMALL_2_24B_INSTRUCT_2512,
+        ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT,
     }
 
     # Dictionary of available model variants
@@ -145,8 +144,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="echarlaix/tiny-random-mistral",
+        ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT: ModelConfig(
+            pretrained_model_name="cyankiwi/Ministral-3-14B-Reasoning-2512-AWQ-4bit",
         ),
     }
 
@@ -185,9 +184,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_UTTERANCE,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_NEMO_BASE_2407,
-            ModelVariant.DEVSTRAL_SMALL_2_24B_INSTRUCT_2512,
-            ModelVariant.TINY_RANDOM,
+            ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
@@ -272,10 +269,10 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        # BnB variants need device_map="cpu" for CPU-based loading
+        # BnB/AWQ variants need device_map="cpu" for CPU-based loading
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_SMALL_INSTRUCT_2409_BNB_4BIT,
+            ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT,
         ):
             model_kwargs["device_map"] = "cpu"
 
