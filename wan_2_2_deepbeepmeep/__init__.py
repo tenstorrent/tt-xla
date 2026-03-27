@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""
+DeepBeepMeep/Wan2.2 single-file safetensors video generation models.
+"""
