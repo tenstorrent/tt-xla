@@ -90,14 +90,7 @@ class ModelLoader(ForgeModel):
         # TexTeller expects single-channel (grayscale) 448x448 images
         image = Image.new("L", (448, 448), color=255)
 
-        transform = transforms.Compose(
-            [
-                transforms.Resize((448, 448)),
-                transforms.ToTensor(),
-            ]
-        )
-
-        pixel_values = transform(image).unsqueeze(0)
+        pixel_values = transforms.ToTensor()(image).unsqueeze(0)
 
         if dtype_override is not None:
             pixel_values = pixel_values.to(dtype_override)
