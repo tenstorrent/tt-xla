@@ -160,8 +160,9 @@ class ModelLoader(ForgeModel):
         inputs = self._processor(
             audio_array,
             sampling_rate=sampling_rate,
-            return_tensors="jax",
+            return_tensors="np",
         )
+        inputs = {k: jnp.array(v) for k, v in inputs.items()}
         inputs["decoder_input_ids"] = jnp.array(
             [[whisper_config.decoder_start_token_id]]
         )
