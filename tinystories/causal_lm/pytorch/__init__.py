@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-TinyStories PyTorch causal language modeling implementation.
+TinyStories PyTorch model implementation for Tenstorrent projects.
 """
-
 from .loader import ModelLoader, ModelVariant
