@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     MINI_128K = "Mini_128K_Instruct"
     MINI_4K = "Mini_4K_Instruct"
     MINI_4K_GPTQ_4BIT = "Mini_4K_Instruct_GPTQ_4bit"
-    MINI_4K_BNB_4BIT = "Mini_4K_Instruct_BnB_4bit"
+    MINI_4K_AWQ = "Mini_4K_Instruct_AWQ"
     TINY_RANDOM = "Tiny Random"
 
 
@@ -40,8 +40,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MINI_4K_GPTQ_4BIT: ModelConfig(
             pretrained_model_name="kaitchup/Phi-3-mini-4k-instruct-gptq-4bit"
         ),
-        ModelVariant.MINI_4K_BNB_4BIT: ModelConfig(
-            pretrained_model_name="unsloth/Phi-3-mini-4k-instruct-bnb-4bit"
+        ModelVariant.MINI_4K_AWQ: ModelConfig(
+            pretrained_model_name="Sreenington/Phi-3-mini-4k-instruct-AWQ"
         ),
         ModelVariant.TINY_RANDOM: ModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-Phi3ForCausalLM"
@@ -71,7 +71,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.RED
         if variant in (
             ModelVariant.MINI_4K_GPTQ_4BIT,
-            ModelVariant.MINI_4K_BNB_4BIT,
+            ModelVariant.MINI_4K_AWQ,
             ModelVariant.TINY_RANDOM,
         ):
             group = ModelGroup.VULCAN
@@ -105,11 +105,8 @@ class ModelLoader(ForgeModel):
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        # Quantized variants need device_map="cpu" for CPU-based loading
-        if self._variant in (
-            ModelVariant.MINI_4K_GPTQ_4BIT,
-            ModelVariant.MINI_4K_BNB_4BIT,
-        ):
+        # GPTQ/AWQ variants need device_map="cpu" for CPU-based loading
+        if self._variant in (ModelVariant.MINI_4K_GPTQ_4BIT, ModelVariant.MINI_4K_AWQ):
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
