@@ -54,10 +54,14 @@ def generate_reference_outputs(total_length, output_file, model_name):
     # Qwen only: add rope scaling to the config, for long context support.
     # https://huggingface.co/Qwen/Qwen2.5-7B-Instruct#processing-long-texts
     if "Qwen" in model_name:
-        config.rope_scaling = {
+        rope_theta = getattr(config, "rope_theta", None) or (
+            (config.rope_parameters or {}).get("rope_theta")
+        )
+        config.rope_parameters = {
             "factor": 4.0,
             "original_max_position_embeddings": 32768,
-            "type": "yarn",
+            "rope_type": "yarn",
+            "rope_theta": rope_theta,
         }
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
