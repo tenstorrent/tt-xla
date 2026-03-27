@@ -113,8 +113,9 @@ def controlnet_openpose_sdxl_preprocessing(
         tuple: (latent_model_input, timesteps, prompt_embeds, added_cond_kwargs,
                 down_block_additional_residuals, mid_block_additional_residual)
     """
-    height = height or pipe.default_sample_size * pipe.vae_scale_factor
-    width = width or pipe.default_sample_size * pipe.vae_scale_factor
+    default_sample_size = pipe.unet.config.sample_size
+    height = height or default_sample_size * pipe.vae_scale_factor
+    width = width or default_sample_size * pipe.vae_scale_factor
     original_size = original_size or (height, width)
     target_size = target_size or (height, width)
 
