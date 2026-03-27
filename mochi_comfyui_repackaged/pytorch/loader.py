@@ -123,8 +123,8 @@ class ModelLoader(ForgeModel):
                 dtype=dtype,
             )
         elif vae_type == "encoder":
-            # Mochi temporal compression is 6x, so num_frames = 6 * latent_depth + 1
-            num_frames = 6 * LATENT_DEPTH + 1  # 13 frames
+            # Mochi temporal compression is 6x
+            num_frames = LATENT_DEPTH * 6  # 12 frames
             return torch.randn(
                 1, 3, num_frames, LATENT_HEIGHT * 8, LATENT_WIDTH * 8, dtype=dtype
             )
