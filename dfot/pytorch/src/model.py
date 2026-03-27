@@ -18,7 +18,6 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from einops import rearrange
 from timm.layers import Mlp, PatchEmbed
 
@@ -221,7 +220,7 @@ class FinalLayer(nn.Module):
 class DiTBase(nn.Module):
     """Core DiT transformer with positional embeddings and transformer blocks."""
 
-    def __init__(self, cfg: DiT3DConfig, num_patches: int):
+    def __init__(self, cfg: DiT3DConfig):
         super().__init__()
         self.hidden_size = cfg.hidden_size
         out_features = cfg.patch_size**2 * cfg.in_channels
@@ -289,7 +288,7 @@ class DiT3D(nn.Module):
             self.external_cond_embedding = None
 
         # Core transformer
-        self.dit_base = DiTBase(cfg, num_patches_spatial)
+        self.dit_base = DiTBase(cfg)
 
     def forward(
         self,

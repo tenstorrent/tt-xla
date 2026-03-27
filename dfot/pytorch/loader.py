@@ -121,7 +121,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, num_frames=None):
+    def load_inputs(self, dtype_override=None, num_frames=None, **kwargs):
         """Load sample inputs for the DiT3D backbone.
 
         Generates random noisy latent frames and noise levels suitable for
