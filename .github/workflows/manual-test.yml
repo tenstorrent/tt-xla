@@ -65,7 +65,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
       mlir_override: ${{ inputs.mlir_override }}
-      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+      build_types: ${{ inputs.manylinux_build && 'release,explorer,manylinux' || 'release,explorer' }}
 
   test:
     if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
