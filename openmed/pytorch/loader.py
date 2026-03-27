@@ -22,9 +22,7 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE = "ZeroShot-NER-Protein-XLarge-770M"
-    OPENMED_ZEROSHOT_NER_DNA_XLARGE = "ZeroShot-NER-DNA-XLarge-770M"
-    OPENMED_ZEROSHOT_NER_GENOME_XLARGE = "ZeroShot-NER-Genome-XLarge-770M"
+    OPENMED_ZEROSHOT_NER_DISEASE_XLARGE = "ZeroShot-NER-Disease-XLarge-770M"
 
 
 class ModelLoader(ForgeModel):
@@ -37,14 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-XLarge-770M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DNA_XLARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-XLarge-770M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_XLARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-XLarge-770M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_XLARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-XLarge-770M"
         ),
     }
 
@@ -76,34 +68,14 @@ class ModelLoader(ForgeModel):
         self.model = model
         return self.model.eval()
 
-    _SAMPLE_INPUTS = {
+    _VARIANT_SAMPLES = {
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: {
             "text": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
             "labels": ["SPECIES"],
         },
-        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_LARGE: {
-            "text": "The patient was diagnosed with diabetes mellitus type 2 and chronic obstructive pulmonary disease.",
+        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_XLARGE: {
+            "text": "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
             "labels": ["DISEASE"],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_MULTI: {
-            "text": "The patient was administered acetylsalicylic acid for pain relief.",
-            "labels": ["CHEM"],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_TINY: {
-            "text": "Caenorhabditis elegans is a model organism for genetic studies.",
-            "labels": ["SPECIES"],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_SMALL: {
-            "text": "BRCA1 mutations are associated with increased risk of breast cancer and ovarian cancer.",
-            "labels": [
-                "GENE_OR_GENE_PRODUCT",
-                "CANCER",
-                "ORGAN",
-            ],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_MULTI: {
-            "text": "The BRCA2 gene is associated with hereditary breast cancer.",
-            "labels": ["Cell-line-name"],
         },
     }
 
@@ -112,24 +84,10 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_DNA_XLARGE:
-            text = "The p53 protein plays a crucial role in tumor suppression."
-            labels = ["DNA", "RNA", "cell_line", "cell_type", "protein"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_XLARGE:
-            text = "The EGFR gene mutation was identified in lung cancer patients."
-            labels = ["GENE/PROTEIN"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE:
-            text = "Casein micelles are the primary protein component of milk."
-            labels = [
-                "protein",
-                "protein_complex",
-                "protein_family_or_group",
-                "protein_variant",
-            ]
-        else:
-            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
-            labels = ["SPECIES"]
+        sample = self._VARIANT_SAMPLES[self._variant]
+        text = sample["text"]
         self.text = [text]
+        labels = sample["labels"]
         entity_types = list(dict.fromkeys(labels))
 
         (
