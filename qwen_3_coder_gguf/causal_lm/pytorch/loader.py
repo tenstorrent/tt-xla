@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 Coder GGUF model variants for causal language modeling."""
 
-    QWEN_3_CODER_30B_A3B_INSTRUCT_FP8_Q4_K_M = "30B_A3B_Instruct_FP8_Q4_K_M"
+    QWEN_3_CODER_30B_A3B_INSTRUCT_GGUF = "30B_A3B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 Coder GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_FP8_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="ijohn07/Qwen3-Coder-30B-A3B-Instruct-FP8-Q4_K_M-GGUF",
+        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_FP8_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_GGUF
 
-    GGUF_FILE = "qwen3-coder-30b-a3b-instruct-fp8-q4_k_m.gguf"
+    GGUF_FILE = "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf"
 
     sample_text = "Write a Python function that checks if a number is prime."
 
@@ -84,6 +84,7 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
         model_kwargs["gguf_file"] = self.GGUF_FILE
 
         if self.num_layers is not None:
@@ -99,8 +100,6 @@ class ModelLoader(ForgeModel):
             else:
                 config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
-
-        model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
