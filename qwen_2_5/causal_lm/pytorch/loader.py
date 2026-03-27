@@ -45,7 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_MATH_7B = "Math_7B"
     QWEN_2_5_14B_INSTRUCT_AWQ = "14B_Instruct_Awq"
     QWEN_2_5_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
-    QWEN_2_5_72B_INSTRUCT_AWQ = "72B_Instruct_Awq"
+    QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
 
 
 class ModelLoader(ForgeModel):
@@ -129,8 +129,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-32B-Instruct-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_2_5_72B_INSTRUCT_AWQ: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2.5-72B-Instruct-AWQ",
+        # RedHatAI INT8 quantized variant
+        ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Qwen2.5-1.5B-quantized.w8a8",
             max_length=128,
         ),
     }
@@ -184,7 +185,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_MATH_1_5B,
             ModelVariant.QWEN_2_5_14B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_32B_INSTRUCT_AWQ,
-            ModelVariant.QWEN_2_5_72B_INSTRUCT_AWQ,
+            ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
         ]:
             group = ModelGroup.VULCAN
 
