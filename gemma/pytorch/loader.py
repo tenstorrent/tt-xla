@@ -38,6 +38,7 @@ class ModelVariant(StrEnum):
     GEMMA_2_2B_IT = "2_2B_IT"
     GEMMA_2_2B_IT_BNB_4BIT = "2_2B_IT_BNB_4bit"
     GEMMA_2_2B_JPN_IT = "2_2B_JPN_IT"
+    GEMMA_2_9B = "2_9B"
     GEMMA_2_9B_IT = "2_9B_IT"
     GEMMA_2_27B_IT = "2_27B_IT"
     GEMMA_2_2B_IT_MLX_4BIT = "2_2B_IT_MLX_4bit"
@@ -82,6 +83,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.GEMMA_2_2B_JPN_IT: LLMModelConfig(
             pretrained_model_name="google/gemma-2-2b-jpn-it",
         ),
+        ModelVariant.GEMMA_2_9B: LLMModelConfig(
+            pretrained_model_name="google/gemma-2-9b",
+            max_length=256,
+        ),
         ModelVariant.GEMMA_2_9B_IT: LLMModelConfig(
             pretrained_model_name="google/gemma-2-9b-it",
         ),
@@ -119,11 +124,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         # Instruct and larger models are RED, others generality
-        if variant in (
-            ModelVariant.GEMMA_2B_IT,
-            ModelVariant.GEMMA_7B_IT,
-            ModelVariant.GEMMA_2_2B_IT_BNB_4BIT,
-        ):
+        if variant in (ModelVariant.GEMMA_2B_IT, ModelVariant.GEMMA_2_9B):
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["IT", "7B", "9B", "27B"]):
             group = ModelGroup.RED
@@ -211,7 +212,11 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
         self.tokenizer.padding_side = "right"
-        if self._variant in (ModelVariant.GEMMA_2B, ModelVariant.GEMMA_2_2B):
+        if self._variant in (
+            ModelVariant.GEMMA_2B,
+            ModelVariant.GEMMA_2_2B,
+            ModelVariant.GEMMA_2_9B,
+        ):
             input_prompt = prompt or self.sample_text
             inputs = self.tokenizer(
                 input_prompt,
