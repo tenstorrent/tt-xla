@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Coder model variants for causal language modeling."""
 
     QWEN_3_CODER_NEXT = "Next"
-    QWEN_3_CODER_NEXT_NVFP4 = "Next_NVFP4"
+    QWEN_3_CODER_NEXT_FP8 = "Next-FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -37,8 +37,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-Next",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_NEXT_NVFP4: LLMModelConfig(
-            pretrained_model_name="GadflyII/Qwen3-Coder-Next-NVFP4",
+        ModelVariant.QWEN_3_CODER_NEXT_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-Coder-Next-FP8",
             max_length=128,
         ),
     }
