@@ -6,11 +6,9 @@ Qwen 2.5 MLC model loader implementation for causal language modeling.
 """
 from typing import Optional
 
-from mlc_llm import MLCEngine
-
 from ....base import ForgeModel
 from ....config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -30,8 +28,9 @@ class ModelLoader(ForgeModel):
     """Qwen 2.5 MLC model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_0_5B_INSTRUCT_Q4F16_1_MLC: ModelConfig(
+        ModelVariant.QWEN_2_5_0_5B_INSTRUCT_Q4F16_1_MLC: LLMModelConfig(
             pretrained_model_name="mlc-ai/Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
+            max_length=128,
         ),
     }
 
@@ -55,6 +54,8 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        from mlc_llm import MLCEngine
+
         pretrained_model_name = self._variant_config.pretrained_model_name
         model_path = f"HF://{pretrained_model_name}"
 
@@ -73,7 +74,7 @@ class ModelLoader(ForgeModel):
             "model": self._variant_config.pretrained_model_name,
         }
 
-    def decode_output(self, outputs, dtype_override=None):
+    def decode_output(self, outputs):
         if hasattr(outputs, "choices") and outputs.choices:
             return outputs.choices[0].message.content
         return str(outputs)
