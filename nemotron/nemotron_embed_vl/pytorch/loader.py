@@ -9,7 +9,7 @@ from transformers import AutoModel, AutoProcessor
 from PIL import Image
 from typing import Optional
 
-from ....tools.utils import get_file, cast_input_to_type
+from ....tools.utils import get_file
 from ....base import ForgeModel
 from ....config import (
     ModelConfig,
