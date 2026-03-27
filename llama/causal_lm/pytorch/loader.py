@@ -109,17 +109,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # MLX community variants
-    MLX_LLAMA_3_1_8B_INSTRUCT_BF16 = "Mlx_3.1_8B_Instruct_Bf16"
-
-    # Lightblue variants
-    SUZUME_LLAMA_3_8B_MULTILINGUAL = "Suzume_3.0_8B_Multilingual"
-
-    # turboderp variants
-    CAT_LLAMA_3_70B_INSTRUCT = "Cat_3.0_70B_Instruct"
-
-    # jdchang variants
-    JDCHANG_LLAMA3_SMALL = "Jdchang_Llama3_Small"
+    # Unsloth BnB 4-bit variants
+    TINYLLAMA_BNB_4BIT = "Tinyllama_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -272,24 +263,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # MLX community variants
-        ModelVariant.MLX_LLAMA_3_1_8B_INSTRUCT_BF16: LLMModelConfig(
-            pretrained_model_name="mlx-community/Meta-Llama-3.1-8B-Instruct-bf16",
-            max_length=128,
-        ),
-        # Lightblue variants
-        ModelVariant.SUZUME_LLAMA_3_8B_MULTILINGUAL: LLMModelConfig(
-            pretrained_model_name="lightblue/suzume-llama-3-8B-multilingual",
-            max_length=128,
-        ),
-        # turboderp variants
-        ModelVariant.CAT_LLAMA_3_70B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="turboderp/Cat-Llama-3-70B-instruct",
-            max_length=128,
-        ),
-        # jdchang variants
-        ModelVariant.JDCHANG_LLAMA3_SMALL: LLMModelConfig(
-            pretrained_model_name="jdchang/llama3-small",
+        # Unsloth BnB 4-bit variants
+        ModelVariant.TINYLLAMA_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/tinyllama-bnb-4bit",
             max_length=128,
         ),
     }
@@ -371,7 +347,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
-            ModelVariant.JDCHANG_LLAMA3_SMALL,
+            ModelVariant.TINYLLAMA_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
         else:
@@ -438,11 +414,11 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is an AWQ variant and configure accordingly
-        if pretrained_model_name in (
-            "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "TheBloke/Llama-2-7B-Chat-AWQ",
-        ):
+        # Check if this is a quantized variant and configure accordingly
+        if (
+            pretrained_model_name
+            == "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4"
+        ) or self._variant == ModelVariant.TINYLLAMA_BNB_4BIT:
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
             model_kwargs["ignore_mismatched_sizes"] = True
