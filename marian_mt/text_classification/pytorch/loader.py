@@ -5,6 +5,7 @@
 MarianMT model loader implementation for text classification.
 """
 
+import torch
 from transformers import MarianMTModel, MarianTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
@@ -113,6 +114,13 @@ class ModelLoader(ForgeModel):
             padding=True,
             truncation=True,
         )
+
+        # Seq2seq models require decoder_input_ids for forward pass
+        decoder_start_token_id = self.model.config.decoder_start_token_id
+        decoder_input_ids = (
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id
+        )
+        inputs["decoder_input_ids"] = decoder_input_ids
 
         return inputs
 
