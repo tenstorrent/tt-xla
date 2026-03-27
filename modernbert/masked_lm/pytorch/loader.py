@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available ModernBERT model variants for masked language modeling."""
 
     BASE = "Base"
+    LARGE = "Large"
     BIOCLINICAL_BASE = "BioClinical_Base"
 
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE: LLMModelConfig(
             pretrained_model_name="answerdotai/ModernBERT-base",
+            max_length=128,
+        ),
+        ModelVariant.LARGE: LLMModelConfig(
+            pretrained_model_name="answerdotai/ModernBERT-large",
             max_length=128,
         ),
         ModelVariant.BIOCLINICAL_BASE: LLMModelConfig(
