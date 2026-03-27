@@ -35,14 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_27B_AWQ_BF16_INT8 = "27B_AWQ_BF16_INT8"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_INSTRUCT_HERETIC_UNCENSORED_GGUF = (
-        "9B_Claude_4.6_HighIQ_INSTRUCT_HERETIC_UNCENSORED_GGUF"
-    )
-    QWEN_3_5_9B_HERETIC_GGUF = "9B_heretic_GGUF"
-    QWEN_3_5_ANTIREP_27B_GGUF = "Antirep_27B_GGUF"
-    QWEN_3_5_35B_A3B_HERETIC_GGUF = "35B_A3B_heretic_GGUF"
-    QWEN_3_5_OMNICODER_9B = "OmniCoder_9B"
-    QWEN_3_5_CREATIVE_19B_A3B_REAP_GGUF = "Creative_19B_A3B_REAP_GGUF"
+    QWEN_3_5_2B_MLX_6BIT = "2B_MLX_6bit"
 
 
 class ModelLoader(ForgeModel):
@@ -94,28 +87,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_INSTRUCT_HERETIC_UNCENSORED_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-9B-Claude-4.6-HighIQ-INSTRUCT-HERETIC-UNCENSORED-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_HERETIC_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-9B-heretic-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_ANTIREP_27B_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-Antirep-27B-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_HERETIC_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-heretic-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_OMNICODER_9B: LLMModelConfig(
-            pretrained_model_name="Tesslate/OmniCoder-9B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_CREATIVE_19B_A3B_REAP_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-Creative-19B-A3B-REAP-i1-GGUF",
+        ModelVariant.QWEN_3_5_2B_MLX_6BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3.5-2B-6bit",
             max_length=128,
         ),
     }
