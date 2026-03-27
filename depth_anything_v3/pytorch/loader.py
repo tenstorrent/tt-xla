@@ -4,10 +4,10 @@
 """
 Depth Anything V3 model loader implementation for monocular depth estimation.
 """
+import numpy as np
 import torch
 import torch.nn as nn
 from typing import Optional
-from PIL import Image
 from datasets import load_dataset
 
 from ...config import (
@@ -53,7 +53,6 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -88,8 +87,6 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None, batch_size=1):
         dataset = load_dataset("huggingface/cats-image", split="test")
         image = dataset[0]["image"].convert("RGB")
-
-        import numpy as np
 
         rgb = torch.from_numpy(np.array(image)).permute(2, 0, 1).float() / 255.0
         rgb = rgb.unsqueeze(0)
