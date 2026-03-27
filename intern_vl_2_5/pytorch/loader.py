@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -115,19 +115,19 @@ def load_image(image_path, input_size=448, max_num=12):
 class ModelVariant(StrEnum):
     """Available InternVL2.5 model variants."""
 
-    INTERN_VL2_5_8B_MPO = "8B_MPO"
+    INTERN_VL2_5_2B = "2B"
 
 
 class ModelLoader(ForgeModel):
     """InternVL2.5 model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.INTERN_VL2_5_8B_MPO: ModelConfig(
-            pretrained_model_name="OpenGVLab/InternVL2_5-8B-MPO",
+        ModelVariant.INTERN_VL2_5_2B: ModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL2_5-2B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.INTERN_VL2_5_8B_MPO
+    DEFAULT_VARIANT = ModelVariant.INTERN_VL2_5_2B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -150,9 +150,7 @@ class ModelLoader(ForgeModel):
 
     def _load_tokenizer(self):
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
-            use_fast=False,
+            self._variant_config.pretrained_model_name, trust_remote_code=True
         )
         return self.tokenizer
 
