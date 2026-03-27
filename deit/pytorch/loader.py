@@ -31,6 +31,7 @@ class DeitConfig(ModelConfig):
     high_res_size: tuple = (
         None  # None means use default size, otherwise (width, height)
     )
+    group: ModelGroup = ModelGroup.GENERALITY
 
 
 class ModelVariant(StrEnum):
@@ -38,6 +39,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     BASE_DISTILLED = "Base_Distilled"
+    BASE_DISTILLED_384 = "Base_Distilled_384"
     SMALL = "Small"
     TINY = "Tiny"
 
@@ -54,6 +56,11 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_DISTILLED: DeitConfig(
             pretrained_model_name="facebook/deit-base-distilled-patch16-224",
             source=ModelSource.HUGGING_FACE,
+        ),
+        ModelVariant.BASE_DISTILLED_384: DeitConfig(
+            pretrained_model_name="facebook/deit-base-distilled-patch16-384",
+            source=ModelSource.HUGGING_FACE,
+            group=ModelGroup.VULCAN,
         ),
         ModelVariant.SMALL: DeitConfig(
             pretrained_model_name="facebook/deit-small-patch16-224",
@@ -94,15 +101,15 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        # Get source from variant config
-        source = cls._VARIANTS[variant].source
+        # Get source and group from variant config
+        config = cls._VARIANTS[variant]
 
         return ModelInfo(
             model="DeiT",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=config.group,
             task=ModelTask.CV_IMAGE_CLS,
-            source=source,
+            source=config.source,
             framework=Framework.TORCH,
         )
 
