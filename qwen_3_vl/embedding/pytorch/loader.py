@@ -106,7 +106,7 @@ class ModelLoader(ForgeModel):
             content.append({"type": "text", "text": item["text"]})
 
         messages = [
-            {"role": "system", "content": instruction},
+            {"role": "system", "content": [{"type": "text", "text": instruction}]},
             {"role": "user", "content": content},
         ]
         return messages
