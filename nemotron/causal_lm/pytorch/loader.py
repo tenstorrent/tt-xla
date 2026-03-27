@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
     NEMOTRON_MINI_4B_INSTRUCT = "Mini_4B_Instruct"
     NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
     NEMOTRON_3_SUPER_120B_A12B_NVFP4 = "3_Super_120B_A12B_NVFP4"
-    OPEN_REASONING_NEMOTRON_32B = "OpenReasoning_32B"
+    NEMOTRON_NANO_9B_V2_FP8 = "Nano_9B_v2_FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -46,8 +46,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.OPEN_REASONING_NEMOTRON_32B: LLMModelConfig(
-            pretrained_model_name="nvidia/OpenReasoning-Nemotron-32B",
+        ModelVariant.NEMOTRON_NANO_9B_V2_FP8: LLMModelConfig(
+            pretrained_model_name="nvidia/NVIDIA-Nemotron-Nano-9B-v2-FP8",
             max_length=128,
         ),
     }
