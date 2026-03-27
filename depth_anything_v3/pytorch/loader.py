@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Depth Anything V3 model loader implementation for monocular depth estimation.
+Depth Anything V3 (DA3) model loader implementation for monocular depth estimation.
 """
-import numpy as np
 import torch
 import torch.nn as nn
+import numpy as np
 from typing import Optional
+from PIL import Image
 from datasets import load_dataset
 
 from ...config import (
@@ -23,7 +24,7 @@ from ...base import ForgeModel
 
 
 class DepthAnything3Wrapper(nn.Module):
-    """Wrapper around DepthAnything3 that takes a preprocessed image tensor
+    """Wrapper around Depth Anything V3 that takes a preprocessed image tensor
     and returns depth prediction."""
 
     def __init__(self, model):
@@ -31,25 +32,26 @@ class DepthAnything3Wrapper(nn.Module):
         self.model = model
 
     def forward(self, pixel_values):
-        return self.model(pixel_values)
+        prediction = self.model.infer(pixel_values)
+        return prediction["depth"]
 
 
 class ModelVariant(StrEnum):
     """Available Depth Anything V3 model variants."""
 
-    LARGE_1_1 = "Large-1.1"
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
     """Depth Anything V3 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.LARGE_1_1: ModelConfig(
-            pretrained_model_name="depth-anything/DA3-LARGE-1.1",
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="depth-anything/DA3-BASE",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE_1_1
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -88,13 +90,15 @@ class ModelLoader(ForgeModel):
         dataset = load_dataset("huggingface/cats-image", split="test")
         image = dataset[0]["image"].convert("RGB")
 
-        rgb = torch.from_numpy(np.array(image)).permute(2, 0, 1).float() / 255.0
-        rgb = rgb.unsqueeze(0)
+        image_np = np.array(image)
+        pixel_values = (
+            torch.from_numpy(image_np).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+        )
 
         if batch_size > 1:
-            rgb = rgb.expand(batch_size, -1, -1, -1)
+            pixel_values = pixel_values.expand(batch_size, -1, -1, -1)
 
         if dtype_override is not None:
-            rgb = rgb.to(dtype_override)
+            pixel_values = pixel_values.to(dtype_override)
 
-        return rgb
+        return pixel_values
