@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Coder model variants for causal language modeling."""
 
     QWEN_3_CODER_NEXT = "Next"
-    QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_8BIT = "30B_A3B_Instruct_GPTQ_8bit"
+    QWEN_3_CODER_30B_A3B_INSTRUCT = "Qwen3-Coder-30B-A3B-Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -37,8 +37,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-Next",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_8BIT: LLMModelConfig(
-            pretrained_model_name="btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-8bit",
+        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
             max_length=128,
         ),
     }
