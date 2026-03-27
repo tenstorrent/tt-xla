@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available LayoutLMv3 model variants."""
 
     BASE = "Base"
+    LARGE = "Large"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +36,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE: ModelConfig(
             pretrained_model_name="microsoft/layoutlmv3-base",
+        ),
+        ModelVariant.LARGE: ModelConfig(
+            pretrained_model_name="microsoft/layoutlmv3-large",
         ),
     }
 
