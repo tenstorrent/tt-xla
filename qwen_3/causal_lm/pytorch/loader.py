@@ -46,7 +46,7 @@ class ModelVariant(StrEnum):
     QWEN_3_8B_AWQ = "8B_Awq"
     QWEN_3_8B_NVFP4 = "8B_NVFP4"
     QWEN_3_30B_A3B = "30B_A3b"
-    QWEN_3_30B_A3B_BASE = "30B_A3B_Base"
+    QWEN_3_30B_A3B_FP8 = "30B_A3B_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
@@ -131,8 +131,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_30B_A3B_BASE: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-30B-A3B-Base",
+        ModelVariant.QWEN_3_30B_A3B_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-30B-A3B-FP8",
             max_length=128,
         ),
         ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507: LLMModelConfig(
@@ -205,7 +205,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.QWEN_3_8B_NVFP4,
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
-            ModelVariant.QWEN_3_30B_A3B_BASE,
+            ModelVariant.QWEN_3_30B_A3B_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
@@ -413,7 +413,7 @@ class ModelLoader(ForgeModel):
         """Check if the current variant is a Mixture of Experts model."""
         return self._variant in (
             ModelVariant.QWEN_3_30B_A3B,
-            ModelVariant.QWEN_3_30B_A3B_BASE,
+            ModelVariant.QWEN_3_30B_A3B_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
