@@ -3,11 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 PeptideCLM model loader implementation for masked language modeling on peptide sequences.
+
+This model uses a custom SMILES tokenizer not available via the transformers
+library, so we generate synthetic inputs directly from the model config.
 """
 
+import torch
 from typing import Optional
 
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+from transformers import AutoModelForMaskedLM, AutoConfig
 
 from ....base import ForgeModel
 from ....config import (
@@ -38,11 +42,9 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.PEPTIDE_CLM_23M_ALL
 
-    sample_text = "CC(=O)N[MASK]C(=O)O"
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.tokenizer = None
+        self.config = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -57,15 +59,15 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self):
-        self.tokenizer = AutoTokenizer.from_pretrained(
+    def _load_config(self):
+        self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name
         )
-        return self.tokenizer
+        return self.config
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        if self.config is None:
+            self._load_config()
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -79,29 +81,19 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        if self.config is None:
+            self._load_config()
 
-        inputs = self.tokenizer(
-            self.sample_text,
-            return_tensors="pt",
-            add_special_tokens=True,
-        )
+        seq_length = 128
+        vocab_size = self.config.vocab_size
 
-        return inputs
+        input_ids = torch.randint(0, vocab_size, (1, seq_length))
+        attention_mask = torch.ones(1, seq_length, dtype=torch.long)
 
-    def decode_output(self, outputs, inputs=None):
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        return {"input_ids": input_ids, "attention_mask": attention_mask}
 
-        if inputs is None:
-            inputs = self.load_inputs()
-
+    def decode_output(self, outputs):
         logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-        mask_token_index = (inputs["input_ids"] == self.tokenizer.mask_token_id)[
-            0
-        ].nonzero(as_tuple=True)[0]
-        predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
-        predicted_tokens = self.tokenizer.decode(predicted_token_id)
+        predicted_token_ids = logits[0].argmax(axis=-1)
 
-        return predicted_tokens
+        return f"Output token IDs: {predicted_token_ids.tolist()}"
