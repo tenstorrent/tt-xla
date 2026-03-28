@@ -7,7 +7,6 @@ BabyLM Flamingo model loader implementation for multimodal causal language model
 
 from typing import Optional
 
-import torch
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoProcessor
 
