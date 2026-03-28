@@ -35,6 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
+    QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF = "35B_A3B_Reasoning_Distilled_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -86,6 +87,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="janhq/Qwen3.5-35B-A3B-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -96,6 +101,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Qwen3.5-35B-A3B-Q4_K_S.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: "Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled.i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -295,12 +301,8 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_35B_A3B_NVFP4,
-            ModelVariant.QWEN_3_5_35B_A3B_TXN545_NVFP4,
-            ModelVariant.QWEN_3_5_35B_A3B_I1_GGUF,
-            ModelVariant.QWEN_3_5_35B_A3B_HERETIC_V2_GGUF,
-            ModelVariant.QWEN_3_5_122B_A10B_HERETIC_GGUF,
-            ModelVariant.QWEN_3_5_397B_A17B,
+            ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF,
+            ModelVariant.QWEN_3_5_122B_A10B,
         )
 
     def load_shard_spec(self, model):
