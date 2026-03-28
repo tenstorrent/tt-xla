@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.TEST_GGUF_MOE_SAMPLE_Q4_0
 
-    GGUF_FILE = "test-gguf-moe-sample-Q4_0.gguf"
+    GGUF_FILE = "Quant_Q4_0_512.gguf"
 
     sample_text = "What is your favorite city?"
 
