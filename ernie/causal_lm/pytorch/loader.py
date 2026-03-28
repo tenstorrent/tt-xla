@@ -2,67 +2,55 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ERNIE model loader implementation for causal language modeling.
+ERNIE 4.5 MoE causal language modeling loader
 """
-
 from typing import Optional
 
-import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 
-from ....base import ForgeModel
 from ....config import (
-    Framework,
     LLMModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
+from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ERNIE model variants for causal language modeling."""
+    """Available ERNIE 4.5 MoE model variants."""
 
-    ERNIE_4_5_21B_A3B_PT = "4.5_21B_A3B_PT"
-    ERNIE_4_5_21B_A3B_MLX_4BIT = "4.5_21B_A3B_MLX_4BIT"
+    ERNIE_4_5_21B_A3B_PT = "21B_A3B_PT"
 
 
 class ModelLoader(ForgeModel):
-    """ERNIE model loader implementation for causal language modeling tasks."""
+    """ERNIE 4.5 MoE model loader implementation."""
 
     _VARIANTS = {
         ModelVariant.ERNIE_4_5_21B_A3B_PT: LLMModelConfig(
             pretrained_model_name="baidu/ERNIE-4.5-21B-A3B-PT",
-            max_length=128,
-        ),
-        ModelVariant.ERNIE_4_5_21B_A3B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/ERNIE-4.5-21B-A3B-MLX-4bit",
-            max_length=128,
+            max_length=256,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.ERNIE_4_5_21B_A3B_PT
-
-    sample_text = "Give me a short introduction to large language models."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.config = None
-        self.model = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
-            model="ERNIE",
+            model="ERNIE-4.5-MoE",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -70,69 +58,70 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **tokenizer_kwargs
-        )
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-
-        return self.tokenizer
+    def _ensure_tokenizer(self):
+        if self.tokenizer is None:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self._variant_config.pretrained_model_name,
+            )
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+        self._ensure_tokenizer()
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, trust_remote_code=True
+                self._variant_config.pretrained_model_name,
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **model_kwargs
-        ).eval()
+        model_kwargs |= kwargs
 
-        self.config = model.config
-        self.model = model
+        model = AutoModelForCausalLM.from_pretrained(
+            self._variant_config.pretrained_model_name, **model_kwargs
+        )
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+        self._ensure_tokenizer()
 
-        inputs = self.tokenizer(self.sample_text, return_tensors="pt")
+        prompt = (
+            "In a shocking finding, scientists discovered a herd of unicorns living in a remote, "
+            "previously unexplored valley, in the Andes Mountains. Even more surprising to the "
+            "researchers was the fact that the unicorns spoke perfect English."
+        )
+
+        max_length = self._variant_config.max_length
+
+        tokenized_inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            max_length=max_length,
+            padding=True,
+            truncation=True,
+        )
+
+        inputs = {
+            "input_ids": tokenized_inputs.input_ids,
+            "attention_mask": tokenized_inputs.attention_mask,
+        }
 
         for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+    def decode_output(self, outputs, dtype_override=None, inputs=None):
+        self._ensure_tokenizer()
 
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
+        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+        token_ids = logits.argmax(dim=-1)
+        decoded = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
 
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, trust_remote_code=True
-        )
-        return self.config
+        return decoded[0] if len(decoded) == 1 else decoded
