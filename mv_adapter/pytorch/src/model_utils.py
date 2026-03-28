@@ -14,12 +14,9 @@ from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
 
 from mvadapter.pipelines.pipeline_mvadapter_t2mv_sdxl import MVAdapterT2MVSDXLPipeline
 from mvadapter.schedulers.scheduling_shift_snr import ShiftSNRScheduler
-from mvadapter.utils.geometry import get_plucker_embeds_from_cameras_ortho
-from mvadapter.utils.mesh_utils import get_orthogonal_camera
 
 
 NUM_VIEWS = 6
-AZIMUTH_DEG = [0, 45, 90, 180, 270, 315]
 HEIGHT = 768
 WIDTH = 768
 
@@ -127,7 +124,6 @@ def mv_adapter_preprocessing(
     latents = latents * pipe.scheduler.init_noise_sigma
 
     # 4. Prepare additional conditioning (SDXL time ids)
-    default_sample_size = pipe.unet.config.sample_size
     original_size = (height, width)
     target_size = (height, width)
     crops_coords_top_left = (0, 0)
