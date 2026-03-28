@@ -24,11 +24,13 @@ class ModelVariant(StrEnum):
 
     NER_PROTEINDETECT_MODERNMED_149M = "NER-ProteinDetect-ModernMed-149M"
     NER_CHEMICALDETECT_BIOMED_109M = "NER-ChemicalDetect-BioMed-109M"
+    NER_CHEMICALDETECT_TINYMED_65M = "NER-ChemicalDetect-TinyMed-65M"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.NER_PROTEINDETECT_MODERNMED_149M: "Casein micelles are the primary protein component of milk.",
     ModelVariant.NER_CHEMICALDETECT_BIOMED_109M: "The patient was administered acetylsalicylic acid for pain relief.",
+    ModelVariant.NER_CHEMICALDETECT_TINYMED_65M: "The patient was administered acetylsalicylic acid for pain relief.",
 }
 
 
@@ -42,6 +44,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NER_CHEMICALDETECT_BIOMED_109M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-BioMed-109M",
+            max_length=128,
+        ),
+        ModelVariant.NER_CHEMICALDETECT_TINYMED_65M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-TinyMed-65M",
             max_length=128,
         ),
     }
