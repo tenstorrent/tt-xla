@@ -2,31 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ELECTRA model loader implementation for token classification (NER).
+ELECTRA model loader implementation for token classification.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
+from transformers import ElectraForTokenClassification, ElectraTokenizerFast
 from third_party.tt_forge_models.config import (
-    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
 from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ELECTRA token classification model variants."""
+    """Available ELECTRA model variants for token classification."""
 
-    OPENMED_NER_CHEMICALDETECT_ELECTRAMED_109M = (
-        "OpenMed/OpenMed-NER-ChemicalDetect-ElectraMed-109M"
-    )
-    OPENMED_NER_PATHOLOGYDETECT_ELECTRAMED_335M = (
-        "OpenMed/OpenMed-NER-PathologyDetect-ElectraMed-335M"
+    RICHIELO_SMALL_E_CZECH_FINETUNED_NER_WIKIANN = (
+        "richielo/small-e-czech-finetuned-ner-wikiann"
     )
 
 
@@ -34,40 +31,29 @@ class ModelLoader(ForgeModel):
     """ELECTRA model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_CHEMICALDETECT_ELECTRAMED_109M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-ElectraMed-109M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_ELECTRAMED_335M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-ElectraMed-335M",
+        ModelVariant.RICHIELO_SMALL_E_CZECH_FINETUNED_NER_WIKIANN: LLMModelConfig(
+            pretrained_model_name="richielo/small-e-czech-finetuned-ner-wikiann",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_ELECTRAMED_109M
+    DEFAULT_VARIANT = ModelVariant.RICHIELO_SMALL_E_CZECH_FINETUNED_NER_WIKIANN
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        if self._variant == ModelVariant.OPENMED_NER_PATHOLOGYDETECT_ELECTRAMED_335M:
-            self.sample_text = (
-                "Early detection of breast cancer improves survival rates."
-            )
-        else:
-            self.sample_text = (
-                "The patient was administered acetylsalicylic acid for pain relief."
-            )
+        self.sample_text = "Praha je hlavní město České republiky a sídlo prezidenta"
         self.tokenizer = None
         self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name=None):
+        if variant_name is None:
+            variant_name = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="ELECTRA",
-            variant=variant,
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -75,19 +61,18 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = ElectraTokenizerFast.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForTokenClassification.from_pretrained(
+        self.model = ElectraForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
-        model.eval()
-        self.model = model
-        return model
+        self.model.eval()
+        return self.model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
@@ -115,4 +100,3 @@ class ModelLoader(ForgeModel):
 
         print(f"Context: {self.sample_text}")
         print(f"Answer: {predicted_tokens_classes}")
-        return predicted_tokens_classes
