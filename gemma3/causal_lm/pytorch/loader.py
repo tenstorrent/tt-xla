@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_270M_IT = "270M_Instruct"
     GEMMA_3_1B_PT = "1B_Pretrained"
     GEMMA_3_1B_IT = "1B_Instruct"
-    GEMMA_3_1B_IT_QAT_4BIT = "1B_Instruct_QAT_4bit"
+    GEMMA_3_1B_IT_UNSLOTH = "1B_Instruct_Unsloth"
     GEMMA_3_27B_IT = "27B_Instruct"
     GEMMA_3_4B_IT_OPENBOOKQA_DPO_D = "4B_Instruct_OpenbookQA_DPO_D"
     GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F = "4B_Instruct_OpenbookQA_SFT_DPO_F"
@@ -57,8 +57,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/gemma-3-1b-it",
             max_length=256,
         ),
-        ModelVariant.GEMMA_3_1B_IT_QAT_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/gemma-3-1b-it-qat-4bit",
+        ModelVariant.GEMMA_3_1B_IT_UNSLOTH: LLMModelConfig(
+            pretrained_model_name="unsloth/gemma-3-1b-it",
             max_length=256,
         ),
         ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
@@ -105,14 +105,8 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         if variant in (
-            ModelVariant.GEMMA_3_270M,
-            ModelVariant.GEMMA_3_1B_PT,
             ModelVariant.GEMMA_3_27B_IT,
-            ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_DPO_D,
-            ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F,
-            ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_C,
-            ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_D,
-            ModelVariant.GEMMA_3_34M,
+            ModelVariant.GEMMA_3_1B_IT_UNSLOTH,
         ):
             group = ModelGroup.VULCAN
         else:
