@@ -45,11 +45,26 @@ class ModelLoader(ForgeModel):
     )
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self._tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="DistilBART",
             variant=variant,
@@ -60,6 +75,14 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            tokenizer: The loaded tokenizer instance
+        """
         from transformers import AutoTokenizer
 
         tokenizer_kwargs = {}
@@ -73,6 +96,14 @@ class ModelLoader(ForgeModel):
         return self._tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the DistilBART model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            model: The loaded model instance
+        """
         from transformers import BartForConditionalGeneration
 
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -88,17 +119,26 @@ class ModelLoader(ForgeModel):
         model = BartForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
+        model.eval()
 
         return model
 
     def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the DistilBART model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+
+        Returns:
+            inputs: Input tensors that can be fed to the model.
+        """
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         inputs = self._tokenizer(
             self.sample_text,
-            return_tensors="pt",
             truncation=True,
+            return_tensors="pt",
         )
 
         return inputs
