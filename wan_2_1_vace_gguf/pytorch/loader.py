@@ -35,7 +35,7 @@ from ...config import (
 )
 
 GGUF_REPO = "QuantStack/Wan2.1_14B_VACE-GGUF"
-BASE_PIPELINE = "Wan-AI/Wan2.1-VACE-14B-Diffusers"
+BASE_PIPELINE = "Wan-AI/Wan2.1-VACE-14B-diffusers"
 
 
 class ModelVariant(StrEnum):
