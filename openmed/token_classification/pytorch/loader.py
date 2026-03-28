@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_GENOMEDETECT_MULTIMED_568M = "NER-GenomeDetect-MultiMed-568M"
     OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M = "NER-SpeciesDetect-BioPatient-108M"
     OPENMED_NER_PATHOLOGYDETECT_TINYMED_65M = "NER-PathologyDetect-TinyMed-65M"
+    OPENMED_NER_ONCOLOGYDETECT_ELECTRAMED_335M = "NER-OncologyDetect-ElectraMed-335M"
     OPENMED_NER_SPECIESDETECT_PUBMED_V2_109M = "NER-SpeciesDetect-PubMed-v2-109M"
 
 
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_GENOMEDETECT_MULTIMED_568M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-MultiMed-568M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_ONCOLOGYDETECT_ELECTRAMED_335M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-ElectraMed-335M",
             max_length=128,
         ),
         ModelVariant.OPENMED_NER_PATHOLOGYDETECT_TINYMED_65M: LLMModelConfig(
@@ -63,6 +68,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_GENOMEDETECT_MULTIMED_568M: (
             "The EGFR gene mutation was identified in lung cancer patients."
+        ),
+        ModelVariant.OPENMED_NER_ONCOLOGYDETECT_ELECTRAMED_335M: (
+            "Mutations in KRAS gene drive oncogenic transformation."
         ),
         ModelVariant.OPENMED_NER_PATHOLOGYDETECT_TINYMED_65M: (
             "Early detection of breast cancer improves survival rates."
