@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     PIXTRAL_12B_COMMUNITY = "12B_Community"
     PIXTRAL_12B_EXPERIMENTAL = "12B_Experimental"
+    PIXTRAL_12B_2409_BNB_4BIT = "12B_2409_Bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.PIXTRAL_12B_EXPERIMENTAL: ModelConfig(
             pretrained_model_name="mistral-experimental/pixtral-12b",
+        ),
+        ModelVariant.PIXTRAL_12B_2409_BNB_4BIT: ModelConfig(
+            pretrained_model_name="unsloth/Pixtral-12B-2409-bnb-4bit",
         ),
     }
 
@@ -65,7 +69,10 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant == ModelVariant.PIXTRAL_12B_EXPERIMENTAL:
+        if variant in (
+            ModelVariant.PIXTRAL_12B_EXPERIMENTAL,
+            ModelVariant.PIXTRAL_12B_2409_BNB_4BIT,
+        ):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
@@ -97,6 +104,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
+
+        # Quantized variants need device_map="cpu" for CPU-based loading
+        if self._variant in (ModelVariant.PIXTRAL_12B_2409_BNB_4BIT,):
+            model_kwargs["device_map"] = "cpu"
 
         model = LlavaForConditionalGeneration.from_pretrained(
             model_name, **model_kwargs
