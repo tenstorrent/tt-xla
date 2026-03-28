@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OneFormer model loader implementation for universal image segmentation tasks.
+OneFormer model loader implementation for universal segmentation tasks.
 """
 
 import torch
@@ -25,19 +25,19 @@ from datasets import load_dataset
 class ModelVariant(StrEnum):
     """Available OneFormer model variants."""
 
-    DINAT_L_ADE20K = "DiNAT_Large_ADE20K"
+    SWIN_T_ADE20K = "Swin_Tiny_ADE20k"
 
 
 class ModelLoader(ForgeModel):
-    """OneFormer model loader implementation for universal image segmentation tasks."""
+    """OneFormer model loader implementation for universal segmentation tasks."""
 
     _VARIANTS = {
-        ModelVariant.DINAT_L_ADE20K: ModelConfig(
-            pretrained_model_name="shi-labs/oneformer_ade20k_dinat_large"
+        ModelVariant.SWIN_T_ADE20K: ModelConfig(
+            pretrained_model_name="shi-labs/oneformer_ade20k_swin_tiny",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DINAT_L_ADE20K
+    DEFAULT_VARIANT = ModelVariant.SWIN_T_ADE20K
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)

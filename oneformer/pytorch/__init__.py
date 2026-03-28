@@ -3,6 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-OneFormer DiNAT-Large PyTorch model implementation for universal image segmentation.
+OneFormer PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
