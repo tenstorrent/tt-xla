@@ -19,7 +19,6 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import get_static_cache_decode_inputs
 
 
 class ModelVariant(StrEnum):
