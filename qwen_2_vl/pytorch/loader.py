@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
 
     QWEN_2_VL_2B_INSTRUCT = "2B_Instruct"
     QWEN_2_VL_7B_INSTRUCT = "7B_Instruct"
+    QWEN_2_VL_OCR2_2B_INSTRUCT = "OCR2_2B_Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_2_VL_7B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2-VL-7B-Instruct",
+        ),
+        ModelVariant.QWEN_2_VL_OCR2_2B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="prithivMLmods/Qwen2-VL-OCR2-2B-Instruct",
         ),
     }
 
