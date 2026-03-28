@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeepSeek-R1-Distill-Qwen-14B GGUF model loader implementation for causal language modeling.
+DeepSeek R1 Distill Qwen 14B GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,17 +21,17 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available DeepSeek-R1-Distill-Qwen-14B GGUF model variants for causal language modeling."""
+    """Available DeepSeek R1 Distill Qwen 14B GGUF model variants for causal language modeling."""
 
     DEEPSEEK_R1_DISTILL_QWEN_14B_GGUF = "DeepSeek_R1_Distill_Qwen_14B_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """DeepSeek-R1-Distill-Qwen-14B GGUF model loader for causal language modeling tasks."""
+    """DeepSeek R1 Distill Qwen 14B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
         ModelVariant.DEEPSEEK_R1_DISTILL_QWEN_14B_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/DeepSeek-R1-Distill-Qwen-14B-GGUF",
+            pretrained_model_name="osllmai-community/DeepSeek-R1-Distill-Qwen-14B-GGUF",
             max_length=128,
         ),
     }
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="DeepSeek-R1-Distill-Qwen-14B GGUF",
+            model="DeepSeek R1 Distill Qwen 14B GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
