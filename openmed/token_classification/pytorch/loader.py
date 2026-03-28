@@ -31,6 +31,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_GENOMIC_DETECT_TINYMED_65M = (
         "OpenMed/OpenMed-NER-GenomicDetect-TinyMed-65M"
     )
+    OPENMED_PII_FRENCH_SNOWFLAKEMED_LARGE_568M_V1 = (
+        "OpenMed/OpenMed-PII-French-SnowflakeMed-Large-568M-v1"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -48,6 +51,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_GENOMIC_DETECT_TINYMED_65M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-TinyMed-65M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_PII_FRENCH_SNOWFLAKEMED_LARGE_568M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-French-SnowflakeMed-Large-568M-v1",
             max_length=128,
         ),
     }
@@ -75,6 +82,10 @@ class ModelLoader(ForgeModel):
             self.sample_text = (
                 "The BRCA2 gene is associated with hereditary breast cancer."
             )
+        elif (
+            self._variant == ModelVariant.OPENMED_PII_FRENCH_SNOWFLAKEMED_LARGE_568M_V1
+        ):
+            self.sample_text = "Patient Jean Martin, né le 15/03/1985, habite au 12 rue de la Paix, Paris."
         else:
             self.sample_text = (
                 "The patient complained of pain in the left ventricle region."
