@@ -48,9 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_3_235B_A22B_FP8 = "235B_A22B_FP8"
     QWEN_3_235B_A22B_THINKING_2507 = "235B_A22B_Thinking_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_4B_THINKING_2507_MLX_8BIT = "4B_Thinking_2507_Mlx_8bit"
-    QWEN_3_32B_MLX_4BIT = "32B_Mlx_4bit"
-    UNSLOTH_QWEN_3_1_7B_BASE = "unsloth_1_7B_Base"
+    QWEN_3_4B_MLX_4BIT = "4B_Mlx_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -142,16 +140,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_4B_THINKING_2507_MLX_8BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-4B-Thinking-2507-MLX-8bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_32B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-32B-MLX-4bit",
-            max_length=128,
-        ),
-        ModelVariant.UNSLOTH_QWEN_3_1_7B_BASE: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-1.7B-Base",
+        ModelVariant.QWEN_3_4B_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-4B-MLX-4bit",
             max_length=128,
         ),
     }
@@ -202,9 +192,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_235B_A22B_FP8,
             ModelVariant.QWEN_3_235B_A22B_THINKING_2507,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_4B_THINKING_2507_MLX_8BIT,
-            ModelVariant.QWEN_3_32B_MLX_4BIT,
-            ModelVariant.UNSLOTH_QWEN_3_1_7B_BASE,
+            ModelVariant.QWEN_3_4B_MLX_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -377,7 +365,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT,
+            ModelVariant.QWEN_3_4B_MLX_4BIT,
         ]:
             text_config = self._get_text_config()
             assert (
@@ -400,7 +388,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT,
+            ModelVariant.QWEN_3_4B_MLX_4BIT,
         ]:
             return None
 
