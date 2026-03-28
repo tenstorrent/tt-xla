@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Realistic Vision V3.0 VAE model loader implementation
+Realistic Vision model loader implementation
 """
 
 import torch
@@ -23,20 +23,20 @@ from typing import Optional
 class ModelVariant(StrEnum):
     """Available Realistic Vision model variants."""
 
-    V3_0_VAE = "V3.0_VAE"
+    V6_0_B1_NOVAE = "V6.0 B1 noVAE"
 
 
 class ModelLoader(ForgeModel):
-    """Realistic Vision V3.0 VAE model loader implementation."""
+    """Realistic Vision model loader implementation."""
 
     # Dictionary of available model variants
     _VARIANTS = {
-        ModelVariant.V3_0_VAE: ModelConfig(
-            pretrained_model_name="SG161222/Realistic_Vision_V3.0_VAE",
+        ModelVariant.V6_0_B1_NOVAE: ModelConfig(
+            pretrained_model_name="SG161222/Realistic_Vision_V6.0_B1_noVAE",
         )
     }
 
-    DEFAULT_VARIANT = ModelVariant.V3_0_VAE
+    DEFAULT_VARIANT = ModelVariant.V6_0_B1_NOVAE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -59,7 +59,7 @@ class ModelLoader(ForgeModel):
         """
 
         return ModelInfo(
-            model="Realistic Vision V3.0 VAE",
+            model="Realistic Vision",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_IMAGE_TTT,
@@ -75,7 +75,7 @@ class ModelLoader(ForgeModel):
                            If not provided, the model will use torch.bfloat16.
 
         Returns:
-            StableDiffusionPipeline: The pre-trained Stable Diffusion pipeline object.
+            StableDiffusionPipeline: The pre-trained Realistic Vision pipeline object.
         """
         dtype = dtype_override or torch.bfloat16
         pipe = StableDiffusionPipeline.from_pretrained(
@@ -95,6 +95,6 @@ class ModelLoader(ForgeModel):
         """
 
         prompt = [
-            "RAW photo, a close up portrait of a woman, natural skin, 8k uhd, high quality",
+            "RAW photo, a portrait of a woman in a garden, 8k uhd, high quality, film grain",
         ] * batch_size
         return prompt
