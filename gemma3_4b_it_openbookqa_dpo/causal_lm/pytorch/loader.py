@@ -10,7 +10,7 @@ from peft import PeftModel
 from typing import Optional
 
 from ....config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -31,8 +31,9 @@ class ModelLoader(ForgeModel):
     """Gemma3-4b-it-OpenbookQA-DPO model loader for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GEMMA3_4B_IT_OPENBOOKQA_DPO_G_V1: ModelConfig(
+        ModelVariant.GEMMA3_4B_IT_OPENBOOKQA_DPO_G_V1: LLMModelConfig(
             pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-DPO-G-v1",
+            max_length=128,
         ),
     }
 
@@ -121,7 +122,7 @@ class ModelLoader(ForgeModel):
         inputs = self.tokenizer(
             input_text,
             return_tensors="pt",
-            max_length=128,
+            max_length=self._variant_config.max_length,
             padding="max_length",
             truncation=True,
         )
