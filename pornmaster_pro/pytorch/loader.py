@@ -19,12 +19,6 @@ from .src.model_utils import load_pipe, stable_diffusion_preprocessing_xl
 class ModelLoader(ForgeModel):
     """PornmasterPro noobV3VAE model loader implementation."""
 
-    # Dictionary of available model variants using structured configs
-    _VARIANTS = {}
-
-    # Default variant to use
-    DEFAULT_VARIANT = None
-
     # Shared configuration parameters
     pretrained_model_name = "votepurchase/pornmasterPro_noobV3VAE"
     prompt = "An astronaut riding a green horse"
