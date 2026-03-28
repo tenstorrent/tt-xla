@@ -4,7 +4,6 @@
 """
 Donut model loader implementation for document question answering tasks.
 """
-import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
 from transformers import DonutProcessor, VisionEncoderDecoderModel
