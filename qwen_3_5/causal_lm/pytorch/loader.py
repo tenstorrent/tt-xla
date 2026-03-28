@@ -41,6 +41,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_HERETIC_GGUF = "9B_heretic_GGUF"
     QWEN_3_5_ANTIREP_27B_GGUF = "Antirep_27B_GGUF"
     QWEN_3_5_35B_A3B_HERETIC_GGUF = "35B_A3B_heretic_GGUF"
+    QWEN_3_5_OMNICODER_9B = "OmniCoder_9B"
 
 
 class ModelLoader(ForgeModel):
@@ -106,6 +107,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_HERETIC_GGUF: LLMModelConfig(
             pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-heretic-i1-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_OMNICODER_9B: LLMModelConfig(
+            pretrained_model_name="Tesslate/OmniCoder-9B",
             max_length=128,
         ),
     }
