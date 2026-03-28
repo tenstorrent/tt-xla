@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     RUBERT_BASE = "ai-forever/ruBert-base"
     HUBERT_BASE_CC = "SZTAKI-HLT/hubert-base-cc"
     BERT_BASE_SWEDISH_CASED = "KBLab/bert-base-swedish-cased-alpha"
+    MURIL_BASE_CASED = "google/muril-base-cased"
 
 
 _SAMPLE_TEXTS = {
@@ -43,6 +44,7 @@ _SAMPLE_TEXTS = {
     ModelVariant.RUBERT_BASE: "Меня зовут [MASK] и я инженер живущий в Москве.",
     ModelVariant.HUBERT_BASE_CC: "Budapest Magyarország [MASK] városa.",
     ModelVariant.BERT_BASE_SWEDISH_CASED: "Stockholm är Sveriges [MASK] stad.",
+    ModelVariant.MURIL_BASE_CASED: "भारत की राजधानी [MASK] है।",
 }
 
 
@@ -95,6 +97,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="KBLab/bert-base-swedish-cased-alpha",
             max_length=128,
         ),
+        ModelVariant.MURIL_BASE_CASED: LLMModelConfig(
+            pretrained_model_name="google/muril-base-cased",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -142,6 +148,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.RUBERT_BASE,
             ModelVariant.HUBERT_BASE_CC,
             ModelVariant.BERT_BASE_SWEDISH_CASED,
+            ModelVariant.MURIL_BASE_CASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
