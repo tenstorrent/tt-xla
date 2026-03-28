@@ -10,7 +10,7 @@ Loads the pre-exported ONNX model from optimum/all-MiniLM-L6-v2.
 import onnx
 from huggingface_hub import hf_hub_download
 
-from ...pytorch.loader import ModelLoader as PyTorchModelLoader
+from ..pytorch.loader import ModelLoader as PyTorchModelLoader
 from ....config import (
     ModelInfo,
     ModelGroup,
