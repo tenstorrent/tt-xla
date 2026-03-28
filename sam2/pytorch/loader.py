@@ -39,7 +39,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="facebook/sam2.1-hiera-tiny",
         ),
         ModelVariant.HIERA_BASE_PLUS: ModelConfig(
-            pretrained_model_name="facebook/sam2-hiera-base-plus",
+            pretrained_model_name="facebook/sam2.1-hiera-base-plus",
         ),
     }
 
