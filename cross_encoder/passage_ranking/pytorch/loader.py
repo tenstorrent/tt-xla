@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
     MS_MARCO_MINILM_L4_V2 = "ms-marco-MiniLM-L4-v2"
     MS_MARCO_MINILM_L6_V2 = "ms-marco-MiniLM-L6-v2"
     MS_MARCO_MINILM_L12_V2 = "ms-marco-MiniLM-L12-v2"
-    MMARCO_GERMAN_DISTILBERT_BASE = "mmarco-german-distilbert-base"
+    MS_MARCO_TINYBERT_L6 = "ms-marco-TinyBERT-L6"
 
 
 class ModelLoader(ForgeModel):
@@ -47,8 +47,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MS_MARCO_MINILM_L12_V2: ModelConfig(
             pretrained_model_name="cross-encoder/ms-marco-MiniLM-L12-v2",
         ),
-        ModelVariant.MMARCO_GERMAN_DISTILBERT_BASE: ModelConfig(
-            pretrained_model_name="ml6team/cross-encoder-mmarco-german-distilbert-base",
+        ModelVariant.MS_MARCO_TINYBERT_L6: ModelConfig(
+            pretrained_model_name="cross-encoder/ms-marco-TinyBERT-L6",
         ),
     }
 
