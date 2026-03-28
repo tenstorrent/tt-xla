@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     MISTRAL_7B_INSTRUCT_V02_GPTQ = "7B_INSTRUCT_v02_GPTQ"
     MISTRAL_7B_INSTRUCT_V02_MLC_Q4F16 = "7B_INSTRUCT_v02_MLC_q4f16_1"
     DOLPHIN3_R1_MISTRAL_24B = "Dolphin3.0_R1_Mistral_24B"
+    ARATAKO_MISTRAL_NEMO_12B_RP_GGUF = "Aratako_Nemo_12B_RP_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -136,6 +137,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.DOLPHIN3_R1_MISTRAL_24B: ModelConfig(
             pretrained_model_name="cognitivecomputations/Dolphin3.0-R1-Mistral-24B",
         ),
+        ModelVariant.ARATAKO_MISTRAL_NEMO_12B_RP_GGUF: ModelConfig(
+            pretrained_model_name="Aratako/Mistral-Nemo-12B-RP-GGUF",
+        ),
     }
 
     # Default variant to use
@@ -177,6 +181,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_INSTRUCT_V02_MLC_Q4F16,
             ModelVariant.DEVSTRAL_SMALL_2505_MLX_4BIT,
             ModelVariant.DOLPHIN3_R1_MISTRAL_24B,
+            ModelVariant.ARATAKO_MISTRAL_NEMO_12B_RP_GGUF,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
