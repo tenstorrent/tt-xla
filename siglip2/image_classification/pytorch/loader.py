@@ -5,6 +5,11 @@
 SigLIP2 model loader implementation for image classification.
 """
 import torch
+from transformers import (
+    AutoImageProcessor,
+    SiglipForImageClassification,
+)
+from datasets import load_dataset
 from typing import Optional
 
 from ....base import ForgeModel
@@ -22,21 +27,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available SigLIP2 model variants for image classification."""
 
-    AI_VS_DEEPFAKE_VS_REAL = "AI_vs_Deepfake_vs_Real"
+    AI_VS_DEEPFAKE_VS_REAL_V2 = "AI-vs-Deepfake-vs-Real-v2.0"
 
 
 class ModelLoader(ForgeModel):
     """SigLIP2 model loader implementation for image classification tasks."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.AI_VS_DEEPFAKE_VS_REAL: ModelConfig(
-            pretrained_model_name="prithivMLmods/AI-vs-Deepfake-vs-Real-Siglip2",
+        ModelVariant.AI_VS_DEEPFAKE_VS_REAL_V2: ModelConfig(
+            pretrained_model_name="prithivMLmods/AI-vs-Deepfake-vs-Real-v2.0",
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.AI_VS_DEEPFAKE_VS_REAL
+    DEFAULT_VARIANT = ModelVariant.AI_VS_DEEPFAKE_VS_REAL_V2
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -59,6 +62,9 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="SigLIP2",
             variant=variant,
@@ -74,11 +80,9 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded processor instance
         """
-        from transformers import AutoImageProcessor
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        self.processor = AutoImageProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
+        self.processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
 
         return self.processor
 
@@ -92,8 +96,6 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The SigLIP2 model instance for image classification.
         """
-        from transformers import SiglipForImageClassification
-
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
@@ -118,8 +120,6 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors that can be fed to the model.
         """
-        from datasets import load_dataset
-
         if self.processor is None:
             self._load_processor()
 
@@ -134,7 +134,7 @@ class ModelLoader(ForgeModel):
 
         if dtype_override is not None:
             for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].dtype == torch.float32:
+                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
                     inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
