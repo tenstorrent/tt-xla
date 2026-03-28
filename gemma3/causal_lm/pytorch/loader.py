@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_1B_IT_UNSLOTH = "1B_Instruct_Unsloth"
     GEMMA_3_27B_IT = "27B_Instruct"
     GEMMA_3_4B_IT_BNB_4BIT = "4B_Instruct_bnb_4bit"
+    GEMMA_3_1B_IT_AWQ_INT4 = "1B_Instruct_awq_int4"
 
 
 class ModelLoader(ForgeModel):
@@ -65,6 +66,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/gemma-3-4b-it-unsloth-bnb-4bit",
             max_length=256,
         ),
+        ModelVariant.GEMMA_3_1B_IT_AWQ_INT4: LLMModelConfig(
+            pretrained_model_name="gaunernst/gemma-3-1b-it-int4-awq",
+            max_length=256,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GEMMA_3_270M_IT
@@ -87,6 +92,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.GEMMA_3_27B_IT,
             ModelVariant.GEMMA_3_4B_IT_BNB_4BIT,
+            ModelVariant.GEMMA_3_1B_IT_AWQ_INT4,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -135,9 +141,8 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
         model_kwargs = {}
-        if self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
+        if self._variant == ModelVariant.GEMMA_3_1B_IT_AWQ_INT4:
             model_kwargs["device_map"] = "cpu"
-            self._patch_torchao_int4_config()
         elif self._variant == ModelVariant.GEMMA_3_4B_IT_BNB_4BIT:
             model_kwargs["device_map"] = "cpu"
         else:
