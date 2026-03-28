@@ -4,18 +4,14 @@
 """
 Z-Image-Turbo GGUF model loader implementation.
 
-Loads GGUF-quantized Z-Image-Turbo transformers and plugs them into the
-Tongyi-MAI/Z-Image-Turbo pipeline.
-
-Available variants:
-- Z_IMAGE_TURBO_GGUF: GGUF-quantized DiT transformer (jayn7/Z-Image-Turbo-GGUF)
-- Z_IMAGE_TURBO_GGUF_LEEJET: GGUF-quantized DiT transformer (leejet/Z-Image-Turbo-GGUF)
+Loads quantized GGUF variants of the Z-Image-Turbo text-to-image
+DiT transformer from unsloth/Z-Image-Turbo-GGUF.
 """
 
 from typing import Any, Optional
 
 import torch
-from diffusers import GGUFQuantizationConfig, ZImagePipeline, ZImageTransformer2DModel
+from diffusers import ZImagePipeline, ZImageTransformer2DModel, GGUFQuantizationConfig
 from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
@@ -29,33 +25,29 @@ from ...config import (
     StrEnum,
 )
 
+GGUF_REPO_ID = "unsloth/Z-Image-Turbo-GGUF"
 PIPELINE_REPO_ID = "Tongyi-MAI/Z-Image-Turbo"
-
-_GGUF_CONFIGS = {
-    "jayn7/Z-Image-Turbo-GGUF": "z_image_turbo-Q4_0.gguf",
-    "leejet/Z-Image-Turbo-GGUF": "z_image_turbo-Q4_0.gguf",
-}
 
 
 class ModelVariant(StrEnum):
     """Available Z-Image-Turbo GGUF model variants."""
 
-    Z_IMAGE_TURBO_GGUF = "Z-Image-Turbo-GGUF"
-    Z_IMAGE_TURBO_GGUF_LEEJET = "Z-Image-Turbo-GGUF-leejet"
+    Z_IMAGE_TURBO_GGUF_Q4_K_M = "Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
     """Z-Image-Turbo GGUF model loader."""
 
     _VARIANTS = {
-        ModelVariant.Z_IMAGE_TURBO_GGUF: ModelConfig(
-            pretrained_model_name="jayn7/Z-Image-Turbo-GGUF",
-        ),
-        ModelVariant.Z_IMAGE_TURBO_GGUF_LEEJET: ModelConfig(
-            pretrained_model_name="leejet/Z-Image-Turbo-GGUF",
+        ModelVariant.Z_IMAGE_TURBO_GGUF_Q4_K_M: ModelConfig(
+            pretrained_model_name=GGUF_REPO_ID,
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.Z_IMAGE_TURBO_GGUF
+    DEFAULT_VARIANT = ModelVariant.Z_IMAGE_TURBO_GGUF_Q4_K_M
+
+    GGUF_FILES = {
+        ModelVariant.Z_IMAGE_TURBO_GGUF_Q4_K_M: "z-image-turbo-Q4_K_M.gguf",
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -74,19 +66,19 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_pipeline(self, dtype: torch.dtype = torch.bfloat16) -> ZImagePipeline:
-        """Load the Z-Image-Turbo pipeline with GGUF-quantized transformer."""
-        repo_id = self._variant_config.pretrained_model_name
-        gguf_filename = _GGUF_CONFIGS[repo_id]
-        gguf_path = hf_hub_download(
-            repo_id=repo_id,
-            filename=gguf_filename,
-        )
+    def _load_transformer(self, dtype: torch.dtype = torch.bfloat16):
+        """Load the GGUF-quantized transformer."""
+        gguf_file = self.GGUF_FILES[self._variant]
+        gguf_path = hf_hub_download(repo_id=GGUF_REPO_ID, filename=gguf_file)
         transformer = ZImageTransformer2DModel.from_single_file(
             gguf_path,
             quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
-            torch_dtype=dtype,
         )
+        return transformer
+
+    def _load_pipeline(self, dtype: torch.dtype = torch.bfloat16) -> ZImagePipeline:
+        """Load the Z-Image-Turbo pipeline with GGUF transformer."""
+        transformer = self._load_transformer(dtype)
         self._pipe = ZImagePipeline.from_pretrained(
             PIPELINE_REPO_ID,
             transformer=transformer,
@@ -100,12 +92,10 @@ class ModelLoader(ForgeModel):
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
         if self._pipe is None:
             self._load_pipeline(dtype)
-        if dtype_override is not None:
-            self._pipe.transformer = self._pipe.transformer.to(dtype_override)
         return self._pipe.transformer
 
     def load_inputs(self, **kwargs) -> Any:
-        """Prepare transformer inputs from the pipeline."""
+        """Prepare inputs for the GGUF transformer."""
         dtype = kwargs.get("dtype_override", torch.bfloat16)
         height = 128
         width = 128
