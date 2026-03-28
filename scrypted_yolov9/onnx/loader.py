@@ -9,7 +9,6 @@ from typing import Optional
 
 import numpy as np
 import onnx
-import torch
 from datasets import load_dataset
 from torchvision import transforms
 
