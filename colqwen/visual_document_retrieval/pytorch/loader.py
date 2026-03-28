@@ -40,9 +40,6 @@ class ModelLoader(ForgeModel):
     sample_queries = [
         "What is the revenue for 2024?",
     ]
-    sample_images = [
-        "https://huggingface.co/vidore/colqwen-omni-v0.1/resolve/main/example_image.png",
-    ]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
