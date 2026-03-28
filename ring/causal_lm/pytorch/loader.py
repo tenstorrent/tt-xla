@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -6,7 +6,7 @@ Ring model loader implementation for causal language modeling.
 """
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -87,6 +87,14 @@ class ModelLoader(ForgeModel):
         model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, trust_remote_code=True
+            )
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
+
         model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
@@ -125,8 +133,6 @@ class ModelLoader(ForgeModel):
         return self.tokenizer.decode([next_token])
 
     def load_config(self):
-        from transformers import AutoConfig
-
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
