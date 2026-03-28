@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-H2O-Danube3 model loader implementation for causal language modeling.
+H2O Danube3 GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,36 +21,45 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available H2O-Danube3 model variants for causal language modeling."""
+    """Available H2O Danube3 GGUF model variants for causal language modeling."""
 
-    H2O_DANUBE3_500M_CHAT = "h2o_danube3_500m_chat"
+    H2O_DANUBE3_4B_CHAT_Q4_K_M = "4B_Chat_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
-    """H2O-Danube3 model loader implementation for causal language modeling tasks."""
+    """H2O Danube3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.H2O_DANUBE3_500M_CHAT: LLMModelConfig(
-            pretrained_model_name="h2oai/h2o-danube3-500m-chat",
+        ModelVariant.H2O_DANUBE3_4B_CHAT_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="h2oai/h2o-danube3-4b-chat-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.H2O_DANUBE3_500M_CHAT
+    DEFAULT_VARIANT = ModelVariant.H2O_DANUBE3_4B_CHAT_Q4_K_M
 
-    sample_text = "The quick brown fox jumps over the lazy dog."
+    _GGUF_FILES = {
+        ModelVariant.H2O_DANUBE3_4B_CHAT_Q4_K_M: "h2o-danube3-4b-chat-Q4_K_M.gguf",
+    }
+
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
+        self.config = None
         self.num_layers = num_layers
+
+    @property
+    def gguf_file(self):
+        return self._GGUF_FILES[self._variant]
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="H2O-Danube3",
+            model="H2O Danube3 GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -62,11 +71,13 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+        tokenizer_kwargs["gguf_file"] = self.gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            **tokenizer_kwargs,
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -80,18 +91,21 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
+        model_kwargs["gguf_file"] = self.gguf_file
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, gguf_file=self.gguf_file
+            )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
-        self.config = model.config
+        ).eval()
 
+        self.config = model.config
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
@@ -103,7 +117,7 @@ class ModelLoader(ForgeModel):
         inputs = self.tokenizer(
             [self.sample_text],
             return_tensors="pt",
-            padding="max_length",
+            padding=True,
             truncation=True,
             max_length=max_length,
         )
@@ -113,3 +127,26 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        return shard_specs
+
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
+        )
+        return self.config
