@@ -2,11 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Pegasus model loader implementation for text summarization.
+Pegasus PyTorch model loader implementation for text summarization.
 """
 
 import torch
-from transformers import AutoTokenizer, PegasusForConditionalGeneration
 from typing import Optional
 
 from ....base import ForgeModel
@@ -24,46 +23,32 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Pegasus model variants."""
 
-    TINY_RANDOM = "Tiny_Random"
+    CNN_DAILYMAIL = "Cnn Dailymail"
 
 
 class ModelLoader(ForgeModel):
-    """Pegasus model loader implementation for text summarization."""
+    """Pegasus PyTorch model loader implementation for text summarization."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-pegasus",
+        ModelVariant.CNN_DAILYMAIL: LLMModelConfig(
+            pretrained_model_name="google/pegasus-cnn_dailymail",
+            max_length=1024,
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.CNN_DAILYMAIL
 
     sample_text = "My friends are cool but they eat too many carbs."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
+        """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
         self.tokenizer = None
         self._cached_model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
+        """Implementation method for getting model info with validated variant."""
         return ModelInfo(
             model="Pegasus",
             variant=variant,
@@ -74,14 +59,9 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
+        """Load tokenizer for the current variant."""
+        from transformers import AutoTokenizer
 
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
@@ -93,14 +73,9 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Pegasus model instance for this instance's variant.
+        """Load and return the Pegasus model instance."""
+        from transformers import PegasusForConditionalGeneration
 
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The Pegasus model instance for conditional generation.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
@@ -116,26 +91,20 @@ class ModelLoader(ForgeModel):
         )
         model.eval()
         self._cached_model = model
+
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the Pegasus model with this instance's variant settings.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
+        """Load and return sample inputs for the Pegasus model."""
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
             self.sample_text,
-            truncation=True,
             return_tensors="pt",
         )
 
+        # Pegasus requires decoder input ids as an input for seq2seq
         decoder_start_token_tensor = torch.tensor(
             self._cached_model.generation_config.decoder_start_token_id,
             dtype=torch.long,
