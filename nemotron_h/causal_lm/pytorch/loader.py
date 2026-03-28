@@ -5,19 +5,18 @@
 Nemotron-H model loader implementation for causal language modeling.
 """
 
-from typing import Optional
-
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     LLMModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
@@ -25,20 +24,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Nemotron-H model variants for causal language modeling."""
 
-    NEMOTRON_H_56B_BASE_8K = "H_56B_Base_8K"
+    NEMOTRON_H_8B_BASE_8K = "H_8B_Base_8K"
 
 
 class ModelLoader(ForgeModel):
     """Nemotron-H model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.NEMOTRON_H_56B_BASE_8K: LLMModelConfig(
-            pretrained_model_name="nvidia/Nemotron-H-56B-Base-8K",
+        ModelVariant.NEMOTRON_H_8B_BASE_8K: LLMModelConfig(
+            pretrained_model_name="nvidia/Nemotron-H-8B-Base-8K",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NEMOTRON_H_56B_BASE_8K
+    DEFAULT_VARIANT = ModelVariant.NEMOTRON_H_8B_BASE_8K
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -64,12 +63,13 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        tokenizer_kwargs = {"trust_remote_code": True}
+        tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
             **tokenizer_kwargs,
         )
 
