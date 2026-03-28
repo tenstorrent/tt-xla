@@ -42,7 +42,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEEPSEEK_R1_DISTILL_LLAMA_8B_Q8_0: "DeepSeek-R1-Distill-Llama-8B-Q8_0.gguf",
     }
 
-    sample_text = "Please reason step by step. What is 25 multiplied by 16?"
+    sample_text = "What is 25 multiplied by 16?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -115,7 +115,18 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        prompts = [self.sample_text]
+        messages = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        prompts = [text]
 
         inputs = self.tokenizer(
             prompts,
