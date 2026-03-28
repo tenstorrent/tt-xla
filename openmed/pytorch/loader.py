@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_GENOME_SMALL = "ZeroShot-NER-Genome-Small-166M"
     OPENMED_ZEROSHOT_NER_GENOME_LARGE = "ZeroShot-NER-Genome-Large-459M"
     OPENMED_ZEROSHOT_NER_ONCOLOGY_MULTI = "ZeroShot-NER-Oncology-Multi-209M"
+    OPENMED_ZEROSHOT_NER_PATHOLOGY_XLARGE = "ZeroShot-NER-Pathology-XLarge-770M"
 
 
 class ModelLoader(ForgeModel):
@@ -54,6 +55,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_MULTI: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Multi-209M"
         ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_XLARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-XLarge-770M"
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL
@@ -65,6 +69,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_SMALL: "The EGFR gene mutation was identified in lung cancer patients.",
         ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_LARGE: "The BRCA1 and TP53 genes play critical roles in tumor suppression pathways.",
         ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_MULTI: "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
+        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_XLARGE: "The biopsy revealed adenocarcinoma with lymphovascular invasion in the resected colon specimen.",
     }
 
     _LABELS = {
@@ -103,6 +108,7 @@ class ModelLoader(ForgeModel):
             "Simple_chemical",
             "Tissue",
         ],
+        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_XLARGE: ["DISEASE"],
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
