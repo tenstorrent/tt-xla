@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available BatVenom model variants."""
 
     BAT_VENOM = "BatVenom"
+    BAT_VENOM_V7 = "BatVenom-V7"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BAT_VENOM: LLMModelConfig(
             pretrained_model_name="BrainDelay/BatVenom",
+            max_length=128,
+        ),
+        ModelVariant.BAT_VENOM_V7: LLMModelConfig(
+            pretrained_model_name="BrainDelay/BatVenom-V7",
             max_length=128,
         ),
     }
