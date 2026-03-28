@@ -4,8 +4,8 @@
 """
 DeepSeek V3.1 model loader implementation for causal language modeling.
 
-Uses reduced MoE configuration for testing since the full model is too
-large to load directly.
+Uses reduced MoE configuration for testing since the full 671B parameter
+model is too large to load directly.
 """
 
 import os
@@ -57,7 +57,6 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        model = None
         with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
 
@@ -74,7 +73,10 @@ class ModelLoader(ForgeModel):
             config.q_lora_rank = 256
             config.use_flash_attention = False
 
-            model_kwargs = {"attn_implementation": "eager", "trust_remote_code": True}
+            model_kwargs = {
+                "attn_implementation": "eager",
+                "trust_remote_code": True,
+            }
             if dtype_override is not None:
                 model_kwargs["torch_dtype"] = dtype_override
             model_kwargs |= kwargs
