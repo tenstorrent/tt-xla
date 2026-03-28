@@ -11,7 +11,6 @@ sentence boundaries for 47 languages.
 
 import onnx
 import torch
-import numpy as np
 from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
