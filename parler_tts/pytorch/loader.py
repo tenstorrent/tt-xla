@@ -4,7 +4,6 @@
 """
 Parler-TTS model loader implementation for text-to-speech tasks.
 """
-import torch
 import torch.nn as nn
 from typing import Optional
 
