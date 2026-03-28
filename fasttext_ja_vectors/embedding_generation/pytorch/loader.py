@@ -1,13 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""
-fasttext-ja-vectors model loader implementation for Japanese word embedding generation.
-"""
-import torch
-import fasttext
-from huggingface_hub import hf_hub_download
+
+"""fasttext-ja-vectors model loader implementation for Japanese word embedding generation."""
+
 from typing import Optional
+
+import fasttext
+import torch
+from huggingface_hub import hf_hub_download
 
 from ....base import ForgeModel
 from ....config import (
@@ -25,6 +26,21 @@ class ModelVariant(StrEnum):
     """Available fasttext-ja-vectors model variants for embedding generation."""
 
     FASTTEXT_JA_VECTORS = "fasttext-ja-vectors"
+
+
+class FastTextEmbeddingModule(torch.nn.Module):
+    """PyTorch module wrapping pre-computed fastText word embeddings.
+
+    The fastText model itself is not a PyTorch module, so this wrapper
+    accepts pre-computed embedding tensors and passes them through.
+    """
+
+    def __init__(self, embedding_dim: int):
+        super().__init__()
+        self.embedding_dim = embedding_dim
+
+    def forward(self, word_embeddings: torch.Tensor) -> torch.Tensor:
+        return word_embeddings
 
 
 class ModelLoader(ForgeModel):
@@ -70,24 +86,12 @@ class ModelLoader(ForgeModel):
         if self._fasttext_model is None:
             self._load_fasttext_model()
 
-        # Wrap fasttext model in a torch.nn.Module for compatibility
-        ft_model = self._fasttext_model
-        embedding_dim = ft_model.get_dimension()
-
-        class FastTextWrapper(torch.nn.Module):
-            def __init__(self, fasttext_model, dim):
-                super().__init__()
-                self.fasttext_model = fasttext_model
-                self.dim = dim
-                # Register a dummy parameter so PyTorch recognizes this as a module
-                self.dummy = torch.nn.Parameter(torch.zeros(1))
-
-            def forward(self, word_embeddings):
-                # In inference mode, pass through pre-computed embeddings
-                return word_embeddings
-
-        model = FastTextWrapper(ft_model, embedding_dim)
+        embedding_dim = self._fasttext_model.get_dimension()
+        model = FastTextEmbeddingModule(embedding_dim)
         model.eval()
+
+        if dtype_override is not None:
+            model = model.to(dtype=dtype_override)
 
         return model
 
@@ -95,7 +99,6 @@ class ModelLoader(ForgeModel):
         if self._fasttext_model is None:
             self._load_fasttext_model()
 
-        # Convert sample words to embedding tensors using fasttext
         embeddings = []
         for word in self.sample_words:
             vec = self._fasttext_model.get_word_vector(word)
