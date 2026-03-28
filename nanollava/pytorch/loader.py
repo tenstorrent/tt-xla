@@ -1,14 +1,14 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-nanoLLaVA model loader implementation for multimodal conditional generation.
+NanoLLaVA model loader implementation for multimodal visual question answering.
 """
 
-import torch
-from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
+
+from datasets import load_dataset
+from transformers import AutoModelForCausalLM, AutoProcessor
 
 from ...base import ForgeModel
 from ...config import (
@@ -20,114 +20,103 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import cast_input_to_type, get_file
 
 
 class ModelVariant(StrEnum):
-    """Available nanoLLaVA model variants."""
+    """Available NanoLLaVA model variants."""
 
-    NANOLLAVA = "nanoLLaVA"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
-    """nanoLLaVA model loader for multimodal conditional generation."""
+    """NanoLLaVA model loader for multimodal visual question answering."""
 
     _VARIANTS = {
-        ModelVariant.NANOLLAVA: ModelConfig(
-            pretrained_model_name="qnguyen3/nanoLLaVA",
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-nanollava",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NANOLLAVA
-
-    sample_text = "Describe this image."
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize nanoLLaVA model loader."""
         super().__init__(variant)
-        self.tokenizer = None
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="nanoLLaVA",
+            model="NanoLLaVA",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.MM_CONDITIONAL_GENERATION,
+            task=ModelTask.MM_VISUAL_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self):
-        self.tokenizer = AutoTokenizer.from_pretrained(
+    def _load_processor(self):
+        self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
         )
-        return self.tokenizer
+        return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the nanoLLaVA model instance."""
+        """Load and return the NanoLLaVA model instance."""
         model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {}
+        model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            trust_remote_code=True,
-            **model_kwargs,
-        )
+        model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
         model.eval()
 
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        if self.processor is None:
+            self._load_processor()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return input tensors for nanoLLaVA."""
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        """Load and return input tensors for NanoLLaVA."""
+        if self.processor is None:
+            self._load_processor()
 
-        messages = [
-            {"role": "user", "content": f"<image>\n{self.sample_text}"},
+        # Build prompt
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": "What is shown in this image?"},
+                ],
+            }
         ]
-        text_prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+
+        text_prompt = self.processor.apply_chat_template(
+            conversation, padding=True, add_generation_prompt=True
         )
 
-        # Tokenize and insert image placeholder token (-200) per model convention
-        text_chunks = text_prompt.split("<image>")
-        input_ids = (
-            self.tokenizer(text_chunks[0], return_tensors="pt").input_ids,
-            torch.tensor([[-200]], dtype=torch.long),
-            self.tokenizer(
-                text_chunks[1], return_tensors="pt", add_special_tokens=False
-            ).input_ids,
-        )
-        input_ids = torch.cat(input_ids, dim=1)
+        # Load sample image
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file).convert("RGB")
+        # Preprocess
+        inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
 
-        # Load model temporarily to process the image
-        model_name = self._variant_config.pretrained_model_name
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            trust_remote_code=True,
-        )
-        images = model.process_images([image], model.config).to(dtype=torch.float16)
-        del model
+        if dtype_override is not None:
+            from ...tools.utils import cast_input_to_type
 
-        if dtype_override:
-            input_ids = cast_input_to_type(input_ids, dtype_override)
-            images = cast_input_to_type(images, dtype_override)
+            inputs = {
+                k: cast_input_to_type(v, dtype_override) for k, v in inputs.items()
+            }
 
-        return {
-            "input_ids": input_ids,
-            "images": images,
-        }
+        if batch_size > 1:
+            inputs = {
+                k: v.repeat_interleave(batch_size, dim=0) for k, v in inputs.items()
+            }
+
+        return inputs
