@@ -74,6 +74,9 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
+    # cazzz307 abliterated variants
+    ABLITERATED_LLAMA_3_2_1B_INSTRUCT = "Abliterated_3.2_1B_Instruct"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -180,6 +183,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
+        # cazzz307 abliterated variants
+        ModelVariant.ABLITERATED_LLAMA_3_2_1B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="cazzz307/Abliterated-Llama-3.2-1B-Instruct",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -223,6 +231,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_8B_INSTRUCT_AWQ,
+            ModelVariant.ABLITERATED_LLAMA_3_2_1B_INSTRUCT,
         ]:
             group = ModelGroup.VULCAN
         elif (
