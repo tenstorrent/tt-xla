@@ -5,24 +5,21 @@
 TinyViT model loader implementation
 """
 
+import timm
 from typing import Optional
 from dataclasses import dataclass
-import timm
 
 from ...config import (
-    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
+    ModelConfig,
     Framework,
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import (
-    VisionPreprocessor,
-    VisionPostprocessor,
-)
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 from datasets import load_dataset
 
 
@@ -30,26 +27,39 @@ from datasets import load_dataset
 class TinyViTConfig(ModelConfig):
     """Configuration specific to TinyViT models"""
 
-    source: ModelSource
+    source: ModelSource = ModelSource.TIMM
 
 
 class ModelVariant(StrEnum):
     """Available TinyViT model variants."""
 
-    TINY_VIT_5M_224_DIST_IN22K = "TinyViT_5M_224_Dist_IN22K"
+    TINYVIT_21M_224 = "TinyViT_21M_224"
 
 
 class ModelLoader(ForgeModel):
     """TinyViT model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.TINY_VIT_5M_224_DIST_IN22K: TinyViTConfig(
-            pretrained_model_name="hf_hub:timm/tiny_vit_5m_224.dist_in22k",
-            source=ModelSource.TIMM,
+        ModelVariant.TINYVIT_21M_224: TinyViTConfig(
+            pretrained_model_name="tiny_vit_21m_224.dist_in22k_ft_in1k",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_VIT_5M_224_DIST_IN22K
+    DEFAULT_VARIANT = ModelVariant.TINYVIT_21M_224
+
+    @classmethod
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
+        return ModelInfo(
+            model="TinyViT",
+            variant=variant,
+            group=ModelGroup.VULCAN,
+            task=ModelTask.CV_IMAGE_CLS,
+            source=cls._VARIANTS[variant].source,
+            framework=Framework.TORCH,
+        )
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -57,25 +67,8 @@ class ModelLoader(ForgeModel):
         self._preprocessor = None
         self._postprocessor = None
 
-    @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
-        source = cls._VARIANTS[variant].source
-
-        return ModelInfo(
-            model="TinyViT",
-            variant=variant,
-            group=ModelGroup.VULCAN,
-            task=ModelTask.CV_IMAGE_CLS,
-            source=source,
-            framework=Framework.TORCH,
-        )
-
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
-
         model = timm.create_model(model_name, pretrained=True)
         model.eval()
 
@@ -84,33 +77,23 @@ class ModelLoader(ForgeModel):
         if self._preprocessor is not None:
             self._preprocessor.set_cached_model(model)
 
-        if self._postprocessor is not None:
-            self._postprocessor.set_model_instance(model)
-
         if dtype_override is not None:
             model = model.to(dtype_override)
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
-        if image is None:
-            dataset = load_dataset("huggingface/cats-image", split="test")
-            image = dataset[0]["image"]
-
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
         if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
-            source = self._variant_config.source
-
             self._preprocessor = VisionPreprocessor(
-                model_source=source,
+                model_source=ModelSource.TIMM,
                 model_name=model_name,
             )
-
-            if hasattr(self, "model") and self.model is not None:
+            if self.model is not None:
                 self._preprocessor.set_cached_model(self.model)
 
         model_for_config = None
-        if hasattr(self, "model") and self.model is not None:
+        if self.model is not None:
             model_for_config = self.model
 
         return self._preprocessor.preprocess(
@@ -120,15 +103,22 @@ class ModelLoader(ForgeModel):
             model_for_config=model_for_config,
         )
 
-    def output_postprocess(self, output):
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def output_postprocess(self, output, top_k=1):
         if self._postprocessor is None:
             model_name = self._variant_config.pretrained_model_name
-            source = self._variant_config.source
-
             self._postprocessor = VisionPostprocessor(
-                model_source=source,
+                model_source=ModelSource.TIMM,
                 model_name=model_name,
                 model_instance=self.model,
             )
-
-        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+        return self._postprocessor.postprocess(output, top_k=top_k, return_dict=True)
