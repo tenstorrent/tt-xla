@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available RuBERT model variants for sequence classification."""
 
     RUBERT_BASE_CASED_SENTIMENT_RUSENTIMENT = "Base_Cased_Sentiment_RuSentiment"
+    RUBERT_TINY2_RUSSIAN_SENTIMENT = "Tiny2_Russian_Sentiment"
 
 
 class ModelLoader(ForgeModel):
@@ -32,12 +33,17 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="blanchefort/rubert-base-cased-sentiment-rusentiment",
             max_length=128,
         ),
+        ModelVariant.RUBERT_TINY2_RUSSIAN_SENTIMENT: LLMModelConfig(
+            pretrained_model_name="seara/rubert-tiny2-russian-sentiment",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.RUBERT_BASE_CASED_SENTIMENT_RUSENTIMENT
 
     _SAMPLE_TEXTS = {
         ModelVariant.RUBERT_BASE_CASED_SENTIMENT_RUSENTIMENT: "Мне очень понравился этот фильм, он был замечательным!",
+        ModelVariant.RUBERT_TINY2_RUSSIAN_SENTIMENT: "Привет, ты мне нравишься!",
     }
 
     def __init__(self, variant=None):
