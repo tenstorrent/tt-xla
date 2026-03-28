@@ -46,7 +46,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_3B_INSTRUCT_AWQ = "3B_Instruct_Awq"
     QWEN_2_5_14B_INSTRUCT_AWQ = "14B_Instruct_Awq"
     QWEN_2_5_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
-    QWEN_2_5_14B_INSTRUCT_GPTQ_INT8 = "14B_Instruct_Gptq_Int8"
+    QWEN_2_5_14B_INSTRUCT_1M_AWQ = "14B_Instruct_1M_Awq"
     QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
     QWEN_2_5_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
     QWEN_2_5_7B_INSTRUCT_GPTQ_INT8 = "7B_Instruct_GPTQ_Int8"
@@ -140,8 +140,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-32B-Instruct-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_2_5_14B_INSTRUCT_GPTQ_INT8: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2.5-14B-Instruct-GPTQ-Int8",
+        ModelVariant.QWEN_2_5_14B_INSTRUCT_1M_AWQ: LLMModelConfig(
+            pretrained_model_name="graelo/Qwen2.5-14B-Instruct-1M-AWQ",
             max_length=128,
         ),
         # RedHatAI INT8 quantized variant
@@ -222,7 +222,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_3B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_14B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_32B_INSTRUCT_AWQ,
-            ModelVariant.QWEN_2_5_14B_INSTRUCT_GPTQ_INT8,
+            ModelVariant.QWEN_2_5_14B_INSTRUCT_1M_AWQ,
             ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
             ModelVariant.QWEN_2_5_7B_INSTRUCT_GPTQ_INT4,
             ModelVariant.QWEN_2_5_7B_INSTRUCT_GPTQ_INT8,
@@ -289,10 +289,7 @@ class ModelLoader(ForgeModel):
             "Qwen/Qwen2.5-14B-Instruct-AWQ",
             "Qwen/Qwen2.5-32B-Instruct-AWQ",
             "Qwen/Qwen2.5-72B-Instruct-AWQ",
-            "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4",
-            "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int8",
-            "unsloth/Qwen2.5-0.5B-Instruct-bnb-4bit",
-            "Qwen/Qwen2.5-0.5B-Instruct-AWQ",
+            "graelo/Qwen2.5-14B-Instruct-1M-AWQ",
         ):
             model_kwargs["device_map"] = "cpu"
 
