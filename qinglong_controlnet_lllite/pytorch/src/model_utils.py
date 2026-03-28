@@ -19,18 +19,31 @@ from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
 
 
+def _make_layer(weight):
+    """Create a Linear or Conv2d layer based on weight tensor dimensions."""
+    if weight.dim() == 2:
+        layer = nn.Linear(weight.shape[1], weight.shape[0], bias=False)
+    elif weight.dim() == 4:
+        layer = nn.Conv2d(
+            weight.shape[1],
+            weight.shape[0],
+            kernel_size=(weight.shape[2], weight.shape[3]),
+            bias=False,
+        )
+    else:
+        raise ValueError(f"Unsupported weight dimension: {weight.dim()}")
+    layer.weight = nn.Parameter(weight)
+    return layer
+
+
 class LLLiteModule(nn.Module):
     """A single LLLite control module consisting of down/mid/up projections."""
 
     def __init__(self, down_weight, mid_weight, up_weight):
         super().__init__()
-        self.down = nn.Linear(down_weight.shape[1], down_weight.shape[0], bias=False)
-        self.mid = nn.Linear(mid_weight.shape[1], mid_weight.shape[0], bias=False)
-        self.up = nn.Linear(up_weight.shape[1], up_weight.shape[0], bias=False)
-
-        self.down.weight = nn.Parameter(down_weight)
-        self.mid.weight = nn.Parameter(mid_weight)
-        self.up.weight = nn.Parameter(up_weight)
+        self.down = _make_layer(down_weight)
+        self.mid = _make_layer(mid_weight)
+        self.up = _make_layer(up_weight)
 
     def forward(self, x):
         x = self.down(x)
@@ -100,17 +113,24 @@ def load_controlnet_lllite(repo_id, filename):
 def create_dummy_input(model, batch_size=1):
     """Create a dummy input tensor for the ControlNet-LLLite model.
 
-    Infers the input dimension from the first module's down projection layer.
+    Infers the input shape from the first module's down projection layer.
 
     Args:
         model: ControlNetLLLite model instance
         batch_size: Batch size for the input tensor
 
     Returns:
-        torch.Tensor: Dummy input tensor of shape [batch_size, input_dim]
+        torch.Tensor: Dummy input tensor matching the first module's expected input
     """
     first_module = next(iter(model.modules_dict.values()))
-    input_dim = first_module.down.weight.shape[1]
+    weight = first_module.down.weight
 
     torch.manual_seed(42)
-    return torch.randn(batch_size, input_dim)
+    if weight.dim() == 4:
+        # Conv2d: [out_channels, in_channels, kH, kW]
+        in_channels = weight.shape[1]
+        return torch.randn(batch_size, in_channels, 64, 64)
+    else:
+        # Linear: [out_features, in_features]
+        input_dim = weight.shape[1]
+        return torch.randn(batch_size, input_dim)
