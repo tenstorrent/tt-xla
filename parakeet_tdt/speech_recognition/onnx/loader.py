@@ -6,7 +6,7 @@
 Parakeet TDT ONNX model loader implementation for speech recognition (ASR).
 """
 
-import numpy as np
+import torch
 import onnx
 from typing import Optional
 
@@ -71,9 +71,7 @@ class ModelLoader(ForgeModel):
         # Generate a synthetic 1-second audio waveform at 16kHz
         sampling_rate = 16000
         duration_seconds = 1
-        audio_signal = np.random.randn(1, sampling_rate * duration_seconds).astype(
-            np.float32
-        )
-        length = np.array([sampling_rate * duration_seconds], dtype=np.int64)
+        audio_signal = torch.randn(1, sampling_rate * duration_seconds)
+        length = torch.tensor([sampling_rate * duration_seconds], dtype=torch.long)
 
         return {"audio_signal": audio_signal, "length": length}
