@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
+    QWEN_3_0_6B_GGUF = "0_6B_GGUF"
     QWEN_3_8B_GGUF = "8B_GGUF"
     QWEN_3_32B_GGUF = "32B_GGUF"
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     """Qwen 3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.QWEN_3_0_6B_GGUF: LLMModelConfig(
+            pretrained_model_name="bartowski/Qwen_Qwen3-0.6B-GGUF",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_8B_GGUF: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen3-8B-GGUF",
             max_length=128,
@@ -44,6 +49,7 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.QWEN_3_8B_GGUF
 
     _GGUF_FILES = {
+        ModelVariant.QWEN_3_0_6B_GGUF: "Qwen_Qwen3-0.6B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_8B_GGUF: "Qwen3-8B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_32B_GGUF: "Qwen3-32B-Q4_K_M.gguf",
     }
