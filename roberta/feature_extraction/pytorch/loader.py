@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available RoBERTa model variants for feature extraction."""
 
-    TINY_RANDOM = "peft-internal-testing/tiny-random-RobertaModel"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
