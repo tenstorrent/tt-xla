@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     """Available Depth Anything 3 model variants."""
 
     SMALL = "Small"
+    GIANT = "Giant"
 
 
 class ModelLoader(ForgeModel):
@@ -44,6 +45,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.SMALL: ModelConfig(
             pretrained_model_name="depth-anything/da3-small",
+        ),
+        ModelVariant.GIANT: ModelConfig(
+            pretrained_model_name="depth-anything/DA3-GIANT",
         ),
     }
 
