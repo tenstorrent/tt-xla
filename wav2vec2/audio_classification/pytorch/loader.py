@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Wav2Vec2 model loader implementation for audio classification (emotion recognition).
+Wav2Vec2 model loader implementation for audio classification.
 """
 
 from typing import Optional
@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 audio classification model variants."""
 
     LARGE_ROBUST_12_FT_EMOTION_MSP_DIM = "Large_Robust_12_FT_Emotion_MSP_Dim"
-    BASE_SUPERB_ER = "Base_Superb_ER"
+    VM_FINETUNE = "VM_Finetune"
 
 
 class ModelLoader(ForgeModel):
@@ -34,8 +34,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.LARGE_ROBUST_12_FT_EMOTION_MSP_DIM: ModelConfig(
             pretrained_model_name="audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim",
         ),
-        ModelVariant.BASE_SUPERB_ER: ModelConfig(
-            pretrained_model_name="superb/wav2vec2-base-superb-er",
+        ModelVariant.VM_FINETUNE: ModelConfig(
+            pretrained_model_name="jakeBland/wav2vec-vm-finetune",
         ),
     }
 
@@ -78,10 +78,10 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        if self._variant == ModelVariant.BASE_SUPERB_ER:
-            model = self._load_model_superb_er(**model_kwargs)
+        if self._variant == ModelVariant.LARGE_ROBUST_12_FT_EMOTION_MSP_DIM:
+            model = self._load_emotion_model(model_kwargs)
         else:
-            model = self._load_model_emotion(**model_kwargs)
+            model = self._load_standard_model(model_kwargs)
 
         model.eval()
         if dtype_override is not None:
@@ -89,15 +89,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def _load_model_superb_er(self, **model_kwargs):
-        from transformers import Wav2Vec2ForSequenceClassification
-
-        return Wav2Vec2ForSequenceClassification.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            **model_kwargs,
-        )
-
-    def _load_model_emotion(self, **model_kwargs):
+    def _load_emotion_model(self, model_kwargs):
         import torch
         import torch.nn as nn
         from transformers import Wav2Vec2Config
@@ -158,6 +150,13 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name,
             config=config,
             **model_kwargs,
+        )
+
+    def _load_standard_model(self, model_kwargs):
+        from transformers import AutoModelForAudioClassification
+
+        return AutoModelForAudioClassification.from_pretrained(
+            self._variant_config.pretrained_model_name, **model_kwargs
         )
 
     def load_inputs(self, dtype_override=None):
