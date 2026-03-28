@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
     """Available MiniMax-M2.5 model variants for causal language modeling."""
 
     MINIMAX_M2_5 = "M2.5"
-    MINIMAX_M2_5_AWQ_4BIT = "M2.5_Awq_4bit"
+    MINIMAX_M2_5_BF16_INT4_AWQ = "M2.5_Bf16_Int4_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -42,8 +42,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="MiniMaxAI/MiniMax-M2.5",
             max_length=128,
         ),
-        ModelVariant.MINIMAX_M2_5_AWQ_4BIT: LLMModelConfig(
-            pretrained_model_name="cyankiwi/MiniMax-M2.5-AWQ-4bit",
+        ModelVariant.MINIMAX_M2_5_BF16_INT4_AWQ: LLMModelConfig(
+            pretrained_model_name="mratsim/MiniMax-M2.5-BF16-INT4-AWQ",
             max_length=128,
         ),
     }
@@ -159,15 +159,14 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # AWQ variants need device_map="cpu" and quantization_config removed
-        is_awq = pretrained_model_name == "cyankiwi/MiniMax-M2.5-AWQ-4bit"
-        if is_awq:
+        is_quantized = pretrained_model_name == "mratsim/MiniMax-M2.5-BF16-INT4-AWQ"
+        if is_quantized:
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
 
         config = self._build_native_config()
-        if is_awq and hasattr(config, "quantization_config"):
+        if is_quantized and hasattr(config, "quantization_config"):
             delattr(config, "quantization_config")
         model_kwargs["config"] = config
 
