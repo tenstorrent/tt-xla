@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MedGemma 27B Text GGUF model loader implementation for causal language modeling.
+MedGemma GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available MedGemma 27B Text GGUF model variants for causal language modeling."""
+    """Available MedGemma GGUF model variants for causal language modeling."""
 
-    MEDGEMMA_27B_TEXT_IT_Q4_K_M = "27B_TEXT_IT_Q4_K_M"
+    MEDGEMMA_4B_IT_GGUF = "4B_IT_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """MedGemma 27B Text GGUF model loader for causal language modeling tasks."""
+    """MedGemma GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.MEDGEMMA_27B_TEXT_IT_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="unsloth/medgemma-27b-text-it-GGUF",
+        ModelVariant.MEDGEMMA_4B_IT_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/medgemma-4b-it-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MEDGEMMA_27B_TEXT_IT_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.MEDGEMMA_4B_IT_GGUF
 
-    GGUF_FILE = "medgemma-27b-text-it-Q4_K_M.gguf"
+    GGUF_FILE = "medgemma-4b-it-Q4_K_M.gguf"
 
     sample_text = "What are the common symptoms of type 2 diabetes?"
 
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="MedGemma 27B Text GGUF",
+            model="MedGemma GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
