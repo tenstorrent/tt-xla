@@ -24,20 +24,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Minitron model variants for causal language modeling."""
 
-    LLAMA_3_1_MINITRON_4B_WIDTH_BASE = "Llama_3.1_Minitron_4B_Width_Base"
+    MINITRON_8B_BASE = "8B_Base"
 
 
 class ModelLoader(ForgeModel):
     """Minitron model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LLAMA_3_1_MINITRON_4B_WIDTH_BASE: LLMModelConfig(
-            pretrained_model_name="nvidia/Llama-3.1-Minitron-4B-Width-Base",
+        ModelVariant.MINITRON_8B_BASE: LLMModelConfig(
+            pretrained_model_name="nvidia/Minitron-8B-Base",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LLAMA_3_1_MINITRON_4B_WIDTH_BASE
+    DEFAULT_VARIANT = ModelVariant.MINITRON_8B_BASE
 
     sample_text = "Give me a short introduction to large language model."
 
