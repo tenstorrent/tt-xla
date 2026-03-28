@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B_GGUF = "27B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_35B_A3B_AWQ_8BIT = "35B_A3B_AWQ_8BIT"
+    QWEN_3_5_2B_W4A16 = "2B_W4A16"
 
 
 class ModelLoader(ForgeModel):
@@ -89,6 +90,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT: LLMModelConfig(
             pretrained_model_name="cyankiwi/Qwen3.5-35B-A3B-AWQ-8bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_2B_W4A16: LLMModelConfig(
+            pretrained_model_name="Ekwav/ane-extraction-qwen3.5-2b-w4a16",
             max_length=128,
         ),
     }
@@ -190,8 +195,8 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ variant and configure accordingly
-        if self._is_awq_variant():
+        # Check if this is an AWQ or compressed-tensors variant and configure accordingly
+        if self._is_awq_variant() or self._is_compressed_tensors_variant():
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
@@ -304,6 +309,10 @@ class ModelLoader(ForgeModel):
     def _is_awq_variant(self):
         """Check if the current variant uses AWQ quantization."""
         return self._variant in (ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT,)
+
+    def _is_compressed_tensors_variant(self):
+        """Check if the current variant uses compressed-tensors quantization."""
+        return self._variant in (ModelVariant.QWEN_3_5_2B_W4A16,)
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
