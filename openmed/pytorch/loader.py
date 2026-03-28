@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_ONCOLOGY_LARGE = "ZeroShot-NER-Oncology-Large-459M"
     OPENMED_ZEROSHOT_NER_BLOODCANCER_LARGE = "ZeroShot-NER-BloodCancer-Large-459M"
     OPENMED_ZEROSHOT_NER_DNA_BASE = "ZeroShot-NER-DNA-Base-220M"
+    OPENMED_ZEROSHOT_NER_ORGANISM_MULTI = "ZeroShot-NER-Organism-Multi-209M"
 
 
 class ModelLoader(ForgeModel):
@@ -57,6 +58,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_DNA_BASE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-Base-220M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_MULTI: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Organism-Multi-209M"
         ),
     }
 
@@ -165,6 +169,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_DNA_BASE: {
             "text": "The p53 protein plays a crucial role in tumor suppression.",
             "labels": ["DNA", "RNA", "cell_line", "cell_type", "protein"],
+        },
+        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_MULTI: {
+            "text": "Caenorhabditis elegans is a model organism for genetic studies.",
+            "labels": ["SPECIES"],
         },
     }
 
