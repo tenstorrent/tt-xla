@@ -35,6 +35,7 @@ class ModelVariant(StrEnum):
     SMALL = "small"
     BASE = "base"
     AMAZON_SMALL = "amazon-small"
+    BOLT_TEST = "bolt-test"
 
 
 class ModelLoader(ForgeModel):
@@ -63,6 +64,11 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.AMAZON_SMALL: ChronosBoltConfig(
             pretrained_model_name="amazon/chronos-bolt-small",
+            context_length=512,
+            prediction_length=64,
+        ),
+        ModelVariant.BOLT_TEST: ChronosBoltConfig(
+            pretrained_model_name="canerturkmen/bolt-test",
             context_length=512,
             prediction_length=64,
         ),
