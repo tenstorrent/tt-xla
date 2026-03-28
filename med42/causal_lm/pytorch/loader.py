@@ -33,6 +33,7 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LLAMA3_MED42_8B: LLMModelConfig(
             pretrained_model_name="m42-health/Llama3-Med42-8B",
+            max_length=128,
         ),
     }
 
