@@ -65,6 +65,7 @@ class ModelVariant(StrEnum):
     HF_TIMM_EFFICIENTNET_B0_RA_IN1K = "Timm_B0_Ra_In1k"
     HF_TIMM_EFFICIENTNET_B4_RA2_IN1K = "Timm_B4_Ra2_In1k"
     HF_TIMM_EFFICIENTNET_B5_IN12K_FT_IN1K = "Timm_B5_In12k_Ft_In1k"
+    HF_TIMM_EFFICIENTNET_B5_SW_IN12K_FT_IN1K = "Timm_B5_Sw_In12k_Ft_In1k"
     HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K = "Timm_Tf_B0_Aa_In1k"
     HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K = "Timm_V2_Rw_S_Ra2_In1k"
     HF_TIMM_TF_EFFICIENTNETV2_S_IN21K = "Timm_Tf_V2_S_In21k"
@@ -165,6 +166,11 @@ class ModelLoader(ForgeModel):
         source=ModelSource.TIMM,
         use_1k_labels=True,
     )
+    HF_TIMM_EFFICIENTNET_B5_SW_IN12K_FT_IN1K_CONFIG = EfficientNetConfig(
+        pretrained_model_name="hf_hub:timm/efficientnet_b5.sw_in12k_ft_in1k",
+        source=ModelSource.TIMM,
+        use_1k_labels=True,
+    )
     HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K_CONFIG = EfficientNetConfig(
         pretrained_model_name="hf_hub:timm/tf_efficientnet_b0.aa_in1k",
         source=ModelSource.TIMM,
@@ -210,6 +216,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.HF_TIMM_EFFICIENTNET_B0_RA_IN1K: HF_TIMM_EFFICIENTNET_B0_RA_IN1K_CONFIG,
         ModelVariant.HF_TIMM_EFFICIENTNET_B4_RA2_IN1K: HF_TIMM_EFFICIENTNET_B4_RA2_IN1K_CONFIG,
         ModelVariant.HF_TIMM_EFFICIENTNET_B5_IN12K_FT_IN1K: HF_TIMM_EFFICIENTNET_B5_IN12K_FT_IN1K_CONFIG,
+        ModelVariant.HF_TIMM_EFFICIENTNET_B5_SW_IN12K_FT_IN1K: HF_TIMM_EFFICIENTNET_B5_SW_IN12K_FT_IN1K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K: HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K_CONFIG,
         ModelVariant.HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K: HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_S_IN21K: HF_TIMM_TF_EFFICIENTNETV2_S_IN21K_CONFIG,
@@ -256,11 +263,7 @@ class ModelLoader(ForgeModel):
                 if variant == ModelVariant.B0
                 else (
                     ModelGroup.VULCAN
-                    if variant
-                    in [
-                        ModelVariant.HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K,
-                        ModelVariant.SMP_B3,
-                    ]
+                    if variant == ModelVariant.HF_TIMM_EFFICIENTNET_B5_SW_IN12K_FT_IN1K
                     else ModelGroup.GENERALITY
                 )
             ),
