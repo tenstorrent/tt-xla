@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     MINISTRAL_3B_INSTRUCT_2512_BF16 = "Ministral_3B_Instruct_2512_BF16"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
+    MISTRAL_7B_INSTRUCT_V03_MLX_4BIT = "7B_INSTRUCT_v03_mlx_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -114,6 +115,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
+        ModelVariant.MISTRAL_7B_INSTRUCT_V03_MLX_4BIT: ModelConfig(
+            pretrained_model_name="mlx-community/Mistral-7B-Instruct-v0.3-4bit",
+        ),
     }
 
     # Default variant to use
@@ -150,7 +154,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MINISTRAL_14B_REASONING,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V03_MLX_4BIT,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
