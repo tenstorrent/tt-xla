@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PHARMA_MULTI = "ZeroShot-NER-Pharma-Multi-209M"
     OPENMED_ZEROSHOT_NER_GENOME_TINY = "ZeroShot-NER-Genome-Tiny-60M"
+    OPENMED_ZEROSHOT_NER_ORGANISM_MEDIUM = "ZeroShot-NER-Organism-Medium-209M"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_TINY: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-Tiny-60M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_MEDIUM: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Organism-Medium-209M"
         ),
     }
 
