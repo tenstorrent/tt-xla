@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_CODER_NEXT = "Next"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
-    QWEN_3_CODER_480B_A35B_INSTRUCT_FP8_DYNAMIC = "480B_A35B_Instruct_FP8_Dynamic"
+    QWEN_3_CODER_30B_A3B_INSTRUCT_AWQ = "30B_A3B_Instruct_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -47,8 +47,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_480B_A35B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
-            pretrained_model_name="BCCard/Qwen3-Coder-480B-A35B-Instruct-FP8-Dynamic",
+        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="stelterlab/Qwen3-Coder-30B-A3B-Instruct-AWQ",
             max_length=128,
         ),
     }
@@ -145,12 +145,10 @@ class ModelLoader(ForgeModel):
             "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
-        # MLX variants may have mismatched weight shapes after quantization
-        if self._variant == ModelVariant.QWEN_3_CODER_NEXT_4BIT:
-            model_kwargs["ignore_mismatched_sizes"] = True
-        model_kwargs |= kwargs
 
-        is_awq = self._variant in self._AWQ_VARIANTS
+        # AWQ variants: load on CPU with quantization_config removed
+        # so that weights are loaded as plain tensors.
+        is_awq = pretrained_model_name == "stelterlab/Qwen3-Coder-30B-A3B-Instruct-AWQ"
         if is_awq:
             model_kwargs["device_map"] = "cpu"
             config = AutoConfig.from_pretrained(pretrained_model_name)
@@ -172,8 +170,9 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        model_cls = Qwen3MoeForCausalLM if is_awq else AutoModelForCausalLM
-        model = model_cls.from_pretrained(pretrained_model_name, **model_kwargs).eval()
+        model = AutoModelForCausalLM.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        ).eval()
 
         self.config = model.config
         self.model = model
