@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
+    ROBERTA_BASE_EMOTION_MULTILABEL = "Base_Emotion_Multilabel"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
     EMAIL_SPAM_DETECTION = "Email_Spam_Detection"
 
@@ -39,6 +40,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST: ModelConfig(
             pretrained_model_name="cardiffnlp/twitter-roberta-base-sentiment-latest",
+        ),
+        ModelVariant.ROBERTA_BASE_EMOTION_MULTILABEL: ModelConfig(
+            pretrained_model_name="cardiffnlp/twitter-roberta-base-emotion-multilabel-latest",
         ),
         ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
             pretrained_model_name="FacebookAI/roberta-large-mnli",
@@ -67,6 +71,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
+            ModelVariant.ROBERTA_BASE_EMOTION_MULTILABEL,
             ModelVariant.ROBERTA_LARGE_MNLI,
             ModelVariant.EMAIL_SPAM_DETECTION,
         ):
@@ -220,8 +225,8 @@ class ModelLoader(ForgeModel):
             predicted_value = co_out[0].argmax(-1).item()
             label = self.model.config.id2label[predicted_value]
             print(f"Predicted Label: {label}")
-        elif self._variant == ModelVariant.EMAIL_SPAM_DETECTION:
-            print(f"Predicted Spam Classification: {label}")
+        elif self._variant == ModelVariant.ROBERTA_BASE_EMOTION_MULTILABEL:
+            print(f"Predicted Emotion: {label}")
         else:
             predicted_value = co_out[0].argmax(-1).item()
             label = self.model.config.id2label[predicted_value]
