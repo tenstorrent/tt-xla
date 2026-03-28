@@ -6,7 +6,7 @@ LayoutXLM document understanding model loader implementation (PyTorch).
 """
 
 import torch
-from transformers import LayoutXLMModel, LayoutXLMTokenizer
+from transformers import LayoutLMv2Model, LayoutXLMTokenizer
 from typing import Optional
 
 from ...base import ForgeModel
@@ -67,7 +67,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = LayoutXLMModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = LayoutLMv2Model.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
         return model
 
