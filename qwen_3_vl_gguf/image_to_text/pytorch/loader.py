@@ -26,6 +26,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 VL GGUF model variants for image to text."""
 
+    QWEN_3_VL_2B_INSTRUCT_GGUF = "2b_instruct_gguf"
     QWEN_3_VL_8B_THINKING_GGUF = "8b_thinking_gguf"
 
 
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     """Qwen 3 VL GGUF model loader implementation for image to text tasks."""
 
     _VARIANTS = {
+        ModelVariant.QWEN_3_VL_2B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-VL-2B-Instruct-GGUF",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_VL_8B_THINKING_GGUF: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen3-VL-8B-Thinking-GGUF",
             max_length=128,
@@ -42,11 +47,13 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.QWEN_3_VL_8B_THINKING_GGUF
 
     _GGUF_FILES = {
+        ModelVariant.QWEN_3_VL_2B_INSTRUCT_GGUF: "Qwen3-VL-2B-Instruct-Q4_K_M.gguf",
         ModelVariant.QWEN_3_VL_8B_THINKING_GGUF: "Qwen3-VL-8B-Thinking-Q4_K_M.gguf",
     }
 
     # Base model for processor loading (GGUF repos may not include processor files)
     _BASE_MODELS = {
+        ModelVariant.QWEN_3_VL_2B_INSTRUCT_GGUF: "Qwen/Qwen3-VL-2B-Instruct",
         ModelVariant.QWEN_3_VL_8B_THINKING_GGUF: "Qwen/Qwen3-VL-8B-Thinking",
     }
 
