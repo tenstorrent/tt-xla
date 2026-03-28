@@ -30,11 +30,7 @@ from ...config import (
 
 REPO_ID = "mit-han-lab/dc-ae-f32c32-sana-1.1-diffusers"
 
-# DC-AE f32c32: 32x spatial compression, 32 latent channels
-LATENT_CHANNELS = 32
-SPATIAL_COMPRESSION = 32
-
-# Test input dimensions (512x512 image -> 16x16 latent)
+# Test input dimensions for a 512x512 RGB image
 INPUT_HEIGHT = 512
 INPUT_WIDTH = 512
 
