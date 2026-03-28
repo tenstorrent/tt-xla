@@ -17,7 +17,9 @@ from third_party.tt_forge_models.config import (
 )
 from third_party.tt_forge_models.base import ForgeModel
 
-_SAMPLE_TEXTS = {}
+_SAMPLE_TEXTS = {
+    "dbmdz/bert-base-german-uncased": "Die Hauptstadt von Deutschland ist [MASK].",
+}
 
 
 class ModelVariant(StrEnum):
@@ -33,6 +35,7 @@ class ModelVariant(StrEnum):
     BERT_BASE_CASED_FINETUNED_MRPC = "google-bert/bert-base-cased-finetuned-mrpc"
     BIOMEDVLP_CXR_BERT_GENERAL = "microsoft/BiomedVLP-CXR-BERT-general"
     BERT_BASE_ITALIAN_UNCASED = "dbmdz/bert-base-italian-uncased"
+    BERT_BASE_GERMAN_UNCASED = "dbmdz/bert-base-german-uncased"
 
 
 class ModelLoader(ForgeModel):
@@ -78,6 +81,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_BASE_ITALIAN_UNCASED: LLMModelConfig(
             pretrained_model_name="dbmdz/bert-base-italian-uncased",
+            max_length=128,
+        ),
+        ModelVariant.BERT_BASE_GERMAN_UNCASED: LLMModelConfig(
+            pretrained_model_name="dbmdz/bert-base-german-uncased",
             max_length=128,
         ),
     }
@@ -126,6 +133,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_BASE_CASED_FINETUNED_MRPC,
             ModelVariant.BIOMEDVLP_CXR_BERT_GENERAL,
             ModelVariant.BERT_BASE_ITALIAN_UNCASED,
+            ModelVariant.BERT_BASE_GERMAN_UNCASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
