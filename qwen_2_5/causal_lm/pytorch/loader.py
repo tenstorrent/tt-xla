@@ -48,11 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
     QWEN_2_5_14B_INSTRUCT_GPTQ_INT8 = "14B_Instruct_Gptq_Int8"
     QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
-    UNSLOTH_QWEN_2_5_0_5B = "Unsloth_0.5B"
-    QIAW99_QWEN_2_5_7B_INSTRUCT_OPENBOOKQA_DPO = "qiaw99_7B_Instruct_OpenbookQA_DPO"
-    ORION_ZHEN_QWEN_2_5_7B_INSTRUCT_UNCENSORED = "Orion_zhen_7B_Instruct_Uncensored"
-    AMD_QWEN_2_5_1_5B_INSTRUCT_QUARK_FP8 = "AMD_1.5B_Instruct_Quark_FP8"
-    MESOLITICA_QWEN_2_5_72B_INSTRUCT_FP8 = "Mesolitica_72B_Instruct_FP8"
+    QWEN_2_5_1_5B_INSTRUCT_BNB_4BIT = "1.5B_Instruct_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -149,29 +145,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Qwen2.5-1.5B-quantized.w8a8",
             max_length=128,
         ),
-        # Unsloth optimized variant
-        ModelVariant.UNSLOTH_QWEN_2_5_0_5B: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-0.5B",
-            max_length=128,
-        ),
-        # qiaw99 DPO fine-tuned variant for OpenBookQA
-        ModelVariant.QIAW99_QWEN_2_5_7B_INSTRUCT_OPENBOOKQA_DPO: LLMModelConfig(
-            pretrained_model_name="qiaw99/Qwen2.5-7B-Instruct-OpenbookQA-DPO-G-new",
-            max_length=128,
-        ),
-        # Orion-zhen uncensored fine-tuned variant
-        ModelVariant.ORION_ZHEN_QWEN_2_5_7B_INSTRUCT_UNCENSORED: LLMModelConfig(
-            pretrained_model_name="Orion-zhen/Qwen2.5-7B-Instruct-Uncensored",
-            max_length=128,
-        ),
-        # AMD Quark FP8 quantized variant
-        ModelVariant.AMD_QWEN_2_5_1_5B_INSTRUCT_QUARK_FP8: LLMModelConfig(
-            pretrained_model_name="amd/Qwen2.5-1.5B-Instruct-ptpc-Quark-ts",
-            max_length=128,
-        ),
-        # Mesolitica FP8 dynamic quantized variant
-        ModelVariant.MESOLITICA_QWEN_2_5_72B_INSTRUCT_FP8: LLMModelConfig(
-            pretrained_model_name="mesolitica/Qwen2.5-72B-Instruct-FP8",
+        # Unsloth BnB 4-bit quantized variant
+        ModelVariant.QWEN_2_5_1_5B_INSTRUCT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen2.5-1.5B-Instruct-bnb-4bit",
             max_length=128,
         ),
     }
@@ -228,11 +204,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_32B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_14B_INSTRUCT_GPTQ_INT8,
             ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
-            ModelVariant.UNSLOTH_QWEN_2_5_0_5B,
-            ModelVariant.QIAW99_QWEN_2_5_7B_INSTRUCT_OPENBOOKQA_DPO,
-            ModelVariant.ORION_ZHEN_QWEN_2_5_7B_INSTRUCT_UNCENSORED,
-            ModelVariant.AMD_QWEN_2_5_1_5B_INSTRUCT_QUARK_FP8,
-            ModelVariant.MESOLITICA_QWEN_2_5_72B_INSTRUCT_FP8,
+            ModelVariant.QWEN_2_5_1_5B_INSTRUCT_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
 
@@ -288,7 +260,7 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ variant and configure accordingly
+        # Check if this is an AWQ or BnB variant and configure accordingly
         if pretrained_model_name in (
             "Qwen/Qwen2.5-3B-Instruct-AWQ",
             "Qwen/Qwen2.5-14B-Instruct-AWQ",
@@ -296,6 +268,10 @@ class ModelLoader(ForgeModel):
             "Qwen/Qwen2.5-72B-Instruct-AWQ",
             "Qwen/Qwen2.5-14B-Instruct-GPTQ-Int8",
         ):
+            model_kwargs["device_map"] = "cpu"
+
+        # BnB variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_2_5_1_5B_INSTRUCT_BNB_4BIT:
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
