@@ -78,4 +78,4 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             waveform = waveform.to(dtype_override)
 
-        return {"x": waveform}
+        return {"audio": waveform}
