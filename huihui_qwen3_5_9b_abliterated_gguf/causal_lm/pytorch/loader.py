@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Huihui Qwen3.5 9B Abliterated GGUF model loader implementation for causal language modeling.
+Huihui Qwen 3.5 9B Abliterated GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,26 +21,26 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Huihui Qwen3.5 9B Abliterated GGUF model variants for causal language modeling."""
+    """Available Huihui Qwen 3.5 9B Abliterated GGUF model variants for causal language modeling."""
 
-    HUIHUI_QWEN_3_5_9B_ABLITERATED_GGUF = "9B_Abliterated_GGUF"
+    HUIHUI_QWEN3_5_9B_ABLITERATED_GGUF = "9B_Abliterated_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Huihui Qwen3.5 9B Abliterated GGUF model loader implementation for causal language modeling tasks."""
+    """Huihui Qwen 3.5 9B Abliterated GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.HUIHUI_QWEN_3_5_9B_ABLITERATED_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Huihui-Qwen3.5-9B-abliterated-GGUF",
+        ModelVariant.HUIHUI_QWEN3_5_9B_ABLITERATED_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Huihui-Qwen3.5-9B-abliterated-i1-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.HUIHUI_QWEN_3_5_9B_ABLITERATED_GGUF
+    DEFAULT_VARIANT = ModelVariant.HUIHUI_QWEN3_5_9B_ABLITERATED_GGUF
 
-    GGUF_FILE = "Huihui-Qwen3.5-9B-abliterated.Q4_K_M.gguf"
+    GGUF_FILE = "Huihui-Qwen3.5-9B-abliterated.i1-Q4_K_M.gguf"
 
-    sample_text = "Give me a short introduction to large language model."
+    sample_text = "Give me a short introduction to large language models."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Huihui Qwen3.5 9B Abliterated GGUF",
+            model="Huihui Qwen 3.5 9B Abliterated GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -108,7 +108,12 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
+        messages = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -142,8 +147,11 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
