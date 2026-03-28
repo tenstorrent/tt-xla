@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Captain-Eris Violet GGUF model loader implementation for causal language modeling.
+Captain Eris Violet GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Captain-Eris Violet GGUF model variants for causal language modeling."""
+    """Available Captain Eris Violet GGUF model variants for causal language modeling."""
 
-    CAPTAIN_ERIS_VIOLET_12B_GGUF = "12B_GGUF"
+    CAPTAIN_ERIS_VIOLET_0_420_ABLITERATED_GGUF = "0.420_Abliterated_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Captain-Eris Violet GGUF model loader implementation for causal language modeling tasks."""
+    """Captain Eris Violet GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.CAPTAIN_ERIS_VIOLET_12B_GGUF: LLMModelConfig(
-            pretrained_model_name="QuantFactory/Captain-Eris_Violet-V0.420-12B-GGUF",
+        ModelVariant.CAPTAIN_ERIS_VIOLET_0_420_ABLITERATED_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Captain_Eris_Violet-0.420-abliterated-i1-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CAPTAIN_ERIS_VIOLET_12B_GGUF
+    DEFAULT_VARIANT = ModelVariant.CAPTAIN_ERIS_VIOLET_0_420_ABLITERATED_GGUF
 
-    GGUF_FILE = "Captain-Eris_Violet-V0.420-12B.Q4_K_M.gguf"
+    GGUF_FILE = "Captain_Eris_Violet-0.420-abliterated.i1-Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Captain-Eris Violet GGUF",
+            model="Captain Eris Violet GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
