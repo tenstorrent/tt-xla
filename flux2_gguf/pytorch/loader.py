@@ -63,8 +63,8 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             load_kwargs["torch_dtype"] = dtype_override
 
-        self.transformer = Flux2Transformer2DModel.from_single_file(
-            f"https://huggingface.co/city96/FLUX.2-dev-gguf/blob/main/{self.GGUF_FILE}",
+        self.transformer = Flux2Transformer2DModel.from_pretrained(
+            self._variant_config.pretrained_model_name,
             **load_kwargs,
         )
 
