@@ -81,20 +81,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # qiaw99 DPO fine-tuned variants
-    LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO = "3.1_8B_Instruct_OpenbookQA_DPO"
-
-    # AMD PARD speculative decoding variants
-    PARD_LLAMA_3_2_1B = "PARD_3.2_1B"
-
-    # Llama Guard variants
-    LLAMA_GUARD_3_8B_INT8 = "Guard_3_8B_INT8"
-
-    # Kukedlc ORPO fine-tuned variants
-    NEURAL_LLAMA_3_8B_ORPO_V0_4 = "NeuralLLaMa_3_8B_ORPO_v0.4"
-
-    # John Snow Labs medical fine-tuned variants
-    JSL_MEDLLAMA_3_8B_V2_0 = "JSL_MedLlama_3_8B_v2.0"
+    # TheBloke GPTQ quantized variants
+    LLAMA_2_7B_CHAT_GPTQ = "2_7B_Chat_GPTQ"
 
 
 class ModelLoader(ForgeModel):
@@ -223,29 +211,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # qiaw99 DPO fine-tuned variants
-        ModelVariant.LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO: LLMModelConfig(
-            pretrained_model_name="qiaw99/Llama3.1-8B-Instruct-OpenbookQA-DPO-C-G-sequential",
-            max_length=128,
-        ),
-        # AMD PARD speculative decoding variants
-        ModelVariant.PARD_LLAMA_3_2_1B: LLMModelConfig(
-            pretrained_model_name="amd/PARD-Llama-3.2-1B",
-            max_length=128,
-        ),
-        # Llama Guard variants
-        ModelVariant.LLAMA_GUARD_3_8B_INT8: LLMModelConfig(
-            pretrained_model_name="meta-llama/Llama-Guard-3-8B-INT8",
-            max_length=128,
-        ),
-        # Kukedlc ORPO fine-tuned variants
-        ModelVariant.NEURAL_LLAMA_3_8B_ORPO_V0_4: LLMModelConfig(
-            pretrained_model_name="Kukedlc/NeuralLLaMa-3-8b-ORPO-v0.4",
-            max_length=128,
-        ),
-        # John Snow Labs medical fine-tuned variants
-        ModelVariant.JSL_MEDLLAMA_3_8B_V2_0: LLMModelConfig(
-            pretrained_model_name="johnsnowlabs/JSL-MedLlama-3-8B-v2.0",
+        # TheBloke GPTQ quantized variants
+        ModelVariant.LLAMA_2_7B_CHAT_GPTQ: LLMModelConfig(
+            pretrained_model_name="TheBloke/Llama-2-7B-Chat-GPTQ",
             max_length=128,
         ),
     }
@@ -325,7 +293,7 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.PRIORITY
         elif variant in [
             ModelVariant.LLAMA_2_7B,
-            ModelVariant.LLAMA_2_13B,
+            ModelVariant.LLAMA_2_7B_CHAT_GPTQ,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.JACKFRAM_LLAMA_160M,
         ]:
@@ -390,10 +358,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is a quantized variant that needs CPU device map
+        # Check if this is an AWQ/GPTQ variant and configure accordingly
         if pretrained_model_name in (
             "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "unsloth/Llama-3.1-8B-Instruct-unsloth-bnb-4bit",
+            "TheBloke/Llama-2-7B-Chat-GPTQ",
         ):
             model_kwargs["device_map"] = "cpu"
 
@@ -597,6 +565,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PARD_LLAMA_3_2_1B,
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.LLAMA_2_7B,
+            ModelVariant.LLAMA_2_7B_CHAT_GPTQ,
             ModelVariant.JACKFRAM_LLAMA_160M,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
         ]:
