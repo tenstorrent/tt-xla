@@ -20,7 +20,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
+from ...tools.utils import get_file, cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -43,6 +43,7 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.processor = None
+        self.model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -72,6 +73,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **model_kwargs
         )
         model.eval()
+        self.model = model
 
         self.processor = AutoProcessor.from_pretrained(
             pretrained_model_name, trust_remote_code=True
@@ -93,7 +95,12 @@ class ModelLoader(ForgeModel):
             text="Describe this image.",
         )
 
-        inputs = {k: v.unsqueeze(0) for k, v in inputs.items()}
+        inputs = {k: v.unsqueeze(0) for k, v in inputs.items() if torch.is_tensor(v)}
+
+        if dtype_override is not None:
+            inputs = {
+                k: cast_input_to_type(v, dtype_override) for k, v in inputs.items()
+            }
 
         if batch_size > 1:
             inputs = {
