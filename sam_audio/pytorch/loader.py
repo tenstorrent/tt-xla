@@ -5,8 +5,10 @@
 SAM-Audio (Segment Anything Model for Audio) loader implementation.
 """
 
-import torch
+import tempfile
+
 import numpy as np
+import soundfile as sf
 from typing import Optional
 from sam_audio import SAMAudio, SAMAudioProcessor
 
@@ -82,9 +84,6 @@ class ModelLoader(ForgeModel):
         audio_waveform = np.sin(2 * np.pi * 440 * t) + np.sin(2 * np.pi * 880 * t)
 
         # Save to a temporary wav file for processor input
-        import tempfile
-        import soundfile as sf
-
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             sf.write(f.name, audio_waveform, sample_rate)
             audio_path = f.name
