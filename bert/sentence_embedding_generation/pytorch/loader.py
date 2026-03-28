@@ -31,12 +31,7 @@ class ModelVariant(StrEnum):
     )
     BIOBERT_V1_1 = "dmis-lab/biobert-v1.1"
     TINYBERT_L4_H312_V2 = "nreimers/TinyBERT_L-4_H-312_v2"
-    SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS = (
-        "sonoisa/sentence-bert-base-ja-mean-tokens"
-    )
-    PORTULAN_SERAFIM_100M_PORTUGUESE_PT_SENTENCE_ENCODER_IR = (
-        "PORTULAN/serafim-100m-portuguese-pt-sentence-encoder-ir"
-    )
+    DEEPSET_SENTENCE_BERT = "deepset/sentence_bert"
 
 
 class ModelLoader(ForgeModel):
@@ -60,12 +55,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nreimers/TinyBERT_L-4_H-312_v2",
             max_length=128,
         ),
-        ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS: LLMModelConfig(
-            pretrained_model_name="sonoisa/sentence-bert-base-ja-mean-tokens",
-            max_length=128,
-        ),
-        ModelVariant.PORTULAN_SERAFIM_100M_PORTUGUESE_PT_SENTENCE_ENCODER_IR: LLMModelConfig(
-            pretrained_model_name="PORTULAN/serafim-100m-portuguese-pt-sentence-encoder-ir",
+        ModelVariant.DEEPSET_SENTENCE_BERT: LLMModelConfig(
+            pretrained_model_name="deepset/sentence_bert",
             max_length=128,
         ),
     }
@@ -107,8 +98,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: ModelGroup.VULCAN,
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
-            ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS: ModelGroup.VULCAN,
-            ModelVariant.PORTULAN_SERAFIM_100M_PORTUGUESE_PT_SENTENCE_ENCODER_IR: ModelGroup.VULCAN,
+            ModelVariant.DEEPSET_SENTENCE_BERT: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
