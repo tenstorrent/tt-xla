@@ -8,7 +8,7 @@ Ministral 3B Base model loader implementation for multimodal vision-language mod
 from typing import Optional
 
 from ....config import (
-    LLMModelConfig,
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -29,7 +29,7 @@ class ModelLoader(ForgeModel):
     """Ministral 3B Base model loader implementation for multimodal vision-language tasks."""
 
     _VARIANTS = {
-        ModelVariant.MINISTRAL_3_3B_BASE_2512: LLMModelConfig(
+        ModelVariant.MINISTRAL_3_3B_BASE_2512: ModelConfig(
             pretrained_model_name=str(ModelVariant.MINISTRAL_3_3B_BASE_2512),
         ),
     }
