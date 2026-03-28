@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
+    QWEN_3_5_35B_A3B_TXN545_NVFP4 = "35B_A3B_txn545_NVFP4"
     QWEN_3_5_122B_A10B_HERETIC_GGUF = "122B_A10B_Heretic_GGUF"
     QWEN_3_5_397B_A17B = "397B_A17B"
     QWEN_3_5_9B_CLAUDE_REASONING_DISTILLED = "9B_Claude_Reasoning_Distilled"
@@ -82,6 +83,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_NVFP4: LLMModelConfig(
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_TXN545_NVFP4: LLMModelConfig(
+            pretrained_model_name="txn545/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_122B_A10B_HERETIC_GGUF: LLMModelConfig(
@@ -302,6 +307,8 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
+            ModelVariant.QWEN_3_5_35B_A3B_NVFP4,
+            ModelVariant.QWEN_3_5_35B_A3B_TXN545_NVFP4,
             ModelVariant.QWEN_3_5_122B_A10B_HERETIC_GGUF,
             ModelVariant.QWEN_3_5_397B_A17B,
         )
