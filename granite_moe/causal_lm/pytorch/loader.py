@@ -1,14 +1,13 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 Granite MoE model loader implementation for causal language modeling.
 """
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
 
-from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -18,38 +17,43 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....base import ForgeModel
+from ....tools.utils import (
+    pad_inputs,
+    cast_input_to_type,
+)
 
 
 class ModelVariant(StrEnum):
-    """Available Granite MoE model variants for causal language modeling."""
+    """Available Granite MoE model variants for causal LM."""
 
-    GRANITE_3_1_1B_A400M_INSTRUCT = "3.1_1B_A400M_Instruct"
+    TINY_RANDOM = "tiny_random"
 
 
 class ModelLoader(ForgeModel):
-    """Granite MoE model loader implementation for causal language modeling tasks."""
+    """Granite MoE model loader for causal language modeling."""
 
     _VARIANTS = {
-        ModelVariant.GRANITE_3_1_1B_A400M_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="ibm-granite/granite-3.1-1b-a400m-instruct",
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-granite-moe",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GRANITE_3_1_1B_A400M_INSTRUCT
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
-    sample_text = "Give me a short introduction to large language model."
+    sample_text = "Hey how are you doing today?"
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
-        self.config = None
-        self.num_layers = num_layers
+        self.seq_len = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="Granite MoE",
             variant=variant,
@@ -60,13 +64,16 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            pretrained_model_name, **tokenizer_kwargs
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -81,49 +88,34 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
-
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
+        model.eval()
 
-        self.config = model.config
-        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        max_length = self._variant_config.max_length
-
-        messages = [{"role": "user", "content": self.sample_text}]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        prompts = [text]
-
         inputs = self.tokenizer(
-            prompts,
+            self.sample_text,
             return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=max_length,
         )
 
         for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
+        if dtype_override is not None:
+            for key in inputs:
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
+
+        target_len = self._variant_config.max_length
+        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], target_len)
+        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], target_len)
+        self.seq_len = seq_len
+
+        inputs["input_ids"] = padded_input_ids
+        inputs["attention_mask"] = padded_attention_mask
         return inputs
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
-        return self.config
