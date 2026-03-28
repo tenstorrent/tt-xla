@@ -112,6 +112,9 @@ class ModelVariant(StrEnum):
     # MLX community variants
     MLX_LLAMA_3_1_8B_INSTRUCT_BF16 = "Mlx_3.1_8B_Instruct_Bf16"
 
+    # Lightblue variants
+    SUZUME_LLAMA_3_8B_MULTILINGUAL = "Suzume_3.0_8B_Multilingual"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -268,6 +271,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mlx-community/Meta-Llama-3.1-8B-Instruct-bf16",
             max_length=128,
         ),
+        # Lightblue variants
+        ModelVariant.SUZUME_LLAMA_3_8B_MULTILINGUAL: LLMModelConfig(
+            pretrained_model_name="lightblue/suzume-llama-3-8B-multilingual",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -318,6 +326,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.MLX_LLAMA_3_1_8B_INSTRUCT_BF16,
+            ModelVariant.SUZUME_LLAMA_3_8B_MULTILINGUAL,
         ]:
             group = ModelGroup.VULCAN
         elif (
