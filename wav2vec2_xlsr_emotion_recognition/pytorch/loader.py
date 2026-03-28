@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 XLSR emotion recognition model variants."""
 
     XLSR_EN = "XLSR_EN"
+    RF_EN = "RF_EN"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.XLSR_EN: ModelConfig(
             pretrained_model_name="ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition",
+        ),
+        ModelVariant.RF_EN: ModelConfig(
+            pretrained_model_name="r-f/wav2vec-english-speech-emotion-recognition",
         ),
     }
 
