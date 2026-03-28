@@ -141,6 +141,12 @@ class ModelLoader(ForgeModel):
         # Tokenize text
         text_inputs = self.tokenizer(self.text_prompts, return_tensors="pt")
 
+        # Replicate pixel_values to match the number of text prompts
+        num_texts = len(self.text_prompts)
+        image_inputs["pixel_values"] = image_inputs["pixel_values"].expand(
+            num_texts, -1, -1, -1
+        )
+
         # Combine inputs
         inputs = {**image_inputs, **text_inputs}
 
@@ -178,3 +184,23 @@ class ModelLoader(ForgeModel):
             probs = (100.0 * image_features @ text_features.T).softmax(dim=-1)
             for i, text in enumerate(self.text_prompts):
                 print(f"Probability of '{text}':", probs[0, i].item())
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        Args:
+            fwd_output: Output from the model's forward pass (tuple or object)
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        if isinstance(fwd_output, tuple):
+            tensors = []
+            for item in fwd_output:
+                if isinstance(item, torch.Tensor):
+                    tensors.append(item.flatten())
+                elif hasattr(item, "last_hidden_state"):
+                    tensors.append(item.last_hidden_state.flatten())
+            if tensors:
+                return torch.cat(tensors, dim=0)
+        return fwd_output
