@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
     VIT_B_32_LAION2B = "ViT_B_32_laion2B"
     VIT_BIGG_14_LAION2B = "ViT_bigG_14_laion2B"
     CONVNEXT_BASE_W_LAION2B = "ConvNeXt_Base_W_laion2B"
-    CONVNEXT_XXLARGE_LAION2B = "ConvNeXt_XXLarge_laion2B"
+    VIT_B_16_DATACOMP_XL = "ViT_B_16_DataComp_XL"
 
 
 # Mapping from variant to OpenCLIP tokenizer name
@@ -34,7 +34,7 @@ _TOKENIZER_NAME = {
     ModelVariant.VIT_B_32_LAION2B: "ViT-B-32",
     ModelVariant.VIT_BIGG_14_LAION2B: "ViT-bigG-14",
     ModelVariant.CONVNEXT_BASE_W_LAION2B: "convnext_base_w",
-    ModelVariant.CONVNEXT_XXLARGE_LAION2B: "convnext_xxlarge",
+    ModelVariant.VIT_B_16_DATACOMP_XL: "ViT-B-16",
 }
 
 
@@ -51,8 +51,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.CONVNEXT_BASE_W_LAION2B: ModelConfig(
             pretrained_model_name="hf-hub:laion/CLIP-convnext_base_w-laion2B-s13B-b82K-augreg",
         ),
-        ModelVariant.CONVNEXT_XXLARGE_LAION2B: ModelConfig(
-            pretrained_model_name="hf-hub:laion/CLIP-convnext_xxlarge-laion2B-s34B-b82K-augreg-soup",
+        ModelVariant.VIT_B_16_DATACOMP_XL: ModelConfig(
+            pretrained_model_name="hf-hub:laion/CLIP-ViT-B-16-DataComp.XL-s13B-b90K",
         ),
     }
 
