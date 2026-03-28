@@ -33,7 +33,7 @@ class ModelVariant(StrEnum):
     QWEN_1_5_1_8B_CHAT = "1_8B_Chat"
     QWEN_1_5_1_8B_CHAT_GPTQ_4BIT = "1_8B_Chat_GPTQ_4bit"
     QWEN_1_5_7B = "7B"
-    QWEN_1_5_14B_CHAT = "14B_Chat"
+    QWEN_1_5_32B_CHAT = "32B_Chat"
 
 
 class ModelLoader(ForgeModel):
@@ -61,8 +61,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen1.5-7B",
             max_length=128,
         ),
-        ModelVariant.QWEN_1_5_14B_CHAT: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen1.5-14B-Chat",
+        ModelVariant.QWEN_1_5_32B_CHAT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen1.5-32B-Chat",
             max_length=512,
         ),
     }
@@ -106,7 +106,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_1_5_1_8B_CHAT: ModelGroup.VULCAN,
             ModelVariant.QWEN_1_5_1_8B_CHAT_GPTQ_4BIT: ModelGroup.VULCAN,
             ModelVariant.QWEN_1_5_7B: ModelGroup.VULCAN,
-            ModelVariant.QWEN_1_5_14B_CHAT: ModelGroup.VULCAN,
+            ModelVariant.QWEN_1_5_32B_CHAT: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
