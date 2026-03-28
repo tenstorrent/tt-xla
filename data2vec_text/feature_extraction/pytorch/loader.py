@@ -5,7 +5,6 @@
 Data2VecText model loader implementation for feature extraction (PyTorch).
 """
 
-import torch
 from transformers import AutoTokenizer, Data2VecTextModel
 from typing import Optional
 
@@ -74,7 +73,7 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self, dtype_override=None):
+    def _load_tokenizer(self):
         """Load tokenizer for the current variant.
 
         Returns:
@@ -97,7 +96,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer()
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -119,7 +118,7 @@ class ModelLoader(ForgeModel):
             dict: Input tensors that can be fed to the model.
         """
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer()
 
         max_length = self._variant_config.max_length
 
