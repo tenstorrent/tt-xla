@@ -9,6 +9,7 @@ from typing import Optional
 from dataclasses import dataclass
 from torchvision import models
 import torch
+import timm
 import os
 from datasets import load_dataset
 import timm
@@ -61,7 +62,7 @@ class ModelVariant(StrEnum):
     DENSENET201 = "201"
 
     # TIMM variants
-    DENSENET121_RA_IN1K_TIMM = "121_RA_IN1K_TIMM"
+    DENSENET121_TV_IN1K_TIMM = "DenseNet121_TV_IN1K_TIMM"
 
     # X-ray variants
     DENSENET121_XRAY = "121_Xray"
@@ -93,8 +94,8 @@ class ModelLoader(ForgeModel):
             source=ModelSource.TORCHVISION,
         ),
         # TIMM variants
-        ModelVariant.DENSENET121_RA_IN1K_TIMM: DenseNetConfig(
-            pretrained_model_name="densenet121.ra_in1k",
+        ModelVariant.DENSENET121_TV_IN1K_TIMM: DenseNetConfig(
+            pretrained_model_name="densenet121.tv_in1k",
             source=ModelSource.TIMM,
         ),
         # X-ray variants
@@ -142,7 +143,7 @@ class ModelLoader(ForgeModel):
         source = cls._VARIANTS[variant].source
 
         if variant in [
-            ModelVariant.DENSENET121_RA_IN1K_TIMM,
+            ModelVariant.DENSENET121_TV_IN1K_TIMM,
         ]:
             group = ModelGroup.VULCAN
         else:
@@ -172,8 +173,7 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.TIMM:
-            import timm
-
+            # Load model using timm
             model = timm.create_model(model_name, pretrained=True)
         elif source == ModelSource.TORCH_XRAY_VISION:
             if not XRAY_AVAILABLE:
