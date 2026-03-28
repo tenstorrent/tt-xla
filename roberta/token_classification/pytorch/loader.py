@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
         "projecte-aina/roberta-base-ca-v2-cased-ner"
     )
     TNER_ROBERTA_LARGE_TWEETNER7_ALL = "tner/roberta-large-tweetner7-all"
-    SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER = "syssec-utd/py39-pylingual-v1-segmenter"
+    SYSSEC_UTD_PY310_PYLINGUAL_V1_SEGMENTER = "syssec-utd/py310-pylingual-v1-segmenter"
 
 
 _VARIANT_SAMPLE_TEXTS = {
@@ -38,7 +38,7 @@ _VARIANT_SAMPLE_TEXTS = {
     ModelVariant.ML6TEAM_KEYPHRASE_EXTRACTION_KBIR_INSPEC: "Keyphrase extraction is a technique in text analysis where you extract important keyphrases from a document.",
     ModelVariant.PROJECTE_AINA_ROBERTA_BASE_CA_V2_CASED_NER: "En Jordi viu a Barcelona i treballa a la Universitat de Catalunya",
     ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: "Jacob Collier is an amazing musician from London",
-    ModelVariant.SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER: "LOAD_FAST x LOAD_FAST y BINARY_OP Add RETURN_VALUE",
+    ModelVariant.SYSSEC_UTD_PY310_PYLINGUAL_V1_SEGMENTER: "LOAD_FAST 0 LOAD_FAST 1 BINARY_ADD RETURN_VALUE",
 }
 
 
@@ -58,8 +58,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: ModelConfig(
             pretrained_model_name="tner/roberta-large-tweetner7-all",
         ),
-        ModelVariant.SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER: ModelConfig(
-            pretrained_model_name="syssec-utd/py39-pylingual-v1-segmenter",
+        ModelVariant.SYSSEC_UTD_PY310_PYLINGUAL_V1_SEGMENTER: ModelConfig(
+            pretrained_model_name="syssec-utd/py310-pylingual-v1-segmenter",
         ),
     }
 
