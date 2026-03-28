@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-PP-OCRv5 East Slavic Mobile Recognition PaddlePaddle model loader implementation.
+PP-OCRv5 Mobile Recognition PaddlePaddle model loader implementation.
 """
 
 from typing import Optional
@@ -26,19 +26,19 @@ from ....tools.utils import get_file
 class ModelVariant(StrEnum):
     """Available PP-OCRv5 text recognition model variants (Paddle)."""
 
-    ESLAV_MOBILE_REC = "eslav_PP-OCRv5_mobile_rec"
+    MOBILE_REC = "PP-OCRv5_mobile_rec"
 
 
 class ModelLoader(ForgeModel):
-    """PP-OCRv5 East Slavic Mobile Recognition PaddlePaddle model loader implementation."""
+    """PP-OCRv5 Mobile Recognition PaddlePaddle model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.ESLAV_MOBILE_REC: ModelConfig(
-            pretrained_model_name="eslav_PP-OCRv5_mobile_rec",
+        ModelVariant.MOBILE_REC: ModelConfig(
+            pretrained_model_name="PP-OCRv5_mobile_rec",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ESLAV_MOBILE_REC
+    DEFAULT_VARIANT = ModelVariant.MOBILE_REC
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -56,12 +56,12 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load pretrained PP-OCRv5 East Slavic mobile recognition model (Paddle)."""
+        """Load pretrained PP-OCRv5 mobile recognition model (Paddle)."""
         import os
 
         from paddlex.inference import create_predictor
 
-        predictor = create_predictor(model_name="eslav_PP-OCRv5_mobile_rec")
+        predictor = create_predictor(model_name="PP-OCRv5_mobile_rec")
         model = paddle.jit.load(os.path.join(str(predictor.model_dir), "inference"))
         model.eval()
         return model
@@ -75,16 +75,11 @@ class ModelLoader(ForgeModel):
         )
         image = Image.open(str(image_file)).convert("RGB")
 
-        # Resize to fixed height 48, scale width proportionally (recognition model)
-        target_h = 48
-        w, h = image.size
-        ratio = target_h / h
-        target_w = max(1, int(w * ratio))
-        image = image.resize((target_w, target_h), Image.BILINEAR)
-
+        # Follow PP-OCRv5 recognition preprocessing: resize to 3x48x320
+        image = image.resize((320, 48), Image.BILINEAR)
         image = np.array(image).astype("float32")
 
-        # Normalize with ImageNet stats
+        # Normalize
         mean = np.array([0.485, 0.456, 0.406], dtype="float32")
         std = np.array([0.229, 0.224, 0.225], dtype="float32")
         image = (image / 255.0 - mean) / std
