@@ -42,17 +42,6 @@ def _ensure_sharp_importable():
                 ML_SHARP_REPO_PATH,
             ]
         )
-        subprocess.check_call(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "-e",
-                ML_SHARP_REPO_PATH,
-                "--no-deps",
-            ]
-        )
 
     src_path = os.path.join(ML_SHARP_REPO_PATH, "src")
     if src_path not in sys.path:
