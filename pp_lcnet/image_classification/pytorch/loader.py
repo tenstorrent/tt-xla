@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     """Available PP-LCNet model variants for image classification."""
 
     PP_LCNET_X1_0_DOC_ORI = "PP-LCNet_x1_0_doc_ori"
+    PP_LCNET_X1_0_TABLE_CLS = "PP-LCNet_x1_0_table_cls"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +37,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.PP_LCNET_X1_0_DOC_ORI: ModelConfig(
             pretrained_model_name="PaddlePaddle/PP-LCNet_x1_0_doc_ori_safetensors",
+        ),
+        ModelVariant.PP_LCNET_X1_0_TABLE_CLS: ModelConfig(
+            pretrained_model_name="PaddlePaddle/PP-LCNet_x1_0_table_cls_safetensors",
         ),
     }
 
