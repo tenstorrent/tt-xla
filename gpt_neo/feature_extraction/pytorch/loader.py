@@ -4,7 +4,6 @@
 """
 GPT-Neo model loader implementation for feature extraction.
 """
-import torch
 from typing import Optional
 
 from transformers import GPTNeoModel, GPT2Tokenizer
