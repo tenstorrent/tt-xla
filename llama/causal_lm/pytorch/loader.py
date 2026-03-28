@@ -77,6 +77,9 @@ class ModelVariant(StrEnum):
     # cazzz307 abliterated variants
     ABLITERATED_LLAMA_3_2_1B_INSTRUCT = "Abliterated_3.2_1B_Instruct"
 
+    # GraySwanAI variants
+    GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR = "GraySwanAI_3.0_8B_Instruct_RR"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -188,6 +191,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cazzz307/Abliterated-Llama-3.2-1B-Instruct",
             max_length=128,
         ),
+        # GraySwanAI variants
+        ModelVariant.GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR: LLMModelConfig(
+            pretrained_model_name="GraySwanAI/Llama-3-8B-Instruct-RR",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -232,6 +240,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_8B_INSTRUCT_AWQ,
             ModelVariant.ABLITERATED_LLAMA_3_2_1B_INSTRUCT,
+            ModelVariant.GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR,
         ]:
             group = ModelGroup.VULCAN
         elif (
