@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_BLOODCANCER_LARGE = "ZeroShot-NER-BloodCancer-Large-459M"
     OPENMED_ZEROSHOT_NER_DNA_BASE = "ZeroShot-NER-DNA-Base-220M"
     OPENMED_ZEROSHOT_NER_ORGANISM_MULTI = "ZeroShot-NER-Organism-Multi-209M"
+    OPENMED_ZEROSHOT_NER_PATHOLOGY_TINY = "ZeroShot-NER-Pathology-Tiny-60M"
 
 
 class ModelLoader(ForgeModel):
@@ -61,6 +62,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_MULTI: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Organism-Multi-209M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_TINY: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Tiny-60M"
         ),
     }
 
@@ -173,6 +177,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_MULTI: {
             "text": "Caenorhabditis elegans is a model organism for genetic studies.",
             "labels": ["SPECIES"],
+        },
+        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_TINY: {
+            "text": "Early detection of breast cancer improves survival rates.",
+            "labels": ["DISEASE"],
         },
     }
 
