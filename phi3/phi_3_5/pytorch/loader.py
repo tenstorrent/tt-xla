@@ -120,7 +120,7 @@ class ModelLoader(ForgeModel):
             },
         ]
         text = self.tokenizer.apply_chat_template(
-            prompt, tokenize=False, add_generation_prompt=True, enable_thinking=True
+            prompt, tokenize=False, add_generation_prompt=True
         )
         inputs = self.tokenizer(
             [text],
