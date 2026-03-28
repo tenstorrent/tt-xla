@@ -1,27 +1,25 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Helper functions for CogVideoX model loading and preprocessing.
+Helper functions for CogVideoX model loading and processing.
 """
 
 import torch
 from diffusers import CogVideoXPipeline
 
 
-def load_pipe(pretrained_model_name):
+def load_pipe(model_name):
     """Load CogVideoX pipeline.
 
     Args:
-        pretrained_model_name: HuggingFace model identifier
+        model_name: HuggingFace model identifier
 
     Returns:
         CogVideoXPipeline: Loaded pipeline with components set to eval mode
     """
-    pipe = CogVideoXPipeline.from_pretrained(
-        pretrained_model_name, torch_dtype=torch.float32
-    )
+    pipe = CogVideoXPipeline.from_pretrained(model_name, torch_dtype=torch.float32)
 
     modules = [
         pipe.text_encoder,
@@ -40,83 +38,45 @@ def load_pipe(pretrained_model_name):
     return pipe
 
 
-def cogvideox_preprocessing(
-    pipe,
-    prompt,
-    device="cpu",
-    num_inference_steps=1,
-    num_videos_per_prompt=1,
-    guidance_scale=6.0,
-    num_frames=9,
-):
+def cogvideox_preprocessing(pipe, prompt, device="cpu", num_inference_steps=1):
     """Preprocess inputs for CogVideoX transformer model.
 
     Args:
         pipe: CogVideoX pipeline
-        prompt: Text prompt for video generation
+        prompt: Text prompt for generation
         device: Device to run on (default: "cpu")
         num_inference_steps: Number of inference steps (default: 1)
-        num_videos_per_prompt: Number of videos per prompt (default: 1)
-        guidance_scale: Guidance scale (default: 6.0)
-        num_frames: Number of video frames to generate (default: 9)
 
     Returns:
-        tuple: (hidden_states, timestep, encoder_hidden_states, image_rotary_emb)
+        tuple: (latent_model_input, timestep, prompt_embeds)
     """
-    do_classifier_free_guidance = guidance_scale > 1.0
-
-    # Encode prompt
-    prompt_embeds, negative_prompt_embeds = pipe.encode_prompt(
+    # Encode prompt using the pipeline's text encoder
+    prompt_embeds = pipe.encode_prompt(
         prompt=prompt,
         negative_prompt=None,
-        do_classifier_free_guidance=do_classifier_free_guidance,
-        num_videos_per_prompt=num_videos_per_prompt,
+        do_classifier_free_guidance=False,
+        num_videos_per_prompt=1,
         device=device,
         dtype=torch.float32,
     )
 
-    # Compute image dimensions from transformer config
-    height = pipe.transformer.config.sample_height * pipe.vae_scale_factor_spatial
-    width = pipe.transformer.config.sample_width * pipe.vae_scale_factor_spatial
-
-    # Prepare latents
+    # CogVideoX-5b: transformer expects latents of shape
+    # (batch, num_frames, channels, height, width)
+    # Default: 49 frames, 16 latent channels, latent spatial dims
     num_channels_latents = pipe.transformer.config.in_channels
-    latent_height = height // pipe.vae_scale_factor_spatial
-    latent_width = width // pipe.vae_scale_factor_spatial
-    latent_num_frames = (num_frames - 1) // pipe.vae_scale_factor_temporal + 1
+    num_frames = 13  # (49 video frames - 1) / temporal_compression_ratio(4) + 1
+    latent_height = 60  # 480 / vae_scale_factor(8)
+    latent_width = 90  # 720 / vae_scale_factor(8)
 
-    shape = (
-        num_videos_per_prompt,
-        latent_num_frames,
-        num_channels_latents,
-        latent_height,
-        latent_width,
+    latents = torch.randn(
+        (1, num_frames, num_channels_latents, latent_height, latent_width),
+        device=device,
+        dtype=torch.float32,
     )
-    latents = torch.randn(shape, device=device, dtype=torch.float32)
 
-    # Prepare timesteps
+    # Set up scheduler and get timesteps
     pipe.scheduler.set_timesteps(num_inference_steps, device=device)
     timesteps = pipe.scheduler.timesteps
+    timestep = timesteps[0].unsqueeze(0)
 
-    # Get the first timestep
-    timestep = timesteps[0].expand(latents.shape[0])
-
-    # Concatenate for classifier-free guidance
-    if do_classifier_free_guidance:
-        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
-        latent_model_input = torch.cat([latents] * 2)
-        timestep = timesteps[0].expand(latent_model_input.shape[0])
-    else:
-        latent_model_input = latents
-
-    # Prepare rotary positional embeddings if the model uses them
-    image_rotary_emb = None
-    if pipe.transformer.config.use_rotary_positional_embeddings:
-        image_rotary_emb = pipe._prepare_rotary_positional_embeddings(
-            height=height,
-            width=width,
-            num_frames=latent_model_input.size(1),
-            device=device,
-        )
-
-    return latent_model_input, timestep, prompt_embeds, image_rotary_emb
+    return latents, timestep, prompt_embeds
