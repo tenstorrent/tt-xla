@@ -66,6 +66,7 @@ class ModelVariant(StrEnum):
     """Available SmolVLA model variants."""
 
     SMOLVLA_BASE = "smolvla_base"
+    SMOLVLA_LIBERO = "smolvla_libero"
 
 
 class ModelLoader(ForgeModel):
@@ -74,6 +75,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.SMOLVLA_BASE: ModelConfig(
             pretrained_model_name="lerobot/smolvla_base",
+        ),
+        ModelVariant.SMOLVLA_LIBERO: ModelConfig(
+            pretrained_model_name="HuggingFaceVLA/smolvla_libero",
         ),
     }
 
@@ -89,10 +93,15 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.SMOLVLA_LIBERO
+            else ModelGroup.RED
+        )
         return ModelInfo(
             model="SmolVLA",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.MM_ACTION_PREDICTION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
