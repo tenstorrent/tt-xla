@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    MPARKAI_FINALPROJECTMIJIPARK = "mparkai_FinalProjectMijiPark"
+    SADICKAM_SDGBERT = "sadickam_sdgBERT"
 
 
 class ModelLoader(ForgeModel):
@@ -51,8 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.MPARKAI_FINALPROJECTMIJIPARK: LLMModelConfig(
-            pretrained_model_name="mparkai/FinalProjectMijiPark",
+        ModelVariant.SADICKAM_SDGBERT: LLMModelConfig(
+            pretrained_model_name="sadickam/sdgBERT",
             max_length=128,
         ),
     }
@@ -71,7 +71,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.MPARKAI_FINALPROJECTMIJIPARK: "I like you. I love you",
+        ModelVariant.SADICKAM_SDGBERT: "Achieving sustainable consumption and production through a circular economy approach is essential for environmental protection.",
     }
 
     def __init__(self, variant=None):
@@ -107,7 +107,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.MPARKAI_FINALPROJECTMIJIPARK,
+            ModelVariant.SADICKAM_SDGBERT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
