@@ -35,7 +35,7 @@ class ModelLoader(ForgeModel):
         self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant_name=None):
+    def _get_model_info(cls, variant_name: str = None):
         """Get model information for dashboard and metrics reporting.
 
         Args:
@@ -65,7 +65,6 @@ class ModelLoader(ForgeModel):
         self.model = Pop2PianoForConditionalGeneration.from_pretrained(
             self.model_name, **kwargs
         )
-        self.model.eval()
         return self.model
 
     def load_inputs(self, **kwargs):
