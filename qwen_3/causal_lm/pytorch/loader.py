@@ -55,6 +55,7 @@ class ModelVariant(StrEnum):
     QWEN_3_32B_BNB_4BIT = "32B_bnb_4bit"
     QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT = "30B_A3B_Instruct_2507_AWQ_8bit"
     QWEN_3_8B_W8A8 = "8B_w8a8"
+    QWEN_3_30B_A3B_MLX_4BIT = "30B_A3B_MLX_4bit"
     QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT = "235B_A22B_Instruct_2507_MLX_4bit"
 
 
@@ -175,6 +176,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nytopop/Qwen3-8B.w8a8",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_30B_A3B_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-MLX-4bit",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT: LLMModelConfig(
             pretrained_model_name="mlx-community/Qwen3-235B-A22B-Instruct-2507-4bit",
             max_length=128,
@@ -236,6 +241,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BNB_4BIT,
             ModelVariant.QWEN_3_32B_BNB_4BIT,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT,
+            ModelVariant.QWEN_3_30B_A3B_MLX_4BIT,
             ModelVariant.QWEN_3_8B_W8A8,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT,
         ):
@@ -431,6 +437,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT,
+            ModelVariant.QWEN_3_30B_A3B_MLX_4BIT,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT,
         )
