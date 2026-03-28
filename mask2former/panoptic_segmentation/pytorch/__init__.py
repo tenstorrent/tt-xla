@@ -3,6 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Mask2Former Swin-B PyTorch model implementation for panoptic segmentation.
+Mask2Former Swin-Tiny PyTorch model implementation for panoptic segmentation.
 """
 from .loader import ModelLoader, ModelVariant

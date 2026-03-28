@@ -25,19 +25,19 @@ from datasets import load_dataset
 class ModelVariant(StrEnum):
     """Available Mask2Former model variants for panoptic segmentation."""
 
-    SWIN_B_COCO_PANOPTIC = "Swin_Base_Coco_Panoptic"
+    SWIN_T_COCO_PANOPTIC = "Swin_Tiny_Coco_Panoptic"
 
 
 class ModelLoader(ForgeModel):
     """Mask2Former model loader implementation for panoptic segmentation tasks."""
 
     _VARIANTS = {
-        ModelVariant.SWIN_B_COCO_PANOPTIC: ModelConfig(
-            pretrained_model_name="facebook/mask2former-swin-base-coco-panoptic"
+        ModelVariant.SWIN_T_COCO_PANOPTIC: ModelConfig(
+            pretrained_model_name="facebook/mask2former-swin-tiny-coco-panoptic"
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SWIN_B_COCO_PANOPTIC
+    DEFAULT_VARIANT = ModelVariant.SWIN_T_COCO_PANOPTIC
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -51,7 +51,7 @@ class ModelLoader(ForgeModel):
             model="Mask2Former",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CV_PANOPTIC_SEG,
+            task=ModelTask.CV_IMAGE_SEG,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
