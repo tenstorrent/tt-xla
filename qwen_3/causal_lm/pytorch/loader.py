@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 model variants for causal language modeling."""
 
     QWEN_3_0_6B = "0_6B"
+    QWEN_3_0_6B_BASE = "0_6B_Base"
     QWEN_3_1_7B = "1_7B"
     QWEN_3_4B = "4B"
     QWEN_3_4B_BASE = "4B_Base"
@@ -64,6 +65,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_0_6B: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-0.6B",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_0_6B_BASE: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-0.6B-Base",
             max_length=128,
         ),
         ModelVariant.QWEN_3_1_7B: LLMModelConfig(
@@ -212,6 +217,7 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         if variant in (
+            ModelVariant.QWEN_3_0_6B_BASE,
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_8BIT,
@@ -357,9 +363,9 @@ class ModelLoader(ForgeModel):
 
         # Base models use plain text; chat models use chat template
         if self._variant in (
+            ModelVariant.QWEN_3_0_6B_BASE,
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_8B_BASE,
-            ModelVariant.QWEN_3_30B_A3B_BASE,
         ):
             prompts = [self.sample_text]
         else:
