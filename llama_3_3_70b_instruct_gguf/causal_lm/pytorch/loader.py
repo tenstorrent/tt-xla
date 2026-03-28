@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Llama 3.3 70B Instruct GGUF model variants for causal language modeling."""
 
-    LLAMA_3_3_70B_INSTRUCT_Q4_K_M_GGUF = "70B_INSTRUCT_Q4_K_M_GGUF"
+    UNSLOTH_LLAMA_3_3_70B_INSTRUCT_Q4_K_M = "Unsloth_3.3_70B_Instruct_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
     """Llama 3.3 70B Instruct GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LLAMA_3_3_70B_INSTRUCT_Q4_K_M_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/Llama-3.3-70B-Instruct-GGUF",
+        ModelVariant.UNSLOTH_LLAMA_3_3_70B_INSTRUCT_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="unsloth/Llama-3.3-70B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LLAMA_3_3_70B_INSTRUCT_Q4_K_M_GGUF
+    DEFAULT_VARIANT = ModelVariant.UNSLOTH_LLAMA_3_3_70B_INSTRUCT_Q4_K_M
 
     GGUF_FILE = "Llama-3.3-70B-Instruct-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "Hey how are you doing today?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -136,7 +136,7 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
+        mesh_shape = (2, num_devices // 2)
         return mesh_shape, ("batch", "model")
 
     def load_shard_spec(self, model):
