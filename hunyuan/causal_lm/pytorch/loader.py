@@ -13,7 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    ModelConfig,
+    LLMModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -32,7 +32,7 @@ class ModelLoader(ForgeModel):
     """Hunyuan model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.HUNYUAN_A13B_INSTRUCT: ModelConfig(
+        ModelVariant.HUNYUAN_A13B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="tencent/Hunyuan-A13B-Instruct",
         ),
     }
