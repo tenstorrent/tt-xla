@@ -6,19 +6,18 @@
 Parakeet TDT ONNX model loader implementation for speech recognition (ASR).
 """
 
-from typing import Optional
-
 import numpy as np
 import onnx
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     ModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
@@ -26,19 +25,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Parakeet TDT ONNX speech recognition model variants."""
 
-    PARAKEET_TDT_0_6B_V2 = "Parakeet_TDT_0.6B_v2"
+    PARAKEET_TDT_0_6B_V3 = "Parakeet_TDT_0.6B_v3_ONNX"
 
 
 class ModelLoader(ForgeModel):
     """Parakeet TDT ONNX model loader implementation for speech recognition."""
 
     _VARIANTS = {
-        ModelVariant.PARAKEET_TDT_0_6B_V2: ModelConfig(
-            pretrained_model_name="istupakov/parakeet-tdt-0.6b-v2-onnx",
+        ModelVariant.PARAKEET_TDT_0_6B_V3: ModelConfig(
+            pretrained_model_name="istupakov/parakeet-tdt-0.6b-v3-onnx",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.PARAKEET_TDT_0_6B_V2
+    DEFAULT_VARIANT = ModelVariant.PARAKEET_TDT_0_6B_V3
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -60,24 +59,21 @@ class ModelLoader(ForgeModel):
     def load_model(self, **kwargs):
         from huggingface_hub import hf_hub_download
 
-        local_path = hf_hub_download(
-            repo_id=self._variant_config.pretrained_model_name,
-            filename="encoder-model.onnx",
-        )
-        model = onnx.load(local_path)
+        pretrained = self._variant_config.pretrained_model_name
+        encoder_path = hf_hub_download(pretrained, "encoder-model.onnx")
+        # Also download the external data file required by the encoder
+        hf_hub_download(pretrained, "encoder-model.onnx.data")
 
+        model = onnx.load(encoder_path)
         return model
 
     def load_inputs(self, **kwargs):
         # Generate a synthetic 1-second audio waveform at 16kHz
         sampling_rate = 16000
         duration_seconds = 1
-        audio_array = np.random.randn(1, sampling_rate * duration_seconds).astype(
+        audio_signal = np.random.randn(1, sampling_rate * duration_seconds).astype(
             np.float32
         )
-        length_array = np.array([sampling_rate * duration_seconds], dtype=np.int64)
+        length = np.array([sampling_rate * duration_seconds], dtype=np.int64)
 
-        return {
-            "audio_signal": audio_array,
-            "length": length_array,
-        }
+        return {"audio_signal": audio_signal, "length": length}
