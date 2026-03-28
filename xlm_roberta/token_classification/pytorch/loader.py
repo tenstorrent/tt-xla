@@ -25,6 +25,13 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa token classification model variants."""
 
     CRYPTO_NER = "CryptoNER"
+    TNER_ONTONOTES5 = "TNER-OntoNotes5"
+
+
+_SAMPLE_TEXTS = {
+    ModelVariant.CRYPTO_NER: "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
+    ModelVariant.TNER_ONTONOTES5: "My name is Wolfgang and I live in Berlin",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +41,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.CRYPTO_NER: ModelConfig(
             pretrained_model_name="covalenthq/cryptoNER",
         ),
+        ModelVariant.TNER_ONTONOTES5: ModelConfig(
+            pretrained_model_name="asahi417/tner-xlm-roberta-base-ontonotes5",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.CRYPTO_NER
@@ -42,8 +52,9 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        self.sample_text = (
-            "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday"
+        self.sample_text = _SAMPLE_TEXTS.get(
+            self._variant,
+            "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
         )
         self.max_length = 128
 
