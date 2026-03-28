@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""
+Wan 2.2 T2V 14B GGUF quantized models (bullerwins/Wan2.2-T2V-A14B-GGUF)
+"""
