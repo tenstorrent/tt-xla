@@ -23,26 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Cydonia GGUF model variants for causal language modeling."""
 
-    CYDONIA_24B_V4_3_GGUF = "24B_v4.3_GGUF"
+    CYDONIA_24B_V4_2_0_Q4_K_M = "24B_v4.2.0_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
     """Cydonia GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.CYDONIA_24B_V4_3_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/TheDrummer_Cydonia-24B-v4.3-GGUF",
+        ModelVariant.CYDONIA_24B_V4_2_0_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="bartowski/TheDrummer_Cydonia-24B-v4.2.0-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CYDONIA_24B_V4_3_GGUF
+    DEFAULT_VARIANT = ModelVariant.CYDONIA_24B_V4_2_0_Q4_K_M
 
-    _GGUF_FILES = {
-        ModelVariant.CYDONIA_24B_V4_3_GGUF: "TheDrummer_Cydonia-24B-v4.3-Q4_K_M.gguf",
-    }
+    GGUF_FILE = "TheDrummer_Cydonia-24B-v4.2.0-Q4_K_M.gguf"
 
-    sample_text = "How often does the letter r occur in Mistral?"
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -51,11 +49,6 @@ class ModelLoader(ForgeModel):
         self.tokenizer = None
         self.config = None
         self.num_layers = num_layers
-
-    @property
-    def _gguf_file(self):
-        """Get the GGUF filename for the current variant."""
-        return self._GGUF_FILES[self._variant]
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -72,7 +65,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self._gguf_file
+        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -92,11 +85,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self._gguf_file
+        model_kwargs["gguf_file"] = self.GGUF_FILE
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self._gguf_file
+                pretrained_model_name, gguf_file=self.GGUF_FILE
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -157,11 +150,10 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self._gguf_file
+            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
         )
         return self.config
