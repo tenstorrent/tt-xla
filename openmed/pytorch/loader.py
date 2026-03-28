@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE = "ZeroShot-NER-Protein-XLarge-770M"
     OPENMED_ZEROSHOT_NER_DNA_XLARGE = "ZeroShot-NER-DNA-XLarge-770M"
+    OPENMED_ZEROSHOT_NER_GENOME_XLARGE = "ZeroShot-NER-Genome-XLarge-770M"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_DNA_XLARGE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-XLarge-770M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_XLARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-XLarge-770M"
         ),
     }
 
@@ -111,6 +115,9 @@ class ModelLoader(ForgeModel):
         if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_DNA_XLARGE:
             text = "The p53 protein plays a crucial role in tumor suppression."
             labels = ["DNA", "RNA", "cell_line", "cell_type", "protein"]
+        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_XLARGE:
+            text = "The EGFR gene mutation was identified in lung cancer patients."
+            labels = ["GENE/PROTEIN"]
         elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE:
             text = "Casein micelles are the primary protein component of milk."
             labels = [
