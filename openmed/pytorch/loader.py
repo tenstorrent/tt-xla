@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_TINY = "ZeroShot-NER-Pharma-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_SPECIES_BASE = "ZeroShot-NER-Species-Base-220M"
+    OPENMED_ZEROSHOT_NER_ONCOLOGY_LARGE = "ZeroShot-NER-Oncology-Large-459M"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_BASE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Base-220M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_LARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Large-459M"
         ),
     }
 
@@ -125,22 +129,26 @@ class ModelLoader(ForgeModel):
         self.model = model
         return self.model.eval()
 
-    _VARIANT_SAMPLES = {
+    _VARIANT_INPUTS = {
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: {
             "text": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
             "labels": ["SPECIES"],
         },
-        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_XLARGE: {
-            "text": "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
-            "labels": ["DISEASE"],
+        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_BASE: {
+            "text": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
+            "labels": ["SPECIES"],
         },
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_SMALL: {
-            "text": "The BRCA2 gene is associated with hereditary breast cancer.",
-            "labels": ["Cell-line-name"],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_XLARGE: {
-            "text": "The patient was administered acetylsalicylic acid for pain relief.",
-            "labels": ["CHEM"],
+        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_LARGE: {
+            "text": "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
+            "labels": [
+                "Gene_or_gene_product",
+                "Cancer",
+                "Cell",
+                "Simple_chemical",
+                "Organ",
+                "Tissue",
+                "Organism",
+            ],
         },
     }
 
@@ -149,9 +157,10 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        text = _VARIANT_SAMPLE_TEXTS[self._variant_name]
+        variant_input = self._VARIANT_INPUTS[self.variant]
+        text = variant_input["text"]
         self.text = [text]
-        labels = _VARIANT_LABELS[self._variant_name]
+        labels = variant_input["labels"]
         entity_types = list(dict.fromkeys(labels))
 
         (
