@@ -8,7 +8,6 @@ Loads the FLUX.1-dev base pipeline and applies the alimama-creative/FLUX.1-Turbo
 distilled LoRA weights for fast 8-step text-to-image generation.
 """
 import torch
-import numpy as np
 from diffusers import FluxPipeline, AutoencoderTiny
 from typing import Optional
 
