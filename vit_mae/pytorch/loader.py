@@ -8,7 +8,7 @@ ViT-MAE model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 
-from transformers import AutoImageProcessor, ViTMAEForPreTraining
+from transformers import ViTMAEForPreTraining
 from datasets import load_dataset
 
 from ...config import (
