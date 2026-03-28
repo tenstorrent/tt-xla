@@ -1,31 +1,32 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 Suzume model loader implementation for causal language modeling.
 """
 
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available Suzume model variants for causal language modeling."""
+    """Available Suzume model variants."""
 
-    SUZUME_LLAMA_3_8B_MULTILINGUAL_ORPO_BORDA_TOP25 = (
-        "Llama_3_8B_Multilingual_ORPO_Borda_Top25"
+    SUZUME_LLAMA_3_8B_MULTILINGUAL_ORPO_BORDA_HALF = (
+        "Llama_3_8B_Multilingual_ORPO_Borda_Half"
     )
 
 
@@ -33,41 +34,26 @@ class ModelLoader(ForgeModel):
     """Suzume model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.SUZUME_LLAMA_3_8B_MULTILINGUAL_ORPO_BORDA_TOP25: LLMModelConfig(
-            pretrained_model_name="lightblue/suzume-llama-3-8B-multilingual-orpo-borda-top25",
-            max_length=128,
+        ModelVariant.SUZUME_LLAMA_3_8B_MULTILINGUAL_ORPO_BORDA_HALF: ModelConfig(
+            pretrained_model_name="lightblue/suzume-llama-3-8B-multilingual-orpo-borda-half",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SUZUME_LLAMA_3_8B_MULTILINGUAL_ORPO_BORDA_TOP25
+    DEFAULT_VARIANT = ModelVariant.SUZUME_LLAMA_3_8B_MULTILINGUAL_ORPO_BORDA_HALF
 
-    sample_text = "Hey how are you doing today?"
-
-    def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
         super().__init__(variant)
         self.tokenizer = None
-        self.config = None
         self.model = None
+        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="Suzume",
             variant=variant,
@@ -78,88 +64,66 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            pretrained_model_name, **tokenizer_kwargs
         )
-
-        # Set pad token to eos token for Llama-based models
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Suzume model instance for this instance's variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-
-        Returns:
-            torch.nn.Module: The Suzume model for causal language modeling.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
+
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
+        ).eval()
+
         self.config = model.config
         self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Suzume model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-            batch_size: Batch size for the inputs.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
-        max_length = self._variant_config.max_length
-        conversation = [{"role": "user", "content": self.sample_text}]
-        prompt = self.tokenizer.apply_chat_template(
-            conversation, tokenize=False, add_generation_prompt=True
-        )
-        inputs = self.tokenizer(
-            prompt,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=max_length,
-        )
+        test_input = "What is the capital of France?"
+
+        inputs = self.tokenizer(test_input, return_tensors="pt")
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
         return inputs
 
+    def decode_output(self, outputs, dtype_override=None):
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override)
+
+        next_token_logits = outputs.logits[:, -1]
+        next_token = next_token_logits.softmax(dim=-1).argmax()
+        return self.tokenizer.decode([next_token])
+
     def load_config(self):
-        """Load and return the configuration for the model variant."""
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name
         )
