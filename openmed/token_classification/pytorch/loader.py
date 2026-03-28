@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_CHEMICALDETECT_MULTIMED_335M = "NER-ChemicalDetect-MultiMed-335M"
     OPENMED_NER_GENOMEDETECT_MULTIMED_568M = "NER-GenomeDetect-MultiMed-568M"
     OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M = "NER-SpeciesDetect-BioPatient-108M"
+    OPENMED_NER_SPECIESDETECT_PUBMED_V2_109M = "NER-SpeciesDetect-PubMed-v2-109M"
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +44,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-BioPatient-108M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_SPECIESDETECT_PUBMED_V2_109M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-PubMed-v2-109M",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_MULTIMED_335M
@@ -56,6 +61,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M: (
             "Escherichia coli bacteria were found in the water samples."
+        ),
+        ModelVariant.OPENMED_NER_SPECIESDETECT_PUBMED_V2_109M: (
+            "The study included specimens from Homo sapiens and Mus musculus."
         ),
     }
 
