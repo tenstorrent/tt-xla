@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     GPT_OSS_20B = "20B"
     GPT_OSS_120B = "120B"
+    GPT_OSS_120B_BNB_4BIT = "120B_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GPT_OSS_120B: LLMModelConfig(
             pretrained_model_name="openai/gpt-oss-120b",
+            max_length=256,
+        ),
+        ModelVariant.GPT_OSS_120B_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/gpt-oss-120b-unsloth-bnb-4bit",
             max_length=256,
         ),
     }
@@ -77,10 +82,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant == ModelVariant.GPT_OSS_120B_BNB_4BIT:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.RED
+
         return ModelInfo(
             model="GPT-OSS",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -123,17 +133,22 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer(dtype_override=dtype_override)
 
         # Load config with modifications
-        quantization_config = Mxfp4Config(dequantize=True)
         self.load_config()
 
         # Prepare model kwargs
         model_kwargs = {
             "config": self.config,
-            "quantization_config": quantization_config,
             "low_cpu_mem_usage": True,
             "trust_remote_code": True,
             "attn_implementation": "eager",
         }
+
+        # BnB variants have quantization config baked in; others use Mxfp4
+        if self._variant == ModelVariant.GPT_OSS_120B_BNB_4BIT:
+            model_kwargs["device_map"] = "cpu"
+        else:
+            quantization_config = Mxfp4Config(dequantize=True)
+            model_kwargs["quantization_config"] = quantization_config
 
         # Set dtype - default to bfloat16 if not specified
         if dtype_override is not None:
