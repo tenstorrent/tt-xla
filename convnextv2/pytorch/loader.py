@@ -9,7 +9,7 @@ from typing import Optional
 from dataclasses import dataclass
 import timm
 import torch
-from transformers import ConvNextV2ForImageClassification
+from transformers import AutoModelForImageClassification
 
 from transformers import ConvNextV2ForImageClassification
 from ...config import (
@@ -40,9 +40,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt V2 model variants."""
 
     NANO_FCMAE_FT_IN22K_IN1K = "Nano_FCMAE_FT_IN22K_IN1K"
-    BASE_FCMAE_FT_IN22K_IN1K_384 = "Base_FCMAE_FT_IN22K_IN1K_384"
-    NANO_22K_224 = "Nano_22K_224"
-    BASE_22K_384 = "Base_22K_384"
+    TINY_22K_384 = "Tiny_22K_384"
 
 
 class ModelLoader(ForgeModel):
@@ -53,16 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnextv2_nano.fcmae_ft_in22k_in1k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.BASE_FCMAE_FT_IN22K_IN1K_384: ConvNeXtV2Config(
-            pretrained_model_name="hf_hub:timm/convnextv2_base.fcmae_ft_in22k_in1k_384",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.NANO_22K_224: ConvNeXtV2Config(
-            pretrained_model_name="facebook/convnextv2-nano-22k-224",
-            source=ModelSource.HUGGING_FACE,
-        ),
-        ModelVariant.BASE_22K_384: ConvNeXtV2Config(
-            pretrained_model_name="facebook/convnextv2-base-22k-384",
+        ModelVariant.TINY_22K_384: ConvNeXtV2Config(
+            pretrained_model_name="facebook/convnextv2-tiny-22k-384",
             source=ModelSource.HUGGING_FACE,
         ),
     }
@@ -96,11 +86,12 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.HUGGING_FACE:
-            model = ConvNextV2ForImageClassification.from_pretrained(
+            model = AutoModelForImageClassification.from_pretrained(
                 model_name, **kwargs
             )
-        else:
+        elif source == ModelSource.TIMM:
             model = timm.create_model(model_name, pretrained=True)
+
         model.eval()
 
         self.model = model
