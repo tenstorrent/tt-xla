@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeepSeek Coder V2 model implementation for Tenstorrent projects.
+DeepSeek Coder V2 PyTorch model implementation for Tenstorrent projects.
 """
-# Import from the PyTorch implementation by default
-from .pytorch import ModelLoader, ModelVariant
+from .pytorch import ModelLoader

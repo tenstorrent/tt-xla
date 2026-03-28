@@ -2,19 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeepSeek Coder V2 model loader implementation for causal language modeling.
+DeepSeek Coder V2 Lite Instruct model loader implementation for causal language modeling.
 
-DeepSeek-Coder-V2 is a Mixture-of-Experts code generation model with 236B
-total parameters (21B active) supporting 338 programming languages.
+DeepSeek-Coder-V2 is a Mixture-of-Experts (MoE) code language model with
+16B total parameters and 2.4B active parameters, supporting 338 programming
+languages and a 128K context window.
 """
 
-import os
 from typing import Optional
-from unittest.mock import patch
 
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.dynamic_module_utils import get_imports
 
 from ....base import ForgeModel
 from ....config import (
@@ -26,38 +23,33 @@ from ....config import (
     ModelTask,
     StrEnum,
 )
-
-
-def fixed_get_imports(filename: str | os.PathLike) -> list[str]:
-    imports = get_imports(filename)
-    if not torch.cuda.is_available() and "flash_attn" in imports:
-        imports.remove("flash_attn")
-    return imports
+from ....tools.utils import generate_no_cache, pad_inputs
 
 
 class ModelVariant(StrEnum):
     """Available DeepSeek Coder V2 model variants."""
 
-    INSTRUCT_0724 = "Instruct_0724"
+    LITE_INSTRUCT = "Lite_Instruct"
 
 
 class ModelLoader(ForgeModel):
-    """DeepSeek Coder V2 model loader for causal language modeling."""
+    """DeepSeek Coder V2 model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.INSTRUCT_0724: LLMModelConfig(
-            pretrained_model_name="deepseek-ai/DeepSeek-Coder-V2-Instruct-0724",
+        ModelVariant.LITE_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
             max_length=2048,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.INSTRUCT_0724
+    DEFAULT_VARIANT = ModelVariant.LITE_INSTRUCT
 
-    sample_text = "Write a bubble sort algorithm in Python."
+    sample_text = "write a quick sort algorithm in python."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
+        self.seq_len = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -75,12 +67,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name,
-                trust_remote_code=True,
-                **tokenizer_kwargs,
-            )
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
+        )
         self.tokenizer.pad_token = self.tokenizer.eos_token
         return self.tokenizer
 
@@ -93,27 +84,32 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
-            model = AutoModelForCausalLM.from_pretrained(
-                self._variant_config.pretrained_model_name, **model_kwargs
-            )
+        model = AutoModelForCausalLM.from_pretrained(
+            self._variant_config.pretrained_model_name, **model_kwargs
+        )
 
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         messages = [{"role": "user", "content": self.sample_text}]
-        text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        inputs = self.tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt",
         )
-        inputs = self.tokenizer(text, return_tensors="pt")
+        padded_inputs, seq_len = pad_inputs(inputs)
+        self.seq_len = seq_len
 
-        for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        return padded_inputs
 
-        return inputs
+    def decode_output(self, max_new_tokens, model, inputs, tokenizer):
+        generated_text = generate_no_cache(
+            max_new_tokens, model, inputs, self.seq_len, tokenizer
+        )
+        return generated_text
