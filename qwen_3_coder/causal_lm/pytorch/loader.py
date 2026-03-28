@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     QWEN_3_CODER_NEXT_FP8_DYNAMIC = "Next_FP8_Dynamic"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
     QWEN_3_CODER_30B_A3B_INSTRUCT_AWQ = "30B_A3B_Instruct_AWQ"
+    QWEN_3_CODER_NEXT_INT4_AUTOROUND = "Next_int4_AutoRound"
 
 
 class ModelLoader(ForgeModel):
@@ -54,6 +55,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_AWQ: LLMModelConfig(
             pretrained_model_name="QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_CODER_NEXT_INT4_AUTOROUND: LLMModelConfig(
+            pretrained_model_name="Intel/Qwen3-Coder-Next-int4-AutoRound",
             max_length=128,
         ),
     }
@@ -148,6 +153,7 @@ class ModelLoader(ForgeModel):
         if pretrained_model_name in (
             "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-8bit",
             "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "Intel/Qwen3-Coder-Next-int4-AutoRound",
         ):
             model_kwargs["device_map"] = "cpu"
         # MLX variants need ignore_mismatched_sizes for loading
