@@ -98,8 +98,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # migtissera variants
-    SYNTHIA_3_70B_V3_5 = "Synthia_3_70B_v3.5"
+    # nm-testing nonuniform quantized variants
+    LLAMA_3_8B_INSTRUCT_NONUNIFORM = "3.0_8B_Instruct_Nonuniform"
 
 
 class ModelLoader(ForgeModel):
@@ -249,9 +249,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # migtissera variants
-        ModelVariant.SYNTHIA_3_70B_V3_5: LLMModelConfig(
-            pretrained_model_name="migtissera/Llama-3-70B-Synthia-v3.5",
+        # nm-testing nonuniform quantized variants
+        ModelVariant.LLAMA_3_8B_INSTRUCT_NONUNIFORM: LLMModelConfig(
+            pretrained_model_name="nm-testing/Meta-Llama-3-8B-Instruct-nonuniform-test",
             max_length=128,
         ),
     }
@@ -300,6 +300,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_8B_INSTRUCT_BNB_4BIT,
+            ModelVariant.LLAMA_3_8B_INSTRUCT_NONUNIFORM,
         ]:
             group = ModelGroup.VULCAN
         elif (
