@@ -4,7 +4,6 @@
 """
 Nucleotide Transformer v3 model loader implementation for masked language modeling on DNA sequences.
 """
-import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import Optional
 
