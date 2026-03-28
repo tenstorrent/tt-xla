@@ -42,7 +42,6 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
         self.tokenizer = None
         self.text_prompts = None
 
@@ -87,7 +86,7 @@ class ModelLoader(ForgeModel):
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {"trust_remote_code": True, "return_dict": False}
+        model_kwargs = {"trust_remote_code": True}
 
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
@@ -131,33 +130,46 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
 
+        # KEEP model forward() takes (image_inputs, text_inputs) where
+        # text_inputs is a dict of tokenizer outputs
         inputs = {
-            "pixel_values": pixel_values,
-            "input_ids": text_inputs["input_ids"],
-            "attention_mask": text_inputs["attention_mask"],
+            "image_inputs": pixel_values,
+            "text_inputs": dict(text_inputs),
         }
 
         # Replicate tensors for batch size
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        inputs["image_inputs"] = inputs["image_inputs"].repeat_interleave(
+            batch_size, dim=0
+        )
+        for key in inputs["text_inputs"]:
+            if torch.is_tensor(inputs["text_inputs"][key]):
+                inputs["text_inputs"][key] = inputs["text_inputs"][
+                    key
+                ].repeat_interleave(batch_size, dim=0)
 
         if dtype_override is not None:
-            inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
+            inputs["image_inputs"] = inputs["image_inputs"].to(dtype_override)
 
         return inputs
 
     def post_process(self, outputs):
         """Post-process KEEP model outputs to extract similarity scores.
 
+        KEEP returns a dict with 'vision_features' and 'text_features' embeddings.
+        Similarity is computed via dot product between normalized features.
+
         Args:
-            outputs: Raw model output
+            outputs: Raw model output (dict with vision_features and text_features)
         """
         if self.text_prompts is None:
             self.text_prompts = ["a photo of a cat", "a photo of a dog"]
 
-        logits_per_image = outputs[0]
-        probs = logits_per_image.softmax(dim=1)
+        vision_features = outputs["vision_features"]
+        text_features = outputs["text_features"]
+
+        # Compute cosine similarity (features are already L2-normalized by the model)
+        similarity = vision_features @ text_features.T
+        probs = similarity.softmax(dim=1)
 
         for i, text in enumerate(self.text_prompts):
             print(f"Probability of '{text}':", probs[0, i].item())
@@ -165,19 +177,19 @@ class ModelLoader(ForgeModel):
     def unpack_forward_output(self, fwd_output):
         """Unpack forward pass output to extract a differentiable tensor.
 
+        KEEP returns a dict with 'vision_features' and 'text_features'.
+
         Args:
-            fwd_output: Output from the model's forward pass (tuple)
+            fwd_output: Output from the model's forward pass (dict)
 
         Returns:
             torch.Tensor: Concatenated flattened outputs for backward pass
         """
-        if isinstance(fwd_output, tuple):
+        if isinstance(fwd_output, dict):
             tensors = []
-            for item in fwd_output:
-                if isinstance(item, torch.Tensor):
-                    tensors.append(item.flatten())
-                elif hasattr(item, "last_hidden_state"):
-                    tensors.append(item.last_hidden_state.flatten())
+            for value in fwd_output.values():
+                if isinstance(value, torch.Tensor):
+                    tensors.append(value.flatten())
             if tensors:
                 return torch.cat(tensors, dim=0)
         return fwd_output
