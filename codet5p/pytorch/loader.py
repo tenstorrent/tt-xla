@@ -24,21 +24,24 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available CodeT5+ model variants."""
 
-    CODET5P_770M = "770M"
+    CODET5P_220M = "CodeT5p_220M"
 
 
 class ModelLoader(ForgeModel):
     """CodeT5+ model loader implementation for conditional generation tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.CODET5P_770M: LLMModelConfig(
-            pretrained_model_name="Salesforce/codet5p-770m",
+        ModelVariant.CODET5P_220M: LLMModelConfig(
+            pretrained_model_name="Salesforce/codet5p-220m",
             max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CODET5P_770M
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.CODET5P_220M
 
+    # Sample code input with masked span for infilling
     sample_text = "def print_hello_world():<extra_id_0>"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -54,7 +57,7 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
+        """Implementation method for getting model info with validated variant.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
@@ -92,7 +95,7 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the CodeT5+ model instance.
+        """Load and return the CodeT5+ model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
