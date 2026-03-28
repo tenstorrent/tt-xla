@@ -35,10 +35,10 @@ REPO_ID = "Arunk25/Qwen-Image-Edit-Rapid-AIO-GGUF"
 # Upstream diffusers config for model construction
 CONFIG_REPO = "Qwen/Qwen-Image-Edit-2511"
 
-# GGUF quantization files within the repo
+# GGUF quantization files within the repo (v11 SFW variants)
 _GGUF_FILES = {
-    "Q4_K_M": "qwen-image-edit-rapid-aio-Q4_K_M.gguf",
-    "Q8_0": "qwen-image-edit-rapid-aio-Q8_0.gguf",
+    "Q4_K_M": "v11/Qwen-Rapid-AIO-SFW-v11_Q4_K_M.gguf",
+    "Q8_0": "v11/Qwen-Rapid-AIO-SFW-v11_Q8_0.gguf",
 }
 
 
