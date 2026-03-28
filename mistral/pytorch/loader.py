@@ -41,7 +41,7 @@ class ModelVariant(StrEnum):
     MISTRAL_LARGE_INSTRUCT_2411 = "Large_INSTRUCT_2411"
     MISTRAL_NEMO_INSTRUCT_2407 = "Nemo_INSTRUCT_2407"
     DEVSTRAL_SMALL_2505 = "Devstral_Small_2505"
-    DEVSTRAL_SMALL_2505_MLX_4BIT = "Devstral_Small_2505_MLX_4bit"
+    DEVSTRAL_SMALL_2507 = "Devstral_Small_2507"
     MAGISTRAL_SMALL_2506 = "Magistral_Small_2506"
     MISTRAL_SMALL_3_1_24B_INSTRUCT_2503 = "mistral_small_3.1_24b_instruct_2503"  # Untested in Transformers; for full testing, please refer to VLLM.
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
@@ -60,6 +60,7 @@ class ModelLoader(ForgeModel):
     # which must be loaded via mistral-common, can't use AutoTokenizer.
     _TEKKEN_TOKENIZER_VARIANTS = {
         ModelVariant.DEVSTRAL_SMALL_2505,
+        ModelVariant.DEVSTRAL_SMALL_2507,
         ModelVariant.MAGISTRAL_SMALL_2506,
     }
     _USE_MistralForCausalLM = {
@@ -110,8 +111,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEVSTRAL_SMALL_2505: ModelConfig(
             pretrained_model_name="mistralai/Devstral-Small-2505",
         ),
-        ModelVariant.DEVSTRAL_SMALL_2505_MLX_4BIT: ModelConfig(
-            pretrained_model_name="lmstudio-community/Devstral-Small-2505-MLX-4bit",
+        ModelVariant.DEVSTRAL_SMALL_2507: ModelConfig(
+            pretrained_model_name="mistralai/Devstral-Small-2507",
         ),
         ModelVariant.MAGISTRAL_SMALL_2506: ModelConfig(
             pretrained_model_name="mistralai/Magistral-Small-2506",
@@ -176,12 +177,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_FP8_DYNAMIC,
-            ModelVariant.MISTRAL_7B_INSTRUCT_V02_GPTQ,
-            ModelVariant.MISTRAL_7B_INSTRUCT_V02_MLC_Q4F16,
-            ModelVariant.DEVSTRAL_SMALL_2505_MLX_4BIT,
-            ModelVariant.DOLPHIN3_R1_MISTRAL_24B,
-            ModelVariant.ARATAKO_MISTRAL_NEMO_12B_RP_GGUF,
+            ModelVariant.DEVSTRAL_SMALL_2507,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
