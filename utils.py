@@ -159,3 +159,4 @@ class ModelArch(BaseEnum):
     MPLUGOWL2 = ("mplug_owl2", "mPLUG-Owl2")
     LLAMA4 = ("llama4", "Llama-4")
     MIXTRAL = ("mixtral", "Mixtral")
+    EAGLE3SPECULATOR = ("eagle3_speculator", "Eagle3 Speculator")
