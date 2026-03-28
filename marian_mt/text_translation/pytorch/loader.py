@@ -31,11 +31,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_ROA_EN = "Opus_Mt_Roa_En"
     OPUS_MT_EU_EN = "Opus_Mt_Eu_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
-    OPUS_MT_EN_EL = "Opus_Mt_En_El"
-    OPUS_MT_EN_SV = "Opus_Mt_En_Sv"
-    OPUS_MT_TH_EN = "Opus_Mt_Th_En"
-    TINY_RANDOM_MARIAN = "Tiny_Random_Marian"
-    TINY_MARIAN_EN_DE = "Tiny_Marian_En_De"
+    OPUS_MT_TC_BIG_EN_PT = "Opus_Mt_Tc_Big_En_Pt"
 
 
 class ModelLoader(ForgeModel):
@@ -66,20 +62,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
-        ModelVariant.OPUS_MT_EN_EL: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-el",
-        ),
-        ModelVariant.OPUS_MT_EN_SV: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-sv",
-        ),
-        ModelVariant.OPUS_MT_TH_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-th-en",
-        ),
-        ModelVariant.TINY_RANDOM_MARIAN: LLMModelConfig(
-            pretrained_model_name="optimum-internal-testing/tiny-random-marian",
-        ),
-        ModelVariant.TINY_MARIAN_EN_DE: LLMModelConfig(
-            pretrained_model_name="sshleifer/tiny-marian-en-de",
+        ModelVariant.OPUS_MT_TC_BIG_EN_PT: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-tc-big-en-pt",
         ),
     }
 
@@ -87,12 +71,10 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
-        ModelVariant.OPUS_MT_EN_EL: "My name is Wolfgang and I live in Berlin.",
-        ModelVariant.OPUS_MT_EN_SV: "My name is Wolfgang and I live in Berlin.",
-        ModelVariant.OPUS_MT_TH_EN: "สวัสดีครับ วันนี้อากาศดีมาก",
-        ModelVariant.TINY_RANDOM_MARIAN: "My name is Wolfgang and I live in Berlin.",
-        ModelVariant.TINY_MARIAN_EN_DE: "My name is Wolfgang and I live in Berlin.",
+        ModelVariant.OPUS_MT_TC_BIG_EN_PT: ">>por<< The weather is beautiful today.",
     }
+
+    sample_text = "Merhaba dünya, bugün hava çok güzel."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
