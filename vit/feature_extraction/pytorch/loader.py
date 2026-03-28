@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 """
-ViT feature extraction model loader implementation for PyTorch.
+ViT feature extraction model loader implementation.
 """
 
+from transformers import ViTModel, ViTImageProcessor
 from typing import Optional
 
 from ....base import ForgeModel
@@ -23,19 +23,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available ViT feature extraction model variants."""
 
-    LARGE_PATCH16_224_IN_21K = "Large_Patch16_224_In_21K"
+    HUGE_PATCH14_224_IN_21K = "Huge_Patch14_224_In_21K"
 
 
 class ModelLoader(ForgeModel):
-    """ViT feature extraction model loader implementation for PyTorch."""
+    """ViT feature extraction model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.LARGE_PATCH16_224_IN_21K: ModelConfig(
-            pretrained_model_name="google/vit-large-patch16-224-in21k",
+        ModelVariant.HUGE_PATCH14_224_IN_21K: ModelConfig(
+            pretrained_model_name="google/vit-huge-patch14-224-in21k",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE_PATCH16_224_IN_21K
+    DEFAULT_VARIANT = ModelVariant.HUGE_PATCH14_224_IN_21K
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -46,11 +46,10 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self._processor = None
-        self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
+        """Get model information for dashboard and metrics reporting.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
@@ -71,51 +70,40 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self):
-        """Load image processor for the current variant.
-
-        Returns:
-            processor: The loaded image processor instance
-        """
-        from transformers import ViTImageProcessor
-
-        self._processor = ViTImageProcessor.from_pretrained(self._model_name)
-
-        return self._processor
-
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the ViT feature extraction model with the current variant settings.
+        """Load the ViT feature extraction model.
 
         Args:
-            dtype_override: Optional dtype to override the model's default dtype.
+            dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            model: The loaded ViT model instance
+            torch.nn.Module: The ViT model instance.
         """
-        from transformers import ViTModel
+        model_name = self._variant_config.pretrained_model_name
 
-        model = ViTModel.from_pretrained(self._model_name, **kwargs)
+        model = ViTModel.from_pretrained(model_name, **kwargs)
+        model.eval()
 
         if dtype_override is not None:
             model = model.to(dtype_override)
 
-        model.eval()
-
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the ViT model with this instance's variant settings.
+        """Load and return sample inputs for the model.
 
         Args:
             dtype_override: Optional dtype to override the model's default dtype.
 
         Returns:
-            inputs: Input tensors that can be fed to the model.
+            dict: Preprocessed input tensors.
         """
         from datasets import load_dataset
 
         if self._processor is None:
-            self._load_processor()
+            self._processor = ViTImageProcessor.from_pretrained(
+                self._variant_config.pretrained_model_name
+            )
 
         dataset = load_dataset("huggingface/cats-image", split="test")
         image = dataset[0]["image"]
