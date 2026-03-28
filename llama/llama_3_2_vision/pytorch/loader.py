@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     LLAMA_3_2_11B_VISION = "3.2_11B_Vision"
     LLAMA_3_2_11B_VISION_INSTRUCT = "3.2_11B_Vision_Instruct"
+    LLAMA_3_2_11B_VISION_INSTRUCT_FP8_DYNAMIC = "3.2_11B_Vision_Instruct_FP8_Dynamic"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_2_11B_VISION_INSTRUCT: ModelConfig(
             pretrained_model_name="meta-llama/Llama-3.2-11B-Vision-Instruct",
+        ),
+        ModelVariant.LLAMA_3_2_11B_VISION_INSTRUCT_FP8_DYNAMIC: ModelConfig(
+            pretrained_model_name="asabet/Llama-3.2-11B-Vision-Instruct-fp8-dynamic",
         ),
     }
 
@@ -71,10 +75,15 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        if variant == ModelVariant.LLAMA_3_2_11B_VISION_INSTRUCT_FP8_DYNAMIC:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.RED
+
         return ModelInfo(
             model="Llama",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.MM_VISUAL_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -152,7 +161,10 @@ class ModelLoader(ForgeModel):
             # Base model: Use raw prompt
             prompt = "<|image|><|begin_of_text|> What is this image about?"
 
-        elif pretrained_model_name == "meta-llama/Llama-3.2-11B-Vision-Instruct":
+        elif pretrained_model_name in (
+            "meta-llama/Llama-3.2-11B-Vision-Instruct",
+            "asabet/Llama-3.2-11B-Vision-Instruct-fp8-dynamic",
+        ):
             # Set up messages
             self.messages = [
                 {"role": "user", "content": "<|image_1|>\nWhat is this image about?"},
