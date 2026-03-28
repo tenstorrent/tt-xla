@@ -59,6 +59,9 @@ class ModelVariant(StrEnum):
     LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
     LLAMA_3_3_70B_INSTRUCT_FP8_DYNAMIC = "3.3_70B_Instruct_FP8_Dynamic"
 
+    # RedHatAI INT8 W8A8 quantized variants
+    LLAMA_3_2_1B_QUANTIZED_W8A8 = "3.2_1B_Quantized_W8A8"
+
     # hugging-quants AWQ INT4 quantized variants
     LLAMA_3_1_8B_INSTRUCT_AWQ_INT4 = "3.1_8B_Instruct_Awq_Int4"
     LLAMA_3_1_70B_INSTRUCT_AWQ_INT4 = "3.1_70B_Instruct_Awq_Int4"
@@ -162,8 +165,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Llama-3.2-1B-Instruct-FP8-dynamic",
             max_length=128,
         ),
-        ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Meta-Llama-3.1-405B-Instruct-FP8-dynamic",
+        # RedHatAI INT8 W8A8 quantized variants
+        ModelVariant.LLAMA_3_2_1B_QUANTIZED_W8A8: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Llama-3.2-1B-quantized.w8a8",
             max_length=128,
         ),
         # hugging-quants AWQ INT4 quantized variants
@@ -268,7 +272,7 @@ class ModelLoader(ForgeModel):
         if variant in [
             ModelVariant.LLAMA_3_2_1B_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
-            ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.LLAMA_3_2_1B_QUANTIZED_W8A8,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_DYNAMIC,
         ]:
@@ -573,7 +577,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
-            ModelVariant.PARD_LLAMA_3_2_1B,
+            ModelVariant.LLAMA_3_2_1B_QUANTIZED_W8A8,
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.LLAMA_2_7B,
             ModelVariant.LLAMA_2_7B_CHAT_GPTQ,
