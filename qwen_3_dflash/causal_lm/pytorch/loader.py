@@ -55,7 +55,7 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _ensure_tokenizer(self, dtype_override=None):
+    def _ensure_tokenizer(self):
         if self.tokenizer is None:
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self._variant_config.pretrained_model_name,
@@ -65,7 +65,7 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        self._ensure_tokenizer(dtype_override=dtype_override)
+        self._ensure_tokenizer()
 
         model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
@@ -82,20 +82,12 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        self._ensure_tokenizer(dtype_override=dtype_override)
+        self._ensure_tokenizer()
 
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=True,
-        )
-
         inputs = self.tokenizer(
-            [text],
+            [self.sample_text],
             return_tensors="pt",
             padding=True,
             truncation=True,
