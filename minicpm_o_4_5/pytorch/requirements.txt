@@ -1,0 +1,7 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+# MiniCPM-o-4_5 Inference Requirements
+torchaudio==2.9.0
+
+# Model-specific dependencies
+vector_quantize_pytorch>=1.18.5
+vocos>=0.1.0
