@@ -4,7 +4,7 @@
 """
 SoLU 1L512W C4 Code model loader implementation for causal language modeling.
 """
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
 from typing import Optional
 
 from ...base import ForgeModel
@@ -77,9 +77,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        )
+        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
 
         return model
