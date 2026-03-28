@@ -1,0 +1,1 @@
+mvadapter @ git+https://github.com/huanngzh/MV-Adapter.git
