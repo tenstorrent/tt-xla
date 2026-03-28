@@ -105,11 +105,11 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None, batch_size=1):
         """Load sample stereo image pair inputs for DUSt3R.
 
-        DUSt3R expects a list of dicts, each with 'img' and 'true_shape' keys.
-        The model processes pairs of images to produce 3D point maps.
+        DUSt3R's forward method expects view1 and view2 dicts, each containing
+        'img' tensors and 'true_shape' metadata for the stereo pair.
 
         Returns:
-            list: Two-element list of dicts with image tensors and shape info.
+            dict: Dict with 'view1' and 'view2' keys for model(**inputs) unpacking.
         """
         dtype = dtype_override or torch.float32
         height, width = 384, 512
@@ -123,4 +123,4 @@ class ModelLoader(ForgeModel):
             "true_shape": torch.tensor([[height, width]] * batch_size),
         }
 
-        return [view1, view2]
+        return {"view1": view1, "view2": view2}
