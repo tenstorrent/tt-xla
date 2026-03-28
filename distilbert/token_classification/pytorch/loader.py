@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ONCOLOGY_DETECT = "OpenMed_NER_OncologyDetect_TinyMed_66M"
     OPENMED_NER_GENOMIC_DETECT = "OpenMed_NER_GenomicDetect_TinyMed_135M"
     D4DATA_BIOMEDICAL_NER_ALL = "d4data/biomedical-ner-all"
+    NARGIZI_SCREEVE_POSTAGGER = "Nargizi/screeve-postagger"
 
 
 class ModelLoader(ForgeModel):
@@ -51,6 +52,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="d4data/biomedical-ner-all",
             max_length=128,
         ),
+        ModelVariant.NARGIZI_SCREEVE_POSTAGGER: LLMModelConfig(
+            pretrained_model_name="Nargizi/screeve-postagger",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -68,6 +73,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.D4DATA_BIOMEDICAL_NER_ALL: (
             "The patient reported no recurrence of palpitations at follow-up 6 months after the ablation."
+        ),
+        ModelVariant.NARGIZI_SCREEVE_POSTAGGER: (
+            "ქართული ენა ძალიან ლამაზი და საინტერესო ენაა"
         ),
     }
 
@@ -92,6 +100,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_ONCOLOGY_DETECT: ModelGroup.VULCAN,
         ModelVariant.OPENMED_NER_GENOMIC_DETECT: ModelGroup.VULCAN,
         ModelVariant.D4DATA_BIOMEDICAL_NER_ALL: ModelGroup.VULCAN,
+        ModelVariant.NARGIZI_SCREEVE_POSTAGGER: ModelGroup.VULCAN,
     }
 
     @classmethod
