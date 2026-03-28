@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen3.5 9B Heretic GGUF model loader implementation for causal language modeling.
+Qwen 3.5 9B Ultimate Irrefusable Heretic GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen3.5 9B Heretic GGUF model variants for causal language modeling."""
+    """Available Qwen 3.5 9B Ultimate Irrefusable Heretic GGUF model variants."""
 
-    QWEN_3_5_9B_HERETIC_GGUF = "9B_Heretic_GGUF"
+    QWEN_3_5_9B_HERETIC_GGUF = "9B_heretic_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen3.5 9B Heretic GGUF model loader implementation for causal language modeling tasks."""
+    """Qwen 3.5 9B Ultimate Irrefusable Heretic GGUF model loader for causal language modeling tasks."""
 
     _VARIANTS = {
         ModelVariant.QWEN_3_5_9B_HERETIC_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-9B-heretic-i1-GGUF",
+            pretrained_model_name="mradermacher/Qwen3.5-9B-ultimate-irrefusable-heretic-i1-GGUF",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B_HERETIC_GGUF
 
-    GGUF_FILE = "Qwen3.5-9B-heretic.i1-Q4_K_M.gguf"
+    GGUF_FILE = "Qwen3.5-9B-ultimate-irrefusable-heretic.i1-Q4_K_M.gguf"
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Qwen3.5 9B Heretic GGUF",
+            model="Qwen 3.5 9B Ultimate Irrefusable Heretic GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
