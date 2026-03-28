@@ -64,7 +64,7 @@ def create_canny_conditioning_image(height=1024, width=1024):
         PIL.Image: A dummy Canny edge conditioning image
     """
     image = np.zeros((height, width, 3), dtype=np.uint8)
-    # Draw some simple edge-like lines
+    # Draw simple edge-like lines
     image[height // 4, :, :] = 255
     image[height // 2, :, :] = 255
     image[3 * height // 4, :, :] = 255

@@ -28,19 +28,19 @@ from .src.model_utils import (
 class ModelVariant(StrEnum):
     """Available ControlNet Canny SDXL model variants."""
 
-    CONTROLNET_CANNY_SDXL_1_0 = "Canny_SDXL_1.0"
+    XINSIR_CONTROLNET_CANNY_SDXL_1_0 = "xinsir_Canny_SDXL_1.0"
 
 
 class ModelLoader(ForgeModel):
     """ControlNet Canny SDXL model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.CONTROLNET_CANNY_SDXL_1_0: ModelConfig(
-            pretrained_model_name="diffusers/controlnet-canny-sdxl-1.0",
+        ModelVariant.XINSIR_CONTROLNET_CANNY_SDXL_1_0: ModelConfig(
+            pretrained_model_name="xinsir/controlnet-canny-sdxl-1.0",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CONTROLNET_CANNY_SDXL_1_0
+    DEFAULT_VARIANT = ModelVariant.XINSIR_CONTROLNET_CANNY_SDXL_1_0
 
     prompt = "aerial view, a futuristic research complex in a bright foggy jungle, hard lighting"
     base_model = "stabilityai/stable-diffusion-xl-base-1.0"
