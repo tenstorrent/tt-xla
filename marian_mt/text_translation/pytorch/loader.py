@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
     OPUS_MT_EN_SV = "Opus_Mt_En_Sv"
     OPUS_MT_TH_EN = "Opus_Mt_Th_En"
+    TINY_RANDOM_MARIAN = "Tiny_Random_Marian"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TH_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-th-en",
         ),
+        ModelVariant.TINY_RANDOM_MARIAN: LLMModelConfig(
+            pretrained_model_name="optimum-internal-testing/tiny-random-marian",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPUS_MT_TR_EN
@@ -53,6 +57,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
         ModelVariant.OPUS_MT_EN_SV: "My name is Wolfgang and I live in Berlin.",
         ModelVariant.OPUS_MT_TH_EN: "สวัสดีครับ วันนี้อากาศดีมาก",
+        ModelVariant.TINY_RANDOM_MARIAN: "My name is Wolfgang and I live in Berlin.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
