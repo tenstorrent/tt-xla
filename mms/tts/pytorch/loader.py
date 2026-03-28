@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 """
 MMS (Massively Multilingual Speech) model loader implementation for text-to-speech (TTS) using PyTorch.
 """
@@ -22,35 +23,23 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MMS TTS PyTorch model variants."""
 
-    MMS_TTS_HIN = "MMS_Tts_Hin"
-    MMS_TTS_SWH = "MMS_Tts_Swh"
+    MMS_TTS_KIK = "MMS_TTS_Kik"
 
 
 class ModelLoader(ForgeModel):
     """MMS model loader implementation for text-to-speech (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.MMS_TTS_HIN: ModelConfig(
-            pretrained_model_name="facebook/mms-tts-hin",
-        ),
-        ModelVariant.MMS_TTS_SWH: ModelConfig(
-            pretrained_model_name="facebook/mms-tts-swh",
+        ModelVariant.MMS_TTS_KIK: ModelConfig(
+            pretrained_model_name="facebook/mms-tts-kik",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MMS_TTS_SWH
-
-    _SAMPLE_TEXTS = {
-        ModelVariant.MMS_TTS_HIN: "नमस्ते, मेरा नाम टेन्सटोरेंट है।",
-        ModelVariant.MMS_TTS_SWH: "Habari, jina langu ni Tenstorrent.",
-    }
+    DEFAULT_VARIANT = ModelVariant.MMS_TTS_KIK
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self._tokenizer = None
-        self.sample_text = self._SAMPLE_TEXTS.get(
-            self._variant, "Habari, jina langu ni Tenstorrent."
-        )
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -69,12 +58,8 @@ class ModelLoader(ForgeModel):
     def _load_tokenizer(self, dtype_override=None):
         from transformers import AutoTokenizer
 
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-
         self._tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
         )
 
         return self._tokenizer
@@ -100,6 +85,8 @@ class ModelLoader(ForgeModel):
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self._tokenizer(self.sample_text, return_tensors="pt")
+        sample_text = "mwathani akirathima"
+
+        inputs = self._tokenizer(sample_text, return_tensors="pt")
 
         return inputs
