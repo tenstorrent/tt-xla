@@ -23,46 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
-    QWEN_3_32B_GGUF = "32B_GGUF"
-    QWEN_3_30B_A3B_GGUF = "30B_A3B_GGUF"
-    QWEN_3_30B_A3B_THINKING_2507_GGUF = "30B_A3B_Thinking_2507_GGUF"
-    QWEN_3_235B_A22B_INSTRUCT_2507_GGUF = "235B_A22B_Instruct_2507_GGUF"
+    QWEN_3_1_7B_GGUF = "1.7B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_32B_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-32B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-30B-A3B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_THINKING_2507_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF",
+        ModelVariant.QWEN_3_1_7B_GGUF: LLMModelConfig(
+            pretrained_model_name="ggml-org/Qwen3-1.7B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_32B_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_1_7B_GGUF
 
     _GGUF_FILES = {
-        ModelVariant.QWEN_3_32B_GGUF: "Qwen3-32B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_30B_A3B_GGUF: "Qwen3-30B-A3B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_30B_A3B_THINKING_2507_GGUF: "Qwen3-30B-A3B-Thinking-2507-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_GGUF: "Qwen3-235B-A22B-Instruct-2507-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_1_7B_GGUF: "Qwen3-1.7B-Q4_K_M.gguf",
     }
-
-    @property
-    def GGUF_FILE(self):
-        return self._GGUF_FILES[self._variant]
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -73,6 +51,10 @@ class ModelLoader(ForgeModel):
         self.tokenizer = None
         self.config = None
         self.num_layers = num_layers
+
+    @property
+    def gguf_file(self):
+        return self._GGUF_FILES[self._variant]
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -89,7 +71,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
+        tokenizer_kwargs["gguf_file"] = self.gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -109,11 +91,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
+        model_kwargs["gguf_file"] = self.gguf_file
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
+                pretrained_model_name, gguf_file=self.gguf_file
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -163,46 +145,25 @@ class ModelLoader(ForgeModel):
         mesh_shape = (1, num_devices)
         return mesh_shape, ("batch", "model")
 
-    def _is_moe_variant(self):
-        """Check if the current variant is a Mixture of Experts model."""
-        return self._variant in (
-            ModelVariant.QWEN_3_30B_A3B_GGUF,
-            ModelVariant.QWEN_3_30B_A3B_THINKING_2507_GGUF,
-            ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_GGUF,
-        )
-
     def load_shard_spec(self, model):
         shard_specs = {}
         for layer in model.model.layers:
-            if self._is_moe_variant():
-                mlp = layer.mlp
-                if hasattr(mlp, "experts"):
-                    shard_specs[mlp.experts.gate_up_proj] = (None, "model", "batch")
-                    shard_specs[mlp.experts.down_proj] = (None, "batch", "model")
-                if hasattr(mlp, "shared_expert"):
-                    shard_specs[mlp.shared_expert.up_proj.weight] = ("model", "batch")
-                    shard_specs[mlp.shared_expert.gate_proj.weight] = (
-                        "model",
-                        "batch",
-                    )
-                    shard_specs[mlp.shared_expert.down_proj.weight] = (
-                        "batch",
-                        "model",
-                    )
-            else:
-                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
         )
         return self.config
