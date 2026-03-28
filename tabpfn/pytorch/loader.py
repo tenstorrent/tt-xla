@@ -67,7 +67,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.TABPFN_V2_CLF
 
-    # Sample Iris-like dataset for binary classification
+    # Sample Iris-like dataset for multiclass classification
     _N_FEATURES = 4
     _N_TRAIN = 20
     _N_TEST = 5
@@ -85,7 +85,7 @@ class ModelLoader(ForgeModel):
             model="TabPFN-v2",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.NLP_TEXT_CLS,
+            task=ModelTask.ATOMIC_ML,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
