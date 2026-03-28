@@ -33,6 +33,12 @@ class ModelVariant(StrEnum):
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_BASE_SWEDISH_CASED = "KB/bert-base-swedish-cased"
+    BERT_BASE_GERMAN_CASED = "dbmdz/bert-base-german-cased"
+
+
+_SAMPLE_TEXTS = {
+    ModelVariant.BERT_BASE_GERMAN_CASED: "Die Hauptstadt von Deutschland ist [MASK].",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -70,6 +76,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_BASE_SWEDISH_CASED: LLMModelConfig(
             pretrained_model_name="KB/bert-base-swedish-cased",
+            max_length=128,
+        ),
+        ModelVariant.BERT_BASE_GERMAN_CASED: LLMModelConfig(
+            pretrained_model_name="dbmdz/bert-base-german-cased",
             max_length=128,
         ),
     }
@@ -116,6 +126,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_BASE_SWEDISH_CASED,
+            ModelVariant.BERT_BASE_GERMAN_CASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
