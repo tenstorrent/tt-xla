@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     BGE_SMALL_EN_V1_5 = "Small_En_v1_5"
     BGE_SMALL_ZH_V1_5 = "Small_Zh_v1_5"
     BGE_BASE_ZH_V1_5 = "Base_Zh_v1_5"
+    BGE_BASE_EN_V1_5_COURSE_RECOMMENDER_V5 = "Base_En_v1_5_Course_Recommender_v5"
 
 
 class ModelLoader(ForgeModel):
@@ -50,6 +51,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BGE_BASE_ZH_V1_5: ModelConfig(
             pretrained_model_name="BAAI/bge-base-zh-v1.5",
+        ),
+        ModelVariant.BGE_BASE_EN_V1_5_COURSE_RECOMMENDER_V5: ModelConfig(
+            pretrained_model_name="datasocietyco/bge-base-en-v1.5-course-recommender-v5",
         ),
     }
 
@@ -85,6 +89,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BGE_SMALL_EN_V1_5,
             ModelVariant.BGE_SMALL_ZH_V1_5,
             ModelVariant.BGE_BASE_ZH_V1_5,
+            ModelVariant.BGE_BASE_EN_V1_5_COURSE_RECOMMENDER_V5,
         ]:
             group = ModelGroup.VULCAN
         else:
