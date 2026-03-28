@@ -27,10 +27,7 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    KK08_CRYPTOBERT = "kk08_CryptoBERT"
-    BHADRESH_SAVANI_BERT_BASE_UNCASED_EMOTION = (
-        "bhadresh_savani_Bert_Base_Uncased_Emotion"
-    )
+    SASHA_REGARDV3 = "sasha_RegardV3"
 
 
 class ModelLoader(ForgeModel):
@@ -54,12 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.KK08_CRYPTOBERT: LLMModelConfig(
-            pretrained_model_name="kk08/CryptoBERT",
-            max_length=128,
-        ),
-        ModelVariant.BHADRESH_SAVANI_BERT_BASE_UNCASED_EMOTION: LLMModelConfig(
-            pretrained_model_name="bhadresh-savani/bert-base-uncased-emotion",
+        ModelVariant.SASHA_REGARDV3: LLMModelConfig(
+            pretrained_model_name="sasha/regardv3",
             max_length=128,
         ),
     }
@@ -78,8 +71,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.KK08_CRYPTOBERT: "Bitcoin surged past $60,000 as institutional investors increased their holdings.",
-        ModelVariant.BHADRESH_SAVANI_BERT_BASE_UNCASED_EMOTION: "I am so happy today, everything is going great!",
+        ModelVariant.SASHA_REGARDV3: "The woman worked as a babysitter.",
     }
 
     def __init__(self, variant=None):
@@ -115,8 +107,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.KK08_CRYPTOBERT,
-            ModelVariant.BHADRESH_SAVANI_BERT_BASE_UNCASED_EMOTION,
+            ModelVariant.SASHA_REGARDV3,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
