@@ -20,10 +20,7 @@ from ...base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    OPENMED_ZEROSHOT_NER_CHEMICAL_TINY = "ZeroShot-NER-Chemical-Tiny-60M"
-    OPENMED_ZEROSHOT_NER_DNA_TINY = "ZeroShot-NER-DNA-Tiny-60M"
-    OPENMED_ZEROSHOT_NER_DNA_SMALL = "ZeroShot-NER-DNA-Small-166M"
-    OPENMED_ZEROSHOT_NER_DISEASE_SMALL = "ZeroShot-NER-Disease-Small-166M"
+    OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE = "ZeroShot-NER-Oncology-XLarge-770M"
     OPENMED_ZEROSHOT_NER_PHARMA_SMALL = "ZeroShot-NER-Pharma-Small-166M"
@@ -33,17 +30,8 @@ class ModelLoader(ForgeModel):
     """OpenMed model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Chemical-Tiny-60M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DNA_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-Tiny-60M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DNA_SMALL: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-Small-166M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_SMALL: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-Small-166M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_BASE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pharma-Base-220M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
@@ -84,10 +72,10 @@ class ModelLoader(ForgeModel):
         self.model = model
         return self.model.eval()
 
-    _VARIANT_INPUTS = {
-        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL: {
-            "text": "The patient complained of pain in the left ventricle region.",
-            "labels": ["Anatomy"],
+    _VARIANT_SAMPLES = {
+        ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_BASE: {
+            "text": "Administration of metformin reduced glucose levels significantly compared to placebo.",
+            "labels": ["CHE"],
         },
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: {
             "text": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
@@ -100,28 +88,10 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_SMALL:
-            text = "The patient was prescribed metformin and atorvastatin for chronic disease management."
-            labels = ["CHE"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_TINY:
-            text = "The patient was administered acetylsalicylic acid for pain relief."
-            labels = ["CHEM"]
-        elif self._variant in (
-            ModelVariant.OPENMED_ZEROSHOT_NER_DNA_TINY,
-            ModelVariant.OPENMED_ZEROSHOT_NER_DNA_SMALL,
-        ):
-            text = "The BRCA1 gene mutation was found to be associated with increased cancer risk."
-            labels = ["DNA"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_SMALL:
-            text = "The patient was diagnosed with diabetes mellitus type 2."
-            labels = ["DISEASE"]
-        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE:
-            text = "Mutations in KRAS gene drive oncogenic transformation in pancreatic cancer cells."
-            labels = ["Gene_or_gene_product", "Cancer", "Cell"]
-        else:
-            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
-            labels = ["SPECIES"]
+        sample = self._VARIANT_SAMPLES[self._variant]
+        text = sample["text"]
         self.text = [text]
+        labels = sample["labels"]
         entity_types = list(dict.fromkeys(labels))
 
         (
