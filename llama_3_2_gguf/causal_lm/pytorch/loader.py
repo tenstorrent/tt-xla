@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Llama 3.2 GGUF model variants for causal language modeling."""
 
-    LLAMA_3_2_1B_INSTRUCT_GGUF = "1B_Instruct_GGUF"
+    LLAMA_3_2_3B_INSTRUCT_GGUF = "3.2_3B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Llama 3.2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LLAMA_3_2_1B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Llama-3.2-1B-Instruct-GGUF",
+        ModelVariant.LLAMA_3_2_3B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Llama-3.2-3B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LLAMA_3_2_1B_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.LLAMA_3_2_3B_INSTRUCT_GGUF
 
-    GGUF_FILE = "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+    GGUF_FILE = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
