@@ -10,7 +10,6 @@ Source: https://huggingface.co/Vamsi232/Skin_Diseases_Classifier_EfficientNetB4_
 import torch
 import numpy as np
 from huggingface_hub import hf_hub_download
-from PIL import Image
 from datasets import load_dataset
 from typing import Optional
 
