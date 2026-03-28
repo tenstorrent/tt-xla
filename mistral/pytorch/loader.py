@@ -50,9 +50,7 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     DEVSTRAL_SMALL_2_24B_INSTRUCT_2512 = "Devstral_Small_2_24B_Instruct_2512"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MINISTRAL_3_14B_REASONING_AWQ_4BIT = "Ministral_3_14B_Reasoning_AWQ_4bit"
-    MISTRAL_SMALL_22B_INSTRUCT_2409 = "Small_22B_INSTRUCT_2409"
-    OPEN_HERMES_2_5_MISTRAL_7B_AWQ = "OpenHermes_2.5_Mistral_7B_AWQ"
+    MISTRAL_FT_OPTIMIZED_1227 = "ft_optimized_1227"
 
 
 class ModelLoader(ForgeModel):
@@ -146,14 +144,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT: ModelConfig(
-            pretrained_model_name="cyankiwi/Ministral-3-14B-Reasoning-2512-AWQ-4bit",
-        ),
-        ModelVariant.MISTRAL_SMALL_22B_INSTRUCT_2409: ModelConfig(
-            pretrained_model_name="mistralai/Mistral-Small-Instruct-2409",
-        ),
-        ModelVariant.OPEN_HERMES_2_5_MISTRAL_7B_AWQ: ModelConfig(
-            pretrained_model_name="TheBloke/OpenHermes-2.5-Mistral-7B-AWQ",
+        ModelVariant.MISTRAL_FT_OPTIMIZED_1227: ModelConfig(
+            pretrained_model_name="OpenPipe/mistral-ft-optimized-1227",
         ),
     }
 
@@ -192,8 +184,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_SMALL_22B_INSTRUCT_2409,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT,
-            ModelVariant.OPEN_HERMES_2_5_MISTRAL_7B_AWQ,
+            ModelVariant.MISTRAL_FT_OPTIMIZED_1227,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
