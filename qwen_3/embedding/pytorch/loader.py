@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_EMBEDDING_0_6B = "Embedding_0_6B"
     QWEN_3_EMBEDDING_4B = "Embedding_4B"
+    QWEN_3_EMBEDDING_4B_W4A16_G128 = "Embedding_4B_W4A16_G128"
     QWEN_3_EMBEDDING_8B = "Embedding_8B"
     QWEN_3_EMBEDDING_4B_4BIT_DWQ = "Embedding_4B_4bit_DWQ"
 
@@ -42,6 +43,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_EMBEDDING_4B: ModelConfig(
             pretrained_model_name="Qwen/Qwen3-Embedding-4B",
+        ),
+        ModelVariant.QWEN_3_EMBEDDING_4B_W4A16_G128: ModelConfig(
+            pretrained_model_name="boboliu/Qwen3-Embedding-4B-W4A16-G128",
         ),
         ModelVariant.QWEN_3_EMBEDDING_8B: ModelConfig(
             pretrained_model_name="Qwen/Qwen3-Embedding-8B",
@@ -92,20 +96,17 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant == ModelVariant.QWEN_3_EMBEDDING_0_6B:
+            group = ModelGroup.GENERALITY
+        elif variant == ModelVariant.QWEN_3_EMBEDDING_4B_W4A16_G128:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.RED
+
         return ModelInfo(
             model="Qwen 3",
             variant=variant,
-            group=(
-                ModelGroup.VULCAN
-                if variant == ModelVariant.UNSLOTH_QWEN_3_EMBEDDING_0_6B
-                else ModelGroup.GENERALITY
-                if variant == ModelVariant.QWEN_3_EMBEDDING_0_6B
-                else (
-                    ModelGroup.VULCAN
-                    if variant == ModelVariant.QWEN_3_EMBEDDING_4B_4BIT_DWQ
-                    else ModelGroup.RED
-                )
-            ),
+            group=group,
             task=ModelTask.NLP_EMBED_GEN,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -153,6 +154,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # GPTQ variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_3_EMBEDDING_4B_W4A16_G128:
+            model_kwargs["device_map"] = "cpu"
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
