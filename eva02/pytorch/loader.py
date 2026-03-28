@@ -8,6 +8,7 @@ EVA-02 model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 import timm
+import torch
 
 from ...config import (
     ModelConfig,
@@ -19,7 +20,11 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import VisionPreprocessor
+from ...tools.utils import (
+    VisionPreprocessor,
+    VisionPostprocessor,
+)
+from datasets import load_dataset
 
 
 @dataclass
@@ -32,25 +37,28 @@ class Eva02Config(ModelConfig):
 class ModelVariant(StrEnum):
     """Available EVA-02 model variants."""
 
-    BASE_PATCH14_224_MIM_IN22K = "base_patch14_224.mim_in22k"
+    LARGE_PATCH14_448_MIM_M38M_FT_IN22K_IN1K = (
+        "Large_Patch14_448_MIM_M38M_FT_IN22K_IN1K"
+    )
 
 
 class ModelLoader(ForgeModel):
     """EVA-02 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.BASE_PATCH14_224_MIM_IN22K: Eva02Config(
-            pretrained_model_name="eva02_base_patch14_224.mim_in22k",
+        ModelVariant.LARGE_PATCH14_448_MIM_M38M_FT_IN22K_IN1K: Eva02Config(
+            pretrained_model_name="hf_hub:timm/eva02_large_patch14_448.mim_m38m_ft_in22k_in1k",
             source=ModelSource.TIMM,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE_PATCH14_224_MIM_IN22K
+    DEFAULT_VARIANT = ModelVariant.LARGE_PATCH14_448_MIM_M38M_FT_IN22K_IN1K
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.model = None
         self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -60,10 +68,10 @@ class ModelLoader(ForgeModel):
         source = cls._VARIANTS[variant].source
 
         return ModelInfo(
-            model="Eva02",
+            model="EVA02",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CV_IMAGE_FE,
+            task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
         )
@@ -79,12 +87,19 @@ class ModelLoader(ForgeModel):
         if self._preprocessor is not None:
             self._preprocessor.set_cached_model(model)
 
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
+
         if dtype_override is not None:
             model = model.to(dtype_override)
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
+
         if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
             source = self._variant_config.source
@@ -98,9 +113,8 @@ class ModelLoader(ForgeModel):
                 self._preprocessor.set_cached_model(self.model)
 
         model_for_config = None
-        if self._variant_config.source == ModelSource.TIMM:
-            if hasattr(self, "model") and self.model is not None:
-                model_for_config = self.model
+        if hasattr(self, "model") and self.model is not None:
+            model_for_config = self.model
 
         return self._preprocessor.preprocess(
             image=image,
@@ -108,3 +122,16 @@ class ModelLoader(ForgeModel):
             batch_size=batch_size,
             model_for_config=model_for_config,
         )
+
+    def output_postprocess(self, output):
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
