@@ -16,7 +16,6 @@ from typing import Optional
 
 import torch
 from diffusers import DiffusionPipeline, EulerAncestralDiscreteScheduler
-from diffusers.models import AutoencoderKL, UNet2DConditionModel
 
 from ...base import ForgeModel
 from ...config import (
