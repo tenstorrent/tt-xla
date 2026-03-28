@@ -9,7 +9,6 @@ Helper functions for PhotoMaker V2 model loading and processing.
 import os
 from typing import Optional, Tuple
 import torch
-from diffusers import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
