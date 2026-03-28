@@ -24,7 +24,7 @@ from ....config import (
 
 @dataclass
 class SigLIP2Config(ModelConfig):
-    """Configuration specific to SigLIP2 models."""
+    """Configuration specific to SigLIP2 models"""
 
     source: ModelSource = ModelSource.HUGGING_FACE
 
@@ -34,12 +34,7 @@ class ModelVariant(StrEnum):
 
     BASE_PATCH16_384 = "Base_Patch16_384"
     SO400M_PATCH14_384 = "So400m_Patch14_384"
-    LARGE_PATCH16_256 = "Large_Patch16_256"
-    GIANT_OPT_PATCH16_256 = "Giant_Opt_Patch16_256"
-
-    # OpenCLIP variants
-    VIT_SO400M_14_SIGLIP2 = "ViT_SO400M_14_SigLIP2"
-    VIT_SO400M_16_SIGLIP2_256 = "ViT_SO400M_16_SigLIP2_256"
+    SO400M_PATCH16_512 = "So400m_Patch16_512"
 
 
 class ModelLoader(ForgeModel):
@@ -51,20 +46,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/siglip2-so400m-patch14-384",
             source=ModelSource.HUGGING_FACE,
         ),
-        ModelVariant.LARGE_PATCH16_256: SigLIP2Config(
-            pretrained_model_name="google/siglip2-large-patch16-256",
-            source=ModelSource.HUGGING_FACE,
-        ),
-        ModelVariant.GIANT_OPT_PATCH16_256: SigLIP2Config(
-            pretrained_model_name="google/siglip2-giant-opt-patch16-256",
-            source=ModelSource.HUGGING_FACE,
-        ),
-        ModelVariant.VIT_SO400M_14_SIGLIP2: SigLIP2Config(
-            pretrained_model_name="hf-hub:timm/ViT-SO400M-14-SigLIP2",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.VIT_SO400M_16_SIGLIP2_256: SigLIP2Config(
-            pretrained_model_name="hf-hub:timm/ViT-SO400M-16-SigLIP2-256",
+        ModelVariant.SO400M_PATCH16_512: SigLIP2Config(
+            pretrained_model_name="hf-hub:timm/ViT-SO400M-16-SigLIP2-512",
             source=ModelSource.TIMM,
         ),
     }
@@ -113,7 +96,7 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
-        """Load processor for the current variant (HuggingFace variants only).
+        """Load processor for the current variant (HuggingFace transformers path).
 
         Returns:
             The loaded processor instance
@@ -136,26 +119,29 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The SigLIP2 model instance for image-text similarity.
         """
+        pretrained_model_name = self._variant_config.pretrained_model_name
         source = self._variant_config.source
 
         if source == ModelSource.TIMM:
             from open_clip import create_model_from_pretrained, get_tokenizer
-
-            pretrained_model_name = self._variant_config.pretrained_model_name
 
             model, self.preprocess = create_model_from_pretrained(pretrained_model_name)
             self.tokenizer = get_tokenizer(pretrained_model_name)
 
             if dtype_override is not None:
                 model = model.to(dtype_override)
-
-            model.eval()
-            return model
-
         else:
             from transformers import AutoModel
 
-            pretrained_model_name = self._variant_config.pretrained_model_name
+            model_kwargs = {"return_dict": False}
+
+            if dtype_override is not None:
+                model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs |= kwargs
+
+            model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+
+        model.eval()
 
             model_kwargs = {"return_dict": False}
 
@@ -185,7 +171,6 @@ class ModelLoader(ForgeModel):
         image = dataset[0]["image"]
 
         self.text_prompts = ["a photo of 2 cats", "a photo of 2 dogs"]
-
         source = self._variant_config.source
 
         if source == ModelSource.TIMM:
@@ -210,7 +195,6 @@ class ModelLoader(ForgeModel):
                 pixel_values = pixel_values.to(dtype_override)
 
             return {"image": pixel_values, "text": text_tokens}
-
         else:
             if self.processor is None:
                 self._load_processor()
@@ -235,44 +219,3 @@ class ModelLoader(ForgeModel):
                         inputs[key] = inputs[key].to(dtype_override)
 
             return inputs
-
-    def post_process(self, outputs):
-        """Post-process SigLIP2 model outputs to extract similarity scores.
-
-        Args:
-            outputs: Raw model output
-        """
-        source = self._variant_config.source
-
-        if self.text_prompts is None:
-            self.text_prompts = ["a photo of 2 cats", "a photo of 2 dogs"]
-
-        if source == ModelSource.TIMM:
-            image_features, text_features, logit_scale = outputs
-            image_features = F.normalize(image_features, dim=-1)
-            text_features = F.normalize(text_features, dim=-1)
-
-            text_probs = torch.sigmoid(
-                image_features @ text_features.T * logit_scale.exp()
-            )
-
-            for i, text in enumerate(self.text_prompts):
-                print(f"Probability of '{text}':", text_probs[0, i].item())
-
-    def unpack_forward_output(self, fwd_output):
-        """Unpack forward pass output to extract a differentiable tensor.
-
-        Args:
-            fwd_output: Output from the model's forward pass (tuple of tensors)
-
-        Returns:
-            torch.Tensor: Concatenated flattened outputs for backward pass
-        """
-        if isinstance(fwd_output, tuple):
-            tensors = []
-            for item in fwd_output:
-                if isinstance(item, torch.Tensor):
-                    tensors.append(item.flatten())
-            if tensors:
-                return torch.cat(tensors, dim=0)
-        return fwd_output
