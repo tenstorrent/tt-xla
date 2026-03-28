@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     """Available LLaVA model variants."""
 
     LLAVA_1_5_7B = "1.5_7B"
+    LLAVA_1_5_13B = "1.5_13B"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LLAVA_1_5_7B: ModelConfig(
             pretrained_model_name="llava-hf/llava-1.5-7b-hf",
+        ),
+        ModelVariant.LLAVA_1_5_13B: ModelConfig(
+            pretrained_model_name="llava-hf/llava-1.5-13b-hf",
         ),
     }
 
@@ -55,10 +59,15 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
+        variant_groups = {
+            ModelVariant.LLAVA_1_5_13B: ModelGroup.VULCAN,
+        }
+
         return ModelInfo(
             model="LLaVA",
             variant=variant,
-            group=ModelGroup.RED,
+            group=variant_groups.get(variant, ModelGroup.RED),
             task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
