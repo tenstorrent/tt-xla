@@ -31,9 +31,7 @@ class ModelVariant(StrEnum):
     FLAN_T5_BASE = "Flan_T5_Base"
     T5_3B = "T5_3B"
     FLAN_T5_LARGE = "Flan_T5_Large"
-    SYSSEC_UTD_PY313_PYLINGUAL_V1_1_STATEMENT = (
-        "syssec-utd/py313-pylingual-v1.1-statement"
-    )
+    FLAN_T5_XXL = "Flan_T5_XXL"
 
 
 class ModelLoader(ForgeModel):
@@ -69,8 +67,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/flan-t5-large",
             max_length=512,
         ),
-        ModelVariant.SYSSEC_UTD_PY313_PYLINGUAL_V1_1_STATEMENT: LLMModelConfig(
-            pretrained_model_name="syssec-utd/py313-pylingual-v1.1-statement",
+        ModelVariant.FLAN_T5_XXL: LLMModelConfig(
+            pretrained_model_name="google/flan-t5-xxl",
             max_length=512,
         ),
     }
@@ -120,11 +118,7 @@ class ModelLoader(ForgeModel):
         """
         group = (
             ModelGroup.VULCAN
-            if variant
-            in (
-                ModelVariant.T5_3B,
-                ModelVariant.SYSSEC_UTD_PY313_PYLINGUAL_V1_1_STATEMENT,
-            )
+            if variant in (ModelVariant.T5_3B, ModelVariant.FLAN_T5_XXL)
             else ModelGroup.GENERALITY
         )
         return ModelInfo(
