@@ -43,6 +43,7 @@ class ModelVariant(StrEnum):
     DEVSTRAL_SMALL_2505 = "Devstral_Small_2505"
     DEVSTRAL_SMALL_2507 = "Devstral_Small_2507"
     MAGISTRAL_SMALL_2506 = "Magistral_Small_2506"
+    MAGISTRAL_SMALL_2509 = "Magistral_Small_2509"
     MISTRAL_SMALL_3_1_24B_INSTRUCT_2503 = "mistral_small_3.1_24b_instruct_2503"  # Untested in Transformers; for full testing, please refer to VLLM.
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     CODESTRAL_22B_V01 = "Codestral_22B_v01"
@@ -67,7 +68,7 @@ class ModelLoader(ForgeModel):
     _USE_Mistral3ForConditionalGeneration_VARIANTS = {
         ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
         ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506,
-        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND,
+        ModelVariant.MAGISTRAL_SMALL_2509,
     }
 
     # Dictionary of available model variants
@@ -113,6 +114,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MAGISTRAL_SMALL_2506: ModelConfig(
             pretrained_model_name="mistralai/Magistral-Small-2506",
+        ),
+        ModelVariant.MAGISTRAL_SMALL_2509: ModelConfig(
+            pretrained_model_name="mistralai/Magistral-Small-2509",
         ),
         ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT_2503: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Small-3.1-24B-Instruct-2503",
@@ -168,7 +172,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_7B_INSTRUCT_V03_GPTQ,
+            ModelVariant.MAGISTRAL_SMALL_2509,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
