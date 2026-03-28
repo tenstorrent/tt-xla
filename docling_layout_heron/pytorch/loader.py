@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available Docling Layout Heron model variants."""
 
     DOCLING_LAYOUT_HERON = "docling_layout_heron"
+    DOCLING_LAYOUT_HERON_101 = "docling_layout_heron_101"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DOCLING_LAYOUT_HERON: ModelConfig(
             pretrained_model_name="docling-project/docling-layout-heron",
+        ),
+        ModelVariant.DOCLING_LAYOUT_HERON_101: ModelConfig(
+            pretrained_model_name="docling-project/docling-layout-heron-101",
         ),
     }
 
