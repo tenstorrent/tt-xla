@@ -26,11 +26,13 @@ class ModelVariant(StrEnum):
 
     CRYPTO_NER = "CryptoNER"
     TNER_ONTONOTES5 = "TNER-OntoNotes5"
+    OPENMED_NER_DNADETECT_BIGMED_278M = "OpenMed-NER-DNADetect-BigMed-278M"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.CRYPTO_NER: "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday",
     ModelVariant.TNER_ONTONOTES5: "My name is Wolfgang and I live in Berlin",
+    ModelVariant.OPENMED_NER_DNADETECT_BIGMED_278M: "The p53 protein plays a crucial role in tumor suppression by regulating BRCA1 gene expression.",
 }
 
 
@@ -43,6 +45,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.TNER_ONTONOTES5: ModelConfig(
             pretrained_model_name="asahi417/tner-xlm-roberta-base-ontonotes5",
+        ),
+        ModelVariant.OPENMED_NER_DNADETECT_BIGMED_278M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-BigMed-278M",
         ),
     }
 
