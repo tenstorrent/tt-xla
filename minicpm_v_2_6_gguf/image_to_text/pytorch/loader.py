@@ -49,13 +49,10 @@ class ModelLoader(ForgeModel):
 
     sample_image = "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
         self.config = None
-        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
