@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     """Available SigLIP2 image classification model variants."""
 
     VIT_B_32_256 = "ViT_B_32_256"
+    VIT_GOPT_16_384 = "ViT_gopt_16_384"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.VIT_B_32_256: SigLIP2Config(
             pretrained_model_name="hf_hub:timm/ViT-B-32-SigLIP2-256",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.VIT_GOPT_16_384: SigLIP2Config(
+            pretrained_model_name="hf_hub:timm/ViT-gopt-16-SigLIP2-384",
             source=ModelSource.TIMM,
         ),
     }
