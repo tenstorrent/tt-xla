@@ -9,6 +9,7 @@ from typing import Optional
 from dataclasses import dataclass
 from torchvision import models
 import torch
+import timm
 
 from transformers import RegNetForImageClassification
 from ...tools.utils import VisionPreprocessor, VisionPostprocessor
@@ -46,6 +47,9 @@ class ModelVariant(StrEnum):
     Y_120 = "Y_120"
     Y_160 = "Y_160"
     Y_320 = "Y_320"
+
+    # TIMM variants
+    Y_120_SW_IN12K_FT_IN1K_TIMM = "Y_120_SW_IN12K_FT_IN1K_TIMM"
 
     # Torchvision variants
     Y_400MF = "Y_400mf"
@@ -94,6 +98,11 @@ class ModelLoader(ForgeModel):
         ModelVariant.Y_320: RegNetConfig(
             pretrained_model_name="facebook/regnet-y-320",
             source=ModelSource.HUGGING_FACE,
+        ),
+        # TIMM variants
+        ModelVariant.Y_120_SW_IN12K_FT_IN1K_TIMM: RegNetConfig(
+            pretrained_model_name="regnety_120.sw_in12k_ft_in1k",
+            source=ModelSource.TIMM,
         ),
         # Torchvision variants
         ModelVariant.Y_400MF: RegNetConfig(
@@ -190,10 +199,17 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
+        if variant in [
+            ModelVariant.Y_120_SW_IN12K_FT_IN1K_TIMM,
+        ]:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="RegNet",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
@@ -216,6 +232,10 @@ class ModelLoader(ForgeModel):
         if source == ModelSource.HUGGING_FACE:
             # Load model from HuggingFace
             model = RegNetForImageClassification.from_pretrained(model_name, **kwargs)
+
+        elif source == ModelSource.TIMM:
+            # Load model using timm
+            model = timm.create_model(model_name, pretrained=True)
 
         elif source == ModelSource.TORCHVISION:
             # Load model from torchvision
