@@ -2,57 +2,55 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER OrganismDetect model loader for token classification.
+OpenMed NER OrganismDetect model loader implementation for token classification.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
-from ....base import ForgeModel
-from ....config import (
-    ModelConfig,
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
+from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available OpenMed NER OrganismDetect model variants."""
 
-    BIGMED_278M = "BigMed-278M"
-    TINYMED_65M = "TinyMed-65M"
+    OPENMED_NER_ORGANISMDETECT_BIGMED_560M = (
+        "OpenMed/OpenMed-NER-OrganismDetect-BigMed-560M"
+    )
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER OrganismDetect model loader for token classification."""
+    """OpenMed NER OrganismDetect model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.BIGMED_278M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-BigMed-278M",
-        ),
-        ModelVariant.TINYMED_65M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-TinyMed-65M",
+        ModelVariant.OPENMED_NER_ORGANISMDETECT_BIGMED_560M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-BigMed-560M",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BIGMED_278M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ORGANISMDETECT_BIGMED_560M
 
     def __init__(self, variant=None):
         super().__init__(variant)
-        self.tokenizer = None
-        self.model = None
-        self.sample_text = (
-            "Escherichia coli and Staphylococcus aureus were isolated from the sample."
-        )
+        self.model_name = self._variant_config.pretrained_model_name
+        self.sample_text = "Staphylococcus aureus and Escherichia coli were isolated from the clinical samples."
         self.max_length = 128
+        self.tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant_name=None):
         if variant_name is None:
-            variant_name = cls.DEFAULT_VARIANT
+            variant_name = "base"
+
         return ModelInfo(
             model="OpenMed NER OrganismDetect",
             variant=variant_name,
@@ -63,9 +61,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -73,10 +69,10 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForTokenClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self.model_name, **model_kwargs
         )
-        model.eval()
         self.model = model
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -104,4 +100,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Predicted Labels: {predicted_tokens_classes}")
+        print(f"Answer: {predicted_tokens_classes}")
