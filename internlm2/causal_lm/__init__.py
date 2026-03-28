@@ -2,5 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-InternLM2 causal language modeling implementation.
+InternLM2 causal language modeling task implementation.
 """

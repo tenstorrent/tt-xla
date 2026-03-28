@@ -1,8 +1,7 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-InternLM2 causal language modeling implementation for Tenstorrent projects.
+InternLM2 causal language modeling PyTorch implementation.
 """
-# Import from the loader module
 from .loader import ModelLoader
