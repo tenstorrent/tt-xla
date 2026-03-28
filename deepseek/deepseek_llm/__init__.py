@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeepSeek LLM model implementation for Tenstorrent projects.
+DeepSeek LLM PyTorch model implementation for Tenstorrent projects.
 """
 from .pytorch import ModelLoader
