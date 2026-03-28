@@ -7,40 +7,39 @@ PaliGemma2 model loader implementation for multimodal conditional generation.
 
 from typing import Optional
 
-from PIL import Image
 from transformers import PaliGemmaForConditionalGeneration, PaliGemmaProcessor
 
 from ...base import ForgeModel
 from ...config import (
-    Framework,
     ModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
-from ...tools.utils import cast_input_to_type, get_file
+from ...tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
     """Available PaliGemma2 model variants."""
 
-    PALIGEMMA2_3B_MIX_224 = "3B_Mix_224"
+    PALIGEMMA2_3B_FT_DOCCI_448 = "3b_ft_docci_448"
 
 
 class ModelLoader(ForgeModel):
     """PaliGemma2 model loader for multimodal conditional generation."""
 
     _VARIANTS = {
-        ModelVariant.PALIGEMMA2_3B_MIX_224: ModelConfig(
-            pretrained_model_name="google/paligemma2-3b-mix-224",
+        ModelVariant.PALIGEMMA2_3B_FT_DOCCI_448: ModelConfig(
+            pretrained_model_name="google/paligemma2-3b-ft-docci-448",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.PALIGEMMA2_3B_MIX_224
+    DEFAULT_VARIANT = ModelVariant.PALIGEMMA2_3B_FT_DOCCI_448
 
-    sample_text = "describe en"
+    sample_text = "caption en"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize PaliGemma2 model loader."""
@@ -55,7 +54,7 @@ class ModelLoader(ForgeModel):
             model="PaliGemma2",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.MM_CONDITIONAL_GENERATION,
+            task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -69,16 +68,13 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the PaliGemma2 model instance."""
         model_name = self._variant_config.pretrained_model_name
-
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-
         model = PaliGemmaForConditionalGeneration.from_pretrained(
-            str(model_name), **model_kwargs
+            str(model_name), **kwargs
         )
         model.eval()
+
+        if dtype_override:
+            model = model.to(dtype_override)
 
         if self.processor is None:
             self._load_processor()
@@ -90,15 +86,26 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file)
+        from datasets import load_dataset
+
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
         inputs = self.processor(
-            images=image, text=self.sample_text, return_tensors="pt"
+            text=self.sample_text, images=image, return_tensors="pt"
         )
 
-        if dtype_override:
-            for key in inputs:
-                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
+        input_ids = inputs["input_ids"]
+        attention_mask = inputs["attention_mask"]
+        pixel_values = inputs["pixel_values"]
 
-        return inputs
+        if dtype_override:
+            input_ids = cast_input_to_type(input_ids, dtype_override)
+            attention_mask = cast_input_to_type(attention_mask, dtype_override)
+            pixel_values = cast_input_to_type(pixel_values, dtype_override)
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "pixel_values": pixel_values,
+        }
