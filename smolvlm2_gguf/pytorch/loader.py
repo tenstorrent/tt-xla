@@ -14,6 +14,7 @@ Available variants:
 from typing import Optional
 
 import torch
+from PIL import Image
 from transformers import AutoModelForImageTextToText, AutoProcessor
 
 from ...base import ForgeModel
@@ -104,8 +105,6 @@ class ModelLoader(ForgeModel):
         image_path = get_file(
             "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/bee.jpg"
         )
-        from PIL import Image
-
         image = Image.open(str(image_path)).convert("RGB")
 
         messages = [
