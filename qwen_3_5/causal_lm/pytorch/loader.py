@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
     QWEN_3_5_35B_A3B_ABLITERATED_GGUF = "35B_A3B_ABLITERATED_GGUF"
+    QWEN_3_5_24B_A3B_REASONING_DISTILLED_GGUF = "24B_A3B_REASONING_DISTILLED_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -136,6 +137,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mradermacher/Huihui-Qwen3.5-35B-A3B-abliterated-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_24B_A3B_REASONING_DISTILLED_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-24B-A3B-Claude-Opus-Gemini-3.1-Pro-Reasoning-Distilled-heretic-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -148,6 +153,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Q4_K_M/Qwen3.5-35B-A3B-Q4_K_M-00001-of-00002.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_ABLITERATED_GGUF: "Huihui-Qwen3.5-35B-A3B-abliterated.Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_24B_A3B_REASONING_DISTILLED_GGUF: "Qwen3.5-24B-A3B-Claude-Opus-Gemini-3.1-Pro-Reasoning-Distilled-heretic.i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -344,6 +350,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_GGUF,
             ModelVariant.QWEN_3_5_35B_A3B_ABLITERATED_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
+            ModelVariant.QWEN_3_5_24B_A3B_REASONING_DISTILLED_GGUF,
         )
 
     def load_shard_spec(self, model):
