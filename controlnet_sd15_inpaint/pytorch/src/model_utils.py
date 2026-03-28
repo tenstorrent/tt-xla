@@ -175,7 +175,7 @@ def controlnet_sd15_inpaint_preprocessing(
     latents = latents * pipe.scheduler.init_noise_sigma
 
     # 4. Prepare control image for controlnet
-    control_image = pipe.prepare_control_image(
+    control_image = pipe.prepare_image(
         image=control_image,
         width=width,
         height=height,
