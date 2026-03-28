@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
     OPT_125M_OPTIMUM_INTEL = "125M-optimum-intel"
     OPT_350M = "350M"
     OPT_1_3B = "1.3b"
-    OPT_2_7B = "2.7b"
+    OPT_6_7B = "6.7b"
     TINY_RANDOM = "tiny-random"
 
 
@@ -51,8 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="facebook/opt-1.3b",
             max_length=256,
         ),
-        ModelVariant.OPT_2_7B: LLMModelConfig(
-            pretrained_model_name="facebook/opt-2.7b",
+        ModelVariant.OPT_6_7B: LLMModelConfig(
+            pretrained_model_name="facebook/opt-6.7b",
             max_length=256,
         ),
         ModelVariant.TINY_RANDOM: LLMModelConfig(
@@ -94,12 +94,7 @@ class ModelLoader(ForgeModel):
         """
         group = (
             ModelGroup.VULCAN
-            if variant
-            in (
-                ModelVariant.TINY_RANDOM,
-                ModelVariant.OPT_125M_OPTIMUM_INTEL,
-                ModelVariant.OPT_2_7B,
-            )
+            if variant in (ModelVariant.TINY_RANDOM, ModelVariant.OPT_6_7B)
             else ModelGroup.GENERALITY
         )
         return ModelInfo(
