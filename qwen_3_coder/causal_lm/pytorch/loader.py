@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_CODER_NEXT = "Next"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
-    QWEN_3_CODER_30B_A3B_INSTRUCT_AWQ = "30B_A3B_Instruct_Awq"
+    QWEN_3_CODER_480B_A35B_INSTRUCT_MLX_8BIT = "480B_A35B_Instruct_mlx_8bit"
 
 
 class ModelLoader(ForgeModel):
@@ -47,8 +47,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_AWQ: LLMModelConfig(
-            pretrained_model_name="stelterlab/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+        ModelVariant.QWEN_3_CODER_480B_A35B_INSTRUCT_MLX_8BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3-Coder-480B-A35B-Instruct-8bit",
             max_length=128,
         ),
     }
@@ -145,6 +145,10 @@ class ModelLoader(ForgeModel):
             "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
+        # MLX community variants have quantized weights with mismatched shapes
+        if "mlx-community" in pretrained_model_name:
+            model_kwargs["ignore_mismatched_sizes"] = True
+        model_kwargs |= kwargs
 
         # AWQ variants: load on CPU with quantization_config removed
         # so that weights are loaded as plain tensors.
