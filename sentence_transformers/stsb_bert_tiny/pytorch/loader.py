@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     """Available model variants for stsb-bert-tiny-safetensors."""
 
     STSB_BERT_TINY = "sentence-transformers-testing/stsb-bert-tiny-safetensors"
+    OPTIMUM_INTEL_STSB_BERT_TINY = (
+        "optimum-intel-internal-testing/stsb-bert-tiny-safetensors"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +36,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.STSB_BERT_TINY: LLMModelConfig(
             pretrained_model_name="sentence-transformers-testing/stsb-bert-tiny-safetensors",
+            max_length=256,
+        ),
+        ModelVariant.OPTIMUM_INTEL_STSB_BERT_TINY: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/stsb-bert-tiny-safetensors",
             max_length=256,
         ),
     }
