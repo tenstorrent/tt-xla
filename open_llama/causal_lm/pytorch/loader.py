@@ -4,11 +4,8 @@
 """
 Open LLaMA model loader implementation for causal language modeling.
 """
-
+from transformers import LlamaForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
-
-import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
@@ -25,35 +22,50 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Open LLaMA model variants."""
 
-    OPEN_LLAMA_3B_V2 = "3B_v2"
+    OPEN_LLAMA_7B = "7B"
 
 
 class ModelLoader(ForgeModel):
     """Open LLaMA model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.OPEN_LLAMA_3B_V2: LLMModelConfig(
-            pretrained_model_name="openlm-research/open_llama_3b_v2",
+        ModelVariant.OPEN_LLAMA_7B: LLMModelConfig(
+            pretrained_model_name="openlm-research/open_llama_7b",
             max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPEN_LLAMA_3B_V2
+    DEFAULT_VARIANT = ModelVariant.OPEN_LLAMA_7B
 
     sample_text = "My name is Thomas and my main"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
         self.tokenizer = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="Open LLaMA",
             variant=variant,
@@ -64,27 +76,44 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
-            **tokenizer_kwargs,
+            use_fast=False,
+            **tokenizer_kwargs
         )
 
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Open LLaMA model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+
+        Returns:
+            torch.nn.Module: The Open LLaMA model instance for causal language modeling.
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -94,43 +123,30 @@ class ModelLoader(ForgeModel):
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        ).eval()
+        model = LlamaForCausalLM.from_pretrained(pretrained_model_name, **model_kwargs)
 
-        self.config = model.config
+        model.eval()
+
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the Open LLaMA model.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+
+        Returns:
+            list: Input tensors that can be fed to the model [input_ids, attention_mask].
+        """
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        max_length = self._variant_config.max_length
-
-        inputs = self.tokenizer(
+        input_tokens = self.tokenizer(
             self.sample_text,
-            return_tensors="pt",
-            padding="max_length",
+            max_length=self._variant_config.max_length,
+            padding=True,
             truncation=True,
-            max_length=max_length,
+            return_tensors="pt",
         )
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
-
-        return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
-        return self.config
+        return [input_tokens["input_ids"], input_tokens["attention_mask"]]

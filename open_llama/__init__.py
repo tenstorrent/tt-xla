@@ -2,5 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Open LLaMA causal language models
+Open LLaMA models
 """
