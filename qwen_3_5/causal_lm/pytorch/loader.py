@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_2B_GGUF = "2B_GGUF"
     QWEN_3_5_2B_REASONING_DISTILLED_GGUF = "2B_Reasoning_Distilled_GGUF"
     QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
+    QWEN_3_5_397B_A17B_MLX_4BIT = "397B_A17B_MLX_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -104,6 +105,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_122B_A10B_GGUF: LLMModelConfig(
             pretrained_model_name="lmstudio-community/Qwen3.5-122B-A10B-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_397B_A17B_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3.5-397B-A17B-MLX-4bit",
             max_length=128,
         ),
     }
@@ -328,6 +333,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
             ModelVariant.QWEN_3_5_122B_A10B_GGUF,
+            ModelVariant.QWEN_3_5_397B_A17B_MLX_4BIT,
         )
 
     def load_shard_spec(self, model):
