@@ -4,7 +4,8 @@
 """
 Granite model loader implementation for causal language modeling.
 """
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -20,43 +21,54 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Granite model variants for causal language modeling."""
+    """Available Granite model variants."""
 
-    GRANITE_3_2_8B_INSTRUCT = "3.2-8B-Instruct"
-    MICRO_G3_3_8B_INSTRUCT_1B = "micro-g3.3-8b-instruct-1b"
+    GRANITE_3_0_8B_INSTRUCT = "3.0-8B-Instruct"
 
 
 class ModelLoader(ForgeModel):
     """Granite model loader implementation for causal language modeling tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.GRANITE_3_2_8B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="ibm-granite/granite-3.2-8b-instruct",
-            max_length=128,
-        ),
-        ModelVariant.MICRO_G3_3_8B_INSTRUCT_1B: LLMModelConfig(
-            pretrained_model_name="ibm-ai-platform/micro-g3.3-8b-instruct-1b",
-            max_length=128,
+        ModelVariant.GRANITE_3_0_8B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="ibm-granite/granite-3.0-8b-instruct",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GRANITE_3_2_8B_INSTRUCT
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.GRANITE_3_0_8B_INSTRUCT
 
-    sample_text = "My name is Jim Keller and"
-    chat_messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Introduce yourself please!"},
+    # Shared configuration parameters
+    sample_messages = [
+        {"role": "user", "content": "What is the capital of France?"},
     ]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
         self.tokenizer = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="Granite",
             variant=variant,
@@ -67,33 +79,53 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
+
+        # Initialize tokenizer with dtype override if specified
         tokenizer_kwargs = {}
         if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
+            tokenizer_kwargs["dtype"] = dtype_override
 
+        # Load the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
-
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Granite model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+
+        Returns:
+            torch.nn.Module: The Granite model instance for causal language modeling.
+        """
+        # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
+        # Ensure tokenizer is loaded
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
+        # Load the model with dtype override if specified
         model_kwargs = {}
         if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-
+            model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
+            from transformers import AutoConfig
+
             config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -102,36 +134,33 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **model_kwargs
         )
 
-        model._supports_cache_class = False
-        model.eval()
-
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the Granite model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
+        # Ensure tokenizer is initialized
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        max_length = self._variant_config.max_length
-
-        use_chat_template = "instruct" in str(self._variant).lower()
-
-        if use_chat_template:
-            batch_messages = [self.chat_messages] * batch_size
-            prompts = [
-                self.tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True
-                )
-                for messages in batch_messages
-            ]
-        else:
-            prompts = [self.sample_text] * batch_size
-
-        inputs = self.tokenizer(
-            prompts,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=max_length,
+        # Apply chat template
+        inputs = self.tokenizer.apply_chat_template(
+            self.sample_messages, tokenize=False
         )
+        inputs = self.tokenizer(
+            inputs, return_tensors="pt", return_token_type_ids=False
+        )
+
+        # Convert float32 tensors to the specified dtype if needed
+        if dtype_override is not None:
+            for key, value in inputs.items():
+                if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
+                    inputs[key] = value.to(dtype_override)
 
         return inputs
