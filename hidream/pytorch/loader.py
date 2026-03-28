@@ -2,10 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-HiDream-I1 model loader implementation for text-to-image generation.
+HiDream-I1 (HiDream-ai/HiDream-I1-Full) model loader implementation.
 
-Supports loading the HiDream-I1-Fast sparse diffusion transformer from
-HiDream-ai/HiDream-I1-Fast using the diffusers HiDreamImagePipeline.
+HiDream-I1 is a text-to-image generation model based on a Sparse Diffusion
+Transformer with 17 billion parameters. It achieves state-of-the-art image
+quality and prompt following across photorealistic, cartoon, and artistic styles.
+
+Available variants:
+- FULL: HiDream-ai/HiDream-I1-Full text-to-image generation
+- DEV: HiDream-ai/HiDream-I1-Dev distilled variant
+- FAST: HiDream-ai/HiDream-I1-Fast distilled variant
 """
 
 from typing import Optional
@@ -26,24 +32,32 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available HiDream model variants."""
+    """Available HiDream-I1 model variants."""
 
+    FULL = "Full"
+    DEV = "Dev"
     FAST = "Fast"
 
 
 class ModelLoader(ForgeModel):
-    """HiDream-I1 model loader for text-to-image generation."""
+    """HiDream-I1 model loader implementation."""
 
     _VARIANTS = {
+        ModelVariant.FULL: ModelConfig(
+            pretrained_model_name="HiDream-ai/HiDream-I1-Full",
+        ),
+        ModelVariant.DEV: ModelConfig(
+            pretrained_model_name="HiDream-ai/HiDream-I1-Dev",
+        ),
         ModelVariant.FAST: ModelConfig(
             pretrained_model_name="HiDream-ai/HiDream-I1-Fast",
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.FAST
+    DEFAULT_VARIANT = ModelVariant.FULL
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self._pipe = None
+        self.pipeline = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -58,70 +72,24 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_pipeline(self, dtype: torch.dtype = torch.bfloat16):
-        """Load the HiDream image pipeline."""
-        self._pipe = HiDreamImagePipeline.from_pretrained(
+    def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the HiDream-I1 pipeline.
+
+        Returns:
+            HiDreamImagePipeline: The HiDream-I1 pipeline instance.
+        """
+        dtype = dtype_override if dtype_override is not None else torch.float32
+        self.pipeline = HiDreamImagePipeline.from_pretrained(
             self._variant_config.pretrained_model_name,
             torch_dtype=dtype,
+            **kwargs,
         )
-        return self._pipe
+        return self.pipeline
 
-    def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the HiDream transformer model.
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample text prompts for the HiDream-I1 model.
 
         Returns:
-            torch.nn.Module: The HiDream sparse diffusion transformer.
+            list: A list of sample text prompts.
         """
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        if self._pipe is None:
-            self._load_pipeline(dtype)
-        if dtype_override is not None:
-            self._pipe.transformer = self._pipe.transformer.to(dtype_override)
-        return self._pipe.transformer
-
-    def load_inputs(self, *, dtype_override=None, **kwargs):
-        """Prepare transformer inputs for the HiDream model.
-
-        Returns:
-            dict: Input tensors for the transformer forward pass.
-        """
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
-
-        if self._pipe is None:
-            self._load_pipeline(dtype)
-
-        prompt = "A cat holding a sign that says hello world"
-        height = 128
-        width = 128
-        num_inference_steps = 16
-
-        # Encode prompts using the pipeline's text encoders
-        (
-            prompt_embeds,
-            negative_prompt_embeds,
-            pooled_prompt_embeds,
-            negative_pooled_prompt_embeds,
-        ) = self._pipe.encode_prompt(
-            prompt=prompt,
-            device="cpu",
-            num_images_per_prompt=1,
-        )
-
-        # Prepare latent dimensions
-        num_channels_latents = self._pipe.transformer.config.in_channels
-        vae_scale_factor = self._pipe.vae_scale_factor
-        latent_h = height // vae_scale_factor
-        latent_w = width // vae_scale_factor
-
-        # Create random latents
-        latents = torch.randn(1, num_channels_latents, latent_h, latent_w, dtype=dtype)
-
-        # Prepare timestep
-        timestep = torch.tensor([num_inference_steps // 2], dtype=dtype)
-
-        return {
-            "hidden_states": latents,
-            "timestep": timestep,
-            "encoder_hidden_states": prompt_embeds.to(dtype),
-            "pooled_projections": pooled_prompt_embeds.to(dtype),
-        }
+        return ["A photo of an astronaut riding a horse on the moon"] * batch_size
