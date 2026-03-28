@@ -49,6 +49,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_14B_INSTRUCT_GPTQ_INT8 = "14B_Instruct_Gptq_Int8"
     QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
     QWEN_2_5_14B_INSTRUCT_UNSLOTH_BNB_4BIT = "14B_Instruct_Unsloth_BnB_4bit"
+    QWEN_2_5_7B_INSTRUCT_1M_UNSLOTH_BNB_4BIT = "7B_Instruct_1M_Unsloth_BnB_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -145,9 +146,13 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Qwen2.5-1.5B-quantized.w8a8",
             max_length=128,
         ),
-        # Unsloth BNB 4-bit quantized variant
+        # Unsloth BNB 4-bit quantized variants
         ModelVariant.QWEN_2_5_14B_INSTRUCT_UNSLOTH_BNB_4BIT: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen2.5-14B-Instruct-unsloth-bnb-4bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_2_5_7B_INSTRUCT_1M_UNSLOTH_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen2.5-7B-Instruct-1M-unsloth-bnb-4bit",
             max_length=128,
         ),
     }
@@ -205,6 +210,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_14B_INSTRUCT_GPTQ_INT8,
             ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
             ModelVariant.QWEN_2_5_14B_INSTRUCT_UNSLOTH_BNB_4BIT,
+            ModelVariant.QWEN_2_5_7B_INSTRUCT_1M_UNSLOTH_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
 
@@ -267,6 +273,7 @@ class ModelLoader(ForgeModel):
             "Qwen/Qwen2.5-32B-Instruct-AWQ",
             "Qwen/Qwen2.5-72B-Instruct-AWQ",
             "unsloth/Qwen2.5-14B-Instruct-unsloth-bnb-4bit",
+            "unsloth/Qwen2.5-7B-Instruct-1M-unsloth-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
 
