@@ -1,0 +1,150 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""
+PE-Core (Perception Encoder) model loader implementation for zero-shot image classification.
+"""
+import torch
+import torch.nn.functional as F
+from typing import Optional
+
+from ...base import ForgeModel
+from ...config import (
+    ModelConfig,
+    ModelInfo,
+    ModelGroup,
+    ModelTask,
+    ModelSource,
+    Framework,
+    StrEnum,
+)
+from datasets import load_dataset
+
+
+class ModelVariant(StrEnum):
+    """Available PE-Core model variants."""
+
+    G14_448 = "G14_448"
+
+
+class ModelLoader(ForgeModel):
+    """PE-Core model loader using Meta's perception-encoder for zero-shot image classification."""
+
+    _VARIANTS = {
+        ModelVariant.G14_448: ModelConfig(
+            pretrained_model_name="PE-Core-G14-448",
+        ),
+    }
+
+    DEFAULT_VARIANT = ModelVariant.G14_448
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        super().__init__(variant)
+        self.preprocess = None
+        self.tokenizer = None
+        self.text_prompts = None
+
+    @classmethod
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        return ModelInfo(
+            model="PE-Core",
+            variant=variant,
+            group=ModelGroup.VULCAN,
+            task=ModelTask.CV_ZS_IMAGE_CLS,
+            source=ModelSource.GITHUB,
+            framework=Framework.TORCH,
+        )
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the PE-Core model instance.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            torch.nn.Module: The PE-Core CLIP model instance.
+        """
+        from core.vision_encoder import pe, transforms
+
+        model_name = self._variant_config.pretrained_model_name
+
+        model = pe.CLIP.from_config(model_name, pretrained=True)
+        self.preprocess = transforms.get_image_transform(model.image_size)
+        self.tokenizer = transforms.get_text_tokenizer(model.context_length)
+
+        if dtype_override is not None:
+            model = model.to(dtype_override)
+
+        model.eval()
+        return model
+
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the PE-Core model.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the input dtype.
+            batch_size: Optional batch size (default 1).
+
+        Returns:
+            dict: Input tensors containing image and text tokens.
+        """
+        from core.vision_encoder import pe, transforms
+
+        if self.preprocess is None or self.tokenizer is None:
+            model_name = self._variant_config.pretrained_model_name
+            model = pe.CLIP.from_config(model_name, pretrained=False)
+            self.preprocess = transforms.get_image_transform(model.image_size)
+            self.tokenizer = transforms.get_text_tokenizer(model.context_length)
+
+        dataset = load_dataset("huggingface/cats-image", split="test")
+        image = dataset[0]["image"]
+
+        self.text_prompts = ["a photo of a cat", "a photo of a dog"]
+
+        pixel_values = self.preprocess(image).unsqueeze(0)
+        text_tokens = self.tokenizer(self.text_prompts)
+
+        if batch_size > 1:
+            pixel_values = pixel_values.repeat_interleave(batch_size, dim=0)
+            text_tokens = text_tokens.repeat_interleave(batch_size, dim=0)
+
+        if dtype_override is not None:
+            pixel_values = pixel_values.to(dtype_override)
+
+        return {"image": pixel_values, "text": text_tokens}
+
+    def post_process(self, outputs):
+        """Post-process PE-Core model outputs to extract similarity scores.
+
+        Args:
+            outputs: Raw model output (image_features, text_features, logit_scale)
+        """
+        if self.text_prompts is None:
+            self.text_prompts = ["a photo of a cat", "a photo of a dog"]
+
+        image_features, text_features, logit_scale = outputs
+        image_features = F.normalize(image_features, dim=-1)
+        text_features = F.normalize(text_features, dim=-1)
+
+        text_probs = (logit_scale * image_features @ text_features.T).softmax(dim=-1)
+
+        for i, text in enumerate(self.text_prompts):
+            print(f"Probability of '{text}':", text_probs[0, i].item())
+
+    def unpack_forward_output(self, fwd_output):
+        """Unpack forward pass output to extract a differentiable tensor.
+
+        Args:
+            fwd_output: Output from the model's forward pass (tuple of tensors)
+
+        Returns:
+            torch.Tensor: Concatenated flattened outputs for backward pass
+        """
+        if isinstance(fwd_output, tuple):
+            tensors = []
+            for item in fwd_output:
+                if isinstance(item, torch.Tensor):
+                    tensors.append(item.flatten())
+            if tensors:
+                return torch.cat(tensors, dim=0)
+        return fwd_output
