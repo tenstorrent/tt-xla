@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
     )
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    ALVAROALON2_BIOBERT_CHEMICAL_NER = "alvaroalon2/biobert_chemical_ner"
+    GRAVITEE_IO_BERT_SMALL_PII_DETECTION = "gravitee-io/bert-small-pii-detection"
 
 
 class ModelLoader(ForgeModel):
@@ -51,8 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.ALVAROALON2_BIOBERT_CHEMICAL_NER: LLMModelConfig(
-            pretrained_model_name="alvaroalon2/biobert_chemical_ner",
+        ModelVariant.GRAVITEE_IO_BERT_SMALL_PII_DETECTION: LLMModelConfig(
+            pretrained_model_name="gravitee-io/bert-small-pii-detection",
             max_length=128,
         ),
     }
@@ -74,8 +74,8 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         if self._variant == ModelVariant.HATMIMOHA_ARABIC_NER:
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.ALVAROALON2_BIOBERT_CHEMICAL_NER:
-            self.sample_text = "Aspirin and ibuprofen are commonly used nonsteroidal anti-inflammatory drugs"
+        elif self._variant == ModelVariant.GRAVITEE_IO_BERT_SMALL_PII_DETECTION:
+            self.sample_text = "My name is John Smith and I live in New York. My email is john.smith@example.com and my phone number is 555-123-4567."
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -98,7 +98,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.ALVAROALON2_BIOBERT_CHEMICAL_NER,
+            ModelVariant.GRAVITEE_IO_BERT_SMALL_PII_DETECTION,
         ):
             group = ModelGroup.VULCAN
 
