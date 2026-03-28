@@ -10,6 +10,7 @@ within a single model.
 
 Repositories:
 - https://huggingface.co/Lightricks/LTX-2
+- https://huggingface.co/rootonchair/LTX-2-19b-distilled
 - https://huggingface.co/Lightricks/LTX-2.3
 
 Available subfolders:
@@ -44,6 +45,7 @@ class ModelVariant(StrEnum):
     """Available LTX variants."""
 
     LTX_2 = "2"
+    LTX_2_DISTILLED = "2-distilled"
     LTX_2_3 = "2.3"
     LTX_2_3_FP8 = "2.3-fp8"
 
@@ -64,6 +66,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LTX_2: ModelConfig(
             pretrained_model_name="Lightricks/LTX-2",
+        ),
+        ModelVariant.LTX_2_DISTILLED: ModelConfig(
+            pretrained_model_name="rootonchair/LTX-2-19b-distilled",
         ),
         ModelVariant.LTX_2_3: ModelConfig(
             pretrained_model_name="Lightricks/LTX-2.3",
