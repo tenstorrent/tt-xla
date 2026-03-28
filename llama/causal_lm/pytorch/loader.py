@@ -122,6 +122,9 @@ class ModelVariant(StrEnum):
     # mlx-community quantized variants
     LLAMA_3_2_3B_INSTRUCT_4BIT = "3.2_3B_Instruct_4bit"
 
+    # chuanli11 variants
+    CHUANLI11_LLAMA_3_2_3B_INSTRUCT_UNCENSORED = "Chuanli11_3.2_3B_Instruct_Uncensored"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -287,6 +290,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mlx-community/Llama-3.2-3B-Instruct-4bit",
             max_length=128,
         ),
+        # chuanli11 variants
+        ModelVariant.CHUANLI11_LLAMA_3_2_3B_INSTRUCT_UNCENSORED: LLMModelConfig(
+            pretrained_model_name="chuanli11/Llama-3.2-3B-Instruct-uncensored",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -366,9 +374,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
-            ModelVariant.TINYLLAMA_BNB_4BIT,
-            ModelVariant.LLAMA_3_2_1B_INSTRUCT_BNB_4BIT,
-            ModelVariant.DEQING_LLAMA_300M_V5_ADDITION_ADAMW,
+            ModelVariant.CHUANLI11_LLAMA_3_2_3B_INSTRUCT_UNCENSORED,
         ]:
             group = ModelGroup.VULCAN
         else:
