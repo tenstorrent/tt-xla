@@ -6,10 +6,8 @@ LeViT model loader implementation
 """
 
 from typing import Optional
-
-import torch
-from transformers import LevitModel, AutoImageProcessor
-from datasets import load_dataset
+from dataclasses import dataclass
+import timm
 
 from ...config import (
     ModelConfig,
@@ -21,74 +19,116 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
+from ...tools.utils import (
+    VisionPreprocessor,
+    VisionPostprocessor,
+)
+from datasets import load_dataset
+
+
+@dataclass
+class LeViTConfig(ModelConfig):
+    """Configuration specific to LeViT models"""
+
+    source: ModelSource
 
 
 class ModelVariant(StrEnum):
     """Available LeViT model variants."""
 
-    TINY_RANDOM = "Tiny Random"
+    LEVIT_256_FB_DIST_IN1K = "LeViT_256_FB_Dist_In1k"
 
 
 class ModelLoader(ForgeModel):
     """LeViT model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-LevitModel",
+        ModelVariant.LEVIT_256_FB_DIST_IN1K: LeViTConfig(
+            pretrained_model_name="hf_hub:timm/levit_256.fb_dist_in1k",
+            source=ModelSource.TIMM,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.LEVIT_256_FB_DIST_IN1K
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        source = cls._VARIANTS[variant].source
+
         return ModelInfo(
             model="LeViT",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CV_IMAGE_FE,
-            source=ModelSource.HUGGING_FACE,
+            task=ModelTask.CV_IMAGE_CLS,
+            source=source,
             framework=Framework.TORCH,
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-
-        model = LevitModel.from_pretrained(model_name, **model_kwargs)
+        model = timm.create_model(model_name, pretrained=True)
         model.eval()
+
+        self.model = model
+
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
+
+        if self._postprocessor is not None:
+            self._postprocessor.set_model_instance(model)
+
+        if dtype_override is not None:
+            model = model.to(dtype_override)
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.processor is None:
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
+
+        if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
-            self.processor = AutoImageProcessor.from_pretrained(model_name)
+            source = self._variant_config.source
 
-        dataset = load_dataset("huggingface/cats-image", split="test")
-        image = dataset[0]["image"]
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+            )
 
-        inputs = self.processor(images=image, return_tensors="pt")
+            if hasattr(self, "model") and self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
 
-        if batch_size > 1:
-            for key in inputs:
-                if torch.is_tensor(inputs[key]):
-                    inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        model_for_config = None
+        if hasattr(self, "model") and self.model is not None:
+            model_for_config = self.model
 
-        if dtype_override is not None:
-            for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
-                    inputs[key] = inputs[key].to(dtype_override)
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
 
-        return inputs
+    def output_postprocess(self, output):
+        if self._postprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            self._postprocessor = VisionPostprocessor(
+                model_source=source,
+                model_name=model_name,
+                model_instance=self.model,
+            )
+
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
