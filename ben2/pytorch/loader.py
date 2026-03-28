@@ -5,8 +5,6 @@
 BEN2 (Background Erase Network) model loader implementation for image segmentation tasks.
 """
 
-import torch
-from PIL import Image
 from torchvision import transforms
 from typing import Optional
 
