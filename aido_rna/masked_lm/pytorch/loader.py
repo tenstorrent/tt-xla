@@ -4,7 +4,6 @@
 """
 AIDO.RNA model loader implementation for masked language modeling on RNA sequences.
 """
-import torch
 from typing import Optional
 
 from ....base import ForgeModel
