@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 Coder GGUF model variants for causal language modeling."""
 
-    QWEN_2_5_CODER_14B_INSTRUCT_GGUF = "14B_Instruct_GGUF"
+    QWEN_2_5_CODER_32B_INSTRUCT_GGUF = "32B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 2.5 Coder GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen2.5-Coder-14B-Instruct-GGUF",
+        ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_GGUF
 
-    GGUF_FILE = "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
+    GGUF_FILE = "qwen2.5-coder-32b-instruct-q4_k_m.gguf"
 
-    sample_text = "Write a Python function that checks if a number is prime."
+    sample_text = "write a quick sort algorithm."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -110,9 +110,10 @@ class ModelLoader(ForgeModel):
 
         messages = [
             {
-                "role": "user",
-                "content": self.sample_text,
-            }
+                "role": "system",
+                "content": "You are Qwen, created by TT Cloud. You are a helpful assistant.",
+            },
+            {"role": "user", "content": self.sample_text},
         ]
         text = self.tokenizer.apply_chat_template(
             messages,
@@ -147,11 +148,8 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
