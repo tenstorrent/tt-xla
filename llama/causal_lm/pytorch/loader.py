@@ -104,8 +104,10 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # nm-testing nonuniform quantized variants
-    LLAMA_3_8B_INSTRUCT_NONUNIFORM = "3.0_8B_Instruct_Nonuniform"
+    # ShahriarFerdoush variants
+    SHAHRIARFERDOUSH_LLAMA_3_2_1B_CODE_INSTRUCT = (
+        "ShahriarFerdoush_3.2_1B_Code_Instruct"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -256,9 +258,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # nm-testing nonuniform quantized variants
-        ModelVariant.LLAMA_3_8B_INSTRUCT_NONUNIFORM: LLMModelConfig(
-            pretrained_model_name="nm-testing/Meta-Llama-3-8B-Instruct-nonuniform-test",
+        # ShahriarFerdoush variants
+        ModelVariant.SHAHRIARFERDOUSH_LLAMA_3_2_1B_CODE_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="ShahriarFerdoush/llama-3.2-1b-code-instruct",
             max_length=128,
         ),
     }
@@ -337,6 +339,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
+            ModelVariant.SHAHRIARFERDOUSH_LLAMA_3_2_1B_CODE_INSTRUCT,
         ]:
             group = ModelGroup.VULCAN
         else:
@@ -619,7 +622,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_2_7B_CHAT,
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
-            ModelVariant.UNSLOTH_LLAMA_3_2_3B,
+            ModelVariant.SHAHRIARFERDOUSH_LLAMA_3_2_1B_CODE_INSTRUCT,
         ]:
             return None
 
