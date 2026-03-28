@@ -5,10 +5,8 @@
 """
 Distil-Whisper model loader implementation for speech recognition (ASR).
 
-Note: The distil-large-v3.5-ct2 model is a CTranslate2-quantized version of
-distil-whisper/distil-large-v3.5. Since CTranslate2 format is not compatible
-with PyTorch, this loader uses the base distil-whisper model via
-WhisperForConditionalGeneration.
+Distil-Whisper distil-medium.en is a distilled version of Whisper medium,
+optimized for English speech recognition with reduced decoder layers.
 """
 
 from typing import Optional
@@ -31,19 +29,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Distil-Whisper speech recognition model variants."""
 
-    LARGE_V3_5_CT2 = "Large_v3_5_ct2"
+    DISTIL_MEDIUM_EN = "Distil_Medium_En"
 
 
 class ModelLoader(ForgeModel):
     """Distil-Whisper model loader implementation for speech recognition (ASR)."""
 
     _VARIANTS = {
-        ModelVariant.LARGE_V3_5_CT2: ModelConfig(
-            pretrained_model_name="distil-whisper/distil-large-v3.5",
+        ModelVariant.DISTIL_MEDIUM_EN: ModelConfig(
+            pretrained_model_name="distil-whisper/distil-medium.en",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE_V3_5_CT2
+    DEFAULT_VARIANT = ModelVariant.DISTIL_MEDIUM_EN
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -55,11 +53,12 @@ class ModelLoader(ForgeModel):
 
         super().__init__(variant)
         self._processor = None
+        self._model = None
         self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Method for getting model info with validated variant.
+        """Get model information for dashboard and metrics reporting.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
@@ -81,22 +80,6 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
-        """Load audio processor for the current variant.
-
-        Args:
-            dtype_override: Optional dtype to override the processor's default dtype.
-
-        Returns:
-            processor: The loaded audio processor instance
-        """
-
-        from transformers import WhisperProcessor
-
-        self._processor = WhisperProcessor.from_pretrained(self._model_name)
-
-        return self._processor
-
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Distil-Whisper model instance.
 
@@ -107,20 +90,22 @@ class ModelLoader(ForgeModel):
             model: The loaded model instance
         """
 
-        from transformers import WhisperForConditionalGeneration
+        from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = WhisperForConditionalGeneration.from_pretrained(
+        self._model = WhisperForConditionalGeneration.from_pretrained(
             self._model_name, use_cache=False, **model_kwargs
         )
-        model.eval()
+        self._processor = WhisperProcessor.from_pretrained(self._model_name)
+
+        self._model.eval()
         if dtype_override is not None:
-            model.to(dtype_override)
-        return model
+            self._model.to(dtype_override)
+        return self._model
 
     def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the Distil-Whisper model.
@@ -134,8 +119,10 @@ class ModelLoader(ForgeModel):
 
         from transformers import WhisperConfig
 
-        if self._processor is None:
-            self._load_processor(dtype_override=dtype_override)
+        if self._model is None or self._processor is None:
+            self.load_model(dtype_override=dtype_override)
+
+        whisper_config = WhisperConfig.from_pretrained(self._model_name)
 
         # Generate synthetic 30-second audio at 16kHz to match Whisper's receptive field
         sampling_rate = 16000
@@ -144,20 +131,22 @@ class ModelLoader(ForgeModel):
             np.float32
         )
 
-        whisper_config = WhisperConfig.from_pretrained(self._model_name)
+        model_param = next(self._model.parameters())
+        device = model_param.device
+        dtype = dtype_override or model_param.dtype
 
         inputs = self._processor(
             audio_array,
             sampling_rate=sampling_rate,
             return_tensors="pt",
         )
-        input_features = inputs.input_features
-        if dtype_override is not None:
-            input_features = input_features.to(dtype=dtype_override)
 
+        input_features = inputs.input_features.to(device=device, dtype=dtype)
         decoder_input_ids = torch.full(
             (1, 2),
             whisper_config.decoder_start_token_id,
             dtype=torch.long,
+            device=device,
         )
+
         return [input_features, decoder_input_ids]
