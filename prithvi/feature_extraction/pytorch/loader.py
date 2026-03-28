@@ -125,8 +125,7 @@ class ModelLoader(ForgeModel):
             batch_size: Batch size for the inputs.
 
         Returns:
-            tuple: (input_tensor, temporal_coords, location_coords) matching the
-                   model's forward signature.
+            dict: Input tensors matching the model's forward signature.
         """
         # Model expects input shape: (B, C, T, H, W)
         # C=6 bands (B02, B03, B04, B05, B06, B07)
@@ -135,10 +134,10 @@ class ModelLoader(ForgeModel):
         num_frames = 4
         img_size = 224
 
-        input_tensor = torch.randn(batch_size, in_chans, num_frames, img_size, img_size)
+        pixel_values = torch.randn(batch_size, in_chans, num_frames, img_size, img_size)
 
         if dtype_override is not None:
-            input_tensor = input_tensor.to(dtype_override)
+            pixel_values = pixel_values.to(dtype_override)
 
         # Temporal coordinates: (year, julian_day) per time step
         temporal_coords = torch.tensor(
@@ -148,4 +147,8 @@ class ModelLoader(ForgeModel):
         # Location coordinates: (longitude, latitude)
         location_coords = torch.tensor([[-103.0, 25.0]], dtype=torch.float).unsqueeze(0)
 
-        return input_tensor, temporal_coords, location_coords
+        return {
+            "pixel_values": pixel_values,
+            "temporal_coords": temporal_coords,
+            "location_coords": location_coords,
+        }
