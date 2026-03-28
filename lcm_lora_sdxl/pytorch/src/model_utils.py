@@ -5,7 +5,7 @@
 Helper functions for LCM-LoRA SDXL model loading and processing.
 """
 
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 from diffusers import AutoPipelineForText2Image, LCMScheduler
