@@ -19,6 +19,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -82,7 +83,8 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        image = Image.new("RGB", (384, 384))
+        image_path = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
+        image = Image.open(str(image_path)).convert("RGB")
 
         inputs = self.processor(images=image, return_tensors="pt")
 
