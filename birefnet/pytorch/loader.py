@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     """Available BiRefNet model variants."""
 
     BIREFNET = "BiRefNet"
+    BIREFNET_PORTRAIT = "BiRefNet-portrait"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BIREFNET: ModelConfig(
             pretrained_model_name="ZhengPeng7/BiRefNet",
+        ),
+        ModelVariant.BIREFNET_PORTRAIT: ModelConfig(
+            pretrained_model_name="ZhengPeng7/BiRefNet-portrait",
         ),
     }
 
