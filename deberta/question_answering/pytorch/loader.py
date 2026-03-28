@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa v3 model loader implementation for question answering.
+DeBERTa model loader implementation for question answering.
 """
 
 from typing import Optional
@@ -20,24 +20,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available DeBERTa v3 question answering model variants."""
+    """Available DeBERTa question answering model variants."""
 
-    DEEPSET_DEBERTA_V3_BASE_SQUAD2 = "deepset_deberta_v3_base_squad2"
+    DEEPSET_DEBERTA_V3_LARGE_SQUAD2 = "deepset_deberta_v3_large_squad2"
 
 
 class ModelLoader(ForgeModel):
-    """DeBERTa v3 model loader implementation for question answering tasks."""
+    """DeBERTa model loader implementation for question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.DEEPSET_DEBERTA_V3_BASE_SQUAD2: LLMModelConfig(
-            pretrained_model_name="deepset/deberta-v3-base-squad2",
+        ModelVariant.DEEPSET_DEBERTA_V3_LARGE_SQUAD2: LLMModelConfig(
+            pretrained_model_name="deepset/deberta-v3-large-squad2",
             max_length=384,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEEPSET_DEBERTA_V3_BASE_SQUAD2
+    DEFAULT_VARIANT = ModelVariant.DEEPSET_DEBERTA_V3_LARGE_SQUAD2
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    def __init__(self, variant=None):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
@@ -52,12 +52,12 @@ class ModelLoader(ForgeModel):
         self.question = "Which NFL team represented the AFC at Super Bowl 50?"
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name=None):
+        if variant_name is None:
+            variant_name = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="DeBERTa",
-            variant=variant,
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_QA,
             source=ModelSource.HUGGING_FACE,
