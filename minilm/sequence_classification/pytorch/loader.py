@@ -6,7 +6,9 @@ MiniLM model loader implementation for sequence classification.
 """
 
 from transformers import BertForSequenceClassification, BertTokenizer
-from third_party.tt_forge_models.config import (
+
+from ....base import ForgeModel
+from ....config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -15,7 +17,6 @@ from third_party.tt_forge_models.config import (
     StrEnum,
     LLMModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
