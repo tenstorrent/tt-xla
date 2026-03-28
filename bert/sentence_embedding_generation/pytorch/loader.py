@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     BIOBERT_V1_1 = "dmis-lab/biobert-v1.1"
     TINYBERT_L4_H312_V2 = "nreimers/TinyBERT_L-4_H-312_v2"
     MOKA_AI_M3E_SMALL = "moka-ai/m3e-small"
+    DEEPPAVLOV_RUBERT_BASE_CASED_SENTENCE = "DeepPavlov/rubert-base-cased-sentence"
 
 
 class ModelLoader(ForgeModel):
@@ -57,6 +58,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MOKA_AI_M3E_SMALL: LLMModelConfig(
             pretrained_model_name="moka-ai/m3e-small",
+            max_length=128,
+        ),
+        ModelVariant.DEEPPAVLOV_RUBERT_BASE_CASED_SENTENCE: LLMModelConfig(
+            pretrained_model_name="DeepPavlov/rubert-base-cased-sentence",
             max_length=128,
         ),
     }
@@ -99,6 +104,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
             ModelVariant.MOKA_AI_M3E_SMALL: ModelGroup.VULCAN,
+            ModelVariant.DEEPPAVLOV_RUBERT_BASE_CASED_SENTENCE: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
