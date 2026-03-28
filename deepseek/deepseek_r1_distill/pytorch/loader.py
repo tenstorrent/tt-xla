@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
 
     DISTILL_QWEN_1_5B = "Distill_Qwen_1_5B"
     DISTILL_QWEN_7B = "Distill_Qwen_7B"
+    DISTILL_QWEN_7B_UNSLOTH_BNB_4BIT = "Distill_Qwen_7B_unsloth_bnb_4bit"
     DISTILL_QWEN_14B = "Distill_Qwen_14B"
     DISTILL_LLAMA_8B = "Distill_Llama_8B"
 
@@ -43,6 +44,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DISTILL_QWEN_7B: LLMModelConfig(
             pretrained_model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+            max_length=2048,
+        ),
+        ModelVariant.DISTILL_QWEN_7B_UNSLOTH_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/DeepSeek-R1-Distill-Qwen-7B-unsloth-bnb-4bit",
             max_length=2048,
         ),
         ModelVariant.DISTILL_QWEN_14B: LLMModelConfig(
@@ -94,6 +99,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
+
+        # Quantized variants need device_map="cpu" for CPU-based loading
+        if self._variant in (ModelVariant.DISTILL_QWEN_7B_UNSLOTH_BNB_4BIT,):
+            model_kwargs["device_map"] = "cpu"
 
         model = AutoModelForCausalLM.from_pretrained(
             self._variant_config.pretrained_model_name, **model_kwargs
