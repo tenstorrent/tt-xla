@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     TEICHAI_QWEN_3_14B_CLAUDE_DISTILL_GGUF = "TeichAI_14B_Claude_Distill_GGUF"
     LMSTUDIO_QWEN_3_8B_GGUF = "lmstudio_Qwen3_8B_GGUF"
+    UNSLOTH_QWEN_3_4B_THINKING_2507_GGUF = "unsloth_Qwen3_4B_Thinking_2507_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="lmstudio-community/Qwen3-8B-GGUF",
             max_length=128,
         ),
+        ModelVariant.UNSLOTH_QWEN_3_4B_THINKING_2507_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-4B-Thinking-2507-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TEICHAI_QWEN_3_14B_CLAUDE_DISTILL_GGUF
@@ -46,6 +51,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.TEICHAI_QWEN_3_14B_CLAUDE_DISTILL_GGUF: "Qwen3-14B-Claude-4.5-Opus-Distill.q4_k_m.gguf",
         ModelVariant.LMSTUDIO_QWEN_3_8B_GGUF: "Qwen3-8B-Q4_K_M.gguf",
+        ModelVariant.UNSLOTH_QWEN_3_4B_THINKING_2507_GGUF: "Qwen3-4B-Thinking-2507-Q4_K_M.gguf",
     }
 
     sample_text = "Give me a short introduction to large language models."
