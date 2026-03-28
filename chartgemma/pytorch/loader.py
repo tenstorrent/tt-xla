@@ -40,7 +40,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.CHARTGEMMA_3B
 
-    sample_image = "https://raw.githubusercontent.com/vis-nlp/ChartQA/main/ChartQA%20Dataset/test/png/multi_col_1229.png"
+    sample_image = "https://raw.githubusercontent.com/vis-nlp/ChartQA/main/ChartQA%20Dataset/val/png/multi_col_1229.png"
     sample_text = "What is the title of the chart?"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
