@@ -51,7 +51,7 @@ def cogvideox_preprocessing(pipe, prompt, device="cpu", num_inference_steps=1):
         tuple: (latent_model_input, timestep, prompt_embeds)
     """
     # Encode prompt using the pipeline's text encoder
-    prompt_embeds = pipe.encode_prompt(
+    prompt_embeds, _ = pipe.encode_prompt(
         prompt=prompt,
         negative_prompt=None,
         do_classifier_free_guidance=False,
