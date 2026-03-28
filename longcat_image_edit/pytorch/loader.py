@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LongCat-Image-Edit model loader implementation for image editing
-"""
-import torch
-from PIL import Image
-from typing import Optional
+LongCat-Image-Edit model loader implementation for image editing.
 
+Uses the LongCatImageEditPipeline from diffusers with the
+LongCatImageTransformer2DModel diffusion transformer.
+"""
+from typing import Any, Optional
+
+import torch
 from diffusers import LongCatImageEditPipeline
 
 from ...base import ForgeModel
@@ -75,27 +77,40 @@ class ModelLoader(ForgeModel):
 
         return self.pipe.transformer
 
-    def load_inputs(self, dtype_override=None):
-        if self.pipe is None:
-            self._load_pipeline(dtype_override=dtype_override)
+    def load_inputs(self, **kwargs) -> Any:
+        """Prepare sample inputs for the LongCatImageTransformer2DModel.
 
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
+        Returns a dict matching the transformer's forward() signature.
+        """
+        dtype = kwargs.get("dtype_override", torch.bfloat16)
+        batch_size = kwargs.get("batch_size", 1)
 
-        # Create a simple test image
-        img = Image.new("RGB", (256, 256), color=(128, 128, 128))
+        # From transformer config: in_channels=64
+        img_dim = 64
+        # joint_attention_dim=3584
+        text_dim = 3584
+        # pooled_projection_dim=3584
+        pooled_dim = 3584
 
-        prompt = "Turn the background into a sunset"
+        txt_seq_len = 32
+        # img_seq_len for a small latent spatial size
+        height, width = 8, 8
+        img_seq_len = height * width
 
-        # Use the pipeline's encode methods to generate model inputs
-        inputs = self.pipe(
-            img,
-            prompt,
-            negative_prompt="",
-            guidance_scale=4.5,
-            num_inference_steps=1,
-            num_images_per_prompt=1,
-            generator=torch.Generator("cpu").manual_seed(43),
-            output_type="latent",
+        hidden_states = torch.randn(batch_size, img_seq_len, img_dim, dtype=dtype)
+        encoder_hidden_states = torch.randn(
+            batch_size, txt_seq_len, text_dim, dtype=dtype
         )
+        pooled_projections = torch.randn(batch_size, pooled_dim, dtype=dtype)
+        timestep = torch.tensor([500.0] * batch_size, dtype=dtype)
+        txt_ids = torch.zeros(txt_seq_len, 3, dtype=dtype)
+        img_ids = torch.zeros(img_seq_len, 3, dtype=dtype)
 
-        return inputs
+        return {
+            "hidden_states": hidden_states,
+            "encoder_hidden_states": encoder_hidden_states,
+            "pooled_projections": pooled_projections,
+            "timestep": timestep,
+            "txt_ids": txt_ids,
+            "img_ids": img_ids,
+        }
