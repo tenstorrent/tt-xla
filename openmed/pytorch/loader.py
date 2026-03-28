@@ -21,11 +21,13 @@ from ...base import ForgeModel
 _VARIANT_SAMPLE_TEXTS = {
     "ZeroShot-NER-Species-Small-166M": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
     "ZeroShot-NER-DNA-Medium-209M": "The p53 protein plays a crucial role in tumor suppression.",
+    "ZeroShot-NER-Species-Medium-209M": "Escherichia coli bacteria were found in the water samples alongside Staphylococcus aureus.",
 }
 
 _VARIANT_LABELS = {
     "ZeroShot-NER-Species-Small-166M": ["SPECIES"],
     "ZeroShot-NER-DNA-Medium-209M": ["DNA", "RNA", "cell_line", "cell_type", "protein"],
+    "ZeroShot-NER-Species-Medium-209M": ["SPECIES"],
 }
 
 
@@ -35,6 +37,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_TINY = "ZeroShot-NER-Pharma-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_DNA_MEDIUM = "ZeroShot-NER-DNA-Medium-209M"
+    OPENMED_ZEROSHOT_NER_SPECIES_MEDIUM = "ZeroShot-NER-Species-Medium-209M"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +58,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_DNA_MEDIUM: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-Medium-209M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_MEDIUM: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Medium-209M"
         ),
     }
 
