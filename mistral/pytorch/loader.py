@@ -35,7 +35,7 @@ class ModelVariant(StrEnum):
     MISTRAL_7B_INSTRUCT_V03 = "7B_INSTRUCT_v03"
     MINISTRAL_3B = "Ministral_3B_Instruct"
     MINISTRAL_8B = "Ministral_8B_Instruct"
-    MINISTRAL_14B_REASONING = "Ministral_14B_Reasoning"
+    MISTRAL_SMALL_24B_BASE_2501 = "Small_24B_BASE_2501"
     MISTRAL_SMALL_24B_INSTRUCT_2501 = "Small_24B_INSTRUCT_2501"
     MISTRAL_SMALL_24B_INSTRUCT_2501_FP8_DYNAMIC = "Small_24B_INSTRUCT_2501_FP8_Dynamic"
     MISTRAL_LARGE_INSTRUCT_2411 = "Large_INSTRUCT_2411"
@@ -91,8 +91,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MINISTRAL_8B: ModelConfig(
             pretrained_model_name="mistralai/Ministral-8B-Instruct-2410",
         ),
-        ModelVariant.MINISTRAL_14B_REASONING: ModelConfig(
-            pretrained_model_name="mistralai/Ministral-3-14B-Reasoning-2512",
+        ModelVariant.MISTRAL_SMALL_24B_BASE_2501: ModelConfig(
+            pretrained_model_name="mistralai/Mistral-Small-24B-Base-2501",
         ),
         ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Small-24B-Instruct-2501",
@@ -174,6 +174,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02_BNB_4BIT,
             ModelVariant.MISTRAL_V03_TINY_RANDOM,
+            ModelVariant.MISTRAL_SMALL_24B_BASE_2501,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
