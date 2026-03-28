@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ANATOMYDETECT_MULTIMED_568M = "NER-AnatomyDetect-MultiMed-568M"
     OPENMED_NER_DNADETECT_MULTIMED_568M = "NER-DNADetect-MultiMed-568M"
     OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M = "NER-PathologyDetect-BioPatient-108M"
+    OPENMED_NER_PROTEINDETECT_MODERNMED_395M = "NER-ProteinDetect-ModernMed-395M"
     OPENMED_PII_ITALIAN_CLINICALLONGFORMER_BASE_149M_V1 = (
         "PII-Italian-ClinicalLongformer-Base-149M-v1"
     )
@@ -48,6 +49,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-BioPatient-108M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_NER_PROTEINDETECT_MODERNMED_395M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ModernMed-395M",
+            max_length=128,
+        ),
         ModelVariant.OPENMED_PII_ITALIAN_CLINICALLONGFORMER_BASE_149M_V1: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-Italian-ClinicalLongformer-Base-149M-v1",
             max_length=128,
@@ -60,6 +65,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_ANATOMYDETECT_MULTIMED_568M: "The patient complained of pain in the left ventricle region.",
         ModelVariant.OPENMED_NER_DNADETECT_MULTIMED_568M: "The p53 protein plays a crucial role in tumor suppression.",
         ModelVariant.OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M: "Early detection of breast cancer improves survival rates.",
+        ModelVariant.OPENMED_NER_PROTEINDETECT_MODERNMED_395M: "The BRCA1 protein and p53 are involved in DNA damage response and tumor suppression pathways.",
         ModelVariant.OPENMED_PII_ITALIAN_CLINICALLONGFORMER_BASE_149M_V1: "Dr. Marco Rossi può essere contattato a marco.rossi@ospedale.it o al +39 333 123 4567.",
     }
 
