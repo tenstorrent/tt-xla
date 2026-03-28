@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     """Available LLaVA-NeXT model variants."""
 
     LLAVA_V1_6_MISTRAL_7B = "v1.6_Mistral_7B"
+    LLAVA_V1_6_VICUNA_13B = "v1.6_Vicuna_13B"
     TINY_RANDOM = "tiny_random"
 
 
@@ -36,6 +37,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LLAVA_V1_6_MISTRAL_7B: ModelConfig(
             pretrained_model_name="llava-hf/llava-v1.6-mistral-7b-hf",
+        ),
+        ModelVariant.LLAVA_V1_6_VICUNA_13B: ModelConfig(
+            pretrained_model_name="llava-hf/llava-v1.6-vicuna-13b-hf",
         ),
         ModelVariant.TINY_RANDOM: ModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-llava-next",
