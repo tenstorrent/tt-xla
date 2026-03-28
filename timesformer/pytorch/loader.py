@@ -9,7 +9,6 @@ from typing import Optional
 from dataclasses import dataclass
 
 import numpy as np
-import torch
 from transformers import AutoImageProcessor, TimesformerForVideoClassification
 
 from ...config import (
