@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     """Available Florence-2 image captioning model variants."""
 
     BASE = "Base"
+    BASE_FT = "Base_Ft"
     LARGE = "Large"
     COMMUNITY_BASE = "Community_Base"
 
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE: ModelConfig(
             pretrained_model_name="microsoft/Florence-2-base",
+        ),
+        ModelVariant.BASE_FT: ModelConfig(
+            pretrained_model_name="microsoft/Florence-2-base-ft",
         ),
         ModelVariant.LARGE: ModelConfig(
             pretrained_model_name="microsoft/Florence-2-large",
