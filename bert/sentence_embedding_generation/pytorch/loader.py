@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     TINYBERT_L4_H312_V2 = "nreimers/TinyBERT_L-4_H-312_v2"
     TINYBERT_GENERAL_4L_312D = "huawei-noah/TinyBERT_General_4L_312D"
     PRAJJWAL1_BERT_SMALL = "prajjwal1/bert-small"
+    EPWALSH_BERT_XSMALL_DUMMY = "epwalsh/bert-xsmall-dummy"
 
 
 class ModelLoader(ForgeModel):
@@ -62,6 +63,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.PRAJJWAL1_BERT_SMALL: LLMModelConfig(
             pretrained_model_name="prajjwal1/bert-small",
+            max_length=128,
+        ),
+        ModelVariant.EPWALSH_BERT_XSMALL_DUMMY: LLMModelConfig(
+            pretrained_model_name="epwalsh/bert-xsmall-dummy",
             max_length=128,
         ),
     }
@@ -105,6 +110,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_GENERAL_4L_312D: ModelGroup.VULCAN,
             ModelVariant.PRAJJWAL1_BERT_SMALL: ModelGroup.VULCAN,
+            ModelVariant.EPWALSH_BERT_XSMALL_DUMMY: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
