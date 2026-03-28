@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_DISEASE_SMALL = "ZeroShot-NER-Disease-Small-166M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE = "ZeroShot-NER-Oncology-XLarge-770M"
+    OPENMED_ZEROSHOT_NER_PHARMA_SMALL = "ZeroShot-NER-Pharma-Small-166M"
 
 
 class ModelLoader(ForgeModel):
@@ -49,6 +50,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-XLarge-770M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_SMALL: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pharma-Small-166M"
         ),
     }
 
@@ -96,7 +100,10 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_TINY:
+        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_SMALL:
+            text = "The patient was prescribed metformin and atorvastatin for chronic disease management."
+            labels = ["CHE"]
+        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_TINY:
             text = "The patient was administered acetylsalicylic acid for pain relief."
             labels = ["CHEM"]
         elif self._variant in (
