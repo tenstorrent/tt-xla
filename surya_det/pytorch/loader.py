@@ -7,7 +7,6 @@ Surya Det2 model loader implementation for text detection
 
 import torch
 from transformers import SegformerImageProcessor, SegformerForSemanticSegmentation
-from PIL import Image
 from datasets import load_dataset
 from typing import Optional
 
