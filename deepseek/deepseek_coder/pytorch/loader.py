@@ -29,7 +29,7 @@ class ModelVariant(StrEnum):
 
     DEEPSEEK_1_3B_BASE = "1_3B_Base"
     DEEPSEEK_1_3B_INSTRUCT = "1_3B_Instruct"
-    DEEPSEEK_33B_INSTRUCT_GGUF = "33B_Instruct_GGUF"
+    DEEPSEEK_6_7B_INSTRUCT = "6_7B_Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -45,15 +45,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="deepseek-ai/deepseek-coder-1.3b-instruct",
             max_length=2048,
         ),
-        ModelVariant.DEEPSEEK_33B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="TheBloke/deepseek-coder-33B-instruct-GGUF",
+        ModelVariant.DEEPSEEK_6_7B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="deepseek-ai/deepseek-coder-6.7b-instruct",
             max_length=2048,
         ),
-    }
-
-    # GGUF files for quantized variants
-    _GGUF_FILES = {
-        ModelVariant.DEEPSEEK_33B_INSTRUCT_GGUF: "deepseek-coder-33b-instruct.Q4_K_M.gguf",
     }
 
     # Default variant to use
@@ -83,16 +78,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant.
         """
-        if variant == ModelVariant.DEEPSEEK_1_3B_BASE:
-            group = ModelGroup.VULCAN
-        else:
-            group = ModelGroup.GENERALITY
+        variant_groups = {
+            ModelVariant.DEEPSEEK_6_7B_INSTRUCT: ModelGroup.VULCAN,
+        }
 
         return ModelInfo(
             model="DeepSeek",
             variant=variant,
-            group=group,
-            task=ModelTask.NLP_CAUSAL_LM,
+            group=variant_groups.get(variant, ModelGroup.GENERALITY),
+            task=ModelTask.NLP_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
