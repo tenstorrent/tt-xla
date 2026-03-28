@@ -65,6 +65,9 @@ class ModelVariant(StrEnum):
     # NVIDIA NVFP4 quantized variants
     LLAMA_3_1_8B_INSTRUCT_NVFP4 = "3.1_8B_Instruct_Nvfp4"
 
+    # Unsloth BnB 4-bit quantized variants
+    LLAMA_3_1_8B_INSTRUCT_UNSLOTH_BNB_4BIT = "3.1_8B_Instruct_Unsloth_Bnb_4bit"
+
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
 
@@ -157,6 +160,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nvidia/Llama-3.1-8B-Instruct-NVFP4",
             max_length=128,
         ),
+        # Unsloth BnB 4-bit quantized variants
+        ModelVariant.LLAMA_3_1_8B_INSTRUCT_UNSLOTH_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Llama-3.1-8B-Instruct-unsloth-bnb-4bit",
+            max_length=128,
+        ),
         # Llama 3.3 variants
         ModelVariant.LLAMA_3_3_70B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Llama-3.3-70B-Instruct",
@@ -239,6 +247,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_NVFP4,
+            ModelVariant.LLAMA_3_1_8B_INSTRUCT_UNSLOTH_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -329,10 +338,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is a quantized variant and configure accordingly
+        # Check if this is a quantized variant that needs CPU device map
         if pretrained_model_name in (
             "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "unsloth/Llama-3.2-3B-Instruct-unsloth-bnb-4bit",
+            "unsloth/Llama-3.1-8B-Instruct-unsloth-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
 
