@@ -26,6 +26,9 @@ class ModelVariant(StrEnum):
     MULTILINGUAL_MINILMV2_L6_MNLI_XNLI = (
         "MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli"
     )
+    XLM_ROBERTA_LARGE_POOLED_CAP_MINOR_V5 = (
+        "poltextlab/xlm-roberta-large-pooled-cap-minor-v5"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +41,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MULTILINGUAL_MINILMV2_L6_MNLI_XNLI: LLMModelConfig(
             pretrained_model_name="MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli",
+            max_length=128,
+        ),
+        ModelVariant.XLM_ROBERTA_LARGE_POOLED_CAP_MINOR_V5: LLMModelConfig(
+            pretrained_model_name="poltextlab/xlm-roberta-large-pooled-cap-minor-v5",
             max_length=128,
         ),
     }
