@@ -6,7 +6,6 @@ NCI Binary Detector model loader implementation for sequence classification.
 """
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from typing import Optional
 
 from ....config import (
     ModelInfo,
