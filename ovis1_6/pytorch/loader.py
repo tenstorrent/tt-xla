@@ -26,19 +26,19 @@ from ...tools.utils import get_file, cast_input_to_type
 class ModelVariant(StrEnum):
     """Available Ovis1.6 model variants."""
 
-    OVIS1_6_LLAMA3_2_3B = "Llama3.2-3B"
+    OVIS1_6_GEMMA2_9B = "Gemma2-9B"
 
 
 class ModelLoader(ForgeModel):
     """Ovis1.6 model loader for multimodal conditional generation."""
 
     _VARIANTS = {
-        ModelVariant.OVIS1_6_LLAMA3_2_3B: ModelConfig(
-            pretrained_model_name="AIDC-AI/Ovis1.6-Llama3.2-3B",
+        ModelVariant.OVIS1_6_GEMMA2_9B: ModelConfig(
+            pretrained_model_name="AIDC-AI/Ovis1.6-Gemma2-9B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OVIS1_6_LLAMA3_2_3B
+    DEFAULT_VARIANT = ModelVariant.OVIS1_6_GEMMA2_9B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
