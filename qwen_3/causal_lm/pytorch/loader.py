@@ -47,6 +47,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_BASE = "30B_A3B_Base"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
+    QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT = "30B_A3B_Instruct_2507_MLX_6bit"
     QWEN_3_4B_Z_IMAGE_TURBO_ABLITERATED_V1 = "4B_Z_Image_Turbo_AbliteratedV1"
@@ -138,6 +139,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-30B-A3B-Thinking-2507-FP8",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4: LLMModelConfig(
+            pretrained_model_name="JunHowie/Qwen3-30B-A3B-Instruct-2507-GPTQ-Int4",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_14B_AWQ: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
@@ -204,6 +209,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
+            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT,
             ModelVariant.QWEN_3_4B_Z_IMAGE_TURBO_ABLITERATED_V1,
@@ -274,8 +280,11 @@ class ModelLoader(ForgeModel):
         if self._variant in self._NVFP4_VARIANTS:
             model_kwargs["ignore_mismatched_sizes"] = True
 
-        # Check if this is an AWQ variant and configure accordingly
-        if pretrained_model_name in ("Qwen/Qwen3-8B-AWQ",):
+        # Check if this is a quantized variant (AWQ/GPTQ) and configure accordingly
+        if pretrained_model_name in (
+            "Qwen/Qwen3-8B-AWQ",
+            "JunHowie/Qwen3-30B-A3B-Instruct-2507-GPTQ-Int4",
+        ):
             model_kwargs["device_map"] = "cpu"
 
         # NVFP4 variants require ignore_mismatched_sizes because the packed
@@ -345,7 +354,7 @@ class ModelLoader(ForgeModel):
                 ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_5BIT,
                 ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
                 ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-                ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT,
+                ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
                 ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
             )
             text = self.tokenizer.apply_chat_template(
@@ -399,6 +408,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
+            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
         )
 
