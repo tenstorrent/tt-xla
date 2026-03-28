@@ -21,6 +21,7 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available DeBERTa model variants for masked language modeling."""
 
+    DEBERTA_V3_XSMALL = "V3_XSmall"
     DEBERTA_V3_SMALL = "V3_Small"
     DEBERTA_V3_BASE = "V3_Base"
     DEBERTA_V3_LARGE = "V3_Large"
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     """DeBERTa model loader implementation for masked language modeling."""
 
     _VARIANTS = {
+        ModelVariant.DEBERTA_V3_XSMALL: LLMModelConfig(
+            pretrained_model_name="microsoft/deberta-v3-xsmall",
+            max_length=128,
+        ),
         ModelVariant.DEBERTA_V3_SMALL: LLMModelConfig(
             pretrained_model_name="microsoft/deberta-v3-small",
             max_length=128,
