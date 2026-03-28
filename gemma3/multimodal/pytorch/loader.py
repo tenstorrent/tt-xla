@@ -37,7 +37,7 @@ class ModelVariant(StrEnum):
         "DavidAU/Gemma-3-4B-VL-it-Gemini-Pro-Heretic-Uncensored-Thinking"
     )
     GEMMA_3_12B_IT = "google/gemma-3-12b-it"
-    GEMMA_3_12B_IT_NVFP4 = "NeoChen1024/gemma-3-12b-it-NVFP4"
+    GEMMA_3_12B_IT_BNB_4BIT = "unsloth/gemma-3-12b-it-unsloth-bnb-4bit"
     GEMMA_3_27B_IT = "google/gemma-3-27b-it"
     GEMMA_3_27B_IT_AWQ_INT4 = "gaunernst/gemma-3-27b-it-int4-awq"
 
@@ -58,8 +58,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.GEMMA_3_12B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT),
         ),
-        ModelVariant.GEMMA_3_12B_IT_NVFP4: LLMModelConfig(
-            pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT_NVFP4),
+        ModelVariant.GEMMA_3_12B_IT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT_BNB_4BIT),
         ),
         ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_27B_IT),
@@ -82,7 +82,7 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-        if variant == ModelVariant.GEMMA_3_12B_IT_NVFP4:
+        if variant == ModelVariant.GEMMA_3_12B_IT_BNB_4BIT:
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["12b", "27b"]):
             group = ModelGroup.RED
@@ -137,6 +137,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
+
+        is_bnb = "bnb-4bit" in pretrained_model_name
+        if is_bnb:
+            model_kwargs["device_map"] = "cpu"
 
         is_mlx = "mlx-community" in pretrained_model_name
         is_awq = self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4
@@ -242,7 +246,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GEMMA_3_4B_IT,
             ModelVariant.GEMMA_3_4B_IT_QAT_4BIT,
             ModelVariant.GEMMA_3_12B_IT,
-            ModelVariant.GEMMA_3_12B_IT_NVFP4,
+            ModelVariant.GEMMA_3_12B_IT_BNB_4BIT,
         ]:
             assert (
                 self.config.text_config.num_attention_heads % mesh_shape[1] == 0
