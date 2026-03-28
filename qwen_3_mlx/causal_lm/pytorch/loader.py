@@ -23,20 +23,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 MLX model variants for causal language modeling."""
 
-    QWEN_3_4B_INSTRUCT_2507_MLX_4BIT = "4B_Instruct_2507_MLX_4bit"
+    QWEN_3_1_7B_MLX_4BIT = "1_7B_MLX_4bit"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 MLX model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-4B-Instruct-2507-MLX-4bit",
+        ModelVariant.QWEN_3_1_7B_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-1.7B-MLX-4bit",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_4BIT
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_1_7B_MLX_4BIT
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -81,13 +81,15 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
+            if hasattr(config, "text_config"):
+                config.text_config.num_hidden_layers = self.num_layers
+            else:
+                config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
-
-        model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
@@ -108,7 +110,7 @@ class ModelLoader(ForgeModel):
             messages,
             tokenize=False,
             add_generation_prompt=True,
-            enable_thinking=False,
+            enable_thinking=True,
         )
         prompts = [text]
 
