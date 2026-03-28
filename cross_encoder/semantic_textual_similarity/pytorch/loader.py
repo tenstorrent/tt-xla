@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Cross-Encoder model variants for semantic textual similarity."""
 
-    STSB_ROBERTA_LARGE = "stsb-roberta-large"
+    STSB_TINYBERT_L4 = "stsb-TinyBERT-L4"
 
 
 class ModelLoader(ForgeModel):
@@ -31,15 +31,15 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.STSB_ROBERTA_LARGE: ModelConfig(
-            pretrained_model_name="cross-encoder/stsb-roberta-large",
+        ModelVariant.STSB_TINYBERT_L4: ModelConfig(
+            pretrained_model_name="cross-encoder/stsb-TinyBERT-L4",
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.STSB_ROBERTA_LARGE
+    DEFAULT_VARIANT = ModelVariant.STSB_TINYBERT_L4
 
-    # Sample sentence pairs for semantic textual similarity testing
+    # Sample sentence pairs for testing semantic similarity
     sample_pairs = [
         (
             "A man is eating food.",
