@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Prithvi-EO-2.0 PyTorch model implementation for Tenstorrent projects.
+Prithvi-EO PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
