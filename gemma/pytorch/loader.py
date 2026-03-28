@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     GEMMA_2_2B_JPN_IT = "2_2B_JPN_IT"
     GEMMA_2_9B_IT = "2_9B_IT"
     GEMMA_2_27B_IT = "2_27B_IT"
+    GEMMA_2_2B_IT_MLX_4BIT = "2_2B_IT_MLX_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -72,6 +73,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.GEMMA_2_27B_IT: LLMModelConfig(
             pretrained_model_name="google/gemma-2-27b-it",
         ),
+        ModelVariant.GEMMA_2_2B_IT_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/gemma-2-2b-it-4bit",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GEMMA_1_1_2B_IT
@@ -100,7 +104,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         # Instruct and larger models are RED, others generality
-        if variant == ModelVariant.GEMMA_2B_IT:
+        if variant in (ModelVariant.GEMMA_2B_IT, ModelVariant.GEMMA_2_2B_IT_MLX_4BIT):
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["IT", "7B", "9B", "27B"]):
             group = ModelGroup.RED
@@ -229,6 +233,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GEMMA_2_2B,
             ModelVariant.GEMMA_2_2B_IT,
             ModelVariant.GEMMA_2_2B_JPN_IT,
+            ModelVariant.GEMMA_2_2B_IT_MLX_4BIT,
         ]:
             assert (
                 self.config.num_attention_heads % mesh_shape[1] == 0
@@ -243,6 +248,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GEMMA_2_2B,
             ModelVariant.GEMMA_2_2B_IT,
             ModelVariant.GEMMA_2_2B_JPN_IT,
+            ModelVariant.GEMMA_2_2B_IT_MLX_4BIT,
         ]:
             return None
 
