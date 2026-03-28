@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     ROBERTA_LARGE_MNLI = "Large_MNLI"
     ROBERTA_LARGE_NLI = "Large_NLI"
     FTROBERTALLM = "FtRoBERTaLLM"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -47,6 +48,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.FTROBERTALLM: ModelConfig(
             pretrained_model_name="zhx123/ftrobertallm",
+        ),
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="peft-internal-testing/tiny-random-RobertaForSequenceClassification",
         ),
     }
 
@@ -72,6 +76,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.ROBERTA_LARGE_MNLI,
             ModelVariant.ROBERTA_LARGE_NLI,
             ModelVariant.FTROBERTALLM,
+            ModelVariant.TINY_RANDOM,
         ):
             group = ModelGroup.VULCAN
 
