@@ -228,14 +228,6 @@ class ModelLoader(ForgeModel):
         if self._is_gguf_variant():
             model_kwargs["gguf_file"] = self._gguf_file
 
-        # GPTQ variants need device_map="cpu" for CPU-based loading
-        if self._variant in (ModelVariant.QWEN_3_5_35B_A3B_W4A16,):
-            model_kwargs["device_map"] = "cpu"
-
-        # MLX variants need ignore_mismatched_sizes for loading
-        if "mlx-community" in pretrained_model_name:
-            model_kwargs["ignore_mismatched_sizes"] = True
-
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if hasattr(config, "text_config"):
