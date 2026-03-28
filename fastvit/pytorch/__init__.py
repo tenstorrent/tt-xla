@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-FastViT PyTorch model implementation.
+FastViT PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
