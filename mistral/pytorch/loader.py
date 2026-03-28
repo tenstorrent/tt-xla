@@ -52,6 +52,7 @@ class ModelVariant(StrEnum):
     )
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
     TINY_RANDOM = "Tiny_Random"
+    FEATHERLESS_7B_INSTRUCT_V02 = "Featherless_7B_INSTRUCT_v02"
 
 
 class ModelLoader(ForgeModel):
@@ -142,6 +143,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.TINY_RANDOM: ModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-mistral",
         ),
+        ModelVariant.FEATHERLESS_7B_INSTRUCT_V02: ModelConfig(
+            pretrained_model_name="Featherless-Chat-Models/Mistral-7B-Instruct-v0.2",
+        ),
     }
 
     # Default variant to use
@@ -180,6 +184,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.TINY_RANDOM,
             ModelVariant.MISTRAL_NEMO_INSTRUCT_2407_LENIENT_CHATFIX,
+            ModelVariant.FEATHERLESS_7B_INSTRUCT_V02,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
