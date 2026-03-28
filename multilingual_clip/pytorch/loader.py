@@ -9,12 +9,12 @@ supporting 48 languages. Based on the M-CLIP project.
 """
 
 import json
+from typing import Optional
 
 import torch
 import torch.nn as nn
 from huggingface_hub import hf_hub_download
 from transformers import AutoConfig, AutoModel, AutoTokenizer
-from typing import Optional
 
 from ...config import (
     ModelInfo,
@@ -107,7 +107,7 @@ class ModelLoader(ForgeModel):
 
         # Load the checkpoint containing both transformer and projection weights
         ckpt_path = hf_hub_download(repo_id=model_name, filename="pytorch_model.bin")
-        state_dict = torch.load(ckpt_path, map_location="cpu")
+        state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=True)
 
         # Separate transformer and linear projection weights
         transformer_sd = {}
@@ -162,18 +162,5 @@ class ModelLoader(ForgeModel):
         return outputs
 
     def unpack_forward_output(self, fwd_output):
-        if isinstance(fwd_output, torch.Tensor):
-            return fwd_output.flatten()
-
-        tensors = []
-        if hasattr(fwd_output, "last_hidden_state"):
-            tensors.append(fwd_output.last_hidden_state.flatten())
-        if (
-            hasattr(fwd_output, "pooler_output")
-            and fwd_output.pooler_output is not None
-        ):
-            tensors.append(fwd_output.pooler_output.flatten())
-
-        if tensors:
-            return torch.cat(tensors, dim=0)
-        return fwd_output
+        # MultilingualCLIPTextEncoder.forward always returns a plain tensor
+        return fwd_output.flatten()
