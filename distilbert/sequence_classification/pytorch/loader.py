@@ -31,6 +31,9 @@ class ModelVariant(StrEnum):
     )
     D4DATA_BIAS_DETECTION_MODEL = "d4data-bias-detection-model"
     WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR = "wajidlinux99-gibberish-text-detector"
+    TUHANASINAN_GO_EMOTIONS_DISTILBERT_PYTORCH = (
+        "tuhanasinan-go-emotions-distilbert-pytorch"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -62,6 +65,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="wajidlinux99/gibberish-text-detector",
             max_length=128,
         ),
+        ModelVariant.TUHANASINAN_GO_EMOTIONS_DISTILBERT_PYTORCH: LLMModelConfig(
+            pretrained_model_name="tuhanasinan/go-emotions-distilbert-pytorch",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -80,6 +87,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION: "I love this sunny weather, it makes me so happy!",
         ModelVariant.D4DATA_BIAS_DETECTION_MODEL: "The politician was biased in their reporting of the events.",
         ModelVariant.WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR: "Is this text really worth it?",
+        ModelVariant.TUHANASINAN_GO_EMOTIONS_DISTILBERT_PYTORCH: "I love this product! It makes me so happy!",
     }
 
     def __init__(self, variant=None):
@@ -117,6 +125,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION,
             ModelVariant.D4DATA_BIAS_DETECTION_MODEL,
             ModelVariant.WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR,
+            ModelVariant.TUHANASINAN_GO_EMOTIONS_DISTILBERT_PYTORCH,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
