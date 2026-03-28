@@ -4,7 +4,6 @@
 """
 Orpo Llama model loader implementation for causal language modeling.
 """
-import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
 
