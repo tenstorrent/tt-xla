@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Hermes 4 causal language modeling implementation for Tenstorrent projects.
+Hermes 4 PyTorch model implementation for Tenstorrent projects.
 """
-# Import from the loader module
-from .loader import ModelLoader
+from .loader import ModelLoader, ModelVariant
