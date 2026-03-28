@@ -83,6 +83,9 @@ class ModelVariant(StrEnum):
     # NousResearch variants
     NOUSRESEARCH_LLAMA_3_8B = "NousResearch_3.0_8B"
 
+    # ELYZA variants
+    ELYZA_LLAMA_3_JP_8B = "ELYZA_3.0_JP_8B"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -204,6 +207,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="NousResearch/Meta-Llama-3-8B",
             max_length=128,
         ),
+        # ELYZA variants
+        ModelVariant.ELYZA_LLAMA_3_JP_8B: LLMModelConfig(
+            pretrained_model_name="elyza/Llama-3-ELYZA-JP-8B",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -250,6 +258,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.ABLITERATED_LLAMA_3_2_1B_INSTRUCT,
             ModelVariant.GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR,
             ModelVariant.NOUSRESEARCH_LLAMA_3_8B,
+            ModelVariant.ELYZA_LLAMA_3_JP_8B,
         ]:
             group = ModelGroup.VULCAN
         elif (
