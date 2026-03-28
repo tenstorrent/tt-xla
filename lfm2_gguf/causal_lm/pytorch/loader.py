@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LFM2 MoE GGUF model loader implementation for causal language modeling.
+LFM2 GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available LFM2 MoE GGUF model variants for causal language modeling."""
+    """Available LFM2 GGUF model variants for causal language modeling."""
 
     LFM2_24B_A2B_GGUF = "24B_A2B_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """LFM2 MoE GGUF model loader implementation for causal language modeling tasks."""
+    """LFM2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
         ModelVariant.LFM2_24B_A2B_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/LiquidAI_LFM2-24B-A2B-GGUF",
+            pretrained_model_name="lmstudio-community/LFM2-24B-A2B-GGUF",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.LFM2_24B_A2B_GGUF
 
-    GGUF_FILE = "LiquidAI_LFM2-24B-A2B-Q4_K_M.gguf"
+    GGUF_FILE = "LFM2-24B-A2B-Q4_K_M.gguf"
 
     sample_text = "The quick brown fox jumps over the lazy dog."
 
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="LFM2 MoE GGUF",
+            model="LFM2 GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -68,9 +68,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
-            **tokenizer_kwargs,
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -111,10 +109,15 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         messages = [
-            {"role": "user", "content": self.sample_text},
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
         ]
         text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
         )
         prompts = [text]
 
