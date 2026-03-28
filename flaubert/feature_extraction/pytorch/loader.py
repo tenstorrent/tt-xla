@@ -8,7 +8,6 @@ FlauBERT model loader implementation for feature extraction.
 from typing import Optional
 
 from third_party.tt_forge_models.config import (
-    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
