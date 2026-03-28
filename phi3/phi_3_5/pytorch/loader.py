@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
 
     MINI_INSTRUCT = "Mini_Instruct"
     MOE_INSTRUCT = "Phi_3.5_Moe_Instruct"
-    MINI_ITA = "Mini_ITA"
+    UNSLOTH_MINI_INSTRUCT_BNB_4BIT = "Unsloth_Mini_Instruct_Bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -39,8 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MOE_INSTRUCT: ModelConfig(
             pretrained_model_name="microsoft/Phi-3.5-MoE-instruct",
         ),
-        ModelVariant.MINI_ITA: ModelConfig(
-            pretrained_model_name="anakin87/Phi-3.5-mini-ITA",
+        ModelVariant.UNSLOTH_MINI_INSTRUCT_BNB_4BIT: ModelConfig(
+            pretrained_model_name="unsloth/Phi-3.5-mini-instruct-bnb-4bit",
         ),
     }
 
@@ -60,12 +60,12 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting."""
-        group = ModelGroup.RED
-        if variant in [
-            ModelVariant.MINI_ITA,
-        ]:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+        if variant == ModelVariant.UNSLOTH_MINI_INSTRUCT_BNB_4BIT:
             group = ModelGroup.VULCAN
-
+        else:
+            group = ModelGroup.RED
         return ModelInfo(
             model="Phi-3",
             variant=variant,
@@ -95,11 +95,16 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
         model_dtype = dtype_override if dtype_override is not None else torch.bfloat16
+        model_kwargs = {
+            "use_cache": False,
+            "torch_dtype": model_dtype,
+        }
+        if self._variant == ModelVariant.UNSLOTH_MINI_INSTRUCT_BNB_4BIT:
+            model_kwargs["device_map"] = "cpu"
+        model_kwargs |= kwargs
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name,
-            use_cache=False,
-            torch_dtype=model_dtype,
-            **kwargs,
+            **model_kwargs,
         )
         model.eval()
         return model
