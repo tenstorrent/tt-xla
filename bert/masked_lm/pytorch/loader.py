@@ -35,12 +35,14 @@ class ModelVariant(StrEnum):
     BERT_FOR_PATENTS = "anferico/bert-for-patents"
     RUBERT_BASE = "ai-forever/ruBert-base"
     HUBERT_BASE_CC = "SZTAKI-HLT/hubert-base-cc"
+    BERT_BASE_SWEDISH_CASED = "KBLab/bert-base-swedish-cased-alpha"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.BERT_FOR_PATENTS: "The present [MASK] provides a torque sensor for measuring torque applied to a shaft.",
     ModelVariant.RUBERT_BASE: "Меня зовут [MASK] и я инженер живущий в Москве.",
     ModelVariant.HUBERT_BASE_CC: "Budapest Magyarország [MASK] városa.",
+    ModelVariant.BERT_BASE_SWEDISH_CASED: "Stockholm är Sveriges [MASK] stad.",
 }
 
 
@@ -89,6 +91,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="SZTAKI-HLT/hubert-base-cc",
             max_length=128,
         ),
+        ModelVariant.BERT_BASE_SWEDISH_CASED: LLMModelConfig(
+            pretrained_model_name="KBLab/bert-base-swedish-cased-alpha",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -135,6 +141,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_FOR_PATENTS,
             ModelVariant.RUBERT_BASE,
             ModelVariant.HUBERT_BASE_CC,
+            ModelVariant.BERT_BASE_SWEDISH_CASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
