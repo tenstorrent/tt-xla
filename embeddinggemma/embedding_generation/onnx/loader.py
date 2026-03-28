@@ -5,7 +5,6 @@
 EmbeddingGemma 300M ONNX model loader for text embedding generation.
 """
 
-import numpy as np
 import onnx
 from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer
