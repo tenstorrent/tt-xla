@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     BASE_VI = "Base_VI"
-    BASE_ZH = "Base_ZH"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -39,8 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_VI: ModelConfig(
             pretrained_model_name="nguyenvulebinh/wav2vec2-base-vi",
         ),
-        ModelVariant.BASE_ZH: ModelConfig(
-            pretrained_model_name="TencentGameMate/chinese-wav2vec2-base",
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-Wav2Vec2Model",
         ),
     }
 
