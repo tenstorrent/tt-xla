@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="llava-hf/llava-v1.6-mistral-7b-hf",
         ),
         ModelVariant.LLAVA_V1_6_VICUNA_7B: ModelConfig(
-            pretrained_model_name="liuhaotian/llava-v1.6-vicuna-7b",
+            pretrained_model_name="llava-hf/llava-v1.6-vicuna-7b-hf",
         ),
     }
 
