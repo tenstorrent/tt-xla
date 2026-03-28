@@ -46,6 +46,7 @@ class ModelTask(StrEnum):
     AUDIO_CLS = "audio_cls"
     AUDIO_ASR = "audio_asr"
     AUDIO_FE = "audio_fe"
+    AUDIO_XVECTOR = "audio_xvector"
     CV_IMAGE_CLS = "cv_image_cls"
     CV_IMAGE_SEG = "cv_image_seg"
     CV_VIDEO_CLS = "cv_video_cls"
