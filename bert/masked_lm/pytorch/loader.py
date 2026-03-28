@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_BASE_CASED_FINETUNED_MRPC = "google-bert/bert-base-cased-finetuned-mrpc"
+    BIOMEDVLP_CXR_BERT_GENERAL = "microsoft/BiomedVLP-CXR-BERT-general"
 
 
 class ModelLoader(ForgeModel):
@@ -66,6 +67,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_BASE_CASED_FINETUNED_MRPC: LLMModelConfig(
             pretrained_model_name="google-bert/bert-base-cased-finetuned-mrpc",
+            max_length=128,
+        ),
+        ModelVariant.BIOMEDVLP_CXR_BERT_GENERAL: LLMModelConfig(
+            pretrained_model_name="microsoft/BiomedVLP-CXR-BERT-general",
             max_length=128,
         ),
     }
@@ -112,6 +117,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_BASE_CASED_FINETUNED_MRPC,
+            ModelVariant.BIOMEDVLP_CXR_BERT_GENERAL,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
