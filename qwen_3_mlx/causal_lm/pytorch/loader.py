@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 MLX model variants for causal language modeling."""
 
     QWEN_3_30B_A3B_INSTRUCT_2507_MLX_4BIT = "30B_A3B_Instruct_2507_MLX_4bit"
+    QWEN_3_30B_A3B_INSTRUCT_2507_MLX_8BIT = "30B_A3B_Instruct_2507_MLX_8bit"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_4BIT: LLMModelConfig(
             pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-4bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_8BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-8bit",
             max_length=128,
         ),
     }
