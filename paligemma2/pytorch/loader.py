@@ -7,6 +7,7 @@ PaliGemma2 model loader implementation for multimodal conditional generation.
 
 from typing import Optional
 
+from datasets import load_dataset
 from transformers import PaliGemmaForConditionalGeneration, PaliGemmaProcessor
 
 from ...base import ForgeModel
@@ -85,8 +86,6 @@ class ModelLoader(ForgeModel):
         """Load and return input tensors for PaliGemma2."""
         if self.processor is None:
             self._load_processor()
-
-        from datasets import load_dataset
 
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
