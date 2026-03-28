@@ -12,7 +12,6 @@ Requires the ZUNA repository to be cloned at /tmp/zuna_repo.
 import json
 import os
 import sys
-import types
 
 import torch
 from huggingface_hub import hf_hub_download
