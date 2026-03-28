@@ -23,50 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available GLM GGUF model variants for causal language modeling."""
 
-    GLM_4_7_FLASH_REASONING_DISTILL_Q4_K_M = "4.7_Flash_Reasoning_Distill_Q4_K_M"
-    GLM_4_7_FLASH_REAP_23B_A3B_Q4_K_M = "4.7_Flash_REAP_23B_A3B_Q4_K_M"
-    GLM_4_7_FLASH_UNCENSORED_HERETIC_AYUN_I1_Q4_K_M = (
-        "4.7_Flash_Uncensored_Heretic_Ayun_i1_Q4_K_M"
-    )
-    CODGENX_GLM_4_7_FLASH_I1_Q4_K_M = "CodgenX_GLM_4.7_Flash_i1_Q4_K_M"
+    GLM_4_7_FLASH_ULTRA_HERETIC_GGUF = "4.7_Flash_Ultra_Heretic_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """GLM GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GLM_4_7_FLASH_REASONING_DISTILL_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="TeichAI/GLM-4.7-Flash-Claude-Opus-4.5-High-Reasoning-Distill-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.GLM_4_7_FLASH_REAP_23B_A3B_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="unsloth/GLM-4.7-Flash-REAP-23B-A3B-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.GLM_4_7_FLASH_UNCENSORED_HERETIC_AYUN_I1_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="mradermacher/GLM-4.7-Flash-ultimate-uncensored-heretic-ayun-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.CODGENX_GLM_4_7_FLASH_I1_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="mradermacher/CodgenX-GLM-4.7-Flash-i1-GGUF",
+        ModelVariant.GLM_4_7_FLASH_ULTRA_HERETIC_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/GLM-4.7-Flash-ultra-heretic-i1-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GLM_4_7_FLASH_REASONING_DISTILL_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.GLM_4_7_FLASH_ULTRA_HERETIC_GGUF
 
-    _GGUF_FILES = {
-        ModelVariant.GLM_4_7_FLASH_REASONING_DISTILL_Q4_K_M: "GLM-4.7-Flash-Claude-Opus-4.5-High-Reasoning-Distill-Q4_K_M.gguf",
-        ModelVariant.GLM_4_7_FLASH_REAP_23B_A3B_Q4_K_M: "GLM-4.7-Flash-REAP-23B-A3B-Q4_K_M.gguf",
-        ModelVariant.GLM_4_7_FLASH_UNCENSORED_HERETIC_AYUN_I1_Q4_K_M: "GLM-4.7-Flash-ultimate-uncensored-heretic-ayun.i1-Q4_K_M.gguf",
-        ModelVariant.CODGENX_GLM_4_7_FLASH_I1_Q4_K_M: "CodgenX-GLM-4.7-Flash.i1-Q4_K_M.gguf",
-    }
+    GGUF_FILE = "GLM-4.7-Flash-ultra-heretic.i1-Q4_K_M.gguf"
 
-    @property
-    def GGUF_FILE(self):
-        return self._GGUF_FILES[self._variant]
-
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -160,6 +134,23 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
