@@ -70,6 +70,7 @@ class ModelLoader(ForgeModel):
         model = AutoModelForSequenceClassification.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
+        self.model = model
         model.eval()
         return model
 
@@ -101,30 +102,5 @@ class ModelLoader(ForgeModel):
     def decode_output(self, co_out):
         logits = co_out[0]
         predicted_class_id = logits.argmax(-1).item()
-        labels = [
-            "Academic Writing",
-            "Content Listing",
-            "Creative Writing",
-            "Customer Support",
-            "Documentation",
-            "E-Commerce",
-            "FAQ",
-            "How-To/Tutorial",
-            "Knowledge Article",
-            "Legal Notices",
-            "Listicle",
-            "News Article",
-            "Opinion Piece",
-            "Personal Blog",
-            "Product Page",
-            "Q&A Forum",
-            "Recipes",
-            "Reviews",
-            "Social Media Post",
-            "Spam/Ads",
-            "Technical Writing",
-            "Transcripts",
-            "Truncated",
-            "Wiki Article",
-        ]
-        print(f"Predicted Format: {labels[predicted_class_id]}")
+        label = self.model.config.id2label[predicted_class_id]
+        print(f"Predicted Format: {label}")
