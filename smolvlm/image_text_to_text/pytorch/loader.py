@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     """Available SmolVLM model variants."""
 
     SMOLVLM_500M_INSTRUCT = "HuggingFaceTB/SmolVLM-500M-Instruct"
+    SMOLVLM_INSTRUCT = "HuggingFaceTB/SmolVLM-Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +36,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.SMOLVLM_500M_INSTRUCT: ModelConfig(
             pretrained_model_name=str(ModelVariant.SMOLVLM_500M_INSTRUCT),
+        ),
+        ModelVariant.SMOLVLM_INSTRUCT: ModelConfig(
+            pretrained_model_name=str(ModelVariant.SMOLVLM_INSTRUCT),
         ),
     }
 
