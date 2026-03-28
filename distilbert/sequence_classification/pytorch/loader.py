@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
         "amansolanki-autonlp-Tweet-Sentiment-Extraction-20114061"
     )
     D4DATA_BIAS_DETECTION_MODEL = "d4data-bias-detection-model"
+    WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR = "wajidlinux99-gibberish-text-detector"
 
 
 class ModelLoader(ForgeModel):
@@ -57,6 +58,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="d4data/bias-detection-model",
             max_length=128,
         ),
+        ModelVariant.WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR: LLMModelConfig(
+            pretrained_model_name="wajidlinux99/gibberish-text-detector",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -74,6 +79,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER: "This is a perfectly normal and safe text about cooking recipes.",
         ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION: "I love this sunny weather, it makes me so happy!",
         ModelVariant.D4DATA_BIAS_DETECTION_MODEL: "The politician was biased in their reporting of the events.",
+        ModelVariant.WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR: "Is this text really worth it?",
     }
 
     def __init__(self, variant=None):
@@ -110,6 +116,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER,
             ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION,
             ModelVariant.D4DATA_BIAS_DETECTION_MODEL,
+            ModelVariant.WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
