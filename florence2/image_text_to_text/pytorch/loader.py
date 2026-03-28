@@ -96,7 +96,7 @@ class ModelLoader(ForgeModel):
 
         inputs = self.processor(
             text=self.sample_text,
-            images=[image],
+            images=image,
             return_tensors="pt",
         )
 
