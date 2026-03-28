@@ -4,20 +4,17 @@
 """
 Bloom model loader implementation for causal language modeling.
 """
-
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
-
-import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     LLMModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
@@ -25,56 +22,48 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Bloom model variants."""
 
-    BLOOM_560M = "560M"
-    BLOOM_1B1 = "1b1"
-    BLOOM_1B7 = "1b7"
-    BLOOM_3B = "3B"
-    BLOOM_7B = "7B"
+    TINY_RANDOM = "tiny-random"
 
 
 class ModelLoader(ForgeModel):
     """Bloom model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.BLOOM_560M: LLMModelConfig(
-            pretrained_model_name="bigscience/bloom-560m",
-            max_length=128,
-        ),
-        ModelVariant.BLOOM_1B1: LLMModelConfig(
-            pretrained_model_name="bigscience/bloom-1b1",
-            max_length=128,
-        ),
-        ModelVariant.BLOOM_1B7: LLMModelConfig(
-            pretrained_model_name="bigscience/bloom-1b7",
-            max_length=128,
-        ),
-        ModelVariant.BLOOM_3B: LLMModelConfig(
-            pretrained_model_name="bigscience/bloom-3b",
-            max_length=128,
-        ),
-        ModelVariant.BLOOM_7B: LLMModelConfig(
-            pretrained_model_name="bigscience/bloom-7b1",
-            max_length=128,
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="peft-internal-testing/tiny-random-BloomForCausalLM",
+            max_length=32,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BLOOM_1B7
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
-    sample_text = "Hello there fellow traveler"
+    sample_text = "This is a sample text from "
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+        """Get model information for dashboard and metrics reporting.
 
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="BLOOM",
             variant=variant,
@@ -85,23 +74,38 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        """Load tokenizer for the current variant.
 
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
         tokenizer_kwargs = {"padding_side": "left"}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Bloom model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
+
+        Returns:
+            torch.nn.Module: The Bloom model instance.
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -115,40 +119,51 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
 
-        self.config = model.config
-        self.model = model
+        model.eval()
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the Bloom model.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+            batch_size: Optional batch size to override the default batch size of 1.
+
+        Returns:
+            dict: Input tensors and attention masks that can be fed to the model.
+        """
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
-            padding="max_length",
-            truncation=True,
             max_length=self._variant_config.max_length,
+            padding="max_length",
+            add_special_tokens=True,
+            truncation=True,
         )
 
         for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, outputs, dtype_override=None):
+    def decode_output(self, outputs):
+        """Helper method to decode model outputs into human-readable text.
+
+        Args:
+            outputs: Model output from a forward pass
+
+        Returns:
+            str: Decoded answer text
+        """
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer()
 
         next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
-        return self.config
+        next_tokens = next_token_logits.softmax(dim=-1).argmax(dim=-1)
+        return [self.tokenizer.decode([token.item()]) for token in next_tokens]
