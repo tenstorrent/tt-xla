@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MobileNetV4 model loader implementation
+MobileNetV4 model loader implementation for image classification
 """
 
 from typing import Optional
 from dataclasses import dataclass
 import timm
+from datasets import load_dataset
 
 from ...config import (
     ModelConfig,
@@ -23,7 +24,6 @@ from ...tools.utils import (
     VisionPreprocessor,
     VisionPostprocessor,
 )
-from datasets import load_dataset
 
 
 @dataclass
@@ -36,22 +36,20 @@ class MobileNetV4Config(ModelConfig):
 class ModelVariant(StrEnum):
     """Available MobileNetV4 model variants."""
 
-    MOBILENET_V4_CONV_SMALL = "mobilenetv4_conv_small.e2400_r224_in1k"
+    CONV_MEDIUM_E500_R256_IN1K = "Conv_Medium_E500_R256_IN1K"
 
 
 class ModelLoader(ForgeModel):
-    """MobileNetV4 model loader implementation."""
+    """MobileNetV4 model loader implementation for image classification tasks."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.MOBILENET_V4_CONV_SMALL: MobileNetV4Config(
-            pretrained_model_name="hf_hub:timm/mobilenetv4_conv_small.e2400_r224_in1k",
+        ModelVariant.CONV_MEDIUM_E500_R256_IN1K: MobileNetV4Config(
+            pretrained_model_name="hf_hub:timm/mobilenetv4_conv_medium.e500_r256_in1k",
             source=ModelSource.TIMM,
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.MOBILENET_V4_CONV_SMALL
+    DEFAULT_VARIANT = ModelVariant.CONV_MEDIUM_E500_R256_IN1K
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -93,7 +91,11 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
+
         if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
             source = self._variant_config.source
@@ -115,16 +117,6 @@ class ModelLoader(ForgeModel):
             dtype_override=dtype_override,
             batch_size=batch_size,
             model_for_config=model_for_config,
-        )
-
-    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
-        if image is None:
-            dataset = load_dataset("huggingface/cats-image", split="test")
-            image = dataset[0]["image"]
-        return self.input_preprocess(
-            image=image,
-            dtype_override=dtype_override,
-            batch_size=batch_size,
         )
 
     def output_postprocess(self, output):
