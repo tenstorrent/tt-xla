@@ -32,6 +32,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M = (
         "OpenMed-NER-PharmaDetect-BioClinical-108M"
     )
+    OPENMED_PII_ITALIAN_BIOMEDBERT_LARGE_340M_V1 = (
+        "OpenMed-PII-Italian-BiomedBERT-Large-340M-v1"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -47,6 +50,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-BioClinical-108M",
         ),
+        ModelVariant.OPENMED_PII_ITALIAN_BIOMEDBERT_LARGE_340M_V1: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-Italian-BiomedBERT-Large-340M-v1",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_ORGANISMDETECT_MODERNMED_149M
@@ -60,6 +66,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_PHARMADETECT_BIOCLINICAL_108M: (
             "Administration of metformin reduced glucose levels significantly."
+        ),
+        ModelVariant.OPENMED_PII_ITALIAN_BIOMEDBERT_LARGE_340M_V1: (
+            "Paziente Marco Bianchi nato il 15/03/1985 è stato visitato oggi a Milano."
         ),
     }
 
