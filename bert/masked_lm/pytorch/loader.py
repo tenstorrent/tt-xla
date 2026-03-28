@@ -32,22 +32,7 @@ class ModelVariant(StrEnum):
     BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
-    BERT_FOR_PATENTS = "anferico/bert-for-patents"
-    RUBERT_BASE = "ai-forever/ruBert-base"
-    HUBERT_BASE_CC = "SZTAKI-HLT/hubert-base-cc"
-    BERT_BASE_SWEDISH_CASED = "KBLab/bert-base-swedish-cased-alpha"
-    MURIL_BASE_CASED = "google/muril-base-cased"
-    INDOBERT_BASE_UNCASED = "indolem/indobert-base-uncased"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.BERT_FOR_PATENTS: "The present [MASK] provides a torque sensor for measuring torque applied to a shaft.",
-    ModelVariant.RUBERT_BASE: "Меня зовут [MASK] и я инженер живущий в Москве.",
-    ModelVariant.HUBERT_BASE_CC: "Budapest Magyarország [MASK] városa.",
-    ModelVariant.BERT_BASE_SWEDISH_CASED: "Stockholm är Sveriges [MASK] stad.",
-    ModelVariant.MURIL_BASE_CASED: "भारत की राजधानी [MASK] है।",
-    ModelVariant.INDOBERT_BASE_UNCASED: "Jakarta adalah [MASK] negara Indonesia.",
-}
+    BERT_BASE_SPANISH_WWM_CASED = "Base_Spanish_WWM_Cased"
 
 
 class ModelLoader(ForgeModel):
@@ -83,28 +68,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
-        ModelVariant.BERT_FOR_PATENTS: LLMModelConfig(
-            pretrained_model_name="anferico/bert-for-patents",
-            max_length=128,
-        ),
-        ModelVariant.RUBERT_BASE: LLMModelConfig(
-            pretrained_model_name="ai-forever/ruBert-base",
-            max_length=128,
-        ),
-        ModelVariant.HUBERT_BASE_CC: LLMModelConfig(
-            pretrained_model_name="SZTAKI-HLT/hubert-base-cc",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_SWEDISH_CASED: LLMModelConfig(
-            pretrained_model_name="KBLab/bert-base-swedish-cased-alpha",
-            max_length=128,
-        ),
-        ModelVariant.MURIL_BASE_CASED: LLMModelConfig(
-            pretrained_model_name="google/muril-base-cased",
-            max_length=128,
-        ),
-        ModelVariant.INDOBERT_BASE_UNCASED: LLMModelConfig(
-            pretrained_model_name="indolem/indobert-base-uncased",
+        ModelVariant.BERT_BASE_SPANISH_WWM_CASED: LLMModelConfig(
+            pretrained_model_name="dccuchile/bert-base-spanish-wwm-cased",
             max_length=128,
         ),
     }
@@ -150,12 +115,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
-            ModelVariant.BERT_FOR_PATENTS,
-            ModelVariant.RUBERT_BASE,
-            ModelVariant.HUBERT_BASE_CC,
-            ModelVariant.BERT_BASE_SWEDISH_CASED,
-            ModelVariant.MURIL_BASE_CASED,
-            ModelVariant.INDOBERT_BASE_UNCASED,
+            ModelVariant.BERT_BASE_SPANISH_WWM_CASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
