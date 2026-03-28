@@ -40,6 +40,7 @@ class ModelVariant(StrEnum):
     QWEN_3_1_7B_FP8 = "1_7B_FP8"
     QWEN_3_8B = "8B"
     QWEN_3_8B_BASE = "8B_Base"
+    QWEN_3_8B_FP8 = "8B_FP8"
     QWEN_3_14B = "14B"
     QWEN_3_14B_BASE = "14B_Base"
     QWEN_3_32B = "32B"
@@ -100,8 +101,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-8B-Base",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_8B_BASE_UNSLOTH: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-8B-Base",
+        ModelVariant.QWEN_3_8B_FP8: LLMModelConfig(
+            pretrained_model_name="nvidia/Qwen3-8B-FP8",
             max_length=128,
         ),
         ModelVariant.QWEN_3_8B_AWQ: LLMModelConfig(
@@ -208,6 +209,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_8B_MLX_4BIT,
             ModelVariant.QWEN_3_4B_MLX_8BIT,
             ModelVariant.QWEN_3_8B_BASE,
+            ModelVariant.QWEN_3_8B_FP8,
             ModelVariant.QWEN_3_14B_BASE,
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
             ModelVariant.QWEN_3_30B_A3B_FP8,
