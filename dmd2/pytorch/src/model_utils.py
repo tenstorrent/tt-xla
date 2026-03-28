@@ -6,7 +6,7 @@
 Helper functions for DMD2 model loading and processing.
 """
 
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 from diffusers import DiffusionPipeline, LCMScheduler, UNet2DConditionModel
