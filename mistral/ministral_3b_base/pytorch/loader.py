@@ -164,13 +164,14 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
-        for layer in model.vision_tower.vision_model.encoder.layers:
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.out_proj.weight] = ("batch", "model")
+        for layer in model.vision_tower.transformer.layers:
+            shard_specs[layer.feed_forward.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.feed_forward.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.feed_forward.down_proj.weight] = ("batch", "model")
 
-            shard_specs[layer.mlp.fc1.weight] = ("model", "batch")
-            shard_specs[layer.mlp.fc2.weight] = ("batch", "model")
+            shard_specs[layer.attention.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.attention.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.attention.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.attention.o_proj.weight] = ("batch", "model")
 
         return shard_specs
