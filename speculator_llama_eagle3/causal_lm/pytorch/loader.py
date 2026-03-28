@@ -7,7 +7,7 @@ SpeculatorLlama Eagle3 model loader implementation for causal language modeling.
 import torch
 from typing import Optional
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from ....config import (
     LLMModelConfig,
     ModelInfo,
