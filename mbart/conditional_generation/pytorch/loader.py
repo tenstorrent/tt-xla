@@ -91,7 +91,8 @@ class ModelLoader(ForgeModel):
         )
 
         # Seq2seq models need decoder_input_ids for the forward pass.
-        decoder_start_token_id = self._tokenizer.lang_code_to_id.get(
+        lang_code_to_id = getattr(self._tokenizer, "lang_code_to_id", {})
+        decoder_start_token_id = lang_code_to_id.get(
             "en_XX", self._tokenizer.bos_token_id
         )
         inputs["decoder_input_ids"] = torch.tensor([[decoder_start_token_id]])
