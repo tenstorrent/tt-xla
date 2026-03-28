@@ -2,13 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-CodeBERT-C masked language model loader implementation.
+CodeBERT model loader for masked language modeling.
 """
 import torch
+from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import Optional
 
-from ....base import ForgeModel
-from ....config import (
+from third_party.tt_forge_models.base import ForgeModel
+from third_party.tt_forge_models.config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
@@ -20,21 +21,21 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available CodeBERT masked LM model variants."""
+    """Available model variants for CodeBERT masked LM."""
 
-    CODEBERT_C = "neulab/codebert-c"
+    CODEBERT_BASE_MLM = "microsoft/codebert-base-mlm"
 
 
 class ModelLoader(ForgeModel):
-    """CodeBERT-C masked language model loader implementation."""
+    """CodeBERT model loader for masked language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.CODEBERT_C: ModelConfig(
-            pretrained_model_name="neulab/codebert-c",
+        ModelVariant.CODEBERT_BASE_MLM: ModelConfig(
+            pretrained_model_name="microsoft/codebert-base-mlm",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CODEBERT_C
+    DEFAULT_VARIANT = ModelVariant.CODEBERT_BASE_MLM
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -55,20 +56,17 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self):
-        from transformers import AutoTokenizer
-
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
+        if self.tokenizer is None:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self._variant_config.pretrained_model_name
+            )
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        from transformers import AutoModelForMaskedLM
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
             self._load_tokenizer()
-
-        pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -85,7 +83,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        test_input = "int <mask>(int argc, char *argv[]) { return 0; }"
+        test_input = "if (x is not None) <mask> (x > 1)"
 
         inputs = self.tokenizer(test_input, return_tensors="pt")
 
