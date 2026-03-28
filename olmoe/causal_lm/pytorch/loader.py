@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -13,7 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    LLMModelConfig,
+    ModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -25,29 +25,25 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available OLMoE model variants."""
 
-    OLMOE_1B_7B_0924_INSTRUCT = "1B_7B_0924_Instruct"
+    OLMOE_1B_7B_0125 = "1B-7B-0125"
 
 
 class ModelLoader(ForgeModel):
     """OLMoE model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.OLMOE_1B_7B_0924_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="allenai/OLMoE-1B-7B-0924-Instruct",
-            max_length=256,
+        ModelVariant.OLMOE_1B_7B_0125: ModelConfig(
+            pretrained_model_name="allenai/OLMoE-1B-7B-0125",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OLMOE_1B_7B_0924_INSTRUCT
-
-    sample_text = "What is the capital of France?"
+    DEFAULT_VARIANT = ModelVariant.OLMOE_1B_7B_0125
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.config = None
         self.model = None
         self.num_layers = num_layers
 
@@ -97,9 +93,7 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.config.use_cache = False
-        model.eval()
+        ).eval()
 
         self.config = model.config
         self.model = model
@@ -109,15 +103,9 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        max_length = self._variant_config.max_length
+        test_input = "What is the capital of France?"
 
-        inputs = self.tokenizer(
-            self.sample_text,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=max_length,
-        )
+        inputs = self.tokenizer(test_input, return_tensors="pt")
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
