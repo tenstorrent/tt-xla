@@ -2,13 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LanguageBind Video model loader implementation for zero-shot video classification.
+LanguageBind Video model loader implementation for video-text similarity.
 """
-from dataclasses import dataclass
-from typing import Optional
-
+import numpy as np
 import torch
-from transformers import CLIPModel, CLIPTokenizerFast
+from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
@@ -22,122 +20,102 @@ from ...config import (
 )
 
 
-@dataclass
-class LanguageBindVideoConfig(ModelConfig):
-    """Configuration specific to LanguageBind Video models."""
-
-    num_frames: int = 8
-    image_size: int = 224
-
-
 class ModelVariant(StrEnum):
     """Available LanguageBind Video model variants."""
 
-    VIDEO_FT = "Video_FT"
+    LANGUAGEBIND_VIDEO_MERGE = "LanguageBind_Video_merge"
 
 
 class ModelLoader(ForgeModel):
-    """LanguageBind Video model loader for zero-shot video classification tasks."""
+    """LanguageBind Video model loader for video-text similarity tasks."""
 
     _VARIANTS = {
-        ModelVariant.VIDEO_FT: LanguageBindVideoConfig(
-            pretrained_model_name="LanguageBind/LanguageBind_Video_FT",
-            num_frames=8,
-            image_size=224,
+        ModelVariant.LANGUAGEBIND_VIDEO_MERGE: ModelConfig(
+            pretrained_model_name="LanguageBind/LanguageBind_Video_merge",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.VIDEO_FT
+    DEFAULT_VARIANT = ModelVariant.LANGUAGEBIND_VIDEO_MERGE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.tokenizer = None
+        self.processor = None
         self.text_prompts = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
-            model="LanguageBind-Video",
+            model="LanguageBind_Video",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CV_ZS_IMAGE_CLS,
+            task=ModelTask.MM_IMAGE_TEXT_SIM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self):
-        self.tokenizer = CLIPTokenizerFast.from_pretrained(
-            self._variant_config.pretrained_model_name,
+    def _load_processor(self):
+        from languagebind import LanguageBindVideoTokenizer, LanguageBindVideoProcessor
+
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        tokenizer = LanguageBindVideoTokenizer.from_pretrained(pretrained_model_name)
+        self.processor = LanguageBindVideoProcessor(
+            self._load_model_config(), tokenizer
         )
-        return self.tokenizer
+        return self.processor
+
+    def _load_model_config(self):
+        from languagebind import LanguageBindVideoConfig
+
+        return LanguageBindVideoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        from languagebind import LanguageBindVideo
 
+        pretrained_model_name = self._variant_config.pretrained_model_name
         model_kwargs = {"return_dict": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = CLIPModel.from_pretrained(
-            pretrained_model_name,
-            **model_kwargs,
-        )
+        model = LanguageBindVideo.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
-
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        if self.processor is None:
+            self._load_processor()
 
-        num_frames = self._variant_config.num_frames
-        image_size = self._variant_config.image_size
+        # Generate synthetic video: 8 frames of 224x224 RGB
+        video = np.random.randint(0, 255, (8, 224, 224, 3), dtype=np.uint8)
 
-        # Create synthetic video frames and normalize to [0, 1] then apply
-        # CLIP-style normalization (mean=[0.48145466, 0.4578275, 0.40821073],
-        # std=[0.26862954, 0.26130258, 0.27577711])
-        mean = torch.tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1)
-        std = torch.tensor([0.26862954, 0.26130258, 0.27577711]).view(1, 3, 1, 1)
+        self.text_prompts = ["a dog playing in the park", "a person riding a bicycle"]
 
-        pixel_values = torch.rand(num_frames, 3, image_size, image_size)
-        pixel_values = (pixel_values - mean) / std
-
-        # Shape for CLIPModel: (batch, channels, height, width)
-        # Average-pool over frames to produce a single image-like input
-        pixel_values = pixel_values.mean(dim=0, keepdim=True)
-
-        self.text_prompts = ["playing sports", "eating spaghetti", "go shopping"]
-
-        text_inputs = self.tokenizer(
-            self.text_prompts,
-            max_length=77,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt",
-        )
-
-        inputs = {
-            "input_ids": text_inputs["input_ids"],
-            "attention_mask": text_inputs["attention_mask"],
-            "pixel_values": pixel_values,
-        }
+        data = self.processor([video], self.text_prompts, return_tensors="pt")
 
         # Replicate tensors for batch size
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        for key in data:
+            if torch.is_tensor(data[key]):
+                data[key] = data[key].repeat_interleave(batch_size, dim=0)
 
-        # Convert floating point inputs to dtype_override if specified
         if dtype_override is not None:
-            for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
-                    inputs[key] = inputs[key].to(dtype_override)
+            if "pixel_values" in data:
+                data["pixel_values"] = data["pixel_values"].to(dtype_override)
 
-        return inputs
+        return data
+
+    def post_process(self, outputs):
+        if self.text_prompts is None:
+            self.text_prompts = [
+                "a dog playing in the park",
+                "a person riding a bicycle",
+            ]
+
+        logits_per_image = outputs[0]
+        probs = logits_per_image.softmax(dim=1)
+        for i, text in enumerate(self.text_prompts):
+            print(f"Probability of '{text}':", probs[0, i].item())
 
     def unpack_forward_output(self, fwd_output):
         if isinstance(fwd_output, tuple):
