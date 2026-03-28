@@ -40,7 +40,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = "The capital of France is [MASK]."
+        self.sample_text = "The capital of France is <mask>."
         self.tokenizer = None
 
     @classmethod
@@ -90,4 +90,4 @@ class ModelLoader(ForgeModel):
         ].nonzero(as_tuple=True)[0]
         predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
         predicted_token = self.tokenizer.decode(predicted_token_id)
-        print("The predicted token for the [MASK] is:", predicted_token)
+        print("The predicted token for the <mask> is:", predicted_token)
