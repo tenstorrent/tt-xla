@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
 
     DEBERTA_XLARGE_MNLI = "XLarge_MNLI"
     DEBERTA_SMALL_LONG_NLI = "Small_Long_NLI"
+    DEBERTA_V3_BASE_INJECTION = "V3_Base_Injection"
 
 
 class ModelLoader(ForgeModel):
@@ -57,6 +58,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DEBERTA_SMALL_LONG_NLI: ModelConfig(
             pretrained_model_name="tasksource/deberta-small-long-nli",
+        ),
+        ModelVariant.DEBERTA_V3_BASE_INJECTION: ModelConfig(
+            pretrained_model_name="deepset/deberta-v3-base-injection",
         ),
     }
 
@@ -117,8 +121,8 @@ class ModelLoader(ForgeModel):
                 self._variant_config.pretrained_model_name
             )
 
-        if self._variant in self._SINGLE_TEXT_VARIANTS:
-            text = self._SAMPLE_TEXTS[self._variant]
+        if self._variant == ModelVariant.DEBERTA_V3_BASE_INJECTION:
+            text = "What is the capital of France?"
             inputs = self.tokenizer(
                 text,
                 max_length=128,
@@ -126,28 +130,25 @@ class ModelLoader(ForgeModel):
                 truncation=True,
                 return_tensors="pt",
             )
-            return inputs
-
-        premise = "A man is eating food."
-        hypothesis = "A man is eating a meal."
-
-        inputs = self.tokenizer(
-            premise,
-            hypothesis,
-            max_length=128,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt",
-        )
+        else:
+            premise = "A man is eating food."
+            hypothesis = "A man is eating a meal."
+            inputs = self.tokenizer(
+                premise,
+                hypothesis,
+                max_length=128,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt",
+            )
 
         return inputs
 
     def decode_output(self, co_out, framework_model=None):
         logits = co_out[0]
         predicted_class_id = logits.argmax(-1).item()
-        num_labels = logits.shape[-1]
-        if num_labels == 2:
-            labels = ["not_entailment", "entailment"]
+        if self._variant == ModelVariant.DEBERTA_V3_BASE_INJECTION:
+            labels = ["INJECTION", "LEGIT"]
         else:
             labels = ["contradiction", "neutral", "entailment"]
         print(f"Predicted: {labels[predicted_class_id]}")
