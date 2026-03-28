@@ -24,12 +24,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PATHOLOGY_MEDIUM = "ZeroShot-NER-Pathology-Medium-209M"
     OPENMED_ZEROSHOT_NER_PHARMA_TINY = "ZeroShot-NER-Pharma-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_SPECIES_BASE = "ZeroShot-NER-Species-Base-220M"
-    OPENMED_ZEROSHOT_NER_ONCOLOGY_LARGE = "ZeroShot-NER-Oncology-Large-459M"
-    OPENMED_ZEROSHOT_NER_BLOODCANCER_LARGE = "ZeroShot-NER-BloodCancer-Large-459M"
-    OPENMED_ZEROSHOT_NER_DNA_BASE = "ZeroShot-NER-DNA-Base-220M"
-    OPENMED_ZEROSHOT_NER_ORGANISM_MULTI = "ZeroShot-NER-Organism-Multi-209M"
-    OPENMED_ZEROSHOT_NER_PATHOLOGY_TINY = "ZeroShot-NER-Pathology-Tiny-60M"
+    OPENMED_ZEROSHOT_NER_PROTEIN_MULTI = "ZeroShot-NER-Protein-Multi-209M"
 
 
 class ModelLoader(ForgeModel):
@@ -48,23 +43,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_BASE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Base-220M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Large-459M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_BLOODCANCER_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-BloodCancer-Large-459M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DNA_BASE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-Base-220M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_MULTI: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Organism-Multi-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Tiny-60M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_MULTI: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Multi-209M"
         ),
     }
 
@@ -189,10 +169,19 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        variant_input = self._VARIANT_INPUTS[self._variant]
-        text = variant_input["text"]
+        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_MULTI:
+            text = "The p53 tumor suppressor protein interacts with the MDM2-MDMX complex to regulate cell cycle arrest."
+            labels = [
+                "protein",
+                "protein_complex",
+                "protein_enum",
+                "protein_family_or_group",
+                "protein_variant",
+            ]
+        else:
+            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
+            labels = ["SPECIES"]
         self.text = [text]
-        labels = variant_input["labels"]
         entity_types = list(dict.fromkeys(labels))
 
         (
