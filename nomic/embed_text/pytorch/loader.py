@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     NOMIC_EMBED_TEXT_V1 = "nomic-embed-text-v1"
     NOMIC_EMBED_TEXT_V1_5 = "nomic-embed-text-v1.5"
+    CORTO_NOMIC_EMBED_TEXT_V1 = "corto-nomic-embed-text-v1"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +37,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NOMIC_EMBED_TEXT_V1_5: ModelConfig(
             pretrained_model_name="nomic-ai/nomic-embed-text-v1.5",
+        ),
+        ModelVariant.CORTO_NOMIC_EMBED_TEXT_V1: ModelConfig(
+            pretrained_model_name="corto-ai/nomic-embed-text-v1",
         ),
     }
 
