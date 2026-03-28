@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT = (
         "koheiduck_Bert_Japanese_Finetuned_Sentiment"
     )
+    PEDROPEI_ASPECT_LEVEL_CERTAINTY = "pedropei_Aspect_Level_Certainty"
 
 
 class ModelLoader(ForgeModel):
@@ -62,6 +63,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="koheiduck/bert-japanese-finetuned-sentiment",
             max_length=128,
         ),
+        ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY: LLMModelConfig(
+            pretrained_model_name="pedropei/aspect-level-certainty",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -80,6 +85,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.SPAMX_MURIL_V2: "Congratulations! You have won a free prize. Click here to claim now!",
         ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT: "この映画はとても面白かったです。",
+        ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY: "The results of this study clearly demonstrate a significant improvement.",
     }
 
     def __init__(self, variant=None):
@@ -117,6 +123,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.SPAMX_MURIL_V2,
             ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT,
+            ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
