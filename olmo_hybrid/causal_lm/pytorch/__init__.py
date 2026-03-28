@@ -5,4 +5,4 @@
 OLMo Hybrid causal language modeling implementation for Tenstorrent projects.
 """
 # Import from the loader module
-from .loader import ModelLoader
+from .loader import ModelLoader, ModelVariant
