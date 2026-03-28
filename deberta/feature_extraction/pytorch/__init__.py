@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa Feature Extraction PyTorch implementation.
+DeBERTa V2 feature extraction PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant
