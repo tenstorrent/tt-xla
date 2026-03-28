@@ -382,6 +382,17 @@ class ModelLoader(ForgeModel):
         Returns:
             dict or None: Prediction dict if output provided, else None (prints results).
         """
+        # New usage: return dict from output tensor
+        if output is not None:
+            # SMP encoder returns a list of feature maps, not classification logits
+            if self._variant_config.smp_encoder_name is not None:
+                if isinstance(output, (list, tuple)):
+                    return {
+                        "features": [f.shape for f in output],
+                        "num_stages": len(output),
+                    }
+                return {"features": [output.shape], "num_stages": 1}
+
         if self._postprocessor is None:
             model_name = self._variant_config.pretrained_model_name
             source = self._variant_config.source
@@ -397,16 +408,7 @@ class ModelLoader(ForgeModel):
                 model_instance=self.model,
             )
 
-        # New usage: return dict from output tensor
         if output is not None:
-            # SMP encoder returns a list of feature maps, not classification logits
-            if self._variant_config.smp_encoder_name is not None:
-                if isinstance(output, (list, tuple)):
-                    return {
-                        "features": [f.shape for f in output],
-                        "num_stages": len(output),
-                    }
-                return {"features": [output.shape], "num_stages": 1}
             return self._postprocessor.postprocess(
                 output, top_k=top_k, return_dict=True
             )
