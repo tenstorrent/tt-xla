@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Meta Llama 3 70B Instruct GGUF model variants for causal language modeling."""
 
-    META_LLAMA_3_70B_INSTRUCT_Q4_K_M_GGUF = "70B_INSTRUCT_Q4_K_M_GGUF"
+    META_LLAMA_3_70B_INSTRUCT_GGUF = "Meta_Llama_3_70B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Meta Llama 3 70B Instruct GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.META_LLAMA_3_70B_INSTRUCT_Q4_K_M_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/Meta-Llama-3-70B-Instruct-GGUF",
+        ModelVariant.META_LLAMA_3_70B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Meta-Llama-3-70B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.META_LLAMA_3_70B_INSTRUCT_Q4_K_M_GGUF
+    DEFAULT_VARIANT = ModelVariant.META_LLAMA_3_70B_INSTRUCT_GGUF
 
-    GGUF_FILE = "Meta-Llama-3-70B-Instruct-Q4_K_M.gguf"
+    GGUF_FILE = "Meta-Llama-3-70B-Instruct.Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
@@ -150,7 +150,6 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
