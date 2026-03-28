@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE_960H = "Base_960h"
     XLS_R_300M_PASHTO = "XLS_R_300M_Pashto"
+    NB_1B_BOKMAAL = "NB_1B_Bokmaal"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLS_R_300M_PASHTO: ModelConfig(
             pretrained_model_name="ihanif/wav2vec2-xls-r-300m-pashto",
+        ),
+        ModelVariant.NB_1B_BOKMAAL: ModelConfig(
+            pretrained_model_name="NbAiLab/nb-wav2vec2-1b-bokmaal",
         ),
     }
 
