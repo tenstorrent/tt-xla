@@ -41,6 +41,9 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     HUIHUI_QWEN_3_5_27B_ABLITERATED_GGUF = "HUIHUI_27B_ABLITERATED_GGUF"
+    JACKRONG_QWEN_3_5_4B_CLAUDE_OPUS_REASONING_GGUF = (
+        "JACKRONG_4B_CLAUDE_OPUS_REASONING_GGUF"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -116,6 +119,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mradermacher/Huihui-Qwen3.5-27B-abliterated-GGUF",
             max_length=128,
         ),
+        ModelVariant.JACKRONG_QWEN_3_5_4B_CLAUDE_OPUS_REASONING_GGUF: LLMModelConfig(
+            pretrained_model_name="Jackrong/Qwen3.5-4B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -126,6 +133,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.HUIHUI_QWEN_3_5_27B_ABLITERATED_GGUF: "Huihui-Qwen3.5-27B-abliterated.Q4_K_M.gguf",
+        ModelVariant.JACKRONG_QWEN_3_5_4B_CLAUDE_OPUS_REASONING_GGUF: "Qwen3.5-4B.Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
