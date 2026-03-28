@@ -47,6 +47,7 @@ class ModelVariant(StrEnum):
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_32B_ABLITERATED_AWQ = "32B_Abliterated_Awq"
     QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4 = "30B_A3B_Instruct_2507_NVFP4"
+    QWEN_3_14B_FP8 = "14B_FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -130,6 +131,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="NVFP4/Qwen3-30B-A3B-Instruct-2507-FP4",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_14B_FP8: LLMModelConfig(
+            pretrained_model_name="nvidia/Qwen3-14B-FP8",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -177,6 +182,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_32B_ABLITERATED_AWQ,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4,
+            ModelVariant.QWEN_3_14B_FP8,
         ):
             group = ModelGroup.VULCAN
         else:
