@@ -21,6 +21,7 @@ from ...base import ForgeModel
 
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE = "ZeroShot-NER-Pathology-Large-459M"
+    OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL = "ZeroShot-NER-Pathology-Small-166M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
 
 
@@ -30,6 +31,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Large-459M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Small-166M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
@@ -66,6 +70,10 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_INPUTS = {
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE: {
+            "text": "Early detection of breast cancer improves survival rates.",
+            "labels": ["DISEASE"],
+        },
+        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL: {
             "text": "Early detection of breast cancer improves survival rates.",
             "labels": ["DISEASE"],
         },
