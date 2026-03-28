@@ -6,8 +6,8 @@ Nemotron Rerank VL model loader implementation for multimodal document reranking
 """
 
 import torch
+from PIL import Image
 from transformers import AutoModelForSequenceClassification, AutoProcessor
-from transformers.image_utils import load_image
 from typing import Optional
 
 from ....base import ForgeModel
@@ -102,7 +102,7 @@ class ModelLoader(ForgeModel):
             self._load_processor()
 
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        doc_image = load_image(image_file)
+        doc_image = Image.open(image_file)
 
         examples = [
             {
