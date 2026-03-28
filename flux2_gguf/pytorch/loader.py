@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -6,7 +6,6 @@ FLUX.2 GGUF model loader implementation for text-to-image generation
 """
 import torch
 from diffusers.models import Flux2Transformer2DModel
-from huggingface_hub import hf_hub_download
 from typing import Optional
 
 from ...base import ForgeModel
@@ -24,28 +23,21 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available FLUX.2 GGUF model variants."""
 
-    KLEIN_9B_Q4_0 = "Klein 9B Q4_0"
-    KLEIN_9B_Q8_0 = "Klein 9B Q8_0"
+    DEV_Q4_K_M = "Dev_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
     """FLUX.2 GGUF model loader implementation for text-to-image generation tasks."""
 
     _VARIANTS = {
-        ModelVariant.KLEIN_9B_Q4_0: ModelConfig(
-            pretrained_model_name="leejet/FLUX.2-klein-9B-GGUF",
-        ),
-        ModelVariant.KLEIN_9B_Q8_0: ModelConfig(
-            pretrained_model_name="leejet/FLUX.2-klein-9B-GGUF",
+        ModelVariant.DEV_Q4_K_M: ModelConfig(
+            pretrained_model_name="city96/FLUX.2-dev-gguf",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.KLEIN_9B_Q4_0
+    DEFAULT_VARIANT = ModelVariant.DEV_Q4_K_M
 
-    GGUF_FILES = {
-        ModelVariant.KLEIN_9B_Q4_0: "flux-2-klein-9b-Q4_0.gguf",
-        ModelVariant.KLEIN_9B_Q8_0: "flux-2-klein-9b-Q8_0.gguf",
-    }
+    GGUF_FILE = "flux2-dev-Q4_K_M.gguf"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -67,20 +59,12 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        variant = self._variant or self.DEFAULT_VARIANT
-        gguf_file = self.GGUF_FILES[variant]
-
-        gguf_path = hf_hub_download(
-            self._variant_config.pretrained_model_name,
-            filename=gguf_file,
-        )
-
-        load_kwargs = {}
+        load_kwargs = {"gguf_file": self.GGUF_FILE}
         if dtype_override is not None:
             load_kwargs["torch_dtype"] = dtype_override
 
         self.transformer = Flux2Transformer2DModel.from_single_file(
-            gguf_path,
+            f"https://huggingface.co/city96/FLUX.2-dev-gguf/blob/main/{self.GGUF_FILE}",
             **load_kwargs,
         )
 
