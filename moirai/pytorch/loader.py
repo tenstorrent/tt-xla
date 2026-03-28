@@ -48,7 +48,7 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.SMALL: MoiraiConfig(
-            pretrained_model_name="Salesforce/moirai-1.1-R-small",
+            pretrained_model_name="Salesforce/moirai-1.0-R-small",
             context_length=512,
             prediction_length=64,
             patch_size=32,
