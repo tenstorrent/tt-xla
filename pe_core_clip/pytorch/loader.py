@@ -5,7 +5,7 @@
 PE-Core CLIP model loader implementation for image-text similarity using OpenCLIP.
 
 Meta's Perception Encoder (PE) Core is a CLIP-style vision-language model
-using a ViT-Large/14 vision tower at 336px resolution.
+with variants ranging from ViT-Large/14 at 336px to ViT-bigG/14 at 448px resolution.
 """
 import torch
 import torch.nn.functional as F
@@ -27,11 +27,13 @@ class ModelVariant(StrEnum):
     """Available PE-Core CLIP model variants."""
 
     VIT_L_14_336 = "ViT_L_14_336"
+    VIT_BIGG_14_448 = "ViT_bigG_14_448"
 
 
 # Mapping from variant to OpenCLIP tokenizer name
 _TOKENIZER_NAME = {
     ModelVariant.VIT_L_14_336: "hf-hub:timm/PE-Core-L-14-336",
+    ModelVariant.VIT_BIGG_14_448: "hf-hub:timm/PE-Core-bigG-14-448",
 }
 
 
@@ -41,6 +43,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.VIT_L_14_336: ModelConfig(
             pretrained_model_name="hf-hub:timm/PE-Core-L-14-336",
+        ),
+        ModelVariant.VIT_BIGG_14_448: ModelConfig(
+            pretrained_model_name="hf-hub:timm/PE-Core-bigG-14-448",
         ),
     }
 
