@@ -121,13 +121,6 @@ class ModelLoader(ForgeModel):
         ).eval()
 
         self.config = model.config
-
-        if (
-            hasattr(self.config, "sliding_window")
-            and self.config.sliding_window is not None
-        ):
-            self.config.sliding_window = None
-
         self.model = model
         return model
 
@@ -150,12 +143,6 @@ class ModelLoader(ForgeModel):
         test_input = "Translate the following English sentence into Chinese:\nMay the force be with you <zh>"
 
         inputs = self.tokenizer(test_input, return_tensors="pt")
-
-        if (
-            hasattr(self.model.config, "sliding_window")
-            and self.model.config.sliding_window is not None
-        ):
-            self.model.config.sliding_window = inputs["input_ids"].shape[1]
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
