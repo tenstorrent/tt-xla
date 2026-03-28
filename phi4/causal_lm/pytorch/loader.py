@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Phi 4 model variants."""
 
     PHI_4 = "Phi_4"
+    PHI_4_MINI_INSTRUCT = "Phi_4_Mini_Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.PHI_4: ModelConfig(
             pretrained_model_name="microsoft/phi-4",
+        ),
+        ModelVariant.PHI_4_MINI_INSTRUCT: ModelConfig(
+            pretrained_model_name="microsoft/Phi-4-mini-instruct",
         ),
     }
 
@@ -66,10 +70,13 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        group = ModelGroup.RED
+        if variant == ModelVariant.PHI_4_MINI_INSTRUCT:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="Phi-4",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
