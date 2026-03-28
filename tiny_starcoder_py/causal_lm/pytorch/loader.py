@@ -13,7 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    ModelConfig,
+    LLMModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -32,8 +32,9 @@ class ModelLoader(ForgeModel):
     """Tiny StarCoder Py model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.TINY_STARCODER_PY: ModelConfig(
+        ModelVariant.TINY_STARCODER_PY: LLMModelConfig(
             pretrained_model_name="bigcode/tiny_starcoder_py",
+            max_length=128,
         ),
     }
 
