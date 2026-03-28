@@ -107,14 +107,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # UnicomLLM variants
-    UNICHAT_LLAMA3_CHINESE_8B = "Unichat_Llama3_Chinese_8B"
-
-    # OpenBuddy variants
-    OPENBUDDY_LLAMA3_70B = "OpenBuddy_Llama3_70B"
-
-    # yejingfu nmagic FP8 quantized variants
-    NMAGIC_LLAMA_3_1_8B_INSTRUCT_FP8 = "Nmagic_3.1_8B_Instruct_FP8"
+    # BAAI variants
+    BAAI_INFINITY_INSTRUCT_7M_GEN_LLAMA3_1_8B = "BAAI_Infinity_Instruct_7M_Gen_3.1_8B"
 
 
 class ModelLoader(ForgeModel):
@@ -259,19 +253,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # UnicomLLM variants
-        ModelVariant.UNICHAT_LLAMA3_CHINESE_8B: LLMModelConfig(
-            pretrained_model_name="UnicomLLM/Unichat-llama3-Chinese-8B",
-            max_length=128,
-        ),
-        # OpenBuddy variants
-        ModelVariant.OPENBUDDY_LLAMA3_70B: LLMModelConfig(
-            pretrained_model_name="OpenBuddy/openbuddy-llama3-70b-v21.2-32k",
-            max_length=128,
-        ),
-        # yejingfu nmagic FP8 quantized variants
-        ModelVariant.NMAGIC_LLAMA_3_1_8B_INSTRUCT_FP8: LLMModelConfig(
-            pretrained_model_name="yejingfu/nmagic-Meta-Llama-3.1-8B-Instruct-FP8",
+        # BAAI variants
+        ModelVariant.BAAI_INFINITY_INSTRUCT_7M_GEN_LLAMA3_1_8B: LLMModelConfig(
+            pretrained_model_name="BAAI/Infinity-Instruct-7M-Gen-Llama3_1-8B",
             max_length=128,
         ),
     }
@@ -348,8 +332,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
-            ModelVariant.SHAHRIARFERDOUSH_LLAMA_3_2_1B_CODE_INSTRUCT,
-            ModelVariant.MLABONNE_LLAMA_3_1_8B_INSTRUCT_ABLITERATED,
+            ModelVariant.BAAI_INFINITY_INSTRUCT_7M_GEN_LLAMA3_1_8B,
         ]:
             group = ModelGroup.VULCAN
         else:
