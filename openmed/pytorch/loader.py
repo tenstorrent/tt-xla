@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PROTEIN_LARGE = "ZeroShot-NER-Protein-Large-459M"
+    OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE = "ZeroShot-NER-Oncology-Base-220M"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_LARGE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Large-459M"
         ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M"
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL
@@ -45,6 +49,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
         ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_LARGE: "The Maillard reaction is responsible for the browning of many foods.",
+        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE: "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
     }
 
     _LABELS = {
@@ -55,6 +60,13 @@ class ModelLoader(ForgeModel):
             "protein_enum",
             "protein_family_or_group",
             "protein_variant",
+        ],
+        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE: [
+            "Cancer",
+            "Gene_or_gene_product",
+            "Cell",
+            "Simple_chemical",
+            "Tissue",
         ],
     }
 
