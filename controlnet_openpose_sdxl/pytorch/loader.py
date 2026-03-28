@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     """Available ControlNet OpenPose SDXL model variants."""
 
     CONTROLNET_OPENPOSE_SDXL_1_0 = "OpenPose_SDXL_1.0"
+    XINSIR_CONTROLNET_OPENPOSE_SDXL_1_0 = "xinsir_OpenPose_SDXL_1.0"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.CONTROLNET_OPENPOSE_SDXL_1_0: ModelConfig(
             pretrained_model_name="thibaud/controlnet-openpose-sdxl-1.0",
+        ),
+        ModelVariant.XINSIR_CONTROLNET_OPENPOSE_SDXL_1_0: ModelConfig(
+            pretrained_model_name="xinsir/controlnet-openpose-sdxl-1.0",
         ),
     }
 
