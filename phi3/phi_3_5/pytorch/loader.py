@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Phi 3.5 model loader implementation for causal language modeling (non-MoE)
+Phi 3.5 model loader implementation for causal language modeling
 """
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -21,11 +21,11 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Phi 3.5 model variants (non-MoE)."""
+    """Available Phi 3.5 model variants."""
 
     MINI_INSTRUCT = "Mini_Instruct"
     MOE_INSTRUCT = "Phi_3.5_Moe_Instruct"
-    UNSLOTH_MINI_INSTRUCT_BNB_4BIT = "Unsloth_Mini_Instruct_Bnb_4bit"
+    TINY_RANDOM_MOE = "Phi_3.5_Moe_Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -39,8 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MOE_INSTRUCT: ModelConfig(
             pretrained_model_name="microsoft/Phi-3.5-MoE-instruct",
         ),
-        ModelVariant.UNSLOTH_MINI_INSTRUCT_BNB_4BIT: ModelConfig(
-            pretrained_model_name="unsloth/Phi-3.5-mini-instruct-bnb-4bit",
+        ModelVariant.TINY_RANDOM_MOE: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/phi-3.5-moe-tiny-random",
         ),
     }
 
@@ -62,10 +62,11 @@ class ModelLoader(ForgeModel):
         """Get model information for dashboard and metrics reporting."""
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-        if variant == ModelVariant.UNSLOTH_MINI_INSTRUCT_BNB_4BIT:
+
+        group = ModelGroup.RED
+        if variant == ModelVariant.TINY_RANDOM_MOE:
             group = ModelGroup.VULCAN
-        else:
-            group = ModelGroup.RED
+
         return ModelInfo(
             model="Phi-3",
             variant=variant,
@@ -80,6 +81,8 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+        if self._variant == ModelVariant.TINY_RANDOM_MOE:
+            tokenizer_kwargs["trust_remote_code"] = True
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
             **tokenizer_kwargs,
@@ -99,9 +102,10 @@ class ModelLoader(ForgeModel):
             "use_cache": False,
             "torch_dtype": model_dtype,
         }
-        if self._variant == ModelVariant.UNSLOTH_MINI_INSTRUCT_BNB_4BIT:
-            model_kwargs["device_map"] = "cpu"
+        if self._variant == ModelVariant.TINY_RANDOM_MOE:
+            model_kwargs["trust_remote_code"] = True
         model_kwargs |= kwargs
+
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name,
             **model_kwargs,
@@ -119,9 +123,13 @@ class ModelLoader(ForgeModel):
                 "content": "Can you provide ways to eat combinations of bananas and dragonfruits?",
             },
         ]
-        text = self.tokenizer.apply_chat_template(
-            prompt, tokenize=False, add_generation_prompt=True
-        )
+        chat_kwargs = {
+            "tokenize": False,
+            "add_generation_prompt": True,
+        }
+        if self._variant != ModelVariant.TINY_RANDOM_MOE:
+            chat_kwargs["enable_thinking"] = True
+        text = self.tokenizer.apply_chat_template(prompt, **chat_kwargs)
         inputs = self.tokenizer(
             [text],
             return_tensors="pt",
