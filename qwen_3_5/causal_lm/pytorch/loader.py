@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_27B_NVFP4 = "27B_NVFP4"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
+    QWEN_3_5_2B_GGUF = "2B_GGUF"
     QWEN_3_5_2B_REASONING_DISTILLED_GGUF = "2B_Reasoning_Distilled_GGUF"
 
 
@@ -92,6 +93,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_2B_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3.5-2B-GGUF",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_5_2B_REASONING_DISTILLED_GGUF: LLMModelConfig(
             pretrained_model_name="Jackrong/Qwen3.5-2B-Claude-4.6-Opus-Reasoning-Distilled-GGUF",
             max_length=128,
@@ -105,6 +110,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_2B_GGUF: "Qwen3.5-2B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_2B_REASONING_DISTILLED_GGUF: "Qwen3.5-2B.Q4_K_M.gguf",
     }
 
