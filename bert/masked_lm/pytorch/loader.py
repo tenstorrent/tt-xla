@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     BIOMEDVLP_CXR_BERT_GENERAL = "microsoft/BiomedVLP-CXR-BERT-general"
     BERT_BASE_ITALIAN_UNCASED = "dbmdz/bert-base-italian-uncased"
     BERT_BASE_GERMAN_UNCASED = "dbmdz/bert-base-german-uncased"
+    BERT_UNCASED_L12_H256_A4 = "google/bert_uncased_L-12_H-256_A-4"
 
 
 class ModelLoader(ForgeModel):
@@ -87,6 +88,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="dbmdz/bert-base-german-uncased",
             max_length=128,
         ),
+        ModelVariant.BERT_UNCASED_L12_H256_A4: LLMModelConfig(
+            pretrained_model_name="google/bert_uncased_L-12_H-256_A-4",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -134,6 +139,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOMEDVLP_CXR_BERT_GENERAL,
             ModelVariant.BERT_BASE_ITALIAN_UNCASED,
             ModelVariant.BERT_BASE_GERMAN_UNCASED,
+            ModelVariant.BERT_UNCASED_L12_H256_A4,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
