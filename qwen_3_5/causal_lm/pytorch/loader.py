@@ -48,6 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_INT4_AUTOROUND = "35B_A3B_int4_AutoRound"
     QWEN_3_5_397B_A17B_GPTQ_INT4 = "397B_A17B_GPTQ_Int4"
     QWEN_3_5_4B_CLAUDE_OPUS_REASONING_DISTILLED = "4B_Claude_Opus_Reasoning_Distilled"
+    QWEN_3_5_35B_A3B_UBERGARM_GGUF = "35B_A3B_ubergarm_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -151,6 +152,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Jackrong/Qwen3.5-4B-Claude-4.6-Opus-Reasoning-Distilled",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_UBERGARM_GGUF: LLMModelConfig(
+            pretrained_model_name="ubergarm/Qwen3.5-35B-A3B-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -163,6 +168,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_122B_A10B_GGUF: "Qwen3.5-122B-A10B-f16-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_27B_GUARDPOINT_GGUF: "Qwen3.5-27B-Guardpoint-i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_UBERGARM_GGUF: "Qwen3.5-35B-A3B-Q4_0.gguf",
     }
 
     # Shared configuration parameters
@@ -377,6 +383,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
             ModelVariant.QWEN_3_5_35B_A3B_INT4_AUTOROUND,
+            ModelVariant.QWEN_3_5_35B_A3B_UBERGARM_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B_GGUF,
             ModelVariant.QWEN_3_5_397B_A17B_GPTQ_INT4,
         )
