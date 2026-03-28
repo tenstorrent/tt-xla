@@ -33,16 +33,7 @@ class ModelVariant(StrEnum):
     BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
-    BERT_BASE_TURKISH_128K_UNCASED = "dbmdz/bert-base-turkish-128k-uncased"
-    BERT_BASE_ARABIC = "asafaya/bert-base-arabic"
-    MEDBERT_512_NO_DUPLICATES = "GerMedBERT/medbert-512-no-duplicates"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.BERT_BASE_TURKISH_128K_UNCASED: "Türkiye'nin başkenti [MASK] şehridir.",
-    ModelVariant.BERT_BASE_ARABIC: "عاصمة فرنسا هي [MASK].",
-    ModelVariant.MEDBERT_512_NO_DUPLICATES: "Der Patient wurde mit [MASK] diagnostiziert.",
-}
+    RETROMAE_MSMARCO_DISTILL = "Shitao/RetroMAE_MSMARCO_distill"
 
 
 class ModelLoader(ForgeModel):
@@ -82,16 +73,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
-        ModelVariant.BERT_BASE_TURKISH_128K_UNCASED: LLMModelConfig(
-            pretrained_model_name="dbmdz/bert-base-turkish-128k-uncased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_ARABIC: LLMModelConfig(
-            pretrained_model_name="asafaya/bert-base-arabic",
-            max_length=128,
-        ),
-        ModelVariant.MEDBERT_512_NO_DUPLICATES: LLMModelConfig(
-            pretrained_model_name="GerMedBERT/medbert-512-no-duplicates",
+        ModelVariant.RETROMAE_MSMARCO_DISTILL: LLMModelConfig(
+            pretrained_model_name="Shitao/RetroMAE_MSMARCO_distill",
             max_length=128,
         ),
     }
@@ -138,9 +121,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
-            ModelVariant.BERT_BASE_TURKISH_128K_UNCASED,
-            ModelVariant.BERT_BASE_ARABIC,
-            ModelVariant.MEDBERT_512_NO_DUPLICATES,
+            ModelVariant.RETROMAE_MSMARCO_DISTILL,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
