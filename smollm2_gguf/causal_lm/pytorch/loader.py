@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available SmolLM2 GGUF model variants for causal language modeling."""
 
-    SMOLLM2_360M_INSTRUCT_GGUF = "360M_Instruct_GGUF"
+    SMOLLM2_1_7B_INSTRUCT_GGUF = "1.7B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """SmolLM2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.SMOLLM2_360M_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/SmolLM2-360M-Instruct-GGUF",
+        ModelVariant.SMOLLM2_1_7B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SMOLLM2_360M_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.SMOLLM2_1_7B_INSTRUCT_GGUF
 
-    GGUF_FILE = "SmolLM2-360M-Instruct-Q4_K_M.gguf"
+    GGUF_FILE = "smollm2-1.7b-instruct-q4_k_m.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "What is gravity?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
