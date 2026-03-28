@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available Mask2Former model variants for instance segmentation."""
 
     SWIN_L_COCO_INSTANCE = "Swin_Large_Coco_Instance"
+    SWIN_S_COCO_INSTANCE = "Swin_Small_Coco_Instance"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.SWIN_L_COCO_INSTANCE: ModelConfig(
             pretrained_model_name="facebook/mask2former-swin-large-coco-instance"
+        ),
+        ModelVariant.SWIN_S_COCO_INSTANCE: ModelConfig(
+            pretrained_model_name="facebook/mask2former-swin-small-coco-instance"
         ),
     }
 
