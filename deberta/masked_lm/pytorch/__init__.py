@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa V3 Masked LM PyTorch implementation.
+DeBERTa Masked LM PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant

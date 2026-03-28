@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa V3 model loader implementation for masked language modeling.
+DeBERTa model loader implementation for masked language modeling.
 """
 
 from transformers import AutoTokenizer, DebertaV2ForMaskedLM
@@ -19,15 +19,16 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available DeBERTa V3 model variants for masked language modeling."""
+    """Available DeBERTa model variants for masked language modeling."""
 
     DEBERTA_V3_SMALL = "V3_Small"
     DEBERTA_V3_BASE = "V3_Base"
     DEBERTA_V3_LARGE = "V3_Large"
+    DEBERTA_V2_TINY_JAPANESE_CHAR_WWM = "V2_Tiny_Japanese_Char_WWM"
 
 
 class ModelLoader(ForgeModel):
-    """DeBERTa V3 model loader implementation for masked language modeling."""
+    """DeBERTa model loader implementation for masked language modeling."""
 
     _VARIANTS = {
         ModelVariant.DEBERTA_V3_SMALL: LLMModelConfig(
@@ -40,6 +41,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DEBERTA_V3_LARGE: LLMModelConfig(
             pretrained_model_name="microsoft/deberta-v3-large",
+            max_length=128,
+        ),
+        ModelVariant.DEBERTA_V2_TINY_JAPANESE_CHAR_WWM: LLMModelConfig(
+            pretrained_model_name="ku-nlp/deberta-v2-tiny-japanese-char-wwm",
             max_length=128,
         ),
     }
