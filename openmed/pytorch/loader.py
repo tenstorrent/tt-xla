@@ -22,6 +22,7 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE = "ZeroShot-NER-Pathology-Large-459M"
     OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL = "ZeroShot-NER-Pathology-Small-166M"
+    OPENMED_ZEROSHOT_NER_PROTEIN_BASE = "ZeroShot-NER-Protein-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
 
 
@@ -34,6 +35,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Small-166M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_BASE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Base-220M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
@@ -76,6 +80,16 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL: {
             "text": "Early detection of breast cancer improves survival rates.",
             "labels": ["DISEASE"],
+        },
+        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_BASE: {
+            "text": "The Maillard reaction is responsible for the browning of many foods.",
+            "labels": [
+                "protein",
+                "protein_complex",
+                "protein_enum",
+                "protein_family_or_group",
+                "protein_variant",
+            ],
         },
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: {
             "text": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
