@@ -41,6 +41,7 @@ class ModelVariant(StrEnum):
     QWEN_3_14B = "14B"
     QWEN_3_32B = "32B"
     QWEN_3_8B_AWQ = "8B_Awq"
+    QWEN_3_8B_MLX_4BIT = "8B_MLX_4bit"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
@@ -90,6 +91,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_8B_AWQ: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-8B-AWQ",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_8B_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-8B-MLX-4bit",
             max_length=128,
         ),
         ModelVariant.QWEN_3_14B: LLMModelConfig(
@@ -159,6 +164,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_4BIT,
             ModelVariant.QWEN_3_8B_AWQ,
+            ModelVariant.QWEN_3_8B_MLX_4BIT,
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
