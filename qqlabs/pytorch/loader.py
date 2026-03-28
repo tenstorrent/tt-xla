@@ -79,7 +79,9 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
-        tokenizer_kwargs = {}
+        tokenizer_kwargs = {
+            "padding_side": "left",
+        }
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -136,6 +138,7 @@ class ModelLoader(ForgeModel):
 
         sample_text = "How relevant is this product to the search query?"
 
+        self.tokenizer.padding_side = "right"
         inputs = self.tokenizer(
             sample_text,
             return_tensors="pt",
