@@ -72,7 +72,7 @@ class ModelLoader(ForgeModel):
         """Prepare a random DNA sequence input for Enformer.
 
         Returns:
-            dict: Input dict with a 'sequence' tensor of shape (1, 196608).
+            torch.Tensor: Sequence tensor of shape (1, 196608) with nucleotide indices.
         """
         torch.manual_seed(42)
         # DNA nucleotide indices: 0=A, 1=C, 2=G, 3=T, 4=N
