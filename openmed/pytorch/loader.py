@@ -22,6 +22,7 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_DISEASE_MULTI = "ZeroShot-NER-Disease-Multi-209M"
     OPENMED_ZEROSHOT_NER_PATHOLOGY_MEDIUM = "ZeroShot-NER-Pathology-Medium-209M"
+    OPENMED_ZEROSHOT_NER_PHARMA_TINY = "ZeroShot-NER-Pharma-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PHARMA_MULTI = "ZeroShot-NER-Pharma-Multi-209M"
     OPENMED_ZEROSHOT_NER_GENOME_TINY = "ZeroShot-NER-Genome-Tiny-60M"
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_MEDIUM: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Medium-209M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_TINY: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pharma-Tiny-60M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
@@ -160,6 +164,9 @@ class ModelLoader(ForgeModel):
         elif variant == ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_MEDIUM:
             text = "Early detection of breast cancer improves survival rates."
             labels = ["DISEASE"]
+        elif variant == ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_TINY:
+            text = "Administration of metformin reduced glucose levels significantly."
+            labels = ["CHE"]
         else:
             text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
             labels = ["SPECIES"]
