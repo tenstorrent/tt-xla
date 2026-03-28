@@ -24,19 +24,19 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available InternVL3 model variants."""
 
-    INTERN_VL3_2B = "2B"
+    INTERN_VL3_8B_HF = "8B_hf"
 
 
 class ModelLoader(ForgeModel):
     """InternVL3 model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.INTERN_VL3_2B: LLMModelConfig(
-            pretrained_model_name="OpenGVLab/InternVL3-2B-hf",
+        ModelVariant.INTERN_VL3_8B_HF: LLMModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL3-8B-hf",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.INTERN_VL3_2B
+    DEFAULT_VARIANT = ModelVariant.INTERN_VL3_8B_HF
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -73,9 +73,7 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor(dtype_override=dtype_override)
 
-        model_kwargs = {
-            "attn_implementation": "eager",
-        }
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
