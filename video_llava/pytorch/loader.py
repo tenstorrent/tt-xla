@@ -86,10 +86,12 @@ class ModelLoader(ForgeModel):
 
         text_prompt = "USER: <video>\nWhat is shown in this video? ASSISTANT:"
 
-        # Create a small synthetic video (8 frames of 32x32 RGB)
-        video = np.random.randint(0, 255, (8, 32, 32, 3), dtype=np.uint8)
+        # Create a small synthetic video clip (8 frames of 32x32 RGB)
+        video_clip = np.random.randint(0, 255, (8, 32, 32, 3), dtype=np.uint8)
 
-        inputs = self.processor(text=text_prompt, videos=video, return_tensors="pt")
+        inputs = self.processor(
+            text=text_prompt, videos=video_clip, return_tensors="pt"
+        )
 
         if dtype_override:
             inputs = {
