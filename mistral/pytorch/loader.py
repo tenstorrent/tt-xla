@@ -51,6 +51,7 @@ class ModelVariant(StrEnum):
     DEVSTRAL_SMALL_2_24B_INSTRUCT_2512 = "Devstral_Small_2_24B_Instruct_2512"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
     MINISTRAL_3_14B_REASONING_AWQ_4BIT = "Ministral_3_14B_Reasoning_AWQ_4bit"
+    OPEN_HERMES_2_5_MISTRAL_7B_AWQ = "OpenHermes_2.5_Mistral_7B_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -147,6 +148,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT: ModelConfig(
             pretrained_model_name="cyankiwi/Ministral-3-14B-Reasoning-2512-AWQ-4bit",
         ),
+        ModelVariant.OPEN_HERMES_2_5_MISTRAL_7B_AWQ: ModelConfig(
+            pretrained_model_name="TheBloke/OpenHermes-2.5-Mistral-7B-AWQ",
+        ),
     }
 
     # Default variant to use
@@ -185,6 +189,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_UTTERANCE,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT,
+            ModelVariant.OPEN_HERMES_2_5_MISTRAL_7B_AWQ,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
@@ -273,6 +278,7 @@ class ModelLoader(ForgeModel):
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MINISTRAL_3_14B_REASONING_AWQ_4BIT,
+            ModelVariant.OPEN_HERMES_2_5_MISTRAL_7B_AWQ,
         ):
             model_kwargs["device_map"] = "cpu"
 
