@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available SmolLM model variants for causal language modeling."""
 
-    SMOLLM_360M_INSTRUCT = "smollm_360m_instruct"
+    SMOLLM_360M = "smollm_360m"
 
 
 class ModelLoader(ForgeModel):
@@ -31,14 +31,14 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.SMOLLM_360M_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="HuggingFaceTB/SmolLM-360M-Instruct",
+        ModelVariant.SMOLLM_360M: LLMModelConfig(
+            pretrained_model_name="HuggingFaceTB/SmolLM-360M",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.SMOLLM_360M_INSTRUCT
+    DEFAULT_VARIANT = ModelVariant.SMOLLM_360M
 
     # Shared configuration parameters
     sample_text = "The quick brown fox jumps over the lazy dog."
