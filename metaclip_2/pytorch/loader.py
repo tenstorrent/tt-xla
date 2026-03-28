@@ -5,7 +5,7 @@
 MetaCLIP 2 model loader implementation for zero-shot image classification.
 """
 import torch
-from transformers import AutoProcessor, AutoModel
+from transformers import AutoProcessor, AutoModelForZeroShotImageClassification
 from typing import Optional
 
 from ...base import ForgeModel
@@ -22,21 +22,21 @@ from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
-    """Available MetaCLIP 2 model variants."""
+    """Available MetaCLIP 2 model variants for zero-shot image classification."""
 
-    WORLDWIDE_HUGE_QUICKGELU = "Worldwide_Huge_QuickGELU"
+    WORLDWIDE_GIANT_378 = "worldwide_giant_378"
 
 
 class ModelLoader(ForgeModel):
-    """MetaCLIP 2 model loader for zero-shot image classification tasks."""
+    """MetaCLIP 2 model loader implementation for zero-shot image classification tasks."""
 
     _VARIANTS = {
-        ModelVariant.WORLDWIDE_HUGE_QUICKGELU: ModelConfig(
-            pretrained_model_name="facebook/metaclip-2-worldwide-huge-quickgelu",
+        ModelVariant.WORLDWIDE_GIANT_378: ModelConfig(
+            pretrained_model_name="facebook/metaclip-2-worldwide-giant-378",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.WORLDWIDE_HUGE_QUICKGELU
+    DEFAULT_VARIANT = ModelVariant.WORLDWIDE_GIANT_378
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -49,7 +49,7 @@ class ModelLoader(ForgeModel):
             model="MetaCLIP_2",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.MM_IMAGE_TEXT_SIM,
+            task=ModelTask.CV_ZS_IMAGE_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -61,14 +61,6 @@ class ModelLoader(ForgeModel):
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the MetaCLIP 2 model instance.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The MetaCLIP 2 model instance.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"return_dict": False}
@@ -77,21 +69,14 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = AutoModelForZeroShotImageClassification.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
         model.eval()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the MetaCLIP 2 model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the input dtype.
-            batch_size: Optional batch size (default 1).
-
-        Returns:
-            dict: Input tensors containing pixel values and text tokens.
-        """
         if self.processor is None:
             self._load_processor()
 
@@ -114,11 +99,6 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def post_process(self, outputs):
-        """Post-process MetaCLIP 2 model outputs to extract similarity scores.
-
-        Args:
-            outputs: Raw model output
-        """
         if self.text_prompts is None:
             self.text_prompts = ["a photo of a cat", "a photo of a dog"]
 
@@ -129,14 +109,6 @@ class ModelLoader(ForgeModel):
             print(f"Probability of '{text}':", probs[0, i].item())
 
     def unpack_forward_output(self, fwd_output):
-        """Unpack forward pass output to extract a differentiable tensor.
-
-        Args:
-            fwd_output: Output from the model's forward pass (tuple)
-
-        Returns:
-            torch.Tensor: Concatenated flattened outputs for backward pass
-        """
         if isinstance(fwd_output, tuple):
             tensors = []
             for item in fwd_output:
