@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
     FALCON_MAMBA_7B = "3_Mamba_7B_Base"
     FALCON_40B = "40B"
     FALCON_7B_INSTRUCT = "7B_Instruct"
-    FALCON_40B_INSTRUCT = "40B_Instruct"
+    FALCON_TINY_TESTING = "Tiny_Testing"
 
 
 class ModelLoader(ForgeModel):
@@ -60,8 +60,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.FALCON_7B_INSTRUCT: ModelConfig(
             pretrained_model_name="tiiuae/falcon-7b-instruct",
         ),
-        ModelVariant.FALCON_40B_INSTRUCT: ModelConfig(
-            pretrained_model_name="tiiuae/falcon-40b-instruct",
+        ModelVariant.FALCON_TINY_TESTING: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/really-tiny-falcon-testing",
         ),
     }
 
@@ -89,7 +89,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.FALCON_10B,
         ]:
             group = ModelGroup.RED
-        elif variant == ModelVariant.FALCON_40B_INSTRUCT:
+        elif variant == ModelVariant.FALCON_TINY_TESTING:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
