@@ -5,7 +5,6 @@
 DDColor model loader implementation for image colorization tasks.
 """
 
-import torch
 from torchvision import transforms
 from transformers import AutoModel
 from typing import Optional
