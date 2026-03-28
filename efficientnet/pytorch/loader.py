@@ -69,7 +69,7 @@ class ModelVariant(StrEnum):
     HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K = "Timm_Tf_B0_Aa_In1k"
     HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K = "Timm_V2_Rw_S_Ra2_In1k"
     HF_TIMM_TF_EFFICIENTNETV2_S_IN21K = "Timm_Tf_V2_S_In21k"
-    HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K = "Timm_Tf_B2_Ns_Jft_In1k"
+    HF_TIMM_TF_EFFICIENTNETV2_L_IN21K_FT_IN1K = "Timm_Tf_V2_L_In21k_Ft_In1k"
 
 
 class ModelLoader(ForgeModel):
@@ -186,17 +186,10 @@ class ModelLoader(ForgeModel):
         source=ModelSource.TIMM,
         use_1k_labels=False,
     )
-    HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K_CONFIG = EfficientNetConfig(
-        pretrained_model_name="hf_hub:timm/tf_efficientnet_b2.ns_jft_in1k",
+    HF_TIMM_TF_EFFICIENTNETV2_L_IN21K_FT_IN1K_CONFIG = EfficientNetConfig(
+        pretrained_model_name="hf_hub:timm/tf_efficientnetv2_l.in21k_ft_in1k",
         source=ModelSource.TIMM,
         use_1k_labels=True,
-    )
-
-    # SMP config instances
-    SMP_B3_CONFIG = EfficientNetConfig(
-        pretrained_model_name="smp-hub/efficientnet-b3.imagenet",
-        source=ModelSource.CUSTOM,
-        smp_encoder_name="efficientnet-b3",
     )
 
     # Dictionary using the static dataclass instances (for compatibility with existing tests)
@@ -220,9 +213,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K: HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K_CONFIG,
         ModelVariant.HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K: HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_S_IN21K: HF_TIMM_TF_EFFICIENTNETV2_S_IN21K_CONFIG,
-        ModelVariant.HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K: HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K_CONFIG,
-        # SMP variants
-        ModelVariant.SMP_B3: SMP_B3_CONFIG,
+        ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_L_IN21K_FT_IN1K: HF_TIMM_TF_EFFICIENTNETV2_L_IN21K_FT_IN1K_CONFIG,
     }
 
     # Default variant to use
@@ -261,11 +252,9 @@ class ModelLoader(ForgeModel):
             group=(
                 ModelGroup.RED
                 if variant == ModelVariant.B0
-                else (
-                    ModelGroup.VULCAN
-                    if variant == ModelVariant.HF_TIMM_EFFICIENTNET_B5_SW_IN12K_FT_IN1K
-                    else ModelGroup.GENERALITY
-                )
+                else ModelGroup.VULCAN
+                if variant == ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_L_IN21K_FT_IN1K
+                else ModelGroup.GENERALITY
             ),
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
