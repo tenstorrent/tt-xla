@@ -5,7 +5,7 @@
 ModernBERT model loader implementation for sequence classification.
 """
 
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -21,20 +21,24 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available ModernBERT model variants for sequence classification."""
 
-    FINEPDFS_EDU_CLASSIFIER_ENG_LATN = "finepdfs_edu_classifier_eng_Latn"
+    CLAPAI_MULTILINGUAL_SENTIMENT = "clapAI_Multilingual_Sentiment"
 
 
 class ModelLoader(ForgeModel):
     """ModernBERT model loader implementation for sequence classification."""
 
     _VARIANTS = {
-        ModelVariant.FINEPDFS_EDU_CLASSIFIER_ENG_LATN: LLMModelConfig(
-            pretrained_model_name="HuggingFaceFW/finepdfs_edu_classifier_eng_Latn",
+        ModelVariant.CLAPAI_MULTILINGUAL_SENTIMENT: LLMModelConfig(
+            pretrained_model_name="clapAI/modernBERT-base-multilingual-sentiment",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.FINEPDFS_EDU_CLASSIFIER_ENG_LATN
+    DEFAULT_VARIANT = ModelVariant.CLAPAI_MULTILINGUAL_SENTIMENT
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.CLAPAI_MULTILINGUAL_SENTIMENT: "I absolutely love this product, it works perfectly!",
+    }
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -45,9 +49,12 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
 
-        self.model_name = self._variant_config.pretrained_model_name
-        self.max_length = self._variant_config.max_length
-        self.sample_text = "Photosynthesis is the process by which green plants convert sunlight into chemical energy."
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        self.model_name = pretrained_model_name
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant, "I absolutely love this product, it works perfectly!"
+        )
+        self.max_length = 128
         self.tokenizer = None
 
     @classmethod
@@ -116,13 +123,7 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def decode_output(self, co_out, framework_model=None):
-        """Decode the model output for sequence classification.
-
-        Args:
-            co_out: Model output
-            framework_model: Framework model with config (needed for id2label mapping)
-        """
-        logits = co_out[0]
-        score = logits.squeeze(-1).item()
-        print(f"Educational quality score: {score:.2f}")
+    def decode_output(self, co_out):
+        """Decode the model output for sequence classification."""
+        predicted_value = co_out[0].argmax(-1).item()
+        print(f"Predicted Sentiment: {self.model.config.id2label[predicted_value]}")
