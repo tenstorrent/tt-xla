@@ -4,9 +4,6 @@
 """
 DeBERTa model loader implementation for question answering.
 """
-
-from typing import Optional
-
 from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
