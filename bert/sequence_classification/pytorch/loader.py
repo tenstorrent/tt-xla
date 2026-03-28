@@ -27,8 +27,7 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    PATRICKQUICK_BERTICELLI = "patrickquick_BERTicelli"
-    YUCHUANTIAN_AIGC_DETECTOR_ZHV3SHORT = "yuchuantian_AIGC_detector_zhv3short"
+    KK08_CRYPTOBERT = "kk08_CryptoBERT"
 
 
 class ModelLoader(ForgeModel):
@@ -52,12 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.PATRICKQUICK_BERTICELLI: LLMModelConfig(
-            pretrained_model_name="patrickquick/BERTicelli",
-            max_length=128,
-        ),
-        ModelVariant.YUCHUANTIAN_AIGC_DETECTOR_ZHV3SHORT: LLMModelConfig(
-            pretrained_model_name="yuchuantian/AIGC_detector_zhv3short",
+        ModelVariant.KK08_CRYPTOBERT: LLMModelConfig(
+            pretrained_model_name="kk08/CryptoBERT",
             max_length=128,
         ),
     }
@@ -76,8 +71,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.PATRICKQUICK_BERTICELLI: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.YUCHUANTIAN_AIGC_DETECTOR_ZHV3SHORT: "这篇文章的内容是由人类撰写的，包含了丰富的个人观点和经验。",
+        ModelVariant.KK08_CRYPTOBERT: "Bitcoin surged past $60,000 as institutional investors increased their holdings.",
     }
 
     def __init__(self, variant=None):
@@ -113,8 +107,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.PATRICKQUICK_BERTICELLI,
-            ModelVariant.YUCHUANTIAN_AIGC_DETECTOR_ZHV3SHORT,
+            ModelVariant.KK08_CRYPTOBERT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
