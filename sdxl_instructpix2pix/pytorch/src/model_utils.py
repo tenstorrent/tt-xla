@@ -13,7 +13,9 @@ from diffusers import StableDiffusionXLInstructPix2PixPipeline
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
-from diffusers.utils import retrieve_latents
+from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_instruct_pix2pix import (
+    retrieve_latents,
+)
 from PIL import Image
 
 
