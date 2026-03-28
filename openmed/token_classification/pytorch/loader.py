@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -30,6 +30,9 @@ class ModelVariant(StrEnum):
     NER_ORGANISMDETECT_MODERNCLINICAL_149M = (
         "OpenMed/OpenMed-NER-OrganismDetect-ModernClinical-149M"
     )
+    PII_ITALIAN_BIOCLINICALMODERN_BASE_149M = (
+        "OpenMed/OpenMed-PII-Italian-BioClinicalModern-Base-149M-v1"
+    )
 
 
 _VARIANT_SAMPLE_TEXTS = {
@@ -44,6 +47,9 @@ _VARIANT_SAMPLE_TEXTS = {
     ),
     ModelVariant.NER_ORGANISMDETECT_MODERNCLINICAL_149M: (
         "Caenorhabditis elegans is a model organism for genetic studies."
+    ),
+    ModelVariant.PII_ITALIAN_BIOCLINICALMODERN_BASE_149M: (
+        "Il paziente Mario Rossi, nato il 15 marzo 1980, è stato ricoverato presso l'Ospedale San Raffaele di Milano."
     ),
 }
 
@@ -66,6 +72,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NER_ORGANISMDETECT_MODERNCLINICAL_149M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-ModernClinical-149M",
+            max_length=128,
+        ),
+        ModelVariant.PII_ITALIAN_BIOCLINICALMODERN_BASE_149M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-Italian-BioClinicalModern-Base-149M-v1",
             max_length=128,
         ),
     }
