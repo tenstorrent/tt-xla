@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     QWEN_2_VL_2B_INSTRUCT = "2B_Instruct"
     QWEN_2_VL_7B = "7B"
     QWEN_2_VL_7B_INSTRUCT = "7B_Instruct"
-    QWEN_2_VL_2B_INSTRUCT_UNSLOTH_BNB_4BIT = "2B_Instruct_Unsloth_BnB_4bit"
+    QWEN_2_VL_2B_INSTRUCT_AWQ = "2B_INSTRUCT_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -45,9 +45,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_2_VL_7B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2-VL-7B-Instruct",
         ),
-        # Unsloth BnB 4-bit variants
-        ModelVariant.QWEN_2_VL_2B_INSTRUCT_UNSLOTH_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2-VL-2B-Instruct-unsloth-bnb-4bit",
+        ModelVariant.QWEN_2_VL_2B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2-VL-2B-Instruct-AWQ",
         ),
     }
 
@@ -137,7 +136,9 @@ class ModelLoader(ForgeModel):
         model_kwargs = {"low_cpu_mem_usage": True}
 
         # Check if this is an AWQ variant and configure accordingly
-        if pretrained_model_name == "Qwen/Qwen2-VL-72B-Instruct-AWQ":
+        if pretrained_model_name in [
+            "Qwen/Qwen2-VL-2B-Instruct-AWQ",
+        ]:
             quantization_config = AwqConfig(version="ipex")
             model_kwargs["quantization_config"] = quantization_config
             model_kwargs["device_map"] = "cpu"
