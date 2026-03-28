@@ -56,6 +56,7 @@ class ModelVariant(StrEnum):
     LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W8A8 = "3.1_8B_Instruct_Quantized_W8A8"
     LLAMA_3_2_1B_INSTRUCT_FP8 = "3.2_1B_Instruct_FP8"
     LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
+    LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC = "3.1_405B_Instruct_FP8_Dynamic"
 
     # hugging-quants AWQ INT4 quantized variants
     LLAMA_3_1_8B_INSTRUCT_AWQ_INT4 = "3.1_8B_Instruct_Awq_Int4"
@@ -163,6 +164,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
             pretrained_model_name="RedHatAI/Llama-3.2-1B-Instruct-FP8-dynamic",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Meta-Llama-3.1-405B-Instruct-FP8-dynamic",
             max_length=128,
         ),
         # hugging-quants AWQ INT4 quantized variants
@@ -285,6 +290,7 @@ class ModelLoader(ForgeModel):
         if variant in [
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W8A8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_NVFP4,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_UNSLOTH_BNB_4BIT,
@@ -554,6 +560,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
+            ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC,
         ]:
             if num_devices == 32:  # Galaxy
                 mesh_shape = (4, 8)
