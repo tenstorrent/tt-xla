@@ -4,7 +4,6 @@
 """
 Llammas model loader implementation for causal language modeling (Grammatical Error Correction).
 """
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
