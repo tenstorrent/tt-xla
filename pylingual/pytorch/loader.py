@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-PyLingual model loader implementation
+PyLingual model loader implementation for text2text code generation.
 """
 
 import torch
@@ -24,22 +24,22 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available PyLingual model variants."""
 
-    PY311_STATEMENT = "Py311_Statement"
+    PY39_V1_STATEMENT = "py39_v1_statement"
 
 
 class ModelLoader(ForgeModel):
-    """PyLingual model loader implementation for conditional generation tasks."""
+    """PyLingual model loader implementation for text2text code generation tasks."""
 
     _VARIANTS = {
-        ModelVariant.PY311_STATEMENT: LLMModelConfig(
-            pretrained_model_name="syssec-utd/py311-pylingual-v1-statement",
+        ModelVariant.PY39_V1_STATEMENT: LLMModelConfig(
+            pretrained_model_name="syssec-utd/py39-pylingual-v1-statement",
             max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.PY311_STATEMENT
+    DEFAULT_VARIANT = ModelVariant.PY39_V1_STATEMENT
 
-    sample_text = "LOAD_FAST x\nLOAD_FAST y\nBINARY_OP Add\nRETURN_VALUE"
+    sample_text = "def hello_world():"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -52,16 +52,27 @@ class ModelLoader(ForgeModel):
             model="PyLingual",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CONDITIONAL_GENERATION,
+            task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
+
+    def _load_tokenizer(self, dtype_override=None):
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        )
+
+        return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {"use_cache": False}
         if dtype_override is not None:
@@ -77,9 +88,7 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name
-            )
+            self._load_tokenizer(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
             self.sample_text,
