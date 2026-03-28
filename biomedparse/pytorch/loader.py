@@ -12,8 +12,6 @@ Reference: https://github.com/microsoft/BiomedParse
 HuggingFace: https://huggingface.co/microsoft/BiomedParse
 """
 
-import torch
-from PIL import Image
 from typing import Optional
 from torchvision import transforms
 

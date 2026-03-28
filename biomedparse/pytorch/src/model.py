@@ -12,7 +12,6 @@ Reference: https://github.com/microsoft/BiomedParse
 HuggingFace: https://huggingface.co/microsoft/BiomedParse
 """
 
-import os
 import sys
 import subprocess
 from pathlib import Path
