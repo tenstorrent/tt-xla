@@ -37,6 +37,9 @@ class ModelVariant(StrEnum):
     PII_ITALIAN_BIOCLINICALMODERN_BASE_149M = (
         "OpenMed/OpenMed-PII-Italian-BioClinicalModern-Base-149M-v1"
     )
+    PII_FRENCH_BIOCLINICALMODERN_BASE_149M = (
+        "OpenMed/OpenMed-PII-French-BioClinicalModern-Base-149M-v1"
+    )
 
 
 _VARIANT_SAMPLE_TEXTS = {
@@ -60,6 +63,9 @@ _VARIANT_SAMPLE_TEXTS = {
     ),
     ModelVariant.PII_ITALIAN_BIOCLINICALMODERN_BASE_149M: (
         "Il paziente Mario Rossi, nato il 15 marzo 1980, è stato ricoverato presso l'Ospedale San Raffaele di Milano."
+    ),
+    ModelVariant.PII_FRENCH_BIOCLINICALMODERN_BASE_149M: (
+        "Le patient Jean Dupont, né le 12 avril 1975, a été admis à l'Hôpital Pitié-Salpêtrière de Paris."
     ),
 }
 
@@ -94,6 +100,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.PII_ITALIAN_BIOCLINICALMODERN_BASE_149M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-Italian-BioClinicalModern-Base-149M-v1",
+            max_length=128,
+        ),
+        ModelVariant.PII_FRENCH_BIOCLINICALMODERN_BASE_149M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-French-BioClinicalModern-Base-149M-v1",
             max_length=128,
         ),
     }
