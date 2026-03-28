@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-InternLM2 causal language modeling task implementation.
+InternLM2 Causal LM model implementation for Tenstorrent projects.
 """
+from .pytorch import ModelLoader

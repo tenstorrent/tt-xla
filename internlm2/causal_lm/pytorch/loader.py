@@ -2,50 +2,52 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-InternLM2 model loader implementation for causal language modeling.
+InternLM2 model loader implementation for causal language modeling (PyTorch).
 """
 
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
 
-import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-
-from ....base import ForgeModel
 from ....config import (
-    Framework,
-    ModelConfig,
-    ModelGroup,
+    LLMModelConfig,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
+)
+from ....base import ForgeModel
+from ....tools.utils import (
+    pad_inputs,
+    cast_input_to_type,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available InternLM2 model variants."""
+    """Available InternLM2 model variants for causal LM."""
 
-    INTERNLM2_5_7B_CHAT = "2.5_7B_Chat"
+    CHAT_7B_EXPO = "Chat_7B_ExPO"
 
 
 class ModelLoader(ForgeModel):
-    """InternLM2 model loader implementation for causal language modeling tasks."""
+    """InternLM2 model loader implementation for causal language modeling."""
 
     _VARIANTS = {
-        ModelVariant.INTERNLM2_5_7B_CHAT: ModelConfig(
-            pretrained_model_name="internlm/internlm2_5-7b-chat",
+        ModelVariant.CHAT_7B_EXPO: LLMModelConfig(
+            pretrained_model_name="chujiezheng/internlm2-chat-7b-ExPO",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.INTERNLM2_5_7B_CHAT
+    DEFAULT_VARIANT = ModelVariant.CHAT_7B_EXPO
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
+    sample_text = "Hey how are you doing today?"
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
-        self.num_layers = num_layers
+        self.seq_len = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -69,9 +71,12 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **tokenizer_kwargs
+            pretrained_model_name,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -79,52 +84,57 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {
+            "trust_remote_code": True,
+        }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, trust_remote_code=True
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
-
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **model_kwargs
-        ).eval()
+            pretrained_model_name, **model_kwargs
+        )
+        model.eval()
 
-        self.config = model.config
-        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        test_input = "What is the capital of France?"
+        input_prompt = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
+        input_text = self.tokenizer.apply_chat_template(
+            input_prompt,
+            add_generation_prompt=True,
+            tokenize=False,
+        )
 
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        inputs = self.tokenizer(
+            input_text,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+        )
 
         for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
+        if dtype_override is not None:
+            for key in inputs:
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
+
+        target_len = self._variant_config.max_length
+        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], target_len)
+        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], target_len)
+        self.seq_len = seq_len
+
+        inputs["input_ids"] = padded_input_ids
+        inputs["attention_mask"] = padded_attention_mask
         return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, trust_remote_code=True
-        )
-        return self.config
