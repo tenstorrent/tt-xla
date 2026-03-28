@@ -93,10 +93,12 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        pairs = [[query, passage] for query, passage in self.sample_pairs]
+        queries = [pair[0] for pair in self.sample_pairs]
+        passages = [pair[1] for pair in self.sample_pairs]
 
         inputs = self.tokenizer(
-            pairs,
+            queries,
+            passages,
             padding=True,
             truncation=True,
             return_tensors="pt",
