@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ONCOLOGYDETECT_TINYMED_82M = (
         "OpenMed/OpenMed-NER-OncologyDetect-TinyMed-82M"
     )
+    OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_141M = (
+        "OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-141M"
+    )
     OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M = (
         "OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-434M"
     )
@@ -42,6 +45,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_NER_ONCOLOGYDETECT_TINYMED_82M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-TinyMed-82M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_141M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-SuperClinical-141M",
             max_length=128,
         ),
         ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M: LLMModelConfig(
@@ -62,6 +69,7 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.OPENMED_NER_ONCOLOGYDETECT_TINYMED_82M: "Mutations in KRAS gene drive oncogenic transformation.",
+        ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_141M: "Escherichia coli bacteria were found in the water samples.",
         ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
         ModelVariant.OPENMED_NER_BLOODCANCERDETECT_TINYMED_82M: "The patient presented with chronic lymphocytic leukemia symptoms.",
         ModelVariant.OPENMED_NER_DISEASEDETECT_BIOCLINICAL_108M: "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
