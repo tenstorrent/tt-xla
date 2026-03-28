@@ -260,10 +260,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["trust_remote_code"] = True
 
         # GPTQ variants need device_map="cpu" for CPU-based loading
-        if self._variant in (
-            ModelVariant.QWEN_3_5_35B_A3B_GPTQ_INT4,
-            ModelVariant.QWEN_3_5_397B_A17B_GPTQ_INT4,
-        ):
+        if self._variant in (ModelVariant.QWEN_3_5_397B_A17B_GPTQ_INT4,):
             model_kwargs["device_map"] = "cpu"
 
         # AutoRound int4 variants need device_map="cpu" for CPU-based loading
