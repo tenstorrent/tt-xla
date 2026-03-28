@@ -31,8 +31,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_ROA_EN = "Opus_Mt_Roa_En"
     OPUS_MT_EU_EN = "Opus_Mt_Eu_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
-    OPUS_MT_EN_AF = "Opus_Mt_En_Af"
-    MT_DSPEC_LEGISLATION_EN_CY = "Mt_Dspec_Legislation_En_Cy"
+    OPUS_MT_TC_BIG_EN_BG = "Opus_Mt_Tc_Big_En_Bg"
 
 
 class ModelLoader(ForgeModel):
@@ -63,11 +62,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
-        ModelVariant.OPUS_MT_EN_AF: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-af",
-        ),
-        ModelVariant.MT_DSPEC_LEGISLATION_EN_CY: LLMModelConfig(
-            pretrained_model_name="techiaith/mt-dspec-legislation-en-cy",
+        ModelVariant.OPUS_MT_TC_BIG_EN_BG: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-tc-big-en-bg",
         ),
     }
 
@@ -75,8 +71,7 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
-        ModelVariant.OPUS_MT_EN_AF: "My name is Wolfgang and I live in Berlin.",
-        ModelVariant.MT_DSPEC_LEGISLATION_EN_CY: "The Curriculum and Assessment (Wales) Act 2021 established the Curriculum for Wales.",
+        ModelVariant.OPUS_MT_TC_BIG_EN_BG: "The weather is beautiful today and the sun is shining brightly.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
