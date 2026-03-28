@@ -78,7 +78,6 @@ class ModelLoader(ForgeModel):
     # Architecture parameters from config.yaml
     _NUM_LATENTS = 4096
     _IN_CHANNELS = 64
-    _HIDDEN_SIZE = 2048
     _CONTEXT_DIM = 1024
     _TEXT_LEN = 1370  # DINOv2 ViT-L/14 @ 518px: (518/14)^2 + 1 = 1370
 
@@ -108,6 +107,7 @@ class ModelLoader(ForgeModel):
         repo_id = self._variant_config.pretrained_model_name
 
         config_path = hf_hub_download(repo_id, "hunyuan3d-dit-v2-1/config.yaml")
+        weights_path = hf_hub_download(repo_id, "hunyuan3d-dit-v2-1/model.fp16.ckpt")
 
         with open(config_path) as f:
             config = yaml.safe_load(f)
@@ -115,6 +115,8 @@ class ModelLoader(ForgeModel):
         model_params = config["model"]["params"]
 
         model = HunYuanDiTPlain(**model_params)
+        state_dict = torch.load(weights_path, map_location="cpu", weights_only=True)
+        model.load_state_dict(state_dict)
         model.eval()
 
         if dtype_override is not None:
