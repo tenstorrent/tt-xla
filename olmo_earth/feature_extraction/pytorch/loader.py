@@ -80,8 +80,8 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model = model.to(dtype=dtype_override)
 
-        self.model = model
-        return model.encoder
+        self.model = model.encoder
+        return self.model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the OlmoEarth model.
