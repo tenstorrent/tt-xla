@@ -133,11 +133,14 @@ class ModelLoader(ForgeModel):
         if self.text_prompts is None:
             self.text_prompts = ["a photo of a cat", "a photo of a dog"]
 
-        image_features, text_features, logit_scale = outputs
+        image_features, text_features, logit_scale = outputs[:3]
+        logit_bias = outputs[3] if len(outputs) > 3 else 0.0
         image_features = F.normalize(image_features, dim=-1)
         text_features = F.normalize(text_features, dim=-1)
 
-        text_probs = torch.sigmoid(image_features @ text_features.T * logit_scale.exp())
+        text_probs = torch.sigmoid(
+            image_features @ text_features.T * logit_scale.exp() + logit_bias
+        )
 
         for i, text in enumerate(self.text_prompts):
             print(f"Probability of '{text}':", text_probs[0, i].item())
