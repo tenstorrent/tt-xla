@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available MarianMT model variants for text translation."""
 
     OPUS_MT_EN_DRA = "Opus_Mt_En_Dra"
+    OPUS_MT_EN_ID = "Opus_Mt_En_Id"
     OPUS_MT_FR_ES = "Opus_Mt_Fr_Es"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
     OPUS_MT_EN_EL = "Opus_Mt_En_El"
@@ -39,6 +40,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPUS_MT_EN_DRA: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-en-dra",
+        ),
+        ModelVariant.OPUS_MT_EN_ID: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-en-id",
         ),
         ModelVariant.OPUS_MT_FR_ES: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-fr-es",
