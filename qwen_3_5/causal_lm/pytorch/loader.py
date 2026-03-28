@@ -41,6 +41,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
     QWEN_3_5_397B_A17B_MLX_4BIT = "397B_A17B_MLX_4bit"
     QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF = "35B_A3B_Heretic_MXFP4_GGUF"
+    QWEN_3_5_4B_IMATRIX_GGUF = "4B_imatrix_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -116,6 +117,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tvall43/Qwen3.5-35B-A3B-heretic-mxfp4-gguf",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_4B_IMATRIX_GGUF: LLMModelConfig(
+            pretrained_model_name="ZuzeTt/Qwen3.5-4B-imatrix-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -129,6 +134,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_2B_REASONING_DISTILLED_GGUF: "Qwen3.5-2B.Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_122B_A10B_GGUF: "Qwen3.5-122B-A10B-Q4_K_M-00001-of-00002.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF: "Qwen3.5-35B-A3B-heretic-MXFP4_MOE.gguf",
+        ModelVariant.QWEN_3_5_4B_IMATRIX_GGUF: "Qwen3.5-4B-imatrix-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
