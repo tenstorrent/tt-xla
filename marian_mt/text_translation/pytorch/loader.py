@@ -25,15 +25,7 @@ class ModelVariant(StrEnum):
 
     OPUS_MT_JA_EN = "Opus_Mt_Ja_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
-    OPUS_MT_PL_EN = "Opus_Mt_Pl_En"
-    OPUS_MT_ID_EN = "Opus_Mt_Id_En"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
-    ModelVariant.OPUS_MT_PL_EN: "Cześć, jak się masz? Dzisiaj jest piękny dzień.",
-    ModelVariant.OPUS_MT_ID_EN: "Selamat pagi, hari ini cuaca sangat cerah.",
-}
+    OPUS_MT_SV_EN = "Opus_Mt_Sv_En"
 
 
 class ModelLoader(ForgeModel):
@@ -46,15 +38,19 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
-        ModelVariant.OPUS_MT_PL_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-pl-en",
-        ),
-        ModelVariant.OPUS_MT_ID_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-id-en",
+        ModelVariant.OPUS_MT_SV_EN: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-sv-en",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPUS_MT_TC_BIG_FR_EN
+    DEFAULT_VARIANT = ModelVariant.OPUS_MT_TR_EN
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
+        ModelVariant.OPUS_MT_SV_EN: "Hej världen, idag är vädret väldigt fint.",
+    }
+
+    sample_text = "Merhaba dünya, bugün hava çok güzel."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
