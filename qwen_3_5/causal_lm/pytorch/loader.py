@@ -40,6 +40,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_397B_A17B = "397B_A17B"
     QWEN_3_5_35B_A3B_HERETIC_V2_GGUF = "35B_A3B_Heretic_v2_GGUF"
     QWEN_3_5_9B_CLAUDE_REASONING_DISTILLED = "9B_Claude_Reasoning_Distilled"
+    QWEN_3_5_2B_AWQ_4BIT = "2B_AWQ_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -109,6 +110,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_9B_CLAUDE_REASONING_DISTILLED: LLMModelConfig(
             pretrained_model_name="Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_2B_AWQ_4BIT: LLMModelConfig(
+            pretrained_model_name="cyankiwi/Qwen3.5-2B-AWQ-4bit",
             max_length=128,
         ),
     }
@@ -312,7 +317,10 @@ class ModelLoader(ForgeModel):
 
     def _is_awq_variant(self):
         """Check if the current variant uses AWQ quantization."""
-        return self._variant == ModelVariant.QWEN_3_5_35B_A3B_AWQ_4BIT
+        return self._variant in (
+            ModelVariant.QWEN_3_5_35B_A3B_AWQ_4BIT,
+            ModelVariant.QWEN_3_5_2B_AWQ_4BIT,
+        )
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
