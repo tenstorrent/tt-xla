@@ -33,7 +33,7 @@ class ModelVariant(StrEnum):
     BASE = "Base"
     BASE_FT = "Base_Ft"
     LARGE = "Large"
-    COMMUNITY_BASE = "Community_Base"
+    BASE_PROMPTGEN_V2 = "Base_PromptGen_v2"
 
 
 class ModelLoader(ForgeModel):
@@ -49,8 +49,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.LARGE: ModelConfig(
             pretrained_model_name="microsoft/Florence-2-large",
         ),
-        ModelVariant.COMMUNITY_BASE: ModelConfig(
-            pretrained_model_name="florence-community/Florence-2-base",
+        ModelVariant.BASE_PROMPTGEN_V2: ModelConfig(
+            pretrained_model_name="MiaoshouAI/Florence-2-base-PromptGen-v2.0",
         ),
     }
 
