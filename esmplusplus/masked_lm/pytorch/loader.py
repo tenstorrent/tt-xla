@@ -4,6 +4,7 @@
 """
 ESM++ model loader implementation for masked language modeling on protein sequences.
 """
+import torch
 from transformers import AutoModelForMaskedLM
 from typing import Optional
 
@@ -22,22 +23,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available ESM++ model variants."""
 
-    ESMPLUSPLUS_LARGE = "Synthyra/ESMplusplus_large"
+    ESMPLUSPLUS_SMALL = "Synthyra/ESMplusplus_small"
 
 
 class ModelLoader(ForgeModel):
     """ESM++ model loader implementation for masked language modeling on protein sequences."""
 
     _VARIANTS = {
-        ModelVariant.ESMPLUSPLUS_LARGE: ModelConfig(
-            pretrained_model_name="Synthyra/ESMplusplus_large",
+        ModelVariant.ESMPLUSPLUS_SMALL: ModelConfig(
+            pretrained_model_name="Synthyra/ESMplusplus_small",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ESMPLUSPLUS_LARGE
-
-    # Short protein sequence for testing
-    sample_sequence = "MGSSHHHHHHSSGLVPRGSHMASK"
+    DEFAULT_VARIANT = ModelVariant.ESMPLUSPLUS_SMALL
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -56,39 +54,44 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_tokenizer(self, model):
+        self.tokenizer = model.tokenizer
+        return self.tokenizer
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        model_kwargs = {"trust_remote_code": True}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModelForMaskedLM.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **model_kwargs,
         )
 
-        # ESM++ exposes its tokenizer via the model object
-        self.tokenizer = model.tokenizer
+        if self.tokenizer is None:
+            self._load_tokenizer(model)
 
         return model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
-            self.load_model()
+            raise RuntimeError("load_model() must be called before load_inputs()")
 
-        # Use a protein sequence with <mask> token for masked LM task
         masked_sequence = "MGSSHHHHHHSSGLVPRGSHM<mask>GSSHHHHHHSSGLVPRGSHM"
 
         inputs = self.tokenizer(
             masked_sequence,
+            padding=True,
             return_tensors="pt",
-            add_special_tokens=True,
         )
 
         return inputs
 
     def decode_output(self, outputs, inputs=None):
         if self.tokenizer is None:
-            self.load_model()
+            raise RuntimeError("load_model() must be called before decode_output()")
 
         if inputs is None:
             inputs = self.load_inputs()
