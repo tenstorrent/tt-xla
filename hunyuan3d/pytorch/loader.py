@@ -2,28 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Hunyuan3D-2.1 model loader implementation for image-to-3D generation.
+Hunyuan3D model loader implementation for image-to-3D generation.
 
-Loads the HunYuanDiTPlain denoiser (DiT backbone) from the Hunyuan3D pipeline,
-which is the core flow-matching transformer for generating 3D shapes from
-image conditioning via a DINOv2-large encoder.
+Loads the HunYuanDiTPlain (DiT backbone) from the Hunyuan3D-2.1 pipeline,
+which is the core flow-matching diffusion transformer for generating 3D shapes
+from image conditioning.
 
 Requires the Hunyuan3D-2.1 repository to be cloned at /tmp/hunyuan3d_repo.
 """
 import os
 import sys
+import types
+from typing import Optional
 
 import torch
-from typing import Optional
+import yaml
+from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
 from ...config import (
-    ModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
@@ -31,8 +34,8 @@ HUNYUAN3D_REPO_PATH = "/tmp/hunyuan3d_repo"
 
 
 def _ensure_hunyuan3d_importable():
-    """Ensure the Hunyuan3D-2.1 repo is cloned and importable."""
-    if HUNYUAN3D_REPO_PATH not in sys.path:
+    """Ensure the Hunyuan3D-2.1 shape repo is cloned and importable."""
+    if "hy3dshape" not in sys.modules:
         if not os.path.isdir(HUNYUAN3D_REPO_PATH):
             import subprocess
 
@@ -46,31 +49,38 @@ def _ensure_hunyuan3d_importable():
                 ]
             )
 
-        sys.path.insert(0, HUNYUAN3D_REPO_PATH)
+        shape_pkg = os.path.join(HUNYUAN3D_REPO_PATH, "hy3dshape")
+        if shape_pkg not in sys.path:
+            sys.path.insert(0, shape_pkg)
+
+        hy3dshape_mod = types.ModuleType("hy3dshape")
+        sys.modules["hy3dshape"] = hy3dshape_mod
+        hy3dshape_mod.__path__ = [os.path.join(shape_pkg, "hy3dshape")]
 
 
 class ModelVariant(StrEnum):
     """Available Hunyuan3D model variants."""
 
-    DIT_FLOW_MATCHING = "DiT_Flow_Matching"
+    DIT_V2_1 = "DiT_v2_1"
 
 
 class ModelLoader(ForgeModel):
-    """Hunyuan3D model loader for the HunYuanDiTPlain denoiser (DiT backbone)."""
+    """Hunyuan3D model loader for the HunYuanDiTPlain (DiT backbone)."""
 
     _VARIANTS = {
-        ModelVariant.DIT_FLOW_MATCHING: ModelConfig(
-            pretrained_model_name="andreca/hunyuan3d-2.1xet",
+        ModelVariant.DIT_V2_1: ModelConfig(
+            pretrained_model_name="tencent/Hunyuan3D-2.1",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DIT_FLOW_MATCHING
+    DEFAULT_VARIANT = ModelVariant.DIT_V2_1
 
-    # DiT model dimensions used for sample input generation
+    # Architecture parameters from config.yaml
     _NUM_LATENTS = 4096
     _IN_CHANNELS = 64
-    _COND_CHANNELS = 1024
-    _COND_SEQ_LEN = 257  # DINOv2 ViT-L/14: 1 CLS + 256 patch tokens
+    _HIDDEN_SIZE = 2048
+    _CONTEXT_DIM = 1024
+    _TEXT_LEN = 1370  # DINOv2 ViT-L/14 @ 518px: (518/14)^2 + 1 = 1370
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -87,18 +97,24 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Hunyuan3D DiT denoiser model.
+        """Load and return the Hunyuan3D DiT model.
 
         Returns:
-            torch.nn.Module: The HunYuanDiTPlain flow-matching denoiser.
+            torch.nn.Module: The HunYuanDiTPlain diffusion transformer.
         """
         _ensure_hunyuan3d_importable()
-        from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline
+        from hy3dshape.models.denoisers.hunyuandit import HunYuanDiTPlain
 
         repo_id = self._variant_config.pretrained_model_name
 
-        pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(repo_id)
-        model = pipeline.model
+        config_path = hf_hub_download(repo_id, "hunyuan3d-dit-v2-1/config.yaml")
+
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+
+        model_params = config["model"]["params"]
+
+        model = HunYuanDiTPlain(**model_params)
         model.eval()
 
         if dtype_override is not None:
@@ -107,14 +123,14 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load sample inputs for the HunYuanDiTPlain denoiser.
+        """Load sample inputs for the HunYuanDiTPlain model.
 
         Returns:
-            dict: Input tensors (x, t, cond) for the model forward pass.
+            dict: Input tensors (x, t, contexts) for the model forward pass.
         """
         dtype = dtype_override or torch.float32
 
-        # x: noisy latent [B, num_latents, in_channels]
+        # x: latent tokens [B, num_latents, in_channels]
         x = torch.randn(
             batch_size,
             self._NUM_LATENTS,
@@ -122,15 +138,17 @@ class ModelLoader(ForgeModel):
             dtype=dtype,
         )
 
-        # t: diffusion timestep
+        # t: diffusion timestep [B]
         t = torch.full((batch_size,), 0.5, dtype=dtype)
 
-        # cond: DINOv2 image conditioning tokens [B, seq_len, cond_channels]
-        cond = torch.randn(
-            batch_size,
-            self._COND_SEQ_LEN,
-            self._COND_CHANNELS,
-            dtype=dtype,
-        )
+        # contexts: DINOv2 image conditioning tokens
+        contexts = {
+            "main": torch.randn(
+                batch_size,
+                self._TEXT_LEN,
+                self._CONTEXT_DIM,
+                dtype=dtype,
+            ),
+        }
 
-        return {"x": x, "t": t, "cond": cond}
+        return {"x": x, "t": t, "contexts": contexts}
