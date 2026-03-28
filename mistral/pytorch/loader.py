@@ -47,9 +47,7 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     CODESTRAL_22B_V01 = "Codestral_22B_v01"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND = (
-        "mistral_small_3.2_24b_instruct_2506_int4_autoround"
-    )
+    DEVSTRAL_2_123B_INSTRUCT_2512_AWQ_4BIT = "Devstral_2_123B_Instruct_2512_AWQ_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -61,6 +59,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEVSTRAL_SMALL_2505,
         ModelVariant.DEVSTRAL_SMALL_2507,
         ModelVariant.MAGISTRAL_SMALL_2506,
+        ModelVariant.DEVSTRAL_2_123B_INSTRUCT_2512_AWQ_4BIT,
     }
     _USE_MistralForCausalLM = {
         ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT_2503,
@@ -130,8 +129,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND: ModelConfig(
-            pretrained_model_name="Intel/Mistral-Small-3.2-24B-Instruct-2506-int4-AutoRound",
+        ModelVariant.DEVSTRAL_2_123B_INSTRUCT_2512_AWQ_4BIT: ModelConfig(
+            pretrained_model_name="cyankiwi/Devstral-2-123B-Instruct-2512-AWQ-4bit",
         ),
     }
 
@@ -169,7 +168,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND,
+            ModelVariant.DEVSTRAL_2_123B_INSTRUCT_2512_AWQ_4BIT,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
@@ -257,7 +256,7 @@ class ModelLoader(ForgeModel):
         # Quantized variants need device_map="cpu" for CPU-based loading
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND,
+            ModelVariant.DEVSTRAL_2_123B_INSTRUCT_2512_AWQ_4BIT,
         ):
             model_kwargs["device_map"] = "cpu"
 
