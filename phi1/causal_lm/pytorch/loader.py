@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available PHI1 model variants."""
 
     PHI1 = "Phi_1"
+    TINY_RANDOM = "Tiny Random"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.PHI1: LLMModelConfig(
             pretrained_model_name="microsoft/phi-1",
+            max_length=256,
+        ),
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-PhiForCausalLM",
             max_length=256,
         ),
     }
@@ -68,10 +73,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+        group = ModelGroup.RED
+        if variant == ModelVariant.TINY_RANDOM:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="Phi-1",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
