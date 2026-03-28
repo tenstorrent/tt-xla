@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Altair Stock 12B GGUF model variants for causal language modeling."""
 
-    ALTAIR_STOCK_12B_GGUF = "Altair_Stock_12B_v1_GGUF"
+    ALTAIR_STOCK_12B_V1_MPOA_GGUF = "12B_v1_MPOA_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Altair Stock 12B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.ALTAIR_STOCK_12B_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Altair-Stock-12B-v1-i1-GGUF",
+        ModelVariant.ALTAIR_STOCK_12B_V1_MPOA_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Altair-Stock-12B-v1-MPOA-i1-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ALTAIR_STOCK_12B_GGUF
+    DEFAULT_VARIANT = ModelVariant.ALTAIR_STOCK_12B_V1_MPOA_GGUF
 
-    GGUF_FILE = "Altair-Stock-12B-v1.i1-Q4_K_M.gguf"
+    GGUF_FILE = "Altair-Stock-12B-v1-MPOA.i1-Q4_K_M.gguf"
 
-    sample_text = "What is the meaning of life?"
+    sample_text = "Give me a short introduction to large language models."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -150,6 +150,7 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
