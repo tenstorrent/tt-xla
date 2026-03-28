@@ -7,7 +7,6 @@ GLM-4.7-Flash 4-bit MLX model loader for causal language modeling.
 
 from typing import Optional
 
-import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
