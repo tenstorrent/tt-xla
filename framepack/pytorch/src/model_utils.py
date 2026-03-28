@@ -93,26 +93,16 @@ def framepack_preprocessing(
                 pooled_projections, image_embeds, indices_latents)
     """
     # Encode text prompt
-    (
-        prompt_embeds,
-        pooled_prompt_embeds,
-        negative_prompt_embeds,
-        negative_pooled_prompt_embeds,
-    ) = pipe.encode_prompt(
+    prompt_embeds, pooled_prompt_embeds, prompt_attention_mask = pipe.encode_prompt(
         prompt=prompt,
         prompt_2=None,
         device=device,
         num_videos_per_prompt=1,
-        do_classifier_free_guidance=False,
     )
 
-    # Create a dummy input image for image conditioning
-    dummy_image = torch.rand(1, 3, height, width)
-    image_embeds = pipe.image_encoder(
-        pipe.feature_extractor(dummy_image, return_tensors="pt").pixel_values.to(
-            device=device
-        )
-    ).last_hidden_state
+    # Create a dummy input image for image conditioning (expected in [-1, 1] range)
+    dummy_image = torch.rand(1, 3, height, width) * 2 - 1
+    image_embeds = pipe.encode_image(dummy_image, device=device)
 
     # Prepare latent noise
     num_channels_latents = pipe.transformer.config.in_channels
@@ -131,19 +121,11 @@ def framepack_preprocessing(
     # Prepare frame indices
     indices_latents = torch.arange(0, num_frames).unsqueeze(0)
 
-    # Create attention mask for encoder hidden states
-    encoder_attention_mask = torch.ones(
-        prompt_embeds.shape[0],
-        prompt_embeds.shape[1],
-        device=device,
-        dtype=torch.float32,
-    )
-
     return (
         hidden_states,
         timestep,
         prompt_embeds,
-        encoder_attention_mask,
+        prompt_attention_mask,
         pooled_prompt_embeds,
         image_embeds,
         indices_latents,
