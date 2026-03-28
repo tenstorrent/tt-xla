@@ -18,7 +18,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from .src.model import Wrapper
 
 
 class ModelVariant(StrEnum):
@@ -37,15 +36,6 @@ class ModelLoader(ForgeModel):
     }
 
     DEFAULT_VARIANT = ModelVariant.MING_FLASH_OMNI_2_0
-
-    messages = [
-        {
-            "role": "HUMAN",
-            "content": [
-                {"type": "text", "text": "Describe this image."},
-            ],
-        }
-    ]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
@@ -76,6 +66,9 @@ class ModelLoader(ForgeModel):
         """Load and return the Ming-flash-omni 2.0 model instance."""
         pretrained_model_name = self._variant_config.pretrained_model_name
 
+        if self.processor is None:
+            self._load_processor()
+
         model_kwargs = {
             "low_cpu_mem_usage": True,
             "trust_remote_code": True,
@@ -88,10 +81,7 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
-        model.config.use_cache = False
         model.eval()
-        model = Wrapper(model)
-
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -99,13 +89,27 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
+        messages = [
+            {
+                "role": "HUMAN",
+                "content": [
+                    {"type": "text", "text": "Describe this image in detail."},
+                ],
+            }
+        ]
+
         text = self.processor.apply_chat_template(
-            self.messages, tokenize=False, add_generation_prompt=True
+            messages, tokenize=False, add_generation_prompt=True
         )
 
         inputs = self.processor(
             text=[text],
             return_tensors="pt",
         )
+
+        if dtype_override is not None:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]) and inputs[key].is_floating_point():
+                    inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
