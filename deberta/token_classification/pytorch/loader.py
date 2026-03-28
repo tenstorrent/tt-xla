@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M = (
         "OpenMed/OpenMed-NER-ChemicalDetect-SuperClinical-434M"
     )
+    BLAZE999_MEDICAL_NER = "blaze999/Medical-NER"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +36,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-SuperClinical-434M",
             max_length=128,
         ),
+        ModelVariant.BLAZE999_MEDICAL_NER: LLMModelConfig(
+            pretrained_model_name="blaze999/Medical-NER",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M
@@ -43,9 +48,12 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.sample_text = (
-            "The patient was administered acetylsalicylic acid for pain relief."
-        )
+        if self._variant == ModelVariant.BLAZE999_MEDICAL_NER:
+            self.sample_text = "45 year old woman diagnosed with CAD"
+        else:
+            self.sample_text = (
+                "The patient was administered acetylsalicylic acid for pain relief."
+            )
         self.max_length = 128
         self.tokenizer = None
         self.model = None
