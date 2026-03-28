@@ -1,44 +1,48 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
-"""MT5 PyTorch model loader implementation for conditional generation (SMILES to IUPAC)."""
-
-from typing import Optional
+"""
+MT5 model loader implementation for conditional generation tasks.
+"""
 
 import torch
-from transformers import AutoTokenizer, MT5Config, MT5ForConditionalGeneration
+from transformers import AutoTokenizer, MT5ForConditionalGeneration
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     LLMModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available MT5 conditional generation model variants."""
+    """Available MT5 model variants."""
 
-    SMILES2IUPAC_CANONICAL_SMALL = "SMILES2IUPAC_canonical_small"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
-    """MT5 PyTorch model loader implementation for conditional generation."""
+    """MT5 model loader implementation for conditional generation tasks."""
 
     _VARIANTS = {
-        ModelVariant.SMILES2IUPAC_CANONICAL_SMALL: LLMModelConfig(
-            pretrained_model_name="knowledgator/SMILES2IUPAC-canonical-small",
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/mt5-tiny-random",
+            max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SMILES2IUPAC_CANONICAL_SMALL
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
-    sample_text = "CCO"
+    sample_text = """summarize: Researchers have extensively studied the benefits of having pets,
+                    particularly dogs, on human health and well-being. Findings suggest that pet ownership
+                    can lead to improved mental health, reduced stress levels, and even physical health benefits
+                    such as lower blood pressure and increased physical activity levels due to regular walks."""
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -48,9 +52,8 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self._tokenizer = None
+        self.tokenizer = None
         self._cached_model = None
-        self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -85,11 +88,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        self._tokenizer = AutoTokenizer.from_pretrained(
-            self._model_name, **tokenizer_kwargs
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
-        return self._tokenizer
+        return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the MT5 model instance for this instance's variant.
@@ -100,7 +103,9 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The MT5 model instance for conditional generation.
         """
-        if self._tokenizer is None:
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {"use_cache": False}
@@ -109,7 +114,7 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = MT5ForConditionalGeneration.from_pretrained(
-            self._model_name, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         model.eval()
         self._cached_model = model
@@ -124,18 +129,20 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors that can be fed to the model.
         """
-        if self._tokenizer is None:
+        if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self._tokenizer(
+        inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
         )
 
-        config = MT5Config.from_pretrained(self._model_name)
-        decoder_start_token_id = config.decoder_start_token_id
+        decoder_start_token_tensor = torch.tensor(
+            self._cached_model.generation_config.decoder_start_token_id,
+            dtype=torch.long,
+        )
         decoder_input_ids = (
-            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
         )
         inputs["decoder_input_ids"] = decoder_input_ids
 
