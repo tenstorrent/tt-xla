@@ -5,7 +5,7 @@
 VieNeu-TTS GGUF model loader implementation for text-to-speech tasks.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 from ...base import ForgeModel
