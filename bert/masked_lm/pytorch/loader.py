@@ -33,10 +33,12 @@ class ModelVariant(StrEnum):
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2 = "tohoku-nlp/bert-base-japanese-char-v2"
+    DBMDZ_BERT_BASE_FRENCH_EUROPEANA_CASED = "dbmdz/bert-base-french-europeana-cased"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2: "東京は日本の[MASK]です。",
+    ModelVariant.DBMDZ_BERT_BASE_FRENCH_EUROPEANA_CASED: "Paris est la [MASK] de la France.",
 }
 
 
@@ -75,6 +77,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2: LLMModelConfig(
             pretrained_model_name="tohoku-nlp/bert-base-japanese-char-v2",
+            max_length=128,
+        ),
+        ModelVariant.DBMDZ_BERT_BASE_FRENCH_EUROPEANA_CASED: LLMModelConfig(
+            pretrained_model_name="dbmdz/bert-base-french-europeana-cased",
             max_length=128,
         ),
     }
@@ -121,6 +127,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2,
+            ModelVariant.DBMDZ_BERT_BASE_FRENCH_EUROPEANA_CASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
