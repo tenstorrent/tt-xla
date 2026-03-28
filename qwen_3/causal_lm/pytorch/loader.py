@@ -52,6 +52,7 @@ class ModelVariant(StrEnum):
     QWEN_3_14B_AWQ = "14B_Awq"
     UNSLOTH_QWEN_3_14B = "unsloth_14B"
     QWEN_3_32B_QUANTIZED_W4A16 = "32B_Quantized_W4A16"
+    NONEUSERNAME_QWEN_3_32B_ABLITERATED_AWQ = "noneUsername_32B_Abliterated_Awq"
     TINY_RANDOM_QWEN3 = "Tiny_Random"
 
 
@@ -160,6 +161,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Qwen3-32B-quantized.w4a16",
             max_length=128,
         ),
+        ModelVariant.NONEUSERNAME_QWEN_3_32B_ABLITERATED_AWQ: LLMModelConfig(
+            pretrained_model_name="noneUsername/Qwen3-32B-abliterated-awq",
+            max_length=128,
+        ),
         ModelVariant.TINY_RANDOM_QWEN3: LLMModelConfig(
             pretrained_model_name="llamafactory/tiny-random-qwen3",
             max_length=128,
@@ -219,6 +224,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.UNSLOTH_QWEN_3_14B,
             ModelVariant.QWEN_3_32B_QUANTIZED_W4A16,
+            ModelVariant.NONEUSERNAME_QWEN_3_32B_ABLITERATED_AWQ,
             ModelVariant.TINY_RANDOM_QWEN3,
         ):
             group = ModelGroup.VULCAN
@@ -304,6 +310,7 @@ class ModelLoader(ForgeModel):
         is_quantized = pretrained_model_name in (
             "Qwen/Qwen3-32B-AWQ",
             "RedHatAI/Qwen3-32B-quantized.w4a16",
+            "noneUsername/Qwen3-32B-abliterated-awq",
         )
         if is_quantized:
             model_kwargs["device_map"] = "cpu"
