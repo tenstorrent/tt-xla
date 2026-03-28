@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -23,20 +23,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 MLX model variants for causal language modeling."""
 
-    QWEN_3_5_35B_A3B_6BIT = "35B_A3B_6bit"
+    QWEN_3_5_397B_A17B_MLX_9BIT = "397B_A17B_MLX_9bit"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3.5 MLX model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_5_35B_A3B_6BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-35B-A3B-6bit",
+        ModelVariant.QWEN_3_5_397B_A17B_MLX_9BIT: LLMModelConfig(
+            pretrained_model_name="inferencerlabs/Qwen3.5-397B-A17B-MLX-9bit",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_35B_A3B_6BIT
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_397B_A17B_MLX_9BIT
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -67,6 +67,8 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
