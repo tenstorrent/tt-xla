@@ -8,7 +8,6 @@ Proteus V0.3 is a text-to-image model based on Stable Diffusion XL,
 fine-tuned by dataautogpt3 on high-quality captioned images with DPO.
 """
 
-import torch
 from typing import Optional
 
 from ...base import ForgeModel
