@@ -51,7 +51,7 @@ class ModelVariant(StrEnum):
     VIT_BASE_PATCH14_DINOV2_LVD142M = "Base_Patch14_DINOv2_LVD142M"
     VIT_BASE_PATCH16_224_AUGREG_IN1K = "Base_Patch16_224_AugReg_IN1K"
     VIT_BASE_PATCH16_224_AUGREG_IN21K = "Base_Patch16_224_AugReg_IN21K"
-    VIT_SO400M_PATCH14_SIGLIP_384 = "So400m_Patch14_SigLIP_384"
+    VIT_BASE_PATCH16_224_ORIG_IN21K = "Base_Patch16_224_Orig_IN21K"
 
 
 class ModelLoader(ForgeModel):
@@ -110,8 +110,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="vit_base_patch16_224.augreg_in21k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.VIT_SO400M_PATCH14_SIGLIP_384: ViTConfig(
-            pretrained_model_name="vit_so400m_patch14_siglip_384",
+        ModelVariant.VIT_BASE_PATCH16_224_ORIG_IN21K: ViTConfig(
+            pretrained_model_name="vit_base_patch16_224.orig_in21k",
             source=ModelSource.TIMM,
         ),
     }
@@ -148,11 +148,17 @@ class ModelLoader(ForgeModel):
         else:
             group = ModelGroup.GENERALITY
 
+        # Determine task based on variant
+        if variant == ModelVariant.VIT_BASE_PATCH16_224_ORIG_IN21K:
+            task = ModelTask.CV_IMAGE_FE
+        else:
+            task = ModelTask.CV_IMAGE_CLS
+
         return ModelInfo(
             model="ViT",
             variant=variant,
             group=group,
-            task=ModelTask.CV_IMAGE_CLS,
+            task=task,
             source=source,
             framework=Framework.TORCH,
         )
