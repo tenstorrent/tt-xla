@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
     QWEN_3_32B_GGUF = "32B_GGUF"
+    QWEN_3_30B_A3B_GGUF = "30B_A3B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -34,11 +35,22 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3-32B-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_30B_A3B_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-30B-A3B-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_32B_GGUF
 
-    GGUF_FILE = "Qwen3-32B-Q4_K_M.gguf"
+    _GGUF_FILES = {
+        ModelVariant.QWEN_3_32B_GGUF: "Qwen3-32B-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_30B_A3B_GGUF: "Qwen3-30B-A3B-Q4_K_M.gguf",
+    }
+
+    @property
+    def GGUF_FILE(self):
+        return self._GGUF_FILES[self._variant]
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -139,12 +151,32 @@ class ModelLoader(ForgeModel):
         mesh_shape = (1, num_devices)
         return mesh_shape, ("batch", "model")
 
+    def _is_moe_variant(self):
+        """Check if the current variant is a Mixture of Experts model."""
+        return self._variant in (ModelVariant.QWEN_3_30B_A3B_GGUF,)
+
     def load_shard_spec(self, model):
         shard_specs = {}
         for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+            if self._is_moe_variant():
+                mlp = layer.mlp
+                if hasattr(mlp, "experts"):
+                    shard_specs[mlp.experts.gate_up_proj] = (None, "model", "batch")
+                    shard_specs[mlp.experts.down_proj] = (None, "batch", "model")
+                if hasattr(mlp, "shared_expert"):
+                    shard_specs[mlp.shared_expert.up_proj.weight] = ("model", "batch")
+                    shard_specs[mlp.shared_expert.gate_proj.weight] = (
+                        "model",
+                        "batch",
+                    )
+                    shard_specs[mlp.shared_expert.down_proj.weight] = (
+                        "batch",
+                        "model",
+                    )
+            else:
+                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
