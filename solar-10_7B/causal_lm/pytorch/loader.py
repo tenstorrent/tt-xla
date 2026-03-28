@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
 
     SOLAR_10_7B_V1_0 = "10_7B_v1.0"
     SOLAR_10_7B_INSTRUCT_V1_0 = "10_7B_Instruct_v1.0"
+    MYRRH_SOLAR_10_7B_3_0 = "Myrrh_solar_10_7b_3.0"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.SOLAR_10_7B_INSTRUCT_V1_0: LLMModelConfig(
             pretrained_model_name="upstage/SOLAR-10.7B-Instruct-v1.0",
+            max_length=256,
+        ),
+        ModelVariant.MYRRH_SOLAR_10_7B_3_0: LLMModelConfig(
+            pretrained_model_name="MoaData/Myrrh_solar_10.7b_3.0",
             max_length=256,
         ),
     }
@@ -71,14 +76,15 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-        if variant == ModelVariant.SOLAR_10_7B_V1_0:
-            group = ModelGroup.VULCAN
-        else:
-            group = ModelGroup.RED
+
+        variant_groups = {
+            ModelVariant.MYRRH_SOLAR_10_7B_3_0: ModelGroup.VULCAN,
+        }
+
         return ModelInfo(
             model="SOLAR-10_7B",
             variant=variant,
-            group=group,
+            group=variant_groups.get(variant, ModelGroup.RED),
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
