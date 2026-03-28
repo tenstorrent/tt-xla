@@ -3,15 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 LFM2-VL (Liquid Foundation Model 2 Vision-Language) loader implementation
-for multimodal conditional generation.
+for multimodal image-text-to-text generation.
 
 Supports LiquidAI's LFM2-VL vision-language models.
 """
 
+import torch
+from transformers import AutoProcessor, AutoModelForImageTextToText
 from PIL import Image
-from transformers import AutoModelForImageTextToText, AutoProcessor
 from typing import Optional
 
+from ....tools.utils import get_file, cast_input_to_type
 from ....base import ForgeModel
 from ....config import (
     ModelConfig,
@@ -22,7 +24,6 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import cast_input_to_type, get_file
 
 
 class ModelVariant(StrEnum):
@@ -32,7 +33,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """LFM2-VL model loader for multimodal conditional generation."""
+    """LFM2-VL model loader for multimodal image-text-to-text generation."""
 
     _VARIANTS = {
         ModelVariant.LFM2_VL_450M: ModelConfig(
@@ -42,18 +43,18 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.LFM2_VL_450M
 
-    sample_text = "What is shown in this image?"
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.processor = None
+        self.model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
-            model="LFM2-VL",
+            model="LFM2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_CONDITIONAL_GENERATION,
@@ -63,59 +64,85 @@ class ModelLoader(ForgeModel):
 
     def _load_processor(self):
         self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
         )
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the LFM2-VL model instance."""
-        model_name = self._variant_config.pretrained_model_name
-        model = AutoModelForImageTextToText.from_pretrained(str(model_name), **kwargs)
-        model.eval()
-
-        if dtype_override:
-            model = model.to(dtype_override)
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.processor is None:
             self._load_processor()
+
+        model_kwargs = {"trust_remote_code": True}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
+        model = AutoModelForImageTextToText.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
+        model.eval()
+        self.model = model
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return input tensors for LFM2-VL."""
         if self.processor is None:
             self._load_processor()
+
+        image_file = get_file(
+            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+        )
+        image = Image.open(image_file)
 
         conversation = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image"},
-                    {"type": "text", "text": self.sample_text},
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": "What is shown in this image?"},
                 ],
-            }
+            },
         ]
 
-        text_prompt = self.processor.apply_chat_template(
-            conversation, add_generation_prompt=True
+        inputs = self.processor.apply_chat_template(
+            conversation,
+            add_generation_prompt=True,
+            return_tensors="pt",
+            return_dict=True,
+            tokenize=True,
         )
 
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file)
+        if dtype_override is not None:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]):
+                    inputs[key] = cast_input_to_type(inputs[key], dtype_override)
 
-        inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
+        if batch_size > 1:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]):
+                    inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        input_ids = inputs["input_ids"]
-        attention_mask = inputs["attention_mask"]
-        pixel_values = inputs["pixel_values"]
-
-        if dtype_override:
-            input_ids = cast_input_to_type(input_ids, dtype_override)
-            attention_mask = cast_input_to_type(attention_mask, dtype_override)
-            pixel_values = cast_input_to_type(pixel_values, dtype_override)
-
-        return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "pixel_values": pixel_values,
+        arguments = {
+            **inputs,
+            "use_cache": False,
+            "max_new_tokens": 20,
+            "do_sample": False,
         }
+
+        return arguments
+
+    def decode_output(self, outputs, input_length=None):
+        if self.processor is None:
+            self._load_processor()
+
+        if torch.is_tensor(outputs) and outputs.dtype in [torch.long, torch.int]:
+            if input_length is not None:
+                outputs = outputs[:, input_length:]
+            return self.processor.batch_decode(outputs, skip_special_tokens=True)[0]
+        else:
+            logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+            next_token_id = torch.argmax(logits[:, -1, :], dim=-1)
+            return self.processor.decode(next_token_id[0])
