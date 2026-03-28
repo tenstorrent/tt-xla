@@ -31,7 +31,9 @@ class ModelVariant(StrEnum):
     FLAN_T5_BASE = "Flan_T5_Base"
     T5_3B = "T5_3B"
     FLAN_T5_LARGE = "Flan_T5_Large"
-    TINY_RANDOM = "tiny-random"
+    SYSSEC_UTD_PY313_PYLINGUAL_V1_1_STATEMENT = (
+        "syssec-utd/py313-pylingual-v1.1-statement"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -67,8 +69,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/flan-t5-large",
             max_length=512,
         ),
-        ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="peft-internal-testing/tiny-random-T5ForConditionalGeneration",
+        ModelVariant.SYSSEC_UTD_PY313_PYLINGUAL_V1_1_STATEMENT: LLMModelConfig(
+            pretrained_model_name="syssec-utd/py313-pylingual-v1.1-statement",
             max_length=512,
         ),
     }
@@ -76,11 +78,16 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.SMALL
 
-    # Shared configuration parameters
-    sample_text = """summarize: Researchers have extensively studied the benefits of having pets,
+    # Default sample text for summarization variants
+    _DEFAULT_SAMPLE_TEXT = """summarize: Researchers have extensively studied the benefits of having pets,
                     particularly dogs, on human health and well-being. Findings suggest that pet ownership
                     can lead to improved mental health, reduced stress levels, and even physical health benefits
                     such as lower blood pressure and increased physical activity levels due to regular walks."""
+
+    # Variant-specific sample texts
+    _VARIANT_SAMPLE_TEXTS = {
+        ModelVariant.SYSSEC_UTD_PY313_PYLINGUAL_V1_1_STATEMENT: "LOAD_CONST 0 LOAD_CONST 1 MAKE_FUNCTION 0 STORE_NAME 0 LOAD_CONST 2 RETURN_VALUE",
+    }
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -96,6 +103,9 @@ class ModelLoader(ForgeModel):
         self.tokenizer = None
         self._cached_model = None
         self.num_layers = num_layers
+        self.sample_text = self._VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name, self._DEFAULT_SAMPLE_TEXT
+        )
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -110,7 +120,11 @@ class ModelLoader(ForgeModel):
         """
         group = (
             ModelGroup.VULCAN
-            if variant in (ModelVariant.T5_3B, ModelVariant.TINY_RANDOM)
+            if variant
+            in (
+                ModelVariant.T5_3B,
+                ModelVariant.SYSSEC_UTD_PY313_PYLINGUAL_V1_1_STATEMENT,
+            )
             else ModelGroup.GENERALITY
         )
         return ModelInfo(
