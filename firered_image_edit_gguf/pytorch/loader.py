@@ -16,8 +16,7 @@ Available variants:
 from typing import Any, Optional
 
 import torch
-from diffusers import QwenImageTransformer2DModel
-from diffusers.quantizers import GGUFQuantizationConfig
+from diffusers import GGUFQuantizationConfig, QwenImageTransformer2DModel
 from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
