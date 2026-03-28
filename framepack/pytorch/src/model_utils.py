@@ -106,9 +106,8 @@ def framepack_preprocessing(
 
     # Prepare latent noise
     num_channels_latents = pipe.transformer.config.in_channels
-    vae_scale_factor_spatial = 2 ** (len(pipe.vae.config.block_out_channels) - 1)
-    latent_height = height // vae_scale_factor_spatial
-    latent_width = width // vae_scale_factor_spatial
+    latent_height = height // pipe.vae_scale_factor_spatial
+    latent_width = width // pipe.vae_scale_factor_spatial
 
     shape = (1, num_channels_latents, num_frames, latent_height, latent_width)
     hidden_states = torch.randn(shape, device=device, dtype=torch.float32)
