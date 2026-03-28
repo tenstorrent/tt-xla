@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_35B_A3B_AWQ_8BIT = "35B_A3B_AWQ_8BIT"
     QWEN_3_5_2B_W4A16 = "2B_W4A16"
+    QWEN_3_5_0_8B_UNREDACTED_MAX_GGUF = "0.8B_Unredacted_MAX_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -96,6 +97,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Ekwav/ane-extraction-qwen3.5-2b-w4a16",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_0_8B_UNREDACTED_MAX_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-0.8B-Unredacted-MAX-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -105,9 +110,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_27B_GGUF: "Qwen3.5-27B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_27B_WRITER_I1_GGUF: "Qwen3.5-27B-Writer-i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_9B_HIGHIQ_HERETIC_I1_GGUF: "Qwen3.5-9B-Claude-4.6-HighIQ-THINKING-HERETIC-UNCENSORED-i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_0_8B_UNREDACTED_MAX_GGUF: "Qwen3.5-0.8B-Unredacted-MAX.i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
