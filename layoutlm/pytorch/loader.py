@@ -87,18 +87,33 @@ class ModelLoader(ForgeModel):
             [190, 100, 340, 130],
         ]
 
+        max_length = 512
+
+        # LayoutLM v1 tokenizer does not accept boxes; tokenize words and
+        # manually align bounding boxes to the resulting word-piece tokens.
         encoding = self.tokenizer(
             words,
-            boxes=boxes,
+            is_split_into_words=True,
             return_tensors="pt",
             padding="max_length",
-            max_length=512,
+            max_length=max_length,
         )
+
+        # Build bbox tensor aligned with tokenized output.
+        # [CLS] and [SEP] get [0,0,0,0]; each word-piece inherits its word's box.
+        word_ids = encoding.word_ids(batch_index=0)
+        bbox = []
+        for wid in word_ids:
+            if wid is None:
+                bbox.append([0, 0, 0, 0])
+            else:
+                bbox.append(boxes[wid])
+        bbox = torch.tensor([bbox], dtype=torch.long)
 
         inputs = {
             "input_ids": encoding["input_ids"],
             "attention_mask": encoding["attention_mask"],
-            "bbox": encoding["bbox"],
+            "bbox": bbox,
             "token_type_ids": encoding["token_type_ids"],
         }
 
