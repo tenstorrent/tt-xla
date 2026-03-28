@@ -42,7 +42,7 @@ class ModelVariant(StrEnum):
     QWEN_3_32B = "32B"
     QWEN_3_32B_FP8 = "32B_FP8"
     QWEN_3_8B_AWQ = "8B_Awq"
-    QWEN_3_8B_MLX_4BIT = "8B_MLX_4bit"
+    QWEN_3_8B_NVFP4 = "8B_NVFP4"
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_BASE = "30B_A3B_Base"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
@@ -102,8 +102,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-8B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_8B_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-8B-MLX-4bit",
+        ModelVariant.QWEN_3_8B_NVFP4: LLMModelConfig(
+            pretrained_model_name="nvidia/Qwen3-8B-NVFP4",
             max_length=128,
         ),
         ModelVariant.QWEN_3_14B: LLMModelConfig(
@@ -163,9 +163,8 @@ class ModelLoader(ForgeModel):
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.QWEN_3_0_6B
 
-    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
-    # because the packed FP4 weight shapes differ from the model definition.
-    _NVFP4_VARIANTS = {ModelVariant.QWEN_3_30B_A3B_NVFP4}
+    # Variants with NVFP4 quantized weights
+    _NVFP4_VARIANTS = {ModelVariant.QWEN_3_8B_NVFP4}
 
     # Shared configuration parameters
     sample_text = "Give me a short introduction to large language model."
@@ -204,7 +203,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_8B_MLX_4BIT,
             ModelVariant.QWEN_3_4B_MLX_8BIT,
             ModelVariant.QWEN_3_8B_BASE,
-            ModelVariant.QWEN_3_8B_BASE_UNSLOTH,
+            ModelVariant.QWEN_3_8B_NVFP4,
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
             ModelVariant.QWEN_3_30B_A3B_BASE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
@@ -275,11 +274,13 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is a quantized variant and configure accordingly
-        if pretrained_model_name in (
-            "Qwen/Qwen3-8B-AWQ",
-            "unsloth/Qwen3-8B-bnb-4bit",
-        ):
+        # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+        # because the packed FP4 weight shapes differ from the model definition.
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
+
+        # Check if this is an AWQ variant and configure accordingly
+        if pretrained_model_name in ("Qwen/Qwen3-8B-AWQ",):
             model_kwargs["device_map"] = "cpu"
 
         # NVFP4 variants require ignore_mismatched_sizes because the packed
