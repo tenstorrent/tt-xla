@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-KoELECTRA model loader implementation for sequence classification (wellness detection).
+KoELECTRA model loader implementation for sequence classification.
 """
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -21,20 +21,20 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available KoELECTRA model variants for sequence classification."""
 
-    WELLNESS_V1 = "wellness-v1"
+    CIRCULUS_KOELECTRA_ETHICS_V1 = "circulus_KoELECTRA_Ethics_v1"
 
 
 class ModelLoader(ForgeModel):
     """KoELECTRA model loader implementation for sequence classification."""
 
     _VARIANTS = {
-        ModelVariant.WELLNESS_V1: LLMModelConfig(
-            pretrained_model_name="circulus/koelectra-wellness-v1",
+        ModelVariant.CIRCULUS_KOELECTRA_ETHICS_V1: LLMModelConfig(
+            pretrained_model_name="circulus/koelectra-ethics-v1",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.WELLNESS_V1
+    DEFAULT_VARIANT = ModelVariant.CIRCULUS_KOELECTRA_ETHICS_V1
 
     def __init__(self, variant=None):
         super().__init__(variant)
@@ -42,16 +42,14 @@ class ModelLoader(ForgeModel):
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
         self.model = None
-        self.sample_text = "요즘 스트레스를 많이 받아서 힘들어요"
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
-        if variant_name is None:
-            variant_name = "base"
-
+    def _get_model_info(cls, variant=None):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="KoELECTRA",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -76,8 +74,9 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self.load_model(dtype_override=dtype_override)
 
+        sentence = "이 영화는 정말 재미있었어요"
         inputs = self.tokenizer(
-            self.sample_text,
+            sentence,
             max_length=self.max_length,
             padding="max_length",
             truncation=True,
@@ -87,13 +86,13 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
-        predicted_class_id = co_out[0].argmax().item()
-        if (
-            self.model
-            and hasattr(self.model, "config")
-            and hasattr(self.model.config, "id2label")
-        ):
-            predicted_label = self.model.config.id2label[predicted_class_id]
-            print(f"Predicted label: {predicted_label}")
-        else:
-            print(f"Predicted class ID: {predicted_class_id}")
+        import torch
+
+        logits = co_out[0]
+        probabilities = torch.sigmoid(logits)
+        predicted_labels = (probabilities > 0.5).int()
+
+        for idx, (prob, pred) in enumerate(zip(probabilities[0], predicted_labels[0])):
+            label = self.model.config.id2label.get(idx, f"LABEL_{idx}")
+            status = "YES" if pred.item() == 1 else "NO"
+            print(f"{label}: {status} ({prob.item():.4f})")
