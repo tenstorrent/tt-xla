@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MiniMax-M2.5 GGUF model variants for causal language modeling."""
 
-    MINIMAX_M2_5_Q4_K_M_GGUF = "MINIMAX_M2_5_Q4_K_M_GGUF"
+    MINIMAX_M2_5_GGUF_Q4_K_M = "GGUF_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
     """MiniMax-M2.5 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.MINIMAX_M2_5_Q4_K_M_GGUF: LLMModelConfig(
-            pretrained_model_name="ox-ox/MiniMax-M2.5-GGUF",
+        ModelVariant.MINIMAX_M2_5_GGUF_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/MiniMax-M2.5-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MINIMAX_M2_5_Q4_K_M_GGUF
+    DEFAULT_VARIANT = ModelVariant.MINIMAX_M2_5_GGUF_Q4_K_M
 
-    GGUF_FILE = "minimax-m2.5-Q4_K_M.gguf"
+    GGUF_FILE = "MiniMax-M2.5-Q4_K_M-00001-of-00004.gguf"
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -108,12 +108,7 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [
-            {
-                "role": "user",
-                "content": self.sample_text,
-            }
-        ]
+        messages = [{"role": "user", "content": self.sample_text}]
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
