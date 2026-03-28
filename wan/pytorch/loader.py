@@ -16,6 +16,8 @@ Available variants:
   Based on Kijai/WanVideo_comfy, uses Wan-AI/Wan2.1-VACE-1.3B-diffusers
 - WAN21_I2V_14B_480P: Wan 2.1 Image-to-Video 14B 480P
   Uses WanImageToVideoPipeline with CLIPVisionModel image encoder
+- WAN21_I2V_14B_720P: Wan 2.1 Image-to-Video 14B 720P
+  Uses WanImageToVideoPipeline with CLIPVisionModel image encoder (higher res)
 """
 
 from typing import Any, Optional, Dict
@@ -53,6 +55,7 @@ class ModelVariant(StrEnum):
     WAN21_T2V_14B = "2.1_T2v_14B"
     WAN21_VACE_1_3B = "2.1_VACE_1.3B"
     WAN21_I2V_14B_480P = "2.1_I2v_14B_480P"
+    WAN21_I2V_14B_720P = "2.1_I2v_14B_720P"
 
 
 class ModelLoader(ForgeModel):
@@ -70,6 +73,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.WAN21_I2V_14B_480P: ModelConfig(
             pretrained_model_name="Wan-AI/Wan2.1-I2V-14B-480P-Diffusers",
+        ),
+        ModelVariant.WAN21_I2V_14B_720P: ModelConfig(
+            pretrained_model_name="Wan-AI/Wan2.1-I2V-14B-720P-Diffusers",
         ),
     }
     DEFAULT_VARIANT = ModelVariant.WAN22_TI2V_5B
@@ -95,7 +101,11 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant in (ModelVariant.WAN21_VACE_1_3B, ModelVariant.WAN21_I2V_14B_480P):
+        if variant in (
+            ModelVariant.WAN21_VACE_1_3B,
+            ModelVariant.WAN21_I2V_14B_480P,
+            ModelVariant.WAN21_I2V_14B_720P,
+        ):
             group = ModelGroup.VULCAN
             task = ModelTask.MM_VIDEO_TTT
         elif variant == ModelVariant.WAN21_T2V_14B:
@@ -169,9 +179,9 @@ class ModelLoader(ForgeModel):
             dtype = dtype_override if dtype_override is not None else torch.float32
             return load_vae(self._variant_config.pretrained_model_name, dtype)
 
-        if (
-            self._variant is not None
-            and self._variant == ModelVariant.WAN21_I2V_14B_480P
+        if self._variant is not None and self._variant in (
+            ModelVariant.WAN21_I2V_14B_480P,
+            ModelVariant.WAN21_I2V_14B_720P,
         ):
             dtype = dtype_override if dtype_override is not None else torch.bfloat16
             self.pipeline = load_i2v_pipeline(
@@ -219,12 +229,16 @@ class ModelLoader(ForgeModel):
                     f"Unknown vae_type: {vae_type}. Expected 'decoder' or 'encoder'."
                 )
 
-        if (
-            self._variant is not None
-            and self._variant == ModelVariant.WAN21_I2V_14B_480P
+        if self._variant is not None and self._variant in (
+            ModelVariant.WAN21_I2V_14B_480P,
+            ModelVariant.WAN21_I2V_14B_720P,
         ):
+            height = 720 if self._variant == ModelVariant.WAN21_I2V_14B_720P else 480
+            width = 1280 if self._variant == ModelVariant.WAN21_I2V_14B_720P else 832
             return load_i2v_inputs(
-                prompt=prompt if prompt is not None else self.DEFAULT_PROMPT
+                prompt=prompt if prompt is not None else self.DEFAULT_PROMPT,
+                height=height,
+                width=width,
             )
 
         if self._variant is not None and self._variant == ModelVariant.WAN21_VACE_1_3B:

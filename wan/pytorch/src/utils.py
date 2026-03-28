@@ -152,20 +152,25 @@ def load_i2v_pipeline(pretrained_model_name: str, dtype: torch.dtype):
     return pipe
 
 
-def load_i2v_inputs(prompt: str) -> dict:
+def load_i2v_inputs(prompt: str, height: int = 480, width: int = 832) -> dict:
     """
     Prepare inputs for the I2V pipeline (image-to-video generation).
 
     Returns a dict suitable for passing to WanImageToVideoPipeline.__call__.
     Uses a small synthetic image for testing.
+
+    Args:
+        prompt: Text prompt for generation
+        height: Output video height (default 480 for 480P, use 720 for 720P)
+        width: Output video width (default 832 for 480P, use 1280 for 720P)
     """
-    ref_image = Image.new("RGB", (832, 480), color=(128, 128, 200))
+    ref_image = Image.new("RGB", (width, height), color=(128, 128, 200))
 
     return {
         "image": ref_image,
         "prompt": prompt,
-        "height": 480,
-        "width": 832,
+        "height": height,
+        "width": width,
         "num_frames": 9,
         "num_inference_steps": 2,
         "guidance_scale": 5.0,
