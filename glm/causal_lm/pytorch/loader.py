@@ -29,7 +29,7 @@ from ....tools.utils import (
 class ModelVariant(StrEnum):
     """Available model variants for causal LM."""
 
-    GLM_4_9B_CHAT_1M = "4_9B_Chat_1M"
+    GLM_4_9B_CHAT_HF = "4_9B_Chat_HF"
     GLM_4_7 = "4.7"
     GLM_4_7_FLASH = "4.7_Flash"
     GLM_4_7_FLASH_AWQ = "4.7_Flash_Awq"
@@ -42,8 +42,8 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.GLM_4_9B_CHAT_1M: LLMModelConfig(
-            pretrained_model_name="zai-org/glm-4-9b-chat-1m",
+        ModelVariant.GLM_4_9B_CHAT_HF: LLMModelConfig(
+            pretrained_model_name="zai-org/glm-4-9b-chat-hf",
             max_length=128,
         ),
         ModelVariant.GLM_4_7: LLMModelConfig(
@@ -104,7 +104,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.GLM_4_7_FLASH_AWQ):
+        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.GLM_4_9B_CHAT_HF):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
