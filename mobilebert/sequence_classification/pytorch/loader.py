@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MobileBERT model loader implementation for sequence classification.
+MobileBERT model loader implementation for sequence classification (MNLI).
 """
-from transformers import AutoTokenizer, MobileBertForSequenceClassification
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -20,28 +21,29 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available MobileBERT model variants for sequence classification."""
+    """Available MobileBERT sequence classification model variants."""
 
-    EMO_MOBILEBERT = "EmoMobilebert"
+    MOBILEBERT_UNCASED_MNLI = "mobilebert-uncased-mnli"
 
 
 class ModelLoader(ForgeModel):
-    """MobileBERT model loader implementation for sequence classification tasks."""
+    """MobileBERT model loader implementation for sequence classification (MNLI)."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.EMO_MOBILEBERT: ModelConfig(
-            pretrained_model_name="lordtt13/emo-mobilebert",
+        ModelVariant.MOBILEBERT_UNCASED_MNLI: ModelConfig(
+            pretrained_model_name="typeform/mobilebert-uncased-mnli",
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.EMO_MOBILEBERT
+    DEFAULT_VARIANT = ModelVariant.MOBILEBERT_UNCASED_MNLI
 
-    # Variant-specific sample texts
-    _SAMPLE_TEXTS = {
-        ModelVariant.EMO_MOBILEBERT: "I am so happy today, everything is going great!",
-    }
+    # Sample premise-hypothesis pair for MNLI testing
+    sample_pairs = [
+        (
+            "A man is eating food.",
+            "A man is eating a piece of bread.",
+        ),
+    ]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -82,12 +84,8 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
         )
 
         return self.tokenizer
@@ -103,19 +101,15 @@ class ModelLoader(ForgeModel):
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-
-        model_kwargs = {}
+        model_kwargs = {"return_dict": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = MobileBertForSequenceClassification.from_pretrained(
+        model = AutoModelForSequenceClassification.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
-        self.model = model
 
         return model
 
@@ -131,28 +125,21 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        sample_text = self._SAMPLE_TEXTS.get(
-            self._variant, "I am so happy today, everything is going great!"
+        premises = [pair[0] for pair in self.sample_pairs]
+        hypotheses = [pair[1] for pair in self.sample_pairs]
+
+        inputs = self.tokenizer(
+            premises,
+            hypotheses,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
         )
-        inputs = self.tokenizer(sample_text, return_tensors="pt")
+
+        if dtype_override is not None:
+            for key, value in inputs.items():
+                if isinstance(value, torch.Tensor):
+                    if value.dtype == torch.float32:
+                        inputs[key] = value.to(dtype_override)
 
         return inputs
-
-    def decode_output(self, outputs, inputs=None):
-        """Helper method to decode model outputs into human-readable text.
-
-        Args:
-            outputs: Model output from a forward pass (logits)
-            inputs: Optional input tensors used to generate the outputs
-
-        Returns:
-            str: Predicted emotion label
-        """
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
-        logits = outputs[0]
-        predicted_class_id = logits.argmax().item()
-        predicted_category = self.model.config.id2label[predicted_class_id]
-
-        return predicted_category
