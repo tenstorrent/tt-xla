@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_27B_REASONING_DISTILLED_V2_GGUF = "27B_Reasoning_Distilled_v2_GGUF"
+    QWEN_3_5_35B_A3B_HERETIC_GGUF = "35B_A3B_Heretic_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -91,6 +92,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_HERETIC_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-heretic-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -101,6 +106,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_27B_REASONING_DISTILLED_V2_GGUF: "Qwen3.5-27B.Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_HERETIC_GGUF: "Qwen3.5-35B-A3B-heretic.Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
