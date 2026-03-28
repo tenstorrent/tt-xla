@@ -1,12 +1,12 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-T5Gemma model loader implementation
+T5Gemma model loader implementation for multimodal image-text-to-text tasks.
 """
 
 import torch
-from transformers import AutoTokenizer, T5GemmaForConditionalGeneration
+from transformers import AutoProcessor, AutoModelForSeq2SeqLM
 from typing import Optional
 
 from ...base import ForgeModel
@@ -19,37 +19,33 @@ from ...config import (
     Framework,
     StrEnum,
 )
+from ...tools.utils import get_file, cast_input_to_type
+from PIL import Image
 
 
 class ModelVariant(StrEnum):
     """Available T5Gemma model variants."""
 
-    T5GEMMA_9B_9B_UL2 = "9B_9B_UL2"
-    T5GEMMA_ML_ML_UL2_IT = "ML_ML_UL2_IT"
+    T5GEMMA_2_4B_4B = "google/t5gemma-2-4b-4b"
 
 
 class ModelLoader(ForgeModel):
-    """T5Gemma model loader implementation for conditional generation tasks."""
+    """T5Gemma model loader implementation for multimodal image-text-to-text tasks."""
 
     _VARIANTS = {
-        ModelVariant.T5GEMMA_9B_9B_UL2: LLMModelConfig(
-            pretrained_model_name="google/t5gemma-9b-9b-ul2",
-            max_length=512,
-        ),
-        ModelVariant.T5GEMMA_ML_ML_UL2_IT: LLMModelConfig(
-            pretrained_model_name="google/t5gemma-ml-ml-ul2-it",
-            max_length=512,
+        ModelVariant.T5GEMMA_2_4B_4B: LLMModelConfig(
+            pretrained_model_name="google/t5gemma-2-4b-4b",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.T5GEMMA_9B_9B_UL2
+    DEFAULT_VARIANT = ModelVariant.T5GEMMA_2_4B_4B
 
-    sample_text = "summarize: Researchers have extensively studied the benefits of having pets, particularly dogs, on human health and well-being. Findings suggest that pet ownership can lead to improved mental health, reduced stress levels, and even physical health benefits such as lower blood pressure and increased physical activity levels due to regular walks."
+    sample_text = "<start_of_image> Describe what you see in this image."
+    sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.tokenizer = None
-        self._cached_model = None
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -57,56 +53,69 @@ class ModelLoader(ForgeModel):
             model="T5Gemma",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CONDITIONAL_GENERATION,
+            task=ModelTask.MM_IMAGE_TTT,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self, dtype_override=None):
-        tokenizer_kwargs = {}
+    def _load_processor(self, dtype_override=None):
+        """Load processor for the current variant."""
+        kwargs = {}
         if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
+            kwargs["torch_dtype"] = dtype_override
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        self.processor = AutoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name, **kwargs
         )
 
-        return self.tokenizer
+        return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the T5Gemma model instance.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            torch.nn.Module: The T5Gemma model instance.
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
+        if self.processor is None:
+            self._load_processor(dtype_override)
 
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-
-        model_kwargs = {"use_cache": False}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = T5GemmaForConditionalGeneration.from_pretrained(
+        model = AutoModelForSeq2SeqLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
-        self._cached_model = model
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+        """Load and return sample inputs for the T5Gemma model.
 
-        inputs = self.tokenizer(
-            self.sample_text,
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
+        if self.processor is None:
+            self._load_processor(dtype_override)
+
+        image_file = get_file(self.sample_image_url)
+        image = Image.open(image_file).convert("RGB")
+
+        inputs = self.processor(
+            text=self.sample_text,
+            images=[image],
             return_tensors="pt",
         )
 
-        decoder_start_token_tensor = torch.tensor(
-            self._cached_model.generation_config.decoder_start_token_id,
-            dtype=torch.long,
-        )
-        decoder_input_ids = (
-            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
-        )
-        inputs["decoder_input_ids"] = decoder_input_ids
+        if dtype_override is not None and "pixel_values" in inputs:
+            inputs["pixel_values"] = cast_input_to_type(
+                inputs["pixel_values"], dtype_override
+            )
 
         return inputs
