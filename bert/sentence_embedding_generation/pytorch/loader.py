@@ -31,9 +31,7 @@ class ModelVariant(StrEnum):
     )
     BIOBERT_V1_1 = "dmis-lab/biobert-v1.1"
     TINYBERT_L4_H312_V2 = "nreimers/TinyBERT_L-4_H-312_v2"
-    DEUTSCHE_TELEKOM_GBERT_LARGE_PARAPHRASE_EUCLIDEAN = (
-        "deutsche-telekom/gbert-large-paraphrase-euclidean"
-    )
+    LLMWARE_INDUSTRY_BERT_CONTRACTS_V0_1 = "llmware/industry-bert-contracts-v0.1"
 
 
 class ModelLoader(ForgeModel):
@@ -57,8 +55,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nreimers/TinyBERT_L-4_H-312_v2",
             max_length=128,
         ),
-        ModelVariant.DEUTSCHE_TELEKOM_GBERT_LARGE_PARAPHRASE_EUCLIDEAN: LLMModelConfig(
-            pretrained_model_name="deutsche-telekom/gbert-large-paraphrase-euclidean",
+        ModelVariant.LLMWARE_INDUSTRY_BERT_CONTRACTS_V0_1: LLMModelConfig(
+            pretrained_model_name="llmware/industry-bert-contracts-v0.1",
             max_length=128,
         ),
     }
@@ -100,7 +98,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: ModelGroup.VULCAN,
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
-            ModelVariant.DEUTSCHE_TELEKOM_GBERT_LARGE_PARAPHRASE_EUCLIDEAN: ModelGroup.VULCAN,
+            ModelVariant.LLMWARE_INDUSTRY_BERT_CONTRACTS_V0_1: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
