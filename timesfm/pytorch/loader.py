@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-TimesFM 2.0 model loader implementation for time series forecasting.
+TimesFM 2.5 model loader implementation for time series forecasting.
 """
 
 from typing import Optional
 
 import torch
+from transformers import TimesFm2_5ModelForPrediction
 
 from ...config import (
     ModelConfig,
@@ -22,21 +23,21 @@ from ...base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available TimesFM model variants."""
+    """Available TimesFM 2.5 model variants."""
 
-    TIMESFM_2_500M = "TimesFM_2_500M"
+    TIMESFM_2_5_200M = "TimesFM_2_5_200M"
 
 
 class ModelLoader(ForgeModel):
-    """TimesFM 2.0 model loader implementation for time series forecasting."""
+    """TimesFM 2.5 model loader for time series forecasting."""
 
     _VARIANTS = {
-        ModelVariant.TIMESFM_2_500M: ModelConfig(
-            pretrained_model_name="google/timesfm-2.0-500m-pytorch",
+        ModelVariant.TIMESFM_2_5_200M: ModelConfig(
+            pretrained_model_name="google/timesfm-2.5-200m-transformers",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TIMESFM_2_500M
+    DEFAULT_VARIANT = ModelVariant.TIMESFM_2_5_200M
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -45,7 +46,6 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="TimesFM",
             variant=variant,
@@ -56,37 +56,29 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the TimesFM 2.0 model."""
-        import timesfm
-
-        tfm = timesfm.TimesFm(
-            hparams=timesfm.TimesFmHparams(
-                backend="gpu",
-                per_core_batch_size=32,
-                horizon_len=128,
-                input_patch_len=32,
-                output_patch_len=128,
-                num_layers=50,
-                model_dims=1280,
-                use_positional_embedding=False,
-            ),
-            checkpoint=timesfm.TimesFmCheckpoint(
-                huggingface_repo_id=self._variant_config.pretrained_model_name,
-            ),
+        """Load and return the TimesFM 2.5 model."""
+        model = TimesFm2_5ModelForPrediction.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            torch_dtype=dtype_override or torch.float32,
+            **kwargs,
         )
-
-        return tfm
+        model.eval()
+        return model
 
     def load_inputs(self, dtype_override=None):
-        """Load sample time series input for the TimesFM model.
+        """Load sample time series inputs for the model.
 
-        Returns a batch of synthetic time series context data.
+        Returns:
+            dict: Input dict with 'past_values' list of tensors and 'forecast_context_len'.
         """
-        # TimesFM expects a list of 1D arrays as context
+        dtype = dtype_override or torch.float32
+
         torch.manual_seed(42)
-        context = torch.randn(512)
+        past_values = [
+            torch.randn(100, dtype=dtype),
+        ]
 
-        if dtype_override is not None:
-            context = context.to(dtype_override)
-
-        return {"context": context}
+        return {
+            "past_values": past_values,
+            "forecast_context_len": 512,
+        }
