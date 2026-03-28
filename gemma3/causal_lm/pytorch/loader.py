@@ -30,11 +30,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_1B_IT = "1B_Instruct"
     GEMMA_3_1B_IT_UNSLOTH = "1B_Instruct_Unsloth"
     GEMMA_3_27B_IT = "27B_Instruct"
-    GEMMA_3_4B_IT_OPENBOOKQA_DPO_D = "4B_Instruct_OpenbookQA_DPO_D"
-    GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F = "4B_Instruct_OpenbookQA_SFT_DPO_F"
-    GEMMA_3_4B_IT_OPENBOOKQA_SFT_C = "4B_Instruct_OpenbookQA_SFT_C"
-    GEMMA_3_4B_IT_OPENBOOKQA_SFT_D = "4B_Instruct_OpenbookQA_SFT_D"
-    GEMMA_3_34M = "34M"
+    UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT = "unsloth_270M_Instruct_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -65,24 +61,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/gemma-3-27b-it",
             max_length=256,
         ),
-        ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_DPO_D: LLMModelConfig(
-            pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-DPO-D",
-            max_length=256,
-        ),
-        ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F: LLMModelConfig(
-            pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-SFT-DPO-F",
-            max_length=256,
-        ),
-        ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_C: LLMModelConfig(
-            pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-SFT-C",
-            max_length=256,
-        ),
-        ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_D: LLMModelConfig(
-            pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-SFT-D",
-            max_length=256,
-        ),
-        ModelVariant.GEMMA_3_34M: LLMModelConfig(
-            pretrained_model_name="axolotl-ai-co/gemma-3-34M",
+        ModelVariant.UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/gemma-3-270m-it-unsloth-bnb-4bit",
             max_length=256,
         ),
     }
@@ -106,7 +86,7 @@ class ModelLoader(ForgeModel):
 
         if variant in (
             ModelVariant.GEMMA_3_27B_IT,
-            ModelVariant.GEMMA_3_1B_IT_UNSLOTH,
+            ModelVariant.UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -155,7 +135,13 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
         model_kwargs = {}
-        model_kwargs["use_cache"] = False
+        if self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
+            model_kwargs["device_map"] = "cpu"
+            self._patch_torchao_int4_config()
+        elif self._variant == ModelVariant.UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT:
+            model_kwargs["device_map"] = "cpu"
+        else:
+            model_kwargs["use_cache"] = False
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
