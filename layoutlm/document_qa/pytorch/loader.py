@@ -9,8 +9,8 @@ import torch
 from transformers import AutoTokenizer, LayoutLMForQuestionAnswering
 from typing import Optional
 
-from ...base import ForgeModel
-from ...config import (
+from ....base import ForgeModel
+from ....config import (
     ModelConfig,
     ModelInfo,
     ModelGroup,
