@@ -5,7 +5,7 @@
 BERT model loader implementation for sequence classification.
 """
 
-from transformers import BertForSequenceClassification, BertTokenizer
+from transformers import AutoTokenizer, BertForSequenceClassification
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -132,7 +132,7 @@ class ModelLoader(ForgeModel):
 
         # Initialize tokenizer (use override if model repo has mismatched tokenizer)
         tokenizer_name = self._TOKENIZER_OVERRIDES.get(self._variant, self.model_name)
-        self.tokenizer = BertTokenizer.from_pretrained(tokenizer_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
