@@ -49,9 +49,6 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.SINGLE
 
-    # Audio encoder used for conditioning in the InfiniteTalk pipeline
-    AUDIO_ENCODER_NAME = "TencentGameMate/chinese-wav2vec2-base"
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize InfiniteTalk audio encoder loader."""
         super().__init__(variant)
