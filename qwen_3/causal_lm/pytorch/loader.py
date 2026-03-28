@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_4B_THINKING_2507_MLX_8BIT = "4B_Thinking_2507_Mlx_8bit"
     QWEN_3_32B_MLX_4BIT = "32B_Mlx_4bit"
+    UNSLOTH_QWEN_3_1_7B_BASE = "unsloth_1_7B_Base"
 
 
 class ModelLoader(ForgeModel):
@@ -149,6 +150,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="lmstudio-community/Qwen3-32B-MLX-4bit",
             max_length=128,
         ),
+        ModelVariant.UNSLOTH_QWEN_3_1_7B_BASE: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-1.7B-Base",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -199,6 +204,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_4B_THINKING_2507_MLX_8BIT,
             ModelVariant.QWEN_3_32B_MLX_4BIT,
+            ModelVariant.UNSLOTH_QWEN_3_1_7B_BASE,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -323,7 +329,7 @@ class ModelLoader(ForgeModel):
         if self._variant in (
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_8B_BASE,
-            ModelVariant.QWEN_3_8B_BASE_UNSLOTH,
+            ModelVariant.UNSLOTH_QWEN_3_1_7B_BASE,
         ):
             prompts = [self.sample_text]
         else:
