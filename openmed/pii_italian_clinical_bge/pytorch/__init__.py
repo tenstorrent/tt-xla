@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed PII Italian ClinicalBGE PyTorch model implementation.
+OpenMed PII Italian ClinicalBGE PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
