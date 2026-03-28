@@ -10,7 +10,6 @@ Available variants:
 - ALBEDO_BASE_XL: openart-custom/AlbedoBase text-to-image generation
 """
 
-import torch
 from typing import Optional
 
 from ...base import ForgeModel
