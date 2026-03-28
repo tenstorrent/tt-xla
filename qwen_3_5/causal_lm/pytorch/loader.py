@@ -44,6 +44,9 @@ class ModelVariant(StrEnum):
     JACKRONG_QWEN_3_5_4B_CLAUDE_OPUS_REASONING_GGUF = (
         "JACKRONG_4B_CLAUDE_OPUS_REASONING_GGUF"
     )
+    TVALL43_QWEN_3_5_14B_A3B_CLAUDE_OPUS_REASONING_GGUF = (
+        "TVALL43_14B_A3B_CLAUDE_OPUS_REASONING_GGUF"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -123,6 +126,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Jackrong/Qwen3.5-4B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF",
             max_length=128,
         ),
+        ModelVariant.TVALL43_QWEN_3_5_14B_A3B_CLAUDE_OPUS_REASONING_GGUF: LLMModelConfig(
+            pretrained_model_name="tvall43/Qwen3.5-14B-A3B-Claude-4.6-Opus-Reasoning-Distilled-reap-gguf",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -134,6 +141,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.HUIHUI_QWEN_3_5_27B_ABLITERATED_GGUF: "Huihui-Qwen3.5-27B-abliterated.Q4_K_M.gguf",
         ModelVariant.JACKRONG_QWEN_3_5_4B_CLAUDE_OPUS_REASONING_GGUF: "Qwen3.5-4B.Q4_K_M.gguf",
+        ModelVariant.TVALL43_QWEN_3_5_14B_A3B_CLAUDE_OPUS_REASONING_GGUF: "Qwen3.5-14B-A3B-Claude-Opus-Reasoning-Distilled-4.6-MXFP4_MOE.gguf",
     }
 
     # Shared configuration parameters
