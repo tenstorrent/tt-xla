@@ -4,9 +4,8 @@
 """
 DINOv2 model loader implementation for feature extraction (PyTorch).
 """
-
 import torch
-from transformers import AutoImageProcessor, Dinov2Model
+from transformers import AutoImageProcessor, AutoModel
 from datasets import load_dataset
 from typing import Optional
 
@@ -25,19 +24,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available DINOv2 feature extraction model variants."""
 
-    SMALL = "Small"
+    XRAY_BASE = "XRay_Base"
 
 
 class ModelLoader(ForgeModel):
     """DINOv2 model loader implementation for feature extraction (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.SMALL: ModelConfig(
-            pretrained_model_name="facebook/dinov2-small",
+        ModelVariant.XRAY_BASE: ModelConfig(
+            pretrained_model_name="StanfordAIMI/dinov2-base-xray-224",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SMALL
+    DEFAULT_VARIANT = ModelVariant.XRAY_BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -79,14 +78,17 @@ class ModelLoader(ForgeModel):
             The loaded processor instance
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
+
         self.processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
+
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the DINOv2 model instance for feature extraction.
+        """Load and return the DINOv2 model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The DINOv2 model instance for feature extraction.
@@ -98,13 +100,13 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = Dinov2Model.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the DINOv2 model.
+        """Load and return sample inputs for the DINOv2 model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
