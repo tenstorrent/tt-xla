@@ -44,6 +44,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
+    QWEN_3_0_6B_BASE_UNSLOTH_BNB_4BIT = "0_6B_Base_Unsloth_Bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -115,6 +116,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_0_6B_BASE_UNSLOTH_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-0.6B-Base-unsloth-bnb-4bit",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -158,6 +163,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_14B_AWQ,
+            ModelVariant.QWEN_3_0_6B_BASE_UNSLOTH_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -215,8 +221,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ variant and configure accordingly
-        if pretrained_model_name in ("Qwen/Qwen3-8B-AWQ",):
+        # Check if this is an AWQ or BNB variant and configure accordingly
+        if pretrained_model_name in (
+            "Qwen/Qwen3-8B-AWQ",
+            "unsloth/Qwen3-0.6B-Base-unsloth-bnb-4bit",
+        ):
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
@@ -266,7 +275,11 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         # Base models use plain text; chat models use chat template
-        if self._variant in (ModelVariant.QWEN_3_4B_BASE, ModelVariant.QWEN_3_8B_BASE):
+        if self._variant in (
+            ModelVariant.QWEN_3_4B_BASE,
+            ModelVariant.QWEN_3_8B_BASE,
+            ModelVariant.QWEN_3_0_6B_BASE_UNSLOTH_BNB_4BIT,
+        ):
             prompts = [self.sample_text]
         else:
             messages = [{"role": "user", "content": self.sample_text}]
