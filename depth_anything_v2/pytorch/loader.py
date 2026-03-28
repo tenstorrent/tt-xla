@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Depth Anything V2 model variants."""
 
     SMALL = "Small"
+    METRIC_OUTDOOR_LARGE = "Metric-Outdoor-Large"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.SMALL: ModelConfig(
             pretrained_model_name="depth-anything/Depth-Anything-V2-Small-hf",
+        ),
+        ModelVariant.METRIC_OUTDOOR_LARGE: ModelConfig(
+            pretrained_model_name="depth-anything/Depth-Anything-V2-Metric-Outdoor-Large-hf",
         ),
     }
 
