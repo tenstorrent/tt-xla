@@ -5,6 +5,7 @@
 Emu3-Chat model loader implementation for multimodal visual question answering.
 """
 
+import sys
 import torch
 from PIL import Image
 from typing import Optional
@@ -14,6 +15,7 @@ from transformers import (
     AutoModel,
     AutoModelForCausalLM,
 )
+from huggingface_hub import snapshot_download
 
 from ....tools.utils import get_file, cast_input_to_type
 from ....base import ForgeModel
@@ -100,12 +102,16 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer()
 
         # Import the custom Emu3Processor from the model's remote code
-        import importlib
-
-        mod = importlib.import_module(
-            "transformers_modules.BAAI.Emu3-Chat.processing_emu3"
+        model_path = snapshot_download(
+            self._variant_config.pretrained_model_name,
+            allow_patterns=["processing_emu3.py"],
         )
-        Emu3Processor = mod.Emu3Processor
+        sys.path.insert(0, model_path)
+        try:
+            from processing_emu3 import Emu3Processor
+        finally:
+            sys.path.remove(model_path)
+
         self.processor = Emu3Processor(
             self.image_processor, self.image_tokenizer, self.tokenizer
         )
