@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_YELP_POLARITY: LLMModelConfig(
             pretrained_model_name="textattack/bert-base-uncased-yelp-polarity",
-            max_length=256,
+            max_length=128,
         ),
     }
 
