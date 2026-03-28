@@ -5,7 +5,7 @@
 Qwen 2 VL model loader implementation for vision-language tasks.
 """
 import torch
-from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+from transformers import Qwen2VLForConditionalGeneration, AutoProcessor, AwqConfig
 from typing import Optional
 
 
@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     QWEN_2_VL_2B_INSTRUCT = "2B_Instruct"
     QWEN_2_VL_7B = "7B"
     QWEN_2_VL_7B_INSTRUCT = "7B_Instruct"
-    QWEN_2_VL_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
+    QWEN_2_VL_72B_INSTRUCT_AWQ = "72B_INSTRUCT_Awq"
 
 
 class ModelLoader(ForgeModel):
@@ -45,8 +45,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_2_VL_7B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2-VL-7B-Instruct",
         ),
-        ModelVariant.QWEN_2_VL_7B_INSTRUCT_GPTQ_INT4: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4",
+        ModelVariant.QWEN_2_VL_72B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2-VL-72B-Instruct-AWQ",
         ),
     }
 
@@ -135,8 +135,10 @@ class ModelLoader(ForgeModel):
 
         model_kwargs = {"low_cpu_mem_usage": True}
 
-        # GPTQ variants need device_map="cpu" for CPU-based loading
-        if pretrained_model_name == "Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4":
+        # Check if this is an AWQ variant and configure accordingly
+        if pretrained_model_name == "Qwen/Qwen2-VL-72B-Instruct-AWQ":
+            quantization_config = AwqConfig(version="ipex")
+            model_kwargs["quantization_config"] = quantization_config
             model_kwargs["device_map"] = "cpu"
 
         # Load the model with dtype override if specified
