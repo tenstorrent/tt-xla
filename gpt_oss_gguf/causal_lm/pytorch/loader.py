@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available GPT-OSS GGUF model variants for causal language modeling."""
 
-    GPT_OSS_20B_ABLITERATED_GGUF = "20B_ABLITERATED_GGUF"
+    GPT_OSS_20B_GGUF = "20B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """GPT-OSS GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GPT_OSS_20B_ABLITERATED_GGUF: LLMModelConfig(
-            pretrained_model_name="DavidAU/OpenAi-GPT-oss-20b-abliterated-uncensored-NEO-Imatrix-gguf",
+        ModelVariant.GPT_OSS_20B_GGUF: LLMModelConfig(
+            pretrained_model_name="bartowski/openai_gpt-oss-20b-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GPT_OSS_20B_ABLITERATED_GGUF
+    DEFAULT_VARIANT = ModelVariant.GPT_OSS_20B_GGUF
 
-    GGUF_FILE = "OpenAI-20B-NEO-Uncensored2-IQ4_NL.gguf"
+    GGUF_FILE = "openai_gpt-oss-20b-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "Who are you?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -142,16 +142,14 @@ class ModelLoader(ForgeModel):
     def load_shard_spec(self, model):
         shard_specs = {}
         for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-
-            shard_specs[layer.mlp.router.weight] = (None, "batch")
-            shard_specs[layer.mlp.experts.gate_up_proj] = ("model", "batch", None)
-            shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
-            shard_specs[layer.mlp.experts.down_proj] = ("model", None, "batch")
-            shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
