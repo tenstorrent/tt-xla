@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
 
     GPT2_BASE = "Default"
     GPT2_LARGE = "Large"
-    GPT2_SMALL_DUTCH = "Small_Dutch"
+    GPT2_LUMELETO = "Lumeleto"
     GPT2_SEQUENCE_CLASSIFICATION = "Sequence_Classification"
 
 
@@ -46,8 +46,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="openai-community/gpt2-large",
             max_length=256,
         ),
-        ModelVariant.GPT2_SMALL_DUTCH: LLMModelConfig(
-            pretrained_model_name="GroNLP/gpt2-small-dutch",
+        ModelVariant.GPT2_LUMELETO: LLMModelConfig(
+            pretrained_model_name="gratefulasi/lumeleto",
             max_length=256,
         ),
         ModelVariant.GPT2_SEQUENCE_CLASSIFICATION: LLMModelConfig(
@@ -79,7 +79,7 @@ class ModelLoader(ForgeModel):
 
         group = (
             ModelGroup.VULCAN
-            if variant in (ModelVariant.GPT2_LARGE, ModelVariant.GPT2_SMALL_DUTCH)
+            if variant in (ModelVariant.GPT2_LARGE, ModelVariant.GPT2_LUMELETO)
             else ModelGroup.GENERALITY
         )
 
@@ -109,7 +109,7 @@ class ModelLoader(ForgeModel):
         if self._variant in (
             ModelVariant.GPT2_BASE,
             ModelVariant.GPT2_LARGE,
-            ModelVariant.GPT2_SMALL_DUTCH,
+            ModelVariant.GPT2_LUMELETO,
         ):
             config = GPT2Config.from_pretrained(model_name)
             config_dict = config.to_dict()
@@ -141,7 +141,7 @@ class ModelLoader(ForgeModel):
         if self._variant in (
             ModelVariant.GPT2_BASE,
             ModelVariant.GPT2_LARGE,
-            ModelVariant.GPT2_SMALL_DUTCH,
+            ModelVariant.GPT2_LUMELETO,
         ):
             # Use random input for text generation
             vocab_size = GPT2Config.from_pretrained(
