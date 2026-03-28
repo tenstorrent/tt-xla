@@ -5,7 +5,6 @@
 EnCodec neural audio codec model loader implementation.
 """
 
-import torch
 import numpy as np
 from transformers import EncodecModel, AutoProcessor
 from typing import Optional
