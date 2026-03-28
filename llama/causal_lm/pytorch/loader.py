@@ -57,7 +57,7 @@ class ModelVariant(StrEnum):
     LLAMA_3_2_1B_FP8 = "3.2_1B_FP8"
     LLAMA_3_2_1B_INSTRUCT_FP8 = "3.2_1B_Instruct_FP8"
     LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
-    LLAMA_3_2_3B_INSTRUCT_FP8 = "3.2_3B_Instruct_FP8"
+    LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK = "3.3_70B_Instruct_FP8_Block"
 
     # hugging-quants AWQ INT4 quantized variants
     LLAMA_3_1_8B_INSTRUCT_AWQ_INT4 = "3.1_8B_Instruct_Awq_Int4"
@@ -167,8 +167,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Llama-3.2-1B-Instruct-FP8-dynamic",
             max_length=128,
         ),
-        ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Llama-3.2-3B-Instruct-FP8",
+        ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Llama-3.3-70B-Instruct-FP8-block",
             max_length=128,
         ),
         # hugging-quants AWQ INT4 quantized variants
@@ -273,6 +273,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16,
             ModelVariant.TINYLLAMA_W8W8_STATIC,
         ]:
@@ -373,6 +374,7 @@ class ModelLoader(ForgeModel):
         if pretrained_model_name in (
             "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
             "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16",
+            "RedHatAI/Llama-3.3-70B-Instruct-FP8-block",
             "nm-testing/tinyllama-oneshot-w8w8-test-static-shape-change",
         ):
             model_kwargs["device_map"] = "cpu"
@@ -540,7 +542,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_AWQ_INT4,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
