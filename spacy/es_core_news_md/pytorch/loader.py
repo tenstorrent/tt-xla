@@ -38,6 +38,7 @@ class ModelLoader(ForgeModel):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
+        self.model = None
         self.sample_text = "El presidente del gobierno de España visitó la sede de las Naciones Unidas en Nueva York."
 
     @classmethod
