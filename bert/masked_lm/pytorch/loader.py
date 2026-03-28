@@ -34,10 +34,12 @@ class ModelVariant(StrEnum):
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_BASE_TURKISH_128K_UNCASED = "dbmdz/bert-base-turkish-128k-uncased"
+    BERT_BASE_ARABIC = "asafaya/bert-base-arabic"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.BERT_BASE_TURKISH_128K_UNCASED: "Türkiye'nin başkenti [MASK] şehridir.",
+    ModelVariant.BERT_BASE_ARABIC: "عاصمة فرنسا هي [MASK].",
 }
 
 
@@ -80,6 +82,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_BASE_TURKISH_128K_UNCASED: LLMModelConfig(
             pretrained_model_name="dbmdz/bert-base-turkish-128k-uncased",
+            max_length=128,
+        ),
+        ModelVariant.BERT_BASE_ARABIC: LLMModelConfig(
+            pretrained_model_name="asafaya/bert-base-arabic",
             max_length=128,
         ),
     }
@@ -127,6 +133,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_BASE_TURKISH_128K_UNCASED,
+            ModelVariant.BERT_BASE_ARABIC,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
