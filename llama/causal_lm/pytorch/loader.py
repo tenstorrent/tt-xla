@@ -89,6 +89,9 @@ class ModelVariant(StrEnum):
     LLAMA_3_1_8B_INSTRUCT_4BIT = "3.1_8B_Instruct_4bit"
     LLAMA_3_1_70B_INSTRUCT_4BIT = "3.1_70B_Instruct_4bit"
 
+    # AMD Quark INT8 quantized variants
+    LLAMA_3_1_8B_INSTRUCT_W_INT8_A_INT8_SYM = "3.1_8B_Instruct_W_Int8_A_Int8_Sym"
+
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
 
@@ -210,18 +213,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
             max_length=128,
         ),
-        # unsloth BNB 4-bit quantized variants
-        ModelVariant.LLAMA_3_2_1B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Llama-3.2-1B-bnb-4bit",
-            max_length=128,
-        ),
-        # mlx-community 4-bit quantized variants
-        ModelVariant.LLAMA_3_1_8B_INSTRUCT_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
-            max_length=128,
-        ),
-        ModelVariant.LLAMA_3_1_70B_INSTRUCT_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Meta-Llama-3.1-70B-Instruct-4bit",
+        # AMD Quark INT8 quantized variants
+        ModelVariant.LLAMA_3_1_8B_INSTRUCT_W_INT8_A_INT8_SYM: LLMModelConfig(
+            pretrained_model_name="amd/Llama-3.1-8B-Instruct-w-int8-a-int8-sym-test",
             max_length=128,
         ),
         # Llama 3.3 variants
@@ -337,6 +331,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_UNSLOTH,
             ModelVariant.LLAMA_2_70B_CHAT,
+            ModelVariant.LLAMA_3_1_8B_INSTRUCT_W_INT8_A_INT8_SYM,
         ]:
             group = ModelGroup.VULCAN
         elif (
