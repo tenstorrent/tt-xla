@@ -8,8 +8,8 @@ Surya Layout model loader implementation for document layout detection.
 from typing import Optional, List
 
 import torch
-import torch.nn as nn
 import torchvision.transforms as transforms
+from datasets import load_dataset
 from PIL import Image
 
 from ...config import (
@@ -22,7 +22,6 @@ from ...config import (
     ModelConfig,
 )
 from ...base import ForgeModel
-from datasets import load_dataset
 
 from .src.utils import (
     SuryaLayoutWrapper,
@@ -67,7 +66,7 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def load_model(self, *, dtype_override=None, **kwargs) -> nn.Module:
+    def load_model(self, *, dtype_override=None, **kwargs):
         """Load Surya Layout wrapper model.
 
         Returns:
