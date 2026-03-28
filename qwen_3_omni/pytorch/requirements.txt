@@ -1,0 +1,1 @@
+qwen-omni-utils[decord]==0.0.8
