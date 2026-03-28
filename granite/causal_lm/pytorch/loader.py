@@ -4,54 +4,55 @@
 """
 Granite model loader implementation for causal language modeling.
 """
-
-from typing import Optional
-
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
-    ModelConfig,
-    ModelGroup,
+    LLMModelConfig,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available Granite model variants."""
+    """Available Granite model variants for causal language modeling."""
 
-    GRANITE_4_0_350M = "4.0_350M"
+    GRANITE_3_2_8B_INSTRUCT = "3.2-8B-Instruct"
 
 
 class ModelLoader(ForgeModel):
     """Granite model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GRANITE_4_0_350M: ModelConfig(
-            pretrained_model_name="ibm-granite/granite-4.0-350m",
+        ModelVariant.GRANITE_3_2_8B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="ibm-granite/granite-3.2-8b-instruct",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GRANITE_4_0_350M
+    DEFAULT_VARIANT = ModelVariant.GRANITE_3_2_8B_INSTRUCT
+
+    sample_text = "My name is Jim Keller and"
+    chat_messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Introduce yourself please!"},
+    ]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="Granite",
             variant=variant,
@@ -62,16 +63,17 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
         return self.tokenizer
 
@@ -79,11 +81,12 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
@@ -93,36 +96,38 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
 
-        self.config = model.config
-        self.model = model
+        model._supports_cache_class = False
+        model.eval()
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        test_input = "What is the capital of France?"
+        max_length = self._variant_config.max_length
 
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        use_chat_template = "instruct" in str(self._variant).lower()
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        if use_chat_template:
+            batch_messages = [self.chat_messages] * batch_size
+            prompts = [
+                self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+                for messages in batch_messages
+            ]
+        else:
+            prompts = [self.sample_text] * batch_size
+
+        inputs = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+        )
 
         return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
-        return self.config
