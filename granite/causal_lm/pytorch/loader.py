@@ -24,10 +24,8 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Granite model variants for causal language modeling."""
 
-    GRANITE_3_1_2B_INSTRUCT = "3.1_2b_instruct"
-    GRANITE_3_1_8B_INSTRUCT = "3.1_8b_instruct"
-    GRANITE_3_3_8B_INSTRUCT = "3.3_8b_instruct"
-    GRANITE_4_0_H_1B = "4.0_h_1b"
+    GRANITE_3B_CODE_INSTRUCT_2K = "3B_Code_Instruct_2K"
+    GRANITE_4_0_350M = "4.0_350M"
 
 
 class ModelLoader(ForgeModel):
@@ -35,21 +33,11 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.GRANITE_3_1_2B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="ibm-granite/granite-3.1-2b-instruct",
-            max_length=256,
+        ModelVariant.GRANITE_3B_CODE_INSTRUCT_2K: ModelConfig(
+            pretrained_model_name="ibm-granite/granite-3b-code-instruct-2k",
         ),
-        ModelVariant.GRANITE_3_1_8B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="ibm-granite/granite-3.1-8b-instruct",
-            max_length=256,
-        ),
-        ModelVariant.GRANITE_3_3_8B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="ibm-granite/granite-3.3-8b-instruct",
-            max_length=256,
-        ),
-        ModelVariant.GRANITE_4_0_H_1B: LLMModelConfig(
-            pretrained_model_name="ibm-granite/granite-4.0-h-1b",
-            max_length=256,
+        ModelVariant.GRANITE_4_0_350M: ModelConfig(
+            pretrained_model_name="ibm-granite/granite-4.0-350m",
         ),
     }
 
