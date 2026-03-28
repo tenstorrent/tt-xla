@@ -358,7 +358,7 @@ class ModelLoader(ForgeModel):
 
     def _is_awq_variant(self):
         """Check if the current variant uses AWQ quantization."""
-        return self._variant in (ModelVariant.QWEN_3_5_122B_A10B_AWQ,)
+        return False
 
     def _needs_remote_code(self):
         """Check if the current variant requires trust_remote_code for custom architecture."""
