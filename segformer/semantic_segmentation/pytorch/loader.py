@@ -32,7 +32,7 @@ class ModelVariant(StrEnum):
     B2_FINETUNED_CITYSCAPES = "B2_Finetuned_Cityscapes_1024_1024"
     B3_FINETUNED = "B3_Finetuned_Ade_512_512"
     B4_FINETUNED = "B4_Finetuned_Ade_512_512"
-    B0_FINETUNED_CITYSCAPES = "B0_Finetuned_Cityscapes_512_1024"
+    B4_FINETUNED_CITYSCAPES = "B4_Finetuned_Cityscapes_1024_1024"
 
 
 class ModelLoader(ForgeModel):
@@ -58,8 +58,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.B4_FINETUNED: ModelConfig(
             pretrained_model_name="nvidia/segformer-b4-finetuned-ade-512-512",
         ),
-        ModelVariant.B0_FINETUNED_CITYSCAPES: ModelConfig(
-            pretrained_model_name="nvidia/segformer-b0-finetuned-cityscapes-512-1024",
+        ModelVariant.B4_FINETUNED_CITYSCAPES: ModelConfig(
+            pretrained_model_name="nvidia/segformer-b4-finetuned-cityscapes-1024-1024",
         ),
     }
 
@@ -75,6 +75,15 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self.processor = None
+
+    _VARIANT_GROUPS = {
+        ModelVariant.B0_FINETUNED: ModelGroup.GENERALITY,
+        ModelVariant.B1_FINETUNED: ModelGroup.GENERALITY,
+        ModelVariant.B2_FINETUNED: ModelGroup.GENERALITY,
+        ModelVariant.B3_FINETUNED: ModelGroup.GENERALITY,
+        ModelVariant.B4_FINETUNED: ModelGroup.GENERALITY,
+        ModelVariant.B4_FINETUNED_CITYSCAPES: ModelGroup.VULCAN,
+    }
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -99,7 +108,7 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="SegFormer",
             variant=variant,
-            group=group,
+            group=cls._VARIANT_GROUPS.get(variant, ModelGroup.GENERALITY),
             task=ModelTask.CV_IMAGE_SEG,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
