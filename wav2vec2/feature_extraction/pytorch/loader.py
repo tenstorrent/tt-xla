@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     BASE_VI = "Base_VI"
-    SMALL = "Small"
+    BASE_ZH = "Base_ZH"
 
 
 class ModelLoader(ForgeModel):
@@ -39,8 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_VI: ModelConfig(
             pretrained_model_name="nguyenvulebinh/wav2vec2-base-vi",
         ),
-        ModelVariant.SMALL: ModelConfig(
-            pretrained_model_name="chaanks/wav2vec2-small",
+        ModelVariant.BASE_ZH: ModelConfig(
+            pretrained_model_name="TencentGameMate/chinese-wav2vec2-base",
         ),
     }
 
