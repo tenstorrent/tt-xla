@@ -31,8 +31,7 @@ class ModelVariant(StrEnum):
     )
     BIOBERT_V1_1 = "dmis-lab/biobert-v1.1"
     TINYBERT_L4_H312_V2 = "nreimers/TinyBERT_L-4_H-312_v2"
-    MOKA_AI_M3E_SMALL = "moka-ai/m3e-small"
-    DEEPPAVLOV_RUBERT_BASE_CASED_SENTENCE = "DeepPavlov/rubert-base-cased-sentence"
+    KOBERT = "monologg/kobert"
 
 
 class ModelLoader(ForgeModel):
@@ -56,12 +55,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nreimers/TinyBERT_L-4_H-312_v2",
             max_length=128,
         ),
-        ModelVariant.MOKA_AI_M3E_SMALL: LLMModelConfig(
-            pretrained_model_name="moka-ai/m3e-small",
-            max_length=128,
-        ),
-        ModelVariant.DEEPPAVLOV_RUBERT_BASE_CASED_SENTENCE: LLMModelConfig(
-            pretrained_model_name="DeepPavlov/rubert-base-cased-sentence",
+        ModelVariant.KOBERT: LLMModelConfig(
+            pretrained_model_name="monologg/kobert",
             max_length=128,
         ),
     }
@@ -103,8 +98,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PARAPHRASE_MULTILINGUAL_MINILM_L12_V2: ModelGroup.VULCAN,
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
-            ModelVariant.MOKA_AI_M3E_SMALL: ModelGroup.VULCAN,
-            ModelVariant.DEEPPAVLOV_RUBERT_BASE_CASED_SENTENCE: ModelGroup.VULCAN,
+            ModelVariant.KOBERT: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
@@ -116,6 +110,14 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    # Variants that require trust_remote_code for tokenizer loading
+    _TRUST_REMOTE_CODE_VARIANTS = {ModelVariant.KOBERT}
+
+    # Variant-specific sample texts
+    _SAMPLE_TEXTS = {
+        ModelVariant.KOBERT: "한국어 모델을 테스트하는 예제 문장입니다",
+    }
+
     def _load_tokenizer(self):
         """Load tokenizer for the current variant.
 
@@ -124,7 +126,12 @@ class ModelLoader(ForgeModel):
         """
         if self.tokenizer is None:
             model_name = self._variant_config.pretrained_model_name
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            tokenizer_kwargs = {}
+            if self._variant in self._TRUST_REMOTE_CODE_VARIANTS:
+                tokenizer_kwargs["trust_remote_code"] = True
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_name, **tokenizer_kwargs
+            )
 
         return self.tokenizer
 
@@ -179,12 +186,9 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        # Use provided sentence or variant-appropriate default
+        # Use provided sentence or variant-specific/default
         if sentence is None:
-            variant_sentences = {
-                ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS_V2: "これはテスト文です",
-            }
-            sentence = variant_sentences.get(self._variant, "Bu örnek bir cümle")
+            sentence = self._SAMPLE_TEXTS.get(self._variant, "Bu örnek bir cümle")
 
         # Get max_length from parameter, config, or default
         if max_length is None:
