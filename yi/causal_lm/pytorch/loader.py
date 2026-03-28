@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     YI_9B_200K = "9B-200K"
     YI_34B_CHAT = "34B-Chat"
+    YI_1_5_34B = "1.5-34B"
 
     # OpenBuddy variants
     OPENBUDDY_YI1_5_9B = "OpenBuddy_Yi1.5_9B"
@@ -41,6 +42,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.YI_34B_CHAT: LLMModelConfig(
             pretrained_model_name="01-ai/Yi-34B-Chat",
+            max_length=128,
+        ),
+        ModelVariant.YI_1_5_34B: LLMModelConfig(
+            pretrained_model_name="01-ai/Yi-1.5-34B",
             max_length=128,
         ),
         # OpenBuddy variants
