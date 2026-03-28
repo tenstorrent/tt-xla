@@ -4,7 +4,6 @@
 """
 GLiClass model loader implementation for zero-shot text classification.
 """
-import torch
 from gliclass import GLiClassModel
 from transformers import AutoTokenizer
 from typing import Optional
