@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     DEV = "Dev"
     KLEIN_4B_SDNQ_4BIT = "Klein-4B-SDNQ-4bit"
+    DEEPBEEPMEEP_DEV = "DeepBeepMeep-Dev"
 
 
 # Variants that do not use guidance embeddings
@@ -32,6 +33,14 @@ _NO_GUIDANCE_VARIANTS = {ModelVariant.KLEIN_4B_SDNQ_4BIT}
 
 # Variants that require sdnq quantization support
 _SDNQ_VARIANTS = {ModelVariant.KLEIN_4B_SDNQ_4BIT}
+
+# Variants that use single-file loading
+_SINGLE_FILE_VARIANTS = {ModelVariant.DEEPBEEPMEEP_DEV}
+
+# Single-file checkpoint URLs
+_SINGLE_FILE_URLS = {
+    ModelVariant.DEEPBEEPMEEP_DEV: "https://huggingface.co/DeepBeepMeep/Flux2/blob/main/flux2-dev.safetensors",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +52,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.KLEIN_4B_SDNQ_4BIT: ModelConfig(
             pretrained_model_name="Disty0/FLUX.2-klein-4B-SDNQ-4bit-dynamic",
+        ),
+        ModelVariant.DEEPBEEPMEEP_DEV: ModelConfig(
+            pretrained_model_name="DeepBeepMeep/Flux2",
         ),
     }
 
@@ -71,15 +83,22 @@ class ModelLoader(ForgeModel):
         if self._variant in _SDNQ_VARIANTS:
             from sdnq import SDNQConfig  # noqa: F401 — registers quantization handler
 
-        load_kwargs = {"use_safetensors": True}
+        load_kwargs = {}
         if dtype_override is not None:
             load_kwargs["torch_dtype"] = dtype_override
 
-        self.transformer = Flux2Transformer2DModel.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            subfolder="transformer",
-            **load_kwargs,
-        )
+        if self._variant in _SINGLE_FILE_VARIANTS:
+            self.transformer = Flux2Transformer2DModel.from_single_file(
+                _SINGLE_FILE_URLS[self._variant],
+                **load_kwargs,
+            )
+        else:
+            load_kwargs["use_safetensors"] = True
+            self.transformer = Flux2Transformer2DModel.from_pretrained(
+                self._variant_config.pretrained_model_name,
+                subfolder="transformer",
+                **load_kwargs,
+            )
 
         if dtype_override is not None:
             self.transformer = self.transformer.to(dtype_override)
