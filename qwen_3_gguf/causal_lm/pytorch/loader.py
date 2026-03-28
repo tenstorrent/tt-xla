@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_32B_GGUF = "32B_GGUF"
     QWEN_3_30B_A3B_GGUF = "30B_A3B_GGUF"
+    QWEN_3_30B_A3B_THINKING_2507_GGUF = "30B_A3B_Thinking_2507_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3-30B-A3B-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_30B_A3B_THINKING_2507_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_32B_GGUF
@@ -46,6 +51,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_32B_GGUF: "Qwen3-32B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_30B_A3B_GGUF: "Qwen3-30B-A3B-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_30B_A3B_THINKING_2507_GGUF: "Qwen3-30B-A3B-Thinking-2507-Q4_K_M.gguf",
     }
 
     @property
@@ -153,7 +159,10 @@ class ModelLoader(ForgeModel):
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
-        return self._variant in (ModelVariant.QWEN_3_30B_A3B_GGUF,)
+        return self._variant in (
+            ModelVariant.QWEN_3_30B_A3B_GGUF,
+            ModelVariant.QWEN_3_30B_A3B_THINKING_2507_GGUF,
+        )
 
     def load_shard_spec(self, model):
         shard_specs = {}
