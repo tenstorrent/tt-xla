@@ -5,7 +5,6 @@
 AudioGen Medium model loader implementation for text-to-audio generation.
 """
 
-import torch
 from audiocraft.models import AudioGen
 
 from ...base import ForgeModel
