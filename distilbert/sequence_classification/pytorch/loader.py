@@ -25,15 +25,7 @@ class ModelVariant(StrEnum):
         "distilbert-base-uncased-finetuned-sst-2-english"
     )
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
-    MICHELLELI99_NSFW_TEXT_CLASSIFIER = "michelleli99-NSFW_text_classifier"
-    AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION = (
-        "amansolanki-autonlp-Tweet-Sentiment-Extraction-20114061"
-    )
-    D4DATA_BIAS_DETECTION_MODEL = "d4data-bias-detection-model"
-    WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR = "wajidlinux99-gibberish-text-detector"
-    TUHANASINAN_GO_EMOTIONS_DISTILBERT_PYTORCH = (
-        "tuhanasinan-go-emotions-distilbert-pytorch"
-    )
+    TOXIC_COMMENT = "toxic-comment-model"
 
 
 class ModelLoader(ForgeModel):
@@ -49,24 +41,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bhadresh-savani/distilbert-base-uncased-emotion",
             max_length=128,
         ),
-        ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER: LLMModelConfig(
-            pretrained_model_name="michelleli99/NSFW_text_classifier",
-            max_length=128,
-        ),
-        ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION: LLMModelConfig(
-            pretrained_model_name="amansolanki/autonlp-Tweet-Sentiment-Extraction-20114061",
-            max_length=128,
-        ),
-        ModelVariant.D4DATA_BIAS_DETECTION_MODEL: LLMModelConfig(
-            pretrained_model_name="d4data/bias-detection-model",
-            max_length=128,
-        ),
-        ModelVariant.WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR: LLMModelConfig(
-            pretrained_model_name="wajidlinux99/gibberish-text-detector",
-            max_length=128,
-        ),
-        ModelVariant.TUHANASINAN_GO_EMOTIONS_DISTILBERT_PYTORCH: LLMModelConfig(
-            pretrained_model_name="tuhanasinan/go-emotions-distilbert-pytorch",
+        ModelVariant.TOXIC_COMMENT: LLMModelConfig(
+            pretrained_model_name="martin-ha/toxic-comment-model",
             max_length=128,
         ),
     }
@@ -83,11 +59,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
-        ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER: "This is a perfectly normal and safe text about cooking recipes.",
-        ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION: "I love this sunny weather, it makes me so happy!",
-        ModelVariant.D4DATA_BIAS_DETECTION_MODEL: "The politician was biased in their reporting of the events.",
-        ModelVariant.WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR: "Is this text really worth it?",
-        ModelVariant.TUHANASINAN_GO_EMOTIONS_DISTILBERT_PYTORCH: "I love this product! It makes me so happy!",
+        ModelVariant.TOXIC_COMMENT: "This is a test text.",
     }
 
     def __init__(self, variant=None):
@@ -121,11 +93,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
-            ModelVariant.MICHELLELI99_NSFW_TEXT_CLASSIFIER,
-            ModelVariant.AMANSOLANKI_AUTONLP_TWEET_SENTIMENT_EXTRACTION,
-            ModelVariant.D4DATA_BIAS_DETECTION_MODEL,
-            ModelVariant.WAJIDLINUX99_GIBBERISH_TEXT_DETECTOR,
-            ModelVariant.TUHANASINAN_GO_EMOTIONS_DISTILBERT_PYTORCH,
+            ModelVariant.TOXIC_COMMENT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
