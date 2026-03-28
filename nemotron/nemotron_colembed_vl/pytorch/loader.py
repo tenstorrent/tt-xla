@@ -92,7 +92,23 @@ class ModelLoader(ForgeModel):
         )
         image = Image.open(image_file)
 
-        inputs = self.processor.process_images([[image]])
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": "Describe this image."},
+                ],
+            },
+        ]
+
+        inputs = self.processor.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=False,
+            return_dict=True,
+            return_tensors="pt",
+        )
 
         return inputs
 
