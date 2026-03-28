@@ -33,7 +33,7 @@ class ModelVariant(StrEnum):
     FALCON_MAMBA_7B = "3_Mamba_7B_Base"
     FALCON_40B = "40B"
     FALCON_7B_INSTRUCT = "7B_Instruct"
-    FALCON_TINY_TESTING = "Tiny_Testing"
+    FALCON_7B_INSTRUCT_SHARDED = "7B_Instruct_Sharded"
 
 
 class ModelLoader(ForgeModel):
@@ -68,8 +68,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.FALCON_7B_INSTRUCT: ModelConfig(
             pretrained_model_name="tiiuae/falcon-7b-instruct",
         ),
-        ModelVariant.FALCON_TINY_TESTING: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/really-tiny-falcon-testing",
+        ModelVariant.FALCON_7B_INSTRUCT_SHARDED: ModelConfig(
+            pretrained_model_name="vilsonrodrigues/falcon-7b-instruct-sharded",
         ),
     }
 
@@ -97,10 +97,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.FALCON_10B,
         ]:
             group = ModelGroup.RED
-        elif variant in [
-            ModelVariant.FALCON_1B_INSTRUCT,
-            ModelVariant.FALCON_3B_INSTRUCT,
-        ]:
+        elif variant == ModelVariant.FALCON_7B_INSTRUCT_SHARDED:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
@@ -180,10 +177,10 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self.load_model()  # This will initialize the tokenizer
 
-        if self._variant in [
+        if self._variant in (
             ModelVariant.FALCON_7B_INSTRUCT,
-            ModelVariant.FALCON_40B_INSTRUCT,
-        ]:
+            ModelVariant.FALCON_7B_INSTRUCT_SHARDED,
+        ):
             inputs = self.tokenizer(self.input_text_2, return_tensors="pt")
         else:
             inputs = self.tokenizer(
@@ -278,17 +275,10 @@ class ModelLoader(ForgeModel):
                 shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
                 shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
                 shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
-        elif self._variant == ModelVariant.FALCON_40B:
-            for layer in layers_container:
-                shard_specs[layer.mlp.dense_h_to_4h.weight] = ("model", None)
-                shard_specs[layer.mlp.dense_4h_to_h.weight] = (None, "model")
-
-                shard_specs[layer.self_attention.query_key_value.weight] = (
-                    "model",
-                    None,
-                )
-                shard_specs[layer.self_attention.dense.weight] = (None, "model")
-        elif self._variant == ModelVariant.FALCON_7B_INSTRUCT:
+        elif self._variant in (
+            ModelVariant.FALCON_7B_INSTRUCT,
+            ModelVariant.FALCON_7B_INSTRUCT_SHARDED,
+        ):
             for layer in layers_container:
                 shard_specs[layer.mlp.dense_h_to_4h.weight] = ("model", None)
                 shard_specs[layer.mlp.dense_4h_to_h.weight] = (None, "model")
