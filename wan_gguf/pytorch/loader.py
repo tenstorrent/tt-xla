@@ -1,22 +1,22 @@
+#!/usr/bin/env python3
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Wan 2.1 GGUF model loader implementation.
+Wan 2.2 GGUF model loader implementation.
 
-Loads GGUF-quantized WanTransformer3DModel variants from
-MonsterMMORPG/Wan_GGUF. These are quantized versions of the Wan 2.1
-image-to-video 14B diffusion transformer for efficient storage and inference.
+Loads GGUF-quantized Wan 2.2 diffusion transformer variants from
+befox/WAN2.2-14B-Rapid-AllInOne-GGUF for video generation tasks.
 
 Available variants:
-- I2V_14B_720P_Q4_K_M: Q4_K_M quantized Wan 2.1 I2V 14B 720P transformer
+- WAN22_MEGA_V12_Q8: Wan 2.2 Rapid Mega AllInOne v12 (Q8_0 quantization)
 """
 
 from typing import Any, Optional
 
 import torch
-from diffusers import GGUFQuantizationConfig, WanTransformer3DModel
-from huggingface_hub import hf_hub_download
+from diffusers import WanPipeline, WanTransformer3DModel  # type: ignore[import]
+from diffusers.quantizers import GGUFQuantizationConfig  # type: ignore[import]
 
 from ...base import ForgeModel
 from ...config import (
@@ -29,46 +29,41 @@ from ...config import (
     StrEnum,
 )
 
-REPO_ID = "MonsterMMORPG/Wan_GGUF"
-
-# Upstream diffusers config for model construction
-CONFIG_REPO = "Wan-AI/Wan2.1-I2V-14B-720P-Diffusers"
-TRANSFORMER_SUBFOLDER = "transformer"
-
-# GGUF filenames keyed by variant
-_GGUF_FILES = {
-    "I2V_14B_720P_Q4_K_M": "wan2.1-i2v-14b-720p-Q4_K_M.gguf",
-}
-
-# WanTransformer3DModel input dimensions
-# I2V transformer uses in_channels=36 (16 video + 16 image + 4 mask)
-IN_CHANNELS = 36
-TEXT_DIM = 4096
-# Small test dimensions; must satisfy patch_size=(1,2,2) divisibility
-NUM_FRAMES = 1
-LATENT_HEIGHT = 8
-LATENT_WIDTH = 8
+REPO_ID = "befox/WAN2.2-14B-Rapid-AllInOne-GGUF"
 
 
 class ModelVariant(StrEnum):
-    """Available Wan GGUF model variants."""
+    """Available Wan 2.2 GGUF model variants."""
 
-    I2V_14B_720P_Q4_K_M = "I2V_14B_720P_Q4_K_M"
+    WAN22_MEGA_V12_Q8 = "2.2_Mega_v12_Q8_0"
+
+
+# Mapping from variant to GGUF filename within the repo
+_GGUF_FILES = {
+    ModelVariant.WAN22_MEGA_V12_Q8: "Mega-v12/wan2.2-rapid-mega-aio-v12-Q8_0.gguf",
+}
+
+# Base diffusers config repo used to construct the pipeline around the GGUF transformer
+_PIPELINE_CONFIG = "Wan-AI/Wan2.2-T2V-14B-Diffusers"
 
 
 class ModelLoader(ForgeModel):
-    """Wan GGUF model loader for quantized Wan diffusion transformer."""
+    """Wan 2.2 GGUF model loader for video generation."""
 
     _VARIANTS = {
-        ModelVariant.I2V_14B_720P_Q4_K_M: ModelConfig(
+        ModelVariant.WAN22_MEGA_V12_Q8: ModelConfig(
             pretrained_model_name=REPO_ID,
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.I2V_14B_720P_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.WAN22_MEGA_V12_Q8
+
+    DEFAULT_PROMPT = (
+        "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k"
+    )
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self._transformer = None
+        self.pipeline = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -83,56 +78,43 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _get_gguf_file(self) -> str:
-        """Get the GGUF filename for the current variant."""
-        return _GGUF_FILES[self._variant.value]
+    def load_model(
+        self,
+        *,
+        dtype_override: Optional[torch.dtype] = None,
+        **kwargs,
+    ):
+        """Load the Wan 2.2 GGUF pipeline.
 
-    def load_model(self, *, dtype_override: Optional[torch.dtype] = None, **kwargs):
-        """Load and return the Wan transformer from GGUF format.
-
-        Returns:
-            WanTransformer3DModel instance loaded from GGUF checkpoint.
-        """
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        if self._transformer is None:
-            gguf_file = self._get_gguf_file()
-            gguf_path = hf_hub_download(repo_id=REPO_ID, filename=gguf_file)
-            self._transformer = WanTransformer3DModel.from_single_file(
-                gguf_path,
-                config=CONFIG_REPO,
-                subfolder=TRANSFORMER_SUBFOLDER,
-                quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
-                torch_dtype=dtype,
-            )
-            self._transformer.eval()
-        elif dtype_override is not None:
-            self._transformer = self._transformer.to(dtype=dtype_override)
-        return self._transformer
-
-    def load_inputs(self, **kwargs) -> Any:
-        """Prepare synthetic inputs for the Wan transformer.
+        Loads the GGUF-quantized transformer and builds a WanPipeline around it.
 
         Returns:
-            dict: Input tensors matching the WanTransformer3DModel forward signature:
-                - hidden_states: Latent tensor [batch, channels, frames, height, width]
-                - timestep: Scalar timestep tensor
-                - encoder_hidden_states: Text encoder outputs [batch, seq_len, dim]
+            WanPipeline instance with GGUF-quantized transformer.
         """
-        dtype = kwargs.get("dtype_override", torch.bfloat16)
-        batch_size = kwargs.get("batch_size", 1)
-        txt_seq_len = 512
+        compute_dtype = dtype_override if dtype_override is not None else torch.bfloat16
+        gguf_file = _GGUF_FILES[self._variant]
 
-        return {
-            "hidden_states": torch.randn(
-                batch_size,
-                IN_CHANNELS,
-                NUM_FRAMES,
-                LATENT_HEIGHT,
-                LATENT_WIDTH,
-                dtype=dtype,
-            ),
-            "timestep": torch.tensor([500] * batch_size, dtype=torch.long),
-            "encoder_hidden_states": torch.randn(
-                batch_size, txt_seq_len, TEXT_DIM, dtype=dtype
-            ),
-        }
+        quantization_config = GGUFQuantizationConfig(compute_dtype=compute_dtype)
+        transformer = WanTransformer3DModel.from_single_file(
+            REPO_ID,
+            quantization_config=quantization_config,
+            filename=gguf_file,
+            torch_dtype=compute_dtype,
+        )
+
+        self.pipeline = WanPipeline.from_pretrained(
+            _PIPELINE_CONFIG,
+            transformer=transformer,
+            torch_dtype=compute_dtype,
+        )
+
+        return self.pipeline
+
+    def load_inputs(self, prompt: Optional[str] = None, **kwargs) -> Any:
+        """Prepare inputs for the Wan 2.2 GGUF pipeline.
+
+        Returns:
+            Dict with prompt for the pipeline.
+        """
+        prompt_value = prompt if prompt is not None else self.DEFAULT_PROMPT
+        return {"prompt": prompt_value}
