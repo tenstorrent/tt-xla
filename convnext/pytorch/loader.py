@@ -118,9 +118,10 @@ class ModelLoader(ForgeModel):
 
             inputs = self._processor(images=image, return_tensors="pt")
 
-            for key in inputs:
-                if torch.is_tensor(inputs[key]):
-                    inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
 
             if dtype_override is not None:
                 for key in inputs:
