@@ -39,7 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
-    LARGE_FB_IN22K_FT_IN1K = "Large_FB_IN22K_FT_IN1K"
+    TINY_224 = "Tiny_224"
 
 
 class ModelLoader(ForgeModel):
@@ -50,9 +50,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.LARGE_FB_IN22K_FT_IN1K: ConvNeXtConfig(
-            pretrained_model_name="hf_hub:timm/convnext_large.fb_in22k_ft_in1k",
-            source=ModelSource.TIMM,
+        ModelVariant.TINY_224: ConvNeXtConfig(
+            pretrained_model_name="facebook/convnext-tiny-224",
+            source=ModelSource.HUGGING_FACE,
         ),
     }
 
@@ -85,12 +85,12 @@ class ModelLoader(ForgeModel):
         model_name = self._variant_config.pretrained_model_name
         source = self._variant_config.source
 
-        if source == ModelSource.HUGGING_FACE:
+        if source == ModelSource.TIMM:
+            model = timm.create_model(model_name, pretrained=True)
+        elif source == ModelSource.HUGGING_FACE:
             model = AutoModelForImageClassification.from_pretrained(
                 model_name, **kwargs
             )
-        elif source == ModelSource.TIMM:
-            model = timm.create_model(model_name, pretrained=True)
 
         model.eval()
 
