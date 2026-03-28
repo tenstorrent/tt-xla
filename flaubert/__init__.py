@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-FlauBERT model implementations for Tenstorrent projects.
+FlauBERT model implementation for Tenstorrent projects.
 """
+from .pytorch import ModelLoader
