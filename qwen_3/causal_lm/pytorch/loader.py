@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
+    QWEN_3_32B_QUANTIZED_W4A16 = "32B_Quantized_W4A16"
     TINY_RANDOM_QWEN3 = "Tiny_Random"
 
 
@@ -150,6 +151,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_32B_QUANTIZED_W4A16: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Qwen3-32B-quantized.w4a16",
+            max_length=128,
+        ),
         ModelVariant.TINY_RANDOM_QWEN3: LLMModelConfig(
             pretrained_model_name="llamafactory/tiny-random-qwen3",
             max_length=128,
@@ -207,6 +212,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
+            ModelVariant.QWEN_3_32B_QUANTIZED_W4A16,
             ModelVariant.TINY_RANDOM_QWEN3,
         ):
             group = ModelGroup.VULCAN
@@ -289,13 +295,11 @@ class ModelLoader(ForgeModel):
 
         # Quantized variants: use Qwen3ForCausalLM directly with quantization_config
         # removed so that weights are loaded as plain tensors on CPU.
-        is_quantized_override = pretrained_model_name in (
+        is_quantized = pretrained_model_name in (
             "Qwen/Qwen3-32B-AWQ",
-            "nytopop/Qwen3-30B-A3B.w8a8",
-            "nm-testing/tinysmokeqwen3moe-W4A16-first-only-CTstable",
-            "pytorch/Qwen3-4B-INT8-INT4",
+            "RedHatAI/Qwen3-32B-quantized.w4a16",
         )
-        if is_quantized_override:
+        if is_quantized:
             model_kwargs["device_map"] = "cpu"
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if self.num_layers is not None:
@@ -312,11 +316,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        # Use Qwen3ForCausalLM directly only for dense quantized variants (AWQ);
-        # MoE quantized variants use AutoModelForCausalLM so the correct class
-        # (Qwen3MoeForCausalLM) is resolved automatically.
-        is_dense_quantized = pretrained_model_name == "Qwen/Qwen3-32B-AWQ"
-        model_cls = Qwen3ForCausalLM if is_dense_quantized else AutoModelForCausalLM
+        model_cls = Qwen3ForCausalLM if is_quantized else AutoModelForCausalLM
         model = model_cls.from_pretrained(pretrained_model_name, **model_kwargs).eval()
 
         self.config = model.config
