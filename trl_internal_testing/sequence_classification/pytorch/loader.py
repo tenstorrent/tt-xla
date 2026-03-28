@@ -5,7 +5,6 @@
 TRL Internal Testing tiny-GPTNeoXForSequenceClassification model loader implementation.
 """
 from transformers import AutoTokenizer, GPTNeoXForSequenceClassification
-from typing import Optional
 
 from ....config import (
     ModelConfig,
