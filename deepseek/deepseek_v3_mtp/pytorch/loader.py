@@ -27,6 +27,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available DeepSeek V3 MTP model variants."""
 
+    MTP_DRAFT_RANDOM = "MTP_Draft_Random"
     MTP_MAIN_RANDOM = "MTP_Main_Random"
 
 
@@ -34,6 +35,10 @@ class ModelLoader(ForgeModel):
     """DeepSeek V3 MTP model loader for causal language modeling."""
 
     _VARIANTS = {
+        ModelVariant.MTP_DRAFT_RANDOM: LLMModelConfig(
+            pretrained_model_name="luccafong/deepseek_mtp_draft_random",
+            max_length=2048,
+        ),
         ModelVariant.MTP_MAIN_RANDOM: LLMModelConfig(
             pretrained_model_name="luccafong/deepseek_mtp_main_random",
             max_length=2048,
