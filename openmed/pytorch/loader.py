@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_CHEMICAL_TINY = "ZeroShot-NER-Chemical-Tiny-60M"
     OPENMED_ZEROSHOT_NER_DNA_TINY = "ZeroShot-NER-DNA-Tiny-60M"
     OPENMED_ZEROSHOT_NER_DNA_SMALL = "ZeroShot-NER-DNA-Small-166M"
+    OPENMED_ZEROSHOT_NER_DISEASE_SMALL = "ZeroShot-NER-Disease-Small-166M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE = "ZeroShot-NER-Oncology-XLarge-770M"
 
@@ -39,6 +40,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_DNA_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-Small-166M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_SMALL: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-Small-166M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
@@ -101,6 +105,9 @@ class ModelLoader(ForgeModel):
         ):
             text = "The BRCA1 gene mutation was found to be associated with increased cancer risk."
             labels = ["DNA"]
+        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_SMALL:
+            text = "The patient was diagnosed with diabetes mellitus type 2."
+            labels = ["DISEASE"]
         elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE:
             text = "Mutations in KRAS gene drive oncogenic transformation in pancreatic cancer cells."
             labels = ["Gene_or_gene_product", "Cancer", "Cell"]
