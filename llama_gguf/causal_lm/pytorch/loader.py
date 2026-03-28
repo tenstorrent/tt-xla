@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Llama GGUF model variants for causal language modeling."""
 
     LLAMA_3_2_1B_INSTRUCT_Q4_K_M = "3.2_1B_Instruct_Q4_K_M"
+    LLAMA_3_2_3B_INSTRUCT_Q4_K_M = "3.2_3B_Instruct_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
@@ -34,12 +35,17 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hugging-quants/Llama-3.2-1B-Instruct-Q4_K_M-GGUF",
             max_length=128,
         ),
+        ModelVariant.LLAMA_3_2_3B_INSTRUCT_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="hugging-quants/Llama-3.2-3B-Instruct-Q4_K_M-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.LLAMA_3_2_1B_INSTRUCT_Q4_K_M
 
     GGUF_FILES = {
         ModelVariant.LLAMA_3_2_1B_INSTRUCT_Q4_K_M: "llama-3.2-1b-instruct-q4_k_m.gguf",
+        ModelVariant.LLAMA_3_2_3B_INSTRUCT_Q4_K_M: "llama-3.2-3b-instruct-q4_k_m.gguf",
     }
 
     sample_text = "Hey how are you doing today?"
