@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_2B_INSTRUCT_FP8 = "2b_instruct_fp8"
     QWEN_3_VL_2B_THINKING = "2b_thinking"
     QWEN_3_VL_4B_INSTRUCT = "4b_instruct"
+    QWEN_3_VL_4B_INSTRUCT_FP8 = "4b_instruct_fp8"
     QWEN_3_VL_4B_THINKING = "4b_thinking"
     QWEN_3_VL_4B_THINKING_FP8 = "4b_thinking_fp8"
     QWEN_3_VL_8B_INSTRUCT = "8b_instruct"
@@ -64,6 +65,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_VL_4B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-VL-4B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_VL_4B_INSTRUCT_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-VL-4B-Instruct-FP8",
             max_length=128,
         ),
         ModelVariant.QWEN_3_VL_4B_THINKING: LLMModelConfig(
@@ -159,7 +164,7 @@ class ModelLoader(ForgeModel):
             ModelGroup.VULCAN
             if variant
             in (
-                ModelVariant.QWEN_3_VL_2B_INSTRUCT_FP8,
+                ModelVariant.QWEN_3_VL_4B_INSTRUCT_FP8,
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT,
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT_FP8,
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT_AWQ,
@@ -201,13 +206,6 @@ class ModelLoader(ForgeModel):
 
         model_kwargs["dtype"] = "auto"
         model_kwargs["device_map"] = "auto"
-
-        if self._variant in self._NVFP4_VARIANTS:
-            model_kwargs["ignore_mismatched_sizes"] = True
-
-        # MLX variants may have mismatched tensor layouts
-        if self._variant == ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_8BIT:
-            model_kwargs["ignore_mismatched_sizes"] = True
 
         model_kwargs |= kwargs
 
