@@ -86,6 +86,9 @@ class ModelVariant(StrEnum):
     # Unsloth variants
     UNSLOTH_LLAMA_3_2_3B = "Unsloth_3.2_3B"
 
+    # sh0ck0r variants
+    SH0CK0R_L3_3_MS_NEVORIA_70B_HERETIC = "sh0ck0r_L3.3_MS_Nevoria_70B_Heretic"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -226,6 +229,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Llama-3.2-3B",
             max_length=128,
         ),
+        # sh0ck0r variants
+        ModelVariant.SH0CK0R_L3_3_MS_NEVORIA_70B_HERETIC: LLMModelConfig(
+            pretrained_model_name="sh0ck0r/L3.3-MS-Nevoria-70b-heretic",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -271,6 +279,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.UNSLOTH_LLAMA_3_2_3B,
+            ModelVariant.SH0CK0R_L3_3_MS_NEVORIA_70B_HERETIC,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -535,6 +544,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_UNSLOTH,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
+            ModelVariant.SH0CK0R_L3_3_MS_NEVORIA_70B_HERETIC,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
