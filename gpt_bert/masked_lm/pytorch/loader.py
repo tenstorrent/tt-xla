@@ -5,7 +5,7 @@
 GPT-BERT model loader implementation for masked language modeling.
 """
 
-from transformers import AutoModelForMaskedLM, AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer, AutoModelForMaskedLM, AutoConfig
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -21,20 +21,20 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available GPT-BERT model variants for masked language modeling."""
 
-    BABYLM_BASELINE_10M = "BabyLM_Baseline_10M"
+    BABYLM_BASELINE_100M_MASKED_FOCUS = "BabyLM_Baseline_100M_Masked_Focus"
 
 
 class ModelLoader(ForgeModel):
     """GPT-BERT model loader implementation for masked language modeling."""
 
     _VARIANTS = {
-        ModelVariant.BABYLM_BASELINE_10M: LLMModelConfig(
-            pretrained_model_name="BabyLM-community/babylm-baseline-10m-gpt-bert-mixed",
+        ModelVariant.BABYLM_BASELINE_100M_MASKED_FOCUS: LLMModelConfig(
+            pretrained_model_name="BabyLM-community/babylm-baseline-100m-gpt-bert-masked-focus",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BABYLM_BASELINE_10M
+    DEFAULT_VARIANT = ModelVariant.BABYLM_BASELINE_100M_MASKED_FOCUS
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -47,7 +47,7 @@ class ModelLoader(ForgeModel):
 
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.sample_text = "The capital of France is [MASK]."
+        self.sample_text = "The capital of France is <mask>."
         self.max_length = 128
         self.tokenizer = None
 
@@ -56,13 +56,13 @@ class ModelLoader(ForgeModel):
         """Get model information for dashboard and metrics reporting.
 
         Args:
-            variant_name: Optional variant name string. If None, uses 'base'.
+            variant_name: Optional variant name string. If None, uses default.
 
         Returns:
             ModelInfo: Information about the model and variant
         """
         if variant_name is None:
-            variant_name = "base"
+            variant_name = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="GPT-BERT",
             variant=variant_name,
@@ -127,7 +127,7 @@ class ModelLoader(ForgeModel):
         ].nonzero(as_tuple=True)[0]
         predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
         predicted_token = self.tokenizer.decode(predicted_token_id)
-        print("The predicted token for the [MASK] is:", predicted_token)
+        print("The predicted token for the <mask> is:", predicted_token)
 
     def load_config(self):
         """Load and return the configuration for the GPT-BERT model variant.
