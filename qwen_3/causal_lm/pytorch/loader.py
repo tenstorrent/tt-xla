@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
+    UNSLOTH_QWEN_3_14B = "unsloth_14B"
     QWEN_3_32B_QUANTIZED_W4A16 = "32B_Quantized_W4A16"
     TINY_RANDOM_QWEN3 = "Tiny_Random"
 
@@ -151,6 +152,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
+        ModelVariant.UNSLOTH_QWEN_3_14B: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-14B",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_32B_QUANTIZED_W4A16: LLMModelConfig(
             pretrained_model_name="RedHatAI/Qwen3-32B-quantized.w4a16",
             max_length=128,
@@ -212,6 +217,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
+            ModelVariant.UNSLOTH_QWEN_3_14B,
             ModelVariant.QWEN_3_32B_QUANTIZED_W4A16,
             ModelVariant.TINY_RANDOM_QWEN3,
         ):
