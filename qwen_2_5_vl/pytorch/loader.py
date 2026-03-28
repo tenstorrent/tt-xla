@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_VL_3B_INSTRUCT_AWQ = "3B_INSTRUCT_Awq"
     QWEN_2_5_VL_7B_INSTRUCT_AWQ = "7B_INSTRUCT_Awq"
     QWEN_2_5_VL_72B_INSTRUCT = "72B_Instruct"
+    HUIHUI_QWEN_2_5_VL_3B_INSTRUCT_ABLITERATED = "huihui_3B_Instruct_abliterated"
 
 
 class ModelLoader(ForgeModel):
@@ -51,6 +52,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_2_5_VL_72B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2.5-VL-72B-Instruct",
+        ),
+        ModelVariant.HUIHUI_QWEN_2_5_VL_3B_INSTRUCT_ABLITERATED: LLMModelConfig(
+            pretrained_model_name="huihui-ai/Qwen2.5-VL-3B-Instruct-abliterated",
         ),
     }
 
@@ -99,7 +103,9 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="Qwen 2.5-VL",
             variant=variant,
-            group=ModelGroup.RED
+            group=ModelGroup.VULCAN
+            if variant == ModelVariant.HUIHUI_QWEN_2_5_VL_3B_INSTRUCT_ABLITERATED
+            else ModelGroup.RED
             if variant == ModelVariant.QWEN_2_5_VL_3B_INSTRUCT
             else ModelGroup.GENERALITY,
             task=ModelTask.MM_CONDITIONAL_GENERATION,
