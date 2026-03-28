@@ -6,7 +6,8 @@ CodeFormula model loader implementation for code and formula OCR from images.
 """
 import torch
 from PIL import Image
-from transformers import AutoModel, AutoTokenizer
+from torchvision import transforms
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 from ...base import ForgeModel
@@ -19,6 +20,11 @@ from ...config import (
     Framework,
     StrEnum,
 )
+
+IMAGE_SIZE = 1024
+IMAGE_TOKEN_LEN = 256
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
 class ModelVariant(StrEnum):
@@ -73,7 +79,9 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
         model.eval()
 
         return model
@@ -82,14 +90,48 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        image = Image.new("RGB", (1024, 1024), color=(255, 255, 255))
+        image = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), color=(255, 255, 255))
 
-        inputs = self.tokenizer(image, return_tensors="pt")
+        image_transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    (IMAGE_SIZE, IMAGE_SIZE),
+                    interpolation=transforms.InterpolationMode.BICUBIC,
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+            ]
+        )
+        pixel_values = image_transform(image).unsqueeze(0)
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
-                if dtype_override is not None and inputs[key].dtype.is_floating_point:
-                    inputs[key] = inputs[key].to(dtype_override)
+        # Build token sequence with image placeholders:
+        # <img> + IMAGE_TOKEN_LEN * <imgpad> + </img> + prompt
+        img_token_id = self.tokenizer.convert_tokens_to_ids("<img>")
+        img_end_token_id = self.tokenizer.convert_tokens_to_ids("</img>")
+        imgpad_token_id = self.tokenizer.convert_tokens_to_ids("<imgpad>")
 
-        return inputs
+        prompt_text = "OCR: "
+        prompt_ids = self.tokenizer.encode(prompt_text, add_special_tokens=False)
+
+        input_ids = (
+            [img_token_id]
+            + [imgpad_token_id] * IMAGE_TOKEN_LEN
+            + [img_end_token_id]
+            + prompt_ids
+        )
+        input_ids = torch.tensor([input_ids], dtype=torch.long)
+        attention_mask = torch.ones_like(input_ids)
+
+        if batch_size > 1:
+            pixel_values = pixel_values.repeat_interleave(batch_size, dim=0)
+            input_ids = input_ids.repeat_interleave(batch_size, dim=0)
+            attention_mask = attention_mask.repeat_interleave(batch_size, dim=0)
+
+        if dtype_override is not None:
+            pixel_values = pixel_values.to(dtype_override)
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "pixel_values": pixel_values,
+        }
