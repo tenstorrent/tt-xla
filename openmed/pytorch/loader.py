@@ -20,11 +20,7 @@ from ...base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    OPENMED_ZEROSHOT_NER_ANATOMY_TINY = "ZeroShot-NER-Anatomy-Tiny-60M"
-    OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE = "ZeroShot-NER-Pathology-Large-459M"
-    OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL = "ZeroShot-NER-Pathology-Small-166M"
-    OPENMED_ZEROSHOT_NER_PROTEIN_BASE = "ZeroShot-NER-Protein-Base-220M"
-    OPENMED_ZEROSHOT_NER_ONCOLOGY_TINY = "ZeroShot-NER-Oncology-Tiny-60M"
+    OPENMED_ZEROSHOT_NER_ANATOMY_SMALL = "ZeroShot-NER-Anatomy-Small-166M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_ANATOMY_MEDIUM = "ZeroShot-NER-Anatomy-Medium-209M"
     OPENMED_ZEROSHOT_NER_ANATOMY_MULTI = "ZeroShot-NER-Anatomy-Multi-209M"
@@ -53,20 +49,8 @@ class ModelLoader(ForgeModel):
     """OpenMed model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Anatomy-Tiny-60M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Large-459M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Small-166M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Tiny-60M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_BASE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Base-220M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Anatomy-Small-166M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
@@ -85,7 +69,7 @@ class ModelLoader(ForgeModel):
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL
+    DEFAULT_VARIANT = ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
@@ -113,36 +97,10 @@ class ModelLoader(ForgeModel):
         self.model = model
         return self.model.eval()
 
-    _SAMPLE_INPUTS = {
-        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_TINY: {
+    _VARIANT_INPUTS = {
+        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL: {
             "text": "The patient complained of pain in the left ventricle region.",
             "labels": ["Anatomy"],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE: {
-            "text": "Early detection of breast cancer improves survival rates.",
-            "labels": ["DISEASE"],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL: {
-            "text": "Early detection of breast cancer improves survival rates.",
-            "labels": ["DISEASE"],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_TINY: {
-            "text": "TP53 mutations are frequently observed in breast cancer tumor cells.",
-            "labels": [
-                "Gene_or_gene_product",
-                "Cancer",
-                "Cell",
-            ],
-        },
-        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_BASE: {
-            "text": "The Maillard reaction is responsible for the browning of many foods.",
-            "labels": [
-                "protein",
-                "protein_complex",
-                "protein_enum",
-                "protein_family_or_group",
-                "protein_variant",
-            ],
         },
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: {
             "text": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
@@ -155,9 +113,10 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        text = _VARIANT_SAMPLE_TEXTS[self._variant_name]
+        variant_input = self._VARIANT_INPUTS[self._variant]
+        text = variant_input["text"]
         self.text = [text]
-        labels = _VARIANT_LABELS[self._variant_name]
+        labels = variant_input["labels"]
         entity_types = list(dict.fromkeys(labels))
 
         (
