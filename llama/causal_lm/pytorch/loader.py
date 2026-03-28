@@ -77,6 +77,7 @@ class ModelVariant(StrEnum):
 
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
+    TINYLLAMA_1_1B_STEP_50K_105B = "TinyLlama_1.1B_step_50K_105b"
 
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
@@ -206,6 +207,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="TinyLlama/TinyLlama_v1.1",
             max_length=128,
         ),
+        ModelVariant.TINYLLAMA_1_1B_STEP_50K_105B: LLMModelConfig(
+            pretrained_model_name="TinyLlama/TinyLlama-1.1B-step-50K-105b",
+            max_length=128,
+        ),
         # JackFram variants
         ModelVariant.JACKFRAM_LLAMA_160M: LLMModelConfig(
             pretrained_model_name="JackFram/llama-160m",
@@ -260,14 +265,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_NVFP4,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_UNSLOTH_BNB_4BIT,
-            ModelVariant.LLAMA_3_1_70B_INSTRUCT_UNSLOTH,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO,
-            ModelVariant.PARD_LLAMA_3_2_1B,
-            ModelVariant.LLAMA_GUARD_3_8B_INT8,
-            ModelVariant.NEURAL_LLAMA_3_8B_ORPO_V0_4,
-            ModelVariant.JSL_MEDLLAMA_3_8B_V2_0,
+            ModelVariant.TINYLLAMA_1_1B_STEP_50K_105B,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -567,7 +565,8 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_2_7B,
             ModelVariant.LLAMA_2_7B_CHAT_GPTQ,
             ModelVariant.JACKFRAM_LLAMA_160M,
-            ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
+            ModelVariant.TINYLLAMA_V1_1,
+            ModelVariant.TINYLLAMA_1_1B_STEP_50K_105B,
         ]:
             return None
 
