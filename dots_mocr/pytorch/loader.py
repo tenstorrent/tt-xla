@@ -8,7 +8,7 @@ import os
 
 import torch
 from huggingface_hub import snapshot_download
-from transformers import AutoModelForCausalLM, AutoProcessor
+from transformers import AutoModelForCausalLM
 from typing import Optional
 
 from ...base import ForgeModel
