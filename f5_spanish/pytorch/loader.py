@@ -83,33 +83,43 @@ class ModelLoader(ForgeModel):
         from f5_tts.model import DiT
         from f5_tts.infer.utils_infer import load_checkpoint
 
+        from f5_tts.model import CFM
+        from f5_tts.model.utils import get_tokenizer
+
         repo_id = self._variant_config.pretrained_model_name
 
         vocab_path = hf_hub_download(repo_id=repo_id, filename="vocab.txt")
-        with open(vocab_path) as f:
-            vocab_char_map = {}
-            for i, char in enumerate(f.read()):
-                vocab_char_map[char] = i
-        vocab_size = len(vocab_char_map)
+        _, vocab_size = get_tokenizer(vocab_path, tokenizer="custom")
 
-        model = DiT(
-            dim=1024,
-            depth=22,
-            heads=16,
-            ff_mult=2,
-            text_dim=512,
-            conv_layers=4,
-            text_num_embeds=vocab_size,
-            mel_dim=100,
+        model = CFM(
+            transformer=DiT(
+                dim=1024,
+                depth=22,
+                heads=16,
+                ff_mult=2,
+                text_dim=512,
+                conv_layers=4,
+                text_num_embeds=vocab_size,
+                mel_dim=100,
+            ),
+            mel_spec_kwargs=dict(
+                n_fft=1024,
+                hop_length=256,
+                win_length=1024,
+                n_mel_channels=100,
+                target_sample_rate=24000,
+                mel_spec_type="vocos",
+            ),
+            vocab_char_map=None,
         )
 
         ckpt_path = hf_hub_download(
             repo_id=repo_id,
             filename="model_1200000.safetensors",
         )
-        load_checkpoint(model, ckpt_path, device="cpu", use_ema=True)
+        model = load_checkpoint(model, ckpt_path, device="cpu", use_ema=True)
 
-        wrapper = F5DiTWrapper(model)
+        wrapper = F5DiTWrapper(model.transformer)
         wrapper.eval()
 
         if dtype_override is not None:
