@@ -138,7 +138,7 @@ def pack_layout_predictions(preds, max_boxes: int = 2048):
 def unpack_layout_predictions(
     boxes, polys, labels, positions, confs, lengths, image_bboxes
 ):
-    B, K, _ = boxes.shape
+    B = boxes.shape[0]
     results = []
     for b in range(B):
         num = int(lengths[b].item())
