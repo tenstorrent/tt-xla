@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE_960H = "Base_960h"
     XLSR_53_PUNJABI = "XLSR_53_Punjabi"
+    BLOOM_SPEECH_MYA = "Bloom_Speech_Mya"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLSR_53_PUNJABI: ModelConfig(
             pretrained_model_name="kingabzpro/wav2vec2-large-xlsr-53-punjabi",
+        ),
+        ModelVariant.BLOOM_SPEECH_MYA: ModelConfig(
+            pretrained_model_name="sil-ai/wav2vec2-bloom-speech-mya",
         ),
     }
 
