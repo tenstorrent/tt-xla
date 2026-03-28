@@ -92,6 +92,9 @@ class ModelVariant(StrEnum):
     # Kukedlc ORPO fine-tuned variants
     NEURAL_LLAMA_3_8B_ORPO_V0_4 = "NeuralLLaMa_3_8B_ORPO_v0.4"
 
+    # John Snow Labs medical fine-tuned variants
+    JSL_MEDLLAMA_3_8B_V2_0 = "JSL_MedLlama_3_8B_v2.0"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -235,6 +238,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Kukedlc/NeuralLLaMa-3-8b-ORPO-v0.4",
             max_length=128,
         ),
+        # John Snow Labs medical fine-tuned variants
+        ModelVariant.JSL_MEDLLAMA_3_8B_V2_0: LLMModelConfig(
+            pretrained_model_name="johnsnowlabs/JSL-MedLlama-3-8B-v2.0",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -285,6 +293,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PARD_LLAMA_3_2_1B,
             ModelVariant.LLAMA_GUARD_3_8B_INT8,
             ModelVariant.NEURAL_LLAMA_3_8B_ORPO_V0_4,
+            ModelVariant.JSL_MEDLLAMA_3_8B_V2_0,
         ]:
             group = ModelGroup.VULCAN
         elif (
