@@ -81,6 +81,9 @@ class ModelVariant(StrEnum):
     # RedHatAI GPTQ W4A16 quantized variants
     LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16 = "3.1_8B_Instruct_Quantized_W4A16"
 
+    # unsloth BNB 4-bit quantized variants
+    LLAMA_3_2_1B_BNB_4BIT = "3.2_1B_Bnb_4bit"
+
     # mlx-community 4-bit quantized variants
     LLAMA_3_1_8B_INSTRUCT_4BIT = "3.1_8B_Instruct_4bit"
     LLAMA_3_1_70B_INSTRUCT_4BIT = "3.1_70B_Instruct_4bit"
@@ -203,6 +206,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
             max_length=128,
         ),
+        # unsloth BNB 4-bit quantized variants
+        ModelVariant.LLAMA_3_2_1B_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Llama-3.2-1B-bnb-4bit",
+            max_length=128,
+        ),
         # mlx-community 4-bit quantized variants
         ModelVariant.LLAMA_3_1_8B_INSTRUCT_4BIT: LLMModelConfig(
             pretrained_model_name="mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
@@ -322,6 +330,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV_QUARK_TEST,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_4BIT,
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_4BIT,
+            ModelVariant.LLAMA_3_2_1B_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -418,10 +427,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is an AWQ or BNB variant and configure accordingly
+        # Check if this is an AWQ/BNB variant and configure accordingly
         if pretrained_model_name in (
             "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-            "unsloth/llama-3-8b-Instruct-bnb-4bit",
+            "unsloth/Llama-3.2-1B-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
@@ -626,8 +635,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
-            ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8,
-            ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
+            ModelVariant.LLAMA_3_2_1B_BNB_4BIT,
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.LLAMA_2_7B,
             ModelVariant.LLAMA_2_7B_CHAT,
