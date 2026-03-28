@@ -9,7 +9,7 @@ import torch
 from typing import Optional
 from dataclasses import dataclass
 
-from transformers import InformerForPrediction, InformerConfig
+from transformers import InformerForPrediction
 
 from ...config import (
     ModelConfig,
