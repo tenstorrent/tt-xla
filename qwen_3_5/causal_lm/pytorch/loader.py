@@ -35,11 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_27B_GGUF = "27B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_122B_A10B_INT4_AUTOROUND = "122B_A10B_INT4_AutoRound"
-    QWEN_3_5_122B_A10B_NVFP4 = "122B_A10B_NVFP4"
-    QWEN_3_5_27B_4BIT = "27B_4bit"
-    QWEN_3_5_27B_WRITER_I1_GGUF = "27B_Writer_i1_GGUF"
-    QWEN_3_5_9B_HIGHIQ_HERETIC_I1_GGUF = "9B_HighIQ_HERETIC_i1_GGUF"
+    QWEN_3_5_35B_A3B_AWQ_8BIT = "35B_A3B_AWQ_8BIT"
 
 
 class ModelLoader(ForgeModel):
@@ -91,24 +87,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_122B_A10B_INT4_AUTOROUND: LLMModelConfig(
-            pretrained_model_name="Intel/Qwen3.5-122B-A10B-int4-AutoRound",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_122B_A10B_NVFP4: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen3.5-122B-A10B-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen3.5-27B-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_WRITER_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-27B-Writer-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_HIGHIQ_HERETIC_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-9B-Claude-4.6-HighIQ-THINKING-HERETIC-UNCENSORED-i1-GGUF",
+        ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT: LLMModelConfig(
+            pretrained_model_name="cyankiwi/Qwen3.5-35B-A3B-AWQ-8bit",
             max_length=128,
         ),
     }
@@ -323,26 +303,15 @@ class ModelLoader(ForgeModel):
 
     def _is_awq_variant(self):
         """Check if the current variant uses AWQ quantization."""
-        return self._variant in (
-            ModelVariant.QWEN_3_5_35B_A3B_AWQ_4BIT,
-            ModelVariant.QWEN_3_5_2B_AWQ_4BIT,
-        )
-
-    def _is_nvfp4_variant(self):
-        """Check if the current variant uses NVFP4 quantization."""
-        return self._variant in (
-            ModelVariant.QWEN_3_5_35B_A3B_NVFP4,
-            ModelVariant.QWEN_3_5_122B_A10B_NVFP4,
-        )
+        return self._variant in (ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT,)
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_35B_A3B_NVFP4,
-            ModelVariant.QWEN_3_5_122B_A10B_INT4_AUTOROUND,
-            ModelVariant.QWEN_3_5_122B_A10B_NVFP4,
+            ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT,
+            ModelVariant.QWEN_3_5_122B_A10B,
         )
 
     def load_shard_spec(self, model):
