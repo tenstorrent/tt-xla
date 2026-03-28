@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     PEFT_INTERNAL_TESTING_TINY_RANDOM_BERTMODEL = (
         "peft-internal-testing/tiny-random-BertModel"
     )
+    JINMANG2_KPFBERT = "jinmang2/kpfbert"
 
 
 class ModelLoader(ForgeModel):
@@ -59,6 +60,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.PEFT_INTERNAL_TESTING_TINY_RANDOM_BERTMODEL: LLMModelConfig(
             pretrained_model_name="peft-internal-testing/tiny-random-BertModel",
+            max_length=128,
+        ),
+        ModelVariant.JINMANG2_KPFBERT: LLMModelConfig(
+            pretrained_model_name="jinmang2/kpfbert",
             max_length=128,
         ),
     }
@@ -101,6 +106,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
             ModelVariant.PEFT_INTERNAL_TESTING_TINY_RANDOM_BERTMODEL: ModelGroup.VULCAN,
+            ModelVariant.JINMANG2_KPFBERT: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
