@@ -26,8 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     BASE_VI = "Base_VI"
-    LARGE_LV60 = "Large_LV60"
-    TINY_RANDOM = "Tiny_Random"
+    FR_7K_LARGE = "FR_7K_Large"
 
 
 class ModelLoader(ForgeModel):
@@ -40,11 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_VI: ModelConfig(
             pretrained_model_name="nguyenvulebinh/wav2vec2-base-vi",
         ),
-        ModelVariant.LARGE_LV60: ModelConfig(
-            pretrained_model_name="facebook/wav2vec2-large-lv60",
-        ),
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-Wav2Vec2Model",
+        ModelVariant.FR_7K_LARGE: ModelConfig(
+            pretrained_model_name="LeBenchmark/wav2vec2-FR-7K-large",
         ),
     }
 
