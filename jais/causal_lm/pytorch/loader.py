@@ -38,10 +38,6 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.JAIS_13B_CHAT
 
     sample_text = "My name is Jim Keller and"
-    chat_messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "What is the capital of UAE?"},
-    ]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
