@@ -26,6 +26,7 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available LFM2 model variants."""
 
+    LFM2_700M = "LFM2_700M"
     LFM2_24B_A2B = "LFM2_24B_A2B"
     LFM2_5_1_2B_JP = "LFM2_5_1_2B_JP"
     LFM2_5_1_2B_INSTRUCT_4BIT = "LFM2_5_1_2B_INSTRUCT_4BIT"
@@ -35,6 +36,10 @@ class ModelLoader(ForgeModel):
     """LFM2 model loader for causal language modeling."""
 
     _VARIANTS = {
+        ModelVariant.LFM2_700M: LLMModelConfig(
+            pretrained_model_name="LiquidAI/LFM2-700M",
+            max_length=2048,
+        ),
         ModelVariant.LFM2_24B_A2B: LLMModelConfig(
             pretrained_model_name="LiquidAI/LFM2-24B-A2B",
             max_length=2048,
@@ -49,7 +54,7 @@ class ModelLoader(ForgeModel):
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LFM2_24B_A2B
+    DEFAULT_VARIANT = ModelVariant.LFM2_700M
 
     sample_text = (
         "What are the key differences between classical and quantum computing?"
