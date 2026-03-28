@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     # HuggingFace variants
     BASE = "Base"
     LARGE = "Large"
+    TINY_RANDOM = "Tiny_Random"
 
     # TIMM variants
     BEIT_BASE_PATCH16_224_IN22K_FT_IN22K_IN1K = (
@@ -62,6 +63,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.BEIT_BASE_PATCH16_224_IN22K_FT_IN22K_IN1K: BeitConfig(
             pretrained_model_name="beit_base_patch16_224.in22k_ft_in22k_in1k",
             source=ModelSource.TIMM,
+        ),
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-BeitForImageClassification",
         ),
     }
 
@@ -92,15 +96,9 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
-        source = cls._VARIANTS[variant].source
-
-        if source == ModelSource.TIMM:
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.TINY_RANDOM:
             group = ModelGroup.VULCAN
-        else:
-            group = ModelGroup.GENERALITY
 
         return ModelInfo(
             model="BEiT",
