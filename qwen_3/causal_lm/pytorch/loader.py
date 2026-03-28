@@ -46,9 +46,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B = "30B_A3b"
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_32B_ABLITERATED_AWQ = "32B_Abliterated_Awq"
-    QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4 = "30B_A3B_Instruct_2507_NVFP4"
-    QWEN_3_14B_FP8 = "14B_FP8"
+    QWEN_3_32B_NVFP4 = "32B_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -128,16 +126,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_32B_ABLITERATED_AWQ: LLMModelConfig(
-            pretrained_model_name="jnvdx666/Qwen3-32B-abliterated-awq",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4: LLMModelConfig(
-            pretrained_model_name="NVFP4/Qwen3-30B-A3B-Instruct-2507-FP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_14B_FP8: LLMModelConfig(
-            pretrained_model_name="nvidia/Qwen3-14B-FP8",
+        ModelVariant.QWEN_3_32B_NVFP4: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Qwen3-32B-NVFP4",
             max_length=128,
         ),
     }
@@ -186,6 +176,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_32B_FP8,
+            ModelVariant.QWEN_3_32B_NVFP4,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -221,6 +212,10 @@ class ModelLoader(ForgeModel):
 
         return self.tokenizer
 
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.QWEN_3_32B_NVFP4}
+
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Qwen 3 model instance for this instance's variant.
 
@@ -249,6 +244,9 @@ class ModelLoader(ForgeModel):
             "ELVISIO/Qwen3-30B-A3B-Instruct-2507-AWQ",
         ):
             model_kwargs["device_map"] = "cpu"
+
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
 
         model_kwargs |= kwargs
 
