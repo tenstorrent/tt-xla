@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
     ROBERTA_BASE_TWEET_TOPIC_MULTI = "Base_Tweet_Topic_Multi"
+    ROBERTA_SPAM = "Spam"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.ROBERTA_BASE_TWEET_TOPIC_MULTI: ModelConfig(
             pretrained_model_name="cardiffnlp/twitter-roberta-base-dec2021-tweet-topic-multi-all",
+        ),
+        ModelVariant.ROBERTA_SPAM: ModelConfig(
+            pretrained_model_name="mshenoda/roberta-spam",
         ),
     }
 
@@ -69,6 +73,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
             ModelVariant.ROBERTA_LARGE_MNLI,
             ModelVariant.ROBERTA_BASE_TWEET_TOPIC_MULTI,
+            ModelVariant.ROBERTA_SPAM,
         ):
             group = ModelGroup.VULCAN
 
@@ -161,6 +166,10 @@ class ModelLoader(ForgeModel):
         """Check if the current variant is a multi-label classification model."""
         return self._variant == ModelVariant.ROBERTA_BASE_TWEET_TOPIC_MULTI
 
+    def _is_spam_variant(self):
+        """Check if the current variant is a spam classification model."""
+        return self._variant == ModelVariant.ROBERTA_SPAM
+
     def load_inputs(self):
         """Generate sample inputs for Roberta model."""
 
@@ -179,6 +188,11 @@ class ModelLoader(ForgeModel):
                 return_tensors="pt",
             )
             return [inputs["input_ids"], inputs["attention_mask"]]
+
+        if self._is_spam_variant():
+            text = "Congratulations! You've won a free ticket. Call now to claim your prize!"
+        else:
+            text = self.text
 
         # Create tokenized inputs for single-text classification
         text = self._SAMPLE_TEXTS.get(self._variant, self.text)
@@ -211,8 +225,10 @@ class ModelLoader(ForgeModel):
             predicted_value = co_out[0].argmax(-1).item()
             label = self.model.config.id2label[predicted_value]
             print(f"Predicted Label: {label}")
-        elif self._variant == ModelVariant.ROBERTA_BASE_SUICIDE_PREDICTION:
-            print(f"Predicted Class: {label}")
+        elif self._is_spam_variant():
+            predicted_value = co_out[0].argmax(-1).item()
+            label = self.model.config.id2label[predicted_value]
+            print(f"Predicted Spam Classification: {label}")
         else:
             predicted_value = co_out[0].argmax(-1).item()
             label = self.model.config.id2label[predicted_value]
