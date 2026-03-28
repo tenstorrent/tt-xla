@@ -76,12 +76,11 @@ class ModelLoader(ForgeModel):
         """Load and return the E5-V model instance."""
         model_name = self._variant_config.pretrained_model_name
         model = LlavaNextForConditionalGeneration.from_pretrained(
-            str(model_name), torch_dtype=torch.float16, **kwargs
+            str(model_name),
+            torch_dtype=dtype_override if dtype_override else torch.float16,
+            **kwargs,
         )
         model.eval()
-
-        if dtype_override:
-            model = model.to(dtype_override)
 
         if self.processor is None:
             self._load_processor()
