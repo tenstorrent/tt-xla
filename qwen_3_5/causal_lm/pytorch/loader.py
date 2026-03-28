@@ -331,9 +331,6 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_35B_A3B_HUIHUI_ABLITERATED,
-            ModelVariant.QWEN_3_5_122B_A10B,
-            ModelVariant.QWEN_3_5_24B_A3B_REAP_0_32_GGUF,
         )
 
     def load_shard_spec(self, model):
