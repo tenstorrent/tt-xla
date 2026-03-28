@@ -4,7 +4,8 @@
 """
 Dolphin model loader implementation for causal language modeling.
 """
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
 from ...base import ForgeModel
@@ -20,27 +21,24 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Dolphin model variants."""
+    """Available Dolphin model variants for causal language modeling."""
 
-    V2_9_1_YI_1_5_9B = "2.9.1_Yi_1.5_9B"
-    V2_9_4_LLAMA3_1_8B = "2.9.4_Llama3.1_8B"
+    DOLPHIN_2_9_1_LLAMA_3_8B = "2.9.1_Llama_3_8B"
 
 
 class ModelLoader(ForgeModel):
     """Dolphin model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.V2_9_1_YI_1_5_9B: LLMModelConfig(
-            pretrained_model_name="dphn/dolphin-2.9.1-yi-1.5-9b",
-        ),
-        ModelVariant.V2_9_4_LLAMA3_1_8B: LLMModelConfig(
-            pretrained_model_name="dphn/dolphin-2.9.4-llama3.1-8b",
+        ModelVariant.DOLPHIN_2_9_1_LLAMA_3_8B: LLMModelConfig(
+            pretrained_model_name="dphn/dolphin-2.9.1-llama-3-8b",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.V2_9_1_YI_1_5_9B
+    DEFAULT_VARIANT = ModelVariant.DOLPHIN_2_9_1_LLAMA_3_8B
 
-    sample_text = "Hello there fellow traveller"
+    sample_text = "Hey how are you doing today?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -58,7 +56,7 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
+        """Get model information for dashboard and metrics reporting.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
@@ -90,8 +88,10 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            **tokenizer_kwargs,
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -100,7 +100,6 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The Dolphin model instance for causal language modeling.
@@ -123,14 +122,17 @@ class ModelLoader(ForgeModel):
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
+        model.eval()
+        self.config = model.config
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the Dolphin model.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
 
         Returns:
             dict: Input tensors that can be fed to the model.
@@ -141,32 +143,24 @@ class ModelLoader(ForgeModel):
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
-            padding=True,
+            padding="max_length",
             truncation=True,
+            max_length=self._variant_config.max_length,
         )
+
+        for key in inputs:
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, outputs, inputs=None):
-        """Helper method to decode model outputs into human-readable text.
-
-        Args:
-            outputs: Model output from a forward pass
-            inputs: Optional input tensors used to generate the outputs
+    def load_config(self):
+        """Load and return the configuration for the Dolphin model variant.
 
         Returns:
-            str: Decoded prediction for the next tokens
+            The configuration object for the Dolphin model.
         """
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
-        if inputs is None:
-            inputs = self.load_inputs()
-
-        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-        predicted_token_ids = logits.argmax(dim=-1)
-        predicted_text = self.tokenizer.decode(
-            predicted_token_ids[0], skip_special_tokens=True
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
         )
 
-        return predicted_text
+        return self.config
