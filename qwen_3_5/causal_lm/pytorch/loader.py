@@ -33,7 +33,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
-    QWEN_3_5_27B_GGUF = "27B_GGUF"
+    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_27B_AWQ_BF16_INT4 = "27B_AWQ_BF16_INT4"
 
@@ -79,8 +79,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3.5-9B-GGUF",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_27B_GGUF: LLMModelConfig(
-            pretrained_model_name="Mungert/Qwen3.5-27B-GGUF",
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
+            pretrained_model_name="tatsuyaaaaaaa/Qwen3.5-35B-A3B-gguf",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_35B_A3B_NVFP4: LLMModelConfig(
@@ -100,10 +100,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_0_8B_UNREDACTED_MAX_GGUF: "Qwen3.5-0.8B-Unredacted-MAX.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_UNCENSORED_GGUF: "Qwen3.5-35B-A3B-Uncensored-Kullback-Leibler-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Qwen3.5-35B-A3B.Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_4B_UNREDACTED_MAX_GGUF: "Qwen3.5-4B-Unredacted-MAX.Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Qwen3.5-35B-A3B_Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -311,8 +308,6 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT,
-            ModelVariant.QWEN_3_5_35B_A3B_UNCENSORED_GGUF,
             ModelVariant.QWEN_3_5_35B_A3B_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
         )
