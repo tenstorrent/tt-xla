@@ -14,7 +14,6 @@ import os
 import sys
 
 import torch
-from huggingface_hub import hf_hub_download
 from typing import Optional
 
 from ...base import ForgeModel
@@ -67,10 +66,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.DIT_FLOW_MATCHING
 
-    # DiT model config from the model card
-    _HIDDEN_SIZE = 2048
-    _DEPTH = 21
-    _NUM_HEADS = 16
+    # DiT model dimensions used for sample input generation
     _NUM_LATENTS = 4096
     _IN_CHANNELS = 64
     _COND_CHANNELS = 1024
