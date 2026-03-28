@@ -5,7 +5,6 @@
 T5Gemma model loader implementation for multimodal image-text-to-text tasks.
 """
 
-import torch
 from transformers import AutoProcessor, AutoModelForSeq2SeqLM
 from typing import Optional
 
