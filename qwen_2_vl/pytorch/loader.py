@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
 
     QWEN_2_VL_2B_INSTRUCT = "2B_Instruct"
     QWEN_2_VL_7B_INSTRUCT = "7B_Instruct"
-    QWEN_2_VL_OCR2_2B_INSTRUCT = "OCR2_2B_Instruct"
+    QWEN_2_VL_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
 
 
 class ModelLoader(ForgeModel):
@@ -41,8 +41,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_2_VL_7B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2-VL-7B-Instruct",
         ),
-        ModelVariant.QWEN_2_VL_OCR2_2B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="prithivMLmods/Qwen2-VL-OCR2-2B-Instruct",
+        ModelVariant.QWEN_2_VL_7B_INSTRUCT_GPTQ_INT4: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4",
         ),
     }
 
@@ -130,6 +130,10 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"low_cpu_mem_usage": True}
+
+        # GPTQ variants need device_map="cpu" for CPU-based loading
+        if pretrained_model_name == "Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4":
+            model_kwargs["device_map"] = "cpu"
 
         # Load the model with dtype override if specified
         if dtype_override is not None:
