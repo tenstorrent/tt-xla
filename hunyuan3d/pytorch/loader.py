@@ -2,21 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Hunyuan3D model loader implementation for 3D asset generation.
+Hunyuan3D-2.1 model loader implementation for image-to-3D generation.
 
-Loads the DiT (Diffusion Transformer) backbone from the Hunyuan3D-2 pipeline,
+Loads the HunYuanDiTPlain denoiser (DiT backbone) from the Hunyuan3D pipeline,
 which is the core flow-matching transformer for generating 3D shapes from
-image conditioning.
+image conditioning via a DINOv2-large encoder.
 
-Based on Comfy-Org/hunyuan3D_2.1_repackaged (originally tencent/Hunyuan3D-2).
-
-Requires the Hunyuan3D-2 repository to be cloned at /tmp/hunyuan3d_repo.
+Requires the Hunyuan3D-2.1 repository to be cloned at /tmp/hunyuan3d_repo.
 """
 import os
 import sys
-import types
 
 import torch
+from huggingface_hub import hf_hub_download
 from typing import Optional
 
 from ...base import ForgeModel
@@ -34,8 +32,8 @@ HUNYUAN3D_REPO_PATH = "/tmp/hunyuan3d_repo"
 
 
 def _ensure_hunyuan3d_importable():
-    """Ensure the Hunyuan3D-2 repo is cloned and importable."""
-    if "hy3dgen" not in sys.modules:
+    """Ensure the Hunyuan3D-2.1 repo is cloned and importable."""
+    if HUNYUAN3D_REPO_PATH not in sys.path:
         if not os.path.isdir(HUNYUAN3D_REPO_PATH):
             import subprocess
 
@@ -44,42 +42,45 @@ def _ensure_hunyuan3d_importable():
                     "git",
                     "clone",
                     "--filter=blob:none",
-                    "--recurse-submodules",
-                    "https://github.com/Tencent/Hunyuan3D-2.git",
+                    "https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1.git",
                     HUNYUAN3D_REPO_PATH,
                 ]
             )
 
         sys.path.insert(0, HUNYUAN3D_REPO_PATH)
-        hy3dgen_mod = types.ModuleType("hy3dgen")
-        sys.modules["hy3dgen"] = hy3dgen_mod
-        hy3dgen_mod.__path__ = [os.path.join(HUNYUAN3D_REPO_PATH, "hy3dgen")]
 
 
 class ModelVariant(StrEnum):
     """Available Hunyuan3D model variants."""
 
-    DIT_V2 = "DiT_v2"
+    DIT_FLOW_MATCHING = "DiT_Flow_Matching"
 
 
 class ModelLoader(ForgeModel):
-    """Hunyuan3D model loader for the DiT flow-matching backbone."""
+    """Hunyuan3D model loader for the HunYuanDiTPlain denoiser (DiT backbone)."""
 
     _VARIANTS = {
-        ModelVariant.DIT_V2: ModelConfig(
-            pretrained_model_name="tencent/Hunyuan3D-2",
+        ModelVariant.DIT_FLOW_MATCHING: ModelConfig(
+            pretrained_model_name="andreca/hunyuan3d-2.1xet",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DIT_V2
+    DEFAULT_VARIANT = ModelVariant.DIT_FLOW_MATCHING
+
+    # DiT model config from the model card
+    _HIDDEN_SIZE = 2048
+    _DEPTH = 21
+    _NUM_HEADS = 16
+    _NUM_LATENTS = 4096
+    _IN_CHANNELS = 64
+    _COND_CHANNELS = 1024
+    _COND_SEQ_LEN = 257  # DINOv2 ViT-L/14: 1 CLS + 256 patch tokens
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="Hunyuan3D",
             variant=variant,
@@ -90,15 +91,16 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Hunyuan3D DiT flow-matching model.
+        """Load and return the Hunyuan3D DiT denoiser model.
 
         Returns:
-            torch.nn.Module: The DiT backbone for 3D shape generation.
+            torch.nn.Module: The HunYuanDiTPlain flow-matching denoiser.
         """
         _ensure_hunyuan3d_importable()
-        from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline
+        from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline
 
         repo_id = self._variant_config.pretrained_model_name
+
         pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(repo_id)
         model = pipeline.model
         model.eval()
@@ -109,25 +111,30 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load sample inputs for the DiT flow-matching model.
-
-        The DiT processes noisy 3D volume latents conditioned on image
-        embeddings, using a flow-matching timestep schedule.
+        """Load sample inputs for the HunYuanDiTPlain denoiser.
 
         Returns:
             dict: Input tensors (x, t, cond) for the model forward pass.
         """
         dtype = dtype_override or torch.float32
 
-        # x: noisy 3D volume latent [B, C, D, H, W]
-        # Shape based on Hunyuan3D-2 VAE latent configuration
-        x = torch.randn(batch_size, 64, 8, 8, 8, dtype=dtype)
+        # x: noisy latent [B, num_latents, in_channels]
+        x = torch.randn(
+            batch_size,
+            self._NUM_LATENTS,
+            self._IN_CHANNELS,
+            dtype=dtype,
+        )
 
-        # t: flow-matching timestep in [0, 1]
+        # t: diffusion timestep
         t = torch.full((batch_size,), 0.5, dtype=dtype)
 
-        # cond: image conditioning embeddings from CLIP conditioner
-        # [B, seq_len, hidden_dim]
-        cond = torch.randn(batch_size, 257, 1024, dtype=dtype)
+        # cond: DINOv2 image conditioning tokens [B, seq_len, cond_channels]
+        cond = torch.randn(
+            batch_size,
+            self._COND_SEQ_LEN,
+            self._COND_CHANNELS,
+            dtype=dtype,
+        )
 
         return {"x": x, "t": t, "cond": cond}
