@@ -23,27 +23,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_CHEMICAL_TINY = "ZeroShot-NER-Chemical-Tiny-60M"
     OPENMED_ZEROSHOT_NER_DNA_TINY = "ZeroShot-NER-DNA-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_ANATOMY_MEDIUM = "ZeroShot-NER-Anatomy-Medium-209M"
-    OPENMED_ZEROSHOT_NER_ANATOMY_MULTI = "ZeroShot-NER-Anatomy-Multi-209M"
-    OPENMED_ZEROSHOT_NER_GENOMIC_XLARGE = "ZeroShot-NER-Genomic-XLarge-770M"
-    OPENMED_ZEROSHOT_NER_GENOMIC_TINY = "ZeroShot-NER-Genomic-Tiny-60M"
-
-
-_VARIANT_SAMPLE_TEXTS = {
-    ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
-    ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_MEDIUM: "The patient complained of pain in the left ventricle region.",
-    ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_MULTI: "The patient complained of pain in the left ventricle region.",
-    ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_XLARGE: "The BRCA2 gene is associated with hereditary breast cancer.",
-    ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_TINY: "The BRCA2 gene is associated with hereditary breast cancer.",
-}
-
-_VARIANT_LABELS = {
-    ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ["SPECIES"],
-    ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_MEDIUM: ["Anatomy"],
-    ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_MULTI: ["Anatomy"],
-    ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_XLARGE: ["Cell-line-name"],
-    ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_TINY: ["Cell-line-name"],
-}
+    OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE = "ZeroShot-NER-Oncology-XLarge-770M"
 
 
 class ModelLoader(ForgeModel):
@@ -59,17 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_MEDIUM: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Anatomy-Medium-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_MULTI: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Anatomy-Multi-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_XLARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genomic-XLarge-770M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genomic-Tiny-60M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-XLarge-770M"
         ),
     }
 
@@ -123,6 +94,9 @@ class ModelLoader(ForgeModel):
         elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_DNA_TINY:
             text = "The BRCA1 gene mutation was found to be associated with increased cancer risk."
             labels = ["DNA"]
+        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_XLARGE:
+            text = "Mutations in KRAS gene drive oncogenic transformation in pancreatic cancer cells."
+            labels = ["Gene_or_gene_product", "Cancer", "Cell"]
         else:
             text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
             labels = ["SPECIES"]
