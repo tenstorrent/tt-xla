@@ -5,8 +5,10 @@
 Roberta model implementation for Tenstorrent projects.
 """
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 from typing import Optional
+
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 from ...config import (
     ModelInfo,
     ModelGroup,
@@ -199,8 +201,6 @@ class ModelLoader(ForgeModel):
         Returns:
             str: Decoded answer text
         """
-        import torch
-
         if self._is_multi_label_variant():
             probs = torch.sigmoid(co_out[0])
             threshold = 0.5
