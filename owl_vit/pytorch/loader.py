@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available OWL-ViT model variants for object detection."""
 
     BASE_PATCH32 = "Base_Patch32"
+    LARGE_PATCH14 = "Large_Patch14"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +36,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE_PATCH32: ModelConfig(
             pretrained_model_name="google/owlvit-base-patch32",
+        ),
+        ModelVariant.LARGE_PATCH14: ModelConfig(
+            pretrained_model_name="google/owlvit-large-patch14",
         ),
     }
 
@@ -64,10 +68,19 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.LARGE_PATCH14
+            else ModelGroup.RED
+        )
+
         return ModelInfo(
             model="OWL-ViT",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.CV_OBJECT_DET,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
