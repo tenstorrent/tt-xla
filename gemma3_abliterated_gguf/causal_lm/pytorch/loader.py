@@ -39,7 +39,7 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.GEMMA_3_27B_IT_ABLITERATED_GGUF
 
     _GGUF_FILES = {
-        ModelVariant.GEMMA_3_27B_IT_ABLITERATED_GGUF: "gemma-3-27b-it-abliterated-Q4_K_M.gguf",
+        ModelVariant.GEMMA_3_27B_IT_ABLITERATED_GGUF: "gemma-3-27b-it-abliterated.q4_k_m.gguf",
     }
 
     @property
