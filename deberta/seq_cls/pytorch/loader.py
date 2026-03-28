@@ -22,7 +22,7 @@ class ModelVariant(StrEnum):
     """Available DeBERTa model variants for sequence classification."""
 
     DEBERTA_XLARGE_MNLI = "XLarge_MNLI"
-    DEBERTA_V3_BASE_PROMPT_INJECTION = "V3_Base_Prompt_Injection"
+    KOALAAI_TEXT_MODERATION = "KoalaAI_Text-Moderation"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.CLAIMBUSTER_DEBERTA_V2: ModelConfig(
             pretrained_model_name="whispAI/ClaimBuster-DeBERTaV2",
+        ),
+        ModelVariant.KOALAAI_TEXT_MODERATION: ModelConfig(
+            pretrained_model_name="KoalaAI/Text-Moderation",
         ),
     }
 
@@ -104,24 +107,22 @@ class ModelLoader(ForgeModel):
                 self._variant_config.pretrained_model_name
             )
 
-        max_length = self._variant_config.max_length
-
-        if self._variant in self._NLI_VARIANTS:
-            premise = "A man is eating food."
-            hypothesis = "A man is eating a meal."
+        if self._variant == ModelVariant.KOALAAI_TEXT_MODERATION:
             inputs = self.tokenizer(
-                premise,
-                hypothesis,
-                max_length=max_length,
+                "I love AutoTrain",
+                max_length=384,
                 padding="max_length",
                 truncation=True,
                 return_tensors="pt",
             )
         else:
-            text = self._SAMPLE_TEXTS[self._variant]
+            premise = "A man is eating food."
+            hypothesis = "A man is eating a meal."
+
             inputs = self.tokenizer(
-                text,
-                max_length=max_length,
+                premise,
+                hypothesis,
+                max_length=128,
                 padding="max_length",
                 truncation=True,
                 return_tensors="pt",
@@ -132,10 +133,12 @@ class ModelLoader(ForgeModel):
     def decode_output(self, co_out, framework_model=None):
         logits = co_out[0]
         predicted_class_id = logits.argmax(-1).item()
-
-        if self._variant in self._NLI_VARIANTS:
-            label = self._NLI_LABELS[predicted_class_id]
+        if (
+            framework_model
+            and hasattr(framework_model, "config")
+            and hasattr(framework_model.config, "id2label")
+        ):
+            predicted_label = framework_model.config.id2label[predicted_class_id]
+            print(f"Predicted: {predicted_label}")
         else:
-            label = self.model.config.id2label[predicted_class_id]
-
-        print(f"Predicted: {label}")
+            print(f"Predicted class ID: {predicted_class_id}")
