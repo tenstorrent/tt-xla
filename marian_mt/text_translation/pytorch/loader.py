@@ -26,11 +26,13 @@ class ModelVariant(StrEnum):
     OPUS_MT_JA_EN = "Opus_Mt_Ja_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
     OPUS_MT_PL_EN = "Opus_Mt_Pl_En"
+    OPUS_MT_ID_EN = "Opus_Mt_Id_En"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
     ModelVariant.OPUS_MT_PL_EN: "Cześć, jak się masz? Dzisiaj jest piękny dzień.",
+    ModelVariant.OPUS_MT_ID_EN: "Selamat pagi, hari ini cuaca sangat cerah.",
 }
 
 
@@ -46,6 +48,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPUS_MT_PL_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-pl-en",
+        ),
+        ModelVariant.OPUS_MT_ID_EN: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-id-en",
         ),
     }
 
