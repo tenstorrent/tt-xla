@@ -39,12 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
-    BASE_CLIP_LAION2B_AUGREG_FT_IN12K_IN1K_384 = (
-        "Base_CLIP_LAION2B_AugReg_FT_IN12K_IN1K_384"
-    )
-    LARGE_MLP_CLIP_LAION2B_FT_SOUP_320 = "Large_MLP_CLIP_LAION2B_FT_Soup_320"
-    PICO_D1_IN1K = "Pico_D1_IN1K"
-    TINY_224 = "Tiny_224"
+    TINY_DINOV3_LVD1689M = "Tiny_DINOv3_LVD1689M"
 
 
 class ModelLoader(ForgeModel):
@@ -55,21 +50,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.BASE_CLIP_LAION2B_AUGREG_FT_IN12K_IN1K_384: ConvNeXtConfig(
-            pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b_augreg_ft_in12k_in1k_384",
+        ModelVariant.TINY_DINOV3_LVD1689M: ConvNeXtConfig(
+            pretrained_model_name="hf_hub:timm/convnext_tiny.dinov3_lvd1689m",
             source=ModelSource.TIMM,
-        ),
-        ModelVariant.LARGE_MLP_CLIP_LAION2B_FT_SOUP_320: ConvNeXtConfig(
-            pretrained_model_name="hf_hub:timm/convnext_large_mlp.clip_laion2b_ft_soup_320",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.PICO_D1_IN1K: ConvNeXtConfig(
-            pretrained_model_name="hf_hub:timm/convnext_pico.d1_in1k",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.TINY_224: ConvNeXtConfig(
-            pretrained_model_name="facebook/convnext-tiny-224",
-            source=ModelSource.HUGGING_FACE,
         ),
     }
 
