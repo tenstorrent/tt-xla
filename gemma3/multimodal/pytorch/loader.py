@@ -36,7 +36,7 @@ class ModelVariant(StrEnum):
         "DavidAU/Gemma-3-4B-VL-it-Gemini-Pro-Heretic-Uncensored-Thinking"
     )
     GEMMA_3_12B_IT = "google/gemma-3-12b-it"
-    GEMMA_3_12B_PT = "google/gemma-3-12b-pt"
+    GEMMA_3_12B_IT_QAT_Q4_0_UNQUANTIZED = "google/gemma-3-12b-it-qat-q4_0-unquantized"
     GEMMA_3_27B_IT = "google/gemma-3-27b-it"
 
 
@@ -56,8 +56,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.GEMMA_3_12B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT),
         ),
-        ModelVariant.GEMMA_3_12B_PT: LLMModelConfig(
-            pretrained_model_name=str(ModelVariant.GEMMA_3_12B_PT),
+        ModelVariant.GEMMA_3_12B_IT_QAT_Q4_0_UNQUANTIZED: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.GEMMA_3_12B_IT_QAT_Q4_0_UNQUANTIZED),
         ),
         ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_27B_IT),
@@ -77,15 +77,14 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-        if variant == ModelVariant.GEMMA_3_12B_PT:
+        if variant in (
+            ModelVariant.GEMMA_3_4B_IT_QAT_4BIT,
+            ModelVariant.GEMMA_3_4B_VL_HERETIC_UNCENSORED,
+            ModelVariant.GEMMA_3_12B_IT_QAT_Q4_0_UNQUANTIZED,
+        ):
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["12b", "27b"]):
             group = ModelGroup.RED
-        elif variant in (
-            ModelVariant.GEMMA_3_4B_IT_QAT_4BIT,
-            ModelVariant.GEMMA_3_4B_VL_HERETIC_UNCENSORED,
-        ):
-            group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
 
@@ -231,7 +230,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GEMMA_3_4B_IT,
             ModelVariant.GEMMA_3_4B_IT_QAT_4BIT,
             ModelVariant.GEMMA_3_12B_IT,
-            ModelVariant.GEMMA_3_12B_PT,
+            ModelVariant.GEMMA_3_12B_IT_QAT_Q4_0_UNQUANTIZED,
         ]:
             assert (
                 self.config.text_config.num_attention_heads % mesh_shape[1] == 0
