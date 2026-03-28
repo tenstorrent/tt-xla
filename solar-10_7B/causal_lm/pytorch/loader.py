@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-SOLAR-10_7B Instruct causal LM model loader implementation.
+SOLAR-10_7B causal LM model loader implementation.
 """
 
 import torch
@@ -25,6 +25,7 @@ from ....tools.utils import get_static_cache_decode_inputs
 class ModelVariant(StrEnum):
     """Available SOLAR-10_7B model variants for causal language modeling."""
 
+    SOLAR_10_7B_V1_0 = "10_7B_v1.0"
     SOLAR_10_7B_INSTRUCT_V1_0 = "10_7B_Instruct_v1.0"
 
 
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     """SOLAR-10_7B model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.SOLAR_10_7B_V1_0: LLMModelConfig(
+            pretrained_model_name="upstage/SOLAR-10.7B-v1.0",
+            max_length=256,
+        ),
         ModelVariant.SOLAR_10_7B_INSTRUCT_V1_0: LLMModelConfig(
             pretrained_model_name="upstage/SOLAR-10.7B-Instruct-v1.0",
             max_length=256,
@@ -66,10 +71,14 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        if variant == ModelVariant.SOLAR_10_7B_V1_0:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.RED
         return ModelInfo(
             model="SOLAR-10_7B",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -134,10 +143,13 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer(dtype_override=dtype_override)
 
         max_length = self._variant_config.max_length
-        conversation = [{"role": "user", "content": self.sample_text}]
-        prompt = self.tokenizer.apply_chat_template(
-            conversation, tokenize=False, add_generation_prompt=True
-        )
+        if self._variant == ModelVariant.SOLAR_10_7B_V1_0:
+            prompt = self.sample_text
+        else:
+            conversation = [{"role": "user", "content": self.sample_text}]
+            prompt = self.tokenizer.apply_chat_template(
+                conversation, tokenize=False, add_generation_prompt=True
+            )
         inputs = self.tokenizer(
             prompt,
             return_tensors="pt",
