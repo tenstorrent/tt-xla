@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     GRANITE_3_1_8B_INSTRUCT = "3.1_8b_instruct"
     GRANITE_3_3_8B_INSTRUCT = "3.3_8b_instruct"
+    GRANITE_4_0_H_1B = "4.0_h_1b"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GRANITE_3_3_8B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="ibm-granite/granite-3.3-8b-instruct",
+            max_length=256,
+        ),
+        ModelVariant.GRANITE_4_0_H_1B: LLMModelConfig(
+            pretrained_model_name="ibm-granite/granite-4.0-h-1b",
             max_length=256,
         ),
     }
@@ -178,14 +183,16 @@ class ModelLoader(ForgeModel):
     def load_shard_spec(self, model):
         shard_specs = {}
         for layer in model.model.layers:
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+            if hasattr(layer, "self_attn"):
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
 
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+            if hasattr(layer, "mlp"):
+                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
         shard_specs[model.lm_head.weight] = ("batch", "model")
 
         return shard_specs
