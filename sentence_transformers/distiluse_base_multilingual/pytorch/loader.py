@@ -30,6 +30,9 @@ class ModelVariant(StrEnum):
     DISTILUSE_BASE_MULTILINGUAL_CASED_V1 = (
         "sentence-transformers/distiluse-base-multilingual-cased-v1"
     )
+    DISTILUSE_BASE_MULTILINGUAL_CASED_V2 = (
+        "sentence-transformers/distiluse-base-multilingual-cased-v2"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +45,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED_V1: LLMModelConfig(
             pretrained_model_name="sentence-transformers/distiluse-base-multilingual-cased-v1",
+            max_length=128,
+        ),
+        ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED_V2: LLMModelConfig(
+            pretrained_model_name="sentence-transformers/distiluse-base-multilingual-cased-v2",
             max_length=128,
         ),
     }
