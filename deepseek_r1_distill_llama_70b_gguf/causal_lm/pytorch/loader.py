@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available DeepSeek R1 Distill Llama 70B GGUF model variants for causal language modeling."""
 
-    DEEPSEEK_R1_DISTILL_LLAMA_70B_GGUF = "Distill_Llama_70B_GGUF"
+    DEEPSEEK_R1_DISTILL_LLAMA_70B_GGUF = "DeepSeek_R1_Distill_Llama_70B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -31,7 +31,7 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.DEEPSEEK_R1_DISTILL_LLAMA_70B_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/DeepSeek-R1-Distill-Llama-70B-GGUF",
+            pretrained_model_name="bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF",
             max_length=128,
         ),
     }
@@ -150,7 +150,6 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
