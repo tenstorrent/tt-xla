@@ -17,6 +17,10 @@ from third_party.tt_forge_models.config import (
 )
 from third_party.tt_forge_models.base import ForgeModel
 
+_SAMPLE_TEXTS = {
+    "ClinicalBERT": "The patient was diagnosed with [MASK] and admitted to the ICU.",
+}
+
 
 class ModelVariant(StrEnum):
     """Available DistilBERT model variants for masked language modeling."""
@@ -24,6 +28,7 @@ class ModelVariant(StrEnum):
     DISTILBERT_BASE_CASED = "Base_Cased"
     DISTILBERT_BASE_UNCASED = "Base_Uncased"
     DISTILBERT_BASE_MULTILINGUAL_CASED = "Base_Multilingual_Cased"
+    CLINICAL_BERT = "ClinicalBERT"
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +48,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="distilbert-base-multilingual-cased",
             max_length=128,
         ),
+        ModelVariant.CLINICAL_BERT: LLMModelConfig(
+            pretrained_model_name="medicalai/ClinicalBERT",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -60,7 +69,9 @@ class ModelLoader(ForgeModel):
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.input_prompt = "The capital of France is [MASK]."
+        self.input_prompt = _SAMPLE_TEXTS.get(
+            self._variant, "The capital of France is [MASK]."
+        )
         self.max_length = 128
         self.tokenizer = None
 
@@ -76,10 +87,13 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
+        group = ModelGroup.GENERALITY
+        if variant_name in (ModelVariant.CLINICAL_BERT,):
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="DistilBERT",
             variant=variant_name,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_MASKED_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
