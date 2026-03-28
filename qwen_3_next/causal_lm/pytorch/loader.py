@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Next model variants for causal language modeling."""
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
-    QWEN_3_NEXT_80B_A3B_THINKING = "80B_A3B_Thinking"
+    QWEN_3_NEXT_80B_A3B_INSTRUCT_MLX_6BIT = "80B_A3B_Instruct_MLX_6bit"
 
 
 class ModelLoader(ForgeModel):
@@ -36,8 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Thinking",
+        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_MLX_6BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-Next-80B-A3B-Instruct-MLX-6bit",
             max_length=128,
         ),
     }
