@@ -32,11 +32,12 @@ class ModelVariant(StrEnum):
     BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
-    BERT_BASE_CASED_FINETUNED_MRPC = "google-bert/bert-base-cased-finetuned-mrpc"
-    BIOMEDVLP_CXR_BERT_GENERAL = "microsoft/BiomedVLP-CXR-BERT-general"
-    BERT_BASE_ITALIAN_UNCASED = "dbmdz/bert-base-italian-uncased"
-    BERT_BASE_GERMAN_UNCASED = "dbmdz/bert-base-german-uncased"
-    BERT_UNCASED_L12_H256_A4 = "google/bert_uncased_L-12_H-256_A-4"
+    KLUE_BERT_BASE = "klue/bert-base"
+
+
+_SAMPLE_TEXTS = {
+    ModelVariant.KLUE_BERT_BASE: "대한민국의 수도는 [MASK]입니다.",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -72,24 +73,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
-        ModelVariant.BERT_BASE_CASED_FINETUNED_MRPC: LLMModelConfig(
-            pretrained_model_name="google-bert/bert-base-cased-finetuned-mrpc",
-            max_length=128,
-        ),
-        ModelVariant.BIOMEDVLP_CXR_BERT_GENERAL: LLMModelConfig(
-            pretrained_model_name="microsoft/BiomedVLP-CXR-BERT-general",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_ITALIAN_UNCASED: LLMModelConfig(
-            pretrained_model_name="dbmdz/bert-base-italian-uncased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_GERMAN_UNCASED: LLMModelConfig(
-            pretrained_model_name="dbmdz/bert-base-german-uncased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_UNCASED_L12_H256_A4: LLMModelConfig(
-            pretrained_model_name="google/bert_uncased_L-12_H-256_A-4",
+        ModelVariant.KLUE_BERT_BASE: LLMModelConfig(
+            pretrained_model_name="klue/bert-base",
             max_length=128,
         ),
     }
@@ -135,11 +120,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
-            ModelVariant.BERT_BASE_CASED_FINETUNED_MRPC,
-            ModelVariant.BIOMEDVLP_CXR_BERT_GENERAL,
-            ModelVariant.BERT_BASE_ITALIAN_UNCASED,
-            ModelVariant.BERT_BASE_GERMAN_UNCASED,
-            ModelVariant.BERT_UNCASED_L12_H256_A4,
+            ModelVariant.KLUE_BERT_BASE,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
