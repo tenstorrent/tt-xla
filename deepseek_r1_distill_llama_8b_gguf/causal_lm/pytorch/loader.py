@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeepSeek-R1-Distill-Llama-8B GGUF model loader implementation for causal language modeling.
+DeepSeek R1 Distill Llama 8B GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,26 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available DeepSeek-R1-Distill-Llama-8B GGUF model variants for causal language modeling."""
+    """Available DeepSeek R1 Distill Llama 8B GGUF model variants for causal language modeling."""
 
-    DEEPSEEK_R1_DISTILL_LLAMA_8B_GGUF = "DeepSeek_R1_Distill_Llama_8B_GGUF"
+    DEEPSEEK_R1_DISTILL_LLAMA_8B_Q8_0 = "Q8_0"
 
 
 class ModelLoader(ForgeModel):
-    """DeepSeek-R1-Distill-Llama-8B GGUF model loader for causal language modeling tasks."""
+    """DeepSeek R1 Distill Llama 8B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.DEEPSEEK_R1_DISTILL_LLAMA_8B_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/DeepSeek-R1-Distill-Llama-8B-GGUF",
+        ModelVariant.DEEPSEEK_R1_DISTILL_LLAMA_8B_Q8_0: LLMModelConfig(
+            pretrained_model_name="bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEEPSEEK_R1_DISTILL_LLAMA_8B_GGUF
+    DEFAULT_VARIANT = ModelVariant.DEEPSEEK_R1_DISTILL_LLAMA_8B_Q8_0
 
-    GGUF_FILE = "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"
+    _GGUF_FILES = {
+        ModelVariant.DEEPSEEK_R1_DISTILL_LLAMA_8B_Q8_0: "DeepSeek-R1-Distill-Llama-8B-Q8_0.gguf",
+    }
 
     sample_text = "Please reason step by step. What is 25 multiplied by 16?"
 
@@ -50,10 +52,15 @@ class ModelLoader(ForgeModel):
         self.config = None
         self.num_layers = num_layers
 
+    @property
+    def _gguf_file(self):
+        """Get the GGUF filename for the current variant."""
+        return self._GGUF_FILES[self._variant]
+
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="DeepSeek-R1-Distill-Llama-8B GGUF",
+            model="DeepSeek R1 Distill Llama 8B GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -65,7 +72,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
+        tokenizer_kwargs["gguf_file"] = self._gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -85,11 +92,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
+        model_kwargs["gguf_file"] = self._gguf_file
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
+                pretrained_model_name, gguf_file=self._gguf_file
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -108,18 +115,7 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [
-            {
-                "role": "user",
-                "content": self.sample_text,
-            }
-        ]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        prompts = [text]
+        prompts = [self.sample_text]
 
         inputs = self.tokenizer(
             prompts,
@@ -135,26 +131,8 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
-        return mesh_shape, ("batch", "model")
-
-    def load_shard_spec(self, model):
-        shard_specs = {}
-        for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
-
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
-        return shard_specs
-
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+            self._variant_config.pretrained_model_name, gguf_file=self._gguf_file
         )
         return self.config
