@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Falcon model variants."""
 
     FALCON_1B = "3_1B_Base"
+    FALCON_1B_INSTRUCT = "3_1B_Instruct"
     FALCON_3B = "3_3B_Base"
     FALCON_7B = "3_7B_Base"
     FALCON_10B = "3_10B_Base"
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.FALCON_1B: ModelConfig(
             pretrained_model_name="tiiuae/Falcon3-1B-Base",
+        ),
+        ModelVariant.FALCON_1B_INSTRUCT: ModelConfig(
+            pretrained_model_name="tiiuae/Falcon3-1B-Instruct",
         ),
         ModelVariant.FALCON_3B: ModelConfig(
             pretrained_model_name="tiiuae/Falcon3-3B-Base",
@@ -89,7 +93,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.FALCON_10B,
         ]:
             group = ModelGroup.RED
-        elif variant == ModelVariant.FALCON_TINY_TESTING:
+        elif variant == ModelVariant.FALCON_1B_INSTRUCT:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
