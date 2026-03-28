@@ -8,6 +8,7 @@ MobileViT model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 
+import timm
 from transformers import MobileViTForImageClassification
 from datasets import load_dataset
 
@@ -35,6 +36,7 @@ class ModelVariant(StrEnum):
     """Available MobileViT model variants."""
 
     SMALL = "Small"
+    XXS_CVNETS_IN1K = "XXS_CVNETS_IN1K"
 
 
 class ModelLoader(ForgeModel):
@@ -44,6 +46,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.SMALL: MobileViTConfig(
             pretrained_model_name="apple/mobilevit-small",
             source=ModelSource.HUGGING_FACE,
+        ),
+        ModelVariant.XXS_CVNETS_IN1K: MobileViTConfig(
+            pretrained_model_name="hf_hub:timm/mobilevit_xxs.cvnets_in1k",
+            source=ModelSource.TIMM,
         ),
     }
 
@@ -73,8 +79,14 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
 
-        model = MobileViTForImageClassification.from_pretrained(model_name, **kwargs)
+        if source == ModelSource.TIMM:
+            model = timm.create_model(model_name, pretrained=True)
+        else:
+            model = MobileViTForImageClassification.from_pretrained(
+                model_name, **kwargs
+            )
         model.eval()
 
         self.model = model
@@ -103,10 +115,15 @@ class ModelLoader(ForgeModel):
             if hasattr(self, "model") and self.model is not None:
                 self._preprocessor.set_cached_model(self.model)
 
+        model_for_config = None
+        if hasattr(self, "model") and self.model is not None:
+            model_for_config = self.model
+
         return self._preprocessor.preprocess(
             image=image,
             dtype_override=dtype_override,
             batch_size=batch_size,
+            model_for_config=model_for_config,
         )
 
     def load_inputs(self, dtype_override=None, batch_size=1, image=None):
