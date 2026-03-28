@@ -4,7 +4,6 @@
 """
 Depth Anything V3 model loader implementation for multi-view depth estimation.
 """
-import torch
 from PIL import Image
 from depth_anything_3.api import DepthAnything3
 from typing import Optional
