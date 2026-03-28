@@ -25,19 +25,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available OLMoE model variants."""
 
-    OLMOE_1B_7B_0125 = "1B-7B-0125"
+    OLMOE_1B_7B_0924 = "1B-7B-0924"
 
 
 class ModelLoader(ForgeModel):
     """OLMoE model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.OLMOE_1B_7B_0125: ModelConfig(
-            pretrained_model_name="allenai/OLMoE-1B-7B-0125",
+        ModelVariant.OLMOE_1B_7B_0924: ModelConfig(
+            pretrained_model_name="allenai/OLMoE-1B-7B-0924",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OLMOE_1B_7B_0125
+    DEFAULT_VARIANT = ModelVariant.OLMOE_1B_7B_0924
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
