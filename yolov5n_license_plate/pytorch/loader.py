@@ -4,7 +4,6 @@
 """
 YOLOv5n License Plate Detection model loader implementation
 """
-import torch
 from typing import Optional
 
 from ...config import (
@@ -18,9 +17,7 @@ from ...config import (
 )
 from ...base import ForgeModel
 from datasets import load_dataset
-import numpy as np
 from .src.utils import data_preprocessing, data_postprocessing
-from PIL import Image
 
 
 class ModelVariant(StrEnum):
