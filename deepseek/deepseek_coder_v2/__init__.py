@@ -1,7 +1,7 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeepSeek Coder V2 model implementation for Tenstorrent projects.
+DeepSeek Coder V2 PyTorch model implementation for Tenstorrent projects.
 """
 from .pytorch import ModelLoader

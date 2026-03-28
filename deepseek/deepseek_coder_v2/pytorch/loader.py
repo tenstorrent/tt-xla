@@ -1,92 +1,138 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeepSeek Coder V2 AWQ model loader implementation for causal language modeling.
-
-Uses reduced MoE configuration for testing since the full 236B parameter
-model is too large to load directly.
+DeepSeek Coder V2 model loader implementation for causal language modeling.
 """
 
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
-
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-
+from ....tools.utils import generate_no_cache, pad_inputs
 from ....base import ForgeModel
 from ....config import (
-    Framework,
-    ModelGroup,
+    LLMModelConfig,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
+    StrEnum,
 )
 
 
-class ModelLoader(ForgeModel):
-    """DeepSeek Coder V2 AWQ model loader for causal language modeling."""
+class ModelVariant(StrEnum):
+    """Available DeepSeek Coder V2 model variants."""
 
-    def __init__(self, variant=None, num_layers: Optional[int] = None):
+    DEEPSEEK_CODER_V2_LITE_INSTRUCT = "Lite_Instruct"
+
+
+class ModelLoader(ForgeModel):
+    """DeepSeek Coder V2 model loader implementation for causal language modeling tasks."""
+
+    # Dictionary of available model variants using structured configs
+    _VARIANTS = {
+        ModelVariant.DEEPSEEK_CODER_V2_LITE_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
+            max_length=2048,
+        ),
+    }
+
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.DEEPSEEK_CODER_V2_LITE_INSTRUCT
+
+    # Sample prompt text
+    sample_text = "write a bubble sort algorithm in python."
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
-        self.model_name = "casperhansen/deepseek-coder-v2-instruct-awq"
         self.tokenizer = None
-        self.text = "Write a Python function to compute the nth Fibonacci number."
-        self.num_layers = num_layers
+        self.seq_len = None
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
-        if variant_name is None:
-            variant_name = "base"
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+
+        Returns:
+            ModelInfo: Information about the model and variant.
+        """
         return ModelInfo(
-            model="DeepSeek-Coder-V2",
-            variant=variant_name,
+            model="DeepSeek Coder V2",
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def load_model(self, *, dtype_override=None, **kwargs):
-        config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
+    def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant."""
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        # Reduce model dimensions for testing
-        if self.num_layers is not None:
-            config.num_hidden_layers = self.num_layers
-        else:
-            config.num_hidden_layers = 6
-        config.num_attention_heads = 16
-        config.hidden_size = 1024
-        config.num_key_value_heads = 16
-        config.intermediate_size = 1024 * 4
-        config.num_experts_per_tok = 2
-        config.q_lora_rank = 256
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
+        )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+        return self.tokenizer
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the DeepSeek Coder V2 model instance."""
 
         model_kwargs = {
-            "attn_implementation": "eager",
             "trust_remote_code": True,
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForCausalLM.from_config(config, **model_kwargs)
-
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name, trust_remote_code=True
+        model = AutoModelForCausalLM.from_pretrained(
+            self._variant_config.pretrained_model_name, **model_kwargs
         )
+
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
 
         return model
 
-    def load_inputs(self, batch_size=1):
+    def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the DeepSeek Coder V2 model."""
         if self.tokenizer is None:
-            self.load_model()
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        messages = [{"role": "user", "content": self.text}]
-        text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        messages = [{"role": "user", "content": self.sample_text}]
+        inputs = self.tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt",
         )
-        inputs = self.tokenizer(text, return_tensors="pt")
+        padded_inputs, seq_len = pad_inputs(inputs)
+        self.seq_len = seq_len
 
-        for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        return padded_inputs
 
-        return inputs
+    def decode_output(self, max_new_tokens, model, inputs, tokenizer):
+        """Generates text from the model.
+
+        Args:
+            max_new_tokens (int): The maximum number of new tokens to generate.
+            model (torch.nn.Module): The language model used for token generation.
+            inputs (torch.Tensor): Input tensor of shape (batch_size, seq_len), representing tokenized text.
+            tokenizer: The tokenizer used to decode token IDs into text.
+
+        """
+        generated_text = generate_no_cache(
+            max_new_tokens, model, inputs, self.seq_len, tokenizer
+        )
+        return generated_text
