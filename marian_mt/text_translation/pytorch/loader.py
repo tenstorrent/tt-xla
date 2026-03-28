@@ -74,8 +74,6 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TC_BIG_EN_PT: ">>por<< The weather is beautiful today.",
     }
 
-    sample_text = "Merhaba dünya, bugün hava çok güzel."
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
