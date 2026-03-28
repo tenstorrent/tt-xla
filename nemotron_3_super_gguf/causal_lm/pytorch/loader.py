@@ -23,26 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Nemotron 3 Super GGUF model variants for causal language modeling."""
 
-    NEMOTRON_3_SUPER_120B_A12B_Q4_K_M_GGUF = "120B_A12B_Q4_K_M_GGUF"
+    NEMOTRON_3_SUPER_120B_A12B_GGUF = "120B_A12B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Nemotron 3 Super GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.NEMOTRON_3_SUPER_120B_A12B_Q4_K_M_GGUF: LLMModelConfig(
-            pretrained_model_name="AesSedai/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF",
+        ModelVariant.NEMOTRON_3_SUPER_120B_A12B_GGUF: LLMModelConfig(
+            pretrained_model_name="bartowski/nvidia_Nemotron-3-Super-120B-A12B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NEMOTRON_3_SUPER_120B_A12B_Q4_K_M_GGUF
+    DEFAULT_VARIANT = ModelVariant.NEMOTRON_3_SUPER_120B_A12B_GGUF
 
-    GGUF_FILE = (
-        "Q4_K_M/NVIDIA-Nemotron-3-Super-120B-A12B-BF16-Q4_K_M-00001-of-00003.gguf"
-    )
+    GGUF_FILE = "nvidia_Nemotron-3-Super-120B-A12B-Q4_K_M.gguf"
 
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = "Give me a short introduction to large language model."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -136,6 +134,10 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
