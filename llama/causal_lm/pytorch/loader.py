@@ -82,6 +82,7 @@ class ModelVariant(StrEnum):
 
     # mlx-community 4-bit quantized variants
     LLAMA_3_1_8B_INSTRUCT_4BIT = "3.1_8B_Instruct_4bit"
+    LLAMA_3_1_70B_INSTRUCT_4BIT = "3.1_70B_Instruct_4bit"
 
     # HuggingFace community variants
     HUGGYLLAMA_7B = "Huggyllama_7B"
@@ -202,6 +203,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
             max_length=128,
         ),
+        ModelVariant.LLAMA_3_1_70B_INSTRUCT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Meta-Llama-3.1-70B-Instruct-4bit",
+            max_length=128,
+        ),
         # Llama 3.3 variants
         ModelVariant.LLAMA_3_3_70B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Llama-3.3-70B-Instruct",
@@ -310,6 +315,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_4BIT,
+            ModelVariant.LLAMA_3_1_70B_INSTRUCT_4BIT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -576,8 +582,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_AWQ_INT4,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK,
-            ModelVariant.SYNTHIA_3_70B_V3_5,
+            ModelVariant.LLAMA_3_1_70B_INSTRUCT_4BIT,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
