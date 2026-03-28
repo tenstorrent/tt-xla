@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_BASE_SPANISH_WWM_CASED = "Base_Spanish_WWM_Cased"
+    BERT_UNCASED_L8_H256_A4 = "Uncased_L-8_H-256_A-4"
 
 
 class ModelLoader(ForgeModel):
@@ -70,6 +71,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_BASE_SPANISH_WWM_CASED: LLMModelConfig(
             pretrained_model_name="dccuchile/bert-base-spanish-wwm-cased",
+            max_length=128,
+        ),
+        ModelVariant.BERT_UNCASED_L8_H256_A4: LLMModelConfig(
+            pretrained_model_name="google/bert_uncased_L-8_H-256_A-4",
             max_length=128,
         ),
     }
@@ -116,6 +121,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_BASE_SPANISH_WWM_CASED,
+            ModelVariant.BERT_UNCASED_L8_H256_A4,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
