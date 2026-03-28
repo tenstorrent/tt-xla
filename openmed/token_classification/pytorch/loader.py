@@ -41,6 +41,9 @@ class ModelVariant(StrEnum):
         "OpenMed/OpenMed-PII-French-BioClinicalModern-Base-149M-v1"
     )
     PII_CLINICDISCHARGE_BASE_110M = "OpenMed/OpenMed-PII-ClinicDischarge-Base-110M-v1"
+    PII_SPANISH_CLINICALBGE_LARGE_568M = (
+        "OpenMed/OpenMed-PII-Spanish-ClinicalBGE-Large-568M-v1"
+    )
 
 
 _VARIANT_SAMPLE_TEXTS = {
@@ -70,6 +73,9 @@ _VARIANT_SAMPLE_TEXTS = {
     ),
     ModelVariant.PII_CLINICDISCHARGE_BASE_110M: (
         "Dr. John Smith treated patient Jane Doe at Massachusetts General Hospital on 03/15/2024."
+    ),
+    ModelVariant.PII_SPANISH_CLINICALBGE_LARGE_568M: (
+        "El paciente Carlos Garcia, nacido el 20 de enero de 1985, fue atendido en el Hospital Clinico de Barcelona."
     ),
 }
 
@@ -112,6 +118,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.PII_CLINICDISCHARGE_BASE_110M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-ClinicDischarge-Base-110M-v1",
+            max_length=128,
+        ),
+        ModelVariant.PII_SPANISH_CLINICALBGE_LARGE_568M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-Spanish-ClinicalBGE-Large-568M-v1",
             max_length=128,
         ),
     }
