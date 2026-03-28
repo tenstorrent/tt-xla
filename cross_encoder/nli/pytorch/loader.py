@@ -23,49 +23,34 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Cross-Encoder model variants for NLI."""
 
-    NLI_MINILM2_L6_H768 = "nli-MiniLM2-L6-H768"
+    NLI_DISTILROBERTA_BASE = "nli-distilroberta-base"
 
 
 class ModelLoader(ForgeModel):
     """Cross-Encoder model loader implementation for natural language inference."""
 
     _VARIANTS = {
-        ModelVariant.NLI_MINILM2_L6_H768: ModelConfig(
-            pretrained_model_name="cross-encoder/nli-MiniLM2-L6-H768",
+        ModelVariant.NLI_DISTILROBERTA_BASE: ModelConfig(
+            pretrained_model_name="cross-encoder/nli-distilroberta-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NLI_MINILM2_L6_H768
+    DEFAULT_VARIANT = ModelVariant.NLI_DISTILROBERTA_BASE
 
     # Sample premise-hypothesis pairs for NLI testing
     sample_pairs = [
         (
-            "A man is eating pizza",
-            "A man eats something",
+            "A man is eating pizza.",
+            "A man eats something.",
         ),
     ]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
         super().__init__(variant)
         self.tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         return ModelInfo(
             model="CrossEncoder",
             variant=variant,
@@ -76,29 +61,12 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
         )
-
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Cross-Encoder model instance for this instance's variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The Cross-Encoder model instance for NLI.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"return_dict": False}
@@ -114,14 +82,6 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the Cross-Encoder NLI model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
