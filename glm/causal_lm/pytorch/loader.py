@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     GLM_4_5_AIR = "4.5_Air"
     GLM_4_9B_0414 = "4_9B_0414"
     GLM_4_7_8BIT_GS32 = "4.7_8bit_gs32"
+    GLM_4_7_FLASH_MTP_NVFP4 = "4.7_Flash_MTP_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -74,6 +75,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GLM_4_7_8BIT_GS32: LLMModelConfig(
             pretrained_model_name="mlx-community/GLM-4.7-8bit-gs32",
+            max_length=128,
+        ),
+        ModelVariant.GLM_4_7_FLASH_MTP_NVFP4: LLMModelConfig(
+            pretrained_model_name="GadflyII/GLM-4.7-Flash-MTP-NVFP4",
             max_length=128,
         ),
     }
@@ -119,6 +124,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GLM_4_9B_CHAT_HF,
             ModelVariant.GLM_4_9B_0414,
             ModelVariant.GLM_4_7_8BIT_GS32,
+            ModelVariant.GLM_4_7_FLASH_MTP_NVFP4,
         ):
             group = ModelGroup.VULCAN
         else:
