@@ -52,7 +52,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_14B_BASE_BNB_4BIT = "14B_Base_bnb_4bit"
+    QWEN_3_1_7B_GGUF = "1_7B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -156,8 +156,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_14B_BASE_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-14B-Base-unsloth-bnb-4bit",
+        ModelVariant.QWEN_3_1_7B_GGUF: LLMModelConfig(
+            pretrained_model_name="geoffmunn/Qwen3-1.7B-f16",
             max_length=128,
         ),
     }
@@ -167,7 +167,7 @@ class ModelLoader(ForgeModel):
 
     # GGUF files for quantized variants
     _GGUF_FILES = {
-        ModelVariant.UNSLOTH_QWEN_3_235B_A22B_GGUF: "Qwen3-235B-A22B-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_1_7B_GGUF: "Qwen3-1.7B-f16-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -215,7 +215,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_14B_BASE_BNB_4BIT,
+            ModelVariant.QWEN_3_1_7B_GGUF,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -229,6 +229,15 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
+
+    def _is_gguf_variant(self):
+        """Check if the current variant uses GGUF quantization."""
+        return self._variant in self._GGUF_FILES
+
+    @property
+    def _gguf_file(self):
+        """Get the GGUF filename for the current variant."""
+        return self._GGUF_FILES.get(self._variant)
 
     def _load_tokenizer(self, dtype_override=None):
         """Load tokenizer for the current variant.
@@ -290,8 +299,12 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        # Quantized variants (AWQ/GPTQ): use Qwen3ForCausalLM directly with
-        # quantization_config removed so that weights are loaded as plain tensors on CPU.
+        # Pass gguf_file for GGUF variants
+        if self._is_gguf_variant():
+            model_kwargs["gguf_file"] = self._gguf_file
+
+        # AWQ variants: use Qwen3ForCausalLM directly with quantization_config
+        # removed so that weights are loaded as plain tensors on CPU.
         is_awq = pretrained_model_name == "Qwen/Qwen3-32B-AWQ"
         is_gptq = self._variant == ModelVariant.QWEN_3_32B_INT4_GPTQ
         is_quantized = is_awq or is_gptq
