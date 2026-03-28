@@ -24,6 +24,9 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available model variants for distiluse-base-multilingual-cased."""
 
+    DISTILUSE_BASE_MULTILINGUAL_CASED = (
+        "sentence-transformers/distiluse-base-multilingual-cased"
+    )
     DISTILUSE_BASE_MULTILINGUAL_CASED_V1 = (
         "sentence-transformers/distiluse-base-multilingual-cased-v1"
     )
@@ -33,6 +36,10 @@ class ModelLoader(ForgeModel):
     """Sentence-Transformers distiluse-base-multilingual-cased-v1 model loader."""
 
     _VARIANTS = {
+        ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED: LLMModelConfig(
+            pretrained_model_name="sentence-transformers/distiluse-base-multilingual-cased",
+            max_length=128,
+        ),
         ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED_V1: LLMModelConfig(
             pretrained_model_name="sentence-transformers/distiluse-base-multilingual-cased-v1",
             max_length=128,
