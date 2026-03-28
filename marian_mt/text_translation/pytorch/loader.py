@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MarianMT model variants for text translation."""
 
+    OPUS_MT_TC_BIG_FR_EN = "Opus_Mt_Tc_Big_Fr_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
     OPUS_MT_EN_AR = "Opus_Mt_En_Ar"
     OPUS_MT_DA_EN = "Opus_Mt_Da_En"
@@ -34,6 +35,9 @@ class ModelLoader(ForgeModel):
     """MarianMT model loader implementation for text translation."""
 
     _VARIANTS = {
+        ModelVariant.OPUS_MT_TC_BIG_FR_EN: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-tc-big-fr-en",
+        ),
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
@@ -51,14 +55,11 @@ class ModelLoader(ForgeModel):
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPUS_MT_TR_EN
+    DEFAULT_VARIANT = ModelVariant.OPUS_MT_TC_BIG_FR_EN
 
     _SAMPLE_TEXTS = {
+        ModelVariant.OPUS_MT_TC_BIG_FR_EN: "La vie est belle et pleine de surprises.",
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
-        ModelVariant.OPUS_MT_EN_AR: "My friends are cool but they eat too many carbs.",
-        ModelVariant.OPUS_MT_DA_EN: "Hej verden, i dag er vejret meget smukt.",
-        ModelVariant.OPUS_MT_NL_FR: "Hallo wereld, vandaag is het weer erg mooi.",
-        ModelVariant.OPUS_MT_EN_CA: "My friends are cool but they eat too many carbs.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -66,6 +67,10 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self._tokenizer = None
         self._model = None
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant,
+            "La vie est belle et pleine de surprises.",
+        )
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
