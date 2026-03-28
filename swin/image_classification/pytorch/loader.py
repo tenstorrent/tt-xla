@@ -16,6 +16,7 @@ from ....config import (
 )
 from ....base import ForgeModel
 from torchvision import models
+import timm
 import torch
 from typing import Optional
 from dataclasses import dataclass
@@ -40,7 +41,7 @@ class ModelVariant(StrEnum):
     SWINV2_TINY_HF = "v2_Tiny_Patch4_Window8_256"
 
     # TIMM variants
-    SWIN_BASE_PATCH4_WINDOW7_224_MS_IN22K = "Base_Patch4_Window7_224_MS_IN22K"
+    SWINV2_BASE_TIMM = "v2_Base_Window8_256_TIMM"
 
     # Torchvision variants
     SWIN_T = "T"
@@ -66,8 +67,8 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
         ),
         # TIMM variants
-        ModelVariant.SWIN_BASE_PATCH4_WINDOW7_224_MS_IN22K: SwinConfig(
-            pretrained_model_name="swin_base_patch4_window7_224.ms_in22k",
+        ModelVariant.SWINV2_BASE_TIMM: SwinConfig(
+            pretrained_model_name="swinv2_base_window8_256.ms_in1k",
             source=ModelSource.TIMM,
         ),
         # Torchvision variants
@@ -117,10 +118,9 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
-        # Determine model group
         if variant == ModelVariant.SWIN_S:
             group = ModelGroup.RED
-        elif cls._VARIANTS[variant].source == ModelSource.TIMM:
+        elif variant == ModelVariant.SWINV2_BASE_TIMM:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
@@ -171,6 +171,10 @@ class ModelLoader(ForgeModel):
             model = AutoModelForImageClassification.from_pretrained(
                 model_name, **kwargs
             )
+
+        elif source == ModelSource.TIMM:
+            # Load model using timm
+            model = timm.create_model(model_name, pretrained=True)
 
         elif source == ModelSource.TORCHVISION:
             # Load model from torchvision
