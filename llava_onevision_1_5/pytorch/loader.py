@@ -5,7 +5,6 @@
 LLaVA-OneVision-1.5 model loader implementation for multimodal conditional generation.
 """
 
-import torch
 from transformers import AutoModelForCausalLM, AutoProcessor
 from typing import Optional
 
