@@ -2674,3 +2674,10 @@ test_config:
   gemma3/causal_lm/pytorch-1B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3860 - AssertionError: PCC comparison failed. Calculated: pcc=0.955831792289353. Required: pcc=0.99
+
+  gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
+    status: EXPECTED_PASSING
+
+  gemma3/multimodal/pytorch-google/gemma-3-12b-it-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
