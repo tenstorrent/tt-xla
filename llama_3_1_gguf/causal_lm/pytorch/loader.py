@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Llama 3.1 GGUF model loader implementation for causal language modeling.
+Meta Llama 3.1 8B Instruct GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,26 +21,28 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Llama 3.1 GGUF model variants for causal language modeling."""
+    """Available Meta Llama 3.1 8B Instruct GGUF model variants for causal language modeling."""
 
-    LLAMA_3_1_8B_INSTRUCT_GGUF = "8B_INSTRUCT_GGUF"
+    META_LLAMA_3_1_8B_INSTRUCT_GGUF = "8B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Llama 3.1 GGUF model loader implementation for causal language modeling tasks."""
+    """Meta Llama 3.1 8B Instruct GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LLAMA_3_1_8B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="modularai/Llama-3.1-8B-Instruct-GGUF",
+        ModelVariant.META_LLAMA_3_1_8B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LLAMA_3_1_8B_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.META_LLAMA_3_1_8B_INSTRUCT_GGUF
 
-    GGUF_FILE = "llama-3.1-8b-instruct-q4_k_m.gguf"
+    GGUF_FILE = "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = (
+        "What are the key differences between classical and quantum computing?"
+    )
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -53,7 +55,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Llama 3.1 GGUF",
+            model="Meta Llama 3.1 8B Instruct GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -150,6 +152,7 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
