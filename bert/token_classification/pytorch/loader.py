@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
     AVICHR_HEBERT_NER = "avichr/heBERT_NER"
     CKIPLAB_BERT_BASE_CHINESE_NER = "ckiplab/bert-base-chinese-ner"
+    KOICHIYASUOKA_BERT_BASE_THAI_UPOS = "KoichiYasuoka/bert-base-thai-upos"
 
 
 class ModelLoader(ForgeModel):
@@ -61,6 +62,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="ckiplab/bert-base-chinese-ner",
             max_length=128,
         ),
+        ModelVariant.KOICHIYASUOKA_BERT_BASE_THAI_UPOS: LLMModelConfig(
+            pretrained_model_name="KoichiYasuoka/bert-base-thai-upos",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -84,6 +89,8 @@ class ModelLoader(ForgeModel):
             self.sample_text = "דויד לומד באוניברסיטה העברית שבירושלים"
         elif self._variant == ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER:
             self.sample_text = "李白是中國唐朝的詩人，出生於四川省"
+        elif self._variant == ModelVariant.KOICHIYASUOKA_BERT_BASE_THAI_UPOS:
+            self.sample_text = "สมเด็จพระเจ้าอยู่หัวเสด็จพระราชดำเนินไปยังกรุงเทพมหานคร"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -109,6 +116,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.AVICHR_HEBERT_NER,
             ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER,
+            ModelVariant.KOICHIYASUOKA_BERT_BASE_THAI_UPOS,
         ):
             group = ModelGroup.VULCAN
 
