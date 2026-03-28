@@ -8,8 +8,6 @@ Audio Spectrogram Transformer (AST) model loader implementation for audio classi
 
 from typing import Optional
 
-import numpy as np
-
 from ...base import ForgeModel
 from ...config import (
     ModelConfig,
@@ -85,6 +83,8 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
+        import numpy as np
+
         if self._processor is None:
             self._load_processor()
 
