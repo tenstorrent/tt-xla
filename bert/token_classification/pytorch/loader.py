@@ -37,6 +37,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ONCOLOGYDETECT_BIOPATIENT_108M = (
         "OpenMed/OpenMed-NER-OncologyDetect-BioPatient-108M"
     )
+    OPENMED_PII_SPANISH_BIOCLINICALBERT_BASE_110M_V1 = (
+        "OpenMed/OpenMed-PII-Spanish-BioClinicalBERT-Base-110M-v1"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -64,6 +67,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-BioPatient-108M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_PII_SPANISH_BIOCLINICALBERT_BASE_110M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-Spanish-BioClinicalBERT-Base-110M-v1",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -87,6 +94,11 @@ class ModelLoader(ForgeModel):
             self.sample_text = "Escherichia coli and Drosophila melanogaster are commonly studied model organisms in biology."
         elif self._variant == ModelVariant.OPENMED_NER_ONCOLOGYDETECT_BIOPATIENT_108M:
             self.sample_text = "Mutations in KRAS gene drive oncogenic transformation."
+        elif (
+            self._variant
+            == ModelVariant.OPENMED_PII_SPANISH_BIOCLINICALBERT_BASE_110M_V1
+        ):
+            self.sample_text = "Paciente Maria Lopez nacida el 15/03/1985 DNI 87654321B fue atendida hoy."
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = 128
@@ -111,6 +123,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.OPENMED_NER_ORGANISMDETECT_PUBMED_109M,
             ModelVariant.OPENMED_NER_ONCOLOGYDETECT_BIOPATIENT_108M,
+            ModelVariant.OPENMED_PII_SPANISH_BIOCLINICALBERT_BASE_110M_V1,
         ):
             group = ModelGroup.VULCAN
 
