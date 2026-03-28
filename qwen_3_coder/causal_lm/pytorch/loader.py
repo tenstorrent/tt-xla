@@ -5,7 +5,12 @@
 Qwen 3 Coder model loader implementation for causal language modeling.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    AutoConfig,
+    Qwen3MoeForCausalLM,
+)
 from typing import Optional
 
 from ....base import ForgeModel
@@ -27,6 +32,7 @@ class ModelVariant(StrEnum):
     QWEN_3_CODER_NEXT = "Next"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
     QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4 = "30B_A3B_Instruct_NVFP4"
+    QWEN_3_CODER_30B_A3B_INSTRUCT_W4A16_AWQ = "30B_A3B_Instruct_W4A16_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -46,6 +52,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="NVFP4/Qwen3-Coder-30B-A3B-Instruct-FP4",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_W4A16_AWQ: LLMModelConfig(
+            pretrained_model_name="nm-testing/Qwen3-Coder-30B-A3B-Instruct-W4A16-awq",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -54,6 +64,10 @@ class ModelLoader(ForgeModel):
     # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
     # because the packed FP4 weight shapes differ from the model definition.
     _NVFP4_VARIANTS = {ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4}
+
+    # AWQ variants: use Qwen3MoeForCausalLM directly with quantization_config
+    # removed so that weights are loaded as plain tensors on CPU.
+    _AWQ_VARIANTS = {ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_W4A16_AWQ}
 
     # Shared configuration parameters
     sample_text = "Write a Python function that checks if a number is prime."
@@ -135,9 +149,16 @@ class ModelLoader(ForgeModel):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
             model_kwargs["ignore_mismatched_sizes"] = True
-        model_kwargs |= kwargs
 
-        if self.num_layers is not None:
+        is_awq = self._variant in self._AWQ_VARIANTS
+        if is_awq:
+            model_kwargs["device_map"] = "cpu"
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            if self.num_layers is not None:
+                config.num_hidden_layers = self.num_layers
+            delattr(config, "quantization_config")
+            model_kwargs["config"] = config
+        elif self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if hasattr(config, "text_config"):
                 config.text_config.num_hidden_layers = self.num_layers
@@ -149,9 +170,10 @@ class ModelLoader(ForgeModel):
                 config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        ).eval()
+        model_kwargs |= kwargs
+
+        model_cls = Qwen3MoeForCausalLM if is_awq else AutoModelForCausalLM
+        model = model_cls.from_pretrained(pretrained_model_name, **model_kwargs).eval()
 
         self.config = model.config
         self.model = model
