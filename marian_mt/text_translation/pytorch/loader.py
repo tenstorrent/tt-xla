@@ -50,8 +50,6 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_SV_EN: "Hej världen, idag är vädret väldigt fint.",
     }
 
-    sample_text = "Merhaba dünya, bugün hava çok güzel."
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
@@ -111,7 +109,7 @@ class ModelLoader(ForgeModel):
 
         sample_text = self._SAMPLE_TEXTS.get(self._variant)
         inputs = self._tokenizer(
-            _SAMPLE_TEXTS[self._variant],
+            sample_text,
             return_tensors="pt",
         )
 
