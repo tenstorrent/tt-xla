@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     SO400M_PATCH14_224 = "So400m_Patch14_224"
     SO400M_PATCH14_384 = "So400m_Patch14_384"
     SO400M_PATCH16_256_I18N = "So400m_Patch16_256_I18n"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -73,6 +74,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.SO400M_PATCH16_256_I18N: ModelConfig(
             pretrained_model_name="google/siglip-so400m-patch16-256-i18n",
         ),
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="katuni4ka/tiny-random-siglip",
+        ),
     }
 
     # Default variant to use
@@ -108,6 +112,8 @@ class ModelLoader(ForgeModel):
             group=(
                 ModelGroup.RED
                 if variant == ModelVariant.BASE_PATCH16_224
+                else ModelGroup.VULCAN
+                if variant == ModelVariant.TINY_RANDOM
                 else ModelGroup.GENERALITY
             ),
             task=ModelTask.MM_IMAGE_TEXT_SIM,
@@ -122,8 +128,11 @@ class ModelLoader(ForgeModel):
             The loaded processor instance
         """
         # Load the processor
+        processor_kwargs = {}
+        if self._variant == ModelVariant.TINY_RANDOM:
+            processor_kwargs["trust_remote_code"] = True
         self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name
+            self._variant_config.pretrained_model_name, **processor_kwargs
         )
 
         return self.processor
@@ -142,6 +151,8 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {"return_dict": False}
+        if self._variant == ModelVariant.TINY_RANDOM:
+            model_kwargs["trust_remote_code"] = True
 
         # Load the model with dtype override if specified
         if dtype_override is not None:
