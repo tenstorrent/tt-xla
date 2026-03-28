@@ -56,6 +56,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_YOYO_V4_GEMINI250_INSTRUCT_DAVIDAU = (
         "30B_A3B_YOYO_V4_Gemini250_Instruct_DavidAU"
     )
+    TINY_RANDOM_QWEN3 = "Tiny_Random_Qwen3"
 
 
 class ModelLoader(ForgeModel):
@@ -167,6 +168,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="DavidAU/Qwen3-30B-A3B-YOYO-V4-Gemini250-Instruct",
             max_length=128,
         ),
+        ModelVariant.TINY_RANDOM_QWEN3: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-qwen3",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -225,6 +230,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4,
             ModelVariant.QWEN_3_0_6B_REVERSE_TEXT_SFT_PRIMEINTELLECT,
             ModelVariant.QWEN_3_30B_A3B_YOYO_V4_GEMINI250_INSTRUCT_DAVIDAU,
+            ModelVariant.TINY_RANDOM_QWEN3,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -368,9 +374,9 @@ class ModelLoader(ForgeModel):
 
         # Base models use plain text; chat models use chat template
         if self._variant in (
-            ModelVariant.QWEN_3_0_6B_BASE,
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_8B_BASE,
+            ModelVariant.TINY_RANDOM_QWEN3,
         ):
             prompts = [self.sample_text]
         else:
