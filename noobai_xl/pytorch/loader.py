@@ -2,16 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-NoobAI XL (Laxhar/noobai-XL-1.0) model loader implementation.
+NoobAI-XL 1.1 (Laxhar/noobai-XL-1.1) model loader implementation.
 
-NoobAI XL is a Stable Diffusion XL text-to-image model fine-tuned on Danbooru
-and E621 datasets, based on Illustrious XL.
+NoobAI-XL 1.1 is a Stable Diffusion XL based text-to-image generation model.
 
 Available variants:
-- NOOBAI_XL_1_0: Laxhar/noobai-XL-1.0 text-to-image generation
+- NOOBAI_XL_1_1: Laxhar/noobai-XL-1.1 text-to-image generation
 """
 
 from typing import Optional
+
+import torch
+from diffusers import AutoPipelineForText2Image
 
 from ...base import ForgeModel
 from ...config import (
@@ -23,30 +25,23 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from .src.model_utils import load_pipe
-
-
-REPO_ID = "Laxhar/noobai-XL-1.0"
 
 
 class ModelVariant(StrEnum):
-    """Available NoobAI XL model variants."""
+    """Available NoobAI-XL model variants."""
 
-    NOOBAI_XL_1_0 = "noobai-XL-1.0"
+    NOOBAI_XL_1_1 = "NoobAI_XL_1_1"
 
 
 class ModelLoader(ForgeModel):
-    """NoobAI XL model loader implementation."""
+    """NoobAI-XL 1.1 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.NOOBAI_XL_1_0: ModelConfig(
-            pretrained_model_name=REPO_ID,
+        ModelVariant.NOOBAI_XL_1_1: ModelConfig(
+            pretrained_model_name="Laxhar/noobai-XL-1.1",
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.NOOBAI_XL_1_0
-
-    # Shared configuration parameters
-    prompt = "masterpiece, best quality, 1girl, solo, standing, outdoors, blue sky"
+    DEFAULT_VARIANT = ModelVariant.NOOBAI_XL_1_1
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -57,56 +52,34 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="NoobAI XL",
+            model="NoobAI_XL",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CONDITIONAL_GENERATION,
+            task=ModelTask.MM_IMAGE_TTT,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the NoobAI XL pipeline.
+        """Load and return the NoobAI-XL 1.1 pipeline.
 
         Returns:
-            DiffusionPipeline: The NoobAI XL pipeline instance.
+            AutoPipelineForText2Image: The NoobAI-XL 1.1 pipeline instance.
         """
-        self.pipeline = load_pipe(self._variant_config.pretrained_model_name)
-
-        if dtype_override is not None:
-            self.pipeline = self.pipeline.to(dtype_override)
-
+        dtype = dtype_override if dtype_override is not None else torch.float32
+        self.pipeline = AutoPipelineForText2Image.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            torch_dtype=dtype,
+            **kwargs,
+        )
         return self.pipeline
 
-    def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the NoobAI XL model.
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample text prompts for the NoobAI-XL 1.1 model.
 
         Returns:
-            list: Input tensors that can be fed to the model:
-                - latent_model_input (torch.Tensor): Latent input for the UNet
-                - timestep (torch.Tensor): Timestep tensor
-                - prompt_embeds (torch.Tensor): Encoded prompt embeddings
-                - added_cond_kwargs (dict): Additional conditioning inputs
+            list: A list of sample text prompts.
         """
-        from ...stable_diffusion_xl.pytorch.src.model_utils import (
-            stable_diffusion_preprocessing_xl,
-        )
-
-        if self.pipeline is None:
-            self.load_model(dtype_override=dtype_override)
-
-        (
-            latent_model_input,
-            timesteps,
-            prompt_embeds,
-            timestep_cond,
-            added_cond_kwargs,
-            add_time_ids,
-        ) = stable_diffusion_preprocessing_xl(self.pipeline, self.prompt)
-
-        if dtype_override:
-            latent_model_input = latent_model_input.to(dtype_override)
-            timesteps = timesteps.to(dtype_override)
-            prompt_embeds = prompt_embeds.to(dtype_override)
-
-        return [latent_model_input, timesteps, prompt_embeds, added_cond_kwargs]
+        return [
+            "A cinematic shot of a baby raccoon wearing an intricate italian priest robe."
+        ] * batch_size
