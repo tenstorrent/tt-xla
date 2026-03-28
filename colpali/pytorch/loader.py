@@ -4,8 +4,8 @@
 """
 ColPali model loader implementation for visual document retrieval.
 """
+
 import torch
-from PIL import Image
 from transformers import ColPaliForRetrieval, ColPaliProcessor
 from typing import Optional
 
@@ -19,25 +19,25 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
+from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
     """Available ColPali model variants for visual document retrieval."""
 
-    V1_3 = "v1.3"
+    COLPALI_V1_1 = "colpali-v1.1"
 
 
 class ModelLoader(ForgeModel):
-    """ColPali model loader implementation for visual document retrieval tasks."""
+    """ColPali model loader implementation for visual document retrieval."""
 
     _VARIANTS = {
-        ModelVariant.V1_3: ModelConfig(
-            pretrained_model_name="vidore/colpali-v1.3-hf",
+        ModelVariant.COLPALI_V1_1: ModelConfig(
+            pretrained_model_name="vidore/colpali-v1.1",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.V1_3
+    DEFAULT_VARIANT = ModelVariant.COLPALI_V1_1
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -45,6 +45,9 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="ColPali",
             variant=variant,
@@ -55,9 +58,10 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
-        self.processor = ColPaliProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
+        if self.processor is None:
+            self.processor = ColPaliProcessor.from_pretrained(
+                self._variant_config.pretrained_model_name
+            )
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
@@ -79,14 +83,15 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        image_path = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(str(image_path)).convert("RGB")
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
-        inputs = self.processor(images=[image], return_tensors="pt")
-
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        inputs = self.processor(
+            images=[image],
+            text=["Describe this image."],
+            return_tensors="pt",
+            padding=True,
+        )
 
         if dtype_override is not None:
             for key in inputs:
@@ -94,10 +99,3 @@ class ModelLoader(ForgeModel):
                     inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
-
-    def unpack_forward_output(self, fwd_output):
-        if hasattr(fwd_output, "embeddings"):
-            return fwd_output.embeddings
-        if isinstance(fwd_output, tuple):
-            return fwd_output[0]
-        return fwd_output
