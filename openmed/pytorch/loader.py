@@ -18,14 +18,23 @@ from ...config import (
 )
 from ...base import ForgeModel
 
+_VARIANT_SAMPLE_TEXTS = {
+    "ZeroShot-NER-Species-Small-166M": "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
+    "ZeroShot-NER-DNA-Medium-209M": "The p53 protein plays a crucial role in tumor suppression.",
+}
+
+_VARIANT_LABELS = {
+    "ZeroShot-NER-Species-Small-166M": ["SPECIES"],
+    "ZeroShot-NER-DNA-Medium-209M": ["DNA", "RNA", "cell_line", "cell_type", "protein"],
+}
+
 
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_DISEASE_MULTI = "ZeroShot-NER-Disease-Multi-209M"
     OPENMED_ZEROSHOT_NER_PATHOLOGY_MEDIUM = "ZeroShot-NER-Pathology-Medium-209M"
     OPENMED_ZEROSHOT_NER_PHARMA_TINY = "ZeroShot-NER-Pharma-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_PROTEIN_MULTI = "ZeroShot-NER-Protein-Multi-209M"
-    OPENMED_ZEROSHOT_NER_PROTEIN_TINY = "ZeroShot-NER-Protein-Tiny-60M"
+    OPENMED_ZEROSHOT_NER_DNA_MEDIUM = "ZeroShot-NER-DNA-Medium-209M"
 
 
 class ModelLoader(ForgeModel):
@@ -44,11 +53,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_MULTI: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Multi-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Tiny-60M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_DNA_MEDIUM: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-Medium-209M"
         ),
     }
 
@@ -173,22 +179,9 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        if self._variant in (
-            ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_MULTI,
-            ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_TINY,
-        ):
-            text = "The p53 tumor suppressor protein interacts with the MDM2-MDMX complex to regulate cell cycle arrest."
-            labels = [
-                "protein",
-                "protein_complex",
-                "protein_enum",
-                "protein_family_or_group",
-                "protein_variant",
-            ]
-        else:
-            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
-            labels = ["SPECIES"]
+        text = _VARIANT_SAMPLE_TEXTS[self._variant_name]
         self.text = [text]
+        labels = _VARIANT_LABELS[self._variant_name]
         entity_types = list(dict.fromkeys(labels))
 
         (
