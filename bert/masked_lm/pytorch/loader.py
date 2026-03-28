@@ -32,15 +32,7 @@ class ModelVariant(StrEnum):
     BIOBERT_BASE_CASED_V1_1 = "BioBERT_Base_Cased_v1.1"
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
-    BERT_BASE_SWEDISH_CASED = "KB/bert-base-swedish-cased"
-    BERT_BASE_GERMAN_CASED = "dbmdz/bert-base-german-cased"
-    LEGAL_BERTIMBAU_BASE = "rufimelo/Legal-BERTimbau-base"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.BERT_BASE_GERMAN_CASED: "Die Hauptstadt von Deutschland ist [MASK].",
-    ModelVariant.LEGAL_BERTIMBAU_BASE: "O advogado apresentou [MASK] ao juiz.",
-}
+    BERT_UNCASED_L2_H256_A4 = "bert_uncased_L-2_H-256_A-4"
 
 
 class ModelLoader(ForgeModel):
@@ -76,16 +68,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nlpaueb/legal-bert-base-uncased",
             max_length=128,
         ),
-        ModelVariant.BERT_BASE_SWEDISH_CASED: LLMModelConfig(
-            pretrained_model_name="KB/bert-base-swedish-cased",
-            max_length=128,
-        ),
-        ModelVariant.BERT_BASE_GERMAN_CASED: LLMModelConfig(
-            pretrained_model_name="dbmdz/bert-base-german-cased",
-            max_length=128,
-        ),
-        ModelVariant.LEGAL_BERTIMBAU_BASE: LLMModelConfig(
-            pretrained_model_name="rufimelo/Legal-BERTimbau-base",
+        ModelVariant.BERT_UNCASED_L2_H256_A4: LLMModelConfig(
+            pretrained_model_name="google/bert_uncased_L-2_H-256_A-4",
             max_length=128,
         ),
     }
@@ -131,9 +115,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_BASE_CASED_V1_1,
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
-            ModelVariant.BERT_BASE_SWEDISH_CASED,
-            ModelVariant.BERT_BASE_GERMAN_CASED,
-            ModelVariant.LEGAL_BERTIMBAU_BASE,
+            ModelVariant.BERT_UNCASED_L2_H256_A4,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
