@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
 
     GPT2_BASE = "Default"
     GPT2_LARGE = "Large"
+    GPT2_SMALL_DUTCH = "Small_Dutch"
     GPT2_SEQUENCE_CLASSIFICATION = "Sequence_Classification"
 
 
@@ -43,6 +44,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GPT2_LARGE: LLMModelConfig(
             pretrained_model_name="openai-community/gpt2-large",
+            max_length=256,
+        ),
+        ModelVariant.GPT2_SMALL_DUTCH: LLMModelConfig(
+            pretrained_model_name="GroNLP/gpt2-small-dutch",
             max_length=256,
         ),
         ModelVariant.GPT2_SEQUENCE_CLASSIFICATION: LLMModelConfig(
@@ -74,7 +79,7 @@ class ModelLoader(ForgeModel):
 
         group = (
             ModelGroup.VULCAN
-            if variant == ModelVariant.GPT2_LARGE
+            if variant in (ModelVariant.GPT2_LARGE, ModelVariant.GPT2_SMALL_DUTCH)
             else ModelGroup.GENERALITY
         )
 
@@ -101,7 +106,11 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
 
-        if self._variant in (ModelVariant.GPT2_BASE, ModelVariant.GPT2_LARGE):
+        if self._variant in (
+            ModelVariant.GPT2_BASE,
+            ModelVariant.GPT2_LARGE,
+            ModelVariant.GPT2_SMALL_DUTCH,
+        ):
             config = GPT2Config.from_pretrained(model_name)
             config_dict = config.to_dict()
             config_dict["use_cache"] = True
@@ -129,7 +138,11 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        if self._variant in (ModelVariant.GPT2_BASE, ModelVariant.GPT2_LARGE):
+        if self._variant in (
+            ModelVariant.GPT2_BASE,
+            ModelVariant.GPT2_LARGE,
+            ModelVariant.GPT2_SMALL_DUTCH,
+        ):
             # Use random input for text generation
             vocab_size = GPT2Config.from_pretrained(
                 self._variant_config.pretrained_model_name
