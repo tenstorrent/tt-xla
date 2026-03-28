@@ -9,7 +9,7 @@ import torch
 import torchvision.transforms as T
 from PIL import Image
 from torchvision.transforms.functional import InterpolationMode
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, AwqConfig
 from typing import Optional
 
 from ...tools.utils import get_file
@@ -117,7 +117,7 @@ class ModelVariant(StrEnum):
 
     INTERN_VL2_1B = "1B"
     INTERN_VL2_2B = "2B"
-    INTERN_VL2_4B = "4B"
+    INTERN_VL2_2B_AWQ = "2B_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -130,8 +130,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.INTERN_VL2_2B: ModelConfig(
             pretrained_model_name="OpenGVLab/InternVL2-2B",
         ),
-        ModelVariant.INTERN_VL2_4B: ModelConfig(
-            pretrained_model_name="OpenGVLab/InternVL2-4B",
+        ModelVariant.INTERN_VL2_2B_AWQ: ModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL2-2B-AWQ",
         ),
     }
 
@@ -174,6 +174,13 @@ class ModelLoader(ForgeModel):
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # AWQ variant requires quantization config and CPU device map
+        if pretrained_model_name == "OpenGVLab/InternVL2-2B-AWQ":
+            quantization_config = AwqConfig(version="ipex")
+            model_kwargs["quantization_config"] = quantization_config
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
