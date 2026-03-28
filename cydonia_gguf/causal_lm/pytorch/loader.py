@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Cydonia GGUF model loader implementation for causal language modeling.
+Cydonia 24B GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Cydonia GGUF model variants for causal language modeling."""
+    """Available Cydonia 24B GGUF model variants for causal language modeling."""
 
-    CYDONIA_24B_V4_2_0_Q4_K_M = "24B_v4.2.0_Q4_K_M"
+    CYDONIA_24B_V4_3_GGUF = "24B_v4.3_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Cydonia GGUF model loader implementation for causal language modeling tasks."""
+    """Cydonia 24B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.CYDONIA_24B_V4_2_0_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="bartowski/TheDrummer_Cydonia-24B-v4.2.0-GGUF",
+        ModelVariant.CYDONIA_24B_V4_3_GGUF: LLMModelConfig(
+            pretrained_model_name="TheDrummer/Cydonia-24B-v4.3-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CYDONIA_24B_V4_2_0_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.CYDONIA_24B_V4_3_GGUF
 
-    GGUF_FILE = "TheDrummer_Cydonia-24B-v4.2.0-Q4_K_M.gguf"
+    GGUF_FILE = "Cydonia-24B-v4zg-Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Cydonia GGUF",
+            model="Cydonia 24B GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
