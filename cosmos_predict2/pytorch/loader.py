@@ -12,8 +12,8 @@ Repository:
 - https://huggingface.co/nvidia/Cosmos-Predict2-2B-Video2World
 
 Available subfolders:
-- transformer: Cosmos2VideoToWorldTransformer3DModel
-- vae: AutoencoderKLCosmos2
+- transformer: CosmosTransformer3DModel
+- vae: AutoencoderKLWan
 """
 
 from typing import Any, Optional
@@ -46,8 +46,8 @@ class ModelLoader(ForgeModel):
     Loader for NVIDIA Cosmos-Predict2 Video2World model.
 
     Supports loading the full pipeline or individual components via subfolder:
-    - 'transformer': Cosmos2VideoToWorldTransformer3DModel (~2B params)
-    - 'vae': AutoencoderKLCosmos2
+    - 'transformer': CosmosTransformer3DModel (~2B params)
+    - 'vae': AutoencoderKLWan
     """
 
     _VARIANTS = {
@@ -138,10 +138,9 @@ class ModelLoader(ForgeModel):
             dtype=dtype,
         )
 
-        # Text encoder hidden states
-        encoder_hidden_states = torch.randn(
-            batch_size, 8, config.cross_attention_dim, dtype=dtype
-        )
+        # Text encoder hidden states (text_embed_dim from config)
+        text_embed_dim = config.text_embed_dim
+        encoder_hidden_states = torch.randn(batch_size, 8, text_embed_dim, dtype=dtype)
 
         timestep = torch.tensor([0.5], dtype=dtype).expand(batch_size)
 
