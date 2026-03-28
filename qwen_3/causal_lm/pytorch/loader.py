@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_0_6B_BASE_UNSLOTH_BNB_4BIT = "0_6B_Base_Unsloth_Bnb_4bit"
+    QWEN_3_8B_RK3588_UNSLOTH = "8B_Rk3588_Unsloth"
 
 
 class ModelLoader(ForgeModel):
@@ -120,6 +121,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3-0.6B-Base-unsloth-bnb-4bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_8B_RK3588_UNSLOTH: LLMModelConfig(
+            pretrained_model_name="dulimov/Qwen3-8B-rk3588-1.2.1-unsloth",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -164,6 +169,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_0_6B_BASE_UNSLOTH_BNB_4BIT,
+            ModelVariant.QWEN_3_8B_RK3588_UNSLOTH,
         ):
             group = ModelGroup.VULCAN
         else:
