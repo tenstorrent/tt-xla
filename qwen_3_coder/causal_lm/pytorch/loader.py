@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Coder model variants for causal language modeling."""
 
     QWEN_3_CODER_NEXT = "Next"
-    QWEN_3_CODER_NEXT_GPTQ_4BIT = "Next_GPTQ_4bit"
+    QWEN_3_CODER_NEXT_NVFP4 = "Next_NVFP4"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
     QWEN_3_CODER_480B_A35B_INSTRUCT_FP8 = "480B_A35B_Instruct_FP8"
 
@@ -44,8 +44,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-Next",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_NEXT_GPTQ_4BIT: LLMModelConfig(
-            pretrained_model_name="btbtyler09/Qwen3-Coder-Next-GPTQ-4bit",
+        ModelVariant.QWEN_3_CODER_NEXT_NVFP4: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Qwen3-Coder-Next-NVFP4",
             max_length=128,
         ),
         ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT: LLMModelConfig(
