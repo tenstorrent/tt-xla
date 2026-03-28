@@ -4,7 +4,6 @@
 """
 DocumentFigureClassifier model loader implementation for document figure classification.
 """
-import torch
 from PIL import Image
 from transformers import EfficientNetForImageClassification
 from torchvision import transforms
