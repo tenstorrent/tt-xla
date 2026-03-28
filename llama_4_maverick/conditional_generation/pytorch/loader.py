@@ -7,6 +7,7 @@ Llama 4 Maverick model loader implementation for multimodal conditional generati
 
 from typing import Optional
 
+import torch
 from transformers import AutoProcessor, Llama4ForConditionalGeneration
 from PIL import Image
 
@@ -142,8 +143,6 @@ class ModelLoader(ForgeModel):
                 )
 
         if batch_size > 1:
-            import torch
-
             for key in inputs:
                 if torch.is_tensor(inputs[key]):
                     inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
