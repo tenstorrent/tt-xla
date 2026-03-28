@@ -1,9 +1,10 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 NeuralSynthesis model loader implementation for causal language modeling.
 """
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
@@ -20,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available NeuralSynthesis model variants."""
+    """Available NeuralSynthesis model variants for causal language modeling."""
 
-    NEURALSYNTHESIS_7B_V0_4_SLERP = "NeuralSynthesis_7b_v0.4_slerp"
+    NEURALSYNTHESIS_7B_V0_1 = "7b_v0.1"
 
 
 class ModelLoader(ForgeModel):
     """NeuralSynthesis model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.NEURALSYNTHESIS_7B_V0_4_SLERP: LLMModelConfig(
-            pretrained_model_name="Kukedlc/NeuralSynthesis-7b-v0.4-slerp",
-            max_length=256,
+        ModelVariant.NEURALSYNTHESIS_7B_V0_1: LLMModelConfig(
+            pretrained_model_name="Kukedlc/NeuralSynthesis-7B-v0.1",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NEURALSYNTHESIS_7B_V0_4_SLERP
+    DEFAULT_VARIANT = ModelVariant.NEURALSYNTHESIS_7B_V0_1
 
-    sample_text = "What is your favorite city?"
+    sample_text = "The quick brown fox jumps over the lazy dog."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -63,9 +64,9 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            **tokenizer_kwargs,
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -75,7 +76,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {"use_cache": False}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -89,19 +90,26 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **model_kwargs
         )
         model.eval()
+        self.config = model.config
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        input_tokens = self.tokenizer(
-            self.sample_text,
-            max_length=self._variant_config.max_length,
-            padding=True,
-            truncation=True,
+        max_length = self._variant_config.max_length
+
+        inputs = self.tokenizer(
+            [self.sample_text],
             return_tensors="pt",
+            padding="max_length",
+            truncation=True,
+            max_length=max_length,
         )
 
-        return [input_tokens["input_ids"], input_tokens["attention_mask"]]
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        return inputs
