@@ -2,16 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-FireRed-Image-Edit 1.0 ComfyUI model loader implementation.
+FireRed-Image-Edit 1.1 ComfyUI Repackaged model loader implementation.
 
-Loads single-file safetensors diffusion transformer variants from
-FireRedTeam/FireRed-Image-Edit-1.0-ComfyUI. Uses the upstream
-FireRedTeam/FireRed-Image-Edit-1.0 diffusers config for model construction.
+Loads a single-file safetensors diffusion transformer from
+FireRedTeam/FireRed-Image-Edit-1.1-ComfyUI. Uses the upstream
+FireRedTeam/FireRed-Image-Edit-1.1 diffusers config for model construction.
 
 Available variants:
-- FIRERED_IMAGE_EDIT: FireRed-Image-Edit 1.0 (bf16)
-- FIRERED_IMAGE_EDIT_LIGHTNING_V1_0: FireRed-Image-Edit 1.0 Lightning 8-step v1.0
-- FIRERED_IMAGE_EDIT_LIGHTNING_V1_1: FireRed-Image-Edit 1.0 Lightning 8-step v1.1
+- FIRERED_IMAGE_EDIT_1_1: FireRed-Image-Edit 1.1 transformer (bf16)
 """
 
 from typing import Any, Optional
@@ -31,39 +29,30 @@ from ...config import (
     StrEnum,
 )
 
-REPO_ID = "FireRedTeam/FireRed-Image-Edit-1.0-ComfyUI"
-CONFIG_REPO_ID = "FireRedTeam/FireRed-Image-Edit-1.0"
+REPO_ID = "FireRedTeam/FireRed-Image-Edit-1.1-ComfyUI"
 
-_DIFFUSION_FILES = {
-    "base": "FireRed-Image-Edit-1.0-transformer.safetensors",
-    "lightning_v1_0": "FireRed-Image-Edit-1.0-Lightning-8steps-v1.0.safetensors",
-    "lightning_v1_1": "FireRed-Image-Edit-1.0-Lightning-8steps-v1.1.safetensors",
-}
+# Diffusion model file path within the ComfyUI repackaged repo
+_DIFFUSION_FILE = "FireRed-Image-Edit-1.1-transformer.safetensors"
+
+# Upstream diffusers config source
+_CONFIG_REPO = "FireRedTeam/FireRed-Image-Edit-1.1"
 
 
 class ModelVariant(StrEnum):
     """Available FireRed-Image-Edit ComfyUI model variants."""
 
-    FIRERED_IMAGE_EDIT = "FireRed_Image_Edit_1_0"
-    FIRERED_IMAGE_EDIT_LIGHTNING_V1_0 = "FireRed_Image_Edit_1_0_Lightning_v1_0"
-    FIRERED_IMAGE_EDIT_LIGHTNING_V1_1 = "FireRed_Image_Edit_1_0_Lightning_v1_1"
+    FIRERED_IMAGE_EDIT_1_1 = "Edit_1.1"
 
 
 class ModelLoader(ForgeModel):
-    """FireRed-Image-Edit ComfyUI model loader for the diffusion transformer."""
+    """FireRed-Image-Edit 1.1 ComfyUI model loader for the diffusion transformer."""
 
     _VARIANTS = {
-        ModelVariant.FIRERED_IMAGE_EDIT: ModelConfig(
-            pretrained_model_name=REPO_ID,
-        ),
-        ModelVariant.FIRERED_IMAGE_EDIT_LIGHTNING_V1_0: ModelConfig(
-            pretrained_model_name=REPO_ID,
-        ),
-        ModelVariant.FIRERED_IMAGE_EDIT_LIGHTNING_V1_1: ModelConfig(
+        ModelVariant.FIRERED_IMAGE_EDIT_1_1: ModelConfig(
             pretrained_model_name=REPO_ID,
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.FIRERED_IMAGE_EDIT
+    DEFAULT_VARIANT = ModelVariant.FIRERED_IMAGE_EDIT_1_1
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -82,28 +71,18 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _get_version_key(self) -> str:
-        """Map variant to version key for file lookup."""
-        return {
-            ModelVariant.FIRERED_IMAGE_EDIT: "base",
-            ModelVariant.FIRERED_IMAGE_EDIT_LIGHTNING_V1_0: "lightning_v1_0",
-            ModelVariant.FIRERED_IMAGE_EDIT_LIGHTNING_V1_1: "lightning_v1_1",
-        }[self._variant]
-
     def _load_transformer(
         self, dtype: torch.dtype = torch.float32
     ) -> QwenImageTransformer2DModel:
         """Load diffusion transformer from single-file safetensors."""
-        version = self._get_version_key()
-
         model_path = hf_hub_download(
             repo_id=REPO_ID,
-            filename=_DIFFUSION_FILES[version],
+            filename=_DIFFUSION_FILE,
         )
 
         self._transformer = QwenImageTransformer2DModel.from_single_file(
             model_path,
-            config=CONFIG_REPO_ID,
+            config=_CONFIG_REPO,
             subfolder="transformer",
             torch_dtype=dtype,
         )
