@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     """Available DeepSeek Coder model variants."""
 
     DEEPSEEK_1_3B_INSTRUCT = "1_3B_Instruct"
+    DEEPSEEK_33B_INSTRUCT_GGUF = "33B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,15 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="deepseek-ai/deepseek-coder-1.3b-instruct",
             max_length=2048,
         ),
+        ModelVariant.DEEPSEEK_33B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="TheBloke/deepseek-coder-33B-instruct-GGUF",
+            max_length=2048,
+        ),
+    }
+
+    # GGUF files for quantized variants
+    _GGUF_FILES = {
+        ModelVariant.DEEPSEEK_33B_INSTRUCT_GGUF: "deepseek-coder-33b-instruct.Q4_K_M.gguf",
     }
 
     # Default variant to use
@@ -68,20 +78,35 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant.
         """
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.DEEPSEEK_33B_INSTRUCT_GGUF:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="DeepSeek",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
+
+    def _is_gguf_variant(self):
+        """Check if the current variant uses GGUF quantization."""
+        return self._variant in self._GGUF_FILES
+
+    @property
+    def _gguf_file(self):
+        """Get the GGUF filename for the current variant."""
+        return self._GGUF_FILES.get(self._variant)
 
     def _load_tokenizer(self, dtype_override=None):
         """Load tokenizer for the current variant."""
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        if self._is_gguf_variant():
+            tokenizer_kwargs["gguf_file"] = self._gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
@@ -99,6 +124,10 @@ class ModelLoader(ForgeModel):
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        if self._is_gguf_variant():
+            model_kwargs["gguf_file"] = self._gguf_file
+
         model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
