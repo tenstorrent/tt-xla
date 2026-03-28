@@ -25,8 +25,7 @@ class ModelVariant(StrEnum):
         "distilbert-base-uncased-finetuned-sst-2-english"
     )
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
-    ISOM5240UST_BERT_BASE_UNCASED_EMOTION = "isom5240ust-bert-base-uncased-emotion"
-    THI_THU_HUONG_DDOSBERT = "Thi-Thu-Huong_DDoSBert"
+    DATALAB_TO_OCR_ERROR_DETECTION = "datalab-to/ocr_error_detection"
 
 
 class ModelLoader(ForgeModel):
@@ -42,12 +41,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bhadresh-savani/distilbert-base-uncased-emotion",
             max_length=128,
         ),
-        ModelVariant.ISOM5240UST_BERT_BASE_UNCASED_EMOTION: LLMModelConfig(
-            pretrained_model_name="isom5240ust/bert-base-uncased-emotion",
-            max_length=128,
-        ),
-        ModelVariant.THI_THU_HUONG_DDOSBERT: LLMModelConfig(
-            pretrained_model_name="Thi-Thu-Huong/DDoSBert",
+        ModelVariant.DATALAB_TO_OCR_ERROR_DETECTION: LLMModelConfig(
+            pretrained_model_name="datalab-to/ocr_error_detection",
             max_length=128,
         ),
     }
@@ -64,8 +59,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
-        ModelVariant.ISOM5240UST_BERT_BASE_UNCASED_EMOTION: "I am so happy today, the weather is beautiful!",
-        ModelVariant.THI_THU_HUONG_DDOSBERT: "UDP 192.168.1.100 10.0.0.1 53 1024 64 0 1 0 0",
+        ModelVariant.DATALAB_TO_OCR_ERROR_DETECTION: "The qulck brown fox jurnps over the lazy dog",
     }
 
     def __init__(self, variant=None):
@@ -99,8 +93,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
-            ModelVariant.ISOM5240UST_BERT_BASE_UNCASED_EMOTION,
-            ModelVariant.THI_THU_HUONG_DDOSBERT,
+            ModelVariant.DATALAB_TO_OCR_ERROR_DETECTION,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
