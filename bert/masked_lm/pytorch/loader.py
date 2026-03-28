@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     HUBERT_BASE_CC = "SZTAKI-HLT/hubert-base-cc"
     BERT_BASE_SWEDISH_CASED = "KBLab/bert-base-swedish-cased-alpha"
     MURIL_BASE_CASED = "google/muril-base-cased"
+    INDOBERT_BASE_UNCASED = "indolem/indobert-base-uncased"
 
 
 _SAMPLE_TEXTS = {
@@ -45,6 +46,7 @@ _SAMPLE_TEXTS = {
     ModelVariant.HUBERT_BASE_CC: "Budapest Magyarország [MASK] városa.",
     ModelVariant.BERT_BASE_SWEDISH_CASED: "Stockholm är Sveriges [MASK] stad.",
     ModelVariant.MURIL_BASE_CASED: "भारत की राजधानी [MASK] है।",
+    ModelVariant.INDOBERT_BASE_UNCASED: "Jakarta adalah [MASK] negara Indonesia.",
 }
 
 
@@ -101,6 +103,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/muril-base-cased",
             max_length=128,
         ),
+        ModelVariant.INDOBERT_BASE_UNCASED: LLMModelConfig(
+            pretrained_model_name="indolem/indobert-base-uncased",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -149,6 +155,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.HUBERT_BASE_CC,
             ModelVariant.BERT_BASE_SWEDISH_CASED,
             ModelVariant.MURIL_BASE_CASED,
+            ModelVariant.INDOBERT_BASE_UNCASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
