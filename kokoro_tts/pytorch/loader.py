@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     """Available Kokoro model variants."""
 
     KOKORO_82M = "82M"
+    KOKORO_82M_V1_1_ZH = "82M-v1.1-zh"
 
 
 class ModelLoader(ForgeModel):
@@ -44,6 +45,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.KOKORO_82M: ModelConfig(
             pretrained_model_name="hexgrad/Kokoro-82M",
+        ),
+        ModelVariant.KOKORO_82M_V1_1_ZH: ModelConfig(
+            pretrained_model_name="hexgrad/Kokoro-82M-v1.1-zh",
         ),
     }
 
@@ -67,8 +71,9 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         from kokoro import KPipeline
 
+        lang_code = "z" if self._variant == ModelVariant.KOKORO_82M_V1_1_ZH else "a"
         self.pipeline = KPipeline(
-            lang_code="a",
+            lang_code=lang_code,
             repo_id=self._variant_config.pretrained_model_name,
             device="cpu",
         )
@@ -77,11 +82,15 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        # Use a hardcoded phoneme string to avoid G2P dependency at input time
-        ps = "hɛloʊ ðɪs ɪz ɐ tˈɛst"
+        if self._variant == ModelVariant.KOKORO_82M_V1_1_ZH:
+            ps = "nǐhǎo ʃìjiè"
+            voice_name = "zf_001"
+        else:
+            ps = "hɛloʊ ðɪs ɪz ɐ tˈɛst"
+            voice_name = "af_heart"
         vocab = self.pipeline.model.vocab
         input_ids = [v for p in ps if (v := vocab.get(p)) is not None]
         input_ids = torch.LongTensor([[0, *input_ids, 0]])
-        voice = self.pipeline.load_voice("af_heart")
+        voice = self.pipeline.load_voice(voice_name)
         ref_s = voice[len(ps) - 1]
         return input_ids, ref_s
