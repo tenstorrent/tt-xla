@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available PPLX-Embed model variants for embedding generation."""
 
     PPLX_EMBED_V1_0_6B = "pplx-embed-v1-0.6b"
+    PPLX_EMBED_V1_4B = "pplx-embed-v1-4b"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.PPLX_EMBED_V1_0_6B: ModelConfig(
             pretrained_model_name="perplexity-ai/pplx-embed-v1-0.6B",
+        ),
+        ModelVariant.PPLX_EMBED_V1_4B: ModelConfig(
+            pretrained_model_name="perplexity-ai/pplx-embed-v1-4B",
         ),
     }
 
