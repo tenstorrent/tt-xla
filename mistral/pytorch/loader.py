@@ -74,7 +74,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEVSTRAL_SMALL_2505,
         ModelVariant.DEVSTRAL_2_123B_INSTRUCT_2512,
         ModelVariant.MAGISTRAL_SMALL_2506,
-        ModelVariant.DEVSTRAL_2_123B_INSTRUCT_2512_AWQ_4BIT,
+        ModelVariant.MAGISTRAL_SMALL_2509,
     }
     _USE_MistralForCausalLM = {
         ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT_2503,
@@ -208,7 +208,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MINISTRAL_3_8B_BASE_2512,
+            ModelVariant.MAGISTRAL_SMALL_2509,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
