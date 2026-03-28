@@ -14,7 +14,6 @@ Available variants:
 - HYBRID_XXL_V2P6: google/metricx-24-hybrid-xxl-v2p6-bfloat16
 """
 
-import torch
 from transformers import AutoTokenizer
 from typing import Optional
 
