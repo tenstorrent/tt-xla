@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.GLM_4_7_GGUF
 
-    GGUF_FILE = "GLM-4.7-Q4_K_M.gguf"
+    GGUF_FILE = "GLM-4.7-UD-TQ1_0.gguf"
 
     sample_text = "Hey how are you doing today?"
 
