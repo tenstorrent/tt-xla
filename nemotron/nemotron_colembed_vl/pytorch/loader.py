@@ -25,19 +25,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Nemotron ColEmbed VL model variants."""
 
-    LLAMA_NEMOTRON_COLEMBED_VL_3B_V2 = "Llama_Nemotron_ColEmbed_VL_3B_V2"
+    NEMOTRON_COLEMBED_VL_4B_V2 = "ColEmbed_VL_4B_V2"
 
 
 class ModelLoader(ForgeModel):
     """Nemotron ColEmbed VL model loader for multimodal visual document retrieval."""
 
     _VARIANTS = {
-        ModelVariant.LLAMA_NEMOTRON_COLEMBED_VL_3B_V2: ModelConfig(
-            pretrained_model_name="nvidia/llama-nemotron-colembed-vl-3b-v2",
+        ModelVariant.NEMOTRON_COLEMBED_VL_4B_V2: ModelConfig(
+            pretrained_model_name="nvidia/nemotron-colembed-vl-4b-v2",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LLAMA_NEMOTRON_COLEMBED_VL_3B_V2
+    DEFAULT_VARIANT = ModelVariant.NEMOTRON_COLEMBED_VL_4B_V2
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -92,23 +92,7 @@ class ModelLoader(ForgeModel):
         )
         image = Image.open(image_file)
 
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": "Describe this image."},
-                ],
-            },
-        ]
-
-        inputs = self.processor.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=False,
-            return_dict=True,
-            return_tensors="pt",
-        )
+        inputs = self.processor.process_images([[image]])
 
         return inputs
 
