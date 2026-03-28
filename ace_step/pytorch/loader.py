@@ -5,7 +5,6 @@
 ACE-Step 1.5 model loader implementation for music generation tasks.
 """
 import torch
-from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
