@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-MMS (Massively Multilingual Speech) model loader implementation for audio feature extraction.
+MMS (Massively Multilingual Speech) model loader implementation for audio feature extraction using PyTorch.
 """
 
 import torch
@@ -22,21 +22,21 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available MMS feature extraction model variants."""
+    """Available MMS PyTorch feature extraction model variants."""
 
-    MMS_1B = "MMS_1B"
+    MMS_300M = "MMS_300M"
 
 
 class ModelLoader(ForgeModel):
-    """MMS model loader implementation for audio feature extraction."""
+    """MMS model loader implementation for audio feature extraction (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.MMS_1B: ModelConfig(
-            pretrained_model_name="facebook/mms-1b",
+        ModelVariant.MMS_300M: ModelConfig(
+            pretrained_model_name="facebook/mms-300m",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MMS_1B
+    DEFAULT_VARIANT = ModelVariant.MMS_300M
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
