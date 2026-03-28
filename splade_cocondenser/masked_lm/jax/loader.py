@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available SPLADE CoCondenser model variants."""
 
     ENSEMBLEDISTIL = "EnsembleDistil"
+    SELFDISTIL = "SelfDistil"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.ENSEMBLEDISTIL: LLMModelConfig(
             pretrained_model_name="naver/splade-cocondenser-ensembledistil",
+        ),
+        ModelVariant.SELFDISTIL: LLMModelConfig(
+            pretrained_model_name="naver/splade-cocondenser-selfdistil",
         ),
     }
 
