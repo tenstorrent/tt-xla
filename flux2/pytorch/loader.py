@@ -24,6 +24,14 @@ class ModelVariant(StrEnum):
     """Available FLUX.2 model variants."""
 
     DEV = "Dev"
+    KLEIN_4B_SDNQ_4BIT = "Klein-4B-SDNQ-4bit"
+
+
+# Variants that do not use guidance embeddings
+_NO_GUIDANCE_VARIANTS = {ModelVariant.KLEIN_4B_SDNQ_4BIT}
+
+# Variants that require sdnq quantization support
+_SDNQ_VARIANTS = {ModelVariant.KLEIN_4B_SDNQ_4BIT}
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +41,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEV: ModelConfig(
             pretrained_model_name="black-forest-labs/FLUX.2-dev",
         ),
+        ModelVariant.KLEIN_4B_SDNQ_4BIT: ModelConfig(
+            pretrained_model_name="Disty0/FLUX.2-klein-4B-SDNQ-4bit-dynamic",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.DEV
@@ -40,7 +51,7 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.transformer = None
-        self.guidance_scale = 4.0
+        self.guidance_scale = 1.0 if variant in _NO_GUIDANCE_VARIANTS else 4.0
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -57,6 +68,9 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        if self._variant in _SDNQ_VARIANTS:
+            from sdnq import SDNQConfig  # noqa: F401 — registers quantization handler
+
         load_kwargs = {"use_safetensors": True}
         if dtype_override is not None:
             load_kwargs["torch_dtype"] = dtype_override
@@ -124,20 +138,22 @@ class ModelLoader(ForgeModel):
         text_ids = torch.cartesian_prod(t, h, w, l)
         text_ids = text_ids.unsqueeze(0).expand(batch_size, -1, -1).to(dtype=dtype)
 
-        # Guidance
-        guidance = torch.full([batch_size], self.guidance_scale, dtype=dtype)
-
         # Timestep
         timestep = torch.tensor([1.0 / 1000], dtype=dtype).expand(batch_size)
 
         inputs = {
             "hidden_states": latents,
             "timestep": timestep,
-            "guidance": guidance,
             "encoder_hidden_states": prompt_embeds,
             "txt_ids": text_ids,
             "img_ids": latent_ids,
             "joint_attention_kwargs": {},
         }
+
+        # Only include guidance for variants that use guidance embeddings
+        if self._variant not in _NO_GUIDANCE_VARIANTS:
+            inputs["guidance"] = torch.full(
+                [batch_size], self.guidance_scale, dtype=dtype
+            )
 
         return inputs
