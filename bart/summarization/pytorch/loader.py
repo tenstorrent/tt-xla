@@ -1,13 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 """
 BART model loader implementation for summarization.
 """
-from typing import Optional
 
-from transformers import AutoTokenizer, BartForConditionalGeneration
-from transformers.models.bart.modeling_bart import shift_tokens_right
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
@@ -24,26 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available BART model variants for summarization."""
 
-    MEETING_SUMMARY = "Meeting_Summary"
+    LARGE_XSUM_SAMSUM = "Large_XSUM_SAMSum"
 
 
 class ModelLoader(ForgeModel):
     """BART model loader implementation for summarization."""
 
     _VARIANTS = {
-        ModelVariant.MEETING_SUMMARY: LLMModelConfig(
-            pretrained_model_name="knkarthick/MEETING_SUMMARY",
+        ModelVariant.LARGE_XSUM_SAMSUM: LLMModelConfig(
+            pretrained_model_name="lidiya/bart-large-xsum-samsum",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MEETING_SUMMARY
+    DEFAULT_VARIANT = ModelVariant.LARGE_XSUM_SAMSUM
 
     sample_text = (
-        "The tower is 324 metres (1,063 ft) tall, about the same height as an "
-        "81-storey building, and the tallest structure in Paris. Its base is square, "
-        "measuring 125 metres (410 ft) on each side. It was the first structure to "
-        "reach a height of 300 metres. Excluding transmitters, the Eiffel Tower is "
-        "the second tallest free-standing structure in France after the Millau Viaduct."
+        "Amanda: I baked cookies. Do you want some?\r\n"
+        "Jerry: Sure!\r\n"
+        "Amanda: I'll bring you tomorrow :-)"
     )
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -83,8 +80,10 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
 
         Returns:
-            The loaded tokenizer instance
+            tokenizer: The loaded tokenizer instance
         """
+        from transformers import AutoTokenizer
+
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
@@ -102,12 +101,14 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            torch.nn.Module: The BART model instance for summarization.
+            model: The loaded model instance
         """
+        from transformers import BartForConditionalGeneration
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self._tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -127,27 +128,15 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
 
         Returns:
-            list: Input tensors that can be fed to the model.
+            inputs: Input tensors that can be fed to the model.
         """
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs_dict = self._tokenizer(
+        inputs = self._tokenizer(
             self.sample_text,
             truncation=True,
             return_tensors="pt",
         )
 
-        model = self.load_model()
-        decoder_input_ids = shift_tokens_right(
-            inputs_dict["input_ids"],
-            model.config.pad_token_id,
-            model.config.decoder_start_token_id,
-        )
-
-        inputs = [
-            inputs_dict["input_ids"],
-            inputs_dict["attention_mask"],
-            decoder_input_ids,
-        ]
         return inputs
