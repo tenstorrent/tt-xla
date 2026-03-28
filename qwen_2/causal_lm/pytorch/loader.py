@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
     QWQ_32B = "Qwq_32B"
     QWEN2_7B = "Qwen2_7B"
     QWEN2_7B_INSTRUCT = "Qwen2_7B_Instruct"
-    QWEN2_1_5B_INSTRUCT_AWQ = "Qwen2_1.5B_Instruct_Awq"
+    QWEN2_72B = "Qwen2_72B"
     TINY_QWEN2_2_5 = "tiny_Qwen2ForCausalLM_2.5"
     QWEN2_1_5B_INSTRUCT_FP8 = "Qwen2_1.5B_Instruct_FP8"
 
@@ -48,8 +48,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2-7B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN2_1_5B_INSTRUCT_AWQ: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2-1.5B-Instruct-AWQ",
+        ModelVariant.QWEN2_72B: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2-72B",
             max_length=128,
         ),
         ModelVariant.TINY_QWEN2_2_5: LLMModelConfig(
@@ -97,7 +97,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.TINY_QWEN2_2_5,
             ModelVariant.QWEN2_7B_INSTRUCT,
-            ModelVariant.QWEN2_1_5B_INSTRUCT_AWQ,
+            ModelVariant.QWEN2_72B,
         ):
             group = ModelGroup.VULCAN
 
