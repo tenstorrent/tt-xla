@@ -4,4 +4,4 @@
 """
 openPangu Embedded causal language modeling PyTorch implementation.
 """
-from .loader import ModelLoader
+from .loader import ModelLoader, ModelVariant
