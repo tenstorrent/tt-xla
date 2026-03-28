@@ -75,13 +75,14 @@ def cogvideox_preprocessing(
         dtype=torch.float32,
     )
 
+    # Compute image dimensions from transformer config
+    height = pipe.transformer.config.sample_height * pipe.vae_scale_factor_spatial
+    width = pipe.transformer.config.sample_width * pipe.vae_scale_factor_spatial
+
     # Prepare latents
     num_channels_latents = pipe.transformer.config.in_channels
-    latent_height = pipe.transformer.config.sample_height * 2
-    latent_width = pipe.transformer.config.sample_width * 2
-
-    # CogVideoX uses temporal compression in the VAE
-    # The temporal compression factor is typically 4
+    latent_height = height // pipe.vae_scale_factor_spatial
+    latent_width = width // pipe.vae_scale_factor_spatial
     latent_num_frames = (num_frames - 1) // pipe.vae_scale_factor_temporal + 1
 
     shape = (
@@ -108,9 +109,14 @@ def cogvideox_preprocessing(
     else:
         latent_model_input = latents
 
-    # Prepare rotary embeddings
-    image_rotary_emb = pipe.transformer.patch_embed.get_rotary_embedding(
-        latent_model_input, prompt_embeds
-    )
+    # Prepare rotary positional embeddings if the model uses them
+    image_rotary_emb = None
+    if pipe.transformer.config.use_rotary_positional_embeddings:
+        image_rotary_emb = pipe._prepare_rotary_positional_embeddings(
+            height=height,
+            width=width,
+            num_frames=latent_model_input.size(1),
+            device=device,
+        )
 
     return latent_model_input, timestep, prompt_embeds, image_rotary_emb
