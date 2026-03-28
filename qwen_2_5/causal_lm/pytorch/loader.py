@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_14B_INSTRUCT_1M_AWQ = "14B_Instruct_1M_Awq"
     QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
     QWEN_2_5_7B_INSTRUCT_UNSLOTH = "7B_Instruct_Unsloth"
+    QWEN_2_5_32B_INSTRUCT_BNB_4BIT = "32B_Instruct_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -155,6 +156,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen2.5-7B-Instruct",
             max_length=128,
         ),
+        # Unsloth BNB 4-bit quantized variant
+        ModelVariant.QWEN_2_5_32B_INSTRUCT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen2.5-32B-Instruct-bnb-4bit",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -210,6 +216,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_14B_INSTRUCT_1M_AWQ,
             ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
             ModelVariant.QWEN_2_5_7B_INSTRUCT_UNSLOTH,
+            ModelVariant.QWEN_2_5_32B_INSTRUCT_BNB_4BIT,
         ]:
             group = ModelGroup.VULCAN
 
