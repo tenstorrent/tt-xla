@@ -1,23 +1,21 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 V-JEPA 2 model loader implementation for video feature extraction.
 """
-
-from typing import Optional
-
-import numpy as np
+import torch
 from transformers import AutoModel, AutoVideoProcessor
+from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
-    Framework,
     ModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
@@ -25,31 +23,28 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available V-JEPA 2 model variants."""
 
-    VITG_FPC64_256 = "vitg_fpc64_256"
+    VITG_FPC64_384 = "vitg_fpc64_384"
 
 
 class ModelLoader(ForgeModel):
     """V-JEPA 2 model loader for video feature extraction."""
 
     _VARIANTS = {
-        ModelVariant.VITG_FPC64_256: ModelConfig(
-            pretrained_model_name="facebook/vjepa2-vitg-fpc64-256",
+        ModelVariant.VITG_FPC64_384: ModelConfig(
+            pretrained_model_name="facebook/vjepa2-vitg-fpc64-384",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.VITG_FPC64_256
+    DEFAULT_VARIANT = ModelVariant.VITG_FPC64_384
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize V-JEPA 2 model loader."""
         super().__init__(variant)
         self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="V-JEPA 2",
+            model="VJEPA2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_VIDEO_CLS,
@@ -57,38 +52,47 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_processor(self):
+        self.processor = AutoVideoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+        return self.processor
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the V-JEPA 2 model instance."""
-        model_name = self._variant_config.pretrained_model_name
-        model = AutoModel.from_pretrained(model_name, **kwargs)
-        model.eval()
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
+        model_kwargs = {}
         if dtype_override is not None:
-            model = model.to(dtype_override)
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
 
-        if self.processor is None:
-            self.processor = AutoVideoProcessor.from_pretrained(model_name)
+        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model.eval()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample video inputs for V-JEPA 2.
-
-        Creates synthetic video frames (64 frames of 256x256 RGB) as input.
-        """
         if self.processor is None:
-            model_name = self._variant_config.pretrained_model_name
-            self.processor = AutoVideoProcessor.from_pretrained(model_name)
+            self._load_processor()
 
-        # Create synthetic video: 64 frames of 256x256 RGB
-        video = np.random.randint(0, 255, (64, 256, 256, 3), dtype=np.uint8)
+        # Create synthetic video frames: 16 frames of 384x384 RGB
+        num_frames = 16
+        resolution = 384
+        video = torch.randint(
+            0, 255, (num_frames, 3, resolution, resolution), dtype=torch.uint8
+        )
 
         inputs = self.processor(video, return_tensors="pt")
 
-        if dtype_override is not None:
-            inputs = {
-                k: v.to(dtype_override) if hasattr(v, "to") else v
-                for k, v in inputs.items()
-            }
+        # Replicate for batch size
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        return dict(inputs)
+        if dtype_override is not None:
+            if "pixel_values_videos" in inputs:
+                inputs["pixel_values_videos"] = inputs["pixel_values_videos"].to(
+                    dtype_override
+                )
+
+        return inputs
