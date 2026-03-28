@@ -238,7 +238,10 @@ class ModelLoader(ForgeModel):
         shard_specs[model.model.norm.weight] = ("batch",)
 
         # lm_head sharding causes 20B hang: https://github.com/tenstorrent/tt-xla/issues/3484
-        if self._variant and self._variant == ModelVariant.GPT_OSS_120B:
+        if self._variant and self._variant in (
+            ModelVariant.GPT_OSS_120B,
+            ModelVariant.GPT_OSS_120B_BNB_4BIT,
+        ):
             shard_specs[model.lm_head.weight] = ("model", "batch")
         else:
             shard_specs[model.lm_head.weight] = (None, None)
