@@ -1,11 +1,10 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 FLUX.2 Klein GGUF model loader implementation for text-to-image generation
 """
 import torch
-from diffusers import GGUFQuantizationConfig
 from diffusers.models import Flux2Transformer2DModel
 from typing import Optional
 
@@ -24,21 +23,21 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available FLUX.2 Klein GGUF model variants."""
 
-    KLEIN_9B_Q4_K_M = "Klein_9B_Q4_K_M"
+    KLEIN_9B_KV_Q4_K_M = "Klein_9B_KV_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
     """FLUX.2 Klein GGUF model loader implementation for text-to-image generation tasks."""
 
     _VARIANTS = {
-        ModelVariant.KLEIN_9B_Q4_K_M: ModelConfig(
-            pretrained_model_name="unsloth/FLUX.2-klein-9B-GGUF",
+        ModelVariant.KLEIN_9B_KV_Q4_K_M: ModelConfig(
+            pretrained_model_name="QuantStack/FLUX.2-Klein-9B-KV-GGUF",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.KLEIN_9B_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.KLEIN_9B_KV_Q4_K_M
 
-    GGUF_FILE = "FLUX.2-klein-9B-Q4_K_M.gguf"
+    GGUF_FILE = "Flux-2-Klein-9B-KV-Q4_K_M.gguf"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -60,15 +59,17 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        compute_dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        quantization_config = GGUFQuantizationConfig(compute_dtype=compute_dtype)
+        load_kwargs = {"gguf_file": self.GGUF_FILE}
+        if dtype_override is not None:
+            load_kwargs["torch_dtype"] = dtype_override
 
-        repo_id = self._variant_config.pretrained_model_name
-        self.transformer = Flux2Transformer2DModel.from_single_file(
-            f"https://huggingface.co/{repo_id}/resolve/main/{self.GGUF_FILE}",
-            quantization_config=quantization_config,
-            torch_dtype=compute_dtype,
+        self.transformer = Flux2Transformer2DModel.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            **load_kwargs,
         )
+
+        if dtype_override is not None:
+            self.transformer = self.transformer.to(dtype_override)
 
         return self.transformer
 
