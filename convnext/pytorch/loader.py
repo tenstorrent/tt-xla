@@ -38,7 +38,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
-    LARGE_384 = "Large_384"
+    LARGE_FB_IN22K_FT_IN1K_384 = "Large_FB_IN22K_FT_IN1K_384"
 
 
 class ModelLoader(ForgeModel):
@@ -49,9 +49,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.LARGE_384: ConvNeXtConfig(
-            pretrained_model_name="facebook/convnext-large-384",
-            source=ModelSource.HUGGING_FACE,
+        ModelVariant.LARGE_FB_IN22K_FT_IN1K_384: ConvNeXtConfig(
+            pretrained_model_name="hf_hub:timm/convnext_large.fb_in22k_ft_in1k_384",
+            source=ModelSource.TIMM,
         ),
     }
 
