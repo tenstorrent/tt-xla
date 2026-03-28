@@ -81,7 +81,7 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         from f5_tts.model import DiT
-        from f5_tts.model.utils import load_checkpoint
+        from f5_tts.infer.utils_infer import load_checkpoint
 
         repo_id = self._variant_config.pretrained_model_name
 
