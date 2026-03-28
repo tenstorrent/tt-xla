@@ -2,20 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LFM2-VL (Liquid Foundation Model 2 Vision-Language) loader implementation
-for image-text-to-text generation.
-
-Supports LiquidAI's LFM2-VL vision-language model with SigLIP2 vision encoder.
+LFM2 VL model loader implementation for multimodal visual question answering.
 """
 
 import torch
-from PIL import Image
-from transformers import AutoModelForImageTextToText, AutoProcessor
+from transformers import AutoProcessor, AutoModelForImageTextToText
 from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -23,27 +19,24 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
-    """Available LFM2-VL model variants."""
+    """Available LFM2 VL model variants."""
 
-    LFM2_VL_3B = "LFM2_VL_3B"
+    LFM2_VL_3B = "3B"
 
 
 class ModelLoader(ForgeModel):
-    """LFM2-VL model loader for image-text-to-text generation."""
+    """LFM2 VL model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.LFM2_VL_3B: ModelConfig(
+        ModelVariant.LFM2_VL_3B: LLMModelConfig(
             pretrained_model_name="LiquidAI/LFM2-VL-3B",
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.LFM2_VL_3B
-
-    sample_text = "What is in this image?"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -53,58 +46,70 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
-            model="LFM2-VL",
+            model="LFM2 VL",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.MM_IMAGE_TTT,
+            task=ModelTask.MM_VISUAL_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self):
+    def _load_processor(self, dtype_override=None):
+        kwargs = {}
+        if dtype_override is not None:
+            kwargs["torch_dtype"] = dtype_override
+
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
+            **kwargs,
         )
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        model_name = self._variant_config.pretrained_model_name
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {}
+        if self.processor is None:
+            self._load_processor(dtype_override=dtype_override)
+
+        model_kwargs = {
+            "attn_implementation": "eager",
+        }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForImageTextToText.from_pretrained(model_name, **model_kwargs)
+        model = AutoModelForImageTextToText.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
         model.eval()
-
-        if self.processor is None:
-            self._load_processor()
-
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.processor is None:
-            self._load_processor()
+            self._load_processor(dtype_override=dtype_override)
 
-        image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file).convert("RGB")
-
-        conversation = [
+        messages = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": self.sample_text},
+                    {
+                        "type": "image",
+                        "image": "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg",
+                    },
+                    {
+                        "type": "text",
+                        "text": "What is shown in this image?",
+                    },
                 ],
             }
         ]
 
         inputs = self.processor.apply_chat_template(
-            conversation,
-            add_generation_prompt=True,
+            messages,
             tokenize=True,
+            add_generation_prompt=True,
             return_dict=True,
             return_tensors="pt",
         )
@@ -113,9 +118,22 @@ class ModelLoader(ForgeModel):
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        if dtype_override is not None:
-            for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].is_floating_point():
-                    inputs[key] = inputs[key].to(dtype_override)
-
         return inputs
+
+    def decode_output(self, outputs, input_length=None):
+        if isinstance(outputs, str):
+            return outputs
+
+        if self.processor is None:
+            self._load_processor()
+
+        tokenizer = self.processor.tokenizer
+
+        if torch.is_tensor(outputs) and outputs.dtype in [torch.long, torch.int]:
+            if input_length is not None:
+                outputs = outputs[:, input_length:]
+            return tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+        else:
+            logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+            next_token_id = torch.argmax(logits[:, -1, :], dim=-1)
+            return tokenizer.decode(next_token_id)
