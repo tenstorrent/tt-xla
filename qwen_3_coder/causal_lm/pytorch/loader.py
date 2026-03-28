@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_CODER_NEXT = "Next"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
+    QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4 = "30B_A3B_Instruct_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -41,10 +42,18 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4: LLMModelConfig(
+            pretrained_model_name="NVFP4/Qwen3-Coder-30B-A3B-Instruct-FP4",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.QWEN_3_CODER_NEXT
+
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4}
 
     # Shared configuration parameters
     sample_text = "Write a Python function that checks if a number is prime."
@@ -124,6 +133,8 @@ class ModelLoader(ForgeModel):
         # GPTQ variants need device_map="cpu" for CPU-based loading
         if pretrained_model_name == "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-8bit":
             model_kwargs["device_map"] = "cpu"
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
