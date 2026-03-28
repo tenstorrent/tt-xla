@@ -25,7 +25,6 @@ class ModelVariant(StrEnum):
     """Available Stable Cascade model variants."""
 
     STABLE_CASCADE_PRIOR = "Prior"
-    STABLE_CASCADE_PRIOR_LITE = "Prior_Lite"
 
 
 class ModelLoader(ForgeModel):
@@ -33,9 +32,6 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.STABLE_CASCADE_PRIOR: ModelConfig(
-            pretrained_model_name="stabilityai/stable-cascade-prior",
-        ),
-        ModelVariant.STABLE_CASCADE_PRIOR_LITE: ModelConfig(
             pretrained_model_name="stabilityai/stable-cascade-prior",
         ),
     }

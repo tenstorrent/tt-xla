@@ -7,7 +7,7 @@ Helper functions for Stable Cascade model loading and processing.
 """
 
 import torch
-from diffusers import StableCascadePriorPipeline, StableCascadeDecoderPipeline
+from diffusers import StableCascadePriorPipeline
 
 
 def load_prior_pipe(variant):
@@ -26,30 +26,6 @@ def load_prior_pipe(variant):
     pipe.to("cpu")
 
     for module in [pipe.prior, pipe.text_encoder]:
-        module.eval()
-        for param in module.parameters():
-            if param.requires_grad:
-                param.requires_grad = False
-
-    return pipe
-
-
-def load_decoder_pipe(variant):
-    """Load Stable Cascade decoder pipeline.
-
-    Args:
-        variant: Pretrained model name for the decoder
-
-    Returns:
-        StableCascadeDecoderPipeline: Loaded decoder pipeline with components set to eval mode
-    """
-    pipe = StableCascadeDecoderPipeline.from_pretrained(
-        variant, torch_dtype=torch.float32
-    )
-
-    pipe.to("cpu")
-
-    for module in [pipe.decoder, pipe.text_encoder, pipe.vqgan]:
         module.eval()
         for param in module.parameters():
             if param.requires_grad:
