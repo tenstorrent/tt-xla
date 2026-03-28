@@ -34,20 +34,20 @@ class TimeSformerConfig(ModelConfig):
 class ModelVariant(StrEnum):
     """Available TimeSformer model variants."""
 
-    BASE_FINETUNED_K400 = "Base_Finetuned_K400"
+    BASE_FINETUNED_K600 = "Base_Finetuned_K600"
 
 
 class ModelLoader(ForgeModel):
     """TimeSformer model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.BASE_FINETUNED_K400: TimeSformerConfig(
-            pretrained_model_name="facebook/timesformer-base-finetuned-k400",
+        ModelVariant.BASE_FINETUNED_K600: TimeSformerConfig(
+            pretrained_model_name="facebook/timesformer-base-finetuned-k600",
             num_frames=8,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE_FINETUNED_K400
+    DEFAULT_VARIANT = ModelVariant.BASE_FINETUNED_K600
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
