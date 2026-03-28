@@ -42,6 +42,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_397B_A17B_MLX_4BIT = "397B_A17B_MLX_4bit"
     QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF = "35B_A3B_Heretic_MXFP4_GGUF"
     QWEN_3_5_4B_IMATRIX_GGUF = "4B_imatrix_GGUF"
+    QWEN_3_5_35B_A3B_W4A16 = "35B_A3B_W4A16"
 
 
 class ModelLoader(ForgeModel):
@@ -119,6 +120,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_4B_IMATRIX_GGUF: LLMModelConfig(
             pretrained_model_name="ZuzeTt/Qwen3.5-4B-imatrix-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_W4A16: LLMModelConfig(
+            pretrained_model_name="apolo13x/Qwen3.5-35B-A3B-quantized.w4a16",
             max_length=128,
         ),
     }
@@ -233,10 +238,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["gguf_file"] = self._gguf_file
 
         # GPTQ variants need device_map="cpu" for CPU-based loading
-        if self._variant in (
-            ModelVariant.QWEN_3_5_35B_A3B_GPTQ_INT4,
-            ModelVariant.QWEN_3_5_122B_A10B_HERETIC_INT4,
-        ):
+        if self._variant in (ModelVariant.QWEN_3_5_35B_A3B_W4A16,):
             model_kwargs["device_map"] = "cpu"
 
         # AutoRound int4 variants need device_map="cpu" for CPU-based loading
@@ -347,6 +349,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_122B_A10B_GGUF,
             ModelVariant.QWEN_3_5_397B_A17B_MLX_4BIT,
             ModelVariant.QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF,
+            ModelVariant.QWEN_3_5_35B_A3B_W4A16,
         )
 
     def load_shard_spec(self, model):
