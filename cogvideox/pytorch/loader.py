@@ -72,13 +72,13 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the CogVideoX transformer model for this instance's variant.
+        """Load and return the CogVideoX pipeline for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            torch.nn.Module: The CogVideoX transformer model instance.
+            CogVideoXPipeline: The CogVideoX pipeline instance.
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -87,7 +87,7 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             self.pipeline = self.pipeline.to(dtype_override)
 
-        return self.pipeline.transformer
+        return self.pipeline
 
     def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the CogVideoX model.
@@ -116,6 +116,7 @@ class ModelLoader(ForgeModel):
             hidden_states = hidden_states.to(dtype_override)
             timestep = timestep.to(dtype_override)
             encoder_hidden_states = encoder_hidden_states.to(dtype_override)
-            image_rotary_emb = tuple(t.to(dtype_override) for t in image_rotary_emb)
+            if image_rotary_emb is not None:
+                image_rotary_emb = tuple(t.to(dtype_override) for t in image_rotary_emb)
 
         return [hidden_states, timestep, encoder_hidden_states, image_rotary_emb]
