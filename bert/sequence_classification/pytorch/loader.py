@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    JARVISX17_JAPANESE_SENTIMENT_ANALYSIS = "jarvisx17_Japanese_Sentiment_Analysis"
+    FAZAHMZ_NPS_TAG_CLASSIFIER = "fazahmz_nps_tag_classifier"
 
 
 class ModelLoader(ForgeModel):
@@ -51,8 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.JARVISX17_JAPANESE_SENTIMENT_ANALYSIS: LLMModelConfig(
-            pretrained_model_name="jarvisx17/japanese-sentiment-analysis",
+        ModelVariant.FAZAHMZ_NPS_TAG_CLASSIFIER: LLMModelConfig(
+            pretrained_model_name="fazahmz/nps-tag-classifier",
             max_length=128,
         ),
     }
@@ -71,7 +71,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.JARVISX17_JAPANESE_SENTIMENT_ANALYSIS: "この映画はとても面白かったです。",
+        ModelVariant.FAZAHMZ_NPS_TAG_CLASSIFIER: "The service was excellent and I would recommend it to everyone.",
     }
 
     def __init__(self, variant=None):
@@ -107,7 +107,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.JARVISX17_JAPANESE_SENTIMENT_ANALYSIS,
+            ModelVariant.FAZAHMZ_NPS_TAG_CLASSIFIER,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
