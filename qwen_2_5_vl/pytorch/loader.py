@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_VL_3B_INSTRUCT_AWQ = "3B_INSTRUCT_Awq"
     QWEN_2_5_VL_7B_INSTRUCT_AWQ = "7B_INSTRUCT_Awq"
     QWEN_2_5_VL_72B_INSTRUCT = "72B_Instruct"
-    QWEN_2_5_VL_3B_INSTRUCT_QUANTIZED_W8A8 = "3B_Instruct_Quantized_W8A8"
+    QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT = "7B_Instruct_BNB_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -53,9 +53,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_2_5_VL_72B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2.5-VL-72B-Instruct",
         ),
-        # RedHatAI INT8 quantized variant
-        ModelVariant.QWEN_2_5_VL_3B_INSTRUCT_QUANTIZED_W8A8: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen2.5-VL-3B-Instruct-quantized.w8a8",
+        ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen2.5-VL-7B-Instruct-unsloth-bnb-4bit",
         ),
     }
 
@@ -103,7 +102,7 @@ class ModelLoader(ForgeModel):
         """
         if variant == ModelVariant.QWEN_2_5_VL_3B_INSTRUCT:
             group = ModelGroup.RED
-        elif variant == ModelVariant.QWEN_2_5_VL_3B_INSTRUCT_QUANTIZED_W8A8:
+        elif variant == ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
@@ -151,7 +150,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs = {"low_cpu_mem_usage": True, "use_cache": False}
 
-        # Check if this is an AWQ variant and configure accordingly
+        # Check if this is an AWQ or BNB variant and configure accordingly
         if pretrained_model_name in [
             "Qwen/Qwen2.5-VL-3B-Instruct-AWQ",
             "Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
@@ -159,6 +158,10 @@ class ModelLoader(ForgeModel):
         ]:
             quantization_config = AwqConfig(version="ipex")
             model_kwargs["quantization_config"] = quantization_config
+            model_kwargs["device_map"] = "cpu"
+        elif pretrained_model_name in [
+            "unsloth/Qwen2.5-VL-7B-Instruct-unsloth-bnb-4bit",
+        ]:
             model_kwargs["device_map"] = "cpu"
 
         # Load the model with dtype override if specified
