@@ -28,8 +28,7 @@ class ModelVariant(StrEnum):
     NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
     NEMOTRON_3_NANO_30B_A3B_MLX_4BIT = "3_Nano_30B_A3B_MLX_4bit"
     NEMOTRON_3_SUPER_120B_A12B_NVFP4 = "3_Super_120B_A12B_NVFP4"
-    LLAMA_3_3_NEMOTRON_SUPER_49B_V1_5_FP8 = "Llama_3_3_Super_49B_v1_5_FP8"
-    RESEARCH_REASONING_QWEN_1_5B = "Research_Reasoning_Qwen_1_5B"
+    NEMOTRON_NANO_9B_V2_NVFP4 = "Nano_9B_v2_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -52,12 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.LLAMA_3_3_NEMOTRON_SUPER_49B_V1_5_FP8: LLMModelConfig(
-            pretrained_model_name="nvidia/Llama-3_3-Nemotron-Super-49B-v1_5-FP8",
-            max_length=128,
-        ),
-        ModelVariant.RESEARCH_REASONING_QWEN_1_5B: LLMModelConfig(
-            pretrained_model_name="nvidia/Nemotron-Research-Reasoning-Qwen-1.5B",
+        ModelVariant.NEMOTRON_NANO_9B_V2_NVFP4: LLMModelConfig(
+            pretrained_model_name="nvidia/NVIDIA-Nemotron-Nano-9B-v2-NVFP4",
             max_length=128,
         ),
     }
@@ -106,15 +101,8 @@ class ModelLoader(ForgeModel):
     # because the packed FP4 weight shapes differ from the model definition.
     _NVFP4_VARIANTS = {
         ModelVariant.NEMOTRON_3_SUPER_120B_A12B_NVFP4,
-        ModelVariant.UNSLOTH_NEMOTRON_3_SUPER_120B_A12B_NVFP4,
-        ModelVariant.LLAMA_3_3_NEMOTRON_SUPER_49B_V1_5_NVFP4,
+        ModelVariant.NEMOTRON_NANO_9B_V2_NVFP4,
     }
-
-    # Base (non-instruct) variants that lack a chat template.
-    _BASE_VARIANTS = {ModelVariant.NEMOTRON_CC_NORWEGIAN_TOWER_9B}
-
-    # Qwen2-based variants don't support enable_thinking in chat templates.
-    _QWEN2_VARIANTS = {ModelVariant.RESEARCH_REASONING_QWEN_1_5B}
 
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
