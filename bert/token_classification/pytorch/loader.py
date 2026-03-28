@@ -78,7 +78,7 @@ class ModelLoader(ForgeModel):
             self.sample_text = "O autor João da Silva, portador do CPF 123.456.789-00, residente na Rua das Flores, 123, São Paulo"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
-        self.max_length = 128
+        self.max_length = self._variant_config.max_length
         self.tokenizer = None
 
     @classmethod
