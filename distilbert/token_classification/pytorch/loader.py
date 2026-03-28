@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL = (
         "Davlan/distilbert-base-multilingual-cased-ner-hrl"
     )
+    MIRTH_CHONKY_DISTILBERT_BASE_UNCASED_1 = "mirth/chonky_distilbert_base_uncased_1"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL: LLMModelConfig(
             pretrained_model_name="Davlan/distilbert-base-multilingual-cased-ner-hrl",
+            max_length=128,
+        ),
+        ModelVariant.MIRTH_CHONKY_DISTILBERT_BASE_UNCASED_1: LLMModelConfig(
+            pretrained_model_name="mirth/chonky_distilbert_base_uncased_1",
             max_length=128,
         ),
     }
@@ -69,10 +74,13 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
+        group = ModelGroup.GENERALITY
+        if variant_name in (ModelVariant.MIRTH_CHONKY_DISTILBERT_BASE_UNCASED_1,):
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="DistilBERT",
             variant=variant_name,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
