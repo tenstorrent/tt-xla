@@ -30,11 +30,19 @@ class DINOv3Config(ModelConfig):
     source: ModelSource = ModelSource.HUGGING_FACE
 
 
+@dataclass
+class DINOv3Config(ModelConfig):
+    """Configuration specific to DINOv3 models."""
+
+    source: ModelSource = ModelSource.HUGGING_FACE
+
+
 class ModelVariant(StrEnum):
     """Available DINOv3 ViT feature extraction model variants."""
 
     BASE = "Base"
     SMALL_PLUS = "Small+"
+    VIT_LARGE_PATCH16_SAT493M = "Large_Patch16_SAT493M"
 
 
 class ModelLoader(ForgeModel):
@@ -45,15 +53,13 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="facebook/dinov3-vitb16-pretrain-lvd1689m",
             source=ModelSource.HUGGING_FACE,
         ),
-        ModelVariant.SMALL_QKVB: DINOv3Config(
-            pretrained_model_name="vit_small_patch16_dinov3_qkvb.lvd1689m",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.LARGE: ModelConfig(
-            pretrained_model_name="camenduru/dinov3-vitl16-pretrain-lvd1689m",
-        ),
-        ModelVariant.SMALL_PLUS: ModelConfig(
+        ModelVariant.SMALL_PLUS: DINOv3Config(
             pretrained_model_name="facebook/dinov3-vits16plus-pretrain-lvd1689m",
+            source=ModelSource.HUGGING_FACE,
+        ),
+        ModelVariant.VIT_LARGE_PATCH16_SAT493M: DINOv3Config(
+            pretrained_model_name="vit_large_patch16_dinov3.sat493m",
+            source=ModelSource.TIMM,
         ),
     }
 
@@ -123,14 +129,8 @@ class ModelLoader(ForgeModel):
         if source == ModelSource.TIMM:
             import timm
 
-            model = timm.create_model(
-                pretrained_model_name, pretrained=True, num_classes=0
-            )
-            if dtype_override is not None:
-                model = model.to(dtype_override)
-        elif source == ModelSource.HUGGING_FACE:
-            from transformers import DINOv3ViTModel
-
+            model = timm.create_model(pretrained_model_name, pretrained=True)
+        else:
             model_kwargs = {}
             if dtype_override is not None:
                 model_kwargs["torch_dtype"] = dtype_override
@@ -146,6 +146,11 @@ class ModelLoader(ForgeModel):
         if self._preprocessor is not None:
             self._preprocessor.set_cached_model(model)
 
+        self._model = model
+
+        if dtype_override is not None and source == ModelSource.TIMM:
+            model = model.to(dtype_override)
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1, image=None):
@@ -157,32 +162,27 @@ class ModelLoader(ForgeModel):
             image: Optional input image. If None, loads from HuggingFace datasets.
 
         Returns:
-            Model inputs (dict for HuggingFace, tensor for TIMM).
+            dict or torch.Tensor: Input tensors that can be fed to the model.
         """
-        if image is None:
-            dataset = load_dataset("huggingface/cats-image", split="test")
-            image = dataset[0]["image"]
-
         source = self._variant_config.source
 
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
+
         if source == ModelSource.TIMM:
-            if self._preprocessor is None:
-                model_name = self._variant_config.pretrained_model_name
-                self._preprocessor = VisionPreprocessor(
-                    model_source=source,
-                    model_name=model_name,
-                )
-                if self.model is not None:
-                    self._preprocessor.set_cached_model(self.model)
+            import timm
 
-            model_for_config = self.model if self.model is not None else None
+            data_config = timm.data.resolve_model_data_config(self._model)
+            transforms = timm.data.create_transform(**data_config, is_training=False)
+            pixel_values = transforms(image).unsqueeze(0)
 
-            return self._preprocessor.preprocess(
-                image=image,
-                dtype_override=dtype_override,
-                batch_size=batch_size,
-                model_for_config=model_for_config,
-            )
+            if batch_size > 1:
+                pixel_values = pixel_values.repeat_interleave(batch_size, dim=0)
+
+            if dtype_override is not None and pixel_values.dtype.is_floating_point:
+                pixel_values = pixel_values.to(dtype_override)
+
+            return pixel_values
         else:
             if self.processor is None:
                 self._load_processor()
