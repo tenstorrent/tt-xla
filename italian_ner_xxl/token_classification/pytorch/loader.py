@@ -24,6 +24,7 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available Italian NER XXL model variants for token classification."""
 
+    ITALIAN_NER_XXL = "DeepMount00/Italian_NER_XXL"
     ITALIAN_NER_XXL_V2 = "DeepMount00/Italian_NER_XXL_v2"
 
 
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     """Italian NER XXL model loader implementation for token classification."""
 
     _VARIANTS = {
+        ModelVariant.ITALIAN_NER_XXL: ModelConfig(
+            pretrained_model_name="DeepMount00/Italian_NER_XXL",
+        ),
         ModelVariant.ITALIAN_NER_XXL_V2: ModelConfig(
             pretrained_model_name="DeepMount00/Italian_NER_XXL_v2",
         ),
