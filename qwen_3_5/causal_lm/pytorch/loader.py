@@ -44,6 +44,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_4B_MLX_4BIT = "4B_MLX_4BIT"
     QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
     QWEN_3_5_27B_ESPER3_1_I1_GGUF = "27B_Esper3.1_i1_GGUF"
+    QWEN_3_5_35B_A3B_MLX_MXFP4 = "35B_A3B_MLX_MXFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -129,6 +130,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_27B_ESPER3_1_I1_GGUF: LLMModelConfig(
             pretrained_model_name="mradermacher/Qwen3.5-27B-Esper3.1-i1-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_MLX_MXFP4: LLMModelConfig(
+            pretrained_model_name="RepublicOfKorokke/Qwen3.5-35B-A3B-mlx-lm-mxfp4",
             max_length=128,
         ),
     }
@@ -343,6 +348,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
             ModelVariant.QWEN_3_5_35B_A3B_GGUF,
+            ModelVariant.QWEN_3_5_35B_A3B_MLX_MXFP4,
             ModelVariant.QWEN_3_5_122B_A10B_GGUF,
         )
 
