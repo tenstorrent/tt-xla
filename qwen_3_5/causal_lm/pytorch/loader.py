@@ -46,7 +46,7 @@ class ModelLoader(ForgeModel):
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
         ModelVariant.QWEN_3_5_0_8B: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3.5-0.8B",
+            pretrained_model_name="Qwen/Qwen3.5-0.8B",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_2B: LLMModelConfig(
