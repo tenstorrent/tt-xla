@@ -47,10 +47,8 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
 
-        # Get the pretrained model name from the instance's variant config
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        self.model_name = pretrained_model_name
-        self.max_length = 128
+        self.model_name = self._variant_config.pretrained_model_name
+        self.max_length = self._variant_config.max_length
         self.tokenizer = None
         self.review = "今天天气真好，心情很愉快。"
 
