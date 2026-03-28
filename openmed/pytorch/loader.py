@@ -157,7 +157,7 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        variant_input = self._VARIANT_INPUTS[self.variant]
+        variant_input = self._VARIANT_INPUTS[self._variant]
         text = variant_input["text"]
         self.text = [text]
         labels = variant_input["labels"]
