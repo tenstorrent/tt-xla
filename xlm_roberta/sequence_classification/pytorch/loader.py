@@ -138,7 +138,9 @@ class ModelLoader(ForgeModel):
             predicted_category = model.config.id2label[predicted_class_id]
             if self._is_nli_variant():
                 print(f"Predicted Label: {predicted_category}")
-            else:
+            elif self._variant == ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT:
                 print(f"Predicted Sentiment: {predicted_category}")
+            else:
+                print(f"Predicted Category: {predicted_category}")
         else:
             print(f"Predicted class ID: {predicted_class_id}")
