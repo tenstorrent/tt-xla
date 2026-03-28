@@ -50,7 +50,7 @@ class ModelVariant(StrEnum):
         "Small_24B_INSTRUCT_2501_Quantized_W8A8"
     )
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MISTRAL_7B_INSTRUCT_V03_GPTQ = "7B_INSTRUCT_v03_GPTQ"
+    MISTRAL_SMALL_24B_INSTRUCT_2501_AWQ = "Small_24B_INSTRUCT_2501_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -135,8 +135,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.MISTRAL_7B_INSTRUCT_V03_GPTQ: ModelConfig(
-            pretrained_model_name="thesven/Mistral-7B-Instruct-v0.3-GPTQ",
+        ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_AWQ: ModelConfig(
+            pretrained_model_name="casperhansen/mistral-small-24b-instruct-2501-awq",
         ),
     }
 
@@ -176,6 +176,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_QUANTIZED_W8A8,
             ModelVariant.MAGISTRAL_SMALL_2509,
+            ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_AWQ,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
@@ -264,10 +265,21 @@ class ModelLoader(ForgeModel):
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_QUANTIZED_W8A8,
+            ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_AWQ,
         ):
             model_kwargs["device_map"] = "cpu"
 
-        if self.num_layers is not None:
+        # AWQ variants: strip quantization_config so weights load as plain
+        # tensors, and use MistralForCausalLM directly.
+        is_awq = self._variant == ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_AWQ
+        if is_awq:
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            if self.num_layers is not None:
+                config.num_hidden_layers = self.num_layers
+            delattr(config, "quantization_config")
+            model_kwargs["config"] = config
+
+        if not is_awq and self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -281,7 +293,7 @@ class ModelLoader(ForgeModel):
             model = Mistral3ForConditionalGeneration.from_pretrained(
                 pretrained_model_name, **model_kwargs
             ).eval()
-        elif self._variant in self._USE_MistralForCausalLM:
+        elif self._variant in self._USE_MistralForCausalLM or is_awq:
             # Load pre-trained model from HuggingFace using MistralForCausalLM
             model = MistralForCausalLM.from_pretrained(
                 pretrained_model_name, **model_kwargs
