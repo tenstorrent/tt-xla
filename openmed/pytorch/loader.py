@@ -22,12 +22,7 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_PROTEIN_LARGE = "ZeroShot-NER-Protein-Large-459M"
-    OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE = "ZeroShot-NER-Oncology-Base-220M"
-    OPENMED_ZEROSHOT_NER_GENOME_SMALL = "ZeroShot-NER-Genome-Small-166M"
-    OPENMED_ZEROSHOT_NER_GENOME_LARGE = "ZeroShot-NER-Genome-Large-459M"
-    OPENMED_ZEROSHOT_NER_ONCOLOGY_MULTI = "ZeroShot-NER-Oncology-Multi-209M"
-    OPENMED_ZEROSHOT_NER_PATHOLOGY_XLARGE = "ZeroShot-NER-Pathology-XLarge-770M"
+    OPENMED_ZEROSHOT_NER_PHARMA_LARGE = "ZeroShot-NER-Pharma-Large-459M"
 
 
 class ModelLoader(ForgeModel):
@@ -40,23 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Large-459M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_SMALL: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-Small-166M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-Large-459M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_MULTI: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Multi-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_XLARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-XLarge-770M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_LARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pharma-Large-459M"
         ),
     }
 
@@ -161,9 +141,13 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        text = self._SAMPLE_TEXTS[self._variant]
+        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_LARGE:
+            text = "Administration of metformin reduced glucose levels significantly."
+            labels = ["CHE"]
+        else:
+            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
+            labels = ["SPECIES"]
         self.text = [text]
-        labels = self._LABELS[self._variant]
         entity_types = list(dict.fromkeys(labels))
 
         (
