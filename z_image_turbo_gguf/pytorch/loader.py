@@ -4,11 +4,12 @@
 """
 Z-Image-Turbo GGUF model loader implementation.
 
-Loads the GGUF-quantized Z-Image-Turbo transformer from jayn7/Z-Image-Turbo-GGUF
-and plugs it into the Tongyi-MAI/Z-Image-Turbo pipeline.
+Loads GGUF-quantized Z-Image-Turbo transformers and plugs them into the
+Tongyi-MAI/Z-Image-Turbo pipeline.
 
 Available variants:
 - Z_IMAGE_TURBO_GGUF: GGUF-quantized DiT transformer (jayn7/Z-Image-Turbo-GGUF)
+- Z_IMAGE_TURBO_GGUF_LEEJET: GGUF-quantized DiT transformer (leejet/Z-Image-Turbo-GGUF)
 """
 
 from typing import Any, Optional
@@ -28,15 +29,19 @@ from ...config import (
     StrEnum,
 )
 
-GGUF_REPO_ID = "jayn7/Z-Image-Turbo-GGUF"
 PIPELINE_REPO_ID = "Tongyi-MAI/Z-Image-Turbo"
-GGUF_FILENAME = "z_image_turbo-Q4_0.gguf"
+
+_GGUF_CONFIGS = {
+    "jayn7/Z-Image-Turbo-GGUF": "z_image_turbo-Q4_0.gguf",
+    "leejet/Z-Image-Turbo-GGUF": "z_image_turbo-Q4_0.gguf",
+}
 
 
 class ModelVariant(StrEnum):
     """Available Z-Image-Turbo GGUF model variants."""
 
     Z_IMAGE_TURBO_GGUF = "Z-Image-Turbo-GGUF"
+    Z_IMAGE_TURBO_GGUF_LEEJET = "Z-Image-Turbo-GGUF-leejet"
 
 
 class ModelLoader(ForgeModel):
@@ -44,7 +49,10 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.Z_IMAGE_TURBO_GGUF: ModelConfig(
-            pretrained_model_name=GGUF_REPO_ID,
+            pretrained_model_name="jayn7/Z-Image-Turbo-GGUF",
+        ),
+        ModelVariant.Z_IMAGE_TURBO_GGUF_LEEJET: ModelConfig(
+            pretrained_model_name="leejet/Z-Image-Turbo-GGUF",
         ),
     }
     DEFAULT_VARIANT = ModelVariant.Z_IMAGE_TURBO_GGUF
@@ -68,9 +76,11 @@ class ModelLoader(ForgeModel):
 
     def _load_pipeline(self, dtype: torch.dtype = torch.bfloat16) -> ZImagePipeline:
         """Load the Z-Image-Turbo pipeline with GGUF-quantized transformer."""
+        repo_id = self._variant_config.pretrained_model_name
+        gguf_filename = _GGUF_CONFIGS[repo_id]
         gguf_path = hf_hub_download(
-            repo_id=GGUF_REPO_ID,
-            filename=GGUF_FILENAME,
+            repo_id=repo_id,
+            filename=gguf_filename,
         )
         transformer = ZImageTransformer2DModel.from_single_file(
             gguf_path,
