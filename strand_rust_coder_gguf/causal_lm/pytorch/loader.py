@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.STRAND_RUST_CODER_14B_V1_GGUF
 
-    GGUF_FILE = "Strand-Rust-Coder-14B-v1-Q4_K_M.gguf"
+    GGUF_FILE = "Strand-Rust-Coder-14B-v1-q4_k_m.gguf"
 
     sample_text = "Write a Rust function that checks if a number is prime."
 
