@@ -43,6 +43,7 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.processor = None
+        self.model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -78,6 +79,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **model_kwargs
         )
         model.eval()
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -92,25 +94,19 @@ class ModelLoader(ForgeModel):
         conversation = [
             {
                 "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": "Describe this image."},
-                ],
-            }
+                "content": "<image>\nDescribe this image.",
+            },
+            {"role": "assistant", "content": ""},
         ]
 
-        text = self.processor.apply_chat_template(
-            conversation, tokenize=False, add_generation_prompt=True
-        )
-
         inputs = self.processor(
-            text=text,
+            conversations=conversation,
             images=[image],
-            return_tensors="pt",
+            force_batchify=True,
         )
 
         if dtype_override is not None:
-            if "pixel_values" in inputs:
-                inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
+            if inputs.images is not None:
+                inputs.images = inputs.images.to(dtype_override)
 
         return inputs
