@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     MINISTRAL_3_8B_BASE_2512 = "Ministral_3_8B_Base_2512"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
+    MISTRAL_7B_UTTERANCE = "7B_utterance"
     TINY_RANDOM = "tiny_random"
 
 
@@ -135,8 +136,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         ),
-        ModelVariant.MINISTRAL_3_8B_BASE_2512: ModelConfig(
-            pretrained_model_name="mistralai/Ministral-3-8B-Base-2512",
+        ModelVariant.MISTRAL_7B_UTTERANCE: ModelConfig(
+            pretrained_model_name="akashdutta1030/mistral-7b-utterance",
         ),
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
@@ -179,6 +180,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
+            ModelVariant.MISTRAL_7B_UTTERANCE,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MISTRAL_NEMO_BASE_2407,
             ModelVariant.TINY_RANDOM,
