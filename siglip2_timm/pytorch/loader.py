@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
 
 # Mapping from variant to OpenCLIP tokenizer name
 _TOKENIZER_NAME = {
-    ModelVariant.VIT_L_16_512: "ViT-L-16-SigLIP2-512",
+    ModelVariant.VIT_L_16_512: "hf-hub:timm/ViT-L-16-SigLIP2-512",
 }
 
 
