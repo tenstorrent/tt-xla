@@ -2,58 +2,58 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER GenomeDetect model loader implementation
+OpenMed NER GenomeDetect model loader implementation for token classification.
 """
 
 import torch
-from typing import Optional
-from transformers import BertForTokenClassification, AutoTokenizer
-
-from ....config import (
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
-    LLMModelConfig,
     StrEnum,
+    LLMModelConfig,
 )
-from ....base import ForgeModel
+from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    OPENMED_NER_GENOMEDETECT_ELECTRAMED_335M = "NER-GenomeDetect-ElectraMed-335M"
+    """Available OpenMed NER GenomeDetect model variants."""
+
+    OPENMED_NER_GENOMEDETECT_TINYMED_135M = (
+        "OpenMed/OpenMed-NER-GenomeDetect-TinyMed-135M"
+    )
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER GenomeDetect model loader implementation."""
+    """OpenMed NER GenomeDetect model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_GENOMEDETECT_ELECTRAMED_335M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-ElectraMed-335M",
+        ModelVariant.OPENMED_NER_GENOMEDETECT_TINYMED_135M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-TinyMed-135M",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_GENOMEDETECT_ELECTRAMED_335M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_GENOMEDETECT_TINYMED_135M
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant."""
+    def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
-        self.max_length = self._variant_config.max_length
-        self.sample_text = (
-            "The EGFR gene mutation was identified in lung cancer patients."
-        )
+        self.sample_text = "The p53 protein plays a crucial role in tumor suppression."
+        self.max_length = 128
         self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name=None):
+        if variant_name is None:
+            variant_name = "base"
+
         return ModelInfo(
-            model="OpenMed",
-            variant=variant,
+            model="OpenMed NER GenomeDetect",
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -61,7 +61,6 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the OpenMed NER GenomeDetect model."""
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
@@ -69,7 +68,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = BertForTokenClassification.from_pretrained(
+        model = AutoModelForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
         self.model = model
@@ -77,7 +76,6 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Prepare sample input for the NER model."""
         if self.tokenizer is None:
             self.load_model(dtype_override=dtype_override)
 
@@ -92,7 +90,6 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
-        """Decode the model output for token classification."""
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(

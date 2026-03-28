@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER GenomeDetect PyTorch model implementation for Tenstorrent projects.
+OpenMed NER GenomeDetect PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant
