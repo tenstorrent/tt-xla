@@ -7,8 +7,6 @@ FastViT model loader implementation (timm variants)
 
 from typing import Optional
 
-import torch
-
 import timm
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
