@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LLaVA-OneVision 1.5 PyTorch model loader implementation.
+LLaVA-OneVision-1.5 PyTorch model loader implementation.
 """
 from .loader import ModelLoader, ModelVariant
 
