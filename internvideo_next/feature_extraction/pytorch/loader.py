@@ -13,7 +13,7 @@ and produces dense feature representations.
 from typing import Optional
 
 import torch
-from transformers import AutoModel, VideoMAEImageProcessor
+from transformers import AutoModel
 
 from ....base import ForgeModel
 from ....config import (
@@ -52,7 +52,6 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self._processor = None
         self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
