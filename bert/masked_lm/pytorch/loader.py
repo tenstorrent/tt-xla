@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_UNCASED_L2_H256_A4 = "bert_uncased_L-2_H-256_A-4"
     GBERT_BASE = "deepset/gbert-base"
+    BERT_BASE_ROMANIAN_CASED_V1 = "dumitrescustefan/bert-base-romanian-cased-v1"
 
 
 class ModelLoader(ForgeModel):
@@ -75,6 +76,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GBERT_BASE: LLMModelConfig(
             pretrained_model_name="deepset/gbert-base",
+            max_length=128,
+        ),
+        ModelVariant.BERT_BASE_ROMANIAN_CASED_V1: LLMModelConfig(
+            pretrained_model_name="dumitrescustefan/bert-base-romanian-cased-v1",
             max_length=128,
         ),
     }
@@ -122,6 +127,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_UNCASED_L2_H256_A4,
             ModelVariant.GBERT_BASE,
+            ModelVariant.BERT_BASE_ROMANIAN_CASED_V1,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
