@@ -34,14 +34,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
-    QWEN_3_5_35B_A3B_TXN545_NVFP4 = "35B_A3B_txn545_NVFP4"
-    QWEN_3_5_35B_A3B_I1_GGUF = "35B_A3B_i1_GGUF"
-    QWEN_3_5_122B_A10B_HERETIC_GGUF = "122B_A10B_Heretic_GGUF"
-    QWEN_3_5_397B_A17B = "397B_A17B"
-    QWEN_3_5_35B_A3B_HERETIC_V2_GGUF = "35B_A3B_Heretic_v2_GGUF"
-    QWEN_3_5_9B_CLAUDE_REASONING_DISTILLED = "9B_Claude_Reasoning_Distilled"
-    QWEN_3_5_2B_AWQ_4BIT = "2B_AWQ_4bit"
-    QWEN_3_5_27B_HERETIC_I1_GGUF = "27B_Heretic_i1_GGUF"
+    QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -89,36 +82,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-35B-A3B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_5_35B_A3B_TXN545_NVFP4: LLMModelConfig(
-            pretrained_model_name="txn545/Qwen3.5-35B-A3B-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_35B_A3B_HERETIC_V2_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-heretic-v2-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_122B_A10B_HERETIC_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-122B-A10B-heretic-i1-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_397B_A17B: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3.5-397B-A17B",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_9B_CLAUDE_REASONING_DISTILLED: LLMModelConfig(
-            pretrained_model_name="Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_2B_AWQ_4BIT: LLMModelConfig(
-            pretrained_model_name="cyankiwi/Qwen3.5-2B-AWQ-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_5_27B_HERETIC_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-27B-heretic-i1-GGUF",
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
+            pretrained_model_name="janhq/Qwen3.5-35B-A3B-GGUF",
             max_length=128,
         ),
     }
@@ -130,10 +95,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_I1_GGUF: "Qwen3.5-35B-A3B.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_HERETIC_V2_GGUF: "Qwen3.5-35B-A3B-heretic-v2.Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_122B_A10B_HERETIC_GGUF: "Qwen3.5-122B-A10B-heretic.i1-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_27B_HERETIC_I1_GGUF: "Qwen3.5-27B-heretic.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Qwen3.5-35B-A3B-Q4_K_S.gguf",
     }
 
     # Shared configuration parameters
