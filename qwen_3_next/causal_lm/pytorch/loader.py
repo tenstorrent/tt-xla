@@ -24,8 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Next model variants for causal language modeling."""
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
-    QWEN_3_NEXT_80B_A3B_INSTRUCT_NVFP4 = "80B_A3B_Instruct_NVFP4"
-    QWEN_3_NEXT_MOE_TINY_RANDOM = "MOE_Tiny_Random"
+    QWEN_3_NEXT_80B_A3B_INSTRUCT_BNB_4BIT_UNSLOTH = "80B_A3B_Instruct_Bnb_4bit_Unsloth"
 
 
 class ModelLoader(ForgeModel):
@@ -37,12 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_NVFP4: LLMModelConfig(
-            pretrained_model_name="nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_NEXT_MOE_TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="yujiepan/qwen3-next-moe-tiny-random",
+        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_BNB_4BIT_UNSLOTH: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-Next-80B-A3B-Instruct-bnb-4bit",
             max_length=128,
         ),
     }
