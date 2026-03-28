@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
     QWEN_3_NEXT_80B_A3B_INSTRUCT_NVFP4 = "80B_A3B_Instruct_NVFP4"
+    QWEN_3_NEXT_MOE_TINY_RANDOM = "MOE_Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_NVFP4: LLMModelConfig(
             pretrained_model_name="nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_NEXT_MOE_TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="yujiepan/qwen3-next-moe-tiny-random",
             max_length=128,
         ),
     }
