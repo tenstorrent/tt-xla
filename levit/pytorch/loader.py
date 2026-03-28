@@ -7,6 +7,7 @@ LeViT model loader implementation
 
 from typing import Optional
 
+import torch
 from transformers import LevitModel, AutoImageProcessor
 from datasets import load_dataset
 
@@ -81,15 +82,11 @@ class ModelLoader(ForgeModel):
         inputs = self.processor(images=image, return_tensors="pt")
 
         if batch_size > 1:
-            import torch
-
             for key in inputs:
                 if torch.is_tensor(inputs[key]):
                     inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         if dtype_override is not None:
-            import torch
-
             for key in inputs:
                 if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
                     inputs[key] = inputs[key].to(dtype_override)
