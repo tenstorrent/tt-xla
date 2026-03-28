@@ -22,7 +22,7 @@ class ModelVariant(StrEnum):
     """Available ELECTRA discriminator model variants."""
 
     BASE_DISCRIMINATOR = "Base_Discriminator"
-    CHINESE_180G_SMALL_EX = "Chinese_180g_Small_Ex"
+    LARGE_DISCRIMINATOR = "Large_Discriminator"
 
 
 class ModelLoader(ForgeModel):
@@ -33,8 +33,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/electra-base-discriminator",
             max_length=128,
         ),
-        ModelVariant.CHINESE_180G_SMALL_EX: LLMModelConfig(
-            pretrained_model_name="hfl/chinese-electra-180g-small-ex-discriminator",
+        ModelVariant.LARGE_DISCRIMINATOR: LLMModelConfig(
+            pretrained_model_name="google/electra-large-discriminator",
             max_length=128,
         ),
     }
