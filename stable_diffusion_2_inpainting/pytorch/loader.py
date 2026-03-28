@@ -32,7 +32,7 @@ class ModelLoader(ForgeModel):
     # Dictionary of available model variants
     _VARIANTS = {
         ModelVariant.BASE: ModelConfig(
-            pretrained_model_name="stabilityai/stable-diffusion-2-inpainting",
+            pretrained_model_name="sd2-community/stable-diffusion-2-inpainting",
         )
     }
 
