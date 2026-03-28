@@ -62,6 +62,7 @@ class ModelVariant(StrEnum):
 
     # AMD FP8 quantized variants
     LLAMA_3_1_8B_INSTRUCT_FP8_KV = "3.1_8B_Instruct_FP8_KV"
+    LLAMA_3_1_8B_INSTRUCT_FP8_KV_QUARK_TEST = "3.1_8B_Instruct_FP8_KV_Quark_Test"
 
     # hugging-quants AWQ INT4 quantized variants
     LLAMA_3_1_8B_INSTRUCT_AWQ_INT4 = "3.1_8B_Instruct_Awq_Int4"
@@ -193,6 +194,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="amd/Llama-3.1-8B-Instruct-FP8-KV",
             max_length=128,
         ),
+        ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV_QUARK_TEST: LLMModelConfig(
+            pretrained_model_name="amd/Llama-3.1-8B-Instruct-FP8-KV-Quark-test",
+            max_length=128,
+        ),
         # hugging-quants AWQ INT4 quantized variants
         ModelVariant.LLAMA_3_1_8B_INSTRUCT_AWQ_INT4: LLMModelConfig(
             pretrained_model_name="hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
@@ -314,6 +319,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV,
+            ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV_QUARK_TEST,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_4BIT,
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_4BIT,
         ]:
