@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_TINY = "ZeroShot-NER-Pharma-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PROTEIN_MULTI = "ZeroShot-NER-Protein-Multi-209M"
+    OPENMED_ZEROSHOT_NER_PROTEIN_TINY = "ZeroShot-NER-Protein-Tiny-60M"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_MULTI: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Multi-209M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_TINY: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Tiny-60M"
         ),
     }
 
@@ -169,7 +173,10 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_MULTI:
+        if self._variant in (
+            ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_MULTI,
+            ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_TINY,
+        ):
             text = "The p53 tumor suppressor protein interacts with the MDM2-MDMX complex to regulate cell cycle arrest."
             labels = [
                 "protein",
