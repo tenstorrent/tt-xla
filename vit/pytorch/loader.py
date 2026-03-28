@@ -48,7 +48,7 @@ class ModelVariant(StrEnum):
     # TIMM variants
     VIT_BASE_PATCH14_DINOV2_LVD142M = "Base_Patch14_DINOv2_LVD142M"
     VIT_BASE_PATCH16_224_AUGREG_IN21K = "Base_Patch16_224_AugReg_IN21K"
-    VIT_LARGE_PATCH16_SIGLIP_256_V2_WEBLI = "Large_Patch16_SigLIP_256_v2_WebLI"
+    VIT_BASE_PATCH32_CLIP_224_LAION400M_E31 = "Base_Patch32_CLIP_224_LAION400M_E31"
 
 
 class ModelLoader(ForgeModel):
@@ -95,8 +95,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="vit_base_patch16_224.augreg_in21k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.VIT_LARGE_PATCH16_SIGLIP_256_V2_WEBLI: ViTConfig(
-            pretrained_model_name="vit_large_patch16_siglip_256.v2_webli",
+        ModelVariant.VIT_BASE_PATCH32_CLIP_224_LAION400M_E31: ViTConfig(
+            pretrained_model_name="vit_base_patch32_clip_224.laion400m_e31",
             source=ModelSource.TIMM,
         ),
     }
