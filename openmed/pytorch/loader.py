@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PHARMA_LARGE = "ZeroShot-NER-Pharma-Large-459M"
     OPENMED_ZEROSHOT_NER_DISEASE_BASE = "ZeroShot-NER-Disease-Base-220M"
+    OPENMED_ZEROSHOT_NER_BLOODCANCER_MULTI = "ZeroShot-NER-BloodCancer-Multi-209M"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_BASE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-Base-220M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_BLOODCANCER_MULTI: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-BloodCancer-Multi-209M"
         ),
     }
 
@@ -151,6 +155,9 @@ class ModelLoader(ForgeModel):
         elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_BASE:
             text = "The patient was diagnosed with diabetes mellitus type 2."
             labels = ["DISEASE"]
+        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_BLOODCANCER_MULTI:
+            text = "The patient presented with chronic lymphocytic leukemia symptoms."
+            labels = ["CL"]
         else:
             text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
             labels = ["SPECIES"]
