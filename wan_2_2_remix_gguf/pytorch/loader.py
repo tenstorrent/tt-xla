@@ -36,8 +36,8 @@ from ...config import (
 )
 
 GGUF_REPO = "BigDannyPt/Wan-2.2-Remix-GGUF"
-T2V_BASE_PIPELINE = "Wan-AI/Wan2.2-T2V-14B-Diffusers"
-I2V_BASE_PIPELINE = "Wan-AI/Wan2.2-I2V-14B-Diffusers"
+T2V_BASE_PIPELINE = "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
+I2V_BASE_PIPELINE = "Wan-AI/Wan2.2-I2V-A14B-Diffusers"
 
 
 class ModelVariant(StrEnum):
