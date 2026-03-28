@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_VL_3B_INSTRUCT_AWQ = "3B_INSTRUCT_Awq"
     QWEN_2_5_VL_7B_INSTRUCT_AWQ = "7B_INSTRUCT_Awq"
     QWEN_2_5_VL_72B_INSTRUCT = "72B_Instruct"
-    QWEN_2_5_VL_7B_ABLITERATED_CAPTION_IT = "7B_Abliterated_Caption_It"
+    QWEN_2_5_VL_7B_INSTRUCT_NVFP4 = "7B_Instruct_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -53,8 +53,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_2_5_VL_72B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2.5-VL-72B-Instruct",
         ),
-        ModelVariant.QWEN_2_5_VL_7B_ABLITERATED_CAPTION_IT: LLMModelConfig(
-            pretrained_model_name="prithivMLmods/Qwen2.5-VL-7B-Abliterated-Caption-it",
+        ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_NVFP4: LLMModelConfig(
+            pretrained_model_name="nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
         ),
     }
 
@@ -102,7 +102,7 @@ class ModelLoader(ForgeModel):
         """
         if variant == ModelVariant.QWEN_2_5_VL_3B_INSTRUCT:
             group = ModelGroup.RED
-        elif variant == ModelVariant.QWEN_2_5_VL_7B_ABLITERATED_CAPTION_IT:
+        elif variant == ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_NVFP4:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
@@ -135,6 +135,10 @@ class ModelLoader(ForgeModel):
 
         return self.processor
 
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_NVFP4}
+
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Qwen 2.5 VL model instance for this instance's variant.
 
@@ -164,6 +168,9 @@ class ModelLoader(ForgeModel):
             "unsloth/Qwen2.5-VL-7B-Instruct-bnb-4bit",
         ]:
             model_kwargs["device_map"] = "cpu"
+
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
 
         # Load the model with dtype override if specified
         if dtype_override is not None:
