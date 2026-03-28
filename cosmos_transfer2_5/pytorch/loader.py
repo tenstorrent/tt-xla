@@ -198,7 +198,6 @@ class ModelLoader(ForgeModel):
         latent_num_frames = 2
         latent_height = 2
         latent_width = 2
-        video_seq_len = latent_num_frames * latent_height * latent_width
 
         hidden_states = torch.randn(
             batch_size,
