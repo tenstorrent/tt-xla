@@ -1,53 +1,41 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
 """
-MMS TTS model loader implementation for text-to-speech tasks using VITS architecture.
+MMS-TTS model loader implementation for text-to-speech tasks.
 """
 
 from typing import Optional
 
-from transformers import AutoTokenizer, VitsModel
-
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     ModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available MMS TTS model variants."""
+    """Available MMS-TTS model variants."""
 
-    SWAHILI_FINETUNED = "Swahili_Finetuned"
-    INDONESIAN = "Indonesian"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.SWAHILI_FINETUNED: "Habari, karibu kwenye mfumo wetu wa kusikiliza kwa Kiswahili.",
-    ModelVariant.INDONESIAN: "Selamat pagi, selamat datang di sistem text-to-speech kami.",
-}
+    MMS_TTS_ENG = "MMS_TTS_ENG"
 
 
 class ModelLoader(ForgeModel):
-    """MMS TTS model loader implementation for text-to-speech tasks."""
+    """MMS-TTS model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.SWAHILI_FINETUNED: ModelConfig(
-            pretrained_model_name="Benjamin-png/swahili-mms-tts-finetuned",
-        ),
-        ModelVariant.INDONESIAN: ModelConfig(
-            pretrained_model_name="facebook/mms-tts-ind",
+        ModelVariant.MMS_TTS_ENG: ModelConfig(
+            pretrained_model_name="facebook/mms-tts-eng",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SWAHILI_FINETUNED
+    DEFAULT_VARIANT = ModelVariant.MMS_TTS_ENG
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -59,7 +47,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="MMS_TTS",
+            model="MMS",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_TTS,
@@ -67,38 +55,29 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self, dtype_override=None):
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-
-        self._tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
-        )
-
-        return self._tokenizer
-
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        if self._tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+        from transformers import VitsModel
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = VitsModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = VitsModel.from_pretrained(
+            self._variant_config.pretrained_model_name, **model_kwargs
+        )
         model.eval()
 
         return model
 
     def load_inputs(self, dtype_override=None):
-        if self._tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+        from transformers import AutoTokenizer
 
-        sample_text = _SAMPLE_TEXTS[self._variant]
-        inputs = self._tokenizer(sample_text, return_tensors="pt")
+        if self._tokenizer is None:
+            self._tokenizer = AutoTokenizer.from_pretrained(
+                self._variant_config.pretrained_model_name
+            )
+
+        inputs = self._tokenizer("Hello, my dog is cute.", return_tensors="pt")
 
         return inputs
