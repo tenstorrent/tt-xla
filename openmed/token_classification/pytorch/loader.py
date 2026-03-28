@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
         "OpenMed-NER-BloodCancerDetect-MultiMed-568M"
     )
     OPENMED_NER_DNADETECT_ELECTRAMED_335M = "OpenMed-NER-DNADetect-ElectraMed-335M"
+    OPENMED_NER_DNADETECT_TINYMED_135M = "OpenMed-NER-DNADetect-TinyMed-135M"
     OPENMED_NER_GENOMICDETECT_TINYMED_66M = "OpenMed-NER-GenomicDetect-TinyMed-66M"
     OPENMED_NER_PHARMADETECT_TINYMED_66M = "OpenMed-NER-PharmaDetect-TinyMed-66M"
     OPENMED_NER_PHARMADETECT_TINYMED_135M = "OpenMed-NER-PharmaDetect-TinyMed-135M"
@@ -43,6 +44,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_335M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-ElectraMed-335M",
+        ),
+        ModelVariant.OPENMED_NER_DNADETECT_TINYMED_135M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-DNADetect-TinyMed-135M",
         ),
         ModelVariant.OPENMED_NER_GENOMICDETECT_TINYMED_66M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-TinyMed-66M",
@@ -66,6 +70,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_DNADETECT_ELECTRAMED_335M: (
             "The p53 protein binds to the BRCA1 gene promoter region in T cells."
+        ),
+        ModelVariant.OPENMED_NER_DNADETECT_TINYMED_135M: (
+            "The p53 protein plays a crucial role in tumor suppression."
         ),
         ModelVariant.OPENMED_NER_GENOMICDETECT_TINYMED_66M: (
             "Mutations in the BRCA1 and TP53 genes were identified in the tumor sample."
