@@ -6,7 +6,6 @@
 SEW-D (Squeezed and Efficient Wav2vec with DeBERTa) model loader for audio feature extraction.
 """
 
-import torch
 from typing import Optional
 
 from ....base import ForgeModel
