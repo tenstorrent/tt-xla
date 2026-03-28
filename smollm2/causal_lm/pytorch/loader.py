@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
     """Available SmolLM2 model variants for causal language modeling."""
 
     SMOLLM2_135M = "smollm2_135m"
-    SMOLLM2_360M = "smollm2_360m"
+    SMOLLM2_360M_INSTRUCT = "smollm2_360m_instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -36,8 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="HuggingFaceTB/SmolLM2-135M",
             max_length=128,
         ),
-        ModelVariant.SMOLLM2_360M: LLMModelConfig(
-            pretrained_model_name="HuggingFaceTB/SmolLM2-360M",
+        ModelVariant.SMOLLM2_360M_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="HuggingFaceTB/SmolLM2-360M-Instruct",
             max_length=128,
         ),
     }
