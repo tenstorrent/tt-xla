@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available RoBERTa question answering model variants."""
 
     DEEPSET_ROBERTA_BASE_SQUAD2 = "deepset_roberta_base_squad2"
+    DEEPSET_ROBERTA_LARGE_SQUAD2 = "deepset_roberta_large_squad2"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DEEPSET_ROBERTA_BASE_SQUAD2: LLMModelConfig(
             pretrained_model_name="deepset/roberta-base-squad2",
+            max_length=384,
+        ),
+        ModelVariant.DEEPSET_ROBERTA_LARGE_SQUAD2: LLMModelConfig(
+            pretrained_model_name="deepset/roberta-large-squad2",
             max_length=384,
         ),
     }
