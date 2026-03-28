@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DINOv2 model loader implementation for feature extraction (PyTorch/TIMM).
+DINOv2 model loader implementation for feature extraction (PyTorch).
 """
 
-import timm
-from timm.data import resolve_data_config
-from timm.data.transforms_factory import create_transform
+import torch
+from transformers import AutoImageProcessor, Dinov2Model
 from datasets import load_dataset
 from typing import Optional
 
@@ -24,21 +23,21 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available DINOv2 feature extraction model variants (TIMM)."""
+    """Available DINOv2 feature extraction model variants."""
 
-    SMALL_PATCH14_LVD142M = "Small_Patch14_LVD142M"
+    SMALL = "Small"
 
 
 class ModelLoader(ForgeModel):
-    """DINOv2 model loader implementation for feature extraction (PyTorch/TIMM)."""
+    """DINOv2 model loader implementation for feature extraction (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.SMALL_PATCH14_LVD142M: ModelConfig(
-            pretrained_model_name="vit_small_patch14_dinov2.lvd142m",
+        ModelVariant.SMALL: ModelConfig(
+            pretrained_model_name="facebook/dinov2-small",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SMALL_PATCH14_LVD142M
+    DEFAULT_VARIANT = ModelVariant.SMALL
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -48,8 +47,7 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self._transform = None
-        self._model = None
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -70,12 +68,22 @@ class ModelLoader(ForgeModel):
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_IMAGE_FE,
-            source=ModelSource.TIMM,
+            source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
+    def _load_processor(self):
+        """Load image processor for the current variant.
+
+        Returns:
+            The loaded processor instance
+        """
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        self.processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
+        return self.processor
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the DINOv2 model instance.
+        """Load and return the DINOv2 model instance for feature extraction.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -83,15 +91,16 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The DINOv2 model instance for feature extraction.
         """
-        model_name = self._variant_config.pretrained_model_name
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model = timm.create_model(model_name, pretrained=True)
+        model_kwargs = {}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
+        model = Dinov2Model.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
 
-        if dtype_override is not None:
-            model = model.to(dtype_override)
-
-        self._model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
@@ -102,23 +111,23 @@ class ModelLoader(ForgeModel):
             batch_size: Batch size for the inputs.
 
         Returns:
-            torch.Tensor: Preprocessed input tensor.
+            dict: Input tensors that can be fed to the model.
         """
-        if self._transform is None:
-            if self._model is None:
-                raise RuntimeError("load_model() must be called before load_inputs()")
-            data_config = resolve_data_config(self._model.pretrained_cfg)
-            self._transform = create_transform(**data_config, is_training=False)
+        if self.processor is None:
+            self._load_processor()
 
-        dataset = load_dataset("huggingface/cats-image", split="test")
-        image = dataset[0]["image"].convert("RGB")
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
-        pixel_values = self._transform(image).unsqueeze(0)
+        inputs = self.processor(images=image, return_tensors="pt")
 
-        if batch_size > 1:
-            pixel_values = pixel_values.repeat_interleave(batch_size, dim=0)
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         if dtype_override is not None:
-            pixel_values = pixel_values.to(dtype_override)
+            for key in inputs:
+                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
+                    inputs[key] = inputs[key].to(dtype_override)
 
-        return pixel_values
+        return inputs
