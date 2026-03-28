@@ -4,9 +4,8 @@
 """
 OmniGen2 (OmniGen2/OmniGen2) model loader implementation.
 
-OmniGen2 is a unified multimodal generation model capable of understanding and
-generating both text and images. It supports text-to-image generation,
-instruction-guided image editing, and visual understanding.
+OmniGen2 is a unified multimodal generation model capable of text-to-image
+generation, image editing, and visual understanding tasks.
 
 Available variants:
 - OMNIGEN2: OmniGen2/OmniGen2 text-to-image generation
@@ -15,7 +14,7 @@ Available variants:
 from typing import Optional
 
 import torch
-from diffusers import OmniGen2Pipeline
+from diffusers import DiffusionPipeline
 
 from ...base import ForgeModel
 from ...config import (
@@ -69,12 +68,13 @@ class ModelLoader(ForgeModel):
         """Load and return the OmniGen2 pipeline.
 
         Returns:
-            OmniGen2Pipeline: The OmniGen2 pipeline instance.
+            DiffusionPipeline: The OmniGen2 pipeline instance.
         """
         dtype = dtype_override if dtype_override is not None else torch.float32
-        self.pipeline = OmniGen2Pipeline.from_pretrained(
+        self.pipeline = DiffusionPipeline.from_pretrained(
             self._variant_config.pretrained_model_name,
             torch_dtype=dtype,
+            trust_remote_code=True,
             **kwargs,
         )
         return self.pipeline
