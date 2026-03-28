@@ -22,9 +22,7 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_DISEASE_XLARGE = "ZeroShot-NER-Disease-XLarge-770M"
-    OPENMED_ZEROSHOT_NER_GENOMIC_SMALL = "ZeroShot-NER-Genomic-Small-166M"
-    OPENMED_ZEROSHOT_NER_CHEMICAL_XLARGE = "ZeroShot-NER-Chemical-XLarge-770M"
+    OPENMED_ZEROSHOT_NER_ORGANISM_LARGE = "ZeroShot-NER-Organism-Large-459M"
 
 
 class ModelLoader(ForgeModel):
@@ -37,14 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_XLARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-XLarge-770M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_SMALL: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genomic-Small-166M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_XLARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Chemical-XLarge-770M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_LARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Organism-Large-459M"
         ),
     }
 
