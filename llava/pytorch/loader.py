@@ -5,11 +5,8 @@
 LLaVA model loader implementation for multimodal conditional generation.
 """
 
-import os
-import re
 from typing import Optional
 
-import torch
 from datasets import load_dataset
 from transformers import LlavaForConditionalGeneration, AutoProcessor
 
