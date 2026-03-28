@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Swin feature extraction model loader implementation.
+Swin feature extraction model loader.
 """
-
-from transformers import SwinModel, AutoImageProcessor
+import torch
+from transformers import AutoImageProcessor, AutoModel
+from datasets import load_dataset
 from typing import Optional
 
 from ....base import ForgeModel
@@ -23,41 +24,26 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Swin feature extraction model variants."""
 
-    TINY_RANDOM_PATCH4_WINDOW7_224 = "Tiny_Random_Patch4_Window7_224"
+    TINY_RANDOM = "TinyRandom"
 
 
 class ModelLoader(ForgeModel):
-    """Swin feature extraction model loader implementation."""
+    """Swin feature extraction model loader."""
 
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM_PATCH4_WINDOW7_224: ModelConfig(
-            pretrained_model_name="yujiepan/tiny-random-swin-patch4-window7-224",
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-SwinModel",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM_PATCH4_WINDOW7_224
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
         super().__init__(variant)
-        self._processor = None
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
@@ -70,44 +56,40 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_processor(self):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        self.processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
+        return self.processor
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the Swin feature extraction model.
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The Swin model instance.
-        """
-        model_name = self._variant_config.pretrained_model_name
-
-        model = SwinModel.from_pretrained(model_name, **kwargs)
-        model.eval()
-
+        model_kwargs = {}
         if dtype_override is not None:
-            model = model.to(dtype_override)
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
+        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model.eval()
 
         return model
 
-    def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the model.
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        if self.processor is None:
+            self._load_processor()
 
-        Args:
-            dtype_override: Optional dtype to override the model's default dtype.
-
-        Returns:
-            dict: Preprocessed input tensors.
-        """
-        from datasets import load_dataset
-
-        if self._processor is None:
-            self._processor = AutoImageProcessor.from_pretrained(
-                self._variant_config.pretrained_model_name
-            )
-
-        dataset = load_dataset("huggingface/cats-image", split="test")
+        dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
 
-        inputs = self._processor(image, return_tensors="pt")
+        inputs = self.processor(images=image, return_tensors="pt")
+
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        if dtype_override is not None:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
+                    inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
