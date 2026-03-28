@@ -4,7 +4,6 @@
 """
 Donut model loader implementation for document understanding tasks.
 """
-import torch
 from PIL import Image
 from transformers import DonutProcessor, VisionEncoderDecoderModel
 from typing import Optional
