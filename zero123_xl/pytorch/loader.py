@@ -16,7 +16,6 @@ from typing import Any, Optional
 
 import torch
 from diffusers import Zero123Pipeline
-from diffusers.utils import load_image
 
 from ...base import ForgeModel
 from ...config import (
