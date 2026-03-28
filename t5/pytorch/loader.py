@@ -104,7 +104,7 @@ class ModelLoader(ForgeModel):
         self._cached_model = None
         self.num_layers = num_layers
         self.sample_text = self._VARIANT_SAMPLE_TEXTS.get(
-            self._variant_name, self._DEFAULT_SAMPLE_TEXT
+            self._variant, self._DEFAULT_SAMPLE_TEXT
         )
 
     @classmethod
