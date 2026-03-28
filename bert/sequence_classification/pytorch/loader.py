@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
         "ahmedrachid_FinancialBERT_Sentiment_Analysis"
     )
     TEXTATTACK_BERT_BASE_UNCASED_MNLI = "Base_Uncased_MNLI"
+    PRITAMDEB68_BERTAIDETECTOR = "pritamdeb68_BERTAIDetector"
 
 
 class ModelLoader(ForgeModel):
@@ -62,6 +63,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="textattack/bert-base-uncased-MNLI",
             max_length=128,
         ),
+        ModelVariant.PRITAMDEB68_BERTAIDETECTOR: LLMModelConfig(
+            pretrained_model_name="pritamdeb68/BERTAIDetector",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -80,6 +85,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.AHMEDRACHID_FINANCIALBERT_SENTIMENT_ANALYSIS: "Operating profit rose to EUR 13.1 mn from EUR 8.7 mn in the corresponding period in 2007 representing 7.7 % of net sales.",
         ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_MNLI: "A man is eating food.",
+        ModelVariant.PRITAMDEB68_BERTAIDETECTOR: "The quick brown fox jumps over the lazy dog near the riverbank.",
     }
 
     def __init__(self, variant=None):
@@ -117,6 +123,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.AHMEDRACHID_FINANCIALBERT_SENTIMENT_ANALYSIS,
             ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_MNLI,
+            ModelVariant.PRITAMDEB68_BERTAIDETECTOR,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
