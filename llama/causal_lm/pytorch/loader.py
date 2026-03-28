@@ -86,6 +86,9 @@ class ModelVariant(StrEnum):
     # AMD PARD speculative decoding variants
     PARD_LLAMA_3_2_1B = "PARD_3.2_1B"
 
+    # Llama Guard variants
+    LLAMA_GUARD_3_8B_INT8 = "Guard_3_8B_INT8"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -219,6 +222,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="amd/PARD-Llama-3.2-1B",
             max_length=128,
         ),
+        # Llama Guard variants
+        ModelVariant.LLAMA_GUARD_3_8B_INT8: LLMModelConfig(
+            pretrained_model_name="meta-llama/Llama-Guard-3-8B-INT8",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -267,6 +275,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_UNSLOTH,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO,
             ModelVariant.PARD_LLAMA_3_2_1B,
+            ModelVariant.LLAMA_GUARD_3_8B_INT8,
         ]:
             group = ModelGroup.VULCAN
         elif (
