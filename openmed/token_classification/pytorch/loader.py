@@ -40,6 +40,7 @@ class ModelVariant(StrEnum):
     PII_FRENCH_BIOCLINICALMODERN_BASE_149M = (
         "OpenMed/OpenMed-PII-French-BioClinicalModern-Base-149M-v1"
     )
+    PII_CLINICDISCHARGE_BASE_110M = "OpenMed/OpenMed-PII-ClinicDischarge-Base-110M-v1"
 
 
 _VARIANT_SAMPLE_TEXTS = {
@@ -66,6 +67,9 @@ _VARIANT_SAMPLE_TEXTS = {
     ),
     ModelVariant.PII_FRENCH_BIOCLINICALMODERN_BASE_149M: (
         "Le patient Jean Dupont, né le 12 avril 1975, a été admis à l'Hôpital Pitié-Salpêtrière de Paris."
+    ),
+    ModelVariant.PII_CLINICDISCHARGE_BASE_110M: (
+        "Dr. John Smith treated patient Jane Doe at Massachusetts General Hospital on 03/15/2024."
     ),
 }
 
@@ -104,6 +108,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.PII_FRENCH_BIOCLINICALMODERN_BASE_149M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-French-BioClinicalModern-Base-149M-v1",
+            max_length=128,
+        ),
+        ModelVariant.PII_CLINICDISCHARGE_BASE_110M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-ClinicDischarge-Base-110M-v1",
             max_length=128,
         ),
     }
