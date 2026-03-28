@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE_960H = "Base_960h"
     LARGE_XLSR_53_BRETON = "Large_XLSR_53_Breton"
+    LARGE_XLSR_JAVANESE = "Large_XLSR_Javanese"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE_XLSR_53_BRETON: ModelConfig(
             pretrained_model_name="Marxav/wav2vec2-large-xlsr-53-breton",
+        ),
+        ModelVariant.LARGE_XLSR_JAVANESE: ModelConfig(
+            pretrained_model_name="cahya/wav2vec2-large-xlsr-javanese",
         ),
     }
 
