@@ -27,10 +27,7 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    HASNAIN43_BERT_STOCK_SENTIMENT_V1 = "hasnain43_Bert_Stock_Sentiment_V1"
-    SAVASY_BERT_BASE_TURKISH_SENTIMENT_CASED = (
-        "savasy_Bert_Base_Turkish_Sentiment_Cased"
-    )
+    MPARKAI_FINALPROJECTMIJIPARK = "mparkai_FinalProjectMijiPark"
 
 
 class ModelLoader(ForgeModel):
@@ -54,12 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.HASNAIN43_BERT_STOCK_SENTIMENT_V1: LLMModelConfig(
-            pretrained_model_name="hasnain43/bert-stock-sentiment-v1",
-            max_length=128,
-        ),
-        ModelVariant.SAVASY_BERT_BASE_TURKISH_SENTIMENT_CASED: LLMModelConfig(
-            pretrained_model_name="savasy/bert-base-turkish-sentiment-cased",
+        ModelVariant.MPARKAI_FINALPROJECTMIJIPARK: LLMModelConfig(
+            pretrained_model_name="mparkai/FinalProjectMijiPark",
             max_length=128,
         ),
     }
@@ -78,8 +71,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.HASNAIN43_BERT_STOCK_SENTIMENT_V1: "Stocks rallied as earnings beat expectations across the board.",
-        ModelVariant.SAVASY_BERT_BASE_TURKISH_SENTIMENT_CASED: "bu telefon modelleri çok kaliteli , her parçası çok özel bence",
+        ModelVariant.MPARKAI_FINALPROJECTMIJIPARK: "I like you. I love you",
     }
 
     def __init__(self, variant=None):
@@ -115,8 +107,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.HASNAIN43_BERT_STOCK_SENTIMENT_V1,
-            ModelVariant.SAVASY_BERT_BASE_TURKISH_SENTIMENT_CASED,
+            ModelVariant.MPARKAI_FINALPROJECTMIJIPARK,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
