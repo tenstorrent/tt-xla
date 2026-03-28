@@ -11,7 +11,7 @@ from typing import Optional
 import numpy as np
 import onnx
 from huggingface_hub import hf_hub_download
-from transformers import WhisperProcessor, WhisperConfig
+from transformers import WhisperProcessor
 
 from ....base import ForgeModel
 from ....config import (
