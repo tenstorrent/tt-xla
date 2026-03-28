@@ -2,56 +2,56 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER ProteinDetect ElectraMed model loader for token classification.
+OpenMed NER ProteinDetect model loader implementation
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
-from ....base import ForgeModel
+from typing import Optional
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+
 from ....config import (
-    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
+    LLMModelConfig,
     StrEnum,
 )
+from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available OpenMed NER ProteinDetect model variants."""
-
-    ELECTRAMED_109M = "ElectraMed-109M"
+    OPENMED_NER_PROTEINDETECT_ELECTRAMED_33M = "NER-ProteinDetect-ElectraMed-33M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER ProteinDetect ElectraMed model loader for token classification."""
+    """OpenMed NER ProteinDetect model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.ELECTRAMED_109M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ElectraMed-109M",
+        ModelVariant.OPENMED_NER_PROTEINDETECT_ELECTRAMED_33M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ElectraMed-33M",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ELECTRAMED_109M
+    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_PROTEINDETECT_ELECTRAMED_33M
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
+        self.model_name = self._variant_config.pretrained_model_name
+        self.max_length = self._variant_config.max_length
+        self.sample_text = "The BRCA1 protein interacts with the RAD51 recombinase in DNA repair pathways."
         self.tokenizer = None
-        self.model = None
-        self.sample_text = (
-            "The Maillard reaction is responsible for the browning of many foods."
-        )
-        self.max_length = 128
 
     @classmethod
-    def _get_model_info(cls, variant_name=None):
-        if variant_name is None:
-            variant_name = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="OpenMed NER ProteinDetect",
-            variant=variant_name,
+            model="OpenMed",
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -59,9 +59,8 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        """Load the OpenMed NER ProteinDetect model."""
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -69,13 +68,14 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForTokenClassification.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self.model_name, **model_kwargs
         )
-        model.eval()
         self.model = model
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
+        """Prepare sample input for the NER model."""
         if self.tokenizer is None:
             self.load_model(dtype_override=dtype_override)
 
@@ -90,6 +90,7 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
+        """Decode the model output for token classification."""
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(
@@ -100,4 +101,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Predicted Labels: {predicted_tokens_classes}")
+        print(f"Answer: {predicted_tokens_classes}")

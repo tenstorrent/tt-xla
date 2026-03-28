@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER ProteinDetect ElectraMed PyTorch model implementation.
+OpenMed NER ProteinDetect PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
