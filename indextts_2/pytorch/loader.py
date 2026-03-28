@@ -4,6 +4,8 @@
 """
 IndexTTS-2 model loader implementation for text-to-speech tasks.
 """
+import os
+
 import torch
 import torch.nn as nn
 from typing import Optional
@@ -77,7 +79,7 @@ class ModelLoader(ForgeModel):
             repo_id=self._variant_config.pretrained_model_name,
         )
         tts = IndexTTS2(
-            cfg_path=f"{model_dir}/config.yaml",
+            cfg_path=os.path.join(model_dir, "config.yaml"),
             model_dir=model_dir,
             use_fp16=False,
             use_cuda_kernel=False,
