@@ -17,6 +17,8 @@ from third_party.tt_forge_models.config import (
 )
 from third_party.tt_forge_models.base import ForgeModel
 
+_SAMPLE_TEXTS = {}
+
 
 class ModelVariant(StrEnum):
     """Available BERT model variants for masked language modeling."""
@@ -30,6 +32,7 @@ class ModelVariant(StrEnum):
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_BASE_CASED_FINETUNED_MRPC = "google-bert/bert-base-cased-finetuned-mrpc"
     BIOMEDVLP_CXR_BERT_GENERAL = "microsoft/BiomedVLP-CXR-BERT-general"
+    BERT_BASE_ITALIAN_UNCASED = "dbmdz/bert-base-italian-uncased"
 
 
 class ModelLoader(ForgeModel):
@@ -71,6 +74,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BIOMEDVLP_CXR_BERT_GENERAL: LLMModelConfig(
             pretrained_model_name="microsoft/BiomedVLP-CXR-BERT-general",
+            max_length=128,
+        ),
+        ModelVariant.BERT_BASE_ITALIAN_UNCASED: LLMModelConfig(
+            pretrained_model_name="dbmdz/bert-base-italian-uncased",
             max_length=128,
         ),
     }
@@ -118,6 +125,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_BASE_CASED_FINETUNED_MRPC,
             ModelVariant.BIOMEDVLP_CXR_BERT_GENERAL,
+            ModelVariant.BERT_BASE_ITALIAN_UNCASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
