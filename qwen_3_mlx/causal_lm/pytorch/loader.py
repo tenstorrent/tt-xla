@@ -23,20 +23,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 MLX model variants for causal language modeling."""
 
-    QWEN_3_1_7B_MLX_BF16 = "1_7B_MLX_bf16"
+    QWEN_3_8B_MLX_8BIT = "8B_MLX_8bit"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 MLX model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_1_7B_MLX_BF16: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-1.7B-MLX-bf16",
+        ModelVariant.QWEN_3_8B_MLX_8BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-8B-MLX-8bit",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_1_7B_MLX_BF16
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_8B_MLX_8BIT
 
     sample_text = "Give me a short introduction to large language model."
 
