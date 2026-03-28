@@ -2,69 +2,53 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-FireRed-Image-Edit-1.1 GGUF model loader implementation.
+FireRed-Image-Edit-1.0 GGUF model loader implementation.
 
-Loads GGUF-quantized QwenImageTransformer2DModel variants from
-vantagewithai/FireRed-Image-Edit-1.1-GGUF. Based on the FireRedTeam/FireRed-Image-Edit-1.1
-diffusion transformer for general-purpose image editing.
+Loads a GGUF-quantized diffusion transformer for instruction-guided image
+editing. The model is based on the Qwen-Image-Edit architecture (20B params)
+and accepts a source image plus a text prompt describing the desired edit.
 
 Available variants:
-- Q4_K_M: Q4_K_M quantization (13.1 GB)
-- Q8_0: Q8_0 quantization (21.8 GB)
+- FIRERED_Q4_0: FireRed-Image-Edit-1.0 Q4_0 quantization
 """
 
 from typing import Any, Optional
 
 import torch
 from diffusers import GGUFQuantizationConfig, QwenImageTransformer2DModel
-from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
 from ...config import (
-    ModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
-REPO_ID = "vantagewithai/FireRed-Image-Edit-1.1-GGUF"
-
-# Upstream diffusers config for model construction
-CONFIG_REPO = "FireRedTeam/FireRed-Image-Edit-1.1"
-
-# GGUF filenames keyed by variant
-_GGUF_FILES = {
-    "Q4_K_M": "FireRed-Image-Edit-1.1-Q4_K_M.gguf",
-    "Q8_0": "FireRed-Image-Edit-1.1-Q8_0.gguf",
-}
-
-# From transformer/config.json
-IN_CHANNELS = 64
-JOINT_ATTENTION_DIM = 3584
+REPO_ID = "Arunk25/FireRed-Image-Edit-1.0_comfy_GGUF"
+CONFIG_REPO = "Qwen/Qwen-Image-Edit"
 
 
 class ModelVariant(StrEnum):
     """Available FireRed-Image-Edit GGUF model variants."""
 
-    Q4_K_M = "Q4_K_M"
-    Q8_0 = "Q8_0"
+    FIRERED_Q4_0 = "FireRed_Q4_0"
 
 
 class ModelLoader(ForgeModel):
-    """FireRed-Image-Edit-1.1 GGUF model loader for the diffusion transformer."""
+    """FireRed-Image-Edit-1.0 GGUF model loader."""
 
     _VARIANTS = {
-        ModelVariant.Q4_K_M: ModelConfig(
-            pretrained_model_name=REPO_ID,
-        ),
-        ModelVariant.Q8_0: ModelConfig(
+        ModelVariant.FIRERED_Q4_0: ModelConfig(
             pretrained_model_name=REPO_ID,
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.FIRERED_Q4_0
+
+    GGUF_FILE = "firered_image_edit_1.0_q4_0.gguf"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -75,51 +59,32 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="FIRERED_IMAGE_EDIT_GGUF",
+            model="FireRed_Image_Edit_GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CV_IMG_TO_IMG,
+            task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _get_gguf_file(self) -> str:
-        """Get the GGUF filename for the current variant."""
-        return _GGUF_FILES[self._variant.value]
-
-    def _load_transformer(
-        self, dtype: torch.dtype = torch.bfloat16
-    ) -> QwenImageTransformer2DModel:
-        """Load diffusion transformer from GGUF quantized file."""
-        gguf_file = self._get_gguf_file()
-
-        model_path = hf_hub_download(
-            repo_id=REPO_ID,
-            filename=gguf_file,
-        )
-
-        quantization_config = GGUFQuantizationConfig(compute_dtype=dtype)
-        self._transformer = QwenImageTransformer2DModel.from_single_file(
-            model_path,
-            config=CONFIG_REPO,
-            subfolder="transformer",
-            quantization_config=quantization_config,
-            torch_dtype=dtype,
-        )
-        self._transformer.eval()
-        return self._transformer
-
     def load_model(self, *, dtype_override: Optional[torch.dtype] = None, **kwargs):
-        """Load and return the GGUF-quantized FireRed diffusion transformer.
+        """Load and return the FireRed-Image-Edit GGUF diffusion transformer.
 
         Returns:
             QwenImageTransformer2DModel instance.
         """
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        if self._transformer is None:
-            return self._load_transformer(dtype)
-        if dtype_override is not None:
-            self._transformer = self._transformer.to(dtype=dtype_override)
+        compute_dtype = dtype_override if dtype_override is not None else torch.bfloat16
+        quantization_config = GGUFQuantizationConfig(compute_dtype=compute_dtype)
+
+        repo_id = self._variant_config.pretrained_model_name
+        self._transformer = QwenImageTransformer2DModel.from_single_file(
+            f"https://huggingface.co/{repo_id}/resolve/main/{self.GGUF_FILE}",
+            quantization_config=quantization_config,
+            config=CONFIG_REPO,
+            subfolder="transformer",
+            torch_dtype=compute_dtype,
+        )
+        self._transformer.eval()
         return self._transformer
 
     def load_inputs(self, **kwargs) -> Any:
@@ -131,9 +96,9 @@ class ModelLoader(ForgeModel):
         batch_size = kwargs.get("batch_size", 1)
 
         # From model config: in_channels=64 (img_in linear input dimension)
-        img_dim = IN_CHANNELS
+        img_dim = 64
         # joint_attention_dim from config = 3584
-        text_dim = JOINT_ATTENTION_DIM
+        text_dim = 3584
         txt_seq_len = 32
 
         # img_seq_len must equal frame * height * width for positional encoding
@@ -146,7 +111,6 @@ class ModelLoader(ForgeModel):
         )
         encoder_hidden_states_mask = torch.ones(batch_size, txt_seq_len, dtype=dtype)
         timestep = torch.tensor([500.0] * batch_size, dtype=dtype)
-        # img_shapes: list of (frame, height, width) tuples per batch item
         img_shapes = [(frame, height, width)] * batch_size
 
         return {
