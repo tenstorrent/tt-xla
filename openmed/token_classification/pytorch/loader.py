@@ -27,6 +27,9 @@ class ModelVariant(StrEnum):
     )
     OPENMED_NER_DNADETECT_ELECTRAMED_335M = "OpenMed-NER-DNADetect-ElectraMed-335M"
     OPENMED_NER_GENOMICDETECT_TINYMED_66M = "OpenMed-NER-GenomicDetect-TinyMed-66M"
+    OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1 = (
+        "OpenMed-PII-French-BiomedBERT-Large-340M-v1"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +45,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_GENOMICDETECT_TINYMED_66M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-TinyMed-66M",
         ),
+        ModelVariant.OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-French-BiomedBERT-Large-340M-v1",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M
@@ -55,6 +61,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_GENOMICDETECT_TINYMED_66M: (
             "Mutations in the BRCA1 and TP53 genes were identified in the tumor sample."
+        ),
+        ModelVariant.OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1: (
+            "Le patient Jean Dupont, né le 15 mars 1980, réside au 12 rue de la Paix, Paris."
         ),
     }
 
