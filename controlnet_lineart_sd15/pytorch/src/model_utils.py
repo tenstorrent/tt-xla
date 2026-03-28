@@ -12,6 +12,7 @@ from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
 from PIL import Image
+import numpy as np
 
 
 def load_controlnet_lineart_sd15_pipe(controlnet_model_name, base_model_name):
@@ -51,14 +52,24 @@ def load_controlnet_lineart_sd15_pipe(controlnet_model_name, base_model_name):
 def create_lineart_conditioning_image(height=512, width=512):
     """Create a dummy lineart conditioning image.
 
+    Creates a simple synthetic line art image suitable for ControlNet lineart conditioning.
+
     Args:
         height: Image height
         width: Image width
 
     Returns:
-        PIL.Image: A dummy conditioning image
+        PIL.Image: A dummy lineart conditioning image
     """
-    return Image.new("RGB", (width, height), color=(0, 0, 0))
+    image = np.zeros((height, width, 3), dtype=np.uint8)
+    # Draw simple line-art-like lines
+    image[height // 4, :, :] = 255
+    image[height // 2, :, :] = 255
+    image[3 * height // 4, :, :] = 255
+    image[:, width // 4, :] = 255
+    image[:, width // 2, :] = 255
+    image[:, 3 * width // 4, :] = 255
+    return Image.fromarray(image)
 
 
 def controlnet_lineart_sd15_preprocessing(
@@ -68,7 +79,7 @@ def controlnet_lineart_sd15_preprocessing(
     device="cpu",
     negative_prompt=None,
     guidance_scale=7.5,
-    num_inference_steps=50,
+    num_inference_steps=30,
     timesteps=None,
     sigmas=None,
     num_images_per_prompt=1,
@@ -85,7 +96,7 @@ def controlnet_lineart_sd15_preprocessing(
         device: Device to run on (default: "cpu")
         negative_prompt: Negative prompt (optional)
         guidance_scale: Guidance scale (default: 7.5)
-        num_inference_steps: Number of inference steps (default: 50)
+        num_inference_steps: Number of inference steps (default: 30)
         timesteps: Custom timesteps (optional)
         sigmas: Custom sigmas (optional)
         num_images_per_prompt: Number of images per prompt (default: 1)
@@ -112,9 +123,6 @@ def controlnet_lineart_sd15_preprocessing(
         num_images_per_prompt=num_images_per_prompt,
     )
 
-    if do_classifier_free_guidance:
-        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
-
     # 2. Prepare timesteps
     timesteps, num_inference_steps = retrieve_timesteps(
         pipe.scheduler,
@@ -138,6 +146,11 @@ def controlnet_lineart_sd15_preprocessing(
         device=device,
     )
     latents = latents * pipe.scheduler.init_noise_sigma
+
+    if do_classifier_free_guidance:
+        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
+
+    prompt_embeds = prompt_embeds.to(device)
 
     # 4. Prepare control image
     control_image = pipe.prepare_image(

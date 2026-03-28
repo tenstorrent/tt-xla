@@ -28,21 +28,21 @@ from .src.model_utils import (
 class ModelVariant(StrEnum):
     """Available ControlNet Lineart SD1.5 model variants."""
 
-    CONTROLNET_LINEART_SD15 = "ControlNet_Lineart_SD1.5"
+    LLLYASVIEL_CONTROL_V11P_SD15_LINEART = "lllyasviel_control_v11p_sd15_lineart"
 
 
 class ModelLoader(ForgeModel):
     """ControlNet Lineart SD1.5 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.CONTROLNET_LINEART_SD15: ModelConfig(
-            pretrained_model_name="ControlNet-1-1-preview/control_v11p_sd15_lineart",
+        ModelVariant.LLLYASVIEL_CONTROL_V11P_SD15_LINEART: ModelConfig(
+            pretrained_model_name="lllyasviel/control_v11p_sd15_lineart",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CONTROLNET_LINEART_SD15
+    DEFAULT_VARIANT = ModelVariant.LLLYASVIEL_CONTROL_V11P_SD15_LINEART
 
-    prompt = "a detailed line drawing of a cat"
+    prompt = "michael jackson concert"
     base_model = "runwayml/stable-diffusion-v1-5"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
