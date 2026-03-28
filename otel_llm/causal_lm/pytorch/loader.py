@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available OTel-LLM model variants."""
 
     OTEL_LLM_8_2B_IT = "8_2B_IT"
+    OTEL_LLM_24B_IT = "24B_IT"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OTEL_LLM_8_2B_IT: LLMModelConfig(
             pretrained_model_name="farbodtavakkoli/OTel-LLM-8.2B-IT",
+            max_length=128,
+        ),
+        ModelVariant.OTEL_LLM_24B_IT: LLMModelConfig(
+            pretrained_model_name="farbodtavakkoli/OTel-LLM-24B-IT",
             max_length=128,
         ),
     }
