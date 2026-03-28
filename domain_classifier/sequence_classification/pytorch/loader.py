@@ -118,5 +118,5 @@ class ModelLoader(ForgeModel):
     def decode_output(self, co_out):
         outputs = co_out[0]
         predicted_class_id = outputs.argmax(-1).item()
-        predicted_domain = self.config.id2label[str(predicted_class_id)]
+        predicted_domain = self.config.id2label[predicted_class_id]
         print(f"Predicted Domain: {predicted_domain}")
