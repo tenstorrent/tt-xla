@@ -38,6 +38,7 @@ class ModelVariant(StrEnum):
     """Available Inception model variants."""
 
     # TIMM variants
+    INCEPTION_V3_TF_ADV_IN1K = "V3.tf_Adv_In1k"
     INCEPTION_V4 = "v4"
     INCEPTION_V4_TF_IN1K = "V4.tf_In1k"
 
@@ -51,6 +52,10 @@ class ModelLoader(ForgeModel):
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
         # TIMM variants
+        ModelVariant.INCEPTION_V3_TF_ADV_IN1K: InceptionConfig(
+            pretrained_model_name="hf_hub:timm/inception_v3.tf_adv_in1k",
+            source=ModelSource.TIMM,
+        ),
         ModelVariant.INCEPTION_V4: InceptionConfig(
             pretrained_model_name="inception_v4",
             source=ModelSource.TIMM,
@@ -98,10 +103,15 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
+        if variant == ModelVariant.INCEPTION_V3_TF_ADV_IN1K:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="Inception",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
