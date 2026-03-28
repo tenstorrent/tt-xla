@@ -40,7 +40,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_12B_IT = "google/gemma-3-12b-it"
     GEMMA_3_12B_IT_BNB_4BIT = "unsloth/gemma-3-12b-it-unsloth-bnb-4bit"
     GEMMA_3_27B_IT = "google/gemma-3-27b-it"
-    GEMMA_3_27B_PT = "google/gemma-3-27b-pt"
+    GEMMA_3_27B_IT_QAT_W4A16 = "leon-se/gemma-3-27b-it-qat-W4A16-G128"
 
 
 class ModelLoader(ForgeModel):
@@ -68,8 +68,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_27B_IT),
         ),
-        ModelVariant.GEMMA_3_27B_PT: LLMModelConfig(
-            pretrained_model_name=str(ModelVariant.GEMMA_3_27B_PT),
+        ModelVariant.GEMMA_3_27B_IT_QAT_W4A16: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.GEMMA_3_27B_IT_QAT_W4A16),
         ),
     }
 
@@ -86,15 +86,9 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-        if variant == ModelVariant.GEMMA_3_27B_PT:
-            group = ModelGroup.VULCAN
-        elif variant == ModelVariant.GEMMA_3_12B_IT_BNB_4BIT:
-            group = ModelGroup.VULCAN
-        elif any(x in variant.value for x in ["12b", "27b"]):
-            group = ModelGroup.RED
-        elif variant in (
+        if variant in (
             ModelVariant.GEMMA_3_4B_IT_QAT_4BIT,
-            ModelVariant.GEMMA_3_4B_PT,
+            ModelVariant.GEMMA_3_27B_IT_QAT_W4A16,
         ):
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["12b", "27b"]):
@@ -156,11 +150,8 @@ class ModelLoader(ForgeModel):
         if is_mlx:
             model_kwargs["ignore_mismatched_sizes"] = True
 
-        if is_awq:
+        if self._variant == ModelVariant.GEMMA_3_27B_IT_QAT_W4A16:
             model_kwargs["device_map"] = "cpu"
-            config = AutoConfig.from_pretrained(pretrained_model_name)
-            delattr(config, "quantization_config")
-            model_kwargs["config"] = config
 
         model = Gemma3ForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
@@ -278,7 +269,7 @@ class ModelLoader(ForgeModel):
         """
         if self._variant not in (
             ModelVariant.GEMMA_3_27B_IT,
-            ModelVariant.GEMMA_3_27B_PT,
+            ModelVariant.GEMMA_3_27B_IT_QAT_W4A16,
         ):
             return None
 
