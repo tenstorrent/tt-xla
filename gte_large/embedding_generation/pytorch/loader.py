@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available GTE-Large model variants for embedding generation."""
 
     GTE_LARGE = "gte-large"
+    SENTENCE_TRANSFORMERS_GTE_LARGE = "sentence-transformers-gte-large"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GTE_LARGE: ModelConfig(
             pretrained_model_name="thenlper/gte-large",
+        ),
+        ModelVariant.SENTENCE_TRANSFORMERS_GTE_LARGE: ModelConfig(
+            pretrained_model_name="embaas/sentence-transformers-gte-large",
         ),
     }
 
