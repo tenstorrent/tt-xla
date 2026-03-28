@@ -54,6 +54,9 @@ class ModelVariant(StrEnum):
     TINY_RANDOM = "Tiny_Random"
     FEATHERLESS_7B_INSTRUCT_V02 = "Featherless_7B_INSTRUCT_v02"
 
+    # MaziyarPanahi variants
+    MAZIYARPANAHI_7B_INSTRUCT_V02 = "MaziyarPanahi_7B_INSTRUCT_v02"
+
 
 class ModelLoader(ForgeModel):
     """Mistral model loader implementation for causal language modeling tasks."""
@@ -146,6 +149,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.FEATHERLESS_7B_INSTRUCT_V02: ModelConfig(
             pretrained_model_name="Featherless-Chat-Models/Mistral-7B-Instruct-v0.2",
         ),
+        # MaziyarPanahi variants
+        ModelVariant.MAZIYARPANAHI_7B_INSTRUCT_V02: ModelConfig(
+            pretrained_model_name="MaziyarPanahi/Mistral-7B-Instruct-v0.2",
+        ),
     }
 
     # Default variant to use
@@ -185,6 +192,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TINY_RANDOM,
             ModelVariant.MISTRAL_NEMO_INSTRUCT_2407_LENIENT_CHATFIX,
             ModelVariant.FEATHERLESS_7B_INSTRUCT_V02,
+            ModelVariant.MAZIYARPANAHI_7B_INSTRUCT_V02,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
