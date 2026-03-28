@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_122B_A10B_NVFP4 = "122B_A10B_NVFP4"
     QWEN_3_5_27B_4BIT = "27B_4bit"
     QWEN_3_5_27B_WRITER_I1_GGUF = "27B_Writer_i1_GGUF"
+    QWEN_3_5_9B_HIGHIQ_HERETIC_I1_GGUF = "9B_HighIQ_HERETIC_i1_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -106,6 +107,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mradermacher/Qwen3.5-27B-Writer-i1-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_9B_HIGHIQ_HERETIC_I1_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-9B-Claude-4.6-HighIQ-THINKING-HERETIC-UNCENSORED-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -117,6 +122,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_27B_GGUF: "Qwen3.5-27B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_27B_WRITER_I1_GGUF: "Qwen3.5-27B-Writer-i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_9B_HIGHIQ_HERETIC_I1_GGUF: "Qwen3.5-9B-Claude-4.6-HighIQ-THINKING-HERETIC-UNCENSORED-i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
