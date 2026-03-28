@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_SPECIES_BASE = "ZeroShot-NER-Species-Base-220M"
     OPENMED_ZEROSHOT_NER_ONCOLOGY_LARGE = "ZeroShot-NER-Oncology-Large-459M"
+    OPENMED_ZEROSHOT_NER_BLOODCANCER_LARGE = "ZeroShot-NER-BloodCancer-Large-459M"
 
 
 class ModelLoader(ForgeModel):
@@ -49,6 +50,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_LARGE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Large-459M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_BLOODCANCER_LARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-BloodCancer-Large-459M"
         ),
     }
 
@@ -149,6 +153,10 @@ class ModelLoader(ForgeModel):
                 "Tissue",
                 "Organism",
             ],
+        },
+        ModelVariant.OPENMED_ZEROSHOT_NER_BLOODCANCER_LARGE: {
+            "text": "The patient presented with chronic lymphocytic leukemia symptoms.",
+            "labels": ["CL"],
         },
     }
 
