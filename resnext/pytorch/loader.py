@@ -6,6 +6,7 @@ ResNeXt model loader implementation
 """
 
 import torch
+import timm
 from typing import Optional
 from dataclasses import dataclass
 from PIL import Image
@@ -46,6 +47,9 @@ class ModelVariant(StrEnum):
     RESNEXT101_64X4D = "101_64x4d"
     RESNEXT101_32X8D_WSL = "101_32x8d_Wsl"
 
+    # TIMM variants
+    RESNEXT50_32X4D_A1H_IN1K = "50_32x4d_A1h_In1k"
+
     # OSMR variants
     RESNEXT14_32X4D_OSMR = "14_32x4d_Osmr"
     RESNEXT26_32X4D_OSMR = "26_32x4d_Osmr"
@@ -77,6 +81,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="resnext101_32x8d_wsl",
             source=ModelSource.TORCH_HUB,
             hub_source="facebookresearch/WSL-Images",
+        ),
+        # TIMM variants
+        ModelVariant.RESNEXT50_32X4D_A1H_IN1K: ResNeXtConfig(
+            pretrained_model_name="resnext50_32x4d.a1h_in1k",
+            source=ModelSource.TIMM,
         ),
         # OSMR variants
         ModelVariant.RESNEXT14_32X4D_OSMR: ResNeXtConfig(
@@ -129,10 +138,17 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
+        if variant in [
+            ModelVariant.RESNEXT50_32X4D_A1H_IN1K,
+        ]:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="ResNeXt",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
@@ -156,6 +172,9 @@ class ModelLoader(ForgeModel):
             # Load model using torch.hub
             hub_source = self._variant_config.hub_source
             model = torch.hub.load(hub_source, model_name)
+        elif source == ModelSource.TIMM:
+            # Load model using timm
+            model = timm.create_model(model_name, pretrained=True)
         elif source == ModelSource.OSMR:
             # Load model using pytorchcv
             model = ptcv_get_model(model_name, pretrained=True)
@@ -215,6 +234,11 @@ class ModelLoader(ForgeModel):
                     model_name=model_name,
                     custom_preprocess_fn=custom_preprocess_fn,
                 )
+            elif source == ModelSource.TIMM:
+                self._preprocessor = VisionPreprocessor(
+                    model_source=source,
+                    model_name=model_name,
+                )
             else:
                 # For other sources (if any added in future)
                 self._preprocessor = VisionPreprocessor(
@@ -225,10 +249,16 @@ class ModelLoader(ForgeModel):
             if hasattr(self, "model") and self.model is not None:
                 self._preprocessor.set_cached_model(self.model)
 
+        model_for_config = None
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
+
         return self._preprocessor.preprocess(
             image=image,
             dtype_override=dtype_override,
             batch_size=batch_size,
+            model_for_config=model_for_config,
         )
 
     def load_inputs(self, dtype_override=None, batch_size=1, image=None):
@@ -265,6 +295,7 @@ class ModelLoader(ForgeModel):
             source = self._variant_config.source
 
             # For TORCH_HUB and OSMR, use TORCHVISION postprocessing (same ImageNet labels)
+            # For TIMM, use TIMM postprocessing
             postprocess_source = (
                 ModelSource.TORCHVISION
                 if source in (ModelSource.TORCH_HUB, ModelSource.OSMR)
