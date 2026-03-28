@@ -4,7 +4,7 @@
 """
 LFM2 (Liquid Foundation Model 2) loader implementation for causal language modeling.
 
-Supports LiquidAI's LFM2 Mixture-of-Experts models.
+Supports LiquidAI's LFM2 model family.
 """
 
 from typing import Optional
