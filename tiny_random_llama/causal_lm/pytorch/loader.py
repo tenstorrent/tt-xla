@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Tiny Random LlamaForCausalLM model loader implementation for causal language modeling.
+Tiny Random Llama model loader implementation for causal language modeling.
 """
-from transformers import LlamaForCausalLM, AutoTokenizer, AutoConfig
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
 
-from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -17,39 +17,45 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....base import ForgeModel
+from ....tools.utils import (
+    pad_inputs,
+    cast_input_to_type,
+)
 
 
 class ModelVariant(StrEnum):
-    """Available Tiny Random Llama model variants."""
+    """Available Tiny Random Llama model variants for causal LM."""
 
-    DEFAULT = "default"
+    TINY_RANDOM_LLAMA = "tiny-random-llama"
 
 
 class ModelLoader(ForgeModel):
-    """Tiny Random LlamaForCausalLM model loader implementation for causal language modeling tasks."""
+    """Tiny Random Llama model loader implementation for causal language modeling."""
 
     _VARIANTS = {
-        ModelVariant.DEFAULT: LLMModelConfig(
-            pretrained_model_name="HuggingFaceH4/tiny-random-LlamaForCausalLM",
-            max_length=256,
+        ModelVariant.TINY_RANDOM_LLAMA: LLMModelConfig(
+            pretrained_model_name="optimum-internal-testing/tiny-random-llama",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEFAULT
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM_LLAMA
 
-    sample_text = "My name is Thomas and my main"
+    sample_text = "Hey how are you doing today?"
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
-        self.num_layers = num_layers
+        self.seq_len = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
-            model="TinyRandomLlama",
+            model="Tiny Random Llama",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -58,14 +64,17 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            pretrained_model_name, **tokenizer_kwargs
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -75,31 +84,39 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {"use_cache": False}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
-
-        model = LlamaForCausalLM.from_pretrained(pretrained_model_name, **model_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
         model.eval()
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        input_tokens = self.tokenizer(
+        inputs = self.tokenizer(
             self.sample_text,
-            max_length=self._variant_config.max_length,
-            padding=True,
-            truncation=True,
             return_tensors="pt",
         )
 
-        return [input_tokens["input_ids"], input_tokens["attention_mask"]]
+        for key in inputs:
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        if dtype_override is not None:
+            for key in inputs:
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
+
+        target_len = self._variant_config.max_length
+        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], target_len)
+        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], target_len)
+        self.seq_len = seq_len
+
+        inputs["input_ids"] = padded_input_ids
+        inputs["attention_mask"] = padded_attention_mask
+        return inputs

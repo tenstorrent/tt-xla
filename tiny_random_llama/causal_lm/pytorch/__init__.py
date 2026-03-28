@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Tiny Random Llama PyTorch causal language modeling implementation.
+Tiny Random Llama Causal LM PyTorch model implementation for Tenstorrent projects.
 """
-
 from .loader import ModelLoader, ModelVariant
