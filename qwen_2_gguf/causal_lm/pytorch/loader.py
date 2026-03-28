@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2 GGUF model variants for causal language modeling."""
 
-    QWEN_2_7B_INSTRUCT_GGUF = "7B_Instruct_GGUF"
+    QWEN_2_0_5B_INSTRUCT_GGUF = "0.5B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_7B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2-7B-Instruct-GGUF",
+        ModelVariant.QWEN_2_0_5B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2-0.5B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_7B_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_0_5B_INSTRUCT_GGUF
 
-    GGUF_FILE = "qwen2-7b-instruct-q4_k_m.gguf"
+    GGUF_FILE = "qwen2-0_5b-instruct-q4_k_m.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
