@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
     """Available TrOCR model variants for OCR tasks."""
 
     TROCR_BASE_PRINTED = "trocr-base-printed"
-    TROCR_SMALL_PRINTED = "trocr-small-printed"
+    TROCR_BASE_STAGE1 = "trocr-base-stage1"
 
 
 class ModelLoader(ForgeModel):
@@ -36,8 +36,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.TROCR_BASE_PRINTED: ModelConfig(
             pretrained_model_name="microsoft/trocr-base-printed",
         ),
-        ModelVariant.TROCR_SMALL_PRINTED: ModelConfig(
-            pretrained_model_name="microsoft/trocr-small-printed",
+        ModelVariant.TROCR_BASE_STAGE1: ModelConfig(
+            pretrained_model_name="microsoft/trocr-base-stage1",
         ),
     }
 
