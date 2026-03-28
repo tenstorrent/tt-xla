@@ -5,11 +5,6 @@
 SigLIP2 model loader implementation for image classification.
 """
 import torch
-from transformers import (
-    AutoImageProcessor,
-    SiglipForImageClassification,
-)
-from datasets import load_dataset
 from typing import Optional
 
 from ....base import ForgeModel
@@ -79,9 +74,11 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded processor instance
         """
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        from transformers import AutoImageProcessor
 
-        self.processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
+        self.processor = AutoImageProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
 
         return self.processor
 
@@ -95,6 +92,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The SigLIP2 model instance for image classification.
         """
+        from transformers import SiglipForImageClassification
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
@@ -119,6 +118,8 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors that can be fed to the model.
         """
+        from datasets import load_dataset
+
         if self.processor is None:
             self._load_processor()
 
@@ -133,7 +134,7 @@ class ModelLoader(ForgeModel):
 
         if dtype_override is not None:
             for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
+                if torch.is_tensor(inputs[key]) and inputs[key].dtype == torch.float32:
                     inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
