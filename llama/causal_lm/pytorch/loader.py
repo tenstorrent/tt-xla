@@ -122,6 +122,9 @@ class ModelVariant(StrEnum):
     # OpenPipe variants
     OPENPIPE_PII_REDACT_GENERAL = "OpenPipe_PII_Redact_General"
 
+    # Fairseq2 variants
+    FAIRSEQ2_DUMMY_LLAMA_3_2_1B = "Fairseq2_Dummy_Llama_3.2_1B"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -287,6 +290,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenPipe/PII-Redact-General",
             max_length=128,
         ),
+        # Fairseq2 variants
+        ModelVariant.FAIRSEQ2_DUMMY_LLAMA_3_2_1B: LLMModelConfig(
+            pretrained_model_name="mgleize/fairseq2-dummy-Llama-3.2-1B",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -341,6 +349,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TINYLLAMA_1_1B_INTERMEDIATE,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_MLX_8BIT,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_BNB_4BIT,
+            ModelVariant.FAIRSEQ2_DUMMY_LLAMA_3_2_1B,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -655,6 +664,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_2_7B_GPTQ,
             ModelVariant.JACKFRAM_LLAMA_160M,
             ModelVariant.OPENPIPE_PII_REDACT_GENERAL,
+            ModelVariant.FAIRSEQ2_DUMMY_LLAMA_3_2_1B,
         ]:
             return None
 
