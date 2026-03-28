@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available LFM2 GGUF model variants for causal language modeling."""
 
-    LFM2_700M_GGUF = "700M_GGUF"
+    LFM2_1_2B_GGUF = "1.2B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """LFM2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LFM2_700M_GGUF: LLMModelConfig(
-            pretrained_model_name="LiquidAI/LFM2-700M-GGUF",
+        ModelVariant.LFM2_1_2B_GGUF: LLMModelConfig(
+            pretrained_model_name="LiquidAI/LFM2-1.2B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LFM2_700M_GGUF
+    DEFAULT_VARIANT = ModelVariant.LFM2_1_2B_GGUF
 
-    GGUF_FILE = "LFM2-700M-Q4_K_M.gguf"
+    GGUF_FILE = "LFM2-1.2B-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "The quick brown fox jumps over the lazy dog."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -68,7 +68,9 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -109,15 +111,10 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         messages = [
-            {
-                "role": "user",
-                "content": self.sample_text,
-            }
+            {"role": "user", "content": self.sample_text},
         ]
         text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
+            messages, tokenize=False, add_generation_prompt=True
         )
         prompts = [text]
 
@@ -134,28 +131,6 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
-        return mesh_shape, ("batch", "model")
-
-    def load_shard_spec(self, model):
-        shard_specs = {}
-        for layer in model.model.layers:
-            if hasattr(layer, "mlp"):
-                if hasattr(layer.mlp, "up_proj"):
-                    shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-                if hasattr(layer.mlp, "gate_proj"):
-                    shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-                if hasattr(layer.mlp, "down_proj"):
-                    shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
-
-            if hasattr(layer, "self_attn"):
-                shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-                shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-                shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-                shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
