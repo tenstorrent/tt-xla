@@ -47,9 +47,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_INSTRUCT_2507 = "30B_A3B_Instruct_2507"
     QWEN_3_4B_SAFERL = "4B_SafeRL"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_30B_A3B_NVFP4 = "30B_A3B_NVFP4"
-    QWEN_3_4B_INSTRUCT_2507_MLX_5BIT = "4B_Instruct_2507_MLX_5bit"
-    QWEN_3_8B_BNB_4BIT = "8B_Bnb_4bit"
+    QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT = "30B_A3B_Instruct_2507_MLX_6bit"
 
 
 class ModelLoader(ForgeModel):
@@ -141,17 +139,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_30B_A3B_NVFP4: LLMModelConfig(
-            pretrained_model_name="nvidia/Qwen3-30B-A3B-NVFP4",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_5BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-4B-Instruct-2507-MLX-5bit",
-            max_length=128,
-        ),
-        # Unsloth BNB 4-bit quantized variants
-        ModelVariant.QWEN_3_8B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-8B-bnb-4bit",
+        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-6bit",
             max_length=128,
         ),
     }
@@ -206,9 +195,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_235B_A22B_FP8,
             ModelVariant.QWEN_3_235B_A22B_THINKING_2507,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_30B_A3B_NVFP4,
-            ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_5BIT,
-            ModelVariant.QWEN_3_8B_BNB_4BIT,
+            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -346,6 +333,8 @@ class ModelLoader(ForgeModel):
                 ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_5BIT,
                 ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
                 ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
+                ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT,
+                ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
             )
             text = self.tokenizer.apply_chat_template(
                 messages,
@@ -396,7 +385,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_30B_A3B,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_30B_A3B_NVFP4,
+            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
         )
 
