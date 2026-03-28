@@ -49,20 +49,9 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     MINISTRAL_3_8B_BASE_2512 = "Ministral_3_8B_Base_2512"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    TINY_RANDOM = "Tiny_Random"
-    FEATHERLESS_7B_INSTRUCT_V02 = "Featherless_7B_INSTRUCT_v02"
-
-    # MaziyarPanahi variants
-    MAZIYARPANAHI_7B_INSTRUCT_V02 = "MaziyarPanahi_7B_INSTRUCT_v02"
-
-    # VAGOsolutions variants
-    VAGOSOLUTIONS_SAUERKRAUTLM_PHI3_MEDIUM = "VAGOsolutions_SauerkrautLM_Phi3_medium"
-
-    # openaccess-ai-collective variants
-    OPENACCESS_TINY_MISTRAL = "openaccess_tiny_mistral"
-
-    # HuggingFaceH4 variants
-    HUGGINGFACEH4_MISTRAL_7B_SFT_BETA = "HuggingFaceH4_mistral_7b_sft_beta"
+    DEVSTRAL_SMALL_2505_DS_V3_2_SPECIALE_DISTILL = (
+        "Devstral_Small_2505_DS_V3.2_Speciale_Distill"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -150,27 +139,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-mistral",
-        ),
-        ModelVariant.FEATHERLESS_7B_INSTRUCT_V02: ModelConfig(
-            pretrained_model_name="Featherless-Chat-Models/Mistral-7B-Instruct-v0.2",
-        ),
-        # MaziyarPanahi variants
-        ModelVariant.MAZIYARPANAHI_7B_INSTRUCT_V02: ModelConfig(
-            pretrained_model_name="MaziyarPanahi/Mistral-7B-Instruct-v0.2",
-        ),
-        # VAGOsolutions variants
-        ModelVariant.VAGOSOLUTIONS_SAUERKRAUTLM_PHI3_MEDIUM: ModelConfig(
-            pretrained_model_name="VAGOsolutions/SauerkrautLM-Phi-3-medium",
-        ),
-        # openaccess-ai-collective variants
-        ModelVariant.OPENACCESS_TINY_MISTRAL: ModelConfig(
-            pretrained_model_name="openaccess-ai-collective/tiny-mistral",
-        ),
-        # HuggingFaceH4 variants
-        ModelVariant.HUGGINGFACEH4_MISTRAL_7B_SFT_BETA: ModelConfig(
-            pretrained_model_name="HuggingFaceH4/mistral-7b-sft-beta",
+        ModelVariant.DEVSTRAL_SMALL_2505_DS_V3_2_SPECIALE_DISTILL: ModelConfig(
+            pretrained_model_name="TeichAI/Devstral-Small-2505-Deepseek-V3.2-Speciale-Distill",
         ),
     }
 
@@ -210,6 +180,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.DEVSTRAL_SMALL_2507,
             ModelVariant.MAGISTRAL_SMALL_2509,
+            ModelVariant.DEVSTRAL_SMALL_2505_DS_V3_2_SPECIALE_DISTILL,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
