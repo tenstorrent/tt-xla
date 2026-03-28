@@ -11,6 +11,7 @@ from torchvision import models
 import torch
 import os
 from datasets import load_dataset
+import timm
 
 from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 
@@ -62,6 +63,9 @@ class ModelVariant(StrEnum):
     # X-ray variants
     DENSENET121_XRAY = "121_Xray"
 
+    # TIMM variants
+    HF_TIMM_DENSENET201_TV_IN1K = "Timm_DenseNet201_Tv_In1k"
+
 
 class ModelLoader(ForgeModel):
     """DenseNet model loader implementation."""
@@ -89,6 +93,11 @@ class ModelLoader(ForgeModel):
         ModelVariant.DENSENET121_XRAY: DenseNetConfig(
             pretrained_model_name="densenet121-res224-all",
             source=ModelSource.TORCH_XRAY_VISION,
+        ),
+        # TIMM variants
+        ModelVariant.HF_TIMM_DENSENET201_TV_IN1K: DenseNetConfig(
+            pretrained_model_name="hf_hub:timm/densenet201.tv_in1k",
+            source=ModelSource.TIMM,
         ),
     }
 
@@ -127,7 +136,11 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="DenseNet",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=(
+                ModelGroup.VULCAN
+                if variant == ModelVariant.HF_TIMM_DENSENET201_TV_IN1K
+                else ModelGroup.GENERALITY
+            ),
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
@@ -147,7 +160,9 @@ class ModelLoader(ForgeModel):
         model_name = self._variant_config.pretrained_model_name
         source = self._variant_config.source
 
-        if source == ModelSource.TORCH_XRAY_VISION:
+        if source == ModelSource.TIMM:
+            model = timm.create_model(model_name, pretrained=True)
+        elif source == ModelSource.TORCH_XRAY_VISION:
             if not XRAY_AVAILABLE:
                 raise ImportError(
                     "torchxrayvision is required for X-ray models. Install it with: pip install torchxrayvision"
