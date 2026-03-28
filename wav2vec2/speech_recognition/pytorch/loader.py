@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     BASE_960H = "Base_960h"
     LARGE_960H = "Large_960h"
     LARGE_XLSR_KN = "Large_XLSR_Kn"
+    NB_300M_NYNORSK = "NB_300m_Nynorsk"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE_XLSR_KN: ModelConfig(
             pretrained_model_name="amoghsgopadi/wav2vec2-large-xlsr-kn",
+        ),
+        ModelVariant.NB_300M_NYNORSK: ModelConfig(
+            pretrained_model_name="NbAiLab/nb-wav2vec2-300m-nynorsk",
         ),
     }
 
