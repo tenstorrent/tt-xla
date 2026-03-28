@@ -68,14 +68,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        from ming_omni_tts.configuration_bailingmm import BailingMMConfig
-        from ming_omni_tts.modeling_bailingmm import (
-            BailingMMNativeForConditionalGeneration,
-        )
-        from transformers import AutoConfig, AutoModel
-
-        AutoConfig.register("dense", BailingMMConfig)
-        AutoModel.register(BailingMMConfig, BailingMMNativeForConditionalGeneration)
+        from transformers import AutoModel
 
         full_model = AutoModel.from_pretrained(
             self._variant_config.pretrained_model_name,
