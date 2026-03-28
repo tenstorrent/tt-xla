@@ -57,7 +57,7 @@ class ModelVariant(StrEnum):
     # Llama 3.3 variants
     LLAMA_3_3_70B_INSTRUCT = "3.3_70B_Instruct"
     LLAMA_3_3_70B_INSTRUCT_AWQ = "3.3_70B_Instruct_Awq"
-    LLAMA_3_3_70B_INSTRUCT_MLX_4BIT = "3.3_70B_Instruct_MLX_4bit"
+    LLAMA_3_3_70B_INSTRUCT_FP8 = "3.3_70B_Instruct_FP8"
 
     # RedHatAI FP8 quantized variants
     LLAMA_3_8B_INSTRUCT_FP8_KV = "3.0_8B_Instruct_FP8_KV"
@@ -234,8 +234,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="meta-llama/Llama-3.3-70B-Instruct",
             max_length=128,
         ),
-        ModelVariant.LLAMA_3_3_70B_INSTRUCT_MLX_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Llama-3.3-70B-Instruct-4bit",
+        ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8: LLMModelConfig(
+            pretrained_model_name="nvidia/Llama-3.3-70B-Instruct-FP8",
             max_length=128,
         ),
         # Llama 2 variants
@@ -325,6 +325,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_BNB_4BIT,
             ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8,
             ModelVariant.OPENPIPE_PII_REDACT_GENERAL,
             ModelVariant.TINYLLAMA_1_1B_INTERMEDIATE,
         ]:
@@ -598,8 +599,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_3_70B_INSTRUCT_MLX_4BIT,
-            ModelVariant.NOUSRESEARCH_LLAMA_3_1_70B_INSTRUCT,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
             ModelVariant.WHITERABBITNEO_LLAMA_3_1_70B,
