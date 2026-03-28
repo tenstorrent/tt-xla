@@ -6,7 +6,6 @@
 UniSpeech-SAT model loader implementation for audio feature extraction.
 """
 
-import torch
 from typing import Optional
 
 from ....base import ForgeModel
