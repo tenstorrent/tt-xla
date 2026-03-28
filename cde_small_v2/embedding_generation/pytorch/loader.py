@@ -27,16 +27,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """CDE-Small-V2 model loader implementation for embedding generation.
-
-    This model uses a two-stage architecture built on ModernBERT. The first stage
-    embeds a representative mini-corpus to produce dataset-level context embeddings,
-    and the second stage embeds queries/documents conditioned on those context embeddings.
-
-    For simplicity, this loader uses the second-stage model with dataset embeddings
-    derived from random strings (as recommended by the model authors when corpus
-    information is not available ahead of time).
-    """
+    """CDE-Small-V2 model loader implementation for embedding generation."""
 
     _VARIANTS = {
         ModelVariant.CDE_SMALL_V2: ModelConfig(
