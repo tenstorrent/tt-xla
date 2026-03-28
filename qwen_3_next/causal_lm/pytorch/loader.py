@@ -24,9 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Next model variants for causal language modeling."""
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
-    HUIHUI_QWEN_3_NEXT_80B_A3B_INSTRUCT_ABLITERATED_W4A16 = (
-        "Huihui_80B_A3B_Instruct_Abliterated_W4A16"
-    )
+    QWEN_3_NEXT_80B_A3B_INSTRUCT_MLX_4BIT = "80B_A3B_Instruct_MLX_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -38,8 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.HUIHUI_QWEN_3_NEXT_80B_A3B_INSTRUCT_ABLITERATED_W4A16: LLMModelConfig(
-            pretrained_model_name="coughmedicine/Huihui-Qwen3-Next-80B-A3B-Instruct-abliterated-W4A16",
+        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-Next-80B-A3B-Instruct-MLX-4bit",
             max_length=128,
         ),
     }
