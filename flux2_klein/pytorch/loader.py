@@ -1,11 +1,11 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-FLUX.2 Klein 9B-KV model loader implementation for text-to-image generation
+FLUX.2-klein model loader implementation for text-to-image generation
 """
 import torch
-from diffusers import Flux2KleinKVPipeline
+from diffusers.models import Flux2Transformer2DModel
 from typing import Optional
 
 from ...base import ForgeModel
@@ -21,25 +21,25 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available FLUX.2 Klein KV model variants."""
+    """Available FLUX.2-klein model variants."""
 
-    KLEIN_9B_KV = "Klein_9B_KV"
+    KLEIN_4B = "Klein-4B"
 
 
 class ModelLoader(ForgeModel):
-    """FLUX.2 Klein 9B-KV model loader implementation for text-to-image generation tasks."""
+    """FLUX.2-klein model loader implementation for text-to-image generation tasks."""
 
     _VARIANTS = {
-        ModelVariant.KLEIN_9B_KV: ModelConfig(
-            pretrained_model_name="black-forest-labs/FLUX.2-klein-9b-kv",
+        ModelVariant.KLEIN_4B: ModelConfig(
+            pretrained_model_name="black-forest-labs/FLUX.2-klein-4B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.KLEIN_9B_KV
+    DEFAULT_VARIANT = ModelVariant.KLEIN_4B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.pipe = None
+        self.transformer = None
         self.guidance_scale = 4.0
 
     @classmethod
@@ -48,7 +48,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="FLUX.2 Klein KV",
+            model="FLUX.2-klein",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_IMAGE_TTT,
@@ -56,33 +56,28 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_pipeline(self, dtype_override=None):
-        pipe_kwargs = {"use_safetensors": True}
+    def load_model(self, *, dtype_override=None, **kwargs):
+        load_kwargs = {"use_safetensors": True}
         if dtype_override is not None:
-            pipe_kwargs["torch_dtype"] = dtype_override
+            load_kwargs["torch_dtype"] = dtype_override
 
-        self.pipe = Flux2KleinKVPipeline.from_pretrained(
+        self.transformer = Flux2Transformer2DModel.from_pretrained(
             self._variant_config.pretrained_model_name,
-            **pipe_kwargs,
+            subfolder="transformer",
+            **load_kwargs,
         )
 
-        return self.pipe
-
-    def load_model(self, *, dtype_override=None, **kwargs):
-        if self.pipe is None:
-            self._load_pipeline(dtype_override=dtype_override)
-
         if dtype_override is not None:
-            self.pipe.transformer = self.pipe.transformer.to(dtype_override)
+            self.transformer = self.transformer.to(dtype_override)
 
-        return self.pipe.transformer
+        return self.transformer
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.pipe is None:
-            self._load_pipeline(dtype_override=dtype_override)
+        if self.transformer is None:
+            self.load_model(dtype_override=dtype_override)
 
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        config = self.pipe.transformer.config
+        config = self.transformer.config
 
         # Image dimensions
         height = 128
