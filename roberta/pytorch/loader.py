@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
-    FINANCIAL_ROBERTA_LARGE_SENTIMENT = "Financial_Large_Sentiment"
+    ROBERTA_BASE_TWEET_TOPIC_MULTI = "Base_Tweet_Topic_Multi"
 
 
 class ModelLoader(ForgeModel):
@@ -41,8 +41,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
             pretrained_model_name="FacebookAI/roberta-large-mnli",
         ),
-        ModelVariant.FINANCIAL_ROBERTA_LARGE_SENTIMENT: ModelConfig(
-            pretrained_model_name="soleimanian/financial-roberta-large-sentiment",
+        ModelVariant.ROBERTA_BASE_TWEET_TOPIC_MULTI: ModelConfig(
+            pretrained_model_name="cardiffnlp/twitter-roberta-base-dec2021-tweet-topic-multi-all",
         ),
     }
 
@@ -66,7 +66,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
             ModelVariant.ROBERTA_LARGE_MNLI,
-            ModelVariant.FINANCIAL_ROBERTA_LARGE_SENTIMENT,
+            ModelVariant.ROBERTA_BASE_TWEET_TOPIC_MULTI,
         ):
             group = ModelGroup.VULCAN
 
@@ -155,6 +155,10 @@ class ModelLoader(ForgeModel):
             ModelVariant.ROBERTA_BASE_ZEROSHOT_V2,
         )
 
+    def _is_multi_label_variant(self):
+        """Check if the current variant is a multi-label classification model."""
+        return self._variant == ModelVariant.ROBERTA_BASE_TWEET_TOPIC_MULTI
+
     def load_inputs(self):
         """Generate sample inputs for Roberta model."""
 
@@ -195,11 +199,21 @@ class ModelLoader(ForgeModel):
         Returns:
             str: Decoded answer text
         """
-        predicted_value = co_out[0].argmax(-1).item()
-        label = self.model.config.id2label[predicted_value]
-        if self._is_nli_variant():
+        import torch
+
+        if self._is_multi_label_variant():
+            probs = torch.sigmoid(co_out[0])
+            threshold = 0.5
+            predicted_indices = (probs > threshold).nonzero(as_tuple=True)[1].tolist()
+            labels = [self.model.config.id2label[idx] for idx in predicted_indices]
+            print(f"Predicted Topics: {labels}")
+        elif self._is_mnli_variant():
+            predicted_value = co_out[0].argmax(-1).item()
+            label = self.model.config.id2label[predicted_value]
             print(f"Predicted Label: {label}")
         elif self._variant == ModelVariant.ROBERTA_BASE_SUICIDE_PREDICTION:
             print(f"Predicted Class: {label}")
         else:
+            predicted_value = co_out[0].argmax(-1).item()
+            label = self.model.config.id2label[predicted_value]
             print(f"Predicted Sentiment: {label}")
