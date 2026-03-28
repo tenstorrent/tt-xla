@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-VieNeu-TTS GGUF model loader implementation for text-to-speech tasks.
+VieNeu TTS 0.3B GGUF model loader for Vietnamese text-to-speech generation.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
 from ...base import ForgeModel
@@ -21,28 +21,28 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available VieNeu-TTS GGUF model variants."""
+    """Available VieNeu TTS GGUF model variants."""
 
-    VIENEU_TTS_Q4_0 = "Q4_0"
+    VIENEU_TTS_0_3B_Q4_GGUF = "0.3B_Q4_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """VieNeu-TTS GGUF model loader implementation for text-to-speech tasks."""
+    """VieNeu TTS 0.3B GGUF model loader for Vietnamese text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.VIENEU_TTS_Q4_0: LLMModelConfig(
-            pretrained_model_name="pnnbao-ump/VieNeu-TTS-q4-gguf",
+        ModelVariant.VIENEU_TTS_0_3B_Q4_GGUF: LLMModelConfig(
+            pretrained_model_name="pnnbao-ump/VieNeu-TTS-0.3B-q4-gguf",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.VIENEU_TTS_Q4_0
+    DEFAULT_VARIANT = ModelVariant.VIENEU_TTS_0_3B_Q4_GGUF
 
-    GGUF_FILE = "VieNeu-TTS-q4_0.gguf"
+    GGUF_FILE = "VieNeu-TTS-0_3B-Q4_0.gguf"
 
-    sample_text = "Xin chào, đây là một bài kiểm tra giọng nói."
+    sample_text = "Xin chào, tôi là VieNeu."
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    def __init__(self, variant: Optional[ModelVariant] = None, **kwargs):
         super().__init__(variant)
         self.tokenizer = None
         self.config = None
@@ -50,7 +50,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="VieNeu-TTS GGUF",
+            model="VieNeu TTS GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_TTS,
@@ -73,6 +73,8 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
@@ -83,24 +85,35 @@ class ModelLoader(ForgeModel):
         model_kwargs["gguf_file"] = self.GGUF_FILE
 
         model = AutoModelForCausalLM.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+            pretrained_model_name, **model_kwargs
         ).eval()
 
         self.config = model.config
+        self.model = model
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         max_length = self._variant_config.max_length
 
         inputs = self.tokenizer(
-            self.sample_text,
+            [self.sample_text],
             return_tensors="pt",
             padding=True,
             truncation=True,
             max_length=max_length,
         )
 
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
         return inputs
+
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+        )
+        return self.config
