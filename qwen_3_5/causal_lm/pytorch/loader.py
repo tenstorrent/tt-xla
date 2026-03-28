@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_122B_A10B_INT4_AUTOROUND = "122B_A10B_INT4_AutoRound"
     QWEN_3_5_27B_4BIT = "27B_4bit"
+    QWEN_3_5_27B_WRITER_I1_GGUF = "27B_Writer_i1_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -96,6 +97,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mlx-community/Qwen3.5-27B-4bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_27B_WRITER_I1_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-27B-Writer-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -106,6 +111,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_27B_GGUF: "Qwen3.5-27B-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_27B_WRITER_I1_GGUF: "Qwen3.5-27B-Writer-i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
