@@ -40,8 +40,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt V2 model variants."""
 
     NANO_FCMAE_FT_IN22K_IN1K = "Nano_FCMAE_FT_IN22K_IN1K"
-    TINY_22K_384 = "Tiny_22K_384"
-    LARGE_22K_224 = "Large_22K_224"
+    LARGE_FCMAE_FT_IN22K_IN1K = "Large_FCMAE_FT_IN22K_IN1K"
 
 
 class ModelLoader(ForgeModel):
@@ -52,13 +51,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnextv2_nano.fcmae_ft_in22k_in1k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.TINY_22K_384: ConvNeXtV2Config(
-            pretrained_model_name="facebook/convnextv2-tiny-22k-384",
-            source=ModelSource.HUGGING_FACE,
-        ),
-        ModelVariant.LARGE_22K_224: ConvNeXtV2Config(
-            pretrained_model_name="facebook/convnextv2-large-22k-224",
-            source=ModelSource.HUGGING_FACE,
+        ModelVariant.LARGE_FCMAE_FT_IN22K_IN1K: ConvNeXtV2Config(
+            pretrained_model_name="hf_hub:timm/convnextv2_large.fcmae_ft_in22k_in1k",
+            source=ModelSource.TIMM,
         ),
     }
 
