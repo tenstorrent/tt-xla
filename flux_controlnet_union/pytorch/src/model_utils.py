@@ -8,7 +8,6 @@ Helper functions for FLUX ControlNet Union model loading and processing.
 
 import torch
 from diffusers import FluxControlNetPipeline, FluxControlNetModel
-from PIL import Image
 
 
 def load_flux_controlnet_union_pipe(controlnet_model_name, base_model_name):
@@ -45,16 +44,3 @@ def load_flux_controlnet_union_pipe(controlnet_model_name, base_model_name):
                     param.requires_grad = False
 
     return pipe
-
-
-def create_controlnet_conditioning_image(height=128, width=128):
-    """Create a dummy conditioning image for ControlNet.
-
-    Args:
-        height: Image height
-        width: Image width
-
-    Returns:
-        PIL.Image: A dummy conditioning image
-    """
-    return Image.new("RGB", (width, height), color=(0, 0, 0))
