@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Huihui GLM-4.7 Flash abliterated i1 GGUF model loader implementation for causal language modeling.
+GLM-4.7-Flash GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,26 +21,26 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Huihui GLM-4.7 Flash abliterated i1 GGUF model variants."""
+    """Available GLM-4.7-Flash GGUF model variants for causal language modeling."""
 
-    GLM_4_7_FLASH_ABLITERATED_I1_Q4_K_M = "glm_4_7_flash_abliterated_i1_q4_k_m"
+    GLM_4_7_FLASH_GGUF = "4.7_Flash_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Huihui GLM-4.7 Flash abliterated i1 GGUF model loader for causal language modeling."""
+    """GLM-4.7-Flash GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GLM_4_7_FLASH_ABLITERATED_I1_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="mradermacher/Huihui-GLM-4.7-Flash-abliterated-i1-GGUF",
+        ModelVariant.GLM_4_7_FLASH_GGUF: LLMModelConfig(
+            pretrained_model_name="bartowski/zai-org_GLM-4.7-Flash-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GLM_4_7_FLASH_ABLITERATED_I1_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.GLM_4_7_FLASH_GGUF
 
-    GGUF_FILE = "Huihui-GLM-4.7-Flash-abliterated.i1-Q4_K_M.gguf"
+    GGUF_FILE = "zai-org_GLM-4.7-Flash-Q4_K_M.gguf"
 
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="glm_4_7_flash_gguf",
+            model="GLM-4.7-Flash GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -134,6 +134,27 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
