@@ -116,6 +116,9 @@ class ModelVariant(StrEnum):
     # UnicomLLM variants
     UNICHAT_LLAMA3_CHINESE_8B = "Unichat_Llama3_Chinese_8B"
 
+    # OpenBuddy variants
+    OPENBUDDY_LLAMA3_70B = "OpenBuddy_Llama3_70B"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -274,6 +277,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="UnicomLLM/Unichat-llama3-Chinese-8B",
             max_length=128,
         ),
+        # OpenBuddy variants
+        ModelVariant.OPENBUDDY_LLAMA3_70B: LLMModelConfig(
+            pretrained_model_name="OpenBuddy/openbuddy-llama3-70b-v21.2-32k",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -323,6 +331,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_2_70B_CHAT,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_W_INT8_A_INT8_SYM,
             ModelVariant.UNICHAT_LLAMA3_CHINESE_8B,
+            ModelVariant.OPENBUDDY_LLAMA3_70B,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -592,6 +601,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_UNSLOTH,
             ModelVariant.LLAMA_2_70B_CHAT,
+            ModelVariant.OPENBUDDY_LLAMA3_70B,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
