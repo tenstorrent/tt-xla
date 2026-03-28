@@ -39,7 +39,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_12B_IT = "google/gemma-3-12b-it"
     GEMMA_3_12B_IT_QUANTIZED_W4A16 = "RedHatAI/gemma-3-12b-it-quantized.w4a16"
     GEMMA_3_27B_IT = "google/gemma-3-27b-it"
-    GEMMA_3_27B_IT_QUANTIZED_W4A16 = "RedHatAI/gemma-3-27b-it-quantized.w4a16"
+    GEMMA_3_27B_IT_AWQ_INT4 = "gaunernst/gemma-3-27b-it-int4-awq"
 
 
 class ModelLoader(ForgeModel):
@@ -64,8 +64,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3_27B_IT),
         ),
-        ModelVariant.GEMMA_3_27B_IT_QUANTIZED_W4A16: LLMModelConfig(
-            pretrained_model_name=str(ModelVariant.GEMMA_3_27B_IT_QUANTIZED_W4A16),
+        ModelVariant.GEMMA_3_27B_IT_AWQ_INT4: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.GEMMA_3_27B_IT_AWQ_INT4),
         ),
     }
 
@@ -82,7 +82,7 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-        if variant == ModelVariant.GEMMA_3_27B_IT_QUANTIZED_W4A16:
+        if variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
             group = ModelGroup.VULCAN
         elif any(x in variant.value for x in ["12b", "27b"]):
             group = ModelGroup.RED
@@ -139,13 +139,11 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         is_mlx = "mlx-community" in pretrained_model_name
+        is_awq = self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4
         if is_mlx:
             model_kwargs["ignore_mismatched_sizes"] = True
 
-        is_quantized = pretrained_model_name in (
-            "RedHatAI/gemma-3-27b-it-quantized.w4a16",
-        )
-        if is_quantized:
+        if is_awq:
             model_kwargs["device_map"] = "cpu"
             config = AutoConfig.from_pretrained(pretrained_model_name)
             delattr(config, "quantization_config")
