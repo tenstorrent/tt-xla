@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     SMALL = "Small"
     XXL = "XXL"
+    DEEPFLOYD_XXL = "DeepFloyd_XXL"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XXL: LLMModelConfig(
             pretrained_model_name="google/t5-v1_1-xxl",
+            max_length=512,
+        ),
+        ModelVariant.DEEPFLOYD_XXL: LLMModelConfig(
+            pretrained_model_name="DeepFloyd/t5-v1_1-xxl",
             max_length=512,
         ),
     }
