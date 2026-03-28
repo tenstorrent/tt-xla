@@ -4,7 +4,6 @@
 """
 Bark model loader implementation for text-to-audio generation.
 """
-import torch
 from typing import Optional
 
 from ...base import ForgeModel
