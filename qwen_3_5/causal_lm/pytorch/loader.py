@@ -47,6 +47,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B_GUARDPOINT_GGUF = "27B_Guardpoint_GGUF"
     QWEN_3_5_35B_A3B_INT4_AUTOROUND = "35B_A3B_int4_AutoRound"
     QWEN_3_5_397B_A17B_GPTQ_INT4 = "397B_A17B_GPTQ_Int4"
+    QWEN_3_5_4B_CLAUDE_OPUS_REASONING_DISTILLED = "4B_Claude_Opus_Reasoning_Distilled"
 
 
 class ModelLoader(ForgeModel):
@@ -144,6 +145,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_397B_A17B_GPTQ_INT4: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3.5-397B-A17B-GPTQ-Int4",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_4B_CLAUDE_OPUS_REASONING_DISTILLED: LLMModelConfig(
+            pretrained_model_name="Jackrong/Qwen3.5-4B-Claude-4.6-Opus-Reasoning-Distilled",
             max_length=128,
         ),
     }
