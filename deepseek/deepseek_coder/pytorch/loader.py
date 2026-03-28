@@ -27,6 +27,7 @@ from transformers.dynamic_module_utils import get_imports
 class ModelVariant(StrEnum):
     """Available DeepSeek Coder model variants."""
 
+    DEEPSEEK_1_3B_BASE = "1_3B_Base"
     DEEPSEEK_1_3B_INSTRUCT = "1_3B_Instruct"
     DEEPSEEK_33B_INSTRUCT_GGUF = "33B_Instruct_GGUF"
 
@@ -36,6 +37,10 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
+        ModelVariant.DEEPSEEK_1_3B_BASE: LLMModelConfig(
+            pretrained_model_name="deepseek-ai/deepseek-coder-1.3b-base",
+            max_length=2048,
+        ),
         ModelVariant.DEEPSEEK_1_3B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="deepseek-ai/deepseek-coder-1.3b-instruct",
             max_length=2048,
@@ -78,14 +83,16 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant.
         """
-        group = ModelGroup.GENERALITY
-        if variant == ModelVariant.DEEPSEEK_33B_INSTRUCT_GGUF:
+        if variant == ModelVariant.DEEPSEEK_1_3B_BASE:
             group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="DeepSeek",
             variant=variant,
             group=group,
-            task=ModelTask.NLP_QA,
+            task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -144,12 +151,19 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        messages = [{"role": "user", "content": self.sample_text}]
-        inputs = self.tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            return_tensors="pt",
-        )
+        # Base models use plain text; instruct models use chat template
+        if self._variant == ModelVariant.DEEPSEEK_1_3B_BASE:
+            inputs = self.tokenizer(
+                self.sample_text,
+                return_tensors="pt",
+            ).input_ids
+        else:
+            messages = [{"role": "user", "content": self.sample_text}]
+            inputs = self.tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt",
+            )
         padded_inputs, seq_len = pad_inputs(inputs)
         self.seq_len = seq_len
 
