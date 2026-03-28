@@ -2,71 +2,56 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-EXAONE model loader implementation
+EXAONE model loader implementation for causal language modeling.
 """
-import torch
+
 from typing import Optional
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available EXAONE model variants."""
 
-    EXAONE_4_0_1_32B = "4.0.1-32B"
+    EXAONE_4_0_32B = "4.0_32B"
 
 
 class ModelLoader(ForgeModel):
-    """EXAONE model loader implementation."""
+    """EXAONE model loader implementation for causal language modeling tasks."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.EXAONE_4_0_1_32B: LLMModelConfig(
-            pretrained_model_name="LGAI-EXAONE/EXAONE-4.0.1-32B",
-            max_length=128,
+        ModelVariant.EXAONE_4_0_32B: ModelConfig(
+            pretrained_model_name="LGAI-EXAONE/EXAONE-4.0-32B",
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.EXAONE_4_0_1_32B
+    DEFAULT_VARIANT = ModelVariant.EXAONE_4_0_32B
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
-        """
         super().__init__(variant)
         self.tokenizer = None
+        self.model = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="EXAONE",
             variant=variant,
@@ -77,38 +62,24 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            pretrained_model_name, **tokenizer_kwargs
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the EXAONE model instance for this instance's variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-
-        Returns:
-            torch.nn.Module: The EXAONE model instance.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -122,39 +93,19 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
+        ).eval()
+
+        self.config = model.config
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the EXAONE model with this instance's variant settings.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-            batch_size: Optional batch size to override the default batch size of 1.
-
-        Returns:
-            dict: Input tensors (input_ids, attention_mask) that can be fed to the model.
-        """
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
-        max_length = self._variant_config.max_length
+        test_input = "What is the capital of France?"
 
-        messages = [
-            {"role": "user", "content": "Explain the basics of large language models."}
-        ]
-        text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-
-        inputs = self.tokenizer(
-            [text],
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=max_length,
-        )
+        inputs = self.tokenizer(test_input, return_tensors="pt")
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
@@ -162,25 +113,16 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def decode_output(self, outputs, dtype_override=None, inputs=None):
-        """Helper method to decode model outputs into human-readable text.
-
-        Args:
-            outputs: Model output from a forward pass
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-            inputs: Optional input tensors used to generate the outputs
-
-        Returns:
-            str: Decoded answer text
-        """
+    def decode_output(self, outputs, dtype_override=None):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
-        if inputs is None:
-            inputs = self.load_inputs()
+        next_token_logits = outputs.logits[:, -1]
+        next_token = next_token_logits.softmax(dim=-1).argmax()
+        return self.tokenizer.decode([next_token])
 
-        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-        token_ids = torch.argmax(logits, dim=-1)
-        decoded = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
-
-        return decoded[0] if len(decoded) == 1 else decoded
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+        return self.config
