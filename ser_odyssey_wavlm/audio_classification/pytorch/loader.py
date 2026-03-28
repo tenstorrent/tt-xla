@@ -83,10 +83,7 @@ class ModelLoader(ForgeModel):
         duration_seconds = 1
         raw_wav = np.random.randn(sampling_rate * duration_seconds).astype(np.float32)
 
-        # Normalize using model config mean/std (use zeros as defaults for synthetic input)
-        norm_wav = raw_wav
-
-        mask = torch.ones(1, len(norm_wav))
-        wavs = torch.tensor(norm_wav).unsqueeze(0)
+        mask = torch.ones(1, len(raw_wav))
+        wavs = torch.tensor(raw_wav).unsqueeze(0)
 
         return {"x": wavs, "mask": mask}
