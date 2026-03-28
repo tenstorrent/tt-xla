@@ -98,13 +98,20 @@ class ModelLoader(ForgeModel):
         )[0]
         prompt_embeds = prompt_embeds.to(dtype=dtype)
 
+        # Project text embeddings through the projection model
+        prompt_embeds = self.pipe.projection_model(
+            text_hidden_states=prompt_embeds,
+        ).text_hidden_states
+
         # Compute timing embeddings via the pipeline's projection layer
-        seconds_start_hidden = self.pipe.projection_model(
-            torch.tensor([0.0]).unsqueeze(0)
-        ).to(dtype=dtype)
-        seconds_end_hidden = self.pipe.projection_model(
-            torch.tensor([audio_end_in_s]).unsqueeze(0)
-        ).to(dtype=dtype)
+        projection_output = self.pipe.projection_model(
+            start_seconds=torch.tensor([0.0]),
+            end_seconds=torch.tensor([audio_end_in_s]),
+        )
+        seconds_start_hidden = projection_output.seconds_start_hidden_states.to(
+            dtype=dtype
+        )
+        seconds_end_hidden = projection_output.seconds_end_hidden_states.to(dtype=dtype)
 
         # encoder_hidden_states: concat text + timing along sequence dim
         encoder_hidden_states = torch.cat(
@@ -127,7 +134,12 @@ class ModelLoader(ForgeModel):
         # Rotary positional embeddings
         rotary_embed_dim = self.pipe.transformer.config.attention_head_dim // 2
         rotary_seq_len = latent_length + global_hidden_states.shape[1]
-        rotary_embedding = get_1d_rotary_pos_embed(rotary_embed_dim, rotary_seq_len)
+        rotary_embedding = get_1d_rotary_pos_embed(
+            rotary_embed_dim,
+            rotary_seq_len,
+            use_real=True,
+            repeat_interleave_real=False,
+        )
 
         return {
             "hidden_states": latents,
