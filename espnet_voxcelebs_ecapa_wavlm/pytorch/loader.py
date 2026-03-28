@@ -63,7 +63,19 @@ class ModelLoader(ForgeModel):
         speech2embed = Speech2Embedding.from_pretrained(
             model_tag=self._variant_config.pretrained_model_name, **kwargs
         )
-        model = speech2embed.spk_model
+        # The underlying model's forward() requires extract_embd=True for
+        # inference to return embeddings instead of computing training loss.
+        spk_model = speech2embed.spk_model
+
+        class EmbeddingWrapper(torch.nn.Module):
+            def __init__(self, model):
+                super().__init__()
+                self.model = model
+
+            def forward(self, speech):
+                return self.model(speech=speech, extract_embd=True)
+
+        model = EmbeddingWrapper(spk_model)
         model.eval()
 
         if dtype_override is not None:
