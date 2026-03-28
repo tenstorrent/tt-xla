@@ -32,7 +32,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_CODER_7B = "7B"
     QWEN_2_5_CODER_7B_INSTRUCT = "7B_Instruct"
     QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
-    QWEN_2_5_CODER_14B_INSTRUCT_GPTQ_INT8 = "14B_Instruct_GPTQ_Int8"
+    QWEN_2_5_CODER_14B = "14B"
     QWEN_2_5_CODER_32B_INSTRUCT = "32B_Instruct"
     QWEN_2_5_CODER_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
     QWEN_2_5_CODER_32B_INSTRUCT_UNSLOTH = "32B_Instruct_Unsloth"
@@ -75,8 +75,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-Coder-7B-Instruct-GPTQ-Int4",
             max_length=128,
         ),
-        ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GPTQ_INT8: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int8",
+        ModelVariant.QWEN_2_5_CODER_14B: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-Coder-14B",
             max_length=128,
         ),
         ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT: LLMModelConfig(
@@ -125,7 +125,7 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.RED
         if variant in [
             ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4,
-            ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GPTQ_INT8,
+            ModelVariant.QWEN_2_5_CODER_14B,
             ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_UNSLOTH,
         ]:
