@@ -2,18 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen1.5-MoE model loader implementation for causal language modeling.
+Qwen 1.5 MoE model loader implementation for causal language modeling.
 """
 
 from typing import Optional
 
-import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    ModelConfig,
+    LLMModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -23,28 +22,33 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen1.5-MoE model variants."""
+    """Available Qwen 1.5 MoE model variants for causal language modeling."""
 
-    TINY_RANDOM = "Tiny Random"
+    QWEN_1_5_MOE_A2_7B_CHAT = "A2.7B-Chat"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen1.5-MoE model loader implementation for causal language modeling tasks."""
+    """Qwen 1.5 MoE model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-qwen1.5-moe",
+        ModelVariant.QWEN_1_5_MOE_A2_7B_CHAT: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen1.5-MoE-A2.7B-Chat",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.QWEN_1_5_MOE_A2_7B_CHAT
+
+    chat_messages = [
+        {"role": "system", "content": "You are Jim Keller, the CEO of Tenstorrent"},
+        {"role": "user", "content": "Introduce yourself please!"},
+    ]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
         self.num_layers = num_layers
 
     @classmethod
@@ -53,7 +57,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="Qwen1.5-MoE",
+            model="Qwen 1.5 MoE",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -71,7 +75,10 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name, **tokenizer_kwargs
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
         return self.tokenizer
 
@@ -95,34 +102,30 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **model_kwargs
         ).eval()
 
-        self.config = model.config
-        self.model = model
+        model._supports_cache_class = False
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        test_input = "What is the capital of France?"
+        max_length = self._variant_config.max_length
 
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        batch_messages = [self.chat_messages] * batch_size
+        prompts = [
+            self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            for messages in batch_messages
+        ]
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        inputs = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+        )
 
         return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
-        return self.config
