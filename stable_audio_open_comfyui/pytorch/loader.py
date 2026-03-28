@@ -15,10 +15,7 @@ Available variants:
 from typing import Any, Optional
 
 import torch
-from diffusers import StableAudioDiTModel  # type: ignore[import]
-from diffusers.pipelines.stable_audio.pipeline_stable_audio import (  # type: ignore[import]
-    StableAudioPipeline,
-)
+from diffusers import StableAudioPipeline  # type: ignore[import]
 from huggingface_hub import hf_hub_download  # type: ignore[import]
 
 from ...base import ForgeModel
@@ -37,8 +34,6 @@ ORIGINAL_CONFIG_REPO = "stabilityai/stable-audio-open-1.0"
 
 # DiT model hidden size (from Stable Audio Open 1.0 config)
 HIDDEN_SIZE = 1024
-NUM_ATTENTION_HEADS = 16
-SAMPLE_LENGTH = 65536  # ~1.5s at 44.1kHz
 
 
 class ModelVariant(StrEnum):
