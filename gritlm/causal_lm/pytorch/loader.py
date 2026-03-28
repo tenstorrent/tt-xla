@@ -5,17 +5,19 @@
 GritLM model loader implementation for causal language modeling.
 """
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
@@ -23,28 +25,26 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available GritLM model variants."""
 
-    GRITLM_7B_KTO = "GritLM_7B_KTO"
+    GRITLM_8X7B_KTO = "8x7B_KTO"
 
 
 class ModelLoader(ForgeModel):
-    """GritLM model loader implementation for causal language modeling."""
+    """GritLM model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GRITLM_7B_KTO: LLMModelConfig(
-            pretrained_model_name="GritLM/GritLM-7B-KTO",
-            max_length=256,
+        ModelVariant.GRITLM_8X7B_KTO: ModelConfig(
+            pretrained_model_name="GritLM/GritLM-8x7B-KTO",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GRITLM_7B_KTO
-
-    sample_text = "How often does the letter r occur in GritLM?"
+    DEFAULT_VARIANT = ModelVariant.GRITLM_8X7B_KTO
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
+        self.model = None
         self.num_layers = num_layers
 
     @classmethod
@@ -62,15 +62,16 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
-            **tokenizer_kwargs,
+            pretrained_model_name, trust_remote_code=True, **tokenizer_kwargs
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -78,7 +79,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -93,35 +94,37 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name,
-            trust_remote_code=True,
-            **model_kwargs,
+            pretrained_model_name, trust_remote_code=True, **model_kwargs
         ).eval()
 
         self.config = model.config
+        self.model = model
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
-        inputs = self.tokenizer(
-            self.sample_text,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=self._variant_config.max_length,
-        )
+        test_input = "What is the capital of France?"
+
+        inputs = self.tokenizer(test_input, return_tensors="pt")
+
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, outputs, inputs=None):
+    def decode_output(self, outputs, dtype_override=None):
         if self.tokenizer is None:
-            self._load_tokenizer()
+            self._load_tokenizer(dtype_override)
 
-        if inputs is None:
-            inputs = self.load_inputs()
+        next_token_logits = outputs.logits[:, -1]
+        next_token = next_token_logits.softmax(dim=-1).argmax()
+        return self.tokenizer.decode([next_token])
 
-        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-        generated_ids = logits.argmax(-1)
-        return self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, trust_remote_code=True
+        )
+        return self.config
