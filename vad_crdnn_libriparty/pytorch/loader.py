@@ -32,15 +32,16 @@ class VADCRDNNModel(torch.nn.Module):
 
     def __init__(self, vad):
         super().__init__()
-        self.modules = vad.mods
+        self.compute_features = vad.mods.compute_features
+        self.mean_var_norm = vad.mods.mean_var_norm
+        self.crdnn = vad.mods.crdnn
+        self.output_layer = vad.mods.output
 
     def forward(self, wavs, wav_lens):
-        wavs = wavs.to(next(self.parameters()).device)
-        wav_lens = wav_lens.to(next(self.parameters()).device)
-        feats = self.modules.compute_features(wavs)
-        feats = self.modules.mean_var_norm(feats, wav_lens)
-        outputs = self.modules.crdnn(feats)
-        outputs = self.modules.output(outputs)
+        feats = self.compute_features(wavs)
+        feats = self.mean_var_norm(feats, wav_lens)
+        outputs = self.crdnn(feats)
+        outputs = self.output_layer(outputs)
         return outputs
 
 
