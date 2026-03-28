@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BitNet PyTorch model implementation for Tenstorrent projects.
+BitNet PyTorch causal language modeling implementation.
 """
+
 from .loader import ModelLoader, ModelVariant

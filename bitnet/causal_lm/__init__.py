@@ -2,5 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BitNet causal language models
+BitNet causal language modeling implementation.
 """
