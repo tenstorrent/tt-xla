@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     )
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
     GARAK_LLM_TOXIC_COMMENT_MODEL = "garak-llm-toxic-comment-model"
+    DANSWER_INTENT_MODEL = "danswer-intent-model"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="garak-llm/toxic-comment-model",
             max_length=128,
         ),
+        ModelVariant.DANSWER_INTENT_MODEL: LLMModelConfig(
+            pretrained_model_name="Danswer/intent-model",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -60,6 +65,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
         ModelVariant.GARAK_LLM_TOXIC_COMMENT_MODEL: "This is a perfectly normal and friendly comment.",
+        ModelVariant.DANSWER_INTENT_MODEL: "What is the capital of France?",
     }
 
     def __init__(self, variant=None):
@@ -94,6 +100,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
             ModelVariant.GARAK_LLM_TOXIC_COMMENT_MODEL,
+            ModelVariant.DANSWER_INTENT_MODEL,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
