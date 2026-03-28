@@ -126,16 +126,15 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        image_file = get_file(
-            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
-        )
+        url = "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+        image_file = get_file(url)
         image = Image.open(image_file)
 
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image", "url": image_file},
+                    {"type": "image", "url": url},
                     {"type": "text", "text": "What is this image about?"},
                 ],
             },
