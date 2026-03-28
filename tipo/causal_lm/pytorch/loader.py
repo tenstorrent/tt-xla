@@ -5,19 +5,17 @@
 TIPO model loader implementation for causal language modeling.
 """
 
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
-
-import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
-    ModelConfig,
-    ModelGroup,
+    LLMModelConfig,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
@@ -25,33 +23,32 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available TIPO model variants."""
 
-    TIPO_500M = "500M"
+    TIPO_500M_FT = "TIPO_500M_ft"
 
 
 class ModelLoader(ForgeModel):
     """TIPO model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.TIPO_500M: ModelConfig(
-            pretrained_model_name="KBlueLeaf/TIPO-500M",
+        ModelVariant.TIPO_500M_FT: LLMModelConfig(
+            pretrained_model_name="KBlueLeaf/TIPO-500M-ft",
+            max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TIPO_500M
+    DEFAULT_VARIANT = ModelVariant.TIPO_500M_FT
+
+    sample_text = "A beautiful sunset over the ocean with vibrant colors"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="TIPO",
             variant=variant,
@@ -62,16 +59,15 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -79,7 +75,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -93,36 +89,30 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
-
-        self.config = model.config
+        )
+        model.eval()
         self.model = model
+        self.config = model.config
+
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        test_input = "a girl sitting on a bench in a park"
-
-        inputs = self.tokenizer(test_input, return_tensors="pt")
-
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        inputs = self.tokenizer(
+            self.sample_text,
+            return_tensors="pt",
+            max_length=self._variant_config.max_length,
+            padding="max_length",
+            truncation=True,
+        )
 
         return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name
         )
+
         return self.config

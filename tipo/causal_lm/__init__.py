@@ -2,6 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-TIPO causal language modeling PyTorch implementation.
+TIPO causal language modeling task implementation.
 """
-from .loader import ModelLoader
