@@ -1,12 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 """
-BART model loader implementation for conditional generation.
+BART model loader implementation for conditional generation (Chinese).
 """
 
 import torch
-from transformers import AutoTokenizer, BartForConditionalGeneration
 from typing import Optional
 
 from ....base import ForgeModel
@@ -22,50 +22,30 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available BART conditional generation model variants."""
+    """Available BART model variants."""
 
-    LAREAULAB_TRIAS = "lareaulab/Trias"
+    BASE_CHINESE = "Base_Chinese"
 
 
 class ModelLoader(ForgeModel):
-    """BART model loader implementation for conditional generation tasks."""
+    """BART model loader implementation for conditional generation."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.LAREAULAB_TRIAS: LLMModelConfig(
-            pretrained_model_name="lareaulab/Trias",
-            max_length=128,
+        ModelVariant.BASE_CHINESE: LLMModelConfig(
+            pretrained_model_name="OpenMOSS-Team/bart-base-chinese",
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.LAREAULAB_TRIAS
+    DEFAULT_VARIANT = ModelVariant.BASE_CHINESE
 
-    # Sample protein sequence input for Trias (protein-to-codon reverse translation)
-    sample_text = ">>Homo sapiens<< MTEITAAMVKELRESTGAGMMDCKNALSETQ*"
+    sample_text = "北京是中国的首都。"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
         super().__init__(variant)
-        self.tokenizer = None
-        self._cached_model = None
+        self._tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         return ModelInfo(
             model="BART",
             variant=variant,
@@ -76,81 +56,49 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
+        from transformers import BertTokenizer
 
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-
-        self.tokenizer = AutoTokenizer.from_pretrained(
+        self._tokenizer = BertTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
-            use_fast=True,
-            **tokenizer_kwargs,
         )
 
-        return self.tokenizer
+        return self._tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the BART model instance for conditional generation.
+        from transformers import BartForConditionalGeneration
 
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
+        if self._tokenizer is None:
+            self._load_tokenizer(dtype_override)
 
-        Returns:
-            torch.nn.Module: The BART model instance for conditional generation.
-        """
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-
-        model_kwargs = {"use_cache": False}
+        model_kwargs = {"return_dict": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = BartForConditionalGeneration.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self._variant_config.pretrained_model_name, **model_kwargs
         )
-        model.eval()
-        self._cached_model = model
+
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the BART conditional generation model.
+        if self._tokenizer is None:
+            self._load_tokenizer(dtype_override)
 
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-
-        inputs = self.tokenizer(
+        inputs = self._tokenizer(
             self.sample_text,
             return_tensors="pt",
-            max_length=self._variant_config.max_length,
-            padding="max_length",
-            truncation=True,
         )
 
-        # BART requires decoder input ids as input
-        decoder_start_token_tensor = torch.tensor(
-            self._cached_model.generation_config.decoder_start_token_id,
-            dtype=torch.long,
+        # Seq2seq models need decoder_input_ids for the forward pass.
+        decoder_start_token_id = (
+            self._tokenizer.cls_token_id or self._tokenizer.bos_token_id
         )
-        decoder_input_ids = (
-            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
-        )
-        inputs["decoder_input_ids"] = decoder_input_ids
+        inputs["decoder_input_ids"] = torch.tensor([[decoder_start_token_id]])
+
+        if dtype_override is not None:
+            for key, value in inputs.items():
+                if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
+                    inputs[key] = value.to(dtype_override)
 
         return inputs
