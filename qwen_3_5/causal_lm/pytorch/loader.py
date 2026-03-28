@@ -323,7 +323,7 @@ class ModelLoader(ForgeModel):
 
     def _is_awq_variant(self):
         """Check if the current variant uses AWQ quantization."""
-        return self._variant in (ModelVariant.QWEN_3_5_27B_AWQ_BF16_INT8,)
+        return False
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
