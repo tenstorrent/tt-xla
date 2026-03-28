@@ -89,6 +89,9 @@ class ModelVariant(StrEnum):
     # Llama Guard variants
     LLAMA_GUARD_3_8B_INT8 = "Guard_3_8B_INT8"
 
+    # Kukedlc ORPO fine-tuned variants
+    NEURAL_LLAMA_3_8B_ORPO_V0_4 = "NeuralLLaMa_3_8B_ORPO_v0.4"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -227,6 +230,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="meta-llama/Llama-Guard-3-8B-INT8",
             max_length=128,
         ),
+        # Kukedlc ORPO fine-tuned variants
+        ModelVariant.NEURAL_LLAMA_3_8B_ORPO_V0_4: LLMModelConfig(
+            pretrained_model_name="Kukedlc/NeuralLLaMa-3-8b-ORPO-v0.4",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -276,6 +284,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO,
             ModelVariant.PARD_LLAMA_3_2_1B,
             ModelVariant.LLAMA_GUARD_3_8B_INT8,
+            ModelVariant.NEURAL_LLAMA_3_8B_ORPO_V0_4,
         ]:
             group = ModelGroup.VULCAN
         elif (
