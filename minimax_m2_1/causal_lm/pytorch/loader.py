@@ -29,7 +29,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MiniMax-M2.1 model variants for causal language modeling."""
 
-    MINIMAX_M2_1 = "M2.1"
+    MINIMAX_M2_1_AWQ_4BIT = "M2.1-AWQ-4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -37,14 +37,14 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.MINIMAX_M2_1: LLMModelConfig(
-            pretrained_model_name="MiniMaxAI/MiniMax-M2.1",
+        ModelVariant.MINIMAX_M2_1_AWQ_4BIT: LLMModelConfig(
+            pretrained_model_name="cyankiwi/MiniMax-M2.1-AWQ-4bit",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.MINIMAX_M2_1
+    DEFAULT_VARIANT = ModelVariant.MINIMAX_M2_1_AWQ_4BIT
 
     # Shared configuration parameters
     sample_text = "Give me a short introduction to large language model."
@@ -149,6 +149,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # AWQ quantized variants need device_map="cpu" for CPU-based loading
+        model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         config = self._build_native_config()
