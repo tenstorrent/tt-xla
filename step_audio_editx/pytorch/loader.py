@@ -4,7 +4,6 @@
 """
 Step-Audio-EditX model loader implementation for causal language modeling.
 """
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
