@@ -2,6 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Falcon Mamba causal language modeling PyTorch implementation.
+Falcon Mamba causal language modeling task implementation.
 """
-from .loader import ModelLoader

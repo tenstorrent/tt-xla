@@ -2,15 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Falcon-Mamba model loader implementation for causal language modeling.
+Falcon Mamba model loader implementation for causal language modeling.
 """
-
-import torch
-from transformers import AutoTokenizer, FalconMambaForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
+from ....base import ForgeModel
 from ....config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -18,36 +17,52 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available Falcon-Mamba model variants for causal LM."""
+    """Available Falcon Mamba model variants."""
 
-    FALCON_MAMBA_TINY_DEV = "falcon_mamba_tiny_dev"
+    FALCON_MAMBA_7B = "Falcon_Mamba_7B"
 
 
 class ModelLoader(ForgeModel):
-    """Falcon-Mamba model loader for causal language modeling."""
+    """Falcon Mamba model loader implementation for causal language modeling."""
 
     _VARIANTS = {
-        ModelVariant.FALCON_MAMBA_TINY_DEV: ModelConfig(
-            pretrained_model_name="tiiuae/falcon-mamba-tiny-dev",
+        ModelVariant.FALCON_MAMBA_7B: LLMModelConfig(
+            pretrained_model_name="tiiuae/falcon-mamba-7b",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.FALCON_MAMBA_TINY_DEV
+    DEFAULT_VARIANT = ModelVariant.FALCON_MAMBA_7B
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    sample_text = "Question: How many hours in one day? Answer: "
+
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
         self.tokenizer = None
-        self.text = "Hey how are you doing today?"
+        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+        """Implementation method for getting model info with validated variant.
 
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="Falcon-Mamba",
             variant=variant,
@@ -57,37 +72,96 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        )
+
+        return self.tokenizer
+
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Falcon Mamba model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            torch.nn.Module: The Falcon Mamba model instance for causal language modeling.
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = FalconMambaForCausalLM.from_pretrained(
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
+
+        model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
-        model.eval()
 
         return model
 
-    def load_inputs(self, batch_size=1):
+    def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the Falcon Mamba model.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
         if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name
-            )
+            self._load_tokenizer(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
-            self.text,
+            self.sample_text,
             return_tensors="pt",
+            padding=True,
+            truncation=True,
         )
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
-
         return inputs
+
+    def decode_output(self, outputs, inputs=None):
+        """Helper method to decode model outputs into human-readable text.
+
+        Args:
+            outputs: Model output from a forward pass
+            inputs: Optional input tensors used to generate the outputs
+
+        Returns:
+            str: Decoded prediction for the next tokens
+        """
+        if self.tokenizer is None:
+            self._load_tokenizer()
+
+        if inputs is None:
+            inputs = self.load_inputs()
+
+        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+        predicted_token_ids = logits.argmax(dim=-1)
+        predicted_text = self.tokenizer.decode(
+            predicted_token_ids[0], skip_special_tokens=True
+        )
+
+        return predicted_text
