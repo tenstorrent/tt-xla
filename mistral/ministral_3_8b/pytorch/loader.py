@@ -4,6 +4,7 @@
 """
 Ministral 3 8B model loader implementation for causal language modeling
 """
+import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
 
@@ -112,9 +113,8 @@ class ModelLoader(ForgeModel):
             self.model.config.sliding_window = inputs["input_ids"].shape[1]
 
         for key in inputs:
-            if inputs[key].is_floating_point() or inputs[key].is_complex():
-                continue
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
