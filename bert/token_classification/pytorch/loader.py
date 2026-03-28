@@ -6,7 +6,7 @@ BERT model loader implementation for token classification.
 """
 
 import torch
-from transformers import BertForTokenClassification, BertTokenizer, BertTokenizerFast
+from transformers import AutoTokenizer, BertForTokenClassification
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -28,7 +28,9 @@ class ModelVariant(StrEnum):
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     DSLIM_BERT_BASE_NER_UNCASED = "dslim/bert-base-NER-uncased"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    ALVAROALON2_BIOBERT_GENETIC_NER = "alvaroalon2/biobert_genetic_ner"
+    LLM_BOOK_BERT_BASE_JAPANESE_V3_NER_WIKIPEDIA_DATASET = (
+        "llm-book/bert-base-japanese-v3-ner-wikipedia-dataset"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -52,8 +54,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.ALVAROALON2_BIOBERT_GENETIC_NER: LLMModelConfig(
-            pretrained_model_name="alvaroalon2/biobert_genetic_ner",
+        ModelVariant.LLM_BOOK_BERT_BASE_JAPANESE_V3_NER_WIKIPEDIA_DATASET: LLMModelConfig(
+            pretrained_model_name="llm-book/bert-base-japanese-v3-ner-wikipedia-dataset",
             max_length=128,
         ),
     }
@@ -78,8 +80,11 @@ class ModelLoader(ForgeModel):
             ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER,
         ):
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.ALVAROALON2_BIOBERT_GENETIC_NER:
-            self.sample_text = "The BRCA1 gene and TP53 are tumor suppressor genes involved in DNA repair and cell cycle regulation"
+        elif (
+            self._variant
+            == ModelVariant.LLM_BOOK_BERT_BASE_JAPANESE_V3_NER_WIKIPEDIA_DATASET
+        ):
+            self.sample_text = "大谷翔平は岩手県水沢市出身のプロ野球選手"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -103,7 +108,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.ALVAROALON2_BIOBERT_GENETIC_NER,
+            ModelVariant.LLM_BOOK_BERT_BASE_JAPANESE_V3_NER_WIKIPEDIA_DATASET,
         ):
             group = ModelGroup.VULCAN
 
@@ -128,10 +133,7 @@ class ModelLoader(ForgeModel):
         """
 
         # Initialize tokenizer
-        if self._variant == ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER:
-            self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-chinese")
-        else:
-            self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
