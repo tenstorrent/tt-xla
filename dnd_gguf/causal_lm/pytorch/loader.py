@@ -23,29 +23,29 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available D&D GGUF model variants for causal language modeling."""
 
-    DND_QWEN_2_5_0_5B_GGUF = "Qwen2.5_0.5B_GGUF"
-    DND_QWEN_3_5_0_8B_GGUF = "Qwen3.5_0.8B_GGUF"
+    QWEN_2_5_0_5B_GGUF = "Qwen2.5_0.5B_GGUF"
+    QWEN_3_5_0_8B_GGUF = "Qwen3.5_0.8B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """D&D GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.DND_QWEN_2_5_0_5B_GGUF: LLMModelConfig(
+        ModelVariant.QWEN_2_5_0_5B_GGUF: LLMModelConfig(
             pretrained_model_name="elusinchi/dnd-gguf-models",
             max_length=128,
         ),
-        ModelVariant.DND_QWEN_3_5_0_8B_GGUF: LLMModelConfig(
+        ModelVariant.QWEN_3_5_0_8B_GGUF: LLMModelConfig(
             pretrained_model_name="elusinchi/dnd-gguf-models",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DND_QWEN_2_5_0_5B_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_0_5B_GGUF
 
     _GGUF_FILES = {
-        ModelVariant.DND_QWEN_2_5_0_5B_GGUF: "qwen2.5-0.5b/base_q4_k_m.gguf",
-        ModelVariant.DND_QWEN_3_5_0_8B_GGUF: "qwen3.5-0.8b/base_q4_k_m.gguf",
+        ModelVariant.QWEN_2_5_0_5B_GGUF: "qwen2.5-0.5b/base_q4_k_m.gguf",
+        ModelVariant.QWEN_3_5_0_8B_GGUF: "qwen3.5-0.8b/base_q4_k_m.gguf",
     }
 
     sample_text = "Give me a short introduction to large language models."
@@ -65,7 +65,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="D&D GGUF",
+            model="DnD GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
