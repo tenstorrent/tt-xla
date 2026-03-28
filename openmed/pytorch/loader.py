@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PROTEIN_LARGE = "ZeroShot-NER-Protein-Large-459M"
     OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE = "ZeroShot-NER-Oncology-Base-220M"
+    OPENMED_ZEROSHOT_NER_GENOME_SMALL = "ZeroShot-NER-Genome-Small-166M"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +43,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M"
         ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_SMALL: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genome-Small-166M"
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL
@@ -50,6 +54,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
         ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_LARGE: "The Maillard reaction is responsible for the browning of many foods.",
         ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_BASE: "Mutations in KRAS gene drive oncogenic transformation in colorectal cancer cells.",
+        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_SMALL: "The EGFR gene mutation was identified in lung cancer patients.",
     }
 
     _LABELS = {
@@ -68,6 +73,7 @@ class ModelLoader(ForgeModel):
             "Simple_chemical",
             "Tissue",
         ],
+        ModelVariant.OPENMED_ZEROSHOT_NER_GENOME_SMALL: ["GENE/PROTEIN"],
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
