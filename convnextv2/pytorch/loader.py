@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import timm
 import torch
 
+from transformers import ConvNextV2ForImageClassification
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -38,6 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt V2 model variants."""
 
     NANO_FCMAE_FT_IN22K_IN1K = "Nano_FCMAE_FT_IN22K_IN1K"
+    TINY_1K_224_HF = "Tiny_1K_224_HuggingFace"
 
 
 class ModelLoader(ForgeModel):
@@ -47,6 +49,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.NANO_FCMAE_FT_IN22K_IN1K: ConvNeXtV2Config(
             pretrained_model_name="hf_hub:timm/convnextv2_nano.fcmae_ft_in22k_in1k",
             source=ModelSource.TIMM,
+        ),
+        ModelVariant.TINY_1K_224_HF: ConvNeXtV2Config(
+            pretrained_model_name="facebook/convnextv2-tiny-1k-224",
+            source=ModelSource.HUGGING_FACE,
         ),
     }
 
@@ -76,8 +82,15 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
 
-        model = timm.create_model(model_name, pretrained=True)
+        if source == ModelSource.HUGGING_FACE:
+            model = ConvNextV2ForImageClassification.from_pretrained(
+                model_name, **kwargs
+            )
+        elif source == ModelSource.TIMM:
+            model = timm.create_model(model_name, pretrained=True)
+
         model.eval()
 
         self.model = model
@@ -111,8 +124,9 @@ class ModelLoader(ForgeModel):
                 self._preprocessor.set_cached_model(self.model)
 
         model_for_config = None
-        if hasattr(self, "model") and self.model is not None:
-            model_for_config = self.model
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
 
         return self._preprocessor.preprocess(
             image=image,
