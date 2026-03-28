@@ -2,17 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-StableLM model loader implementation
+StableLM model loader implementation for causal language modeling.
 """
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    GenerationConfig,
-    AutoConfig,
-)
+from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -22,28 +18,30 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available StableLM model variants."""
+    """Available StableLM model variants for causal language modeling."""
 
-    STABLELM_3B_4E1T = "3B-4E1T"
+    STABLELM_ZEPHYR_3B = "StableLM_Zephyr_3B"
 
 
 class ModelLoader(ForgeModel):
-    """StableLM model loader implementation."""
+    """StableLM model loader implementation for causal language modeling tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.STABLELM_3B_4E1T: LLMModelConfig(
-            pretrained_model_name="stabilityai/stablelm-3b-4e1t",
-            max_length=256,
+        ModelVariant.STABLELM_ZEPHYR_3B: LLMModelConfig(
+            pretrained_model_name="stabilityai/stablelm-zephyr-3b",
+            max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.STABLELM_3B_4E1T
+    DEFAULT_VARIANT = ModelVariant.STABLELM_ZEPHYR_3B
+
+    # Shared configuration parameters
+    sample_text = "Explain the concept of artificial intelligence in simple terms."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -61,7 +59,7 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
+        """Implementation method for getting model info with validated variant.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
@@ -70,8 +68,6 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="StableLM",
             variant=variant,
@@ -98,9 +94,6 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
-        # Set pad token to eos token for StableLM
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
@@ -108,10 +101,9 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The StableLM model instance.
+            torch.nn.Module: The StableLM model instance for causal language modeling.
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -132,71 +124,63 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **model_kwargs
         )
         model.eval()
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the StableLM model with this instance's variant settings.
+        """Load and return sample inputs for the StableLM model.
 
         Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-            batch_size: Optional batch size to override the default batch size of 1.
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
 
         Returns:
-            dict: Input tensors (input_ids, attention_mask) and generation_config that can be fed to the model.
+            dict: Input tensors that can be fed to the model.
         """
-        prompt = (
-            "In a shocking finding, scientists discovered a herd of unicorns living in a remote, "
-            "previously unexplored valley, in the Andes Mountains. Even more surprising to the "
-            "researchers was the fact that the unicorns spoke perfect English."
-        )
-
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         max_length = self._variant_config.max_length
 
-        tokenized_inputs = self.tokenizer(
-            prompt,
+        messages = [{"role": "user", "content": self.sample_text}]
+        text = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+
+        inputs = self.tokenizer(
+            text,
             return_tensors="pt",
-            max_length=max_length,
-            padding=True,
+            padding="max_length",
             truncation=True,
+            max_length=max_length,
         )
-        generation_config = GenerationConfig(
-            max_length=100, do_sample=True, temperature=0.9
-        )
-        inputs = {
-            "input_ids": tokenized_inputs.input_ids,
-            "attention_mask": tokenized_inputs.attention_mask,
-            "generation_config": generation_config,
-        }
 
         for key in inputs:
-            if key == "generation_config":
-                continue
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, outputs, dtype_override=None, inputs=None):
+    def decode_output(self, outputs, inputs=None):
         """Helper method to decode model outputs into human-readable text.
 
         Args:
             outputs: Model output from a forward pass
-            dtype_override: Optional torch.dtype to override the model's default dtype.
             inputs: Optional input tensors used to generate the outputs
 
         Returns:
-            str: Decoded answer text
+            str: Decoded prediction for the next tokens
         """
         if self.tokenizer is None:
-            self.load_model(dtype_override=dtype_override)
+            self._load_tokenizer()
 
         if inputs is None:
             inputs = self.load_inputs()
 
         logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-        token_ids = torch.argmax(logits, dim=-1)
-        decoded = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
+        predicted_token_ids = logits.argmax(dim=-1)
+        predicted_text = self.tokenizer.decode(
+            predicted_token_ids[0], skip_special_tokens=True
+        )
 
-        return decoded[0] if len(decoded) == 1 else decoded
+        return predicted_text
