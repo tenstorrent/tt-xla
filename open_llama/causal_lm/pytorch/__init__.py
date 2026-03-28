@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Open LLaMA causal language modeling PyTorch implementation.
+Open LLaMA Causal LM PyTorch model implementation for Tenstorrent projects.
 """
-from .loader import ModelLoader
+
+from .loader import ModelLoader, ModelVariant

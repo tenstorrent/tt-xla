@@ -5,9 +5,12 @@
 Open LLaMA model loader implementation for causal language modeling.
 """
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
 
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -17,56 +20,42 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available Open LLaMA model variants."""
 
-    OPEN_LLAMA_7B_V2 = "7B_v2"
+    OPEN_LLAMA_3B_V2 = "3B_v2"
 
 
 class ModelLoader(ForgeModel):
     """Open LLaMA model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.OPEN_LLAMA_7B_V2: LLMModelConfig(
-            pretrained_model_name="openlm-research/open_llama_7b_v2",
-            max_length=128,
+        ModelVariant.OPEN_LLAMA_3B_V2: LLMModelConfig(
+            pretrained_model_name="openlm-research/open_llama_3b_v2",
+            max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPEN_LLAMA_7B_V2
+    DEFAULT_VARIANT = ModelVariant.OPEN_LLAMA_3B_V2
 
-    sample_text = "Hey how are you doing today?"
+    sample_text = "My name is Thomas and my main"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
-        """
         super().__init__(variant)
         self.tokenizer = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
 
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         return ModelInfo(
-            model="Open-LLaMA",
+            model="Open LLaMA",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -75,27 +64,21 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant."""
-        pretrained_model_name = self._variant_config.pretrained_model_name
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            **tokenizer_kwargs,
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Open LLaMA model instance.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The Open LLaMA model instance for causal LM.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
@@ -113,52 +96,41 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
+        ).eval()
 
+        self.config = model.config
         return model
 
-    def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the Open LLaMA model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-
-        Returns:
-            dict: Input tensors suitable for causal LM.
-        """
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
+
+        max_length = self._variant_config.max_length
 
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
-            padding=True,
+            padding="max_length",
             truncation=True,
+            max_length=max_length,
         )
+
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, outputs, inputs=None):
-        """Decode model outputs into human-readable text.
-
-        Args:
-            outputs: Model output from a forward pass
-            inputs: Optional input tensors used to generate the outputs
-
-        Returns:
-            str: Decoded prediction for the next tokens
-        """
+    def decode_output(self, outputs, dtype_override=None):
         if self.tokenizer is None:
-            self._load_tokenizer()
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        if inputs is None:
-            inputs = self.load_inputs()
+        next_token_logits = outputs.logits[:, -1]
+        next_token = next_token_logits.softmax(dim=-1).argmax()
+        return self.tokenizer.decode([next_token])
 
-        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-        predicted_token_ids = logits.argmax(dim=-1)
-        predicted_text = self.tokenizer.decode(
-            predicted_token_ids[0], skip_special_tokens=True
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
         )
-
-        return predicted_text
+        return self.config
