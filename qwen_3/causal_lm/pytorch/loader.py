@@ -48,6 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_3_4B_SAFERL = "4B_SafeRL"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT = "30B_A3B_Instruct_2507_MLX_6bit"
+    QWEN_3_4B_Z_IMAGE_TURBO_ABLITERATED_V1 = "4B_Z_Image_Turbo_AbliteratedV1"
 
 
 class ModelLoader(ForgeModel):
@@ -143,6 +144,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-6bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_4B_Z_IMAGE_TURBO_ABLITERATED_V1: LLMModelConfig(
+            pretrained_model_name="BennyDaBall/Qwen3-4b-Z-Image-Turbo-AbliteratedV1",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -196,6 +201,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_235B_A22B_THINKING_2507,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT,
+            ModelVariant.QWEN_3_4B_Z_IMAGE_TURBO_ABLITERATED_V1,
         ):
             group = ModelGroup.VULCAN
         else:
