@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen2.5-Coder GGUF model loader implementation for causal language modeling.
+Qwen 2.5 Coder GGUF model loader implementation for causal language modeling.
 """
-from typing import Optional
-
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
@@ -22,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen2.5-Coder GGUF model variants for causal language modeling."""
+    """Available Qwen 2.5 Coder GGUF model variants for causal language modeling."""
 
-    QWEN_2_5_CODER_1_5B_Q8_0 = "1.5B_Q8_0"
+    QWEN_2_5_CODER_14B_INSTRUCT_GGUF = "14B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen2.5-Coder GGUF model loader implementation for causal language modeling tasks."""
+    """Qwen 2.5 Coder GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_CODER_1_5B_Q8_0: LLMModelConfig(
-            pretrained_model_name="ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF",
+        ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen2.5-Coder-14B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_1_5B_Q8_0
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GGUF
 
-    GGUF_FILE = "qwen2.5-coder-1.5b-q8_0.gguf"
+    GGUF_FILE = "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
 
     sample_text = "Write a Python function that checks if a number is prime."
 
@@ -54,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Qwen2.5-Coder GGUF",
+            model="Qwen 2.5 Coder GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -148,9 +147,13 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
