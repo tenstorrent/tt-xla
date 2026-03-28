@@ -8,10 +8,11 @@ Mel-Band RoFormer is a transformer-based model for music source separation
 that uses mel-band frequency decomposition with rotary position embeddings.
 """
 
+from typing import Optional
+
 import torch
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
-from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
@@ -63,7 +64,7 @@ class ModelLoader(ForgeModel):
         "heads": 8,
         "attn_dropout": 0,
         "ff_dropout": 0,
-        "flash_attn": True,
+        "flash_attn": False,
         "dim_freqs_in": 1025,
         "sample_rate": 44100,
         "stft_n_fft": 2048,
