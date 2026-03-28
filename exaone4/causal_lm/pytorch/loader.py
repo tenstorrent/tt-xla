@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-EXAONE 4 model loader implementation for causal language modeling.
+EXAONE 4.0 model loader implementation for causal language modeling.
 """
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -20,27 +21,25 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available EXAONE 4 model variants."""
+    """Available EXAONE 4.0 model variants."""
 
-    TINY_RANDOM = "tiny_random"
+    EXAONE_4_0_1_2B = "4.0_1.2B"
 
 
 class ModelLoader(ForgeModel):
-    """EXAONE 4 model loader implementation for causal language modeling tasks."""
+    """EXAONE 4.0 model loader implementation for causal language modeling tasks."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-exaone4",
-            max_length=256,
+        ModelVariant.EXAONE_4_0_1_2B: LLMModelConfig(
+            pretrained_model_name="LGAI-EXAONE/EXAONE-4.0-1.2B",
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.EXAONE_4_0_1_2B
 
-    # Shared configuration parameters
-    sample_text = "Africa is an emerging economy because"
+    sample_messages = [
+        {"role": "user", "content": "Explain the benefits of renewable energy."},
+    ]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -58,7 +57,7 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
+        """Get model information for dashboard and metrics reporting.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
@@ -68,7 +67,7 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="EXAONE-4",
+            model="EXAONE-4.0",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -87,36 +86,42 @@ class ModelLoader(ForgeModel):
         """
         tokenizer_kwargs = {}
         if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
+            tokenizer_kwargs["dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the EXAONE 4 model instance for this instance's variant.
+        """Load and return the EXAONE 4.0 model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The EXAONE 4 model instance for causal language modeling.
+            torch.nn.Module: The EXAONE 4.0 model instance for causal language modeling.
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
+            from transformers import AutoConfig
+
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, trust_remote_code=True
+            )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
@@ -127,7 +132,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the EXAONE 4 model.
+        """Load and return sample inputs for the EXAONE 4.0 model.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
@@ -138,36 +143,16 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self.tokenizer(
-            self.sample_text,
-            return_tensors="pt",
-            max_length=self._variant_config.max_length,
-            padding="max_length",
-            truncation=True,
+        inputs = self.tokenizer.apply_chat_template(
+            self.sample_messages, tokenize=False, add_generation_prompt=True
         )
+        inputs = self.tokenizer(
+            inputs, return_tensors="pt", return_token_type_ids=False
+        )
+
+        if dtype_override is not None:
+            for key, value in inputs.items():
+                if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
+                    inputs[key] = value.to(dtype_override)
 
         return inputs
-
-    def decode_output(self, outputs, inputs=None):
-        """Helper method to decode model outputs into human-readable text.
-
-        Args:
-            outputs: Model output from a forward pass
-            inputs: Optional input tensors used to generate the outputs
-
-        Returns:
-            str: Decoded prediction for the next tokens
-        """
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
-        if inputs is None:
-            inputs = self.load_inputs()
-
-        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-        predicted_token_ids = logits.argmax(dim=-1)
-        predicted_text = self.tokenizer.decode(
-            predicted_token_ids[0], skip_special_tokens=True
-        )
-
-        return predicted_text
