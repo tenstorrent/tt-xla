@@ -2,5 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ERNIE causal language modeling implementation.
+ERNIE 4.5 MoE Causal LM model implementation for Tenstorrent projects.
 """
