@@ -93,7 +93,6 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
-        # Set pad token to eos token for Llama-based models
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
