@@ -9,7 +9,6 @@ from transformers import (
     WhisperForConditionalGeneration,
     WhisperProcessor,
     AutoProcessor,
-    WhisperConfig,
 )
 from typing import Optional
 
@@ -24,6 +23,9 @@ from ...config import (
     StrEnum,
 )
 from ...tools.utils import get_file
+
+# The GGUF repo does not include processor files, so we load from the base model.
+BASE_MODEL_NAME = "openai/whisper-large-v3-turbo"
 
 
 class ModelVariant(StrEnum):
@@ -77,9 +79,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, use_cache=False, **model_kwargs
         ).eval()
 
-        self.processor = WhisperProcessor.from_pretrained(
-            pretrained_model_name, gguf_file=self.GGUF_FILE
-        )
+        self.processor = WhisperProcessor.from_pretrained(BASE_MODEL_NAME)
 
         if dtype_override is not None:
             self.model.to(dtype_override)
@@ -90,11 +90,6 @@ class ModelLoader(ForgeModel):
         if self.model is None or self.processor is None:
             self.load_model(dtype_override=dtype_override)
 
-        config = WhisperConfig.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            gguf_file=self.GGUF_FILE,
-        )
-
         # Load audio sample
         weights_pth = get_file("test_files/pytorch/whisper/1272-128104-0000.pt")
         sample = torch.load(weights_pth, weights_only=False)
@@ -104,10 +99,7 @@ class ModelLoader(ForgeModel):
 
         # Preprocess audio
         sampling_rate = 16000
-        processor_v3 = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            gguf_file=self.GGUF_FILE,
-        )
+        processor_v3 = AutoProcessor.from_pretrained(BASE_MODEL_NAME)
         features = processor_v3.feature_extractor(
             sample_audio,
             sampling_rate=processor_v3.feature_extractor.sampling_rate,
