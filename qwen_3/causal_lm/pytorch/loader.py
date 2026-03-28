@@ -48,6 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_3_235B_A22B_FP8 = "235B_A22B_FP8"
     QWEN_3_235B_A22B_THINKING_2507 = "235B_A22B_Thinking_2507"
     QWEN_3_14B_AWQ = "14B_Awq"
+    QWEN_3_14B_BNB_4BIT = "14B_bnb_4bit"
     QWEN_3_1_7B_4BIT_MLX = "1_7B_4bit_Mlx"
 
 
@@ -140,6 +141,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_14B_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-14B-bnb-4bit",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_1_7B_4BIT_MLX: LLMModelConfig(
             pretrained_model_name="mlx-community/Qwen3-1.7B-4bit",
             max_length=128,
@@ -192,6 +197,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_235B_A22B_FP8,
             ModelVariant.QWEN_3_235B_A22B_THINKING_2507,
             ModelVariant.QWEN_3_14B_AWQ,
+            ModelVariant.QWEN_3_14B_BNB_4BIT,
             ModelVariant.QWEN_3_1_7B_4BIT_MLX,
         ):
             group = ModelGroup.VULCAN
@@ -254,10 +260,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ or GPTQ variant and configure accordingly
-        if pretrained_model_name in (
-            "Qwen/Qwen3-8B-AWQ",
-            "XXXXyu/Qwen3-1.7B-w2g64-gptq_v2",
+        # Check if this is an AWQ or BNB variant and configure accordingly
+        if (
+            pretrained_model_name in ("Qwen/Qwen3-8B-AWQ",)
+            or self._variant == ModelVariant.QWEN_3_14B_BNB_4BIT
         ):
             model_kwargs["device_map"] = "cpu"
 
