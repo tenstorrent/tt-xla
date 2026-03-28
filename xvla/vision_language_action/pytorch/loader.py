@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-X-VLA model loader implementation for action prediction.
+X-VLA model loader implementation for vision-language-action prediction.
 """
 
 from __future__ import annotations
@@ -65,19 +65,19 @@ class XVLAInferenceWrapper(torch.nn.Module):
 class ModelVariant(StrEnum):
     """Available X-VLA model variants."""
 
-    XVLA_GOOGLE_ROBOT = "xvla_google_robot"
+    XVLA_BASE = "xvla_base"
 
 
 class ModelLoader(ForgeModel):
-    """X-VLA model loader implementation for action prediction tasks."""
+    """X-VLA model loader implementation for vision-language-action prediction tasks."""
 
     _VARIANTS = {
-        ModelVariant.XVLA_GOOGLE_ROBOT: ModelConfig(
-            pretrained_model_name="lerobot/xvla-google-robot",
+        ModelVariant.XVLA_BASE: ModelConfig(
+            pretrained_model_name="lerobot/xvla-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.XVLA_GOOGLE_ROBOT
+    DEFAULT_VARIANT = ModelVariant.XVLA_BASE
 
     sample_task = "pick the red block"
     robot_type = ""
