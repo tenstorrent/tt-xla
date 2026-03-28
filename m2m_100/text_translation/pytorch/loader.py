@@ -24,19 +24,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available M2M-100 model variants."""
 
-    TINY = "Tiny"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
     """M2M-100 model loader implementation for text translation."""
 
     _VARIANTS = {
-        ModelVariant.TINY: LLMModelConfig(
-            pretrained_model_name="stas/tiny-m2m_100",
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-m2m_100",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
     sample_text = "Hello, how are you today?"
 
@@ -49,6 +49,7 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self._tokenizer = None
+        self._model = None
         self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
@@ -108,11 +109,13 @@ class ModelLoader(ForgeModel):
         model = M2M100ForConditionalGeneration.from_pretrained(
             self._model_name, **model_kwargs
         )
+        model.eval()
+        self._model = model
 
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the M2M-100 model with this instance's variant settings.
+        """Load and return sample inputs for the M2M-100 model.
 
         Args:
             dtype_override: Optional dtype to override the model's default dtype.
@@ -132,7 +135,7 @@ class ModelLoader(ForgeModel):
 
         # Seq2seq models need decoder_input_ids for the forward pass.
         # Use the target language BOS token to start decoding.
-        target_lang_id = self._tokenizer.get_lang_id("fr")
+        target_lang_id = self._tokenizer.convert_tokens_to_ids("__fr__")
         inputs["decoder_input_ids"] = torch.tensor([[target_lang_id]])
 
         if dtype_override is not None:
