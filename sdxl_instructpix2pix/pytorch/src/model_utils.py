@@ -64,7 +64,6 @@ def sdxl_instructpix2pix_preprocessing(
     device="cpu",
     negative_prompt=None,
     guidance_scale=3.0,
-    image_guidance_scale=1.5,
     num_inference_steps=30,
     timesteps=None,
     sigmas=None,
@@ -88,7 +87,6 @@ def sdxl_instructpix2pix_preprocessing(
         device: Device to run on (default: "cpu")
         negative_prompt: Negative prompt (optional)
         guidance_scale: Text guidance scale (default: 3.0)
-        image_guidance_scale: Image guidance scale (default: 1.5)
         num_inference_steps: Number of inference steps (default: 30)
         timesteps: Custom timesteps (optional)
         sigmas: Custom sigmas (optional)
