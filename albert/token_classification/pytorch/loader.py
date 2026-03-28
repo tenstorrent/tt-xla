@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     LARGE_V2 = "Large_v2"
     XLARGE_V2 = "Xlarge_v2"
     XXLARGE_V2 = "Xxlarge_v2"
+    ARBERT_BASE_V2_FINETUNED_NER = "ArBert/albert-base-v2-finetuned-ner"
 
 
 class ModelLoader(ForgeModel):
@@ -70,6 +71,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="albert-xxlarge-v2",
             max_length=128,
         ),
+        ModelVariant.ARBERT_BASE_V2_FINETUNED_NER: LLMModelConfig(
+            pretrained_model_name="ArBert/albert-base-v2-finetuned-ner",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -99,10 +104,14 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.ARBERT_BASE_V2_FINETUNED_NER:
+            group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="ALBERT",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
