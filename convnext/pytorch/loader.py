@@ -39,8 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
-    SMALL_IN12K_FT_IN1K_384 = "Small_IN12K_FT_IN1K_384"
-    TINY_RANDOM = "Tiny_Random"
+    NANO_IN12K_FT_IN1K = "Nano_IN12K_FT_IN1K"
 
 
 class ModelLoader(ForgeModel):
@@ -51,13 +50,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.SMALL_IN12K_FT_IN1K_384: ConvNeXtConfig(
-            pretrained_model_name="hf_hub:timm/convnext_small.in12k_ft_in1k_384",
+        ModelVariant.NANO_IN12K_FT_IN1K: ConvNeXtConfig(
+            pretrained_model_name="hf_hub:timm/convnext_nano.in12k_ft_in1k",
             source=ModelSource.TIMM,
-        ),
-        ModelVariant.TINY_RANDOM: ConvNeXtConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-convnext",
-            source=ModelSource.HUGGING_FACE,
         ),
     }
 
