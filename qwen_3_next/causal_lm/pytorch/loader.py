@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
     QWEN_3_NEXT_80B_A3B_INSTRUCT_MLX_4BIT = "80B_A3B_Instruct_MLX_4bit"
+    QWEN_3_NEXT_80B_A3B_THINKING_MLX_8BIT = "80B_A3B_Thinking_MLX_8bit"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_MLX_4BIT: LLMModelConfig(
             pretrained_model_name="lmstudio-community/Qwen3-Next-80B-A3B-Instruct-MLX-4bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING_MLX_8BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3-Next-80B-A3B-Thinking-8bit",
             max_length=128,
         ),
     }
