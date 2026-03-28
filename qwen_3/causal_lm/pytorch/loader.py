@@ -328,7 +328,11 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        model_cls = Qwen3ForCausalLM if is_quantized_override else AutoModelForCausalLM
+        # Use Qwen3ForCausalLM directly only for dense quantized variants (AWQ);
+        # MoE quantized variants use AutoModelForCausalLM so the correct class
+        # (Qwen3MoeForCausalLM) is resolved automatically.
+        is_dense_quantized = pretrained_model_name == "Qwen/Qwen3-32B-AWQ"
+        model_cls = Qwen3ForCausalLM if is_dense_quantized else AutoModelForCausalLM
         model = model_cls.from_pretrained(pretrained_model_name, **model_kwargs).eval()
 
         self.config = model.config
