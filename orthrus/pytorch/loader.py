@@ -77,7 +77,6 @@ class ModelLoader(ForgeModel):
         It also requires a lengths tensor indicating the sequence length.
         """
         seq_len = 128
-        n_tracks = 6
 
         # Generate a synthetic 6-track RNA input
         # First 4 channels: one-hot encoded nucleotide sequence (A, C, G, T)
