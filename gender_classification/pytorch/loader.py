@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     """Available Gender Classification model variants."""
 
     DEFAULT = "Default"
+    LEILAB = "Leilab"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +37,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DEFAULT: ModelConfig(
             pretrained_model_name="rizvandwiki/gender-classification",
+        ),
+        ModelVariant.LEILAB: ModelConfig(
+            pretrained_model_name="Leilab/gender_class",
         ),
     }
 
