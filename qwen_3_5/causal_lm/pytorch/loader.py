@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
     QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF = "35B_A3B_Reasoning_Distilled_GGUF"
+    QWEN_3_5_35B_A3B_BASE_I1_GGUF = "35B_A3B_Base_i1_GGUF"
     QWEN_3_5_122B_A10B_HERETIC_INT4 = "122B_A10B_heretic_int4"
 
 
@@ -92,6 +93,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-i1-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_BASE_I1_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Base-i1-GGUF",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_5_122B_A10B_HERETIC_INT4: LLMModelConfig(
             pretrained_model_name="happypatrick/Qwen3.5-122B-A10B-heretic-int4-AutoRound",
             max_length=128,
@@ -107,6 +112,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_GGUF: "Qwen3.5-35B-A3B-Q4_K_S.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: "Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_BASE_I1_GGUF: "Qwen3.5-35B-A3B-Base.i1-Q4_K_S.gguf",
     }
 
     # Shared configuration parameters
@@ -310,6 +316,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
             ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF,
+            ModelVariant.QWEN_3_5_35B_A3B_BASE_I1_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
             ModelVariant.QWEN_3_5_122B_A10B_HERETIC_INT4,
         )
