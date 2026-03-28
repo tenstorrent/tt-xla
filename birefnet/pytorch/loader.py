@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     """Available BiRefNet model variants."""
 
     BIREFNET = "BiRefNet"
-    BIREFNET_MATTING = "BiRefNet_Matting"
+    BIREFNET_LITE = "BiRefNet_lite"
 
 
 class ModelLoader(ForgeModel):
@@ -39,8 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BIREFNET: ModelConfig(
             pretrained_model_name="ZhengPeng7/BiRefNet",
         ),
-        ModelVariant.BIREFNET_MATTING: ModelConfig(
-            pretrained_model_name="ZhengPeng7/BiRefNet-matting",
+        ModelVariant.BIREFNET_LITE: ModelConfig(
+            pretrained_model_name="ZhengPeng7/BiRefNet_lite",
         ),
     }
 
