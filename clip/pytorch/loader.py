@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     BASE_PATCH32 = "Base_Patch32"
     LARGE_PATCH14 = "Large_Patch14"
     LARGE_PATCH14_336 = "Large_Patch14_336"
+    TINY_RANDOM_PATCH14_336 = "Tiny_Random_Patch14_336"
 
 
 class ModelLoader(ForgeModel):
@@ -46,6 +47,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE_PATCH14_336: ModelConfig(
             pretrained_model_name="openai/clip-vit-large-patch14-336",
+        ),
+        ModelVariant.TINY_RANDOM_PATCH14_336: ModelConfig(
+            pretrained_model_name="yujiepan/clip-vit-tiny-random-patch14-336",
         ),
     }
 
@@ -76,12 +80,17 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant == ModelVariant.BASE_PATCH16:
+            group = ModelGroup.RED
+        elif variant == ModelVariant.TINY_RANDOM_PATCH14_336:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="CLIP",
             variant=variant,
-            group=ModelGroup.RED
-            if variant == ModelVariant.BASE_PATCH16
-            else ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.MM_IMAGE_TEXT_SIM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
