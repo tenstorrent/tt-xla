@@ -29,6 +29,7 @@ from PIL import Image
 class ModelVariant(StrEnum):
     """Available Gemma3n multimodal model variants."""
 
+    GEMMA_3N_E2B_IT = "google/gemma-3n-E2B-it"
     GEMMA_3N_E4B_IT = "google/gemma-3n-E4B-it"
 
 
@@ -36,6 +37,9 @@ class ModelLoader(ForgeModel):
     """Gemma3n model loader implementation for multimodal modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.GEMMA_3N_E2B_IT: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.GEMMA_3N_E2B_IT),
+        ),
         ModelVariant.GEMMA_3N_E4B_IT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.GEMMA_3N_E4B_IT),
         ),
@@ -72,7 +76,6 @@ class ModelLoader(ForgeModel):
 
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.processor = AutoProcessor.from_pretrained(pretrained_model_name, **kwargs)
-
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
@@ -111,7 +114,7 @@ class ModelLoader(ForgeModel):
         """Load and return sample inputs for the Gemma3n multimodal model.
 
         Returns:
-            dict: Input tensors and attention masks that can be fed to the model.
+            dict: Input tensors that can be fed to the model.
         """
         if self.processor is None:
             self._load_processor(dtype_override)
