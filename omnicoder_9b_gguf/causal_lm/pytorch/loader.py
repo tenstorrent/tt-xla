@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available OmniCoder 9B GGUF model variants for causal language modeling."""
 
-    OMNICODER_9B_GGUF = "9B_GGUF"
+    OMNICODER_9B_Q4_K_M_GGUF = "9B_Q4_K_M_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """OmniCoder 9B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.OMNICODER_9B_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/OmniCoder-9B-i1-GGUF",
+        ModelVariant.OMNICODER_9B_Q4_K_M_GGUF: LLMModelConfig(
+            pretrained_model_name="bartowski/Tesslate_OmniCoder-9B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OMNICODER_9B_GGUF
+    DEFAULT_VARIANT = ModelVariant.OMNICODER_9B_Q4_K_M_GGUF
 
-    GGUF_FILE = "OmniCoder-9B.i1-Q4_K_M.gguf"
+    GGUF_FILE = "Tesslate_OmniCoder-9B-Q4_K_M.gguf"
 
-    sample_text = "Write a Python function that checks if a number is prime."
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -108,7 +108,12 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
+        messages = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -145,7 +150,6 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
