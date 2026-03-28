@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available YandexGPT 5 Lite model variants for causal language modeling."""
 
     YANDEX_GPT_5_LITE_8B_INSTRUCT = "YandexGPT_5_Lite_8B_Instruct"
+    YANDEX_GPT_5_LITE_8B_PRETRAIN = "YandexGPT_5_Lite_8B_Pretrain"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.YANDEX_GPT_5_LITE_8B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="yandex/YandexGPT-5-Lite-8B-instruct",
+            max_length=128,
+        ),
+        ModelVariant.YANDEX_GPT_5_LITE_8B_PRETRAIN: LLMModelConfig(
+            pretrained_model_name="yandex/YandexGPT-5-Lite-8B-pretrain",
             max_length=128,
         ),
     }
@@ -153,11 +158,14 @@ class ModelLoader(ForgeModel):
         # Get max_length from the variant config
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
-        text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        prompts = [text]
+        if self.variant == ModelVariant.YANDEX_GPT_5_LITE_8B_PRETRAIN:
+            prompts = [self.sample_text]
+        else:
+            messages = [{"role": "user", "content": self.sample_text}]
+            text = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            prompts = [text]
 
         inputs = self.tokenizer(
             prompts,
