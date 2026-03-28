@@ -4,6 +4,7 @@
 """
 Aegis AI Content Safety LlamaGuard Defensive model loader implementation for causal language modeling.
 """
+import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 from typing import Optional
@@ -103,7 +104,8 @@ class ModelLoader(ForgeModel):
         )
 
         for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
