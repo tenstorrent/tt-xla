@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     GEMMA_3_270M_IT = "270M_Instruct"
     GEMMA_3_1B_IT = "1B_Instruct"
+    GEMMA_3_4B_IT_AWQ_INT4 = "4B_Instruct_AWQ_INT4"
     GEMMA_3_27B_IT = "27B_Instruct"
     UNSLOTH_GEMMA_3_270M_IT = "Unsloth_270M_Instruct"
 
@@ -40,6 +41,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GEMMA_3_1B_IT: LLMModelConfig(
             pretrained_model_name="google/gemma-3-1b-it",
+            max_length=256,
+        ),
+        ModelVariant.GEMMA_3_4B_IT_AWQ_INT4: LLMModelConfig(
+            pretrained_model_name="gaunernst/gemma-3-4b-it-int4-awq",
             max_length=256,
         ),
         ModelVariant.GEMMA_3_27B_IT: LLMModelConfig(
@@ -70,8 +75,8 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         if variant in (
+            ModelVariant.GEMMA_3_4B_IT_AWQ_INT4,
             ModelVariant.GEMMA_3_27B_IT,
-            ModelVariant.UNSLOTH_GEMMA_3_270M_IT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -120,9 +125,8 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
         model_kwargs = {}
-        if self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
+        if self._variant == ModelVariant.GEMMA_3_4B_IT_AWQ_INT4:
             model_kwargs["device_map"] = "cpu"
-            self._patch_torchao_int4_config()
         else:
             model_kwargs["use_cache"] = False
         if dtype_override is not None:
