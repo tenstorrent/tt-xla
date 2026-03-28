@@ -5,7 +5,6 @@
 EAGLE3 Speculator model loader implementation for speculative decoding.
 """
 
-import torch
 from transformers import AutoModel, AutoTokenizer, AutoConfig
 from typing import Optional
 
