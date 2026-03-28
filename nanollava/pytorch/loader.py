@@ -20,6 +20,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
+from ...tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -108,8 +109,6 @@ class ModelLoader(ForgeModel):
         inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
 
         if dtype_override is not None:
-            from ...tools.utils import cast_input_to_type
-
             inputs = {
                 k: cast_input_to_type(v, dtype_override) for k, v in inputs.items()
             }
