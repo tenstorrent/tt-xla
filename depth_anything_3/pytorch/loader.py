@@ -4,7 +4,6 @@
 """
 Depth Anything 3 model loader implementation for monocular depth estimation.
 """
-import torch
 import torch.nn as nn
 import torchvision.transforms.functional as TF
 from PIL import Image
