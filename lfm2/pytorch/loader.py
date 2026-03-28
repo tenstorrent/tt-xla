@@ -28,8 +28,7 @@ class ModelVariant(StrEnum):
 
     LFM2_700M = "LFM2_700M"
     LFM2_24B_A2B = "LFM2_24B_A2B"
-    LFM2_5_1_2B_JP = "LFM2_5_1_2B_JP"
-    LFM2_5_1_2B_INSTRUCT_4BIT = "LFM2_5_1_2B_INSTRUCT_4BIT"
+    LFM2_1_2B = "LFM2_1_2B"
 
 
 class ModelLoader(ForgeModel):
@@ -44,12 +43,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="LiquidAI/LFM2-24B-A2B",
             max_length=2048,
         ),
-        ModelVariant.LFM2_5_1_2B_JP: LLMModelConfig(
-            pretrained_model_name="LiquidAI/LFM2.5-1.2B-JP",
-            max_length=2048,
-        ),
-        ModelVariant.LFM2_5_1_2B_INSTRUCT_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/LFM2.5-1.2B-Instruct-4bit",
+        ModelVariant.LFM2_1_2B: LLMModelConfig(
+            pretrained_model_name="LiquidAI/LFM2-1.2B",
             max_length=2048,
         ),
     }
