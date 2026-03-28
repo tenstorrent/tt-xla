@@ -93,7 +93,7 @@ class ModelVariant(StrEnum):
 
     # Llama 2 variants
     LLAMA_2_7B = "2_7B"
-    LLAMA_2_7B_CHAT = "2_7B_Chat"
+    LLAMA_2_70B_CHAT = "2_70B_Chat"
 
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
@@ -237,8 +237,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="meta-llama/Llama-2-7b-hf",
             max_length=128,
         ),
-        ModelVariant.LLAMA_2_7B_CHAT: LLMModelConfig(
-            pretrained_model_name="NousResearch/Llama-2-7b-chat-hf",
+        ModelVariant.LLAMA_2_70B_CHAT: LLMModelConfig(
+            pretrained_model_name="meta-llama/Llama-2-70b-chat-hf",
             max_length=128,
         ),
         # HuggingFace community variants
@@ -334,11 +334,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV_QUARK_TEST,
-            ModelVariant.LLAMA_3_1_8B_INSTRUCT_4BIT,
-            ModelVariant.LLAMA_3_1_70B_INSTRUCT_4BIT,
-            ModelVariant.LLAMA_3_2_1B_BNB_4BIT,
+            ModelVariant.LLAMA_2_70B_CHAT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -606,7 +602,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_AWQ_INT4,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_1_70B_INSTRUCT_4BIT,
+            ModelVariant.LLAMA_2_70B_CHAT,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
