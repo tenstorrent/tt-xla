@@ -34,14 +34,14 @@ REPO_ID = "QuantStack/LTX-2.3-GGUF"
 class ModelVariant(StrEnum):
     """Available LTX-2.3 GGUF quantization variants."""
 
-    LTX_2_3_Q4_K_M = "2.3_Q4_K_M"
-    LTX_2_3_Q8_0 = "2.3_Q8_0"
+    LTX_2_3_DISTILLED_Q4_K_M = "2.3_distilled_Q4_K_M"
+    LTX_2_3_DISTILLED_Q8_0 = "2.3_distilled_Q8_0"
 
 
 # GGUF filenames within the repository
 _GGUF_FILES = {
-    ModelVariant.LTX_2_3_Q4_K_M: "ltx-2.3-Q4_K_M.gguf",
-    ModelVariant.LTX_2_3_Q8_0: "ltx-2.3-Q8_0.gguf",
+    ModelVariant.LTX_2_3_DISTILLED_Q4_K_M: "LTX-2.3-distilled/LTX-2.3-distilled-Q4_K_M.gguf",
+    ModelVariant.LTX_2_3_DISTILLED_Q8_0: "LTX-2.3-distilled/LTX-2.3-distilled-Q8_0.gguf",
 }
 
 
@@ -53,15 +53,15 @@ class ModelLoader(ForgeModel):
     """
 
     _VARIANTS = {
-        ModelVariant.LTX_2_3_Q4_K_M: ModelConfig(
+        ModelVariant.LTX_2_3_DISTILLED_Q4_K_M: ModelConfig(
             pretrained_model_name=REPO_ID,
         ),
-        ModelVariant.LTX_2_3_Q8_0: ModelConfig(
+        ModelVariant.LTX_2_3_DISTILLED_Q8_0: ModelConfig(
             pretrained_model_name=REPO_ID,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LTX_2_3_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.LTX_2_3_DISTILLED_Q4_K_M
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
