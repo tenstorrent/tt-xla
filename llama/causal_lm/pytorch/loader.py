@@ -80,6 +80,9 @@ class ModelVariant(StrEnum):
     # GraySwanAI variants
     GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR = "GraySwanAI_3.0_8B_Instruct_RR"
 
+    # NousResearch variants
+    NOUSRESEARCH_LLAMA_3_8B = "NousResearch_3.0_8B"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -196,6 +199,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="GraySwanAI/Llama-3-8B-Instruct-RR",
             max_length=128,
         ),
+        # NousResearch variants
+        ModelVariant.NOUSRESEARCH_LLAMA_3_8B: LLMModelConfig(
+            pretrained_model_name="NousResearch/Meta-Llama-3-8B",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -241,6 +249,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_8B_INSTRUCT_AWQ,
             ModelVariant.ABLITERATED_LLAMA_3_2_1B_INSTRUCT,
             ModelVariant.GRAYSWAN_LLAMA_3_8B_INSTRUCT_RR,
+            ModelVariant.NOUSRESEARCH_LLAMA_3_8B,
         ]:
             group = ModelGroup.VULCAN
         elif (
