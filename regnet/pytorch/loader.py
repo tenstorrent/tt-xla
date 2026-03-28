@@ -69,6 +69,9 @@ class ModelVariant(StrEnum):
     X_16GF = "X_16gf"
     X_32GF = "X_32gf"
 
+    # TIMM variants
+    HF_TIMM_REGNETX_002_PYCLS_IN1K = "Timm_Regnetx_002_Pycls_In1k"
+
 
 class ModelLoader(ForgeModel):
     """RegNet model loader implementation."""
@@ -166,6 +169,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="regnet_x_32gf",
             source=ModelSource.TORCHVISION,
         ),
+        # TIMM variants
+        ModelVariant.HF_TIMM_REGNETX_002_PYCLS_IN1K: RegNetConfig(
+            pretrained_model_name="hf_hub:timm/regnetx_002.pycls_in1k",
+            source=ModelSource.TIMM,
+        ),
     }
 
     # Default variant to use
@@ -200,10 +208,9 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
-        # TIMM variants use VULCAN group
-        group = (
-            ModelGroup.VULCAN if source == ModelSource.TIMM else ModelGroup.GENERALITY
-        )
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.HF_TIMM_REGNETX_002_PYCLS_IN1K:
+            group = ModelGroup.VULCAN
 
         return ModelInfo(
             model="RegNet",
