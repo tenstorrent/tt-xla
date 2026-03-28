@@ -31,10 +31,10 @@ class ModelVariant(StrEnum):
     QWEN_2_5_CODER_3B_INSTRUCT = "3B_Instruct"
     QWEN_2_5_CODER_7B = "7B"
     QWEN_2_5_CODER_7B_INSTRUCT = "7B_Instruct"
+    QWEN_2_5_CODER_7B_BNB_4BIT = "7B_bnb_4bit"
     QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
     QWEN_2_5_CODER_14B = "14B"
     QWEN_2_5_CODER_32B_INSTRUCT = "32B_Instruct"
-    QWEN_2_5_CODER_7B_BNB_4BIT = "7B_bnb_4bit"
     QWEN_2_5_CODER_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
     QWEN_2_5_CODER_32B_INSTRUCT_UNSLOTH = "32B_Instruct_Unsloth"
 
