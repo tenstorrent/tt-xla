@@ -56,8 +56,14 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    # Tokenizer overrides for models that don't ship their own tokenizer
+    _TOKENIZER_OVERRIDES = {
+        ModelVariant.TINY_RANDOM: "microsoft/deberta-v2-base",
+    }
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        tokenizer_name = self._TOKENIZER_OVERRIDES.get(self._variant, self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
         model_kwargs = {}
         if dtype_override is not None:
