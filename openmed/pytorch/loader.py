@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE = "ZeroShot-NER-Protein-XLarge-770M"
+    OPENMED_ZEROSHOT_NER_DNA_XLARGE = "ZeroShot-NER-DNA-XLarge-770M"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-XLarge-770M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_DNA_XLARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-DNA-XLarge-770M"
         ),
     }
 
@@ -104,7 +108,10 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE:
+        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_DNA_XLARGE:
+            text = "The p53 protein plays a crucial role in tumor suppression."
+            labels = ["DNA", "RNA", "cell_line", "cell_type", "protein"]
+        elif self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE:
             text = "Casein micelles are the primary protein component of milk."
             labels = [
                 "protein",
