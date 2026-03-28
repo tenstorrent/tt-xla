@@ -7,7 +7,7 @@ NSFW Image Detection model loader implementation
 
 from typing import Optional
 from dataclasses import dataclass
-from transformers import ViTForImageClassification
+from transformers import FocalNetForImageClassification, ViTForImageClassification
 
 from ...config import (
     ModelConfig,
@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     """Available NSFW Image Detection model variants."""
 
     BASE = "Base"
+    LARGE = "Large"
 
 
 class ModelLoader(ForgeModel):
@@ -44,9 +45,18 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Falconsai/nsfw_image_detection",
             source=ModelSource.HUGGING_FACE,
         ),
+        ModelVariant.LARGE: NsfwImageDetectionConfig(
+            pretrained_model_name="nostrbuild/nsfw-image-detection-large",
+            source=ModelSource.HUGGING_FACE,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.BASE
+
+    _VARIANT_MODEL_CLASS = {
+        ModelVariant.BASE: ViTForImageClassification,
+        ModelVariant.LARGE: FocalNetForImageClassification,
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -71,10 +81,9 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
+        model_class = self._VARIANT_MODEL_CLASS[self._variant]
 
-        model = ViTForImageClassification.from_pretrained(
-            pretrained_model_name, **kwargs
-        )
+        model = model_class.from_pretrained(pretrained_model_name, **kwargs)
         model.eval()
 
         self.model = model
