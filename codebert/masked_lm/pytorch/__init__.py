@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-CodeBERT Masked LM PyTorch implementation.
+CodeBERT-C PyTorch masked language model implementation.
 """
 from .loader import ModelLoader, ModelVariant
