@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-BGE 1.5 ONNX model loader for embedding generation.
+BGE 1.5 ONNX model loader.
 """
 
 # Reuse the PyTorch ModelLoader as the base
@@ -21,8 +21,7 @@ class ModelLoader(PyTorchModelLoader):
         """
         self.torch_loader = PyTorchModelLoader(variant=self._variant)
         torch_model = self.torch_loader.load_model()
-        self.model = getattr(self.torch_loader, "model", torch_model)
-        inputs = self.torch_loader.load_inputs()
+        inputs = self.load_inputs()
         model_name = self.torch_loader._variant_config.pretrained_model_name
 
         return export_torch_model_to_onnx(
@@ -31,11 +30,3 @@ class ModelLoader(PyTorchModelLoader):
             inputs,
             model_name,
         )
-
-    def load_inputs(self, **kwargs):
-        """Load and return preprocessed inputs for BGE 1.5 embedding generation.
-
-        Delegates to the underlying PyTorch loader to ensure tokenizer is initialized
-        without re-invoking this ONNX loader's load_model signature.
-        """
-        return self.torch_loader.load_inputs(**kwargs)
