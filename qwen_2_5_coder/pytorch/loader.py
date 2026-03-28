@@ -36,7 +36,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_CODER_7B_BNB_4BIT = "7B_bnb_4bit"
     QWEN_2_5_CODER_14B_BNB_4BIT = "14B_bnb_4bit"
     QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4 = "7B_Instruct_GPTQ_Int4"
-    QWEN_2_5_CODER_14B = "14B"
+    QWEN_2_5_CODER_14B_INSTRUCT_4BIT = "14B_Instruct_4bit"
     QWEN_2_5_CODER_32B_INSTRUCT = "32B_Instruct"
     QWEN_2_5_CODER_32B_INSTRUCT_AWQ = "32B_Instruct_Awq"
     QWEN_2_5_CODER_32B_INSTRUCT_MLX_8BIT = "32B_Instruct_MLX_8bit"
@@ -83,16 +83,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-Coder-7B-Instruct-GPTQ-Int4",
             max_length=128,
         ),
-        ModelVariant.QWEN_2_5_CODER_0_5B_INSTRUCT_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-Coder-0.5B-Instruct-bnb-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_2_5_CODER_7B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-Coder-7B-bnb-4bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_2_5_CODER_14B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-Coder-14B-bnb-4bit",
+        ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen2.5-Coder-14B-Instruct-4bit",
             max_length=128,
         ),
         ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT: LLMModelConfig(
@@ -145,7 +137,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_CODER_7B_BNB_4BIT,
             ModelVariant.QWEN_2_5_CODER_14B_BNB_4BIT,
             ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_GPTQ_INT4,
-            ModelVariant.QWEN_2_5_CODER_14B,
+            ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_4BIT,
             ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_AWQ,
             ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_MLX_8BIT,
         ]:
@@ -209,7 +201,7 @@ class ModelLoader(ForgeModel):
             "unsloth/Qwen2.5-Coder-7B-bnb-4bit",
             "unsloth/Qwen2.5-Coder-14B-bnb-4bit",
             "Qwen/Qwen2.5-Coder-7B-Instruct-GPTQ-Int4",
-            "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int8",
+            "mlx-community/Qwen2.5-Coder-14B-Instruct-4bit",
             "Qwen/Qwen2.5-Coder-32B-Instruct-AWQ",
             "lmstudio-community/Qwen2.5-Coder-32B-Instruct-MLX-8bit",
         ):
