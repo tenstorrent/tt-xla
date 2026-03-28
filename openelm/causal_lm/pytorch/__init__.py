@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenELM PyTorch model implementation for Tenstorrent projects.
+OpenELM causal language modeling loader exports
 """
 from .loader import ModelLoader, ModelVariant

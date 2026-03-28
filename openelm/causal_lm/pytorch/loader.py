@@ -2,61 +2,58 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenELM model loader implementation for causal language modeling.
+OpenELM causal language modeling loader
 """
-
 from typing import Optional
 
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from ....base import ForgeModel
 from ....config import (
-    Framework,
-    LLMModelConfig,
-    ModelGroup,
+    ModelConfig,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
+from ....base import ForgeModel
+from ....tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
-    """Available OpenELM model variants for causal language modeling."""
-
-    OPENELM_270M_INSTRUCT = "OpenELM-270M-Instruct"
+    OPENELM_270M_INSTRUCT = "270M_Instruct"
+    OPENELM_450M_INSTRUCT = "450M_Instruct"
+    OPENELM_1_1B_INSTRUCT = "1_1B_Instruct"
+    OPENELM_3B_INSTRUCT = "3B_Instruct"
 
 
 class ModelLoader(ForgeModel):
-    """OpenELM model loader implementation for causal language modeling tasks."""
-
     _VARIANTS = {
-        ModelVariant.OPENELM_270M_INSTRUCT: LLMModelConfig(
+        ModelVariant.OPENELM_270M_INSTRUCT: ModelConfig(
             pretrained_model_name="apple/OpenELM-270M-Instruct",
-            max_length=256,
+        ),
+        ModelVariant.OPENELM_450M_INSTRUCT: ModelConfig(
+            pretrained_model_name="apple/OpenELM-450M-Instruct",
+        ),
+        ModelVariant.OPENELM_1_1B_INSTRUCT: ModelConfig(
+            pretrained_model_name="apple/OpenELM-1_1B-Instruct",
+        ),
+        ModelVariant.OPENELM_3B_INSTRUCT: ModelConfig(
+            pretrained_model_name="apple/OpenELM-3B-Instruct",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENELM_270M_INSTRUCT
+    DEFAULT_VARIANT = ModelVariant.OPENELM_3B_INSTRUCT
 
-    sample_text = "Once upon a time"
-
-    # OpenELM models do not bundle a tokenizer; use the LLaMA tokenizer as recommended.
-    _TOKENIZER_NAME = "meta-llama/Llama-2-7b-hf"
-
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.tokenizer = None
-        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="OpenELM",
             variant=variant,
@@ -66,61 +63,42 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self, dtype_override=None):
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self._TOKENIZER_NAME,
-        )
-
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-
-        return self.tokenizer
+    def _ensure_tokenizer(self):
+        if self.tokenizer is None:
+            # OpenELM uses the LLaMA 2 tokenizer
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                "meta-llama/Llama-2-7b-hf",
+                trust_remote_code=True,
+            )
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        self._ensure_tokenizer()
 
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-
-        model_kwargs = {
-            "trust_remote_code": True,
-        }
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        else:
-            model_kwargs["torch_dtype"] = torch.bfloat16
-        if self.num_layers is not None:
-            from transformers import AutoConfig
-
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, trust_remote_code=True
-            )
-            config.num_transformer_layers = self.num_layers
-            model_kwargs["config"] = config
+        model_kwargs = {"use_cache": False, "trust_remote_code": True}
         model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self._variant_config.pretrained_model_name, **model_kwargs
         )
-        model.eval()
-        self.config = model.config
-
+        if dtype_override is not None:
+            model = model.to(dtype_override)
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-
+    def load_inputs(self, dtype_override=None, prompt: Optional[str] = None):
+        self._ensure_tokenizer()
+        text = prompt or "Once upon a time there was"
         inputs = self.tokenizer(
-            self.sample_text,
+            [text],
             return_tensors="pt",
-            padding="max_length",
+            padding=True,
             truncation=True,
-            max_length=self._variant_config.max_length,
         )
+        input_ids = inputs["input_ids"]
+        attn_mask = inputs["attention_mask"]
+        if dtype_override is not None:
+            input_ids = cast_input_to_type(input_ids, dtype_override)
+            attn_mask = cast_input_to_type(attn_mask, dtype_override)
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
-
-        return inputs
+        return [input_ids, attn_mask]
