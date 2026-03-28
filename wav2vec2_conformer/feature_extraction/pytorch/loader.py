@@ -6,7 +6,6 @@
 Wav2Vec2-Conformer model loader implementation for audio feature extraction.
 """
 
-import torch
 from typing import Optional
 
 from ....base import ForgeModel
