@@ -9,7 +9,7 @@ from typing import Optional
 from dataclasses import dataclass
 import timm
 import torch
-from transformers import AutoImageProcessor, AutoModelForImageClassification
+from transformers import AutoModelForImageClassification
 
 from ...config import (
     ModelConfig,
@@ -39,7 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
-    BASE_224 = "Base_224"
+    SMALL_224 = "Small_224"
 
 
 class ModelLoader(ForgeModel):
@@ -50,8 +50,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.BASE_224: ConvNeXtConfig(
-            pretrained_model_name="facebook/convnext-base-224",
+        ModelVariant.SMALL_224: ConvNeXtConfig(
+            pretrained_model_name="facebook/convnext-small-224",
             source=ModelSource.HUGGING_FACE,
         ),
     }
@@ -86,21 +86,13 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.HUGGING_FACE:
-            model_kwargs = {}
-            if dtype_override is not None:
-                model_kwargs["torch_dtype"] = dtype_override
-            model_kwargs |= kwargs
-
             model = AutoModelForImageClassification.from_pretrained(
-                model_name, **model_kwargs
+                model_name, **kwargs
             )
-            model.eval()
-        else:
+        elif source == ModelSource.TIMM:
             model = timm.create_model(model_name, pretrained=True)
-            model.eval()
 
-            if dtype_override is not None:
-                model = model.to(dtype_override)
+        model.eval()
 
         self.model = model
 
