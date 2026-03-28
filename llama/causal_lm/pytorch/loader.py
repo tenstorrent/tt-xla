@@ -112,6 +112,9 @@ class ModelVariant(StrEnum):
     LLAMA_2_7B = "2_7B"
     LLAMA_2_7B_GPTQ = "2_7B_GPTQ"
 
+    # Unsloth variants
+    UNSLOTH_LLAMA_2_7B = "Unsloth_2_7B"
+
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
     TINYLLAMA_1_1B_INTERMEDIATE = "Tinyllama_1.1B_Intermediate"
@@ -257,8 +260,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="meta-llama/Llama-2-7b-hf",
             max_length=128,
         ),
-        ModelVariant.LLAMA_2_7B_GPTQ: LLMModelConfig(
-            pretrained_model_name="TheBloke/Llama-2-7B-GPTQ",
+        # Unsloth variants
+        ModelVariant.UNSLOTH_LLAMA_2_7B: LLMModelConfig(
+            pretrained_model_name="unsloth/llama-2-7b",
             max_length=128,
         ),
         # HuggingFace community variants
@@ -370,7 +374,7 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.PRIORITY
         elif variant in [
             ModelVariant.LLAMA_2_7B,
-            ModelVariant.LLAMA_2_7B_GPTQ,
+            ModelVariant.UNSLOTH_LLAMA_2_7B,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
@@ -654,7 +658,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_BNB_4BIT,
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.LLAMA_2_7B,
-            ModelVariant.LLAMA_2_7B_GPTQ,
+            ModelVariant.UNSLOTH_LLAMA_2_7B,
             ModelVariant.JACKFRAM_LLAMA_160M,
             ModelVariant.OPENPIPE_PII_REDACT_GENERAL,
             ModelVariant.FAIRSEQ2_DUMMY_LLAMA_3_2_1B,
