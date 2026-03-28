@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available MarianMT translation model variants."""
 
     OPUS_MT_EN_RU = "Opus_Mt_En_Ru"
+    TINY_MARIAN_EN_DE = "Tiny_Marian_En_De"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPUS_MT_EN_RU: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-en-ru",
+        ),
+        ModelVariant.TINY_MARIAN_EN_DE: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-marian-en-de",
         ),
     }
 
