@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_CHEMICALDETECT_MULTIMED_335M = "NER-ChemicalDetect-MultiMed-335M"
     OPENMED_NER_GENOMEDETECT_MULTIMED_568M = "NER-GenomeDetect-MultiMed-568M"
     OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M = "NER-SpeciesDetect-BioPatient-108M"
+    OPENMED_NER_PATHOLOGYDETECT_TINYMED_65M = "NER-PathologyDetect-TinyMed-65M"
     OPENMED_NER_SPECIESDETECT_PUBMED_V2_109M = "NER-SpeciesDetect-PubMed-v2-109M"
 
 
@@ -38,6 +39,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_GENOMEDETECT_MULTIMED_568M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-MultiMed-568M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_TINYMED_65M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-PathologyDetect-TinyMed-65M",
             max_length=128,
         ),
         ModelVariant.OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M: LLMModelConfig(
@@ -58,6 +63,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_GENOMEDETECT_MULTIMED_568M: (
             "The EGFR gene mutation was identified in lung cancer patients."
+        ),
+        ModelVariant.OPENMED_NER_PATHOLOGYDETECT_TINYMED_65M: (
+            "Early detection of breast cancer improves survival rates."
         ),
         ModelVariant.OPENMED_NER_SPECIESDETECT_BIOPATIENT_108M: (
             "Escherichia coli bacteria were found in the water samples."
