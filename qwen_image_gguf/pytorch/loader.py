@@ -2,21 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen-Image-2512 GGUF model loader implementation.
+Qwen-Image GGUF model loader implementation for text-to-image generation.
 
-Loads the GGUF-quantized diffusion transformer from unsloth/Qwen-Image-2512-GGUF
-using diffusers' GGUF quantization support.
-
-Available variants:
-- QWEN_IMAGE_2512_Q4_K_M: Q4_K_M quantized diffusion transformer
+Repository:
+- https://huggingface.co/city96/Qwen-Image-gguf
 """
-
-from typing import Any, Optional
-
 import torch
 from diffusers import QwenImageTransformer2DModel
-from diffusers.quantizers import GGUFQuantizationConfig
-from huggingface_hub import hf_hub_download
+from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
@@ -29,120 +22,114 @@ from ...config import (
     StrEnum,
 )
 
-REPO_ID = "unsloth/Qwen-Image-2512-GGUF"
-
-# Upstream diffusers config for model construction
-UPSTREAM_CONFIG = "Qwen/Qwen-Image-2512"
-
-_GGUF_FILES = {
-    "Q4_K_M": "Qwen-Image-2512-Q4_K_M.gguf",
-}
+GGUF_BASE_URL = "https://huggingface.co/city96/Qwen-Image-gguf/blob/main"
 
 
 class ModelVariant(StrEnum):
     """Available Qwen-Image GGUF model variants."""
 
-    QWEN_IMAGE_2512_Q4_K_M = "Q4_K_M"
+    Q4_K_S = "Q4_K_S"
+    Q8_0 = "Q8_0"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen-Image-2512 GGUF model loader for the diffusion transformer."""
+    """Qwen-Image GGUF model loader implementation for text-to-image generation tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_IMAGE_2512_Q4_K_M: ModelConfig(
-            pretrained_model_name=REPO_ID,
+        ModelVariant.Q4_K_S: ModelConfig(
+            pretrained_model_name="city96/Qwen-Image-gguf",
+        ),
+        ModelVariant.Q8_0: ModelConfig(
+            pretrained_model_name="city96/Qwen-Image-gguf",
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.QWEN_IMAGE_2512_Q4_K_M
+
+    _GGUF_FILES = {
+        ModelVariant.Q4_K_S: "qwen-image-Q4_K_S.gguf",
+        ModelVariant.Q8_0: "qwen-image-Q8_0.gguf",
+    }
+
+    DEFAULT_VARIANT = ModelVariant.Q4_K_S
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self._transformer = None
+        self.transformer = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
-            model="QWEN_IMAGE_GGUF",
+            model="Qwen-Image GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CONDITIONAL_GENERATION,
+            task=ModelTask.MM_IMAGE_TTT,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _get_gguf_filename(self) -> str:
-        """Map variant to GGUF filename."""
-        return _GGUF_FILES[self._variant.value]
+    def load_model(self, *, dtype_override=None, **kwargs):
+        gguf_file = self._GGUF_FILES[self._variant]
+        gguf_url = f"{GGUF_BASE_URL}/{gguf_file}"
 
-    def _load_transformer(
-        self, dtype: torch.dtype = torch.bfloat16
-    ) -> QwenImageTransformer2DModel:
-        """Load diffusion transformer from GGUF file."""
-        gguf_filename = self._get_gguf_filename()
-
-        model_path = hf_hub_download(
-            repo_id=REPO_ID,
-            filename=gguf_filename,
-        )
-
-        quantization_config = GGUFQuantizationConfig(compute_dtype=dtype)
-
-        self._transformer = QwenImageTransformer2DModel.from_single_file(
-            model_path,
-            config=UPSTREAM_CONFIG,
-            subfolder="transformer",
-            quantization_config=quantization_config,
-            torch_dtype=dtype,
-        )
-        self._transformer.eval()
-        return self._transformer
-
-    def load_model(self, *, dtype_override: Optional[torch.dtype] = None, **kwargs):
-        """Load and return the Qwen-Image GGUF diffusion transformer.
-
-        Returns:
-            QwenImageTransformer2DModel instance.
-        """
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        if self._transformer is None:
-            return self._load_transformer(dtype)
+        load_kwargs = {}
         if dtype_override is not None:
-            self._transformer = self._transformer.to(dtype=dtype_override)
-        return self._transformer
+            load_kwargs["torch_dtype"] = dtype_override
 
-    def load_inputs(self, **kwargs) -> Any:
-        """Prepare sample inputs for the diffusion transformer.
-
-        Returns a dict matching QwenImageTransformer2DModel.forward() signature.
-        """
-        dtype = kwargs.get("dtype_override", torch.bfloat16)
-        batch_size = kwargs.get("batch_size", 1)
-
-        # From model config: in_channels=64 (img_in linear input dimension)
-        img_dim = 64
-        # joint_attention_dim from config = 3584
-        text_dim = 3584
-        txt_seq_len = 32
-
-        # img_seq_len must equal frame * height * width for positional encoding
-        frame, height, width = 1, 8, 8
-        img_seq_len = frame * height * width
-
-        hidden_states = torch.randn(batch_size, img_seq_len, img_dim, dtype=dtype)
-        encoder_hidden_states = torch.randn(
-            batch_size, txt_seq_len, text_dim, dtype=dtype
+        self.transformer = QwenImageTransformer2DModel.from_single_file(
+            gguf_url,
+            **load_kwargs,
         )
-        encoder_hidden_states_mask = torch.ones(batch_size, txt_seq_len, dtype=dtype)
-        timestep = torch.tensor([500.0] * batch_size, dtype=dtype)
-        # img_shapes: list of (frame, height, width) tuples per batch item
-        img_shapes = [(frame, height, width)] * batch_size
 
-        return {
+        if dtype_override is not None:
+            self.transformer = self.transformer.to(dtype_override)
+
+        return self.transformer
+
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        if self.transformer is None:
+            self.load_model(dtype_override=dtype_override)
+
+        dtype = dtype_override if dtype_override is not None else torch.bfloat16
+        config = self.transformer.config
+
+        # Image dimensions
+        height = 128
+        width = 128
+        patch_size = config.patch_size
+        in_channels = config.in_channels
+
+        # Compute latent sequence length: (H / patch) * (W / patch)
+        h_patches = height // patch_size
+        w_patches = width // patch_size
+        image_seq_len = h_patches * w_patches
+
+        # Hidden states: (batch, image_seq_len, in_channels)
+        hidden_states = torch.randn(batch_size, image_seq_len, in_channels, dtype=dtype)
+
+        # Encoder hidden states (text embeddings): (batch, text_seq_len, joint_attention_dim)
+        text_seq_len = 128
+        joint_attention_dim = config.joint_attention_dim
+        encoder_hidden_states = torch.randn(
+            batch_size, text_seq_len, joint_attention_dim, dtype=dtype
+        )
+
+        # Encoder hidden states mask: (batch, text_seq_len)
+        encoder_hidden_states_mask = torch.ones(batch_size, text_seq_len, dtype=dtype)
+
+        # Timestep
+        timestep = torch.tensor([1.0], dtype=dtype).expand(batch_size)
+
+        # Image shapes for RoPE: list of (frames, height, width)
+        img_shapes = [(1, h_patches, w_patches)] * batch_size
+
+        inputs = {
             "hidden_states": hidden_states,
             "encoder_hidden_states": encoder_hidden_states,
             "encoder_hidden_states_mask": encoder_hidden_states_mask,
             "timestep": timestep,
             "img_shapes": img_shapes,
         }
+
+        return inputs
