@@ -1,0 +1,1 @@
+sonics @ git+https://github.com/awsaf49/sonics.git
