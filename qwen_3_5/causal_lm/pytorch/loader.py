@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
     QWEN_3_5_27B_GUARDPOINT_GGUF = "27B_Guardpoint_GGUF"
+    QWEN_3_5_35B_A3B_INT4_AUTOROUND = "35B_A3B_int4_AutoRound"
 
 
 class ModelLoader(ForgeModel):
@@ -134,6 +135,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_27B_GUARDPOINT_GGUF: LLMModelConfig(
             pretrained_model_name="mradermacher/Qwen3.5-27B-Guardpoint-i1-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_INT4_AUTOROUND: LLMModelConfig(
+            pretrained_model_name="Intel/Qwen3.5-35B-A3B-int4-AutoRound",
             max_length=128,
         ),
     }
@@ -241,6 +246,14 @@ class ModelLoader(ForgeModel):
         if self._is_gguf_variant():
             model_kwargs["gguf_file"] = self._gguf_file
 
+        # GPTQ variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_3_5_35B_A3B_GPTQ_INT4:
+            model_kwargs["device_map"] = "cpu"
+
+        # AutoRound int4 variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_3_5_35B_A3B_INT4_AUTOROUND:
+            model_kwargs["device_map"] = "cpu"
+
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if hasattr(config, "text_config"):
@@ -341,8 +354,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
             ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_35B_A3B_GGUF,
-            ModelVariant.QWEN_3_5_35B_A3B_ABLITERATED_GGUF,
+            ModelVariant.QWEN_3_5_35B_A3B_INT4_AUTOROUND,
             ModelVariant.QWEN_3_5_122B_A10B,
             ModelVariant.QWEN_3_5_122B_A10B_GGUF,
         )
