@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Perceiver model variants."""
 
     LANGUAGE_PERCEIVER = "Language_Perceiver"
+    TINY_RANDOM_LANGUAGE_PERCEIVER = "Tiny_Random_Language_Perceiver"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LANGUAGE_PERCEIVER: ModelConfig(
             pretrained_model_name="deepmind/language-perceiver",
+        ),
+        ModelVariant.TINY_RANDOM_LANGUAGE_PERCEIVER: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-language_perceiver",
         ),
     }
 
@@ -65,10 +69,13 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        group = ModelGroup.GENERALITY
+        if variant == ModelVariant.TINY_RANDOM_LANGUAGE_PERCEIVER:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="Perceiver",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_MASKED_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
