@@ -120,6 +120,7 @@ class ModelArch(BaseEnum):
     MGP = ("mgp", "MGP-STR")
     MLPMIXER = ("mlp_mixer", "MLP-Mixer")
     MNIST = ("mnist", "MNIST")
+    NFNET = ("nfnet", "NFNet")
     MONODEPTH2 = ("monodepth2", "Monodepth2")
     MONODLE = ("monodle", "MonoDLE")
     RCNN = ("rcnn", "R-CNN")
