@@ -22,7 +22,7 @@ class ModelVariant(StrEnum):
     """Available DistilBERT model variants for question answering."""
 
     DISTILBERT_BASE_CASED_DISTILLED_SQUAD = "Base_Cased_Distilled_Squad"
-    DISTILBERT_BASE_UNCASED_DISTILLED_SQUAD = "Base_Uncased_Distilled_Squad"
+    TINY_DISTILBERT_BASE_CASED_DISTILLED_SQUAD = "Tiny_Base_Cased_Distilled_Squad"
 
 
 class ModelLoader(ForgeModel):
@@ -34,8 +34,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="distilbert-base-cased-distilled-squad",
             max_length=384,
         ),
-        ModelVariant.DISTILBERT_BASE_UNCASED_DISTILLED_SQUAD: LLMModelConfig(
-            pretrained_model_name="distilbert-base-uncased-distilled-squad",
+        ModelVariant.TINY_DISTILBERT_BASE_CASED_DISTILLED_SQUAD: LLMModelConfig(
+            pretrained_model_name="sshleifer/tiny-distilbert-base-cased-distilled-squad",
             max_length=384,
         ),
     }
