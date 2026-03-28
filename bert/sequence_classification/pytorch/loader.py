@@ -27,18 +27,9 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    SPAMX_MURIL_V2 = "SpamX_MuRIL_V2"
-    KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT = (
-        "koheiduck_Bert_Japanese_Finetuned_Sentiment"
+    GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION = (
+        "gokuls_Tiny_Bert_Sst2_MobileBert_Distillation"
     )
-    PEDROPEI_ASPECT_LEVEL_CERTAINTY = "pedropei_Aspect_Level_Certainty"
-    BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT = (
-        "bvanaken_Clinical_Assertion_Negation_BERT"
-    )
-    UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE = (
-        "uer_Roberta_Base_Finetuned_Chinanews_Chinese"
-    )
-    VANSH180_FINBERT_INDIA_V1 = "Vansh180_FinBERT_India_v1"
 
 
 class ModelLoader(ForgeModel):
@@ -62,28 +53,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.SPAMX_MURIL_V2: LLMModelConfig(
-            pretrained_model_name="SpamX/MuRIL_V2",
-            max_length=128,
-        ),
-        ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT: LLMModelConfig(
-            pretrained_model_name="koheiduck/bert-japanese-finetuned-sentiment",
-            max_length=128,
-        ),
-        ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY: LLMModelConfig(
-            pretrained_model_name="pedropei/aspect-level-certainty",
-            max_length=128,
-        ),
-        ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT: LLMModelConfig(
-            pretrained_model_name="bvanaken/clinical-assertion-negation-bert",
-            max_length=128,
-        ),
-        ModelVariant.UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE: LLMModelConfig(
-            pretrained_model_name="uer/roberta-base-finetuned-chinanews-chinese",
-            max_length=128,
-        ),
-        ModelVariant.VANSH180_FINBERT_INDIA_V1: LLMModelConfig(
-            pretrained_model_name="Vansh180/FinBERT-India-v1",
+        ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION: LLMModelConfig(
+            pretrained_model_name="gokuls/tiny-bert-sst2-mobilebert-distillation",
             max_length=128,
         ),
     }
@@ -102,12 +73,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.SPAMX_MURIL_V2: "Congratulations! You have won a free prize. Click here to claim now!",
-        ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT: "この映画はとても面白かったです。",
-        ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY: "The results of this study clearly demonstrate a significant improvement.",
-        ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT: "The patient recovered during the night and now denies any [entity] shortness of breath [entity].",
-        ModelVariant.UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE: "中国经济在过去几十年中取得了巨大的发展成就",
-        ModelVariant.VANSH180_FINBERT_INDIA_V1: "Reliance Industries reported strong quarterly earnings, boosting investor confidence.",
+        ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION: "the movie was great!",
     }
 
     def __init__(self, variant=None):
@@ -143,12 +109,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.SPAMX_MURIL_V2,
-            ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT,
-            ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY,
-            ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT,
-            ModelVariant.UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE,
-            ModelVariant.VANSH180_FINBERT_INDIA_V1,
+            ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
