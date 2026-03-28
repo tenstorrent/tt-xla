@@ -38,6 +38,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF = "35B_A3B_Reasoning_Distilled_GGUF"
     QWEN_3_5_35B_A3B_BASE_I1_GGUF = "35B_A3B_Base_i1_GGUF"
     QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
+    QWEN_3_5_27B_REASONING_DISTILLED_NVFP4 = "27B_Reasoning_Distilled_NVFP4"
     QWEN_3_5_122B_A10B_HERETIC_INT4 = "122B_A10B_heretic_int4"
 
 
@@ -96,6 +97,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_BASE_I1_GGUF: LLMModelConfig(
             pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Base-i1-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_27B_REASONING_DISTILLED_NVFP4: LLMModelConfig(
+            pretrained_model_name="mconcat/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-NVFP4",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_122B_A10B_GGUF: LLMModelConfig(
