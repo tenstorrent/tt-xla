@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     SCHNELL = "Schnell"
     DEV = "Dev"
+    LOVIS93_TESTLLM = "lovis93-testllm"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DEV: ModelConfig(
             pretrained_model_name="black-forest-labs/FLUX.1-dev",
+        ),
+        ModelVariant.LOVIS93_TESTLLM: ModelConfig(
+            pretrained_model_name="lovis93/testllm",
         ),
     }
 
@@ -69,12 +73,17 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        if variant == ModelVariant.SCHNELL:
+            group = ModelGroup.RED
+        elif variant == ModelVariant.LOVIS93_TESTLLM:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="FLUX",
             variant=variant,
-            group=ModelGroup.RED
-            if variant == ModelVariant.SCHNELL
-            else ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.MM_IMAGE_TTT,  # FIXME: Update task to Text to Image
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
