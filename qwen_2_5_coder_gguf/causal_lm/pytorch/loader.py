@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 Coder GGUF model variants for causal language modeling."""
 
+    QWEN_2_5_CODER_3B_INSTRUCT_GGUF = "3B_Instruct_GGUF"
     QWEN_2_5_CODER_14B_Q8_0_GGUF = "14B_Q8_0_GGUF"
 
 
@@ -30,6 +31,10 @@ class ModelLoader(ForgeModel):
     """Qwen 2.5 Coder GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.QWEN_2_5_CODER_3B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen2.5-Coder-3B-Instruct-GGUF",
+            max_length=128,
+        ),
         ModelVariant.QWEN_2_5_CODER_14B_Q8_0_GGUF: LLMModelConfig(
             pretrained_model_name="ggml-org/Qwen2.5-Coder-14B-Q8_0-GGUF",
             max_length=128,
@@ -38,7 +43,10 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_14B_Q8_0_GGUF
 
-    GGUF_FILE = "qwen2.5-coder-14b-q8_0.gguf"
+    _GGUF_FILES = {
+        ModelVariant.QWEN_2_5_CODER_3B_INSTRUCT_GGUF: "qwen2.5-coder-3b-instruct-q8_0.gguf",
+        ModelVariant.QWEN_2_5_CODER_14B_Q8_0_GGUF: "qwen2.5-coder-14b-q8_0.gguf",
+    }
 
     sample_text = "write a quick sort algorithm."
 
@@ -46,6 +54,7 @@ class ModelLoader(ForgeModel):
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
+        self.gguf_file = self._GGUF_FILES[self._variant]
         self.tokenizer = None
         self.config = None
         self.num_layers = num_layers
@@ -65,7 +74,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
+        tokenizer_kwargs["gguf_file"] = self.gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -85,11 +94,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
+        model_kwargs["gguf_file"] = self.gguf_file
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
+                pretrained_model_name, gguf_file=self.gguf_file
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -158,6 +167,6 @@ class ModelLoader(ForgeModel):
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
         )
         return self.config
