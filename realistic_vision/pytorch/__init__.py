@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Realistic Vision PyTorch model implementation for Tenstorrent projects.
+Realistic Vision V5.0 PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

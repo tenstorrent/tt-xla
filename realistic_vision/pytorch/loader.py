@@ -2,10 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Realistic Vision model loader implementation
+Realistic Vision V5.0 model loader implementation
 """
 
 import torch
+from diffusers import StableDiffusionPipeline
+from typing import Optional
+
 from ...config import (
     ModelConfig,
     ModelInfo,
@@ -16,27 +19,25 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from diffusers import StableDiffusionPipeline
-from typing import Optional
 
 
 class ModelVariant(StrEnum):
     """Available Realistic Vision model variants."""
 
-    V6_0_B1_NOVAE = "V6.0 B1 noVAE"
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
-    """Realistic Vision model loader implementation."""
+    """Realistic Vision V5.0 model loader implementation."""
 
     # Dictionary of available model variants
     _VARIANTS = {
-        ModelVariant.V6_0_B1_NOVAE: ModelConfig(
-            pretrained_model_name="SG161222/Realistic_Vision_V6.0_B1_noVAE",
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="SG161222/Realistic_Vision_V5.0_noVAE",
         )
     }
 
-    DEFAULT_VARIANT = ModelVariant.V6_0_B1_NOVAE
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -59,7 +60,7 @@ class ModelLoader(ForgeModel):
         """
 
         return ModelInfo(
-            model="Realistic Vision",
+            model="Realistic Vision V5.0",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_IMAGE_TTT,
@@ -75,7 +76,7 @@ class ModelLoader(ForgeModel):
                            If not provided, the model will use torch.bfloat16.
 
         Returns:
-            StableDiffusionPipeline: The pre-trained Realistic Vision pipeline object.
+            StableDiffusionPipeline: The pre-trained Stable Diffusion pipeline object.
         """
         dtype = dtype_override or torch.bfloat16
         pipe = StableDiffusionPipeline.from_pretrained(
@@ -95,6 +96,6 @@ class ModelLoader(ForgeModel):
         """
 
         prompt = [
-            "RAW photo, a portrait of a woman in a garden, 8k uhd, high quality, film grain",
+            "a photo of an astronaut riding a horse on mars",
         ] * batch_size
         return prompt
