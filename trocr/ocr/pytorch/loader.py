@@ -4,7 +4,6 @@
 """
 TrOCR model loader implementation for optical character recognition tasks.
 """
-import torch
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from PIL import Image
 import requests
