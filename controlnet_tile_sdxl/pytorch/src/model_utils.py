@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -60,7 +60,7 @@ def create_tile_conditioning_image(height=1024, width=1024):
     Returns:
         PIL.Image: A dummy conditioning image
     """
-    return Image.new("RGB", (width, height), color=(128, 128, 128))
+    return Image.new("RGB", (width, height), color=(0, 0, 0))
 
 
 def controlnet_tile_sdxl_preprocessing(
@@ -79,7 +79,7 @@ def controlnet_tile_sdxl_preprocessing(
     clip_skip=None,
     original_size=None,
     target_size=None,
-    controlnet_conditioning_scale=0.9,
+    controlnet_conditioning_scale=1.0,
     crops_coords_top_left: Tuple[int, int] = (0, 0),
     negative_original_size: Optional[Tuple[int, int]] = None,
     negative_target_size: Optional[Tuple[int, int]] = None,
@@ -103,7 +103,7 @@ def controlnet_tile_sdxl_preprocessing(
         clip_skip: CLIP skip layers (optional)
         original_size: Original size tuple (optional)
         target_size: Target size tuple (optional)
-        controlnet_conditioning_scale: ControlNet conditioning scale (default: 0.9)
+        controlnet_conditioning_scale: ControlNet conditioning scale (default: 1.0)
         crops_coords_top_left: Crop coordinates (default: (0, 0))
         negative_original_size: Negative original size (optional)
         negative_target_size: Negative target size (optional)

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -28,21 +28,21 @@ from .src.model_utils import (
 class ModelVariant(StrEnum):
     """Available ControlNet Tile SDXL model variants."""
 
-    CONTROLNET_TILE_REALISTIC = "TTPLanet_SDXL_Controlnet_Tile_Realistic"
+    CONTROLNET_TILE_SDXL_1_0 = "Tile_SDXL_1.0"
 
 
 class ModelLoader(ForgeModel):
     """ControlNet Tile SDXL model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.CONTROLNET_TILE_REALISTIC: ModelConfig(
-            pretrained_model_name="TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic",
+        ModelVariant.CONTROLNET_TILE_SDXL_1_0: ModelConfig(
+            pretrained_model_name="xinsir/controlnet-tile-sdxl-1.0",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CONTROLNET_TILE_REALISTIC
+    DEFAULT_VARIANT = ModelVariant.CONTROLNET_TILE_SDXL_1_0
 
-    prompt = "A high quality, detailed photograph with enhanced textures"
+    prompt = "A high quality, detailed photograph of a city skyline at sunset"
     base_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -84,6 +84,9 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the ControlNet Tile SDXL model.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
 
         Returns:
             List: Input tensors for the UNet with ControlNet residuals:
