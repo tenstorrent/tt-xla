@@ -10,6 +10,7 @@ camera-to-world poses from unordered sets of input images.
 """
 
 import torch
+import torchvision.transforms as T
 from PIL import Image
 from typing import Optional
 
@@ -81,8 +82,6 @@ class ModelLoader(ForgeModel):
 
         # Pi3 expects input as (B, N, 3, H, W) with pixel values in [0, 1]
         # Use 2 views as minimum input for 3D reconstruction
-        import torchvision.transforms as T
-
         transform = T.Compose(
             [
                 T.Resize((224, 224)),
