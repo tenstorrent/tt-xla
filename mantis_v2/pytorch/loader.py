@@ -6,7 +6,6 @@ MantisV2 model loader implementation for time series classification.
 """
 
 import torch
-import torch.nn.functional as F
 from typing import Optional
 
 from mantis import MantisV2
