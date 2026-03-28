@@ -117,21 +117,3 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def decode_output(self, outputs, input_length=None):
-        if isinstance(outputs, str):
-            return outputs
-
-        if self.processor is None:
-            self._load_processor()
-
-        tokenizer = self.processor.tokenizer
-
-        if torch.is_tensor(outputs) and outputs.dtype in [torch.long, torch.int]:
-            if input_length is not None:
-                outputs = outputs[:, input_length:]
-            return tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
-        else:
-            logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-            next_token_id = torch.argmax(logits[:, -1, :], dim=-1)
-            return tokenizer.decode(next_token_id)
