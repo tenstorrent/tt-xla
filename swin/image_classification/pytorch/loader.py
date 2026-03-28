@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
 
     # HuggingFace variants
     SWIN_TINY_HF = "Tiny_Patch4_Window7_224"
+    SWIN_BASE_HF = "Base_Patch4_Window7_224"
     SWINV2_TINY_HF = "v2_Tiny_Patch4_Window8_256"
 
     # TIMM variants
@@ -63,6 +64,10 @@ class ModelLoader(ForgeModel):
         # HuggingFace variants
         ModelVariant.SWIN_TINY_HF: SwinConfig(
             pretrained_model_name="microsoft/swin-tiny-patch4-window7-224",
+            source=ModelSource.HUGGING_FACE,
+        ),
+        ModelVariant.SWIN_BASE_HF: SwinConfig(
+            pretrained_model_name="microsoft/swin-base-patch4-window7-224",
             source=ModelSource.HUGGING_FACE,
         ),
         ModelVariant.SWINV2_TINY_HF: SwinConfig(
@@ -121,10 +126,9 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
-        # Determine model group
         if variant == ModelVariant.SWIN_S:
             group = ModelGroup.RED
-        elif source == ModelSource.TIMM:
+        elif variant == ModelVariant.SWIN_BASE_HF:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
