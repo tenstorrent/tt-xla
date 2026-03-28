@@ -7,7 +7,6 @@ SeeClick model loader implementation for GUI grounding tasks.
 
 from typing import Optional
 
-from PIL import Image
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ...base import ForgeModel
@@ -89,9 +88,14 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer()
 
         image_file = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(image_file)
 
-        inputs = self.tokenizer(self.sample_text, images=image, return_tensors="pt")
+        query = self.tokenizer.from_list_format(
+            [
+                {"image": str(image_file)},
+                {"text": self.sample_text},
+            ]
+        )
+        inputs = self.tokenizer(query, return_tensors="pt")
 
         if dtype_override:
             for key in inputs:
