@@ -5,7 +5,6 @@
 ViT feature extraction model loader implementation for PyTorch (TIMM).
 """
 
-import timm
 from typing import Optional
 from datasets import load_dataset
 
@@ -82,6 +81,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The ViT model instance.
         """
+        import timm
+
         model_name = self._variant_config.pretrained_model_name
 
         model = timm.create_model(model_name, pretrained=True)
