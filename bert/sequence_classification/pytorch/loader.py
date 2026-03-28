@@ -27,8 +27,7 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    SADICKAM_SDGBERT = "sadickam_sdgBERT"
-    MFAC_BERT_TINY_FINETUNED_MNLI = "M-FAC_bert-tiny-finetuned-mnli"
+    TEXTATTACK_BERT_BASE_UNCASED_YELP_POLARITY = "Base_Uncased_Yelp_Polarity"
 
 
 class ModelLoader(ForgeModel):
@@ -52,13 +51,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.SADICKAM_SDGBERT: LLMModelConfig(
-            pretrained_model_name="sadickam/sdgBERT",
-            max_length=128,
-        ),
-        ModelVariant.MFAC_BERT_TINY_FINETUNED_MNLI: LLMModelConfig(
-            pretrained_model_name="M-FAC/bert-tiny-finetuned-mnli",
-            max_length=128,
+        ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_YELP_POLARITY: LLMModelConfig(
+            pretrained_model_name="textattack/bert-base-uncased-yelp-polarity",
+            max_length=256,
         ),
     }
 
@@ -76,8 +71,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.SADICKAM_SDGBERT: "Achieving sustainable consumption and production through a circular economy approach is essential for environmental protection.",
-        ModelVariant.MFAC_BERT_TINY_FINETUNED_MNLI: "A man is eating food. A man is eating a meal.",
+        ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_YELP_POLARITY: "This restaurant had amazing food and excellent service!",
     }
 
     def __init__(self, variant=None):
@@ -113,8 +107,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.SADICKAM_SDGBERT,
-            ModelVariant.MFAC_BERT_TINY_FINETUNED_MNLI,
+            ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_YELP_POLARITY,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
