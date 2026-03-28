@@ -60,6 +60,9 @@ class ModelVariant(StrEnum):
     LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
     LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK = "3.3_70B_Instruct_FP8_Block"
 
+    # AMD FP8 quantized variants
+    LLAMA_3_1_8B_INSTRUCT_FP8_KV = "3.1_8B_Instruct_FP8_KV"
+
     # hugging-quants AWQ INT4 quantized variants
     LLAMA_3_1_8B_INSTRUCT_AWQ_INT4 = "3.1_8B_Instruct_Awq_Int4"
     LLAMA_3_1_70B_INSTRUCT_AWQ_INT4 = "3.1_70B_Instruct_Awq_Int4"
@@ -179,8 +182,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Llama-3.2-1B-Instruct-FP8-dynamic",
             max_length=128,
         ),
-        ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Llama-3.3-70B-Instruct-FP8-block",
+        # AMD FP8 quantized variants
+        ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV: LLMModelConfig(
+            pretrained_model_name="amd/Llama-3.1-8B-Instruct-FP8-KV",
             max_length=128,
         ),
         # hugging-quants AWQ INT4 quantized variants
@@ -299,8 +303,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.LLAMA_3_8B_INSTRUCT_BNB_4BIT,
-            ModelVariant.LLAMA_3_8B_INSTRUCT_NONUNIFORM,
+            ModelVariant.LLAMA_3_1_8B_INSTRUCT_FP8_KV,
         ]:
             group = ModelGroup.VULCAN
         elif (
