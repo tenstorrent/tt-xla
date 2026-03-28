@@ -28,6 +28,9 @@ class ModelVariant(StrEnum):
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     HASNAIN43_BERT_STOCK_SENTIMENT_V1 = "hasnain43_Bert_Stock_Sentiment_V1"
+    SAVASY_BERT_BASE_TURKISH_SENTIMENT_CASED = (
+        "savasy_Bert_Base_Turkish_Sentiment_Cased"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +58,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hasnain43/bert-stock-sentiment-v1",
             max_length=128,
         ),
+        ModelVariant.SAVASY_BERT_BASE_TURKISH_SENTIMENT_CASED: LLMModelConfig(
+            pretrained_model_name="savasy/bert-base-turkish-sentiment-cased",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -72,6 +79,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.HASNAIN43_BERT_STOCK_SENTIMENT_V1: "Stocks rallied as earnings beat expectations across the board.",
+        ModelVariant.SAVASY_BERT_BASE_TURKISH_SENTIMENT_CASED: "bu telefon modelleri çok kaliteli , her parçası çok özel bence",
     }
 
     def __init__(self, variant=None):
@@ -108,6 +116,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.HASNAIN43_BERT_STOCK_SENTIMENT_V1,
+            ModelVariant.SAVASY_BERT_BASE_TURKISH_SENTIMENT_CASED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
