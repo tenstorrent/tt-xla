@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
     """Available MiniMax-M2.5 model variants for causal language modeling."""
 
     MINIMAX_M2_5 = "M2.5"
-    MINIMAX_M2_5_NVFP4 = "M2.5_NVFP4"
+    MINIMAX_M2_5_AWQ_4BIT = "M2.5_Awq_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -42,8 +42,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="MiniMaxAI/MiniMax-M2.5",
             max_length=128,
         ),
-        ModelVariant.MINIMAX_M2_5_NVFP4: LLMModelConfig(
-            pretrained_model_name="lukealonso/MiniMax-M2.5-NVFP4",
+        ModelVariant.MINIMAX_M2_5_AWQ_4BIT: LLMModelConfig(
+            pretrained_model_name="cyankiwi/MiniMax-M2.5-AWQ-4bit",
             max_length=128,
         ),
     }
@@ -158,11 +158,17 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        if self._variant in self._NVFP4_VARIANTS:
-            model_kwargs["ignore_mismatched_sizes"] = True
+
+        # AWQ variants need device_map="cpu" and quantization_config removed
+        is_awq = pretrained_model_name == "cyankiwi/MiniMax-M2.5-AWQ-4bit"
+        if is_awq:
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         config = self._build_native_config()
+        if is_awq and hasattr(config, "quantization_config"):
+            delattr(config, "quantization_config")
         model_kwargs["config"] = config
 
         model = MiniMaxForCausalLM.from_pretrained(
