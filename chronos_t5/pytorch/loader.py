@@ -31,6 +31,7 @@ class ChronosT5Config(ModelConfig):
 
 class ModelVariant(StrEnum):
     TINY = "tiny"
+    MINI = "mini"
     BASE = "base"
     LARGE = "large"
 
@@ -45,6 +46,11 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TINY: ChronosT5Config(
             pretrained_model_name="amazon/chronos-t5-tiny",
+            context_length=512,
+            prediction_length=64,
+        ),
+        ModelVariant.MINI: ChronosT5Config(
+            pretrained_model_name="amazon/chronos-t5-mini",
             context_length=512,
             prediction_length=64,
         ),
