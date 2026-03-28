@@ -70,10 +70,7 @@ class ModelVariant(StrEnum):
     HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K = "Timm_Tf_B0_Aa_In1k"
     HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K = "Timm_V2_Rw_S_Ra2_In1k"
     HF_TIMM_TF_EFFICIENTNETV2_S_IN21K = "Timm_Tf_V2_S_In21k"
-    HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K = "Timm_Tf_V2_B3_In1k"
-
-    # HuggingFace variants
-    HF_B7 = "HF_B7"
+    HF_TIMM_TF_EFFICIENTNET_B5_NS_JFT_IN1K = "Timm_Tf_B5_Ns_Jft_In1k"
 
 
 class ModelLoader(ForgeModel):
@@ -190,16 +187,9 @@ class ModelLoader(ForgeModel):
         source=ModelSource.TIMM,
         use_1k_labels=False,
     )
-    HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K_CONFIG = EfficientNetConfig(
-        pretrained_model_name="hf_hub:timm/tf_efficientnetv2_b3.in1k",
+    HF_TIMM_TF_EFFICIENTNET_B5_NS_JFT_IN1K_CONFIG = EfficientNetConfig(
+        pretrained_model_name="hf_hub:timm/tf_efficientnet_b5.ns_jft_in1k",
         source=ModelSource.TIMM,
-        use_1k_labels=True,
-    )
-
-    # HuggingFace config instances
-    HF_B7_CONFIG = EfficientNetConfig(
-        pretrained_model_name="google/efficientnet-b7",
-        source=ModelSource.HUGGING_FACE,
         use_1k_labels=True,
     )
 
@@ -224,9 +214,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K: HF_TIMM_TF_EFFICIENTNET_B0_AA_IN1K_CONFIG,
         ModelVariant.HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K: HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_S_IN21K: HF_TIMM_TF_EFFICIENTNETV2_S_IN21K_CONFIG,
-        ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K: HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K_CONFIG,
-        # HuggingFace variants
-        ModelVariant.HF_B7: HF_B7_CONFIG,
+        ModelVariant.HF_TIMM_TF_EFFICIENTNET_B5_NS_JFT_IN1K: HF_TIMM_TF_EFFICIENTNET_B5_NS_JFT_IN1K_CONFIG,
     }
 
     # Default variant to use
@@ -272,7 +260,13 @@ class ModelLoader(ForgeModel):
         return ModelInfo(
             model="EfficientNet",
             variant=variant,
-            group=group,
+            group=(
+                ModelGroup.RED
+                if variant == ModelVariant.B0
+                else ModelGroup.VULCAN
+                if variant == ModelVariant.HF_TIMM_TF_EFFICIENTNET_B5_NS_JFT_IN1K
+                else ModelGroup.GENERALITY
+            ),
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
