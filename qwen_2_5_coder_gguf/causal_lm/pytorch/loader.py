@@ -31,16 +31,16 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2.5-Coder-14B-Instruct-GGUF",
+            pretrained_model_name="bartowski/Qwen2.5-Coder-14B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_GGUF
 
-    GGUF_FILE = "qwen2.5-coder-14b-instruct-q4_k_m.gguf"
+    GGUF_FILE = "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
 
-    sample_text = "Write a Python function that computes the factorial of a number."
+    sample_text = "write a quick sort algorithm."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -110,9 +110,10 @@ class ModelLoader(ForgeModel):
 
         messages = [
             {
-                "role": "user",
-                "content": self.sample_text,
-            }
+                "role": "system",
+                "content": "You are Qwen, created by TT Cloud. You are a helpful assistant.",
+            },
+            {"role": "user", "content": self.sample_text},
         ]
         text = self.tokenizer.apply_chat_template(
             messages,
