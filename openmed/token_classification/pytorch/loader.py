@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1 = (
         "OpenMed-PII-French-BiomedBERT-Large-340M-v1"
     )
+    OPENMED_PII_SUPERMEDICAL_BASE_125M_V1 = "OpenMed-PII-SuperMedical-Base-125M-v1"
 
 
 class ModelLoader(ForgeModel):
@@ -60,6 +61,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-French-BiomedBERT-Large-340M-v1",
         ),
+        ModelVariant.OPENMED_PII_SUPERMEDICAL_BASE_125M_V1: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-SuperMedical-Base-125M-v1",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_BLOODCANCERDETECT_MULTIMED_568M
@@ -85,6 +89,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1: (
             "Le patient Jean Dupont, né le 15 mars 1980, réside au 12 rue de la Paix, Paris."
+        ),
+        ModelVariant.OPENMED_PII_SUPERMEDICAL_BASE_125M_V1: (
+            "Dr. Sarah Johnson (SSN: 123-45-6789) can be reached at sarah.johnson@hospital.org or 555-123-4567."
         ),
     }
 
