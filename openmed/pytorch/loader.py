@@ -22,11 +22,7 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_DISEASE_LARGE = "ZeroShot-NER-Disease-Large-459M"
-    OPENMED_ZEROSHOT_NER_CHEMICAL_MULTI = "ZeroShot-NER-Chemical-Multi-209M"
-    OPENMED_ZEROSHOT_NER_ORGANISM_TINY = "ZeroShot-NER-Organism-Tiny-60M"
-    OPENMED_ZEROSHOT_NER_ONCOLOGY_SMALL = "ZeroShot-NER-Oncology-Small-166M"
-    OPENMED_ZEROSHOT_NER_GENOMIC_MULTI = "ZeroShot-NER-Genomic-Multi-209M"
+    OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE = "ZeroShot-NER-Protein-XLarge-770M"
 
 
 class ModelLoader(ForgeModel):
@@ -39,20 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Disease-Large-459M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_MULTI: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Chemical-Multi-209M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_TINY: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Organism-Tiny-60M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_SMALL: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Small-166M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_MULTI: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genomic-Multi-209M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-XLarge-770M"
         ),
     }
 
@@ -120,10 +104,18 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        sample = self._SAMPLE_INPUTS[self._variant]
-        text = sample["text"]
+        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_XLARGE:
+            text = "Casein micelles are the primary protein component of milk."
+            labels = [
+                "protein",
+                "protein_complex",
+                "protein_family_or_group",
+                "protein_variant",
+            ]
+        else:
+            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
+            labels = ["SPECIES"]
         self.text = [text]
-        labels = sample["labels"]
         entity_types = list(dict.fromkeys(labels))
 
         (
