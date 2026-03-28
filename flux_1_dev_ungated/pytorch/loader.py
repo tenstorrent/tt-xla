@@ -5,7 +5,6 @@
 FLUX.1-dev-ungated model loader implementation for text-to-image generation.
 """
 import torch
-import numpy as np
 from diffusers import FluxPipeline, AutoencoderTiny
 from typing import Optional
 
