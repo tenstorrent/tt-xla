@@ -5,7 +5,6 @@
 DeepSeek Coder 33B model loader implementation for causal language modeling.
 """
 
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
