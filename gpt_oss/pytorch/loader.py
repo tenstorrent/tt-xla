@@ -27,8 +27,7 @@ class ModelVariant(StrEnum):
     GPT_OSS_20B = "20B"
     GPT_OSS_20B_UNCENSORED = "20B_uncensored"
     GPT_OSS_120B = "120B"
-    GPT_OSS_120B_BNB_4BIT = "120B_bnb_4bit"
-    GPT_OSS_20B_WFP8_AFP8_KVFP8 = "20B_WFP8_AFP8_KVFP8"
+    GPT_OSS_20B_HERETIC_ARA_V3 = "20B_Heretic_Ara_v3"
 
 
 class ModelLoader(ForgeModel):
@@ -48,12 +47,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="openai/gpt-oss-120b",
             max_length=256,
         ),
-        ModelVariant.GPT_OSS_120B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/gpt-oss-120b-unsloth-bnb-4bit",
-            max_length=256,
-        ),
-        ModelVariant.GPT_OSS_20B_WFP8_AFP8_KVFP8: LLMModelConfig(
-            pretrained_model_name="amd/gpt-oss-20b-WFP8-AFP8-KVFP8",
+        ModelVariant.GPT_OSS_20B_HERETIC_ARA_V3: LLMModelConfig(
+            pretrained_model_name="p-e-w/gpt-oss-20b-heretic-ara-v3",
             max_length=256,
         ),
     }
@@ -92,11 +87,10 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant in (
-            ModelVariant.GPT_OSS_120B_BNB_4BIT,
-            ModelVariant.GPT_OSS_20B_UNCENSORED,
-            ModelVariant.GPT_OSS_20B_WFP8_AFP8_KVFP8,
-        ):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
+        if variant == ModelVariant.GPT_OSS_20B_HERETIC_ARA_V3:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
