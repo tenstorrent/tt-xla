@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Bark text-to-audio model loader implementation.
+Bark model loader implementation for text-to-audio generation.
 """
-from transformers import AutoProcessor, BarkModel
+import torch
 from typing import Optional
 
 from ...base import ForgeModel
@@ -22,21 +22,23 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available Bark model variants."""
 
-    SMALL = "Small"
+    BARK = "bark"
+    BARK_SMALL = "bark-small"
 
 
 class ModelLoader(ForgeModel):
-    """Bark text-to-audio model loader implementation."""
+    """Bark model loader implementation for text-to-audio generation."""
 
     _VARIANTS = {
-        ModelVariant.SMALL: ModelConfig(
+        ModelVariant.BARK: ModelConfig(
+            pretrained_model_name="suno/bark",
+        ),
+        ModelVariant.BARK_SMALL: ModelConfig(
             pretrained_model_name="suno/bark-small",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SMALL
-
-    sample_text = "Hello, my dog is cooler than you!"
+    DEFAULT_VARIANT = ModelVariant.BARK
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -54,25 +56,21 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        from transformers import AutoProcessor, BarkModel
 
-        if self.processor is None:
-            self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
-
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-
-        model = BarkModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        self.processor = AutoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+        model = BarkModel.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            torch_dtype=dtype_override,
+        )
         model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
-        if self.processor is None:
-            self.processor = AutoProcessor.from_pretrained(
-                self._variant_config.pretrained_model_name
-            )
-
-        inputs = self.processor(self.sample_text, return_tensors="pt")
-        return dict(inputs)
+        inputs = self.processor(
+            text=["Hello, this is a test of the Bark text-to-audio model."],
+            return_tensors="pt",
+        )
+        return inputs
