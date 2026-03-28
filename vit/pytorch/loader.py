@@ -35,6 +35,7 @@ class ModelVariant(StrEnum):
     """Available ViT model variants."""
 
     # HuggingFace variants
+    TINY = "Tiny"
     BASE = "Base"
     LARGE = "Large"
     SMALL = "Small"
@@ -61,6 +62,10 @@ class ModelLoader(ForgeModel):
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
         # HuggingFace variants
+        ModelVariant.TINY: ViTConfig(
+            pretrained_model_name="WinKawaks/vit-tiny-patch16-224",
+            source=ModelSource.HUGGING_FACE,
+        ),
         ModelVariant.BASE: ViTConfig(
             pretrained_model_name="google/vit-base-patch16-224",
             source=ModelSource.HUGGING_FACE,
@@ -134,7 +139,9 @@ class ModelLoader(ForgeModel):
         source = cls._VARIANTS[variant].source
 
         # Determine model group
-        if variant == ModelVariant.BASE:
+        if variant == ModelVariant.TINY:
+            group = ModelGroup.VULCAN
+        elif variant == ModelVariant.BASE:
             group = ModelGroup.RED
         elif variant == ModelVariant.SMALL:
             group = ModelGroup.VULCAN
