@@ -41,6 +41,7 @@ class ModelVariant(StrEnum):
     LLAMA_3_1_70B_INSTRUCT = "3.1_70B_Instruct"
     LLAMA_3_1_405B = "3.1_405B"
     LLAMA_3_1_405B_INSTRUCT = "3.1_405B_Instruct"
+    LLAMA_3_1_405B_INSTRUCT_NVFP4 = "3.1_405B_Instruct_NVFP4"
 
     # Llama 3.2 variants
     LLAMA_3_2_1B = "3.2_1B"
@@ -123,6 +124,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_1_405B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Meta-Llama-3.1-405B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4: LLMModelConfig(
+            pretrained_model_name="nvidia/Llama-3.1-405B-Instruct-NVFP4",
             max_length=128,
         ),
         # Llama 3.2 variants
@@ -266,6 +271,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.TINYLLAMA_1_1B_STEP_50K_105B,
+            ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -335,6 +341,10 @@ class ModelLoader(ForgeModel):
 
         return self.tokenizer
 
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4}
+
     def load_model(self, *, dtype_override=None, num_layers=None, **kwargs):
         """Load and return the Llama model instance for this instance's variant.
 
@@ -362,6 +372,8 @@ class ModelLoader(ForgeModel):
             "TheBloke/Llama-2-7B-Chat-GPTQ",
         ):
             model_kwargs["device_map"] = "cpu"
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
 
         model_kwargs |= kwargs
 
@@ -526,7 +538,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
-            ModelVariant.LLAMA_3_1_405B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
         ]:
             if num_devices == 32:  # Galaxy
                 mesh_shape = (4, 8)
