@@ -7,7 +7,7 @@ Gemma3 4B IT OpenBookQA SFT model loader implementation for causal language mode
 This model is a PEFT/LoRA fine-tune of google/gemma-3-4b-it on the OpenBookQA dataset.
 """
 
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from peft import PeftModel
 from typing import Optional
 
@@ -51,7 +51,6 @@ class ModelLoader(ForgeModel):
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.seq_len = None
         self.num_layers = num_layers
 
     @classmethod
@@ -88,6 +87,12 @@ class ModelLoader(ForgeModel):
         model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(self.BASE_MODEL_NAME)
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
+
         model_kwargs |= kwargs
 
         base_model = AutoModelForCausalLM.from_pretrained(
