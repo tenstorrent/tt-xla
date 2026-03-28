@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     GENOME_DETECT_BIOPATIENT_108M = "GenomeDetect-BioPatient-108M"
     SPECIES_DETECT_BIOCLINICAL_108M = "SpeciesDetect-BioClinical-108M"
     PROTEIN_DETECT_MODERNCLINICAL_395M = "ProteinDetect-ModernClinical-395M"
+    GENOME_DETECT_PUBMED_V2_109M = "GenomeDetect-PubMed-v2-109M"
 
 
 class ModelLoader(ForgeModel):
@@ -48,6 +49,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROTEIN_DETECT_MODERNCLINICAL_395M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-ModernClinical-395M",
         ),
+        ModelVariant.GENOME_DETECT_PUBMED_V2_109M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-PubMed-v2-109M",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.ANATOMY_DETECT_SUPERMEDICAL_355M
@@ -58,6 +62,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.GENOME_DETECT_BIOPATIENT_108M: "The EGFR gene mutation was identified in lung cancer patients.",
         ModelVariant.SPECIES_DETECT_BIOCLINICAL_108M: "Escherichia coli bacteria were found in the water samples.",
         ModelVariant.PROTEIN_DETECT_MODERNCLINICAL_395M: "The BRCA1 protein interacts with the p53 tumor suppressor in breast cancer cells.",
+        ModelVariant.GENOME_DETECT_PUBMED_V2_109M: "The EGFR gene mutation was identified in lung cancer patients.",
     }
 
     def __init__(self, variant=None):
