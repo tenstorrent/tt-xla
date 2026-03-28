@@ -84,9 +84,7 @@ class ModelLoader(ForgeModel):
     # Architecture constants for the large model
     _NUM_INPUT_VIEWS = 6
     _IMAGE_SIZE = 320
-    _TRIPLANE_DIM = 80
-    _TRIPLANE_RES = 64
-    _ENCODER_HIDDEN_DIM = 768  # DINO ViT-B/16
+    _RENDER_SIZE = 384
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -111,16 +109,34 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The InstantMesh triplane reconstruction model.
         """
         _ensure_instantmesh_importable()
-        from src.models.instantmesh import InstantMesh
+        from src.models.lrm_mesh import InstantMesh
 
         config_path = hf_hub_download(REPO_ID, "configs/instant-mesh-large.yaml")
         config = OmegaConf.load(config_path)
 
-        model = InstantMesh(config.model_config)
+        # Config uses Lightning instantiate_from_config pattern with
+        # target/params keys; extract the params dict for direct construction.
+        model_params = OmegaConf.to_container(
+            config.model_config.get("params", config.model_config),
+            resolve=True,
+        )
+        model_params.pop("target", None)
+        model = InstantMesh(**model_params)
 
         ckpt_path = hf_hub_download(REPO_ID, "ckpts/instant_mesh_large.ckpt")
         state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+
+        # Checkpoint wraps weights under 'lrm_generator.' prefix
+        if "state_dict" in state_dict:
+            state_dict = state_dict["state_dict"]
+        state_dict = {
+            k.replace("lrm_generator.", ""): v
+            for k, v in state_dict.items()
+            if k.startswith("lrm_generator.")
+        }
+
         model.load_state_dict(state_dict, strict=True)
+        model.init_flexicubes_geometry("cpu", fovy=30.0)
         model.eval()
 
         if dtype_override is not None:
@@ -132,7 +148,7 @@ class ModelLoader(ForgeModel):
         """Load sample inputs for the InstantMesh reconstruction model.
 
         Returns:
-            dict: Input tensors (images, cameras) for the model forward pass.
+            dict: Input tensors for the model forward pass.
         """
         dtype = dtype_override or torch.float32
 
@@ -146,7 +162,7 @@ class ModelLoader(ForgeModel):
             dtype=dtype,
         )
 
-        # cameras: camera parameters for each view [B, N_views, 16]
+        # cameras: camera parameters for each input view [B, N_views, 16]
         # (4x4 extrinsic matrix flattened)
         cameras = torch.randn(
             batch_size,
@@ -155,4 +171,17 @@ class ModelLoader(ForgeModel):
             dtype=dtype,
         )
 
-        return {"images": images, "cameras": cameras}
+        # render_cameras: target camera for rendering [B, 1, 16]
+        render_cameras = torch.randn(
+            batch_size,
+            1,
+            16,
+            dtype=dtype,
+        )
+
+        return {
+            "images": images,
+            "cameras": cameras,
+            "render_cameras": render_cameras,
+            "render_size": self._RENDER_SIZE,
+        }
