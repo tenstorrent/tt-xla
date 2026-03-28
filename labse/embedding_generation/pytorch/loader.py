@@ -5,8 +5,9 @@
 LaBSE model loader implementation for sentence embedding generation.
 
 Uses the BERT-based Language-agnostic BERT Sentence Embedding model
-(sentence-transformers/LaBSE) for multilingual sentence embeddings
-across 109 languages in a shared 768-dimensional vector space.
+for multilingual sentence embeddings across 109 languages in a shared
+768-dimensional vector space. Supports sentence-transformers/LaBSE and
+rasa/LaBSE variants.
 """
 import torch
 from transformers import BertModel, AutoTokenizer
@@ -28,6 +29,7 @@ class ModelVariant(StrEnum):
     """Available LaBSE model variants for embedding generation."""
 
     LABSE = "LaBSE"
+    RASA_LABSE = "rasa/LaBSE"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +38,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LABSE: ModelConfig(
             pretrained_model_name="sentence-transformers/LaBSE",
+        ),
+        ModelVariant.RASA_LABSE: ModelConfig(
+            pretrained_model_name="rasa/LaBSE",
         ),
     }
 
