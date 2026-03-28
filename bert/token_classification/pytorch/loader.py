@@ -6,11 +6,7 @@ BERT model loader implementation for token classification.
 """
 
 import torch
-from transformers import (
-    BertForTokenClassification,
-    BertTokenizer,
-    BertJapaneseTokenizer,
-)
+from transformers import BertForTokenClassification, BertTokenizer, BertTokenizerFast
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -33,6 +29,7 @@ class ModelVariant(StrEnum):
     DSLIM_BERT_BASE_NER_UNCASED = "dslim/bert-base-NER-uncased"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
     AVICHR_HEBERT_NER = "avichr/heBERT_NER"
+    CKIPLAB_BERT_BASE_CHINESE_NER = "ckiplab/bert-base-chinese-ner"
 
 
 class ModelLoader(ForgeModel):
@@ -60,6 +57,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="avichr/heBERT_NER",
             max_length=128,
         ),
+        ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER: LLMModelConfig(
+            pretrained_model_name="ckiplab/bert-base-chinese-ner",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -81,6 +82,8 @@ class ModelLoader(ForgeModel):
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
         elif self._variant == ModelVariant.AVICHR_HEBERT_NER:
             self.sample_text = "דויד לומד באוניברסיטה העברית שבירושלים"
+        elif self._variant == ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER:
+            self.sample_text = "李白是中國唐朝的詩人，出生於四川省"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -105,6 +108,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.AVICHR_HEBERT_NER,
+            ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER,
         ):
             group = ModelGroup.VULCAN
 
@@ -129,8 +133,8 @@ class ModelLoader(ForgeModel):
         """
 
         # Initialize tokenizer
-        if self._variant == ModelVariant.JURABI_BERT_NER_JAPANESE:
-            self.tokenizer = BertJapaneseTokenizer.from_pretrained(self.model_name)
+        if self._variant == ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER:
+            self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-chinese")
         else:
             self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
 
