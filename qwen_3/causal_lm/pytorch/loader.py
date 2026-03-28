@@ -48,6 +48,7 @@ class ModelVariant(StrEnum):
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_8B_BASE_UNSLOTH = "8B_Base_Unsloth"
     QWEN_3_32B_NVFP4 = "32B_NVFP4"
+    QWEN_3_1_7B_W2G64_GPTQ_V2 = "1_7B_W2G64_GPTQ_V2"
 
 
 class ModelLoader(ForgeModel):
@@ -135,6 +136,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Qwen3-32B-NVFP4",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_1_7B_W2G64_GPTQ_V2: LLMModelConfig(
+            pretrained_model_name="XXXXyu/Qwen3-1.7B-w2g64-gptq_v2",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -183,6 +188,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_32B_FP8,
             ModelVariant.QWEN_3_32B_NVFP4,
+            ModelVariant.QWEN_3_1_7B_W2G64_GPTQ_V2,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -244,10 +250,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ variant and configure accordingly
+        # Check if this is an AWQ or GPTQ variant and configure accordingly
         if pretrained_model_name in (
             "Qwen/Qwen3-8B-AWQ",
-            "ELVISIO/Qwen3-30B-A3B-Instruct-2507-AWQ",
+            "XXXXyu/Qwen3-1.7B-w2g64-gptq_v2",
         ):
             model_kwargs["device_map"] = "cpu"
 
