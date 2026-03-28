@@ -35,20 +35,26 @@ class MobileViTConfig(ModelConfig):
 class ModelVariant(StrEnum):
     """Available MobileViT model variants."""
 
+    # HuggingFace variants
     SMALL = "Small"
     XXS_CVNETS_IN1K = "XXS_CVNETS_IN1K"
+
+    # TIMM variants
+    SMALL_CVNETS_IN1K = "Small_CVNETS_IN1K"
 
 
 class ModelLoader(ForgeModel):
     """MobileViT model loader implementation."""
 
     _VARIANTS = {
+        # HuggingFace variants
         ModelVariant.SMALL: MobileViTConfig(
             pretrained_model_name="apple/mobilevit-small",
             source=ModelSource.HUGGING_FACE,
         ),
-        ModelVariant.XXS_CVNETS_IN1K: MobileViTConfig(
-            pretrained_model_name="hf_hub:timm/mobilevit_xxs.cvnets_in1k",
+        # TIMM variants
+        ModelVariant.SMALL_CVNETS_IN1K: MobileViTConfig(
+            pretrained_model_name="mobilevit_s.cvnets_in1k",
             source=ModelSource.TIMM,
         ),
     }
@@ -68,10 +74,15 @@ class ModelLoader(ForgeModel):
 
         source = cls._VARIANTS[variant].source
 
+        if cls._VARIANTS[variant].source == ModelSource.TIMM:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="MobileViT",
             variant=variant,
-            group=ModelGroup.VULCAN,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
@@ -87,6 +98,7 @@ class ModelLoader(ForgeModel):
             model = MobileViTForImageClassification.from_pretrained(
                 model_name, **kwargs
             )
+
         model.eval()
 
         self.model = model
@@ -116,8 +128,9 @@ class ModelLoader(ForgeModel):
                 self._preprocessor.set_cached_model(self.model)
 
         model_for_config = None
-        if hasattr(self, "model") and self.model is not None:
-            model_for_config = self.model
+        if self._variant_config.source == ModelSource.TIMM:
+            if hasattr(self, "model") and self.model is not None:
+                model_for_config = self.model
 
         return self._preprocessor.preprocess(
             image=image,
