@@ -30,8 +30,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_1B_IT = "1B_Instruct"
     GEMMA_3_1B_IT_UNSLOTH = "1B_Instruct_Unsloth"
     GEMMA_3_27B_IT = "27B_Instruct"
-    UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT = "unsloth_270M_Instruct_bnb_4bit"
-    MLX_GEMMA_3_1B_IT_4BIT = "mlx_1B_Instruct_4bit"
+    GEMMA_3_4B_IT_BNB_4BIT = "4B_Instruct_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -62,12 +61,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/gemma-3-27b-it",
             max_length=256,
         ),
-        ModelVariant.UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/gemma-3-270m-it-unsloth-bnb-4bit",
-            max_length=256,
-        ),
-        ModelVariant.MLX_GEMMA_3_1B_IT_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/gemma-3-1b-it-4bit",
+        ModelVariant.GEMMA_3_4B_IT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/gemma-3-4b-it-unsloth-bnb-4bit",
             max_length=256,
         ),
     }
@@ -91,8 +86,7 @@ class ModelLoader(ForgeModel):
 
         if variant in (
             ModelVariant.GEMMA_3_27B_IT,
-            ModelVariant.UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT,
-            ModelVariant.MLX_GEMMA_3_1B_IT_4BIT,
+            ModelVariant.GEMMA_3_4B_IT_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -141,7 +135,13 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
         model_kwargs = {}
-        model_kwargs["use_cache"] = False
+        if self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
+            model_kwargs["device_map"] = "cpu"
+            self._patch_torchao_int4_config()
+        elif self._variant == ModelVariant.GEMMA_3_4B_IT_BNB_4BIT:
+            model_kwargs["device_map"] = "cpu"
+        else:
+            model_kwargs["use_cache"] = False
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
