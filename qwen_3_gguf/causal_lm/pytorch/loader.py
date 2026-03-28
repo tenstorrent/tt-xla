@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
-    QWEN_3_8B_GGUF = "8B_GGUF"
+    QWEN_3_14B_GGUF = "14B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_8B_GGUF: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-8B-GGUF",
+        ModelVariant.QWEN_3_14B_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-14B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_8B_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_14B_GGUF
 
-    GGUF_FILE = "Qwen3-8B-Q4_K_M.gguf"
+    GGUF_FILE = "Qwen3-14B-Q4_K_M.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -147,8 +147,11 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
