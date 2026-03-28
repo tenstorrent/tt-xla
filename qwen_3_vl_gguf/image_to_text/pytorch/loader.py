@@ -4,7 +4,6 @@
 """
 Qwen 3 VL GGUF model loader implementation for image to text.
 """
-import torch
 from transformers import (
     Qwen3VLForConditionalGeneration,
     AutoProcessor,
