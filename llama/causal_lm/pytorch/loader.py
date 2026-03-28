@@ -84,6 +84,9 @@ class ModelVariant(StrEnum):
     # qiaw99 DPO fine-tuned variants
     LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO = "3.1_8B_Instruct_OpenbookQA_DPO"
 
+    # AMD PARD speculative decoding variants
+    PARD_LLAMA_3_2_1B = "PARD_3.2_1B"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -204,6 +207,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="qiaw99/Llama3.1-8B-Instruct-OpenbookQA-DPO-C-G-sequential",
             max_length=128,
         ),
+        # AMD PARD speculative decoding variants
+        ModelVariant.PARD_LLAMA_3_2_1B: LLMModelConfig(
+            pretrained_model_name="amd/PARD-Llama-3.2-1B",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -249,6 +257,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_NVFP4,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_UNSLOTH_BNB_4BIT,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO,
+            ModelVariant.PARD_LLAMA_3_2_1B,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -541,6 +550,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.PARD_LLAMA_3_2_1B,
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.LLAMA_2_7B,
             ModelVariant.JACKFRAM_LLAMA_160M,
