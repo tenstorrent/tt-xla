@@ -49,9 +49,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT = "30B_A3B_Instruct_2507_MLX_6bit"
-    QWEN_3_4B_Z_IMAGE_TURBO_ABLITERATED_V1 = "4B_Z_Image_Turbo_AbliteratedV1"
-    QWEN_3_8B_QUANTIZED_W4A16 = "8B_Quantized_W4A16"
+    QWEN_3_4B_THINKING_2507_BNB_4BIT = "4B_Thinking_2507_Bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -147,16 +145,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-6bit",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_4B_Z_IMAGE_TURBO_ABLITERATED_V1: LLMModelConfig(
-            pretrained_model_name="BennyDaBall/Qwen3-4b-Z-Image-Turbo-AbliteratedV1",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_8B_QUANTIZED_W4A16: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen3-8B-quantized.w4a16",
+        ModelVariant.QWEN_3_4B_THINKING_2507_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-4B-Thinking-2507-unsloth-bnb-4bit",
             max_length=128,
         ),
     }
@@ -211,9 +201,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_MLX_6BIT,
-            ModelVariant.QWEN_3_4B_Z_IMAGE_TURBO_ABLITERATED_V1,
-            ModelVariant.QWEN_3_8B_QUANTIZED_W4A16,
+            ModelVariant.QWEN_3_4B_THINKING_2507_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -284,6 +272,7 @@ class ModelLoader(ForgeModel):
         if pretrained_model_name in (
             "Qwen/Qwen3-8B-AWQ",
             "JunHowie/Qwen3-30B-A3B-Instruct-2507-GPTQ-Int4",
+            "unsloth/Qwen3-4B-Thinking-2507-unsloth-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
 
@@ -393,7 +382,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_SAFERL,
+            ModelVariant.QWEN_3_4B_THINKING_2507_BNB_4BIT,
         ]:
             text_config = self._get_text_config()
             assert (
@@ -418,7 +407,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_4B_SAFERL,
+            ModelVariant.QWEN_3_4B_THINKING_2507_BNB_4BIT,
         ]:
             return None
 
