@@ -4,7 +4,7 @@
 """
 Donut model loader implementation for document understanding tasks.
 """
-from huggingface_hub import hf_hub_download
+import torch
 from PIL import Image
 from transformers import DonutProcessor, VisionEncoderDecoderModel
 from typing import Optional
@@ -24,19 +24,21 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Donut model variants for document understanding tasks."""
 
-    CORD_V2 = "cord_v2"
+    TINY_RANDOM = "tiny_random"
 
 
 class ModelLoader(ForgeModel):
     """Donut model loader implementation for document understanding tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.CORD_V2: ModelConfig(
-            pretrained_model_name="naver-clova-ix/donut-base-finetuned-cord-v2",
+        ModelVariant.TINY_RANDOM: ModelConfig(
+            pretrained_model_name="optimum-internal-testing/tiny-random-VisionEncoderDecoderModel-donut",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CORD_V2
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -85,17 +87,13 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor(dtype_override=dtype_override)
 
-        filepath = hf_hub_download(
-            repo_id="hf-internal-testing/fixtures_docvqa",
-            filename="nougat_paper.png",
-            repo_type="dataset",
-        )
-        image = Image.open(filepath)
+        image = Image.new("RGB", (224, 224), color=(255, 255, 255))
         pixel_values = self.processor(image, return_tensors="pt").pixel_values
 
         if dtype_override is not None:
             pixel_values = pixel_values.to(dtype_override)
 
+        # Add batch dimension
         if batch_size > 1:
             pixel_values = pixel_values.repeat_interleave(batch_size, dim=0)
 
