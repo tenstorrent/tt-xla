@@ -53,6 +53,7 @@ class ModelVariant(StrEnum):
     # Llama 3.3 variants
     LLAMA_3_3_70B_INSTRUCT = "3.3_70B_Instruct"
     LLAMA_3_3_70B_INSTRUCT_AWQ = "3.3_70B_Instruct_Awq"
+    LLAMA_3_3_70B_INSTRUCT_UNSLOTH = "3.3_70B_Instruct_Unsloth"
 
     # RedHatAI FP8 quantized variants
     LLAMA_3_2_1B_FP8 = "3.2_1B_FP8"
@@ -228,8 +229,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="meta-llama/Llama-3.3-70B-Instruct",
             max_length=128,
         ),
-        ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic",
+        ModelVariant.LLAMA_3_3_70B_INSTRUCT_UNSLOTH: LLMModelConfig(
+            pretrained_model_name="unsloth/Llama-3.3-70B-Instruct",
             max_length=128,
         ),
         # Llama 2 variants
@@ -334,6 +335,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_UNSLOTH,
             ModelVariant.LLAMA_2_70B_CHAT,
         ]:
             group = ModelGroup.VULCAN
@@ -602,6 +604,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_AWQ_INT4,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
+            ModelVariant.LLAMA_3_3_70B_INSTRUCT_UNSLOTH,
             ModelVariant.LLAMA_2_70B_CHAT,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
