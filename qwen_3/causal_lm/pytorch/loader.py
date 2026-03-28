@@ -53,6 +53,7 @@ class ModelVariant(StrEnum):
     QWEN_3_1_7B_UNSLOTH = "1_7B_Unsloth"
     QWEN_3_14B_MLX_8BIT = "14B_MLX_8bit"
     QWEN_3_8B_FP8_DYNAMIC = "8B_FP8_Dynamic"
+    QWEN_3_30B_A3B_W8A8 = "30B_A3B_W8A8"
 
 
 class ModelLoader(ForgeModel):
@@ -164,6 +165,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="RedHatAI/Qwen3-8B-FP8-dynamic",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_30B_A3B_W8A8: LLMModelConfig(
+            pretrained_model_name="nytopop/Qwen3-30B-A3B.w8a8",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -220,6 +225,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_1_7B_UNSLOTH,
             ModelVariant.QWEN_3_14B_MLX_8BIT,
             ModelVariant.QWEN_3_8B_FP8_DYNAMIC,
+            ModelVariant.QWEN_3_30B_A3B_W8A8,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -299,11 +305,13 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        # AWQ/GPTQ variants: use Qwen3ForCausalLM directly with quantization_config
+        # Quantized variants: use Qwen3ForCausalLM directly with quantization_config
         # removed so that weights are loaded as plain tensors on CPU.
-        is_awq = pretrained_model_name == "Qwen/Qwen3-32B-AWQ"
-        is_gptq = pretrained_model_name == "RedHatAI/Qwen3-8B-quantized.w4a16"
-        if is_awq or is_gptq:
+        is_quantized_override = pretrained_model_name in (
+            "Qwen/Qwen3-32B-AWQ",
+            "nytopop/Qwen3-30B-A3B.w8a8",
+        )
+        if is_quantized_override:
             model_kwargs["device_map"] = "cpu"
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if self.num_layers is not None:
@@ -320,7 +328,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        model_cls = Qwen3ForCausalLM if (is_awq or is_gptq) else AutoModelForCausalLM
+        model_cls = Qwen3ForCausalLM if is_quantized_override else AutoModelForCausalLM
         model = model_cls.from_pretrained(pretrained_model_name, **model_kwargs).eval()
 
         self.config = model.config
@@ -416,9 +424,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT,
             ModelVariant.QWEN_3_30B_A3B_MLX_4BIT,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
-            ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT,
-            ModelVariant.QWEN_3_235B_A22B_GPTQ_INT4,
-            ModelVariant.QWEN_3_235B_A22B_NVFP4,
+            ModelVariant.QWEN_3_30B_A3B_W8A8,
         )
 
     def load_shard_spec(self, model):
