@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
     OPENMED_NER_DNADETECT = "OpenMed_NER_DNADetect_BioClinical_108M"
     OPENMED_NER_GENOMICDETECT = "OpenMed_NER_GenomicDetect_BioClinical_108M"
+    RUNORM_RUNORM_TAGGER = "RUNorm/RUNorm-tagger"
 
 
 class ModelLoader(ForgeModel):
@@ -59,6 +60,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_NER_GENOMICDETECT: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-BioClinical-108M",
+            max_length=128,
+        ),
+        ModelVariant.RUNORM_RUNORM_TAGGER: LLMModelConfig(
+            pretrained_model_name="RUNorm/RUNorm-tagger",
             max_length=128,
         ),
     }
@@ -91,6 +96,8 @@ class ModelLoader(ForgeModel):
             self.sample_text = (
                 "The BRCA2 gene is associated with hereditary breast cancer."
             )
+        elif self._variant == ModelVariant.RUNORM_RUNORM_TAGGER:
+            self.sample_text = "В 2024 году компания заработала 1,5 млрд рублей"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -116,6 +123,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.OPENMED_NER_DNADETECT,
             ModelVariant.OPENMED_NER_GENOMICDETECT,
+            ModelVariant.RUNORM_RUNORM_TAGGER,
         ):
             group = ModelGroup.VULCAN
 
