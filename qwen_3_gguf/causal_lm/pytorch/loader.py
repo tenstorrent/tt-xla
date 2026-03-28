@@ -23,26 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
-    QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_4BIT_Q4_K_M_GGUF = (
-        "30B_A3B_Instruct_2507_AWQ_4bit_Q4_K_M_GGUF"
-    )
+    QWEN_3_32B_GGUF = "32B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_4BIT_Q4_K_M_GGUF: LLMModelConfig(
-            pretrained_model_name="cyberjuju/Qwen3-30B-A3B-Instruct-2507-AWQ-4bit-Q4_K_M-GGUF",
+        ModelVariant.QWEN_3_32B_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-32B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_4BIT_Q4_K_M_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_32B_GGUF
 
-    _GGUF_FILES = {
-        ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_4BIT_Q4_K_M_GGUF: "qwen3-30b-a3b-instruct-2507-awq-4bit-q4_k_m.gguf",
-    }
+    GGUF_FILE = "Qwen3-32B-Q4_K_M.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -53,10 +49,6 @@ class ModelLoader(ForgeModel):
         self.tokenizer = None
         self.config = None
         self.num_layers = num_layers
-
-    @property
-    def _gguf_file(self):
-        return self._GGUF_FILES[self._variant]
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -73,7 +65,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self._gguf_file
+        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -93,11 +85,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self._gguf_file
+        model_kwargs["gguf_file"] = self.GGUF_FILE
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self._gguf_file
+                pretrained_model_name, gguf_file=self.GGUF_FILE
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -143,8 +135,26 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+        return shard_specs
+
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self._gguf_file
+            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
         )
         return self.config
