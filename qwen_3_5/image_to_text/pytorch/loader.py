@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for image to text."""
 
+    QWEN_3_5_2B_INT4_AUTOROUND = "2B_INT4_AUTOROUND"
     QWEN_3_5_9B_NVFP4 = "9B_NVFP4"
 
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
+        ModelVariant.QWEN_3_5_2B_INT4_AUTOROUND: LLMModelConfig(
+            pretrained_model_name="Intel/Qwen3.5-2B-int4-AutoRound",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_5_9B_NVFP4: LLMModelConfig(
             pretrained_model_name="AxionML/Qwen3.5-9B-NVFP4",
             max_length=128,
@@ -90,6 +95,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # INT4 quantized variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.QWEN_3_5_2B_INT4_AUTOROUND:
+            model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
 
