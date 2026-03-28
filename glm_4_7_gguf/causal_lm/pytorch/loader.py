@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available GLM-4.7 GGUF model variants for causal language modeling."""
 
-    GLM_4_7_GGUF = "GLM_4_7_GGUF"
+    GLM_4_7_GGUF = "4.7_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -31,16 +31,16 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.GLM_4_7_GGUF: LLMModelConfig(
-            pretrained_model_name="Mungert/GLM-4.7-GGUF",
+            pretrained_model_name="unsloth/GLM-4.7-GGUF",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GLM_4_7_GGUF
 
-    GGUF_FILE = "q4-k-m/GLM-4.7-q4_k_m-q4_k_m-00001-of-00005.gguf"
+    GGUF_FILE = "GLM-4.7-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "Hey how are you doing today?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -134,6 +134,27 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
