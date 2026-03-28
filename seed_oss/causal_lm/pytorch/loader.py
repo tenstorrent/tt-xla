@@ -2,43 +2,43 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Seed-OSS 36B Chat GGUF model loader implementation for causal language modeling.
+Seed-OSS model loader implementation for causal language modeling.
 """
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+
 from typing import Optional
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    LLMModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available Seed-OSS GGUF model variants for causal language modeling."""
+    """Available Seed-OSS model variants."""
 
-    SEED_OSS_36B_CHAT_I1_GGUF = "36B_Chat_i1_GGUF"
+    SEED_OSS_36B_INSTRUCT = "36B_Instruct"
 
 
 class ModelLoader(ForgeModel):
-    """Seed-OSS 36B Chat GGUF model loader implementation for causal language modeling tasks."""
+    """Seed-OSS model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.SEED_OSS_36B_CHAT_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/seed-oss-36b-chat-i1-GGUF",
+        ModelVariant.SEED_OSS_36B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="ByteDance-Seed/Seed-OSS-36B-Instruct",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SEED_OSS_36B_CHAT_I1_GGUF
-
-    GGUF_FILE = "seed-oss-36b-chat.i1-Q4_K_M.gguf"
+    DEFAULT_VARIANT = ModelVariant.SEED_OSS_36B_INSTRUCT
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -52,8 +52,11 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
-            model="Seed-OSS GGUF",
+            model="Seed-OSS",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -62,16 +65,15 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            pretrained_model_name, **tokenizer_kwargs
         )
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -79,18 +81,15 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
-            )
+            config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
@@ -104,27 +103,19 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
         max_length = self._variant_config.max_length
 
-        messages = [
-            {
-                "role": "user",
-                "content": self.sample_text,
-            }
-        ]
+        messages = [{"role": "user", "content": self.sample_text}]
         text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
+            messages, tokenize=False, add_generation_prompt=True
         )
-        prompts = [text]
 
         inputs = self.tokenizer(
-            prompts,
+            [text],
             return_tensors="pt",
-            padding=True,
+            padding="max_length",
             truncation=True,
             max_length=max_length,
         )
@@ -135,26 +126,8 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
-        return mesh_shape, ("batch", "model")
-
-    def load_shard_spec(self, model):
-        shard_specs = {}
-        for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
-
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
-        return shard_specs
-
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+            self._variant_config.pretrained_model_name
         )
         return self.config
