@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     OPENMED_PII_FRENCH_SNOWFLAKEMED_LARGE_568M_V1 = (
         "OpenMed/OpenMed-PII-French-SnowflakeMed-Large-568M-v1"
     )
+    OPENMED_PII_MODERNMED_BASE_149M_V1 = "OpenMed/OpenMed-PII-ModernMed-Base-149M-v1"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_PII_FRENCH_SNOWFLAKEMED_LARGE_568M_V1: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-French-SnowflakeMed-Large-568M-v1",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_PII_MODERNMED_BASE_149M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-ModernMed-Base-149M-v1",
             max_length=128,
         ),
     }
@@ -86,6 +91,8 @@ class ModelLoader(ForgeModel):
             self._variant == ModelVariant.OPENMED_PII_FRENCH_SNOWFLAKEMED_LARGE_568M_V1
         ):
             self.sample_text = "Patient Jean Martin, né le 15/03/1985, habite au 12 rue de la Paix, Paris."
+        elif self._variant == ModelVariant.OPENMED_PII_MODERNMED_BASE_149M_V1:
+            self.sample_text = "Dr. Sarah Johnson (SSN: 123-45-6789) can be reached at sarah.johnson@hospital.org or 555-123-4567."
         else:
             self.sample_text = (
                 "The patient complained of pain in the left ventricle region."
