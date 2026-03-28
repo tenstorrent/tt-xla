@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Llama-Swallow model variants for causal language modeling."""
 
+    LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5 = "3.1_Swallow_8B_Instruct_v0.5"
     LLAMA_3_1_SWALLOW_70B_INSTRUCT_V0_3 = "3.1_Swallow_70B_Instruct_v0.3"
 
 
@@ -30,6 +31,10 @@ class ModelLoader(ForgeModel):
     """Llama-Swallow model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5: LLMModelConfig(
+            pretrained_model_name="tokyotech-llm/Llama-3.1-Swallow-8B-Instruct-v0.5",
+            max_length=256,
+        ),
         ModelVariant.LLAMA_3_1_SWALLOW_70B_INSTRUCT_V0_3: LLMModelConfig(
             pretrained_model_name="tokyotech-llm/Llama-3.1-Swallow-70B-Instruct-v0.3",
             max_length=256,
@@ -122,7 +127,9 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def get_mesh_config(self, num_devices: int):
-        if num_devices == 32:  # Galaxy
+        if self._variant == ModelVariant.LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5:
+            mesh_shape = (1, num_devices)
+        elif num_devices == 32:  # Galaxy
             mesh_shape = (4, 8)
         elif num_devices == 8:  # llmbox
             mesh_shape = (2, 4)
@@ -132,6 +139,9 @@ class ModelLoader(ForgeModel):
         return mesh_shape, ("batch", "model")
 
     def load_shard_spec(self, model):
+        if self._variant == ModelVariant.LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5:
+            return None
+
         shard_specs = {}
 
         shard_specs[model.model.embed_tokens.weight] = (None, "batch")
