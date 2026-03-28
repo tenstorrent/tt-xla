@@ -25,9 +25,7 @@ class ModelVariant(StrEnum):
         "distilbert-base-uncased-finetuned-sst-2-english"
     )
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
-    GARAK_LLM_TOXIC_COMMENT_MODEL = "garak-llm-toxic-comment-model"
-    DANSWER_INTENT_MODEL = "danswer-intent-model"
-    TYPEFORM_DISTILBERT_BASE_UNCASED_MNLI = "typeform-distilbert-base-uncased-mnli"
+    REFUTATION_DETECTOR_DISTILBERT = "refutation-detector-distilbert"
 
 
 class ModelLoader(ForgeModel):
@@ -43,16 +41,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bhadresh-savani/distilbert-base-uncased-emotion",
             max_length=128,
         ),
-        ModelVariant.GARAK_LLM_TOXIC_COMMENT_MODEL: LLMModelConfig(
-            pretrained_model_name="garak-llm/toxic-comment-model",
-            max_length=128,
-        ),
-        ModelVariant.DANSWER_INTENT_MODEL: LLMModelConfig(
-            pretrained_model_name="Danswer/intent-model",
-            max_length=128,
-        ),
-        ModelVariant.TYPEFORM_DISTILBERT_BASE_UNCASED_MNLI: LLMModelConfig(
-            pretrained_model_name="typeform/distilbert-base-uncased-mnli",
+        ModelVariant.REFUTATION_DETECTOR_DISTILBERT: LLMModelConfig(
+            pretrained_model_name="garak-llm/refutation_detector_distilbert",
             max_length=128,
         ),
     }
@@ -69,9 +59,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
-        ModelVariant.GARAK_LLM_TOXIC_COMMENT_MODEL: "This is a perfectly normal and friendly comment.",
-        ModelVariant.DANSWER_INTENT_MODEL: "What is the capital of France?",
-        ModelVariant.TYPEFORM_DISTILBERT_BASE_UNCASED_MNLI: "I love transformers and the wide range of NLP tasks they can handle.",
+        ModelVariant.REFUTATION_DETECTOR_DISTILBERT: "That is not true, the earth is not flat.",
     }
 
     def __init__(self, variant=None):
@@ -105,9 +93,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
-            ModelVariant.GARAK_LLM_TOXIC_COMMENT_MODEL,
-            ModelVariant.DANSWER_INTENT_MODEL,
-            ModelVariant.TYPEFORM_DISTILBERT_BASE_UNCASED_MNLI,
+            ModelVariant.REFUTATION_DETECTOR_DISTILBERT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
