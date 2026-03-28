@@ -23,7 +23,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from ...base import ForgeModel
 from ...config import (
     Framework,
-    ModelConfig,
+    LLMModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -59,11 +59,13 @@ class ModelLoader(ForgeModel):
     """Diff Interpretation Tuning LoRA model loader."""
 
     _VARIANTS = {
-        ModelVariant.QWEN3_4B: ModelConfig(
+        ModelVariant.QWEN3_4B: LLMModelConfig(
             pretrained_model_name=_BASE_MODELS["qwen3_4b"],
+            max_length=128,
         ),
-        ModelVariant.QWEN3_8B: ModelConfig(
+        ModelVariant.QWEN3_8B: LLMModelConfig(
             pretrained_model_name=_BASE_MODELS["qwen3_8b"],
+            max_length=128,
         ),
     }
     DEFAULT_VARIANT = ModelVariant.QWEN3_4B
@@ -156,8 +158,9 @@ class ModelLoader(ForgeModel):
             for key in inputs:
                 inputs[key] = cast_input_to_type(inputs[key], dtype_override)
 
-        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], 128)
-        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], 128)
+        target_len = self._variant_config.max_length
+        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], target_len)
+        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], target_len)
 
         inputs["input_ids"] = padded_input_ids
         inputs["attention_mask"] = padded_attention_mask
