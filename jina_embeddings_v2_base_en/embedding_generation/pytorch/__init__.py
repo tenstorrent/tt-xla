@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Jina Embeddings v2 Base EN model implementations for Tenstorrent projects.
+Jina Embeddings v2 Base EN PyTorch implementation.
 """
+from .loader import ModelLoader, ModelVariant
