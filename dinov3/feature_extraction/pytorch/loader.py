@@ -6,6 +6,7 @@ DINOv3 ViT model loader implementation for feature extraction (PyTorch).
 """
 
 import torch
+from dataclasses import dataclass
 from datasets import load_dataset
 from typing import Optional
 from dataclasses import dataclass
@@ -30,19 +31,11 @@ class DINOv3Config(ModelConfig):
     source: ModelSource = ModelSource.HUGGING_FACE
 
 
-@dataclass
-class DINOv3Config(ModelConfig):
-    """Configuration specific to DINOv3 models."""
-
-    source: ModelSource = ModelSource.HUGGING_FACE
-
-
 class ModelVariant(StrEnum):
     """Available DINOv3 ViT feature extraction model variants."""
 
     BASE = "Base"
-    SMALL_PLUS = "Small+"
-    VIT_LARGE_PATCH16_SAT493M = "Large_Patch16_SAT493M"
+    SMALL_PLUS_PATCH16_TIMM = "Small_Plus_Patch16_TIMM"
 
 
 class ModelLoader(ForgeModel):
@@ -53,12 +46,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="facebook/dinov3-vitb16-pretrain-lvd1689m",
             source=ModelSource.HUGGING_FACE,
         ),
-        ModelVariant.SMALL_PLUS: DINOv3Config(
-            pretrained_model_name="facebook/dinov3-vits16plus-pretrain-lvd1689m",
-            source=ModelSource.HUGGING_FACE,
-        ),
-        ModelVariant.VIT_LARGE_PATCH16_SAT493M: DINOv3Config(
-            pretrained_model_name="vit_large_patch16_dinov3.sat493m",
+        ModelVariant.SMALL_PLUS_PATCH16_TIMM: DINOv3Config(
+            pretrained_model_name="vit_small_plus_patch16_dinov3.lvd1689m",
             source=ModelSource.TIMM,
         ),
     }
@@ -73,8 +62,8 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self.processor = None
         self.model = None
+        self.processor = None
         self._preprocessor = None
 
     @classmethod
@@ -129,8 +118,12 @@ class ModelLoader(ForgeModel):
         if source == ModelSource.TIMM:
             import timm
 
-            model = timm.create_model(pretrained_model_name, pretrained=True)
+            model = timm.create_model(
+                pretrained_model_name, pretrained=True, num_classes=0
+            )
         else:
+            from transformers import DINOv3ViTModel
+
             model_kwargs = {}
             if dtype_override is not None:
                 model_kwargs["torch_dtype"] = dtype_override
@@ -146,8 +139,6 @@ class ModelLoader(ForgeModel):
         if self._preprocessor is not None:
             self._preprocessor.set_cached_model(model)
 
-        self._model = model
-
         if dtype_override is not None and source == ModelSource.TIMM:
             model = model.to(dtype_override)
 
@@ -162,9 +153,45 @@ class ModelLoader(ForgeModel):
             image: Optional input image. If None, loads from HuggingFace datasets.
 
         Returns:
-            dict or torch.Tensor: Input tensors that can be fed to the model.
+            Input tensors that can be fed to the model.
         """
         source = self._variant_config.source
+
+        if source == ModelSource.TIMM:
+            return self._load_inputs_timm(dtype_override, batch_size)
+
+        return self._load_inputs_hf(dtype_override, batch_size)
+
+    def _load_inputs_timm(self, dtype_override=None, batch_size=1):
+        """Load inputs for TIMM-based variants."""
+        if self._preprocessor is None:
+            model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
+            self._preprocessor = VisionPreprocessor(
+                model_source=source,
+                model_name=model_name,
+            )
+
+            if self.model is not None:
+                self._preprocessor.set_cached_model(self.model)
+
+        dataset = load_dataset("huggingface/cats-image", split="test")
+        image = dataset[0]["image"]
+
+        model_for_config = self.model if self.model is not None else None
+
+        return self._preprocessor.preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+            model_for_config=model_for_config,
+        )
+
+    def _load_inputs_hf(self, dtype_override=None, batch_size=1):
+        """Load inputs for HuggingFace-based variants."""
+        if self.processor is None:
+            self._load_processor()
 
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
