@@ -31,11 +31,7 @@ class ModelVariant(StrEnum):
     )
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    OPENMED_NER_ORGANISMDETECT_MULTIMED_335M = (
-        "OpenMed-NER-OrganismDetect-MultiMed-335M"
-    )
-    OPENMED_NER_PROTEINDETECT_MULTIMED_335M = "OpenMed-NER-ProteinDetect-MultiMed-335M"
-    CAHYA_BERT_BASE_INDONESIAN_NER = "cahya/bert-base-indonesian-NER"
+    LUNARLIST_POS_THAI = "lunarlist/pos_thai"
 
 
 class ModelLoader(ForgeModel):
@@ -55,16 +51,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.OPENMED_NER_ORGANISMDETECT_MULTIMED_335M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-MultiMed-335M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_PROTEINDETECT_MULTIMED_335M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ProteinDetect-MultiMed-335M",
-            max_length=128,
-        ),
-        ModelVariant.CAHYA_BERT_BASE_INDONESIAN_NER: LLMModelConfig(
-            pretrained_model_name="cahya/bert-base-indonesian-NER",
+        ModelVariant.LUNARLIST_POS_THAI: LLMModelConfig(
+            pretrained_model_name="lunarlist/pos_thai",
             max_length=128,
         ),
     }
@@ -86,18 +74,8 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         if self._variant == ModelVariant.HATMIMOHA_ARABIC_NER:
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.OPENMED_NER_ORGANISMDETECT_MULTIMED_335M:
-            self.sample_text = (
-                "Caenorhabditis elegans is a model organism for genetic studies."
-            )
-        elif self._variant == ModelVariant.OPENMED_NER_PROTEINDETECT_MULTIMED_335M:
-            self.sample_text = (
-                "The Maillard reaction is responsible for the browning of many foods."
-            )
-        elif self._variant == ModelVariant.CAHYA_BERT_BASE_INDONESIAN_NER:
-            self.sample_text = (
-                "Joko Widodo adalah presiden Indonesia yang tinggal di Jakarta."
-            )
+        elif self._variant == ModelVariant.LUNARLIST_POS_THAI:
+            self.sample_text = "ฉันไปโรงเรียนทุกวัน"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = 128
@@ -120,9 +98,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.OPENMED_NER_ORGANISMDETECT_MULTIMED_335M,
-            ModelVariant.OPENMED_NER_PROTEINDETECT_MULTIMED_335M,
-            ModelVariant.CAHYA_BERT_BASE_INDONESIAN_NER,
+            ModelVariant.LUNARLIST_POS_THAI,
         ):
             group = ModelGroup.VULCAN
 
