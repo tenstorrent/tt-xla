@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ELECTRA model loader implementation for sequence classification (suicidality detection).
+ELECTRA model loader implementation for sequence classification task.
 """
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import ElectraForSequenceClassification, ElectraTokenizerFast
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -19,39 +19,42 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ELECTRA model variants for sequence classification."""
+    """Available ELECTRA sequence classification model variants."""
 
-    SUICIDALITY = "Suicidality"
+    CIRCULUS_KOELECTRA_EMOTION_V1 = "circulus_KoElectra_Emotion_v1"
 
 
 class ModelLoader(ForgeModel):
-    """ELECTRA model loader implementation for sequence classification."""
+    """ELECTRA model loader implementation for sequence classification task."""
 
     _VARIANTS = {
-        ModelVariant.SUICIDALITY: LLMModelConfig(
-            pretrained_model_name="sentinet/suicidality",
+        ModelVariant.CIRCULUS_KOELECTRA_EMOTION_V1: LLMModelConfig(
+            pretrained_model_name="circulus/koelectra-emotion-v1",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SUICIDALITY
+    DEFAULT_VARIANT = ModelVariant.CIRCULUS_KOELECTRA_EMOTION_V1
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.CIRCULUS_KOELECTRA_EMOTION_V1: "오늘 정말 기분이 좋아요",
+    }
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
+        self.review = self._SAMPLE_TEXTS.get(self._variant, "오늘 정말 기분이 좋아요")
         self.tokenizer = None
         self.model = None
-        self.sample_text = "I am feeling great and looking forward to the weekend!"
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
-        if variant_name is None:
-            variant_name = "base"
-
+    def _get_model_info(cls, variant=None):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="ELECTRA",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -59,14 +62,14 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = ElectraTokenizerFast.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = AutoModelForSequenceClassification.from_pretrained(
+        self.model = ElectraForSequenceClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
         self.model.eval()
@@ -77,7 +80,7 @@ class ModelLoader(ForgeModel):
             self.load_model(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
-            self.sample_text,
+            self.review,
             max_length=self.max_length,
             padding="max_length",
             truncation=True,
@@ -87,13 +90,5 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
-        predicted_class_id = co_out[0].argmax().item()
-        if (
-            self.model
-            and hasattr(self.model, "config")
-            and hasattr(self.model.config, "id2label")
-        ):
-            predicted_label = self.model.config.id2label[predicted_class_id]
-            print(f"Predicted label: {predicted_label}")
-        else:
-            print(f"Predicted class ID: {predicted_class_id}")
+        predicted_value = co_out[0].argmax(-1).item()
+        print(f"Predicted Emotion: {self.model.config.id2label[predicted_value]}")
