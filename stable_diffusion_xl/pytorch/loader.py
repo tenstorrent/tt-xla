@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     STABLE_DIFFUSION_XL_BASE_1_0 = "Base_1.0"
     TINY_RANDOM_STABLE_DIFFUSION_XL = "tiny-random-stable-diffusion-xl"
     DVINE82_XL = "dvine82-xl"
+    PREFECT_ILLUSTRIOUS_XL_V15 = "prefect-illustrious-xl-v15"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +43,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DVINE82_XL: ModelConfig(
             pretrained_model_name="martineux/dvine82-xl",
+        ),
+        ModelVariant.PREFECT_ILLUSTRIOUS_XL_V15: ModelConfig(
+            pretrained_model_name="John6666/prefect-illustrious-xl-v15-sdxl",
         ),
     }
 
@@ -78,6 +82,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL,
             ModelVariant.DVINE82_XL,
+            ModelVariant.PREFECT_ILLUSTRIOUS_XL_V15,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
