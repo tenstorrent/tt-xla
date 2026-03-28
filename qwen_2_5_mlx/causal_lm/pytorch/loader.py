@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2.5 MLX model variants for causal language modeling."""
 
     QWEN_2_5_0_5B_INSTRUCT_4BIT = "0.5B_Instruct_4bit"
+    QWEN_2_5_7B_INSTRUCT_4BIT = "7B_Instruct_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_2_5_0_5B_INSTRUCT_4BIT: LLMModelConfig(
             pretrained_model_name="mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_2_5_7B_INSTRUCT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen2.5-7B-Instruct-4bit",
             max_length=128,
         ),
     }
