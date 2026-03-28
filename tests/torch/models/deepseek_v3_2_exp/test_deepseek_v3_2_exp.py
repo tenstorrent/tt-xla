@@ -246,6 +246,11 @@ def test_deepseek_v3_2_layer_sparse_moe():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
+    import resource
+
+    def peak_rss_gb():
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 / 1024
+
     batch_size = 64
     seq_len = 1
     args = ModelArgs(
@@ -256,13 +261,18 @@ def test_deepseek_v3_2_layer_sparse_moe():
     )
 
     # Create full model to get freqs_cis, then extract MoE block (layer 1)
+    print(f"[mem] before model init: {peak_rss_gb():.2f} GB")
     model = ModifiedTransformer(args)
+    print(f"[mem] after model init: {peak_rss_gb():.2f} GB")
     model = model.to(torch.bfloat16)
+    print(f"[mem] after to(bf16): {peak_rss_gb():.2f} GB")
     block = model.layers[1]  # layer_id=1 >= n_dense_layers=1 → MoE
     freqs_cis = model.freqs_cis[:seq_len]
 
     mesh_shape = (4, 8)
+    print(f"[mem] before enable_sparse_mlp: {peak_rss_gb():.2f} GB")
     enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
+    print(f"[mem] after enable_sparse_mlp: {peak_rss_gb():.2f} GB")
     block.eval()
 
     hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
@@ -271,6 +281,7 @@ def test_deepseek_v3_2_layer_sparse_moe():
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+    print(f"[mem] before run_graph_test: {peak_rss_gb():.2f} GB")
 
     def get_shard_spec(block, args, kwargs):
         shard_specs = {}
@@ -342,6 +353,7 @@ def test_deepseek_v3_2_layer_sparse_moe():
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
     )
+    print(f"[mem] after run_graph_test: {peak_rss_gb():.2f} GB")
 
 
 @pytest.mark.llmbox
@@ -350,36 +362,53 @@ def test_deepseek_v3_2_full_sparse_moe():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    batch_size = 64
+    import resource
+
+    def peak_rss_gb():
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 / 1024
+
+    batch_size = 16
     seq_len = 32
     args = ModelArgs(
-        n_layers=2,
+        # n_layers=2,
         q_lora_rank=3072,
         max_batch_size=batch_size,
         max_seq_len=seq_len * 2,
     )
 
+    print(f"[mem] before model init: {peak_rss_gb():.2f} GB")
     model = ModifiedTransformer(args)
+    print(f"[mem] after model init: {peak_rss_gb():.2f} GB")
     model = model.to(torch.bfloat16)
+    print(f"[mem] after to(bf16): {peak_rss_gb():.2f} GB")
     # head is intentionally float32 in the original model (logits computed in fp32),
     # but model.to(bf16) converts it. Restore to float32 to match forward's .float() call.
     model.head = model.head.to(torch.float32)
 
     mesh_shape = (4, 8)
+    print(f"[mem] before enable_sparse_mlp: {peak_rss_gb():.2f} GB")
     enable_sparse_mlp(
         model,
         mesh=mesh_shape,
         cluster_axis=0,
         config=args,
     )
+    print(f"[mem] after enable_sparse_mlp: {peak_rss_gb():.2f} GB")
 
     model.eval()
 
     tokens = torch.randint(0, args.vocab_size, (batch_size, seq_len))
+    # Pre-compute freqs_cis and mask outside forward() to avoid an unsharded
+    # graph segment that compiles before the device mesh is opened with the
+    # correct shape.  Without this, the first compiled segment has a trivial
+    # [1,1] shardy mesh that falls back to a wrong [1,N] layout and segfaults.
+    freqs_cis = model.freqs_cis[:seq_len]
+    mask = torch.full((seq_len, seq_len), float("-inf"), dtype=torch.bfloat16).triu_(1)
 
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+    print(f"[mem] before run_graph_test: {peak_rss_gb():.2f} GB")
 
     def get_shard_spec(model, args, kwargs):
         shard_specs = {}
@@ -465,9 +494,10 @@ def test_deepseek_v3_2_full_sparse_moe():
 
     run_graph_test(
         model,
-        [tokens],
+        [tokens, 0, freqs_cis, mask],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
     )
+    print(f"[mem] after run_graph_test: {peak_rss_gb():.2f} GB")
