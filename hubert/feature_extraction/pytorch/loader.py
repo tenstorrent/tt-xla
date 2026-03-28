@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available HuBERT feature extraction model variants."""
 
     BASE_LS960 = "Base_ls960"
+    LARGE_LL60K = "Large_ll60k"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE_LS960: ModelConfig(
             pretrained_model_name="facebook/hubert-base-ls960",
+        ),
+        ModelVariant.LARGE_LL60K: ModelConfig(
+            pretrained_model_name="facebook/hubert-large-ll60k",
         ),
     }
 
