@@ -4,5 +4,5 @@
 """
 Nucleotide Transformer Masked Language Modeling model implementation for Tenstorrent projects.
 """
-# Import from the PyTorch implementation by default
-from .pytorch import ModelLoader
+# Import from the masked language modeling implementation by default
+from .masked_lm import ModelLoader
