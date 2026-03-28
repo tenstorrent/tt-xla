@@ -1,21 +1,23 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen-Image-2512-Turbo-LoRA model loader implementation.
+Qwen Image 2512 Turbo LoRA model loader implementation.
 
-Loads the Qwen-Image-2512 base pipeline and applies the
-Wuli-art/Qwen-Image-2512-Turbo-LoRA CFG-distillation LoRA weights
-for fast 4-step text-to-image generation.
+Loads the Qwen Image 2512 base pipeline via DiffSynth-Engine and applies
+the 2-step turbo LoRA from Wuli-art/Qwen-Image-2512-Turbo-LoRA-2-Steps
+for accelerated text-to-image generation.
 
 Available variants:
-- QWEN_IMAGE_2512_TURBO_LORA: Turbo LoRA for fast text-to-image generation
+- TURBO_2_STEPS: 2-step distilled turbo LoRA for fast inference
 """
 
+import math
 from typing import Any, Optional
 
 import torch
-from diffusers import DiffusionPipeline  # type: ignore[import]
+from diffsynth_engine import QwenImagePipeline, QwenImagePipelineConfig, fetch_model  # type: ignore[import]
 
 from ...base import ForgeModel
 from ...config import (
@@ -29,28 +31,29 @@ from ...config import (
 )
 
 BASE_MODEL = "Qwen/Qwen-Image-2512"
-LORA_REPO = "Wuli-art/Qwen-Image-2512-Turbo-LoRA"
+LORA_REPO = "Wuli-art/Qwen-Image-2512-Turbo-LoRA-2-Steps"
+LORA_WEIGHT_FILE = "Wuli-Qwen-Image-2512-Turbo-LoRA-2steps-V1.0-bf16.safetensors"
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen-Image-2512-Turbo-LoRA variants."""
+    """Available Qwen Image 2512 Turbo LoRA variants."""
 
-    QWEN_IMAGE_2512_TURBO_LORA = "Image_2512_TurboLoRA"
+    TURBO_2_STEPS = "Turbo_2Steps"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen-Image-2512-Turbo-LoRA model loader."""
+    """Qwen Image 2512 Turbo LoRA model loader."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_IMAGE_2512_TURBO_LORA: ModelConfig(
+        ModelVariant.TURBO_2_STEPS: ModelConfig(
             pretrained_model_name=BASE_MODEL,
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.QWEN_IMAGE_2512_TURBO_LORA
+    DEFAULT_VARIANT = ModelVariant.TURBO_2_STEPS
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.pipeline: Optional[DiffusionPipeline] = None
+        self.pipeline: Optional[QwenImagePipeline] = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -71,19 +74,31 @@ class ModelLoader(ForgeModel):
         dtype_override: Optional[torch.dtype] = None,
         **kwargs,
     ):
-        """Load the Qwen-Image-2512 pipeline with Turbo LoRA weights.
+        """Load the Qwen Image 2512 pipeline with turbo LoRA weights applied.
 
         Returns:
-            DiffusionPipeline with LoRA weights loaded.
+            QwenImagePipeline with LoRA weights fused.
         """
-        dtype = dtype_override if dtype_override is not None else torch.float32
+        config = QwenImagePipelineConfig.basic_config(
+            model_path=fetch_model(BASE_MODEL, path="transformer/*.safetensors"),
+            encoder_path=fetch_model(BASE_MODEL, path="text_encoder/*.safetensors"),
+            vae_path=fetch_model(BASE_MODEL, path="vae/*.safetensors"),
+            offload_mode="cpu_offload",
+        )
+        self.pipeline = QwenImagePipeline.from_pretrained(config)
 
-        self.pipeline = DiffusionPipeline.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            torch_dtype=dtype,
+        self.pipeline.load_lora(
+            path=fetch_model(LORA_REPO, path=LORA_WEIGHT_FILE),
+            scale=1.0,
+            fused=True,
         )
 
-        self.pipeline.load_lora_weights(LORA_REPO)
+        scheduler_config = {
+            "exponential_shift_mu": math.log(2.5),
+            "use_dynamic_shifting": True,
+            "shift_terminal": 0.7155,
+        }
+        self.pipeline.apply_scheduler_config(scheduler_config)
 
         return self.pipeline
 
@@ -91,14 +106,16 @@ class ModelLoader(ForgeModel):
         """Prepare inputs for text-to-image generation.
 
         Returns:
-            dict with prompt key.
+            dict with prompt and generation parameters.
         """
         if prompt is None:
-            prompt = (
-                "A serene mountain landscape at sunset, "
-                "golden light reflecting off a calm lake, detailed and vivid"
-            )
+            prompt = "An astronaut riding a horse in a futuristic city"
 
         return {
             "prompt": prompt,
+            "cfg_scale": 1,
+            "num_inference_steps": 2,
+            "seed": 42,
+            "width": 1328,
+            "height": 1328,
         }
