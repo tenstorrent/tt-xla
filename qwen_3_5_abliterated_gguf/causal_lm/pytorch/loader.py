@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen 3.5 Null-Space Abliterated GGUF model loader implementation for causal language modeling.
+Qwen 3.5 Abliterated GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 Abliterated GGUF model variants for causal language modeling."""
 
-    QWEN_3_5_9B_NULL_SPACE_ABLITERATED_Q6_K_GGUF = "9B_NULL_SPACE_ABLITERATED_Q6_K_GGUF"
+    QWEN_3_5_4B_ABLITERATED_GGUF = "4B_Abliterated_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen 3.5 Null-Space Abliterated GGUF model loader implementation for causal language modeling tasks."""
+    """Qwen 3.5 Abliterated GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_5_9B_NULL_SPACE_ABLITERATED_Q6_K_GGUF: LLMModelConfig(
-            pretrained_model_name="jwest33/qwen3.5-9b-null-space-abliterated-GGUF",
+        ModelVariant.QWEN_3_5_4B_ABLITERATED_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-4B_Abliterated-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B_NULL_SPACE_ABLITERATED_Q6_K_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_4B_ABLITERATED_GGUF
 
-    GGUF_FILE = "qwen3.5-9b-null-space-abliterated.Q6_K.gguf"
+    GGUF_FILE = "Qwen3.5-4B_Abliterated.Q4_K_M.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
