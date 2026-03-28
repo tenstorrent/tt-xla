@@ -2,6 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OTel-LLM causal language modeling PyTorch implementation.
+OTel-LLM causal language modeling task implementation.
 """
-from .loader import ModelLoader
