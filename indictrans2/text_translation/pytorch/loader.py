@@ -44,6 +44,7 @@ class ModelLoader(ForgeModel):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
         self._tokenizer = None
+        self._model = None
         self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
@@ -75,13 +76,14 @@ class ModelLoader(ForgeModel):
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        model_kwargs = {"trust_remote_code": True}
+        model_kwargs = {"trust_remote_code": True, "return_dict": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModelForSeq2SeqLM.from_pretrained(self._model_name, **model_kwargs)
         model.eval()
+        self._model = model
 
         return model
 
@@ -96,7 +98,8 @@ class ModelLoader(ForgeModel):
         )
 
         # Seq2seq models need decoder_input_ids for the forward pass.
-        decoder_input_ids = torch.tensor([[self._tokenizer.bos_token_id or 0]])
+        decoder_start_token_id = self._model.config.decoder_start_token_id
+        decoder_input_ids = torch.tensor([[decoder_start_token_id]])
         inputs["decoder_input_ids"] = decoder_input_ids
 
         if dtype_override is not None:
