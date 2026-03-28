@@ -82,8 +82,6 @@ class ModelLoader(ForgeModel):
 
         Returns a batch of synthetic time series context data.
         """
-        import numpy as np
-
         # TimesFM expects a list of 1D arrays as context
         torch.manual_seed(42)
         context = torch.randn(512)
