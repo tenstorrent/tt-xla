@@ -34,11 +34,13 @@ class ModelVariant(StrEnum):
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_FOR_PATENTS = "anferico/bert-for-patents"
     RUBERT_BASE = "ai-forever/ruBert-base"
+    HUBERT_BASE_CC = "SZTAKI-HLT/hubert-base-cc"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.BERT_FOR_PATENTS: "The present [MASK] provides a torque sensor for measuring torque applied to a shaft.",
     ModelVariant.RUBERT_BASE: "Меня зовут [MASK] и я инженер живущий в Москве.",
+    ModelVariant.HUBERT_BASE_CC: "Budapest Magyarország [MASK] városa.",
 }
 
 
@@ -81,6 +83,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.RUBERT_BASE: LLMModelConfig(
             pretrained_model_name="ai-forever/ruBert-base",
+            max_length=128,
+        ),
+        ModelVariant.HUBERT_BASE_CC: LLMModelConfig(
+            pretrained_model_name="SZTAKI-HLT/hubert-base-cc",
             max_length=128,
         ),
     }
@@ -128,6 +134,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_FOR_PATENTS,
             ModelVariant.RUBERT_BASE,
+            ModelVariant.HUBERT_BASE_CC,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
