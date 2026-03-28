@@ -20,7 +20,6 @@ from typing import Any, Optional
 
 import torch
 from diffusers import CogVideoXImageToVideoPipeline
-from diffusers.models import AutoencoderKLCogVideoX, CogVideoXTransformer3DModel
 
 from ...base import ForgeModel
 from ...config import (
@@ -144,9 +143,6 @@ class ModelLoader(ForgeModel):
         encoder_hidden_states = torch.randn(
             batch_size, 226, config.text_embed_dim, dtype=dtype
         )
-
-        # Image embeddings (for I2V conditioning)
-        image_rotary_emb = None
 
         timestep = torch.tensor([0.5], dtype=dtype).expand(batch_size)
 
