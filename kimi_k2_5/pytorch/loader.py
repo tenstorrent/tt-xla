@@ -87,6 +87,7 @@ class ModelVariant(StrEnum):
     """Available Kimi K2.5 model variants."""
 
     KIMI_K2_5 = "Kimi-K2.5"
+    KIMI_K2_5_MXFP4 = "Kimi-K2.5-MXFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -94,6 +95,7 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.KIMI_K2_5: None,
+        ModelVariant.KIMI_K2_5_MXFP4: None,
     }
 
     DEFAULT_VARIANT = ModelVariant.KIMI_K2_5
@@ -112,7 +114,10 @@ class ModelLoader(ForgeModel):
                         If None, uses a reduced default.
         """
         super().__init__(variant)
-        self.model_name = "moonshotai/Kimi-K2.5"
+        if self._variant == ModelVariant.KIMI_K2_5_MXFP4:
+            self.model_name = "amd/Kimi-K2.5-MXFP4"
+        else:
+            self.model_name = "moonshotai/Kimi-K2.5"
         self.tokenizer = None
         self.text = "What is machine learning?"
         self.num_layers = num_layers
