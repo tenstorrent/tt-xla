@@ -1,0 +1,3 @@
+diffusers
+gguf
+huggingface_hub
