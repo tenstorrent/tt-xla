@@ -28,10 +28,7 @@ class ModelVariant(StrEnum):
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     DSLIM_BERT_BASE_NER_UNCASED = "dslim/bert-base-NER-uncased"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
-    CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER = (
-        "CAMeL-Lab/bert-base-arabic-camelbert-mix-ner"
-    )
-    SSHLEIFER_TINY_DISTILBERT_BASE_CASED = "sshleifer/tiny-distilbert-base-cased"
+    ALVAROALON2_BIOBERT_GENETIC_NER = "alvaroalon2/biobert_genetic_ner"
 
 
 class ModelLoader(ForgeModel):
@@ -55,12 +52,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hatmimoha/arabic-ner",
             max_length=128,
         ),
-        ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER: LLMModelConfig(
-            pretrained_model_name="CAMeL-Lab/bert-base-arabic-camelbert-mix-ner",
-            max_length=128,
-        ),
-        ModelVariant.SSHLEIFER_TINY_DISTILBERT_BASE_CASED: LLMModelConfig(
-            pretrained_model_name="sshleifer/tiny-distilbert-base-cased",
+        ModelVariant.ALVAROALON2_BIOBERT_GENETIC_NER: LLMModelConfig(
+            pretrained_model_name="alvaroalon2/biobert_genetic_ner",
             max_length=128,
         ),
     }
@@ -85,12 +78,8 @@ class ModelLoader(ForgeModel):
             ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER,
         ):
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant == ModelVariant.AVICHR_HEBERT_NER:
-            self.sample_text = "דויד לומד באוניברסיטה העברית שבירושלים"
-        elif self._variant == ModelVariant.CKIPLAB_BERT_BASE_CHINESE_NER:
-            self.sample_text = "李白是中國唐朝的詩人，出生於四川省"
-        elif self._variant == ModelVariant.KOICHIYASUOKA_BERT_BASE_THAI_UPOS:
-            self.sample_text = "สมเด็จพระเจ้าอยู่หัวเสด็จพระราชดำเนินไปยังกรุงเทพมหานคร"
+        elif self._variant == ModelVariant.ALVAROALON2_BIOBERT_GENETIC_NER:
+            self.sample_text = "The BRCA1 gene and TP53 are tumor suppressor genes involved in DNA repair and cell cycle regulation"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -114,8 +103,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
-            ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER,
-            ModelVariant.SSHLEIFER_TINY_DISTILBERT_BASE_CASED,
+            ModelVariant.ALVAROALON2_BIOBERT_GENETIC_NER,
         ):
             group = ModelGroup.VULCAN
 
