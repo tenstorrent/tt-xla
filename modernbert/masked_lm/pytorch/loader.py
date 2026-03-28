@@ -24,14 +24,7 @@ class ModelVariant(StrEnum):
     BASE = "Base"
     LARGE = "Large"
     BIOCLINICAL_BASE = "BioClinical_Base"
-    SECUREBERT2_BASE = "SecureBERT2.0_Base"
-    JA_130M = "Ja_130M"
-
-
-_SAMPLE_TEXTS = {
-    ModelVariant.SECUREBERT2_BASE: "The malware exploits a vulnerability in the [MASK] system.",
-    ModelVariant.JA_130M: "おはようございます、今日の天気は<mask>です。",
-}
+    CLINICAL_BASE = "Clinical_Base"
 
 
 class ModelLoader(ForgeModel):
@@ -50,12 +43,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="thomas-sounack/BioClinical-ModernBERT-base",
             max_length=128,
         ),
-        ModelVariant.SECUREBERT2_BASE: LLMModelConfig(
-            pretrained_model_name="cisco-ai/SecureBERT2.0-base",
-            max_length=128,
-        ),
-        ModelVariant.JA_130M: LLMModelConfig(
-            pretrained_model_name="sbintuitions/modernbert-ja-130m",
+        ModelVariant.CLINICAL_BASE: LLMModelConfig(
+            pretrained_model_name="Simonlee711/Clinical_ModernBERT",
             max_length=128,
         ),
     }
