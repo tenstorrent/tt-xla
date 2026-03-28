@@ -2,63 +2,55 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-EVA02 model loader implementation
+EVA-02 model loader implementation
 """
 
+import timm
 from typing import Optional
 from dataclasses import dataclass
-import timm
 
 from ...config import (
-    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
+    ModelConfig,
     Framework,
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import (
-    VisionPreprocessor,
-    VisionPostprocessor,
-)
+from ...tools.utils import VisionPreprocessor, VisionPostprocessor
 from datasets import load_dataset
 
 
 @dataclass
-class EVA02Config(ModelConfig):
-    """Configuration specific to EVA02 models"""
+class Eva02Config(ModelConfig):
+    """Configuration specific to EVA-02 models"""
 
     source: ModelSource
 
 
 class ModelVariant(StrEnum):
-    """Available EVA02 model variants."""
+    """Available EVA-02 model variants."""
 
-    ENORMOUS_PATCH14_PLUS_CLIP_224 = "Enormous_Patch14_Plus_CLIP_224"
+    LARGE_PATCH14_448_MIM_M38M_FT_IN22K = "Large_Patch14_448_MIM_M38M_FT_IN22K"
 
 
 class ModelLoader(ForgeModel):
-    """EVA02 model loader implementation."""
+    """EVA-02 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.ENORMOUS_PATCH14_PLUS_CLIP_224: EVA02Config(
-            pretrained_model_name="hf_hub:timm/eva02_enormous_patch14_plus_clip_224.laion2b_s9b_b144k",
+        ModelVariant.LARGE_PATCH14_448_MIM_M38M_FT_IN22K: Eva02Config(
+            pretrained_model_name="eva02_large_patch14_448.mim_m38m_ft_in22k",
             source=ModelSource.TIMM,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ENORMOUS_PATCH14_PLUS_CLIP_224
-
-    def __init__(self, variant: Optional[ModelVariant] = None):
-        super().__init__(variant)
-        self.model = None
-        self._preprocessor = None
-        self._postprocessor = None
+    DEFAULT_VARIANT = ModelVariant.LARGE_PATCH14_448_MIM_M38M_FT_IN22K
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Get model information for dashboard and metrics reporting."""
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
@@ -73,7 +65,15 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant."""
+        super().__init__(variant)
+        self.model = None
+        self._preprocessor = None
+        self._postprocessor = None
+
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the EVA-02 model instance."""
         model_name = self._variant_config.pretrained_model_name
 
         model = timm.create_model(model_name, pretrained=True)
@@ -84,19 +84,13 @@ class ModelLoader(ForgeModel):
         if self._preprocessor is not None:
             self._preprocessor.set_cached_model(model)
 
-        if self._postprocessor is not None:
-            self._postprocessor.set_model_instance(model)
-
         if dtype_override is not None:
             model = model.to(dtype_override)
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
-        if image is None:
-            dataset = load_dataset("huggingface/cats-image", split="test")
-            image = dataset[0]["image"]
-
+    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+        """Preprocess input image(s) and return model-ready input tensor."""
         if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
             source = self._variant_config.source
@@ -120,7 +114,19 @@ class ModelLoader(ForgeModel):
             model_for_config=model_for_config,
         )
 
-    def output_postprocess(self, output):
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        """Load and return sample inputs for the model."""
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
+        return self.input_preprocess(
+            image=image,
+            dtype_override=dtype_override,
+            batch_size=batch_size,
+        )
+
+    def output_postprocess(self, output, top_k=1):
+        """Post-process model outputs."""
         if self._postprocessor is None:
             model_name = self._variant_config.pretrained_model_name
             source = self._variant_config.source
@@ -131,4 +137,4 @@ class ModelLoader(ForgeModel):
                 model_instance=self.model,
             )
 
-        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+        return self._postprocessor.postprocess(output, top_k=top_k, return_dict=True)
