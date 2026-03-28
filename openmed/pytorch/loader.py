@@ -20,7 +20,7 @@ from ...base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
+    OPENMED_ZEROSHOT_NER_SPECIES_TINY = "ZeroShot-NER-Species-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_PHARMA_LARGE = "ZeroShot-NER-Pharma-Large-459M"
     OPENMED_ZEROSHOT_NER_DISEASE_BASE = "ZeroShot-NER-Disease-Base-220M"
@@ -31,8 +31,8 @@ class ModelLoader(ForgeModel):
     """OpenMed model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_ZEROSHOT_NER_PHARMA_BASE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pharma-Base-220M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_TINY: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Tiny-60M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
