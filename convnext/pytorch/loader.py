@@ -42,6 +42,7 @@ class ModelVariant(StrEnum):
     BASE_CLIP_LAION2B_AUGREG_FT_IN12K_IN1K_384 = (
         "Base_CLIP_LAION2B_AugReg_FT_IN12K_IN1K_384"
     )
+    PICO_D1_IN1K = "Pico_D1_IN1K"
     TINY_224 = "Tiny_224"
 
 
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BASE_CLIP_LAION2B_AUGREG_FT_IN12K_IN1K_384: ConvNeXtConfig(
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b_augreg_ft_in12k_in1k_384",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.PICO_D1_IN1K: ConvNeXtConfig(
+            pretrained_model_name="hf_hub:timm/convnext_pico.d1_in1k",
             source=ModelSource.TIMM,
         ),
         ModelVariant.TINY_224: ConvNeXtConfig(
