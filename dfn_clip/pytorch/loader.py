@@ -25,12 +25,14 @@ from datasets import load_dataset
 class ModelVariant(StrEnum):
     """Available DFN CLIP model variants."""
 
+    VIT_H_14 = "ViT_H_14"
     VIT_H_14_378 = "ViT_H_14_378"
     VIT_B_16 = "ViT_B_16"
 
 
 # Mapping from variant to OpenCLIP tokenizer name
 _TOKENIZER_NAME = {
+    ModelVariant.VIT_H_14: "ViT-H-14",
     ModelVariant.VIT_H_14_378: "ViT-H-14",
     ModelVariant.VIT_B_16: "ViT-B-16",
 }
@@ -40,6 +42,9 @@ class ModelLoader(ForgeModel):
     """DFN CLIP model loader using OpenCLIP for image-text similarity tasks."""
 
     _VARIANTS = {
+        ModelVariant.VIT_H_14: ModelConfig(
+            pretrained_model_name="hf-hub:apple/DFN5B-CLIP-ViT-H-14",
+        ),
         ModelVariant.VIT_H_14_378: ModelConfig(
             pretrained_model_name="hf-hub:apple/DFN5B-CLIP-ViT-H-14-378",
         ),
