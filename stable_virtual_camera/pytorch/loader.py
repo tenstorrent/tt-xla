@@ -98,7 +98,6 @@ class ModelLoader(ForgeModel):
 
         batch_size = 1
         num_frames = 21
-        model_channels = 320
         in_channels = 11
         height = 72  # 576 / 8 (VAE downscale factor)
         width = 72
