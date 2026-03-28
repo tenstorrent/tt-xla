@@ -42,6 +42,7 @@ class ModelVariant(StrEnum):
 
     # TIMM variants
     SWINV2_TINY_WINDOW8_256_TIMM = "v2_Tiny_Window8_256_TIMM"
+    SWINV2_SMALL_WINDOW8_256_TIMM = "v2_Small_Window8_256_TIMM"
     SWIN_SMALL_PATCH4_WINDOW7_224_TIMM = "Small_Patch4_Window7_224_TIMM"
 
     # Torchvision variants
@@ -70,6 +71,10 @@ class ModelLoader(ForgeModel):
         # TIMM variants
         ModelVariant.SWINV2_TINY_WINDOW8_256_TIMM: SwinConfig(
             pretrained_model_name="swinv2_tiny_window8_256.ms_in1k",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.SWINV2_SMALL_WINDOW8_256_TIMM: SwinConfig(
+            pretrained_model_name="swinv2_small_window8_256.ms_in1k",
             source=ModelSource.TIMM,
         ),
         ModelVariant.SWIN_SMALL_PATCH4_WINDOW7_224_TIMM: SwinConfig(
