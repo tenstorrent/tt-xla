@@ -5,7 +5,6 @@
 FLUX.1-Depth-dev-lora model loader implementation for depth-conditioned image generation
 """
 import torch
-import numpy as np
 from diffusers import FluxControlPipeline
 from typing import Optional
 
