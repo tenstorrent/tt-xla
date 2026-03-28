@@ -1,1 +1,2 @@
 languagebind @ git+https://github.com/PKU-YuanGroup/LanguageBind.git
+opencv-python

@@ -4,6 +4,9 @@
 """
 LanguageBind Video model loader implementation for video-text similarity.
 """
+import tempfile
+
+import cv2
 import numpy as np
 import torch
 from typing import Optional
@@ -83,16 +86,29 @@ class ModelLoader(ForgeModel):
         model.eval()
         return model
 
+    @staticmethod
+    def _create_synthetic_video(num_frames=8, height=224, width=224):
+        """Create a temporary synthetic video file and return its path."""
+        tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(tmp.name, fourcc, 8, (width, height))
+        for _ in range(num_frames):
+            frame = np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
+            writer.write(frame)
+        writer.release()
+        tmp.close()
+        return tmp.name
+
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.processor is None:
             self._load_processor()
 
-        # Generate synthetic video: 8 frames of 224x224 RGB
-        video = np.random.randint(0, 255, (8, 224, 224, 3), dtype=np.uint8)
+        # Generate a synthetic video file (8 frames of 224x224 RGB)
+        video_path = self._create_synthetic_video()
 
         self.text_prompts = ["a dog playing in the park", "a person riding a bicycle"]
 
-        data = self.processor([video], self.text_prompts, return_tensors="pt")
+        data = self.processor([video_path], self.text_prompts, return_tensors="pt")
 
         # Replicate tensors for batch size
         for key in data:
