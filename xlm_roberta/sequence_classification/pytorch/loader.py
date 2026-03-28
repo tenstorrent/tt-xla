@@ -23,15 +23,9 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    XLM_ROBERTA_LARGE_PORTUGUESE_EXECORDER_CAP_V3 = (
-        "poltextlab/xlm-roberta-large-portuguese-execorder-cap-v3"
+    MULTILINGUAL_MINILMV2_L6_MNLI_XNLI = (
+        "MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli"
     )
-
-
-_VARIANT_SAMPLE_TEXTS = {
-    ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
-    ModelVariant.XLM_ROBERTA_LARGE_PORTUGUESE_EXECORDER_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
-}
 
 
 class ModelLoader(ForgeModel):
@@ -42,18 +36,19 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.XLM_ROBERTA_LARGE_PORTUGUESE_EXECORDER_CAP_V3: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-portuguese-execorder-cap-v3",
+        ModelVariant.MULTILINGUAL_MINILMV2_L6_MNLI_XNLI: LLMModelConfig(
+            pretrained_model_name="MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT
 
-    _SAMPLE_TEXTS = {
-        ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
-        ModelVariant.QANASTEK_51_LANGUAGES_CLASSIFIER: "Bonjour, comment allez-vous aujourd'hui?",
-    }
+    # NLI sample inputs for MNLI/XNLI variants
+    _NLI_PREMISE = (
+        "Angela Merkel ist eine Politikerin in Deutschland und Vorsitzende der CDU"
+    )
+    _NLI_HYPOTHESIS = "Angela Merkel ist eine Politikerin."
 
     def __init__(self, variant=None):
         super().__init__(variant)
@@ -80,6 +75,10 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _is_nli_variant(self):
+        """Check if the current variant is an NLI model."""
+        return self._variant == ModelVariant.MULTILINGUAL_MINILMV2_L6_MNLI_XNLI
+
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load XLM-RoBERTa model for sequence classification from Hugging Face."""
 
@@ -103,6 +102,17 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self.load_model(dtype_override=dtype_override)
 
+        if self._is_nli_variant():
+            inputs = self.tokenizer(
+                self._NLI_PREMISE,
+                self._NLI_HYPOTHESIS,
+                max_length=self.max_length,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt",
+            )
+            return [inputs["input_ids"], inputs["attention_mask"]]
+
         inputs = self.tokenizer(
             self.text,
             max_length=self.max_length,
@@ -119,6 +129,9 @@ class ModelLoader(ForgeModel):
         model = framework_model if framework_model is not None else self.model
         if model and hasattr(model, "config") and hasattr(model.config, "id2label"):
             predicted_category = model.config.id2label[predicted_class_id]
-            print(f"Predicted Category: {predicted_category}")
+            if self._is_nli_variant():
+                print(f"Predicted Label: {predicted_category}")
+            else:
+                print(f"Predicted Sentiment: {predicted_category}")
         else:
             print(f"Predicted class ID: {predicted_class_id}")
