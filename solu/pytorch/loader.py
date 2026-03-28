@@ -6,6 +6,7 @@ SoLU model loader for causal language modeling using TransformerLens.
 """
 import torch
 from transformer_lens import HookedTransformer
+from transformers import AutoTokenizer
 from typing import Optional
 
 from ...base import ForgeModel
@@ -70,23 +71,29 @@ class ModelLoader(ForgeModel):
 
         return model
 
+    def _load_tokenizer(self):
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "NeelNanda/gpt-neox-tokenizer-digits"
+        )
+        return self.tokenizer
+
     def load_inputs(self, dtype_override=None):
-        model_name = self._variant_config.pretrained_model_name
+        if self.tokenizer is None:
+            self._load_tokenizer()
 
-        model = HookedTransformer.from_pretrained(model_name)
-        self.tokenizer = model.tokenizer
+        tokens = self.tokenizer(
+            self.sample_text,
+            return_tensors="pt",
+            max_length=self._variant_config.max_length,
+            truncation=True,
+        )
 
-        tokens = model.to_tokens(self.sample_text)
-
-        return {"input": tokens}
+        return {"input": tokens["input_ids"]}
 
     def decode_output(self, outputs, inputs=None):
         """Decode model outputs into human-readable text."""
         if self.tokenizer is None:
-            model = HookedTransformer.from_pretrained(
-                self._variant_config.pretrained_model_name
-            )
-            self.tokenizer = model.tokenizer
+            self._load_tokenizer()
 
         logits = outputs if isinstance(outputs, torch.Tensor) else outputs[0]
         generated_ids = logits.argmax(-1)
