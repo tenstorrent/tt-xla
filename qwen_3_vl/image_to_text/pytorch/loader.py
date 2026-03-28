@@ -35,6 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_8B_INSTRUCT_FP8 = "8b_instruct_fp8"
     QWEN_3_VL_30B_A3B_INSTRUCT = "30b_a3b_instruct"
     QWEN_3_VL_30B_A3B_THINKING_FP8 = "30b_a3b_thinking_fp8"
+    QWEN_3_VL_8B_INSTRUCT_UNSLOTH_BNB_4BIT = "8b_instruct_unsloth_bnb_4bit"
     QWEN_3_VL_32B_INSTRUCT = "32b_instruct"
 
 
@@ -65,6 +66,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_VL_8B_INSTRUCT_FP8: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-VL-8B-Instruct-FP8",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_VL_8B_INSTRUCT_UNSLOTH_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-VL-8B-Instruct-unsloth-bnb-4bit",
             max_length=128,
         ),
         ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT: LLMModelConfig(
@@ -124,6 +129,7 @@ class ModelLoader(ForgeModel):
             in (
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT,
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT_FP8,
+                ModelVariant.QWEN_3_VL_8B_INSTRUCT_UNSLOTH_BNB_4BIT,
                 ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
                 ModelVariant.QWEN_3_VL_30B_A3B_THINKING_FP8,
                 ModelVariant.QWEN_3_VL_32B_INSTRUCT,
