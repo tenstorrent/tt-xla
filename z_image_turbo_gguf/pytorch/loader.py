@@ -73,6 +73,7 @@ class ModelLoader(ForgeModel):
         transformer = ZImageTransformer2DModel.from_single_file(
             gguf_path,
             quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
+            torch_dtype=dtype,
         )
         return transformer
 
