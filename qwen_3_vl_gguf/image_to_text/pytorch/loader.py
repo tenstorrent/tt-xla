@@ -23,30 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 VL GGUF model variants for image to text."""
 
-    QWEN_3_VL_8B_INSTRUCT_Q4_K_M = "8b_instruct_q4_k_m"
-    QWEN_3_VL_8B_INSTRUCT_Q8_0 = "8b_instruct_q8_0"
+    QWEN_3_VL_2B_INSTRUCT_GGUF = "2b_instruct_gguf"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 VL GGUF model loader implementation for image to text tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_VL_8B_INSTRUCT_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-VL-8B-Instruct-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_3_VL_8B_INSTRUCT_Q8_0: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-VL-8B-Instruct-GGUF",
+        ModelVariant.QWEN_3_VL_2B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-VL-2B-Instruct-GGUF",
             max_length=128,
         ),
     }
 
-    _GGUF_FILES = {
-        ModelVariant.QWEN_3_VL_8B_INSTRUCT_Q4_K_M: "Qwen3VL-8B-Instruct-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_VL_8B_INSTRUCT_Q8_0: "Qwen3VL-8B-Instruct-Q8_0.gguf",
-    }
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_VL_2B_INSTRUCT_GGUF
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_VL_8B_INSTRUCT_Q4_K_M
+    GGUF_FILE = "Qwen3-VL-2B-Instruct-Q4_K_M.gguf"
 
     sample_image = (
         "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg"
@@ -58,8 +50,6 @@ class ModelLoader(ForgeModel):
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="Qwen 3 VL GGUF",
             variant=variant,
@@ -71,23 +61,18 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
-        gguf_file = self._GGUF_FILES[self._variant]
 
-        model_kwargs = {}
+        model_kwargs = {"gguf_file": self.GGUF_FILE}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        model_kwargs["gguf_file"] = gguf_file
         model_kwargs |= kwargs
 
-        self.processor = AutoProcessor.from_pretrained(
-            "Qwen/Qwen3-VL-8B-Instruct",
-        )
+        self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
 
         model = Qwen3VLForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
+        ).eval()
 
         return model
 
