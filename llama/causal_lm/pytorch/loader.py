@@ -109,19 +109,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # BAAI variants
-    BAAI_INFINITY_INSTRUCT_7M_GEN_LLAMA3_1_8B = "BAAI_Infinity_Instruct_7M_Gen_3.1_8B"
-
-    # COSAIL-KNU variants
-    COSAIL_KNU_LLAMA2_7B_GPTQ_DRAFT_400M_CODE = (
-        "Cosail_Knu_Llama2_7B_Gptq_Draft_400M_Code"
-    )
-
-    # Facebook LayerSkip variants
-    FACEBOOK_LAYERSKIP_LLAMA_3_2_1B = "Facebook_Layerskip_3.2_1B"
-
-    # WhiteRabbitNeo variants
-    WHITERABBITNEO_LLAMA_3_1_70B = "WhiteRabbitNeo_3.1_70B"
+    # MLX community variants
+    MLX_LLAMA_3_1_8B_INSTRUCT_BF16 = "Mlx_3.1_8B_Instruct_Bf16"
 
 
 class ModelLoader(ForgeModel):
@@ -274,24 +263,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # BAAI variants
-        ModelVariant.BAAI_INFINITY_INSTRUCT_7M_GEN_LLAMA3_1_8B: LLMModelConfig(
-            pretrained_model_name="BAAI/Infinity-Instruct-7M-Gen-Llama3_1-8B",
-            max_length=128,
-        ),
-        # COSAIL-KNU variants
-        ModelVariant.COSAIL_KNU_LLAMA2_7B_GPTQ_DRAFT_400M_CODE: LLMModelConfig(
-            pretrained_model_name="cosail-knu/llama2-7b_gptq-draft-400m-code",
-            max_length=128,
-        ),
-        # Facebook LayerSkip variants
-        ModelVariant.FACEBOOK_LAYERSKIP_LLAMA_3_2_1B: LLMModelConfig(
-            pretrained_model_name="facebook/layerskip-llama3.2-1B",
-            max_length=128,
-        ),
-        # WhiteRabbitNeo variants
-        ModelVariant.WHITERABBITNEO_LLAMA_3_1_70B: LLMModelConfig(
-            pretrained_model_name="WhiteRabbitNeo/Llama-3.1-WhiteRabbitNeo-2-70B",
+        # MLX community variants
+        ModelVariant.MLX_LLAMA_3_1_8B_INSTRUCT_BF16: LLMModelConfig(
+            pretrained_model_name="mlx-community/Meta-Llama-3.1-8B-Instruct-bf16",
             max_length=128,
         ),
     }
@@ -343,9 +317,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_BNB_4BIT,
             ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
-            ModelVariant.TINYLLAMA_1_1B_CHAT_V0_3_AWQ,
-            ModelVariant.FACEBOOK_LAYERSKIP_LLAMA_3_2_1B,
-            ModelVariant.WHITERABBITNEO_LLAMA_3_1_70B,
+            ModelVariant.MLX_LLAMA_3_1_8B_INSTRUCT_BF16,
         ]:
             group = ModelGroup.VULCAN
         elif (
