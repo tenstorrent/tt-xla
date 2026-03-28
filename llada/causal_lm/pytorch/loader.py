@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available LLaDA model variants for causal language modeling."""
 
     LLADA_8B_INSTRUCT = "llada_8b_instruct"
+    LLADA_1_5 = "llada_1_5"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LLADA_8B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="GSAI-ML/LLaDA-8B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.LLADA_1_5: LLMModelConfig(
+            pretrained_model_name="GSAI-ML/LLaDA-1.5",
             max_length=128,
         ),
     }
