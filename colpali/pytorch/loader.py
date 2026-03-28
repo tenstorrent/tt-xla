@@ -6,7 +6,12 @@ ColPali model loader implementation for visual document retrieval.
 """
 
 import torch
-from transformers import ColPaliForRetrieval, ColPaliProcessor
+from transformers import (
+    ColPaliForRetrieval,
+    ColPaliProcessor,
+    SiglipImageProcessor,
+    AutoTokenizer,
+)
 from typing import Optional
 
 from ...base import ForgeModel
@@ -25,19 +30,19 @@ from datasets import load_dataset
 class ModelVariant(StrEnum):
     """Available ColPali model variants for visual document retrieval."""
 
-    COLPALI_V1_1 = "colpali-v1.1"
+    COLPALI_V1_3_HF = "colpali-v1.3-hf"
 
 
 class ModelLoader(ForgeModel):
     """ColPali model loader implementation for visual document retrieval."""
 
     _VARIANTS = {
-        ModelVariant.COLPALI_V1_1: ModelConfig(
-            pretrained_model_name="vidore/colpali-v1.1",
+        ModelVariant.COLPALI_V1_3_HF: ModelConfig(
+            pretrained_model_name="vidore/colpali-v1.3-hf",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.COLPALI_V1_1
+    DEFAULT_VARIANT = ModelVariant.COLPALI_V1_3_HF
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -59,8 +64,11 @@ class ModelLoader(ForgeModel):
 
     def _load_processor(self):
         if self.processor is None:
-            self.processor = ColPaliProcessor.from_pretrained(
-                self._variant_config.pretrained_model_name
+            model_name = self._variant_config.pretrained_model_name
+            image_processor = SiglipImageProcessor.from_pretrained(model_name)
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.processor = ColPaliProcessor(
+                image_processor=image_processor, tokenizer=tokenizer
             )
         return self.processor
 
