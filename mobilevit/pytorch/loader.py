@@ -74,15 +74,10 @@ class ModelLoader(ForgeModel):
 
         source = cls._VARIANTS[variant].source
 
-        if cls._VARIANTS[variant].source == ModelSource.TIMM:
-            group = ModelGroup.VULCAN
-        else:
-            group = ModelGroup.VULCAN
-
         return ModelInfo(
             model="MobileViT",
             variant=variant,
-            group=group,
+            group=ModelGroup.VULCAN,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
