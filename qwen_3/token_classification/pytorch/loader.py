@@ -4,7 +4,6 @@
 """
 Qwen 3 model loader implementation for token classification.
 """
-import torch
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 from typing import Optional
 
