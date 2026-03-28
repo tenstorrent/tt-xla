@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Next model variants for causal language modeling."""
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
-    QWEN_3_NEXT_80B_A3B_THINKING = "80B_A3B_Thinking"
+    QWEN_3_NEXT_80B_A3B_INSTRUCT_GGUF = "80B_A3B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -36,10 +36,14 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Thinking",
+        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-Next-80B-A3B-Instruct-GGUF",
             max_length=128,
         ),
+    }
+
+    _GGUF_FILES = {
+        ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT_GGUF: "Qwen3-Next-80B-A3B-Instruct-Q4_K_M.gguf",
     }
 
     # Default variant to use
@@ -67,10 +71,22 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _is_gguf_variant(self):
+        """Check if the current variant uses GGUF quantization."""
+        return self._variant in self._GGUF_FILES
+
+    @property
+    def _gguf_file(self):
+        """Get the GGUF filename for the current variant."""
+        return self._GGUF_FILES.get(self._variant)
+
     def _load_tokenizer(self, dtype_override=None):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        if self._is_gguf_variant():
+            tokenizer_kwargs["gguf_file"] = self._gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -89,16 +105,15 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
+        if self._is_gguf_variant():
+            model_kwargs["gguf_file"] = self._gguf_file
+
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
-            if hasattr(config, "text_config"):
-                config.text_config.num_hidden_layers = self.num_layers
-                if hasattr(config.text_config, "layer_types"):
-                    config.text_config.layer_types = config.text_config.layer_types[
-                        : self.num_layers
-                    ]
-            else:
-                config.num_hidden_layers = self.num_layers
+            config_kwargs = {}
+            if self._is_gguf_variant():
+                config_kwargs["gguf_file"] = self._gguf_file
+            config = AutoConfig.from_pretrained(pretrained_model_name, **config_kwargs)
+            config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
@@ -140,8 +155,12 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def load_config(self):
+        config_kwargs = {}
+        if self._is_gguf_variant():
+            config_kwargs["gguf_file"] = self._gguf_file
+
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
+            self._variant_config.pretrained_model_name, **config_kwargs
         )
 
         return self.config
