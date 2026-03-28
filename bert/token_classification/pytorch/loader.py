@@ -6,7 +6,11 @@ BERT model loader implementation for token classification.
 """
 
 import torch
-from transformers import BertForTokenClassification, BertTokenizer
+from transformers import (
+    BertForTokenClassification,
+    BertTokenizer,
+    BertJapaneseTokenizer,
+)
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -27,6 +31,7 @@ class ModelVariant(StrEnum):
     )
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
+    JURABI_BERT_NER_JAPANESE = "jurabi/bert-ner-japanese"
 
 
 class ModelLoader(ForgeModel):
@@ -44,6 +49,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.HATMIMOHA_ARABIC_NER: LLMModelConfig(
             pretrained_model_name="hatmimoha/arabic-ner",
+            max_length=128,
+        ),
+        ModelVariant.JURABI_BERT_NER_JAPANESE: LLMModelConfig(
+            pretrained_model_name="jurabi/bert-ner-japanese",
             max_length=128,
         ),
     }
@@ -65,6 +74,8 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         if self._variant == ModelVariant.HATMIMOHA_ARABIC_NER:
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
+        elif self._variant == ModelVariant.JURABI_BERT_NER_JAPANESE:
+            self.sample_text = "株式会社Jurabiは、東京都台東区に本社を置くIT企業である。"
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = 128
@@ -87,6 +98,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.HATMIMOHA_ARABIC_NER,
+            ModelVariant.JURABI_BERT_NER_JAPANESE,
         ):
             group = ModelGroup.VULCAN
 
@@ -111,7 +123,10 @@ class ModelLoader(ForgeModel):
         """
 
         # Initialize tokenizer
-        self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
+        if self._variant == ModelVariant.JURABI_BERT_NER_JAPANESE:
+            self.tokenizer = BertJapaneseTokenizer.from_pretrained(self.model_name)
+        else:
+            self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
