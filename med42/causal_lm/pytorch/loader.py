@@ -157,7 +157,7 @@ class ModelLoader(ForgeModel):
 
         # Apply chat template
         inputs = self.tokenizer.apply_chat_template(
-            self.sample_messages, tokenize=False
+            self.sample_messages, tokenize=False, add_generation_prompt=True
         )
         inputs = self.tokenizer(
             inputs, return_tensors="pt", return_token_type_ids=False
