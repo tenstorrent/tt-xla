@@ -61,7 +61,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        if self.variant == ModelVariant.NVFP4_MIXED:
+        if self._variant == ModelVariant.NVFP4_MIXED:
             filename = "flux2-dev-nvfp4-mixed.safetensors"
         else:
             filename = "flux2-dev-nvfp4.safetensors"
@@ -71,7 +71,7 @@ class ModelLoader(ForgeModel):
             load_kwargs["torch_dtype"] = dtype_override
 
         self.transformer = Flux2Transformer2DModel.from_single_file(
-            f"https://huggingface.co/{self._variant_config.pretrained_model_name}/blob/main/{filename}",
+            f"https://huggingface.co/{self._variant_config.pretrained_model_name}/resolve/main/{filename}",
             **load_kwargs,
         )
 
