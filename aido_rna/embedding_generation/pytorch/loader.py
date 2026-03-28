@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-AIDO.RNA model loader implementation for masked language modeling on RNA sequences.
+AIDO.RNA model loader implementation for embedding generation on RNA sequences.
 """
 from typing import Optional
 
@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """AIDO.RNA model loader for masked language modeling on RNA sequences."""
+    """AIDO.RNA model loader for embedding generation on RNA sequences."""
 
     _VARIANTS = {
         ModelVariant.AIDO_RNA_1B600M: ModelConfig(
@@ -47,7 +47,7 @@ class ModelLoader(ForgeModel):
             model="AIDO.RNA",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.NLP_MASKED_LM,
+            task=ModelTask.NLP_EMBED_GEN,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
