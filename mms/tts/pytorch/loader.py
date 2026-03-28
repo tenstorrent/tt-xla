@@ -5,7 +5,6 @@
 MMS (Massively Multilingual Speech) model loader implementation for text-to-speech (TTS) using PyTorch.
 """
 
-import torch
 from typing import Optional
 
 from ....base import ForgeModel
