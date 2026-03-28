@@ -22,8 +22,7 @@ class ModelVariant(StrEnum):
     """Available DeBERTa model variants for sequence classification."""
 
     DEBERTA_XLARGE_MNLI = "XLarge_MNLI"
-    DEBERTA_V3_BASE_ZEROSHOT_NLI = "V3_Base_Zeroshot_NLI"
-    DEBERTA_V3_LARGE_TASKSOURCE_NLI = "V3_Large_Tasksource_NLI"
+    DEBERTA_SMALL_LONG_NLI = "Small_Long_NLI"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +54,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DEBERTA_V3_LARGE_TASKSOURCE_NLI: ModelConfig(
             pretrained_model_name="sileod/deberta-v3-large-tasksource-nli",
+        ),
+        ModelVariant.DEBERTA_SMALL_LONG_NLI: ModelConfig(
+            pretrained_model_name="tasksource/deberta-small-long-nli",
         ),
     }
 
