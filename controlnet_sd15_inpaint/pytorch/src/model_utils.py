@@ -16,7 +16,7 @@ from diffusers import (
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
-from PIL import Image
+from PIL import Image, ImageDraw
 
 
 def load_controlnet_sd15_inpaint_pipe(controlnet_model_name, base_model_name):
@@ -85,8 +85,6 @@ def create_dummy_inpaint_images(height=512, width=512):
     init_image = Image.new("RGB", (width, height), color=(128, 128, 128))
     mask_image = Image.new("L", (width, height), color=0)
     # Create a white square in the center as the mask region
-    from PIL import ImageDraw
-
     draw = ImageDraw.Draw(mask_image)
     draw.rectangle([width // 4, height // 4, 3 * width // 4, 3 * height // 4], fill=255)
     return init_image, mask_image
@@ -108,7 +106,6 @@ def controlnet_sd15_inpaint_preprocessing(
     height=512,
     width=512,
     controlnet_conditioning_scale=1.0,
-    eta=1.0,
 ):
     """Preprocess inputs for ControlNet SD1.5 Inpaint model.
 
@@ -128,7 +125,6 @@ def controlnet_sd15_inpaint_preprocessing(
         height: Image height (default: 512)
         width: Image width (default: 512)
         controlnet_conditioning_scale: ControlNet conditioning scale (default: 1.0)
-        eta: Eta parameter for DDIM scheduler (default: 1.0)
 
     Returns:
         tuple: (latent_model_input, timesteps, prompt_embeds,
