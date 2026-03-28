@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     OPUS_MT_JA_EN = "Opus_Mt_Ja_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
+    OPUS_MT_EN_EL = "Opus_Mt_En_El"
     OPUS_MT_EN_SV = "Opus_Mt_En_Sv"
     OPUS_MT_TH_EN = "Opus_Mt_Th_En"
     TINY_RANDOM_MARIAN = "Tiny_Random_Marian"
@@ -39,6 +40,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
+        ),
+        ModelVariant.OPUS_MT_EN_EL: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-en-el",
         ),
         ModelVariant.OPUS_MT_EN_SV: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-en-sv",
@@ -55,6 +59,7 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
+        ModelVariant.OPUS_MT_EN_EL: "My name is Wolfgang and I live in Berlin.",
         ModelVariant.OPUS_MT_EN_SV: "My name is Wolfgang and I live in Berlin.",
         ModelVariant.OPUS_MT_TH_EN: "สวัสดีครับ วันนี้อากาศดีมาก",
         ModelVariant.TINY_RANDOM_MARIAN: "My name is Wolfgang and I live in Berlin.",
