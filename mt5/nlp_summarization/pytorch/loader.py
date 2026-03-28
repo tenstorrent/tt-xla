@@ -1,45 +1,51 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
-"""MT5 PyTorch model loader implementation for NLP summarization."""
-
-from typing import Optional
+"""
+MT5 model loader implementation for multilingual summarization.
+"""
 
 import torch
-from transformers import AutoTokenizer, MT5Config, MT5ForConditionalGeneration
+from transformers import AutoTokenizer, MT5ForConditionalGeneration
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     LLMModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available MT5 PyTorch model variants."""
+    """Available MT5 multilingual summarization model variants."""
 
-    MULTILINGUAL_XLSUM_FINETUNED_XSUM = "Multilingual_XLSum_Finetuned_Xsum"
+    MULTILINGUAL_XLSUM = "Multilingual_XLSum"
 
 
 class ModelLoader(ForgeModel):
-    """MT5 PyTorch model loader implementation for NLP summarization."""
+    """MT5 model loader implementation for multilingual summarization tasks."""
 
     _VARIANTS = {
-        ModelVariant.MULTILINGUAL_XLSUM_FINETUNED_XSUM: LLMModelConfig(
-            pretrained_model_name="nestoralvaro/mT5_multilingual_XLSum-finetuned-xsum",
+        ModelVariant.MULTILINGUAL_XLSUM: LLMModelConfig(
+            pretrained_model_name="csebuetnlp/mT5_multilingual_XLSum",
+            max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MULTILINGUAL_XLSUM_FINETUNED_XSUM
+    DEFAULT_VARIANT = ModelVariant.MULTILINGUAL_XLSUM
 
-    sample_text = """summarize: Researchers have extensively studied the benefits of having pets, but the evidence is mixed. Some studies suggest that pets can improve mental health, reduce stress, and increase physical activity.
-        However, other studies have found that pets can also contribute to allergies and other health problems. The evidence is still inconclusive, but it is clear that pets can have a positive impact on both physical and mental health."""
+    sample_text = (
+        "Videos that say approved vaccines are dangerous and "
+        "cause autism, cancer or infertility are among those that "
+        "will be removed, the company said. The policy includes "
+        "the  eli mi nation of false claims that say the substances "
+        "in approved COVID-19 vaccines are harmful."
+    )
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -49,9 +55,8 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self._tokenizer = None
+        self.tokenizer = None
         self._cached_model = None
-        self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -86,11 +91,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        self._tokenizer = AutoTokenizer.from_pretrained(
-            self._model_name, **tokenizer_kwargs
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
-        return self._tokenizer
+        return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the MT5 model instance for this instance's variant.
@@ -99,9 +104,11 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            torch.nn.Module: The MT5 model instance for conditional generation.
+            torch.nn.Module: The MT5 model instance for summarization.
         """
-        if self._tokenizer is None:
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {"use_cache": False}
@@ -110,7 +117,7 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = MT5ForConditionalGeneration.from_pretrained(
-            self._model_name, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         model.eval()
         self._cached_model = model
@@ -125,18 +132,20 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors that can be fed to the model.
         """
-        if self._tokenizer is None:
+        if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self._tokenizer(
+        inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
         )
 
-        config = MT5Config.from_pretrained(self._model_name)
-        decoder_start_token_id = config.decoder_start_token_id
+        decoder_start_token_tensor = torch.tensor(
+            self._cached_model.generation_config.decoder_start_token_id,
+            dtype=torch.long,
+        )
         decoder_input_ids = (
-            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
         )
         inputs["decoder_input_ids"] = decoder_input_ids
 
