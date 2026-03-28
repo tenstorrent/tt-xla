@@ -83,10 +83,11 @@ class ModelLoader(ForgeModel):
             ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MIX_NER,
         ):
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
-        elif self._variant in (
-            ModelVariant.OPENMED_NER_DNADETECT,
-            ModelVariant.OPENMED_NER_GENOMICDETECT,
-        ):
+        elif self._variant == ModelVariant.OPENMED_NER_DNADETECT:
+            self.sample_text = (
+                "The p53 protein plays a crucial role in tumor suppression."
+            )
+        elif self._variant == ModelVariant.OPENMED_NER_GENOMICDETECT:
             self.sample_text = (
                 "The BRCA2 gene is associated with hereditary breast cancer."
             )
