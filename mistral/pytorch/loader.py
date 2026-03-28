@@ -46,7 +46,9 @@ class ModelVariant(StrEnum):
     MAGISTRAL_SMALL_2509 = "Magistral_Small_2509"
     MISTRAL_SMALL_3_1_24B_INSTRUCT_2503 = "mistral_small_3.1_24b_instruct_2503"  # Untested in Transformers; for full testing, please refer to VLLM.
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
-    CODESTRAL_22B_V01 = "Codestral_22B_v01"
+    MISTRAL_SMALL_24B_INSTRUCT_2501_QUANTIZED_W8A8 = (
+        "Small_24B_INSTRUCT_2501_Quantized_W8A8"
+    )
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
     MISTRAL_7B_INSTRUCT_V03_GPTQ = "7B_INSTRUCT_v03_GPTQ"
 
@@ -127,8 +129,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506: ModelConfig(
             pretrained_model_name="mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         ),
-        ModelVariant.CODESTRAL_22B_V01: ModelConfig(
-            pretrained_model_name="mistralai/Codestral-22B-v0.1",
+        ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_QUANTIZED_W8A8: ModelConfig(
+            pretrained_model_name="RedHatAI/Mistral-Small-24B-Instruct-2501-quantized.w8a8",
         ),
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
@@ -172,6 +174,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
+            ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_QUANTIZED_W8A8,
             ModelVariant.MAGISTRAL_SMALL_2509,
         ):
             group = ModelGroup.VULCAN
@@ -260,7 +263,7 @@ class ModelLoader(ForgeModel):
         # Quantized variants need device_map="cpu" for CPU-based loading
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_7B_INSTRUCT_V03_GPTQ,
+            ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_QUANTIZED_W8A8,
         ):
             model_kwargs["device_map"] = "cpu"
 
