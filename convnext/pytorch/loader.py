@@ -39,7 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
-    BASE_FB_IN22K_FT_IN1K_384 = "Base_FB_IN22K_FT_IN1K_384"
+    SMALL_DINOV3_LVD1689M = "Small_DINOv3_LVD1689M"
 
 
 class ModelLoader(ForgeModel):
@@ -50,8 +50,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.BASE_FB_IN22K_FT_IN1K_384: ConvNeXtConfig(
-            pretrained_model_name="hf_hub:timm/convnext_base.fb_in22k_ft_in1k_384",
+        ModelVariant.SMALL_DINOV3_LVD1689M: ConvNeXtConfig(
+            pretrained_model_name="hf_hub:timm/convnext_small.dinov3_lvd1689m",
             source=ModelSource.TIMM,
         ),
     }
