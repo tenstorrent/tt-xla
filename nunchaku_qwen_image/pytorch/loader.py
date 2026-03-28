@@ -31,7 +31,7 @@ from ...config import (
     StrEnum,
 )
 
-UPSTREAM_REPO = "Qwen/Qwen-Image-2512"
+UPSTREAM_REPO = "Qwen/Qwen-Image"
 NUNCHAKU_REPO = "nunchaku-ai/nunchaku-qwen-image"
 
 
@@ -40,6 +40,12 @@ class ModelVariant(StrEnum):
 
     QWEN_IMAGE_INT4_R32 = "INT4-r32"
     QWEN_IMAGE_INT4_R128 = "INT4-r128"
+
+
+_VARIANT_FILENAMES = {
+    ModelVariant.QWEN_IMAGE_INT4_R32: "svdq-int4_r32-qwen-image.safetensors",
+    ModelVariant.QWEN_IMAGE_INT4_R128: "svdq-int4_r128-qwen-image.safetensors",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -73,20 +79,13 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _get_subfolder(self) -> str:
-        """Return the subfolder for the selected quantization variant."""
-        if self._variant == ModelVariant.QWEN_IMAGE_INT4_R128:
-            return "svdq-int4-r128"
-        return "svdq-int4-r32"
-
     def _load_transformer(
         self, dtype: torch.dtype = torch.bfloat16
     ) -> NunchakuQwenImageTransformer2DModel:
         """Load the quantized transformer from nunchaku."""
+        filename = _VARIANT_FILENAMES[self._variant]
         self._transformer = NunchakuQwenImageTransformer2DModel.from_pretrained(
-            NUNCHAKU_REPO,
-            subfolder=self._get_subfolder(),
-            torch_dtype=dtype,
+            f"{NUNCHAKU_REPO}/{filename}",
         )
         self._transformer.eval()
         return self._transformer
