@@ -6,7 +6,6 @@ FLUX ControlNet Union model loader implementation
 """
 
 import torch
-import numpy as np
 from typing import Optional
 
 from ...base import ForgeModel
@@ -19,10 +18,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from .src.model_utils import (
-    load_flux_controlnet_union_pipe,
-    create_controlnet_conditioning_image,
-)
+from .src.model_utils import load_flux_controlnet_union_pipe
 
 
 class ModelVariant(StrEnum):
@@ -205,9 +201,6 @@ class ModelLoader(ForgeModel):
             guidance = torch.full([batch_size], guidance_scale, dtype=dtype)
         else:
             guidance = None
-
-        # Prepare ControlNet conditioning image
-        control_image = create_controlnet_conditioning_image(height, width)
 
         # Prepare inputs
         inputs = {
