@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
 
     YI_1_5_34B_CHAT = "1.5_34B_Chat"
     YI_1_5_34B_CHAT_16K = "1.5_34B_Chat_16K"
+    INFINITY_INSTRUCT_3M_0625_YI_1_5_9B = "Infinity_Instruct_3M_0625_Yi_1.5_9B"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +37,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.YI_1_5_34B_CHAT_16K: LLMModelConfig(
             pretrained_model_name="01-ai/Yi-1.5-34B-Chat-16K",
+            max_length=256,
+        ),
+        ModelVariant.INFINITY_INSTRUCT_3M_0625_YI_1_5_9B: LLMModelConfig(
+            pretrained_model_name="BAAI/Infinity-Instruct-3M-0625-Yi-1.5-9B",
             max_length=256,
         ),
     }
