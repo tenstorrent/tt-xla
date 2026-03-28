@@ -26,6 +26,9 @@ class ModelVariant(StrEnum):
     YI_9B_200K = "9B-200K"
     YI_34B_CHAT = "34B-Chat"
 
+    # OpenBuddy variants
+    OPENBUDDY_YI1_5_9B = "OpenBuddy_Yi1.5_9B"
+
 
 class ModelLoader(ForgeModel):
     """Yi model loader implementation for causal language modeling tasks."""
@@ -38,6 +41,11 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.YI_34B_CHAT: LLMModelConfig(
             pretrained_model_name="01-ai/Yi-34B-Chat",
+            max_length=128,
+        ),
+        # OpenBuddy variants
+        ModelVariant.OPENBUDDY_YI1_5_9B: LLMModelConfig(
+            pretrained_model_name="OpenBuddy/openbuddy-yi1.5-9b-v21.1-32k",
             max_length=128,
         ),
     }
