@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Mistral Small 3.2 GGUF model variants for causal language modeling."""
 
-    MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_GGUF = "24B_Instruct_2506_GGUF"
+    MISTRAL_SMALL_3_2_24B_INSTRUCT_GGUF = "24B_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Mistral Small 3.2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_GGUF
+    DEFAULT_VARIANT = ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_GGUF
 
-    GGUF_FILE = "mistralai_Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf"
+    GGUF_FILE = "Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "Write a Python function that checks if a number is prime."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
