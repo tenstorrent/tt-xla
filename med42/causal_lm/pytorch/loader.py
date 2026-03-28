@@ -122,7 +122,7 @@ class ModelLoader(ForgeModel):
         # Load the model with dtype override if specified
         model_kwargs = {}
         if dtype_override is not None:
-            model_kwargs["dtype"] = dtype_override
+            model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
