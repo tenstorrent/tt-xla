@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     """Available BiRefNet model variants."""
 
     BIREFNET = "BiRefNet"
-    BIREFNET_PORTRAIT = "BiRefNet-portrait"
+    BIREFNET_HR = "BiRefNet_HR"
 
 
 class ModelLoader(ForgeModel):
@@ -39,8 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BIREFNET: ModelConfig(
             pretrained_model_name="ZhengPeng7/BiRefNet",
         ),
-        ModelVariant.BIREFNET_PORTRAIT: ModelConfig(
-            pretrained_model_name="ZhengPeng7/BiRefNet-portrait",
+        ModelVariant.BIREFNET_HR: ModelConfig(
+            pretrained_model_name="ZhengPeng7/BiRefNet_HR",
         ),
     }
 
@@ -64,7 +64,10 @@ class ModelLoader(ForgeModel):
         )
 
     def _setup_transforms(self):
-        image_size = (1024, 1024)
+        if self._variant == ModelVariant.BIREFNET_HR:
+            image_size = (2048, 2048)
+        else:
+            image_size = (1024, 1024)
         self.transform_image = transforms.Compose(
             [
                 transforms.Resize(image_size),
