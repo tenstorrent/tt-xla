@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     OLM_OCR_7B_0725 = "olmOCR-7B-0725"
     OLM_OCR_7B_0825 = "olmOCR-7B-0825"
     OLM_OCR_2_7B_1025 = "olmOCR-2-7B-1025"
+    OLM_OCR_7B_0825_FP8 = "olmOCR-7B-0825-FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OLM_OCR_2_7B_1025: LLMModelConfig(
             pretrained_model_name="allenai/olmOCR-2-7B-1025",
+        ),
+        ModelVariant.OLM_OCR_7B_0825_FP8: LLMModelConfig(
+            pretrained_model_name="allenai/olmOCR-7B-0825-FP8",
         ),
     }
 
@@ -76,10 +80,16 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        group = ModelGroup.RED
+        if variant in [
+            ModelVariant.OLM_OCR_7B_0825_FP8,
+        ]:
+            group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="olm_ocr",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.CV_IMAGE_TO_TEXT,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
