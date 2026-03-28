@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_VL_7B_INSTRUCT_AWQ = "7B_INSTRUCT_Awq"
     QWEN_2_5_VL_72B_INSTRUCT = "72B_Instruct"
     QWEN_2_5_VL_7B_INSTRUCT_NVFP4 = "7B_Instruct_NVFP4"
+    QWEN_2_5_VL_TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_NVFP4: LLMModelConfig(
             pretrained_model_name="nvidia/Qwen2.5-VL-7B-Instruct-NVFP4",
+        ),
+        ModelVariant.QWEN_2_5_VL_TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-qwen2.5-vl",
         ),
     }
 
@@ -102,7 +106,10 @@ class ModelLoader(ForgeModel):
         """
         if variant == ModelVariant.QWEN_2_5_VL_3B_INSTRUCT:
             group = ModelGroup.RED
-        elif variant == ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_NVFP4:
+        elif variant in (
+            ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_NVFP4,
+            ModelVariant.QWEN_2_5_VL_TINY_RANDOM,
+        ):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
