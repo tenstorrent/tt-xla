@@ -20,38 +20,38 @@ from ...config import (
 )
 
 
-class VibeVoiceDecoderWrapper(nn.Module):
-    """Wrapper around the VibeVoice decoder (Qwen2-based LLM).
+class VibeVoiceQwen2Wrapper(nn.Module):
+    """Wrapper around the VibeVoice Qwen2 LLM backbone.
 
     Exposes a clean forward pass that takes pre-computed input embeddings
-    and produces hidden states from the decoder backbone.
+    and produces hidden states from the Qwen2 decoder.
     """
 
-    def __init__(self, decoder):
+    def __init__(self, model):
         super().__init__()
-        self.decoder = decoder
+        self.model = model
 
     def forward(self, inputs_embeds):
-        outputs = self.decoder(inputs_embeds=inputs_embeds, use_cache=False)
+        outputs = self.model(inputs_embeds=inputs_embeds, use_cache=False)
         return outputs.last_hidden_state
 
 
 class ModelVariant(StrEnum):
     """Available VibeVoice model variants."""
 
-    LARGE = "Large"
+    VIBEVOICE_7B_BNB_4BIT = "7B-bnb-4bit"
 
 
 class ModelLoader(ForgeModel):
     """VibeVoice model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.LARGE: ModelConfig(
-            pretrained_model_name="aoi-ot/VibeVoice-Large",
+        ModelVariant.VIBEVOICE_7B_BNB_4BIT: ModelConfig(
+            pretrained_model_name="marksverdhai/vibevoice-7b-bnb-4bit",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE
+    DEFAULT_VARIANT = ModelVariant.VIBEVOICE_7B_BNB_4BIT
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -68,26 +68,21 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the VibeVoice model and wrap the decoder component."""
-        from transformers import AutoModel
-
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-
-        full_model = AutoModel.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
-            **model_kwargs,
+        from vibevoice.modular.modeling_vibevoice_inference import (
+            VibeVoiceForConditionalGenerationInference,
         )
-        model = VibeVoiceDecoderWrapper(full_model.decoder)
+
+        full_model = VibeVoiceForConditionalGenerationInference.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            device_map="cpu",
+            torch_dtype=dtype_override or torch.bfloat16,
+        )
+        model = VibeVoiceQwen2Wrapper(full_model.model)
         model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Generate synthetic input embeddings for the VibeVoice decoder."""
-        dtype = dtype_override or torch.float32
-        # Decoder hidden_size=3584, use a short sequence of embeddings
+        dtype = dtype_override or torch.bfloat16
+        # Qwen2 backbone hidden_size=3584, use a short sequence of embeddings
         inputs_embeds = torch.randn(1, 32, 3584, dtype=dtype)
         return (inputs_embeds,)
