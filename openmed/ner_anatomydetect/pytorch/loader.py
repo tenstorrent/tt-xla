@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER AnatomyDetect ElectraMed model loader implementation for token classification.
+OpenMed NER AnatomyDetect model loader implementation for token classification.
 """
 
 import torch
@@ -25,14 +25,21 @@ class ModelVariant(StrEnum):
     OPENMED_NER_ANATOMYDETECT_ELECTRAMED_335M = (
         "OpenMed-NER-AnatomyDetect-ElectraMed-335M"
     )
+    OPENMED_NER_ANATOMYDETECT_BIOPATIENT_108M = (
+        "OpenMed-NER-AnatomyDetect-BioPatient-108M"
+    )
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER AnatomyDetect ElectraMed model loader implementation for token classification."""
+    """OpenMed NER AnatomyDetect model loader implementation for token classification."""
 
     _VARIANTS = {
         ModelVariant.OPENMED_NER_ANATOMYDETECT_ELECTRAMED_335M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-ElectraMed-335M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_NER_ANATOMYDETECT_BIOPATIENT_108M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-BioPatient-108M",
             max_length=128,
         ),
     }

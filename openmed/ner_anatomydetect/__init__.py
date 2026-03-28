@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER AnatomyDetect ElectraMed model implementation for Tenstorrent projects.
+OpenMed NER AnatomyDetect model implementation for Tenstorrent projects.
 """
 # Import from the PyTorch implementation by default
 from .pytorch import ModelLoader
