@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available gpt-oss model variants."""
 
     GPT_OSS_20B = "20B"
+    GPT_OSS_20B_UNCENSORED = "20B_uncensored"
     GPT_OSS_120B = "120B"
     GPT_OSS_120B_BNB_4BIT = "120B_bnb_4bit"
 
@@ -36,6 +37,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GPT_OSS_20B: LLMModelConfig(
             pretrained_model_name="openai/gpt-oss-20b",
+            max_length=256,
+        ),
+        ModelVariant.GPT_OSS_20B_UNCENSORED: LLMModelConfig(
+            pretrained_model_name="aoxo/gpt-oss-20b-uncensored",
             max_length=256,
         ),
         ModelVariant.GPT_OSS_120B: LLMModelConfig(
@@ -82,7 +87,10 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        if variant == ModelVariant.GPT_OSS_120B_BNB_4BIT:
+        if variant in (
+            ModelVariant.GPT_OSS_120B_BNB_4BIT,
+            ModelVariant.GPT_OSS_20B_UNCENSORED,
+        ):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
