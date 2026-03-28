@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-HuBERT model loader implementation for audio classification (emotion recognition).
+HuBERT model loader implementation for audio classification (music genre classification).
 """
 
 from typing import Optional
@@ -23,19 +23,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available HuBERT audio classification model variants."""
 
-    LARGE_SUPERB_ER = "Large_Superb_ER"
+    MUSICAL_GENRES_V1 = "Musical_genres_V1"
 
 
 class ModelLoader(ForgeModel):
-    """HuBERT model loader implementation for audio classification (PyTorch)."""
+    """HuBERT model loader implementation for audio classification."""
 
     _VARIANTS = {
-        ModelVariant.LARGE_SUPERB_ER: ModelConfig(
-            pretrained_model_name="superb/hubert-large-superb-er",
+        ModelVariant.MUSICAL_GENRES_V1: ModelConfig(
+            pretrained_model_name="SeyedAli/Musical-genres-Classification-Hubert-V1",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE_SUPERB_ER
+    DEFAULT_VARIANT = ModelVariant.MUSICAL_GENRES_V1
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
