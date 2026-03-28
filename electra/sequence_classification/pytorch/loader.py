@@ -2,11 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ELECTRA model loader implementation for sequence classification task.
+ELECTRA model loader implementation for sequence classification (suicidality detection).
 """
 
-import torch
-from transformers import ElectraForSequenceClassification, ElectraTokenizerFast
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -20,42 +19,39 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ELECTRA sequence classification model variants."""
+    """Available ELECTRA model variants for sequence classification."""
 
-    CIRCULUS_KOELECTRA_ACT_V1 = "circulus_KoELECTRA_Act_v1"
+    SUICIDALITY = "Suicidality"
 
 
 class ModelLoader(ForgeModel):
-    """ELECTRA model loader implementation for sequence classification task."""
+    """ELECTRA model loader implementation for sequence classification."""
 
     _VARIANTS = {
-        ModelVariant.CIRCULUS_KOELECTRA_ACT_V1: LLMModelConfig(
-            pretrained_model_name="circulus/koelectra-act-v1",
+        ModelVariant.SUICIDALITY: LLMModelConfig(
+            pretrained_model_name="sentinet/suicidality",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CIRCULUS_KOELECTRA_ACT_V1
-
-    _SAMPLE_TEXTS = {
-        ModelVariant.CIRCULUS_KOELECTRA_ACT_V1: "오늘 날씨가 정말 좋네요.",
-    }
+    DEFAULT_VARIANT = ModelVariant.SUICIDALITY
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = self._SAMPLE_TEXTS.get(self._variant, "오늘 날씨가 정말 좋네요.")
         self.tokenizer = None
         self.model = None
+        self.sample_text = "I am feeling great and looking forward to the weekend!"
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name: str = None):
+        if variant_name is None:
+            variant_name = "base"
+
         return ModelInfo(
             model="ELECTRA",
-            variant=variant,
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -63,14 +59,14 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = ElectraTokenizerFast.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = ElectraForSequenceClassification.from_pretrained(
+        self.model = AutoModelForSequenceClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
         self.model.eval()
@@ -91,11 +87,13 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
-        logits = co_out[0]
-        probabilities = torch.sigmoid(logits)
-        predicted_labels = (probabilities > 0.5).int()
-
-        for idx, label_active in enumerate(predicted_labels[0]):
-            if label_active:
-                label_name = self.model.config.id2label.get(idx, f"LABEL_{idx}")
-                print(f"Predicted: {label_name} (prob: {probabilities[0][idx]:.4f})")
+        predicted_class_id = co_out[0].argmax().item()
+        if (
+            self.model
+            and hasattr(self.model, "config")
+            and hasattr(self.model.config, "id2label")
+        ):
+            predicted_label = self.model.config.id2label[predicted_class_id]
+            print(f"Predicted label: {predicted_label}")
+        else:
+            print(f"Predicted class ID: {predicted_class_id}")
