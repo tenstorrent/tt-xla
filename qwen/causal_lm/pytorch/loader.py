@@ -5,7 +5,6 @@
 Qwen Causal LM model loader implementation
 """
 
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
