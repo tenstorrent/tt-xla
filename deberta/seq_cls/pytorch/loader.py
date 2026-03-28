@@ -22,9 +22,7 @@ class ModelVariant(StrEnum):
     """Available DeBERTa model variants for sequence classification."""
 
     DEBERTA_XLARGE_MNLI = "XLarge_MNLI"
-    DEBERTA_V3_XSMALL_MNLI_FEVER_ANLI_LING_BINARY = (
-        "v3_xsmall_mnli_fever_anli_ling_binary"
-    )
+    DEBERTA_V2_XLARGE_MNLI = "V2_XLarge_MNLI"
 
 
 class ModelLoader(ForgeModel):
@@ -34,8 +32,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.DEBERTA_XLARGE_MNLI: ModelConfig(
             pretrained_model_name="microsoft/deberta-xlarge-mnli",
         ),
-        ModelVariant.DEBERTA_V3_XSMALL_MNLI_FEVER_ANLI_LING_BINARY: ModelConfig(
-            pretrained_model_name="MoritzLaurer/DeBERTa-v3-xsmall-mnli-fever-anli-ling-binary",
+        ModelVariant.DEBERTA_V2_XLARGE_MNLI: ModelConfig(
+            pretrained_model_name="microsoft/deberta-v2-xlarge-mnli",
         ),
     }
 
