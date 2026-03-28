@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -13,7 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    ModelConfig,
+    LLMModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -25,26 +25,26 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available EuroLLM model variants."""
 
-    EUROLLM_9B_INSTRUCT_2512 = "9B_Instruct_2512"
+    EUROLLM_1_7B_INSTRUCT = "1.7B_Instruct"
 
 
 class ModelLoader(ForgeModel):
     """EuroLLM model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.EUROLLM_9B_INSTRUCT_2512: ModelConfig(
-            pretrained_model_name="utter-project/EuroLLM-9B-Instruct-2512",
+        ModelVariant.EUROLLM_1_7B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="utter-project/EuroLLM-1.7B-Instruct",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.EUROLLM_9B_INSTRUCT_2512
+    DEFAULT_VARIANT = ModelVariant.EUROLLM_1_7B_INSTRUCT
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
         self.num_layers = num_layers
 
     @classmethod
@@ -69,7 +69,8 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            pretrained_model_name,
+            **tokenizer_kwargs,
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -96,16 +97,31 @@ class ModelLoader(ForgeModel):
         ).eval()
 
         self.config = model.config
-        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        test_input = "What is the capital of France?"
+        max_length = self._variant_config.max_length
 
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        messages = [
+            {
+                "role": "user",
+                "content": "Translate the following English text to French: The weather is nice today.",
+            },
+        ]
+        text = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+
+        inputs = self.tokenizer(
+            [text],
+            return_tensors="pt",
+            padding="max_length",
+            truncation=True,
+            max_length=max_length,
+        )
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
@@ -123,6 +139,6 @@ class ModelLoader(ForgeModel):
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
+            self._variant_config.pretrained_model_name,
         )
         return self.config
