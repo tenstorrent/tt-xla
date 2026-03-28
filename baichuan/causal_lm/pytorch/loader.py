@@ -25,19 +25,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Baichuan model variants."""
 
-    TINY_RANDOM_BAICHUAN2_13B = "tiny_random_Baichuan2_13B"
+    BAICHUAN_13B_CHAT = "13B_Chat"
 
 
 class ModelLoader(ForgeModel):
     """Baichuan model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM_BAICHUAN2_13B: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-baichuan2-13b",
+        ModelVariant.BAICHUAN_13B_CHAT: ModelConfig(
+            pretrained_model_name="baichuan-inc/Baichuan-13B-Chat",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM_BAICHUAN2_13B
+    DEFAULT_VARIANT = ModelVariant.BAICHUAN_13B_CHAT
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -69,7 +69,10 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **tokenizer_kwargs
+            pretrained_model_name,
+            use_fast=False,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -81,7 +84,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -94,7 +97,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **model_kwargs
+            pretrained_model_name, **model_kwargs
         ).eval()
 
         self.config = model.config
