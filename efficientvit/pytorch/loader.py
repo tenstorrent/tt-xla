@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-EfficientViT model loader implementation
+EfficientViT model loader implementation (timm variants)
 """
 
 from typing import Optional
-from dataclasses import dataclass
+
 import timm
+from timm.data import resolve_data_config
+from timm.data.transforms_factory import create_transform
 
 from ...config import (
     ModelConfig,
@@ -19,116 +21,76 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import (
-    VisionPreprocessor,
-    VisionPostprocessor,
-)
 from datasets import load_dataset
-
-
-@dataclass
-class EfficientViTConfig(ModelConfig):
-    """Configuration specific to EfficientViT models"""
-
-    source: ModelSource
+from ...tools.utils import print_compiled_model_results
 
 
 class ModelVariant(StrEnum):
-    """Available EfficientViT model variants."""
+    """Available EfficientViT model variants (timm)."""
 
-    EFFICIENTVIT_L2_R384_IN1K = "EfficientViT_L2_r384_IN1K"
+    EFFICIENTVIT_B2_R224_IN1K = "EfficientViT_B2.r224_in1k"
 
 
 class ModelLoader(ForgeModel):
     """EfficientViT model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.EFFICIENTVIT_L2_R384_IN1K: EfficientViTConfig(
-            pretrained_model_name="hf_hub:timm/efficientvit_l2.r384_in1k",
-            source=ModelSource.TIMM,
+        ModelVariant.EFFICIENTVIT_B2_R224_IN1K: ModelConfig(
+            pretrained_model_name="efficientvit_b2.r224_in1k",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.EFFICIENTVIT_L2_R384_IN1K
-
-    def __init__(self, variant: Optional[ModelVariant] = None):
-        super().__init__(variant)
-        self.model = None
-        self._preprocessor = None
-        self._postprocessor = None
+    DEFAULT_VARIANT = ModelVariant.EFFICIENTVIT_B2_R224_IN1K
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-
-        source = cls._VARIANTS[variant].source
-
         return ModelInfo(
             model="EfficientViT",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_IMAGE_CLS,
-            source=source,
+            source=ModelSource.TIMM,
             framework=Framework.TORCH,
         )
 
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        super().__init__(variant)
+        self._cached_model = None
+
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
-
         model = timm.create_model(model_name, pretrained=True)
         model.eval()
-
-        self.model = model
-
-        if self._preprocessor is not None:
-            self._preprocessor.set_cached_model(model)
-
-        if self._postprocessor is not None:
-            self._postprocessor.set_model_instance(model)
 
         if dtype_override is not None:
             model = model.to(dtype_override)
 
+        # cache for input transform config
+        self._cached_model = model
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
-        if image is None:
-            dataset = load_dataset("huggingface/cats-image", split="test")
-            image = dataset[0]["image"]
+    def load_inputs(self, dtype_override=None, batch_size: int = 1):
+        # Load image from HuggingFace dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"].convert("RGB")
 
-        if self._preprocessor is None:
-            model_name = self._variant_config.pretrained_model_name
-            source = self._variant_config.source
-
-            self._preprocessor = VisionPreprocessor(
-                model_source=source,
-                model_name=model_name,
-            )
-
-            if hasattr(self, "model") and self.model is not None:
-                self._preprocessor.set_cached_model(self.model)
-
-        model_for_config = None
-        if hasattr(self, "model") and self.model is not None:
-            model_for_config = self.model
-
-        return self._preprocessor.preprocess(
-            image=image,
-            dtype_override=dtype_override,
-            batch_size=batch_size,
-            model_for_config=model_for_config,
+        # Use cached model if available, otherwise load it
+        model_for_config = (
+            self._cached_model
+            if self._cached_model is not None
+            else self.load_model(dtype_override=dtype_override)
         )
 
-    def output_postprocess(self, output):
-        if self._postprocessor is None:
-            model_name = self._variant_config.pretrained_model_name
-            source = self._variant_config.source
+        data_config = resolve_data_config({}, model=model_for_config)
+        data_transforms = create_transform(**data_config)
+        inputs = data_transforms(image).unsqueeze(0)
+        inputs = inputs.repeat_interleave(batch_size, dim=0)
 
-            self._postprocessor = VisionPostprocessor(
-                model_source=source,
-                model_name=model_name,
-                model_instance=self.model,
-            )
+        if dtype_override is not None:
+            inputs = inputs.to(dtype_override)
+        return inputs
 
-        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
+    def print_cls_results(self, compiled_model_out):
+        print_compiled_model_results(compiled_model_out)
