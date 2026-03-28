@@ -39,7 +39,6 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -53,9 +52,12 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        from surya.model.recognition.model import load_model as load_rec_model
+        from surya.foundation import FoundationPredictor
+        from surya.recognition import RecognitionPredictor
 
-        model = load_rec_model()
+        foundation_predictor = FoundationPredictor(device="cpu")
+        rec_predictor = RecognitionPredictor(foundation_predictor)
+        model = rec_predictor.model
         model.eval()
 
         if dtype_override is not None:
@@ -64,18 +66,14 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        from surya.model.recognition.processor import (
-            load_processor as load_rec_processor,
-        )
-
-        self.processor = load_rec_processor()
-
         image = Image.new("RGB", (896, 196), color=(255, 255, 255))
-        processed = self.processor([image])
-        pixel_values = processed["pixel_values"]
 
-        if not isinstance(pixel_values, torch.Tensor):
-            pixel_values = torch.tensor(pixel_values)
+        # Normalize to [-1, 1] matching surya's image processor (mean=0.5, std=0.5)
+        pixel_values = torch.tensor(list(image.getdata()), dtype=torch.float32).reshape(
+            1, 196, 896, 3
+        )
+        pixel_values = pixel_values.permute(0, 3, 1, 2) / 255.0
+        pixel_values = (pixel_values - 0.5) / 0.5
 
         if dtype_override is not None:
             pixel_values = pixel_values.to(dtype_override)
