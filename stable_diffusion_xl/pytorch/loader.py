@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     TINY_RANDOM_STABLE_DIFFUSION_XL = "tiny-random-stable-diffusion-xl"
     DVINE82_XL = "dvine82-xl"
     PREFECT_ILLUSTRIOUS_XL_V15 = "prefect-illustrious-xl-v15"
+    CYBER_REALISTIC_PONY = "cyber-realistic-pony"
 
 
 class ModelLoader(ForgeModel):
@@ -46,6 +47,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.PREFECT_ILLUSTRIOUS_XL_V15: ModelConfig(
             pretrained_model_name="John6666/prefect-illustrious-xl-v15-sdxl",
+        ),
+        ModelVariant.CYBER_REALISTIC_PONY: ModelConfig(
+            pretrained_model_name="cyberdelia/CyberRealisticPony",
         ),
     }
 
@@ -83,6 +87,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL,
             ModelVariant.DVINE82_XL,
             ModelVariant.PREFECT_ILLUSTRIOUS_XL_V15,
+            ModelVariant.CYBER_REALISTIC_PONY,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
