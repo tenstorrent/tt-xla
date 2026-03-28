@@ -81,8 +81,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # Unsloth BNB 4-bit quantized variants
-    LLAMA_3_2_3B_INSTRUCT_BNB_4BIT = "3.2_3B_Instruct_Bnb_4bit"
+    # qiaw99 DPO fine-tuned variants
+    LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO = "3.1_8B_Instruct_OpenbookQA_DPO"
 
 
 class ModelLoader(ForgeModel):
@@ -199,9 +199,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # Unsloth BNB 4-bit quantized variants
-        ModelVariant.LLAMA_3_2_3B_INSTRUCT_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Llama-3.2-3B-Instruct-unsloth-bnb-4bit",
+        # qiaw99 DPO fine-tuned variants
+        ModelVariant.LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO: LLMModelConfig(
+            pretrained_model_name="qiaw99/Llama3.1-8B-Instruct-OpenbookQA-DPO-C-G-sequential",
             max_length=128,
         ),
     }
@@ -248,6 +248,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_NVFP4,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_UNSLOTH_BNB_4BIT,
+            ModelVariant.LLAMA_3_1_8B_INSTRUCT_OPENBOOKQA_DPO,
         ]:
             group = ModelGroup.VULCAN
         elif (
