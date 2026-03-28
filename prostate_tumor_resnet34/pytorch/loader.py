@@ -5,7 +5,6 @@
 Prostate Tumor ResNet34 model loader implementation for image classification
 """
 
-import torch
 from torchvision import models, transforms
 from typing import Optional
 from safetensors.torch import load_file
