@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available Yi 1.5 model variants."""
 
     YI_1_5_34B_CHAT = "1.5_34B_Chat"
+    YI_1_5_34B_CHAT_16K = "1.5_34B_Chat_16K"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.YI_1_5_34B_CHAT: LLMModelConfig(
             pretrained_model_name="01-ai/Yi-1.5-34B-Chat",
+            max_length=256,
+        ),
+        ModelVariant.YI_1_5_34B_CHAT_16K: LLMModelConfig(
+            pretrained_model_name="01-ai/Yi-1.5-34B-Chat-16K",
             max_length=256,
         ),
     }
