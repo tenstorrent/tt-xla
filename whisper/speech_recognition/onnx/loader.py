@@ -1,14 +1,17 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 """
-Whisper ONNX model loader for speech recognition (ASR).
+Whisper ONNX model loader implementation for speech recognition (ASR).
 """
+
+from typing import Optional
 
 import numpy as np
 import onnx
 from huggingface_hub import hf_hub_download
-from transformers import WhisperProcessor
+from transformers import WhisperProcessor, WhisperConfig
 
 from ....base import ForgeModel
 from ....config import (
@@ -20,32 +23,47 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from typing import Optional
 
 
 class ModelVariant(StrEnum):
     """Available Whisper ONNX speech recognition model variants."""
 
-    BASE_EN = "Base_en"
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
-    """Whisper ONNX model loader for speech recognition (ASR)."""
+    """Whisper ONNX model loader implementation for speech recognition (ASR)."""
 
     _VARIANTS = {
-        ModelVariant.BASE_EN: ModelConfig(
-            pretrained_model_name="Xenova/whisper-base.en",
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="onnx-community/whisper-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE_EN
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self._processor = None
+        self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
@@ -59,34 +77,29 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, **kwargs):
-        """Download and load the Whisper encoder ONNX model from Hugging Face.
+        """Load and return the Whisper ONNX encoder model.
 
         Returns:
             onnx.ModelProto: The loaded ONNX encoder model.
         """
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         encoder_path = hf_hub_download(
-            pretrained_model_name, filename="onnx/encoder_model.onnx"
+            self._model_name, filename="onnx/encoder_model.onnx"
         )
         model = onnx.load(encoder_path)
-
         return model
 
     def load_inputs(self, **kwargs):
-        """Generate sample inputs for the Whisper ONNX encoder model.
+        """Load and return sample inputs for the Whisper ONNX encoder model.
 
         Returns:
-            numpy.ndarray: Input features array suitable for the ONNX encoder.
+            numpy.ndarray: Input features array for the encoder.
         """
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         if self._processor is None:
-            self._processor = WhisperProcessor.from_pretrained(pretrained_model_name)
+            self._processor = WhisperProcessor.from_pretrained(self._model_name)
 
-        # Generate synthetic 1-second audio at 16kHz
+        # Generate synthetic 30-second audio at 16kHz
         sampling_rate = 16000
-        duration_seconds = 1
+        duration_seconds = 30
         audio_array = np.random.randn(sampling_rate * duration_seconds).astype(
             np.float32
         )
