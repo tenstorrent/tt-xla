@@ -93,6 +93,8 @@ class ModelLoader(ForgeModel):
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self._classifier = None
+        self._X_train = None
+        self._y_train = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -117,9 +119,9 @@ class ModelLoader(ForgeModel):
 
         self._classifier = SAP_RPT_OSS_Classifier(max_context_size=2048, bagging=1)
 
-        X_train = pd.DataFrame(self._SAMPLE_TRAIN_DATA)
-        y_train = np.array(self._SAMPLE_TRAIN_LABELS)
-        self._classifier.fit(X_train, y_train)
+        self._X_train = pd.DataFrame(self._SAMPLE_TRAIN_DATA)
+        self._y_train = np.array(self._SAMPLE_TRAIN_LABELS)
+        self._classifier.fit(self._X_train, self._y_train)
 
         wrapper = SapRptWrapper(self._classifier.model)
         wrapper.eval()
@@ -134,11 +136,9 @@ class ModelLoader(ForgeModel):
         if self._classifier is None:
             self.load_model(dtype_override=dtype_override)
 
-        X_train = pd.DataFrame(self._SAMPLE_TRAIN_DATA)
-        y_train = np.array(self._SAMPLE_TRAIN_LABELS)
         X_test = pd.DataFrame(self._SAMPLE_TEST_DATA)
 
-        tokenized = self._classifier.tokenize(X_train, y_train, X_test)
+        tokenized = self._classifier.tokenize(self._X_train, self._y_train, X_test)
 
         dtype = dtype_override if dtype_override is not None else torch.float32
 
