@@ -27,9 +27,8 @@ class ModelVariant(StrEnum):
         "nlptown_Bert_Base_Multilingual_Uncased_Sentiment"
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
-    SNUNLP_KR_FINBERT_SC = "snunlp_KR_FinBert_SC"
-    NEURALY_BERT_BASE_ITALIAN_CASED_SENTIMENT = (
-        "neuraly_Bert_Base_Italian_Cased_Sentiment"
+    SHAHRUKHX01_QUESTION_VS_STATEMENT_CLASSIFIER = (
+        "shahrukhx01_Question_vs_Statement_Classifier"
     )
 
 
@@ -54,12 +53,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tomh/toxigen_hatebert",
             max_length=128,
         ),
-        ModelVariant.SNUNLP_KR_FINBERT_SC: LLMModelConfig(
-            pretrained_model_name="snunlp/KR-FinBert-SC",
-            max_length=128,
-        ),
-        ModelVariant.NEURALY_BERT_BASE_ITALIAN_CASED_SENTIMENT: LLMModelConfig(
-            pretrained_model_name="neuraly/bert-base-italian-cased-sentiment",
+        ModelVariant.SHAHRUKHX01_QUESTION_VS_STATEMENT_CLASSIFIER: LLMModelConfig(
+            pretrained_model_name="shahrukhx01/question-vs-statement-classifier",
             max_length=128,
         ),
     }
@@ -78,8 +73,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PROSUSAI_FINBERT: "Stocks rallied and the S&P 500 gained 3.1% on the day.",
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
-        ModelVariant.SNUNLP_KR_FINBERT_SC: "삼성전자 주가가 오늘 3% 상승했다.",
-        ModelVariant.NEURALY_BERT_BASE_ITALIAN_CASED_SENTIMENT: "Il film era fantastico, mi è piaciuto molto!",
+        ModelVariant.SHAHRUKHX01_QUESTION_VS_STATEMENT_CLASSIFIER: "What is the capital of France?",
     }
 
     def __init__(self, variant=None):
@@ -115,8 +109,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PROSUSAI_FINBERT,
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
-            ModelVariant.SNUNLP_KR_FINBERT_SC,
-            ModelVariant.NEURALY_BERT_BASE_ITALIAN_CASED_SENTIMENT,
+            ModelVariant.SHAHRUKHX01_QUESTION_VS_STATEMENT_CLASSIFIER,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
