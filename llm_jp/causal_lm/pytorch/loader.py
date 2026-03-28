@@ -4,11 +4,11 @@
 """
 LLM-jp model loader implementation for causal language modeling.
 """
-
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
-from typing import Optional
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from typing import Optional
 
+from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -18,30 +18,25 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
-from ....tools.utils import (
-    pad_inputs,
-    cast_input_to_type,
-)
 
 
 class ModelVariant(StrEnum):
-    """Available LLM-jp model variants for causal LM."""
+    """Available LLM-jp model variants for causal language modeling."""
 
-    LLMJP_3_1_13B_INSTRUCT4 = "3.1_13B_Instruct4"
+    LLMJP_3_1_13B = "3.1_13B"
 
 
 class ModelLoader(ForgeModel):
     """LLM-jp model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LLMJP_3_1_13B_INSTRUCT4: LLMModelConfig(
-            pretrained_model_name="llm-jp/llm-jp-3.1-13b-instruct4",
+        ModelVariant.LLMJP_3_1_13B: LLMModelConfig(
+            pretrained_model_name="llm-jp/llm-jp-3.1-13b",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LLMJP_3_1_13B_INSTRUCT4
+    DEFAULT_VARIANT = ModelVariant.LLMJP_3_1_13B
 
     sample_text = "Hey how are you doing today?"
 
@@ -50,15 +45,11 @@ class ModelLoader(ForgeModel):
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.seq_len = None
         self.config = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="LLM-jp",
             variant=variant,
@@ -69,21 +60,19 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
-    def load_model(self, *, dtype_override=None, num_layers=None, **kwargs):
+    def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
@@ -101,64 +90,48 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        if num_layers is not None:
-            model.model.layers = model.model.layers[:num_layers]
+        ).eval()
 
-        model.eval()
-        self.model = model
         self.config = model.config
-
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
+        max_length = self._variant_config.max_length
+
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
         )
 
         for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        if dtype_override is not None:
-            for key in inputs:
-                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
-
-        target_len = self._variant_config.max_length
-        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], target_len)
-        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], target_len)
-        self.seq_len = seq_len
-
-        inputs["input_ids"] = padded_input_ids
-        inputs["attention_mask"] = padded_attention_mask
         return inputs
 
-    def decode_output(self, max_new_tokens, model, inputs, tokenizer):
-        current_pos = self.seq_len
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
 
-        for _ in range(max_new_tokens):
-            logits = model(*inputs)
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
-            if isinstance(logits, (list, tuple)):
-                logits = logits[0]
-
-            next_token_logits = logits[:, current_pos - 1, :]
-            next_token_id = torch.argmax(next_token_logits, dim=-1)
-
-            if next_token_id.item() == tokenizer.eos_token_id:
-                break
-
-            inputs[0][:, current_pos] = next_token_id
-            inputs[1][:, current_pos] = 1
-
-            current_pos += 1
-
-        valid_tokens = inputs[0][:, self.seq_len : current_pos].view(-1).tolist()
-        answer = tokenizer.decode(valid_tokens, skip_special_tokens=True)
-        return answer
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
