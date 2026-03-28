@@ -60,6 +60,7 @@ class ModelVariant(StrEnum):
     LLAMA_3_3_70B_INSTRUCT_MLX_4BIT = "3.3_70B_Instruct_MLX_4bit"
 
     # RedHatAI FP8 quantized variants
+    LLAMA_3_8B_INSTRUCT_FP8_KV = "3.0_8B_Instruct_FP8_KV"
     LLAMA_3_1_70B_INSTRUCT_FP8 = "3.1_70B_Instruct_FP8"
     LLAMA_3_2_1B_INSTRUCT_FP8 = "3.2_1B_Instruct_FP8"
     LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC = "3.2_1B_Instruct_FP8_Dynamic"
@@ -201,6 +202,10 @@ class ModelLoader(ForgeModel):
             max_length=128,
         ),
         # RedHatAI FP8 quantized variants
+        ModelVariant.LLAMA_3_8B_INSTRUCT_FP8_KV: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Meta-Llama-3-8B-Instruct-FP8-KV",
+            max_length=128,
+        ),
         ModelVariant.LLAMA_3_1_70B_INSTRUCT_FP8: LLMModelConfig(
             pretrained_model_name="RedHatAI/Meta-Llama-3.1-70B-Instruct-FP8",
             max_length=128,
@@ -324,6 +329,7 @@ class ModelLoader(ForgeModel):
 
         # Set group based on variant (instruct variants are RED priority except llama_3_8b_instruct and llama_3_1_405b_instruct variant)
         if variant in [
+            ModelVariant.LLAMA_3_8B_INSTRUCT_FP8_KV,
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.LLAMA_3_1_70B_INSTRUCT_FP8_DYNAMIC,
