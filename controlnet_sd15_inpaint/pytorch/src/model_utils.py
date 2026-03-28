@@ -161,7 +161,9 @@ def controlnet_sd15_inpaint_preprocessing(
     )
 
     # 3. Prepare latent variables
-    num_channels_latents = pipe.unet.config.in_channels
+    num_channels_latents = (
+        4  # noise latent channels only, not full in_channels (9 for inpaint UNet)
+    )
     torch.manual_seed(42)
     latents = torch.randn(
         (
