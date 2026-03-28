@@ -5,12 +5,8 @@
 PornmasterPro noobV3VAE model loader implementation
 """
 
-import torch
-from typing import Optional
-
 from ...base import ForgeModel
 from ...config import (
-    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
