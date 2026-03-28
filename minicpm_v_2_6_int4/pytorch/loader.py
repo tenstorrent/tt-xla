@@ -143,7 +143,7 @@ class ModelLoader(ForgeModel):
         if config.sample_image_url:
             try:
                 response = requests.get(config.sample_image_url)
-                image = Image.open(BytesIO(response.content))
+                image = Image.open(BytesIO(response.content)).convert("RGB")
             except Exception:
                 image = Image.new("RGB", (512, 512), color="white")
         else:
