@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-XLM-RoBERTa model loader implementation for sequence classification (sentiment analysis).
+XLM-RoBERTa model loader implementation for sequence classification.
 """
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     TEXTDETOX_XLMR_LARGE_TOXICITY_CLASSIFIER = (
         "textdetox/xlmr-large-toxicity-classifier"
     )
+    CLASSLA_XLM_ROBERTA_BASE_MULTILINGUAL_TEXT_GENRE_CLASSIFIER = (
+        "classla/xlm-roberta-base-multilingual-text-genre-classifier"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +42,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="textdetox/xlmr-large-toxicity-classifier",
             max_length=128,
         ),
+        ModelVariant.CLASSLA_XLM_ROBERTA_BASE_MULTILINGUAL_TEXT_GENRE_CLASSIFIER: LLMModelConfig(
+            pretrained_model_name="classla/xlm-roberta-base-multilingual-text-genre-classifier",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT
@@ -46,6 +53,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
         ModelVariant.TEXTDETOX_XLMR_LARGE_TOXICITY_CLASSIFIER: "This is a friendly message.",
+        ModelVariant.CLASSLA_XLM_ROBERTA_BASE_MULTILINGUAL_TEXT_GENRE_CLASSIFIER: "The court ruled that the defendant was guilty of fraud.",
     }
 
     def __init__(self, variant=None):
@@ -109,6 +117,6 @@ class ModelLoader(ForgeModel):
         model = framework_model if framework_model is not None else self.model
         if model and hasattr(model, "config") and hasattr(model.config, "id2label"):
             predicted_category = model.config.id2label[predicted_class_id]
-            print(f"Predicted Sentiment: {predicted_category}")
+            print(f"Predicted Category: {predicted_category}")
         else:
             print(f"Predicted class ID: {predicted_class_id}")
