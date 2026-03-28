@@ -31,6 +31,9 @@ class ModelVariant(StrEnum):
         "OpenMed/OpenMed-NER-OrganismDetect-ModernClinical-149M"
     )
     NER_GENOMEDETECT_BIOMED_109M = "OpenMed/OpenMed-NER-GenomeDetect-BioMed-109M"
+    NER_ANATOMYDETECT_MODERNMED_395M = (
+        "OpenMed/OpenMed-NER-AnatomyDetect-ModernMed-395M"
+    )
     PII_ITALIAN_BIOCLINICALMODERN_BASE_149M = (
         "OpenMed/OpenMed-PII-Italian-BioClinicalModern-Base-149M-v1"
     )
@@ -51,6 +54,9 @@ _VARIANT_SAMPLE_TEXTS = {
     ),
     ModelVariant.NER_ORGANISMDETECT_MODERNCLINICAL_149M: (
         "Caenorhabditis elegans is a model organism for genetic studies."
+    ),
+    ModelVariant.NER_ANATOMYDETECT_MODERNMED_395M: (
+        "The patient complained of pain in the left ventricle region."
     ),
     ModelVariant.PII_ITALIAN_BIOCLINICALMODERN_BASE_149M: (
         "Il paziente Mario Rossi, nato il 15 marzo 1980, è stato ricoverato presso l'Ospedale San Raffaele di Milano."
@@ -80,6 +86,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NER_GENOMEDETECT_BIOMED_109M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-GenomeDetect-BioMed-109M",
+            max_length=128,
+        ),
+        ModelVariant.NER_ANATOMYDETECT_MODERNMED_395M: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-ModernMed-395M",
             max_length=128,
         ),
         ModelVariant.PII_ITALIAN_BIOCLINICALMODERN_BASE_149M: LLMModelConfig(
