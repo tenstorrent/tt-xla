@@ -10,7 +10,7 @@ from peft import PeftModel
 from typing import Optional
 
 from ....config import (
-    LLMModelConfig,
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -24,20 +24,19 @@ from ....base import ForgeModel
 class ModelVariant(StrEnum):
     """Available Gemma3-4b-it-OpenbookQA-DPO model variants for causal LM."""
 
-    GEMMA3_4B_IT_OPENBOOKQA_DPO_G_V1 = "Gemma3_4b_it_OpenbookQA_DPO_G_v1"
+    GEMMA3_4B_IT_OPENBOOKQA_DPO_F_V1 = "Gemma3_4b_it_OpenbookQA_DPO_F_v1"
 
 
 class ModelLoader(ForgeModel):
     """Gemma3-4b-it-OpenbookQA-DPO model loader for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GEMMA3_4B_IT_OPENBOOKQA_DPO_G_V1: LLMModelConfig(
-            pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-DPO-G-v1",
-            max_length=128,
+        ModelVariant.GEMMA3_4B_IT_OPENBOOKQA_DPO_F_V1: ModelConfig(
+            pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-DPO-F-v1",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GEMMA3_4B_IT_OPENBOOKQA_DPO_G_V1
+    DEFAULT_VARIANT = ModelVariant.GEMMA3_4B_IT_OPENBOOKQA_DPO_F_V1
 
     BASE_MODEL_NAME = "google/gemma-3-4b-it"
 
@@ -122,7 +121,7 @@ class ModelLoader(ForgeModel):
         inputs = self.tokenizer(
             input_text,
             return_tensors="pt",
-            max_length=self._variant_config.max_length,
+            max_length=128,
             padding="max_length",
             truncation=True,
         )
