@@ -26,18 +26,21 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM = "ZeroShot-NER-Disease-Medium-209M"
     OPENMED_ZEROSHOT_NER_CHEMICAL_LARGE = "ZeroShot-NER-Chemical-Large-459M"
+    OPENMED_ZEROSHOT_NER_PATHOLOGY_BASE = "ZeroShot-NER-Pathology-Base-220M"
 
 
 _VARIANT_SAMPLE_TEXTS = {
     ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
     ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM: "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
     ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_LARGE: "The patient was administered acetylsalicylic acid for pain relief.",
+    ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_BASE: "Early detection of breast cancer improves survival rates.",
 }
 
 _VARIANT_LABELS = {
     ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ["SPECIES"],
     ModelVariant.OPENMED_ZEROSHOT_NER_DISEASE_MEDIUM: ["DISEASE"],
     ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_LARGE: ["CHEM"],
+    ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_BASE: ["DISEASE"],
 }
 
 
@@ -62,6 +65,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_LARGE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Chemical-Large-459M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_BASE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Base-220M"
         ),
     }
 
