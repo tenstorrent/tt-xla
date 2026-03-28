@@ -37,7 +37,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="apple/OpenELM-450M-Instruct",
         ),
         ModelVariant.OPENELM_1_1B_INSTRUCT: ModelConfig(
-            pretrained_model_name="apple/OpenELM-1_1B-Instruct",
+            pretrained_model_name="apple/OpenELM-1.1B-Instruct",
         ),
         ModelVariant.OPENELM_3B_INSTRUCT: ModelConfig(
             pretrained_model_name="apple/OpenELM-3B-Instruct",
