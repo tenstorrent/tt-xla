@@ -25,6 +25,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Yi model variants."""
 
+    YI_1_5_6B_CHAT = "1.5_6B_Chat"
     YI_9B = "9B"
 
 
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     """Yi model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.YI_1_5_6B_CHAT: ModelConfig(
+            pretrained_model_name="01-ai/Yi-1.5-6B-Chat",
+        ),
         ModelVariant.YI_9B: ModelConfig(
             pretrained_model_name="01-ai/Yi-9B",
         ),
