@@ -20,7 +20,7 @@ from ...base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    OPENMED_ZEROSHOT_NER_ANATOMY_SMALL = "ZeroShot-NER-Anatomy-Small-166M"
+    OPENMED_ZEROSHOT_NER_CHEMICAL_TINY = "ZeroShot-NER-Chemical-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
     OPENMED_ZEROSHOT_NER_ANATOMY_MEDIUM = "ZeroShot-NER-Anatomy-Medium-209M"
     OPENMED_ZEROSHOT_NER_ANATOMY_MULTI = "ZeroShot-NER-Anatomy-Multi-209M"
@@ -49,8 +49,8 @@ class ModelLoader(ForgeModel):
     """OpenMed model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Anatomy-Small-166M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_TINY: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Chemical-Tiny-60M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
@@ -113,10 +113,13 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        variant_input = self._VARIANT_INPUTS[self._variant]
-        text = variant_input["text"]
+        if self._variant == ModelVariant.OPENMED_ZEROSHOT_NER_CHEMICAL_TINY:
+            text = "The patient was administered acetylsalicylic acid for pain relief."
+            labels = ["CHEM"]
+        else:
+            text = "Escherichia coli and Staphylococcus aureus were isolated from the patient samples."
+            labels = ["SPECIES"]
         self.text = [text]
-        labels = variant_input["labels"]
         entity_types = list(dict.fromkeys(labels))
 
         (
