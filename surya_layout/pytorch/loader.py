@@ -51,6 +51,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self._transform = transforms.Compose([transforms.ToTensor()])
         self.image_tensor = None
+        self.images: List[Image.Image] = []
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -93,7 +94,7 @@ class ModelLoader(ForgeModel):
         image_tensor = self._transform(image)
         image_tensor = torch.stack([image_tensor])
 
-        self.images: List[Image.Image] = [image]
+        self.images = [image]
 
         if batch_size > 1:
             image_tensor = image_tensor.repeat_interleave(batch_size, dim=0)
