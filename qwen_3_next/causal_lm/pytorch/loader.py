@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Next model variants for causal language modeling."""
 
     QWEN_3_NEXT_80B_A3B_INSTRUCT = "80B_A3B_Instruct"
+    QWEN_3_NEXT_80B_A3B_THINKING = "80B_A3B_Thinking"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_NEXT_80B_A3B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-Next-80B-A3B-Thinking",
             max_length=128,
         ),
     }
@@ -86,7 +91,14 @@ class ModelLoader(ForgeModel):
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
+            if hasattr(config, "text_config"):
+                config.text_config.num_hidden_layers = self.num_layers
+                if hasattr(config.text_config, "layer_types"):
+                    config.text_config.layer_types = config.text_config.layer_types[
+                        : self.num_layers
+                    ]
+            else:
+                config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
@@ -104,10 +116,12 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         messages = [{"role": "user", "content": self.sample_text}]
+        enable_thinking = self._variant == ModelVariant.QWEN_3_NEXT_80B_A3B_THINKING
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
             add_generation_prompt=True,
+            enable_thinking=enable_thinking,
         )
         prompts = [text]
 
