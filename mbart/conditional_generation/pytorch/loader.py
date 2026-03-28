@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 """
 MBart model loader implementation for conditional generation.
 """
@@ -24,44 +23,31 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MBart model variants for conditional generation."""
 
-    TINY_RANDOM = "Tiny_Random"
+    LARGE_50 = "Large_50"
 
 
 class ModelLoader(ForgeModel):
     """MBart model loader implementation for conditional generation."""
 
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="akreal/tiny-random-mbart",
+        ModelVariant.LARGE_50: LLMModelConfig(
+            pretrained_model_name="facebook/mbart-large-50",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.LARGE_50
 
-    sample_text = "Hello, my dog is cute."
+    sample_text = "UN Chief Says There Is No Military Solution in Syria"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
+        """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
         self._tokenizer = None
         self._model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
+        """Implementation method for getting model info with validated variant."""
         return ModelInfo(
             model="MBart",
             variant=variant,
@@ -72,37 +58,24 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
+        """Load tokenizer for the current variant."""
+        from transformers import MBart50TokenizerFast
 
-        Args:
-            dtype_override: Optional dtype to override the tokenizer's default dtype.
-
-        Returns:
-            tokenizer: The loaded tokenizer instance
-        """
-        from transformers import AutoTokenizer
-
-        self._tokenizer = AutoTokenizer.from_pretrained(
-            "hf-internal-testing/tiny-random-mbart",
+        self._tokenizer = MBart50TokenizerFast.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            src_lang="en_XX",
         )
 
         return self._tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the MBart model instance for this instance's variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            model: The loaded model instance
-        """
+        """Load and return the MBart model instance for this instance's variant."""
         from transformers import MBartForConditionalGeneration
 
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        model_kwargs = {"return_dict": False}
+        model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -116,23 +89,12 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the MBart model.
-
-        Args:
-            dtype_override: Optional dtype to override the model's default dtype.
-
-        Returns:
-            inputs: Input tensors that can be fed to the model.
-        """
+        """Load and return sample inputs for the MBart model."""
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        if self._model is None:
-            self.load_model(dtype_override=dtype_override)
-
         inputs = self._tokenizer(
             self.sample_text,
-            truncation=True,
             return_tensors="pt",
         )
 
