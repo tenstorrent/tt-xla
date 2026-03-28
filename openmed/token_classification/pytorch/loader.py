@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_DNADETECT_ELECTRAMED_335M = "OpenMed-NER-DNADetect-ElectraMed-335M"
     OPENMED_NER_GENOMICDETECT_TINYMED_66M = "OpenMed-NER-GenomicDetect-TinyMed-66M"
     OPENMED_NER_PHARMADETECT_TINYMED_66M = "OpenMed-NER-PharmaDetect-TinyMed-66M"
+    OPENMED_NER_PHARMADETECT_TINYMED_135M = "OpenMed-NER-PharmaDetect-TinyMed-135M"
     OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1 = (
         "OpenMed-PII-French-BiomedBERT-Large-340M-v1"
     )
@@ -49,6 +50,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_66M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-TinyMed-66M",
         ),
+        ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_135M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-PharmaDetect-TinyMed-135M",
+        ),
         ModelVariant.OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-French-BiomedBERT-Large-340M-v1",
         ),
@@ -67,6 +71,9 @@ class ModelLoader(ForgeModel):
             "Mutations in the BRCA1 and TP53 genes were identified in the tumor sample."
         ),
         ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_66M: (
+            "Administration of metformin reduced glucose levels significantly."
+        ),
+        ModelVariant.OPENMED_NER_PHARMADETECT_TINYMED_135M: (
             "Administration of metformin reduced glucose levels significantly."
         ),
         ModelVariant.OPENMED_PII_FRENCH_BIOMEDBERT_LARGE_340M_V1: (
