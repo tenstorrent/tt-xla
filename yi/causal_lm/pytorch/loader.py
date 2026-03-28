@@ -4,10 +4,11 @@
 """
 Yi model loader implementation for causal language modeling.
 """
-
-from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
+from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -17,43 +18,56 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
-from ....tools.utils import (
-    pad_inputs,
-    cast_input_to_type,
-)
 
 
 class ModelVariant(StrEnum):
-    """Available Yi model variants for causal LM."""
+    """Available Yi model variants for causal language modeling."""
 
-    YI_6B = "6B"
+    YI_1_5_9B_CHAT = "Yi_1.5_9B_Chat"
 
 
 class ModelLoader(ForgeModel):
-    """Yi model loader for causal language modeling."""
+    """Yi model loader implementation for causal language modeling tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.YI_6B: LLMModelConfig(
-            pretrained_model_name="01-ai/Yi-6B",
+        ModelVariant.YI_1_5_9B_CHAT: LLMModelConfig(
+            pretrained_model_name="01-ai/Yi-1.5-9B-Chat",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.YI_6B
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.YI_1_5_9B_CHAT
 
-    sample_text = "Hey how are you doing today?"
+    # Shared configuration parameters
+    sample_text = "Give me a short introduction to large language model."
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
         self.tokenizer = None
-        self.seq_len = None
+        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+        """Implementation method for getting model info with validated variant.
 
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="Yi",
             variant=variant,
@@ -64,20 +78,33 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        """Load tokenizer for the current variant.
 
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Yi model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            torch.nn.Module: The Yi model instance for causal language modeling.
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
@@ -88,34 +115,62 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
+
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
+        self.config = model.config
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the Yi model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
+        max_length = self._variant_config.max_length
+
+        messages = [{"role": "user", "content": self.sample_text}]
+        text = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        prompts = [text]
+
         inputs = self.tokenizer(
-            self.sample_text,
+            prompts,
             return_tensors="pt",
+            padding="max_length",
+            truncation=True,
+            max_length=max_length,
         )
 
         for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        if dtype_override is not None:
-            for key in inputs:
-                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
-
-        target_len = self._variant_config.max_length
-        padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], target_len)
-        padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], target_len)
-        self.seq_len = seq_len
-
-        inputs["input_ids"] = padded_input_ids
-        inputs["attention_mask"] = padded_attention_mask
         return inputs
+
+    def load_config(self):
+        """Load and return the configuration for the Yi model variant.
+
+        Returns:
+            The configuration object for the Yi model.
+        """
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+
+        return self.config
