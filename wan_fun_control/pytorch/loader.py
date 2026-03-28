@@ -2,28 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Wan2.1-Fun-1.3B-Control model loader implementation.
+Wan Fun Control model loader for tt_forge_models.
 
-Loads the diffusion transformer from alibaba-pai/Wan2.1-Fun-1.3B-Control.
-This is a controllable video generation model from the VideoX-Fun project,
-based on the Wan 2.1 1.3B architecture with control signal conditioning
-(Canny edges, depth maps, pose, etc.).
+Wan2.1-Fun-14B-Control is a controllable video generation model from alibaba-pai
+that supports control conditions such as Canny, Depth, Pose, and MLSD.
+It uses a WanTransformer3DModel with 36 input channels (16 latent + 20 control/mask).
 
-The transformer weights are stored as a single safetensors file. We load
-them using diffusers' WanTransformer3DModel with a config reference to the
-standard Wan 2.1 1.3B architecture.
+Repository: https://huggingface.co/alibaba-pai/Wan2.1-Fun-14B-Control
 
-Repository: https://huggingface.co/alibaba-pai/Wan2.1-Fun-1.3B-Control
-
-Available variants:
-- WAN21_FUN_1_3B_CONTROL: Wan 2.1 Fun 1.3B Control transformer
+Available subfolders:
+- transformer: WanTransformer3DModel (36 input channels for control conditioning)
+- vae: AutoencoderKLWan
 """
 
 from typing import Any, Optional
 
 import torch
-from diffusers import WanTransformer3DModel
-from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
 from ...config import (
@@ -35,40 +29,59 @@ from ...config import (
     ModelTask,
     StrEnum,
 )
+from .src.utils import (
+    load_transformer,
+    load_transformer_inputs,
+    load_vae,
+    load_vae_decoder_inputs,
+    load_vae_encoder_inputs,
+)
 
-REPO_ID = "alibaba-pai/Wan2.1-Fun-1.3B-Control"
-SAFETENSORS_FILE = "diffusion_pytorch_model.safetensors"
-
-# Reference config repo for the Wan 1.3B transformer architecture
-WAN_CONFIG_REPO = "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+SUPPORTED_SUBFOLDERS = {"transformer", "vae"}
 
 
 class ModelVariant(StrEnum):
-    """Available Wan2.1-Fun-1.3B-Control model variants."""
+    """Available Wan Fun Control variants."""
 
-    WAN21_FUN_1_3B_CONTROL = "1.3B-Control"
+    WAN21_FUN_14B_CONTROL = "2.1_Fun_14B_Control"
 
 
 class ModelLoader(ForgeModel):
-    """Wan2.1-Fun-1.3B-Control model loader for the diffusion transformer."""
+    """
+    Loader for alibaba-pai/Wan2.1-Fun-14B-Control video generation model.
+
+    Supports loading individual components via subfolder:
+    - 'transformer': WanTransformer3DModel with 36 input channels
+    - 'vae': AutoencoderKLWan
+    """
 
     _VARIANTS = {
-        ModelVariant.WAN21_FUN_1_3B_CONTROL: ModelConfig(
-            pretrained_model_name=REPO_ID,
+        ModelVariant.WAN21_FUN_14B_CONTROL: ModelConfig(
+            pretrained_model_name="alibaba-pai/Wan2.1-Fun-14B-Control",
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.WAN21_FUN_1_3B_CONTROL
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    DEFAULT_VARIANT = ModelVariant.WAN21_FUN_14B_CONTROL
+
+    def __init__(
+        self,
+        variant: Optional[ModelVariant] = None,
+        subfolder: Optional[str] = None,
+    ):
         super().__init__(variant)
-        self._transformer = None
+        if subfolder is not None and subfolder not in SUPPORTED_SUBFOLDERS:
+            raise ValueError(
+                f"Unknown subfolder: {subfolder}. Supported: {SUPPORTED_SUBFOLDERS}"
+            )
+        self._subfolder = subfolder
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
-            model="WAN_FUN_CONTROL",
+            model="WanFunControl",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_VIDEO_TTT,
@@ -76,85 +89,25 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_transformer(
-        self, dtype: torch.dtype = torch.bfloat16
-    ) -> WanTransformer3DModel:
-        """Load the diffusion transformer from the single-file checkpoint."""
-        ckpt_path = hf_hub_download(
-            repo_id=REPO_ID,
-            filename=SAFETENSORS_FILE,
-        )
-
-        self._transformer = WanTransformer3DModel.from_single_file(
-            ckpt_path,
-            config=WAN_CONFIG_REPO,
-            subfolder="transformer",
-            torch_dtype=dtype,
-        )
-        self._transformer.eval()
-        return self._transformer
-
-    def load_model(self, *, dtype_override: Optional[torch.dtype] = None, **kwargs):
-        """Load and return the Wan2.1-Fun-1.3B-Control diffusion transformer.
-
-        Returns:
-            WanTransformer3DModel instance.
-        """
+    def load_model(self, *, dtype_override=None, **kwargs):
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        if self._transformer is None:
-            return self._load_transformer(dtype)
-        if dtype_override is not None:
-            self._transformer = self._transformer.to(dtype=dtype_override)
-        return self._transformer
 
-    def load_inputs(self, **kwargs) -> Any:
-        """Prepare sample inputs for the diffusion transformer.
+        if self._subfolder == "vae":
+            return load_vae(self._variant_config.pretrained_model_name, dtype)
+        elif self._subfolder == "transformer" or self._subfolder is None:
+            return load_transformer(self._variant_config.pretrained_model_name, dtype)
 
-        Returns:
-            dict: Input tensors matching WanTransformer3DModel forward signature.
-        """
-        dtype = kwargs.get("dtype_override", torch.bfloat16)
-        batch_size = 1
+    def load_inputs(self, dtype_override=None, **kwargs) -> Any:
+        dtype = dtype_override if dtype_override is not None else torch.bfloat16
 
-        if self._transformer is None:
-            self.load_model(dtype_override=dtype)
-
-        config = self._transformer.config
-
-        # Small latent dimensions for testing
-        # Wan VAE compression: 4x temporal, 8x spatial
-        latent_num_frames = 2
-        latent_height = 4
-        latent_width = 4
-
-        # Video hidden states: [B, C, T, H, W]
-        hidden_states = torch.randn(
-            batch_size,
-            config.in_channels,
-            latent_num_frames,
-            latent_height,
-            latent_width,
-            dtype=dtype,
-        )
-
-        # Text encoder hidden states: [B, seq_len, text_dim]
-        text_seq_len = 64
-        encoder_hidden_states = torch.randn(
-            batch_size,
-            text_seq_len,
-            config.text_dim,
-            dtype=dtype,
-        )
-
-        # Diffusion timestep
-        timestep = torch.tensor([0.5], dtype=dtype).expand(batch_size)
-
-        return {
-            "hidden_states": hidden_states,
-            "encoder_hidden_states": encoder_hidden_states,
-            "timestep": timestep,
-            "return_dict": False,
-        }
+        if self._subfolder == "vae":
+            vae_type = kwargs.get("vae_type", "decoder")
+            if vae_type == "decoder":
+                return load_vae_decoder_inputs(dtype)
+            else:
+                return load_vae_encoder_inputs(dtype)
+        else:
+            return load_transformer_inputs(dtype)
 
     def unpack_forward_output(self, output: Any) -> torch.Tensor:
         if isinstance(output, tuple):
