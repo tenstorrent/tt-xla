@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Parakeet TDT PyTorch speech recognition model variants."""
 
     PARAKEET_TDT_0_6B_V3 = "Parakeet_TDT_0.6B_v3"
+    PARAKEET_TDT_1_1B = "Parakeet_TDT_1.1B"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.PARAKEET_TDT_0_6B_V3: ModelConfig(
             pretrained_model_name="nvidia/parakeet-tdt-0.6b-v3",
+        ),
+        ModelVariant.PARAKEET_TDT_1_1B: ModelConfig(
+            pretrained_model_name="nvidia/parakeet-tdt-1.1b",
         ),
     }
 
