@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ELECTRA model loader implementation for sequence classification.
+ELECTRA model loader implementation for sequence classification task.
 """
 
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+import torch
+from transformers import ElectraForSequenceClassification, ElectraTokenizerFast
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -19,42 +20,42 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ELECTRA model variants for sequence classification."""
+    """Available ELECTRA sequence classification model variants."""
 
-    COPYCATS_KOELECTRA_BASE_V3_GENERALIZED_SENTIMENT_ANALYSIS = (
-        "copycats_koelectra_base_v3_generalized_sentiment_analysis"
-    )
+    CIRCULUS_KOELECTRA_ACT_V1 = "circulus_KoELECTRA_Act_v1"
 
 
 class ModelLoader(ForgeModel):
-    """ELECTRA model loader implementation for sequence classification."""
+    """ELECTRA model loader implementation for sequence classification task."""
 
     _VARIANTS = {
-        ModelVariant.COPYCATS_KOELECTRA_BASE_V3_GENERALIZED_SENTIMENT_ANALYSIS: LLMModelConfig(
-            pretrained_model_name="Copycats/koelectra-base-v3-generalized-sentiment-analysis",
+        ModelVariant.CIRCULUS_KOELECTRA_ACT_V1: LLMModelConfig(
+            pretrained_model_name="circulus/koelectra-act-v1",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = (
-        ModelVariant.COPYCATS_KOELECTRA_BASE_V3_GENERALIZED_SENTIMENT_ANALYSIS
-    )
+    DEFAULT_VARIANT = ModelVariant.CIRCULUS_KOELECTRA_ACT_V1
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.CIRCULUS_KOELECTRA_ACT_V1: "오늘 날씨가 정말 좋네요.",
+    }
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = "이쁘고 좋아요"
+        self.sample_text = self._SAMPLE_TEXTS.get(self._variant, "오늘 날씨가 정말 좋네요.")
         self.tokenizer = None
         self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant_name=None):
-        if variant_name is None:
-            variant_name = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant=None):
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="ELECTRA",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -62,14 +63,14 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = ElectraTokenizerFast.from_pretrained(self.model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = AutoModelForSequenceClassification.from_pretrained(
+        self.model = ElectraForSequenceClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
         self.model.eval()
@@ -90,7 +91,11 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
-        predicted_value = co_out[0].argmax(-1).item()
+        logits = co_out[0]
+        probabilities = torch.sigmoid(logits)
+        predicted_labels = (probabilities > 0.5).int()
 
-        print(f"Review: {self.sample_text}")
-        print(f"Predicted Sentiment: {self.model.config.id2label[predicted_value]}")
+        for idx, label_active in enumerate(predicted_labels[0]):
+            if label_active:
+                label_name = self.model.config.id2label.get(idx, f"LABEL_{idx}")
+                print(f"Predicted: {label_name} (prob: {probabilities[0][idx]:.4f})")
