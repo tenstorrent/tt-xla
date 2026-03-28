@@ -23,20 +23,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 MLX model variants for causal language modeling."""
 
-    QWEN_2_5_3B_INSTRUCT_4BIT = "3B_Instruct_4bit"
+    QWEN_2_5_0_5B_INSTRUCT_4BIT = "0.5B_Instruct_4bit"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 2.5 MLX model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_3B_INSTRUCT_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Qwen2.5-3B-Instruct-4bit",
+        ModelVariant.QWEN_2_5_0_5B_INSTRUCT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen2.5-0.5B-Instruct-4bit",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_3B_INSTRUCT_4BIT
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_0_5B_INSTRUCT_4BIT
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -67,8 +67,6 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -81,13 +79,12 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
-
-        model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
