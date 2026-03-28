@@ -5,7 +5,7 @@
 Japanese CLIP model loader implementation for image-text similarity.
 """
 import torch
-from transformers import CLIPModel, AutoProcessor
+from transformers import CLIPModel, CLIPImageProcessor, AutoTokenizer
 from typing import Optional
 
 from ...base import ForgeModel
@@ -38,9 +38,13 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.VIT_B_16
 
+    # The text encoder uses a Japanese RoBERTa tokenizer
+    _TOKENIZER_NAME = "rinna/japanese-roberta-base"
+
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
+        self.image_processor = None
+        self.tokenizer = None
         self.text_prompts = None
 
     @classmethod
@@ -53,12 +57,6 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
-
-    def _load_processor(self):
-        self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
-        return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Japanese CLIP model instance.
@@ -92,17 +90,35 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors, pixel values and attention masks.
         """
-        if self.processor is None:
-            self._load_processor()
+        if self.image_processor is None:
+            self.image_processor = CLIPImageProcessor.from_pretrained(
+                "openai/clip-vit-base-patch16"
+            )
+        if self.tokenizer is None:
+            self.tokenizer = AutoTokenizer.from_pretrained(self._TOKENIZER_NAME)
 
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
 
         self.text_prompts = ["猫の写真", "犬の写真"]
 
-        inputs = self.processor(
-            text=self.text_prompts, images=image, return_tensors="pt", padding=True
+        pixel_values = self.image_processor(
+            images=image, return_tensors="pt"
+        ).pixel_values
+
+        text_inputs = self.tokenizer(
+            self.text_prompts,
+            return_tensors="pt",
+            padding=True,
+            max_length=77,
+            truncation=True,
         )
+
+        inputs = {
+            "pixel_values": pixel_values,
+            "input_ids": text_inputs["input_ids"],
+            "attention_mask": text_inputs["attention_mask"],
+        }
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
