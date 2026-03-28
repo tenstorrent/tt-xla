@@ -4,12 +4,11 @@
 """
 Depth Anything 3 model loader implementation for monocular depth estimation.
 """
-
 import torch
 import torch.nn as nn
-import numpy as np
+import torchvision.transforms.functional as TF
+from PIL import Image
 from typing import Optional
-from datasets import load_dataset
 
 from ...config import (
     ModelConfig,
@@ -23,35 +22,33 @@ from ...config import (
 from ...base import ForgeModel
 
 
-class DepthAnything3Wrapper(nn.Module):
-    """Wrapper around DepthAnything3 that takes a preprocessed image tensor
-    and returns depth prediction."""
+class DA3Wrapper(nn.Module):
+    """Wrapper around DA3 model for depth estimation inference."""
 
-    def __init__(self, model):
+    def __init__(self, da3_api):
         super().__init__()
-        self.model = model
+        self.model = da3_api.model
 
     def forward(self, pixel_values):
-        predictions = self.model.inference(pixel_values)
-        return predictions.depth
+        return self.model(pixel_values)
 
 
 class ModelVariant(StrEnum):
     """Available Depth Anything 3 model variants."""
 
-    LARGE = "Large"
+    SMALL = "Small"
 
 
 class ModelLoader(ForgeModel):
     """Depth Anything 3 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.LARGE: ModelConfig(
-            pretrained_model_name="depth-anything/DA3-LARGE",
+        ModelVariant.SMALL: ModelConfig(
+            pretrained_model_name="depth-anything/da3-small",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE
+    DEFAULT_VARIANT = ModelVariant.SMALL
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -75,9 +72,9 @@ class ModelLoader(ForgeModel):
 
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model = DepthAnything3.from_pretrained(pretrained_model_name)
+        da3 = DepthAnything3.from_pretrained(pretrained_model_name)
 
-        wrapper = DepthAnything3Wrapper(model)
+        wrapper = DA3Wrapper(da3)
         wrapper.eval()
 
         if dtype_override is not None:
@@ -86,16 +83,20 @@ class ModelLoader(ForgeModel):
         return wrapper
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        dataset = load_dataset("huggingface/cats-image", split="test")
-        image = dataset[0]["image"].convert("RGB")
+        image = Image.new("RGB", (518, 518))
 
-        rgb = torch.from_numpy(np.array(image)).permute(2, 0, 1).float() / 255.0
-        rgb = rgb.unsqueeze(0)
+        pixel_values = TF.to_tensor(image)
+        pixel_values = TF.normalize(
+            pixel_values,
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225],
+        )
+        pixel_values = pixel_values.unsqueeze(0)
 
         if batch_size > 1:
-            rgb = rgb.expand(batch_size, -1, -1, -1)
+            pixel_values = pixel_values.expand(batch_size, -1, -1, -1)
 
         if dtype_override is not None:
-            rgb = rgb.to(dtype_override)
+            pixel_values = pixel_values.to(dtype_override)
 
-        return rgb
+        return pixel_values
