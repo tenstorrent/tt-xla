@@ -6,7 +6,6 @@ Impresso Language Identifier model loader implementation for language identifica
 """
 
 from transformers import AutoModelForTokenClassification
-from typing import Optional
 
 from ....config import (
     ModelInfo,
