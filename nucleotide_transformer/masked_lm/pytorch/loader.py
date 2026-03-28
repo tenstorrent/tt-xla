@@ -22,19 +22,21 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Nucleotide Transformer model variants."""
 
-    NT_500M_HUMAN_REF = "InstaDeepAI/nucleotide-transformer-500m-human-ref"
+    NT_V2_500M_MULTI_SPECIES = (
+        "InstaDeepAI/nucleotide-transformer-v2-500m-multi-species"
+    )
 
 
 class ModelLoader(ForgeModel):
-    """Nucleotide Transformer model loader implementation for masked language modeling on DNA sequences."""
+    """Nucleotide Transformer model loader for masked language modeling on DNA sequences."""
 
     _VARIANTS = {
-        ModelVariant.NT_500M_HUMAN_REF: ModelConfig(
-            pretrained_model_name="InstaDeepAI/nucleotide-transformer-500m-human-ref",
+        ModelVariant.NT_V2_500M_MULTI_SPECIES: ModelConfig(
+            pretrained_model_name="InstaDeepAI/nucleotide-transformer-v2-500m-multi-species",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NT_500M_HUMAN_REF
+    DEFAULT_VARIANT = ModelVariant.NT_V2_500M_MULTI_SPECIES
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -45,7 +47,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="NucleotideTransformer",
+            model="Nucleotide Transformer",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_MASKED_LM,
@@ -55,7 +57,8 @@ class ModelLoader(ForgeModel):
 
     def _load_tokenizer(self):
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
         )
         return self.tokenizer
 
@@ -69,7 +72,9 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForMaskedLM.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **model_kwargs,
         )
 
         return model
@@ -78,8 +83,8 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        # Use a DNA sequence with <mask> token for masked LM task
-        masked_sequence = "ACCTGA<mask>TTCTGAGTC"
+        # Sample DNA sequence with a mask token for masked LM task
+        masked_sequence = "ATTCCG<mask>TTCCGATTCCG"
 
         inputs = self.tokenizer(
             masked_sequence,
