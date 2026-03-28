@@ -111,19 +111,18 @@ class ModelLoader(ForgeModel):
         input_ids = inputs["input_ids"]
         attention_mask = inputs["attention_mask"]
 
-        if batch_size > 1:
-            input_ids = input_ids.repeat_interleave(batch_size, dim=0)
-            attention_mask = attention_mask.repeat_interleave(batch_size, dim=0)
-            image = image.unsqueeze(0).repeat_interleave(batch_size, dim=0)
-
         if image.dim() == 3:
             image = image.unsqueeze(0)
 
+        if batch_size > 1:
+            input_ids = input_ids.repeat_interleave(batch_size, dim=0)
+            attention_mask = attention_mask.repeat_interleave(batch_size, dim=0)
+            image = image.repeat_interleave(batch_size, dim=0)
+
         return {
-            "inputs_embeds": None,
             "input_ids": input_ids,
             "attention_mask": attention_mask,
-            "image": image,
+            "images": image,
             "use_cache": False,
         }
 
