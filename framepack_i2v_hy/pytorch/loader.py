@@ -23,7 +23,7 @@ Available subfolders:
 from typing import Any, Optional
 
 import torch
-from diffusers import AutoencoderKLHunyuanVideo, HunyuanVideoPipeline
+from diffusers import HunyuanVideoPipeline
 
 from ...base import ForgeModel
 from ...config import (
