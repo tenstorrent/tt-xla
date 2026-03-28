@@ -48,6 +48,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.config = None
+        self.model = None
         self.num_layers = num_layers
 
     @classmethod
