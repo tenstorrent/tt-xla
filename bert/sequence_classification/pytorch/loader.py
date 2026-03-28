@@ -28,6 +28,9 @@ class ModelVariant(StrEnum):
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     SPAMX_MURIL_V2 = "SpamX_MuRIL_V2"
+    KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT = (
+        "koheiduck_Bert_Japanese_Finetuned_Sentiment"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +58,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="SpamX/MuRIL_V2",
             max_length=128,
         ),
+        ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT: LLMModelConfig(
+            pretrained_model_name="koheiduck/bert-japanese-finetuned-sentiment",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -72,6 +79,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.SPAMX_MURIL_V2: "Congratulations! You have won a free prize. Click here to claim now!",
+        ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT: "この映画はとても面白かったです。",
     }
 
     def __init__(self, variant=None):
@@ -108,6 +116,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.SPAMX_MURIL_V2,
+            ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
