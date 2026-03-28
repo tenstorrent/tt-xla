@@ -17,6 +17,7 @@ from typing import Any, Optional
 import torch
 from diffusers import ZImagePipeline
 from huggingface_hub import hf_hub_download
+from safetensors.torch import load_file
 
 from ...base import ForgeModel
 from ...config import (
@@ -88,10 +89,8 @@ class ModelLoader(ForgeModel):
         # Download and load the FP8 quantized transformer weights
         filename = VARIANT_FILENAMES[self._variant]
         fp8_path = hf_hub_download(repo_id=REPO_ID, filename=filename)
-        self._pipe.transformer = self._pipe.transformer.__class__.from_single_file(
-            fp8_path,
-            torch_dtype=dtype,
-        )
+        state_dict = load_file(fp8_path)
+        self._pipe.transformer.load_state_dict(state_dict)
         self._pipe.transformer.eval()
         return self._pipe
 
