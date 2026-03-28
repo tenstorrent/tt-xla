@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
     DISTILBERT_IMDB = "distilbert-imdb"
     GIBBERISH_DETECTOR = "gibberish-detector"
+    DISTILBERT_PLUTCHIK = "distilbert-plutchik"
 
 
 class ModelLoader(ForgeModel):
@@ -50,6 +51,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="madhurjindal/autonlp-Gibberish-Detector-492513457",
             max_length=128,
         ),
+        ModelVariant.DISTILBERT_PLUTCHIK: LLMModelConfig(
+            pretrained_model_name="JuliusAlphonso/distilbert-plutchik",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -61,6 +66,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
         ModelVariant.DISTILBERT_IMDB: "This movie was absolutely fantastic! The acting was superb.",
         ModelVariant.GIBBERISH_DETECTOR: "I love Machine Learning!",
+        ModelVariant.DISTILBERT_PLUTCHIK: "I am so happy and excited about this wonderful news!",
     }
 
     def __init__(self, variant=None):
@@ -96,6 +102,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
             ModelVariant.DISTILBERT_IMDB,
             ModelVariant.GIBBERISH_DETECTOR,
+            ModelVariant.DISTILBERT_PLUTCHIK,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
