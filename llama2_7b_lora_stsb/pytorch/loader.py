@@ -100,7 +100,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        test_input = "How similar are these two sentences?"
+        test_input = "Rate the similarity of these sentences: 'A dog is playing in the park.' and 'A puppy runs outside.'"
 
         self.tokenizer.padding_side = "right"
         inputs = self.tokenizer(
