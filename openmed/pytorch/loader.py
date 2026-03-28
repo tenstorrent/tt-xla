@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE = "ZeroShot-NER-Pathology-Large-459M"
     OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL = "ZeroShot-NER-Pathology-Small-166M"
     OPENMED_ZEROSHOT_NER_PROTEIN_BASE = "ZeroShot-NER-Protein-Base-220M"
+    OPENMED_ZEROSHOT_NER_ONCOLOGY_TINY = "ZeroShot-NER-Oncology-Tiny-60M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
 
 
@@ -39,6 +40,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Small-166M"
+        ),
+        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_TINY: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Oncology-Tiny-60M"
         ),
         ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_BASE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Base-220M"
@@ -88,6 +92,14 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL: {
             "text": "Early detection of breast cancer improves survival rates.",
             "labels": ["DISEASE"],
+        },
+        ModelVariant.OPENMED_ZEROSHOT_NER_ONCOLOGY_TINY: {
+            "text": "TP53 mutations are frequently observed in breast cancer tumor cells.",
+            "labels": [
+                "Gene_or_gene_product",
+                "Cancer",
+                "Cell",
+            ],
         },
         ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_BASE: {
             "text": "The Maillard reaction is responsible for the browning of many foods.",
