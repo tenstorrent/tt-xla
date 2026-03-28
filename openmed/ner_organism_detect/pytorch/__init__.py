@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER OrganismDetect BigMed PyTorch model implementation.
+OpenMed NER OrganismDetect PyTorch model implementation.
 """
 from .loader import ModelLoader, ModelVariant

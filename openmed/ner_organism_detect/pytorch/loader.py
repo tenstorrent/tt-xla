@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenMed NER OrganismDetect BigMed model loader for token classification.
+OpenMed NER OrganismDetect model loader for token classification.
 """
 
 import torch
@@ -23,14 +23,18 @@ class ModelVariant(StrEnum):
     """Available OpenMed NER OrganismDetect model variants."""
 
     BIGMED_278M = "BigMed-278M"
+    TINYMED_65M = "TinyMed-65M"
 
 
 class ModelLoader(ForgeModel):
-    """OpenMed NER OrganismDetect BigMed model loader for token classification."""
+    """OpenMed NER OrganismDetect model loader for token classification."""
 
     _VARIANTS = {
         ModelVariant.BIGMED_278M: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-BigMed-278M",
+        ),
+        ModelVariant.TINYMED_65M: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-NER-OrganismDetect-TinyMed-65M",
         ),
     }
 
