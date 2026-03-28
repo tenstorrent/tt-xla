@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Stable Diffusion v2 PyTorch model implementation for Tenstorrent projects.
+Stable Diffusion 2 PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

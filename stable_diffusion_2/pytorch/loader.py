@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Stable Diffusion v2 model loader implementation
+Stable Diffusion 2 model loader implementation
 """
 
 import torch
@@ -18,21 +18,21 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
 
 
 class ModelVariant(StrEnum):
-    """Available Stable Diffusion v2 model variants."""
+    """Available Stable Diffusion 2 model variants."""
 
     BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
-    """Stable Diffusion v2 model loader implementation."""
+    """Stable Diffusion 2 model loader implementation."""
 
     _VARIANTS = {
         ModelVariant.BASE: ModelConfig(
-            pretrained_model_name="stabilityai/stable-diffusion-2",
+            pretrained_model_name="sd2-community/stable-diffusion-2-base",
         )
     }
 
@@ -44,7 +44,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None):
         return ModelInfo(
-            model="Stable Diffusion v2",
+            model="Stable Diffusion 2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CONDITIONAL_GENERATION,
@@ -53,22 +53,28 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Stable Diffusion v2 pipeline.
+        """Load and return the Stable Diffusion 2 pipeline.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            StableDiffusionPipeline: The pre-trained Stable Diffusion v2 pipeline.
+            StableDiffusionPipeline: The pre-trained Stable Diffusion 2 pipeline.
         """
         dtype = dtype_override or torch.bfloat16
+        scheduler = EulerDiscreteScheduler.from_pretrained(
+            self._variant_config.pretrained_model_name, subfolder="scheduler"
+        )
         pipe = StableDiffusionPipeline.from_pretrained(
-            self._variant_config.pretrained_model_name, torch_dtype=dtype, **kwargs
+            self._variant_config.pretrained_model_name,
+            scheduler=scheduler,
+            torch_dtype=dtype,
+            **kwargs,
         )
         return pipe
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample text prompts for Stable Diffusion v2.
+        """Load and return sample text prompts for Stable Diffusion 2.
 
         Args:
             dtype_override: This parameter is ignored for this model.
@@ -78,6 +84,6 @@ class ModelLoader(ForgeModel):
             list: A list of sample text prompts.
         """
         prompt = [
-            "A photo of an astronaut riding a horse on mars.",
+            "a photo of an astronaut riding a horse on mars",
         ] * batch_size
         return prompt
