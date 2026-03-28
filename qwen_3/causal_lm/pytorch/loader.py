@@ -49,6 +49,7 @@ class ModelVariant(StrEnum):
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_30B_A3B_NVFP4 = "30B_A3B_NVFP4"
     QWEN_3_4B_INSTRUCT_2507_MLX_5BIT = "4B_Instruct_2507_MLX_5bit"
+    QWEN_3_8B_BNB_4BIT = "8B_Bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -148,6 +149,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="lmstudio-community/Qwen3-4B-Instruct-2507-MLX-5bit",
             max_length=128,
         ),
+        # Unsloth BNB 4-bit quantized variants
+        ModelVariant.QWEN_3_8B_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-8B-bnb-4bit",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -202,6 +208,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_30B_A3B_NVFP4,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_5BIT,
+            ModelVariant.QWEN_3_8B_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -263,10 +270,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ or BNB variant and configure accordingly
-        if pretrained_model_name in ("Qwen/Qwen3-8B-AWQ",) or self._variant in (
-            ModelVariant.QWEN_3_14B_BNB_4BIT,
-            ModelVariant.QWEN_3_14B_AWQ_ABHISHEKCHOHAN,
+        # Check if this is a quantized variant and configure accordingly
+        if pretrained_model_name in (
+            "Qwen/Qwen3-8B-AWQ",
+            "unsloth/Qwen3-8B-bnb-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
 
