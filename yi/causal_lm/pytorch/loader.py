@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Yi model variants for causal language modeling."""
 
+    YI_9B_200K = "9B-200K"
     YI_34B_CHAT = "34B-Chat"
 
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
+        ModelVariant.YI_9B_200K: LLMModelConfig(
+            pretrained_model_name="01-ai/Yi-9B-200K",
+            max_length=128,
+        ),
         ModelVariant.YI_34B_CHAT: LLMModelConfig(
             pretrained_model_name="01-ai/Yi-34B-Chat",
             max_length=128,
