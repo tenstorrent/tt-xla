@@ -4,7 +4,6 @@
 """
 OCR Captcha model loader implementation for optical character recognition of CAPTCHA images.
 """
-import torch
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from PIL import Image
 import requests
