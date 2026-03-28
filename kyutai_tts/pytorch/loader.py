@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Kyutai TTS streaming text-to-speech model loader implementation.
+Kyutai TTS 1.6B streaming text-to-speech model loader implementation.
 """
 
 import torch
@@ -23,25 +23,24 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available Kyutai TTS model variants."""
 
-    TTS_0_75B_EN = "TTS 0.75B EN"
+    TTS_1_6B_EN_FR = "TTS 1.6B en_fr"
 
 
 class ModelLoader(ForgeModel):
-    """Kyutai TTS streaming text-to-speech model loader implementation."""
+    """Kyutai TTS 1.6B streaming text-to-speech model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.TTS_0_75B_EN: ModelConfig(
-            pretrained_model_name="kyutai/tts-0.75b-en-public",
+        ModelVariant.TTS_1_6B_EN_FR: ModelConfig(
+            pretrained_model_name="kyutai/tts-1.6b-en_fr",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TTS_0_75B_EN
-    DEFAULT_TEXT = "Hey there! How are you? I had the craziest day today."
+    DEFAULT_VARIANT = ModelVariant.TTS_1_6B_EN_FR
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Kyutai TTS",
+            model="KyutaiTTS",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_TTS,
@@ -50,20 +49,30 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Kyutai TTS model instance."""
+        """Load and return the Kyutai TTS LM backbone."""
         from moshi.models.loaders import CheckpointInfo
         from moshi.models.tts import TTSModel
 
-        checkpoint_info = CheckpointInfo.from_hf_repo(
-            self._variant_config.pretrained_model_name
-        )
-        device = torch.device("cpu")
-        tts_model = TTSModel.from_checkpoint_info(
-            checkpoint_info, n_q=16, temp=0.6, cfg_coef=3, device=device
-        )
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        return tts_model
+        checkpoint_info = CheckpointInfo.from_hf_repo(pretrained_model_name)
+        dtype = dtype_override if dtype_override is not None else torch.float32
+        tts_model = TTSModel.from_checkpoint_info(
+            checkpoint_info, n_q=32, temp=0.6, device=torch.device("cpu"), dtype=dtype
+        )
+        model = tts_model.lm_gen.model
+        model.eval()
+
+        self._num_codebooks = model.num_codebooks
+        self._card = model.card
+
+        return model
 
     def load_inputs(self, dtype_override=None):
-        """Load sample text input for the Kyutai TTS model."""
-        return (self.DEFAULT_TEXT,)
+        """Load synthetic discrete code inputs for the Kyutai TTS model.
+
+        The model expects discrete codes of shape [B, K, T] where
+        K is the number of codebooks and T is time steps.
+        """
+        codes = torch.randint(0, self._card, (1, self._num_codebooks, 10))
+        return codes
