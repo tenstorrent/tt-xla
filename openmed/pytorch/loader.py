@@ -20,6 +20,7 @@ from ...base import ForgeModel
 
 
 class ModelVariant(StrEnum):
+    OPENMED_ZEROSHOT_NER_ANATOMY_TINY = "ZeroShot-NER-Anatomy-Tiny-60M"
     OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE = "ZeroShot-NER-Pathology-Large-459M"
     OPENMED_ZEROSHOT_NER_PATHOLOGY_SMALL = "ZeroShot-NER-Pathology-Small-166M"
     OPENMED_ZEROSHOT_NER_PROTEIN_BASE = "ZeroShot-NER-Protein-Base-220M"
@@ -30,6 +31,9 @@ class ModelLoader(ForgeModel):
     """OpenMed model loader implementation."""
 
     _VARIANTS = {
+        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_TINY: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Anatomy-Tiny-60M"
+        ),
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Pathology-Large-459M"
         ),
@@ -73,6 +77,10 @@ class ModelLoader(ForgeModel):
         return self.model.eval()
 
     _SAMPLE_INPUTS = {
+        ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_TINY: {
+            "text": "The patient complained of pain in the left ventricle region.",
+            "labels": ["Anatomy"],
+        },
         ModelVariant.OPENMED_ZEROSHOT_NER_PATHOLOGY_LARGE: {
             "text": "Early detection of breast cancer improves survival rates.",
             "labels": ["DISEASE"],
