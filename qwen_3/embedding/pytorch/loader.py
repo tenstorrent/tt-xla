@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     QWEN_3_EMBEDDING_0_6B = "Embedding_0_6B"
     QWEN_3_EMBEDDING_4B = "Embedding_4B"
     QWEN_3_EMBEDDING_8B = "Embedding_8B"
+    UNSLOTH_QWEN_3_EMBEDDING_0_6B = "unsloth_Embedding_0_6B"
 
 
 class ModelLoader(ForgeModel):
@@ -44,6 +45,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_EMBEDDING_8B: ModelConfig(
             pretrained_model_name="Qwen/Qwen3-Embedding-8B",
+        ),
+        ModelVariant.UNSLOTH_QWEN_3_EMBEDDING_0_6B: ModelConfig(
+            pretrained_model_name="unsloth/Qwen3-Embedding-0.6B",
         ),
     }
 
@@ -92,7 +96,9 @@ class ModelLoader(ForgeModel):
             model="Qwen 3",
             variant=variant,
             group=(
-                ModelGroup.GENERALITY
+                ModelGroup.VULCAN
+                if variant == ModelVariant.UNSLOTH_QWEN_3_EMBEDDING_0_6B
+                else ModelGroup.GENERALITY
                 if variant == ModelVariant.QWEN_3_EMBEDDING_0_6B
                 else ModelGroup.RED
             ),
@@ -227,6 +233,7 @@ class ModelLoader(ForgeModel):
         if self._variant in [
             ModelVariant.QWEN_3_EMBEDDING_0_6B,
             ModelVariant.QWEN_3_EMBEDDING_4B,
+            ModelVariant.UNSLOTH_QWEN_3_EMBEDDING_0_6B,
         ]:
             return None
 
