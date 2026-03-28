@@ -46,13 +46,7 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     MINISTRAL_3B_INSTRUCT_2512_BF16 = "Ministral_3B_Instruct_2512_BF16"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MISTRAL_7B_INSTRUCT_V03_MLX_4BIT = "7B_INSTRUCT_v03_mlx_4bit"
-    MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_MLX_6BIT = (
-        "mistral_small_3.2_24b_instruct_2506_mlx_6bit"
-    )
-    MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_MLX_4BIT = (
-        "mistral_small_3.2_24b_instruct_2506_mlx_4bit"
-    )
+    MISTRAL_7B_INSTRUCT_V02_GPTQ = "7B_INSTRUCT_v02_GPTQ"
 
 
 class ModelLoader(ForgeModel):
@@ -127,14 +121,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.MISTRAL_7B_INSTRUCT_V03_MLX_4BIT: ModelConfig(
-            pretrained_model_name="mlx-community/Mistral-7B-Instruct-v0.3-4bit",
-        ),
-        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_MLX_6BIT: ModelConfig(
-            pretrained_model_name="lmstudio-community/Mistral-Small-3.2-24B-Instruct-2506-MLX-6bit",
-        ),
-        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_MLX_4BIT: ModelConfig(
-            pretrained_model_name="lmstudio-community/Mistral-Small-3.2-24B-Instruct-2506-MLX-4bit",
+        ModelVariant.MISTRAL_7B_INSTRUCT_V02_GPTQ: ModelConfig(
+            pretrained_model_name="TheBloke/Mistral-7B-Instruct-v0.2-GPTQ",
         ),
     }
 
@@ -173,6 +161,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_FP8_DYNAMIC,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V02_GPTQ,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
@@ -257,8 +246,11 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        # BnB variants need device_map="cpu" for CPU-based loading
-        if self._variant == ModelVariant.MISTRAL_7B_V03_BNB_4BIT:
+        # Quantized variants need device_map="cpu" for CPU-based loading
+        if self._variant in (
+            ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V02_GPTQ,
+        ):
             model_kwargs["device_map"] = "cpu"
 
         if self.num_layers is not None:
