@@ -54,7 +54,7 @@ class ModelLoader(ForgeModel):
                     "type": "image",
                     "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
                 },
-                {"type": "text", "text": "Classify this video."},
+                {"type": "text", "text": "Describe this image."},
             ],
         }
     ]
@@ -85,7 +85,7 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="Qwen 2.5-VL for VideoCls",
+            model="Qwen 2.5-VL for Video Classification",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_VIDEO_CLS,
