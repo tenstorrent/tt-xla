@@ -6,7 +6,11 @@ Florence-2 image captioning model loader implementation (PyTorch).
 """
 
 import torch
-from transformers import AutoProcessor, AutoModelForCausalLM
+from transformers import (
+    AutoProcessor,
+    AutoModelForCausalLM,
+    Florence2ForConditionalGeneration,
+)
 from typing import Optional
 from PIL import Image
 
@@ -28,6 +32,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     LARGE = "Large"
+    COMMUNITY_BASE = "Community_Base"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +44,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE: ModelConfig(
             pretrained_model_name="microsoft/Florence-2-large",
+        ),
+        ModelVariant.COMMUNITY_BASE: ModelConfig(
+            pretrained_model_name="florence-community/Florence-2-base",
         ),
     }
 
@@ -60,9 +68,12 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_processor(self):
+        kwargs = {}
+        if self._variant != ModelVariant.COMMUNITY_BASE:
+            kwargs["trust_remote_code"] = True
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
+            **kwargs,
         )
         return self.processor
 
@@ -74,12 +85,19 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name,
-            trust_remote_code=True,
-            attn_implementation="eager",
-            **model_kwargs,
-        )
+        if self._variant == ModelVariant.COMMUNITY_BASE:
+            model = Florence2ForConditionalGeneration.from_pretrained(
+                pretrained_model_name,
+                attn_implementation="eager",
+                **model_kwargs,
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name,
+                trust_remote_code=True,
+                attn_implementation="eager",
+                **model_kwargs,
+            )
         model.eval()
         return model
 
