@@ -39,7 +39,7 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.DEEPSEEK_V3_2_Q4_K_M
 
     _GGUF_FILES = {
-        ModelVariant.DEEPSEEK_V3_2_Q4_K_M: "DeepSeek-V3.2-Q4_K_M.gguf",
+        ModelVariant.DEEPSEEK_V3_2_Q4_K_M: "Q4_K_M/DeepSeek-V3.2-Q4_K_M-00001-of-00009.gguf",
     }
 
     sample_text = "What is your favorite city?"
