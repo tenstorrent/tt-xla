@@ -38,13 +38,10 @@ class GloVePQEmbedding(nn.Module):
 
     def forward(self, input_ids):
         codes = self.vectors[input_ids]
-        batch_dims = codes.shape[:-1]
-        n_subspaces = codes.shape[-1]
         parts = []
-        for i in range(n_subspaces):
+        for i in range(codes.shape[-1]):
             parts.append(self.codewords[i][codes[..., i]])
-        embeddings = torch.cat(parts, dim=-1)
-        return embeddings
+        return torch.cat(parts, dim=-1)
 
 
 class ModelVariant(StrEnum):
