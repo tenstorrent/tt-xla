@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Sentence-Transformers distiluse-base-multilingual-cased-v1 model loader
+Sentence-Transformers distiluse-base-multilingual-cased model loader
 for sentence embedding generation.
 """
 import torch
@@ -33,7 +33,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """Sentence-Transformers distiluse-base-multilingual-cased-v1 model loader."""
+    """Sentence-Transformers distiluse-base-multilingual-cased model loader."""
 
     _VARIANTS = {
         ModelVariant.DISTILUSE_BASE_MULTILINGUAL_CASED: LLMModelConfig(
