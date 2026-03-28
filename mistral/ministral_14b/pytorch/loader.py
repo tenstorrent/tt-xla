@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available Ministral 14B model variants."""
 
     MINISTRAL_14B_BASE_2512 = "mistralai/Ministral-3-14B-Base-2512"
+    MINISTRAL_14B_INSTRUCT_2512_BF16 = "mistralai/Ministral-3-14B-Instruct-2512-BF16"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MINISTRAL_14B_BASE_2512: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.MINISTRAL_14B_BASE_2512),
+        ),
+        ModelVariant.MINISTRAL_14B_INSTRUCT_2512_BF16: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.MINISTRAL_14B_INSTRUCT_2512_BF16),
         ),
     }
 
