@@ -13,7 +13,6 @@ Available variants:
 
 from typing import Optional
 
-import torch
 import yolov5
 from datasets import load_dataset
 
