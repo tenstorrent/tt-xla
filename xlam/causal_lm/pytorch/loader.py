@@ -4,7 +4,6 @@
 """
 xLAM model loader implementation for causal language modeling.
 """
-
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
@@ -24,22 +23,25 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available xLAM model variants for causal language modeling."""
 
-    XLAM_7B_R = "xlam_7b_r"
+    XLAM_2_1B_FC_R = "xlam_2_1b_fc_r"
 
 
 class ModelLoader(ForgeModel):
     """xLAM model loader implementation for causal language modeling tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.XLAM_7B_R: LLMModelConfig(
-            pretrained_model_name="Salesforce/xLAM-7b-r",
+        ModelVariant.XLAM_2_1B_FC_R: LLMModelConfig(
+            pretrained_model_name="Salesforce/xLAM-2-1b-fc-r",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.XLAM_7B_R
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.XLAM_2_1B_FC_R
 
-    sample_text = "What is the weather like in San Francisco today?"
+    # Sample text for causal LM
+    sample_text = "The quick brown fox jumps over the lazy dog."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
