@@ -22,8 +22,7 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     OPENMED_ZEROSHOT_NER_PHARMA_BASE = "ZeroShot-NER-Pharma-Base-220M"
     OPENMED_ZEROSHOT_NER_SPECIES_SMALL = "ZeroShot-NER-Species-Small-166M"
-    OPENMED_ZEROSHOT_NER_ORGANISM_LARGE = "ZeroShot-NER-Organism-Large-459M"
-    OPENMED_ZEROSHOT_NER_GENOMIC_LARGE = "ZeroShot-NER-Genomic-Large-459M"
+    OPENMED_ZEROSHOT_NER_PROTEIN_LARGE = "ZeroShot-NER-Protein-Large-459M"
 
 
 class ModelLoader(ForgeModel):
@@ -36,15 +35,28 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Species-Small-166M"
         ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_ORGANISM_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Organism-Large-459M"
-        ),
-        ModelVariant.OPENMED_ZEROSHOT_NER_GENOMIC_LARGE: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Genomic-Large-459M"
+        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_LARGE: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-ZeroShot-NER-Protein-Large-459M"
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_ZEROSHOT_NER_ANATOMY_SMALL
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
+        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_LARGE: "The Maillard reaction is responsible for the browning of many foods.",
+    }
+
+    _LABELS = {
+        ModelVariant.OPENMED_ZEROSHOT_NER_SPECIES_SMALL: ["SPECIES"],
+        ModelVariant.OPENMED_ZEROSHOT_NER_PROTEIN_LARGE: [
+            "protein",
+            "protein_complex",
+            "protein_enum",
+            "protein_family_or_group",
+            "protein_variant",
+        ],
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
@@ -96,10 +108,9 @@ class ModelLoader(ForgeModel):
 
         Returns a batch suitable for the GLiNER model forward pass.
         """
-        sample = self._VARIANT_SAMPLES[self._variant]
-        text = sample["text"]
+        text = self._SAMPLE_TEXTS[self._variant]
         self.text = [text]
-        labels = sample["labels"]
+        labels = self._LABELS[self._variant]
         entity_types = list(dict.fromkeys(labels))
 
         (
