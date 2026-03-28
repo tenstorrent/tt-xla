@@ -47,6 +47,7 @@ class ModelVariant(StrEnum):
     MINISTRAL_3B_INSTRUCT_2512_BF16 = "Ministral_3B_Instruct_2512_BF16"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
     MISTRAL_7B_INSTRUCT_V02_GPTQ = "7B_INSTRUCT_v02_GPTQ"
+    MISTRAL_7B_INSTRUCT_V02_MLC_Q4F16 = "7B_INSTRUCT_v02_MLC_q4f16_1"
 
 
 class ModelLoader(ForgeModel):
@@ -124,6 +125,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_INSTRUCT_V02_GPTQ: ModelConfig(
             pretrained_model_name="TheBloke/Mistral-7B-Instruct-v0.2-GPTQ",
         ),
+        ModelVariant.MISTRAL_7B_INSTRUCT_V02_MLC_Q4F16: ModelConfig(
+            pretrained_model_name="mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC",
+        ),
     }
 
     # Default variant to use
@@ -162,6 +166,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501_FP8_DYNAMIC,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02_GPTQ,
+            ModelVariant.MISTRAL_7B_INSTRUCT_V02_MLC_Q4F16,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
