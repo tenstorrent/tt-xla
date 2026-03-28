@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_KOR_BASE = "kykim/bert-kor-base"
+    BERT_XSMALL_DUMMY = "julien-c/bert-xsmall-dummy"
 
 
 _SAMPLE_TEXTS = {
@@ -75,6 +76,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_KOR_BASE: LLMModelConfig(
             pretrained_model_name="kykim/bert-kor-base",
+            max_length=128,
+        ),
+        ModelVariant.BERT_XSMALL_DUMMY: LLMModelConfig(
+            pretrained_model_name="julien-c/bert-xsmall-dummy",
             max_length=128,
         ),
     }
@@ -121,6 +126,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_KOR_BASE,
+            ModelVariant.BERT_XSMALL_DUMMY,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
