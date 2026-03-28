@@ -4,7 +4,6 @@
 """
 Marigold Depth model loader implementation for monocular depth estimation.
 """
-import torch
 from diffusers import MarigoldDepthPipeline
 from PIL import Image
 from typing import Optional
