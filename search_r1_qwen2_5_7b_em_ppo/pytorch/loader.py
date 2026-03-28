@@ -11,7 +11,7 @@ based on Qwen2.5-7B.
 from typing import Optional
 
 import torch
-from transformers import AutoTokenizer, Qwen2ForCausalLM
+from transformers import AutoConfig, AutoTokenizer, Qwen2ForCausalLM
 
 from ...base import ForgeModel
 from ...config import (
@@ -67,8 +67,6 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
-            from transformers import AutoConfig
-
             config = AutoConfig.from_pretrained(self.model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
