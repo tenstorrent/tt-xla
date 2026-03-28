@@ -1,16 +1,24 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Emu3 model loader implementation for multimodal chat.
+Emu3-Chat model loader implementation for multimodal visual question answering.
 """
-import torch
-from transformers import AutoProcessor, Emu3ForConditionalGeneration
-from typing import Optional
 
+import torch
+from PIL import Image
+from typing import Optional
+from transformers import (
+    AutoTokenizer,
+    AutoImageProcessor,
+    AutoModel,
+    AutoModelForCausalLM,
+)
+
+from ....tools.utils import get_file, cast_input_to_type
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -18,54 +26,89 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import cast_input_to_type, get_file
-from PIL import Image
 
 
 class ModelVariant(StrEnum):
-    """Available Emu3 chat model variants."""
+    """Available Emu3-Chat model variants."""
 
-    EMU3_CHAT_HF = "BAAI/Emu3-Chat-hf"
+    EMU3_CHAT = "Chat"
 
 
 class ModelLoader(ForgeModel):
-    """Emu3 model loader implementation for multimodal chat."""
+    """Emu3-Chat model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.EMU3_CHAT_HF: LLMModelConfig(
-            pretrained_model_name=str(ModelVariant.EMU3_CHAT_HF),
+        ModelVariant.EMU3_CHAT: ModelConfig(
+            pretrained_model_name="BAAI/Emu3-Chat",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.EMU3_CHAT_HF
+    DEFAULT_VARIANT = ModelVariant.EMU3_CHAT
 
-    sample_text = "What do you see in this image?"
-    sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"
+    VISION_TOKENIZER_NAME = "BAAI/Emu3-VisionTokenier"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
+        self.tokenizer = None
+        self.image_processor = None
+        self.image_tokenizer = None
         self.processor = None
+        self.model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
-            model="emu3_chat",
+            model="Emu3",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.MM_CONDITIONAL_GENERATION,
+            task=ModelTask.MM_VISUAL_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
-        kwargs = {}
+    def _load_tokenizer(self):
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, trust_remote_code=True
+        )
+        return self.tokenizer
+
+    def _load_image_processor(self):
+        self.image_processor = AutoImageProcessor.from_pretrained(
+            self.VISION_TOKENIZER_NAME, trust_remote_code=True
+        )
+        return self.image_processor
+
+    def _load_image_tokenizer(self, dtype_override=None):
+        kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             kwargs["torch_dtype"] = dtype_override
-
-        self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name, **kwargs
+        self.image_tokenizer = AutoModel.from_pretrained(
+            self.VISION_TOKENIZER_NAME, **kwargs
         )
+        self.image_tokenizer.eval()
+        return self.image_tokenizer
 
+    def _load_processor(self, dtype_override=None):
+        if self.image_processor is None:
+            self._load_image_processor()
+        if self.image_tokenizer is None:
+            self._load_image_tokenizer(dtype_override=dtype_override)
+        if self.tokenizer is None:
+            self._load_tokenizer()
+
+        # Import the custom Emu3Processor from the model's remote code
+        import importlib
+
+        mod = importlib.import_module(
+            "transformers_modules.BAAI.Emu3-Chat.processing_emu3"
+        )
+        Emu3Processor = mod.Emu3Processor
+        self.processor = Emu3Processor(
+            self.image_processor, self.image_tokenizer, self.tokenizer
+        )
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
@@ -74,39 +117,61 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {
+            "trust_remote_code": True,
+            "attn_implementation": "eager",
+        }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = Emu3ForConditionalGeneration.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
         self.model = model
-        self.config = model.config
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.processor is None:
             self._load_processor(dtype_override=dtype_override)
 
-        image_file = get_file(self.sample_image_url)
-        image = Image.open(image_file).convert("RGB")
+        image_file = get_file(
+            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+        )
+        image = Image.open(image_file)
 
+        text = "What is shown in this image?"
         inputs = self.processor(
-            images=image,
-            text=self.sample_text,
+            text=text,
+            image=image,
+            mode="U",
+            padding="longest",
             return_tensors="pt",
         )
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        if dtype_override is not None:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]) and inputs[key].is_floating_point():
+                    inputs[key] = cast_input_to_type(inputs[key], dtype_override)
 
-        if dtype_override is not None and "pixel_values" in inputs:
-            inputs["pixel_values"] = cast_input_to_type(
-                inputs["pixel_values"], dtype_override
-            )
+        if batch_size > 1:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]):
+                    inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        return inputs
+        return dict(inputs)
+
+    def decode_output(self, outputs, input_length=None):
+        if self.tokenizer is None:
+            self._load_tokenizer()
+
+        if torch.is_tensor(outputs) and outputs.dtype in [torch.long, torch.int]:
+            if input_length is not None:
+                outputs = outputs[:, input_length:]
+            return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+        else:
+            logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+            next_token_id = torch.argmax(logits[:, -1, :], dim=-1)
+            return self.tokenizer.decode(next_token_id)
