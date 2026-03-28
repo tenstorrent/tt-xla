@@ -53,6 +53,7 @@ class ModelVariant(StrEnum):
     QWEN_3_4B_BNB_4BIT = "4B_bnb_4bit"
     QWEN_3_32B_BNB_4BIT = "32B_bnb_4bit"
     QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT = "30B_A3B_Instruct_2507_AWQ_8bit"
+    QWEN_3_8B_W8A8 = "8B_w8a8"
 
 
 class ModelLoader(ForgeModel):
@@ -164,6 +165,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cyankiwi/Qwen3-30B-A3B-Instruct-2507-AWQ-8bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_8B_W8A8: LLMModelConfig(
+            pretrained_model_name="nytopop/Qwen3-8B.w8a8",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -220,6 +225,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BNB_4BIT,
             ModelVariant.QWEN_3_32B_BNB_4BIT,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_AWQ_8BIT,
+            ModelVariant.QWEN_3_8B_W8A8,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -281,10 +287,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ or BnB variant and configure accordingly
+        # Check if this is an AWQ, GPTQ, or BnB variant and configure accordingly
         if pretrained_model_name in (
             "Qwen/Qwen3-8B-AWQ",
             "cyankiwi/Qwen3-30B-A3B-Instruct-2507-AWQ-8bit",
+            "nytopop/Qwen3-8B.w8a8",
         ):
             model_kwargs["device_map"] = "cpu"
 
