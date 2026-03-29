@@ -34,6 +34,9 @@ class ModelVariant(StrEnum):
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
     QWEN_3_CODER_480B_A35B_INSTRUCT_FP8 = "480B_A35B_Instruct_FP8"
 
+    # mlx-community quantized variants
+    QWEN_3_CODER_30B_A3B_INSTRUCT_4BIT = "30B_A3B_Instruct_4bit"
+
 
 class ModelLoader(ForgeModel):
     """Qwen 3 Coder model loader implementation for causal language modeling tasks."""
@@ -52,8 +55,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-30B-A3B-Instruct",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_480B_A35B_INSTRUCT_FP8: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+        # mlx-community quantized variants
+        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit",
             max_length=128,
         ),
     }
@@ -150,8 +154,7 @@ class ModelLoader(ForgeModel):
             "btbtyler09/Qwen3-Coder-Next-GPTQ-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
-        # NVFP4 quantized weights have packed shapes that differ from the model definition
-        if self._variant == ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4:
+        if "mlx-community" in pretrained_model_name:
             model_kwargs["ignore_mismatched_sizes"] = True
         model_kwargs |= kwargs
 
