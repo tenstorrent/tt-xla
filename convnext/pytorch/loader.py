@@ -8,7 +8,6 @@ ConvNeXt model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 import timm
-import torch
 from transformers import AutoModelForImageClassification
 
 from ...config import (
