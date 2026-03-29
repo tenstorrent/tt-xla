@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
 
     ROBERTA_BASE_SENTIMENT = "Base_Sentiment"
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
-    ROBERTA_BASE_EMOTION_MULTILABEL = "Base_Emotion_Multilabel"
+    ROBERTA_BASE_MNLI = "Base_MNLI"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
     ROBERTA_BASE_ROTTEN_TOMATOES = "Base_Rotten_Tomatoes"
 
@@ -41,8 +41,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST: ModelConfig(
             pretrained_model_name="cardiffnlp/twitter-roberta-base-sentiment-latest",
         ),
-        ModelVariant.ROBERTA_BASE_EMOTION_MULTILABEL: ModelConfig(
-            pretrained_model_name="cardiffnlp/twitter-roberta-base-emotion-multilabel-latest",
+        ModelVariant.ROBERTA_BASE_MNLI: ModelConfig(
+            pretrained_model_name="textattack/roberta-base-MNLI",
         ),
         ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
             pretrained_model_name="FacebookAI/roberta-large-mnli",
@@ -71,7 +71,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
-            ModelVariant.ROBERTA_BASE_EMOTION_MULTILABEL,
+            ModelVariant.ROBERTA_BASE_MNLI,
             ModelVariant.ROBERTA_LARGE_MNLI,
             ModelVariant.ROBERTA_BASE_ROTTEN_TOMATOES,
         ):
@@ -157,20 +157,12 @@ class ModelLoader(ForgeModel):
         self.model = model
         return model
 
-    def _is_nli_variant(self):
-        """Check if the current variant is an NLI-based model."""
+    def _is_mnli_variant(self):
+        """Check if the current variant is an MNLI model."""
         return self._variant in (
+            ModelVariant.ROBERTA_BASE_MNLI,
             ModelVariant.ROBERTA_LARGE_MNLI,
-            ModelVariant.ROBERTA_BASE_ZEROSHOT_V2,
         )
-
-    def _is_multi_label_variant(self):
-        """Check if the current variant is a multi-label classification model."""
-        return self._variant == ModelVariant.ROBERTA_BASE_TWEET_TOPIC_MULTI
-
-    def _is_spam_variant(self):
-        """Check if the current variant is a spam classification model."""
-        return self._variant == ModelVariant.ROBERTA_SPAM
 
     def load_inputs(self):
         """Generate sample inputs for Roberta model."""
