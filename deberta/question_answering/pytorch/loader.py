@@ -52,12 +52,12 @@ class ModelLoader(ForgeModel):
         self.question = "Which NFL team represented the AFC at Super Bowl 50?"
 
     @classmethod
-    def _get_model_info(cls, variant_name: Optional[str] = None) -> ModelInfo:
-        if variant_name is None:
-            variant_name = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="DeBERTa",
-            variant=variant_name,
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_QA,
             source=ModelSource.HUGGING_FACE,
