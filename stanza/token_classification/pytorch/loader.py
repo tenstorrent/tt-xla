@@ -1,89 +1,83 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 Stanza model loader implementation for token classification (NER).
+
+Stanza is Stanford NLP's Python NLP library built on PyTorch.
+This loader wraps the Vietnamese NER pipeline component.
 """
 
+import torch.nn as nn
 import stanza
-import torch
-from third_party.tt_forge_models.config import (
+
+from ....config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    ModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
+from ....base import ForgeModel
 
 
-class StanzaNERWrapper(torch.nn.Module):
-    """Wrapper around stanza NER pipeline components as an nn.Module."""
+class StanzaNERWrapper(nn.Module):
+    """Wrapper around stanza NER pipeline for use as a torch.nn.Module."""
 
     def __init__(self, pipeline):
         super().__init__()
         self.pipeline = pipeline
-        self.ner_tagger = pipeline.processors["ner"]._trainer.model
+        ner_processor = pipeline.processors["ner"]
+        self.ner_model = ner_processor._trainer.model
 
     def forward(self, text):
-        """Run NER prediction through the stanza pipeline.
+        """Run NER on input text through the stanza pipeline.
 
         Args:
-            text: Input text string to process.
+            text: Input text string.
 
         Returns:
             stanza.Document: Annotated document with NER predictions.
         """
-        doc = self.pipeline(text)
-        return doc
+        return self.pipeline(text)
 
 
 class ModelVariant(StrEnum):
     """Available Stanza model variants for token classification."""
 
-    STANZA_EN = "stanfordnlp/stanza-en"
+    STANFORDNLP_STANZA_VI = "stanfordnlp/stanza-vi"
 
 
 class ModelLoader(ForgeModel):
-    """Stanza model loader implementation for token classification (NER)."""
+    """Stanza model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.STANZA_EN: ModelConfig(
-            pretrained_model_name="stanfordnlp/stanza-en",
+        ModelVariant.STANFORDNLP_STANZA_VI: ModelConfig(
+            pretrained_model_name="stanfordnlp/stanza-vi",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.STANZA_EN
+    DEFAULT_VARIANT = ModelVariant.STANFORDNLP_STANZA_VI
 
     def __init__(self, variant=None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional string specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
         super().__init__(variant)
-        self.sample_text = "My name is Sarah and I live in London."
+        self.model_name = self._variant_config.pretrained_model_name
+        self.sample_text = (
+            "Thủ tướng Nguyễn Xuân Phúc đã đến thăm thành phố Hồ Chí Minh hôm qua."
+        )
         self.pipeline = None
         self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        """Get model information for dashboard and metrics reporting.
+    def _get_model_info(cls, variant_name=None):
+        if variant_name is None:
+            variant_name = "base"
 
-        Args:
-            variant: Optional variant name string. If None, uses DEFAULT_VARIANT.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="Stanza",
-            variant=variant,
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
@@ -91,50 +85,27 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load Stanza NER model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                            Not used for Stanza models.
-
-        Returns:
-            torch.nn.Module: The Stanza NER wrapper model instance.
-        """
-        stanza.download("en")
-        self.pipeline = stanza.Pipeline("en", processors="tokenize,ner", **kwargs)
-        self.model = StanzaNERWrapper(self.pipeline)
-        self.model.eval()
-        return self.model
+        """Load Stanza model for Vietnamese token classification."""
+        stanza.download("vi", processors="tokenize,ner")
+        self.pipeline = stanza.Pipeline("vi", processors="tokenize,ner")
+        model = StanzaNERWrapper(self.pipeline)
+        model.eval()
+        self.model = model
+        return model
 
     def load_inputs(self, dtype_override=None):
-        """Prepare sample input for Stanza NER.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                            Not used for Stanza models.
-
-        Returns:
-            stanza.Document: Processed document with NER annotations.
-        """
+        """Prepare sample input for Stanza token classification."""
         if self.pipeline is None:
             self.load_model(dtype_override=dtype_override)
-        doc = self.pipeline(self.sample_text)
-        self.doc = doc
-        return doc
+
+        return (self.sample_text,)
 
     def decode_output(self, co_out):
-        """Decode the model output for NER token classification.
+        """Decode the model output for token classification."""
+        entities = []
+        for sent in co_out.sentences:
+            for ent in sent.ents:
+                entities.append(f"{ent.text} ({ent.type})")
 
-        Args:
-            co_out: Model output (stanza Document or raw output).
-        """
-        if hasattr(co_out, "sentences"):
-            entities = []
-            for sent in co_out.sentences:
-                for ent in sent.ents:
-                    entities.append((ent.text, ent.type))
-        else:
-            entities = co_out
         print(f"Context: {self.sample_text}")
         print(f"Entities: {entities}")
-        return entities
