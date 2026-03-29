@@ -44,6 +44,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B_TEXT_NVFP4_MTP = "27B_Text_NVFP4_MTP"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_397B_A17B_GGUF = "397B_A17B_GGUF"
+    QWEN_3_5_27B_CLAUDE_OPUS_DISTILLED_MLX_6BIT = "27B_Claude_Opus_Distilled_MLX_6bit"
 
 
 class ModelLoader(ForgeModel):
@@ -129,6 +130,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_397B_A17B_GGUF: LLMModelConfig(
             pretrained_model_name="AesSedai/Qwen3.5-397B-A17B-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_27B_CLAUDE_OPUS_DISTILLED_MLX_6BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit",
             max_length=128,
         ),
     }
