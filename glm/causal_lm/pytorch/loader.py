@@ -36,7 +36,7 @@ class ModelVariant(StrEnum):
     GLM_4_7_FLASH_AWQ = "4.7_Flash_Awq"
     GLM_4_5 = "4.5"
     GLM_4_5_AIR = "4.5_Air"
-    SPOOMPLESMAXX_GLM4_32B = "spoomplesmaxx_glm4_32B"
+    IMG5 = "img5"
 
 
 class ModelLoader(ForgeModel):
@@ -72,8 +72,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="zai-org/GLM-4.5-Air",
             max_length=128,
         ),
-        ModelVariant.SPOOMPLESMAXX_GLM4_32B: LLMModelConfig(
-            pretrained_model_name="aimeri/spoomplesmaxx-glm4-32B",
+        ModelVariant.IMG5: LLMModelConfig(
+            pretrained_model_name="belztjti/img5",
             max_length=128,
         ),
     }
@@ -114,7 +114,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.SPOOMPLESMAXX_GLM4_32B):
+        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.IMG5):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
