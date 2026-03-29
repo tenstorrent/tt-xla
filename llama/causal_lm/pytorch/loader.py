@@ -88,6 +88,9 @@ class ModelVariant(StrEnum):
     TINYLLAMA_W8W8_STATIC = "Tinyllama_W8W8_Static"
     TINYLLAMA_W8A8_DYNAMIC_TOKEN_V2 = "Tinyllama_W8A8_Dynamic_Token_v2"
 
+    # nm-testing FP8 compressed-tensors variants
+    META_LLAMA_3_8B_FP8_COMPRESSED_TENSORS = "Meta_Llama_3_8B_FP8_Compressed_Tensors"
+
     # AMD Quark variants
     AMD_QUARK_TINY_LLAMA = "Amd_Quark_Tiny_Llama"
 
@@ -226,6 +229,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nm-testing/tinyllama-oneshot-w8a8-dynamic-token-v2",
             max_length=128,
         ),
+        # nm-testing FP8 compressed-tensors variants
+        ModelVariant.META_LLAMA_3_8B_FP8_COMPRESSED_TENSORS: LLMModelConfig(
+            pretrained_model_name="nm-testing/Meta-Llama-3-8B-FP8-compressed-tensors-test",
+            max_length=128,
+        ),
         # AMD Quark variants
         ModelVariant.AMD_QUARK_TINY_LLAMA: LLMModelConfig(
             pretrained_model_name="amd-quark/tiny-llama-fast-tokenizer",
@@ -290,6 +298,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16,
             ModelVariant.TINYLLAMA_W8W8_STATIC,
             ModelVariant.TINYLLAMA_W8A8_DYNAMIC_TOKEN_V2,
+            ModelVariant.META_LLAMA_3_8B_FP8_COMPRESSED_TENSORS,
             ModelVariant.SYNTHIA_3_70B_V3_5,
         ]:
             group = ModelGroup.VULCAN
@@ -393,6 +402,7 @@ class ModelLoader(ForgeModel):
             "RedHatAI/Llama-3.3-70B-Instruct-FP8-block",
             "nm-testing/tinyllama-oneshot-w8w8-test-static-shape-change",
             "nm-testing/tinyllama-oneshot-w8a8-dynamic-token-v2",
+            "nm-testing/Meta-Llama-3-8B-FP8-compressed-tensors-test",
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
