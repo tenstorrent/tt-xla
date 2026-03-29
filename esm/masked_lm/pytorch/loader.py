@@ -4,7 +4,6 @@
 """
 ESM-1b model loader implementation for masked language modeling on protein sequences.
 """
-import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import Optional
 
