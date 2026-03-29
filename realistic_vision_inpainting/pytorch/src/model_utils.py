@@ -14,7 +14,7 @@ from diffusers import (
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
-from PIL import Image
+from PIL import Image, ImageDraw
 
 
 def load_inpainting_pipe(model_name):
@@ -74,11 +74,18 @@ def create_dummy_mask_image(height=512, width=512):
     """
     mask = Image.new("L", (width, height), color=0)
     # Create a white square in the center (region to inpaint)
+    draw = ImageDraw.Draw(mask)
     center_x, center_y = width // 2, height // 2
     box_size = min(width, height) // 4
-    for x in range(center_x - box_size, center_x + box_size):
-        for y in range(center_y - box_size, center_y + box_size):
-            mask.putpixel((x, y), 255)
+    draw.rectangle(
+        [
+            center_x - box_size,
+            center_y - box_size,
+            center_x + box_size,
+            center_y + box_size,
+        ],
+        fill=255,
+    )
     return mask
 
 
