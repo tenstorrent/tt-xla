@@ -4,7 +4,6 @@
 """
 FastHunyuan video diffusion model loader implementation
 """
-import torch
 from typing import Optional
 
 from ...base import ForgeModel
@@ -103,7 +102,6 @@ class ModelLoader(ForgeModel):
             latents = latents.to(dtype_override)
             timestep = timestep.to(dtype_override)
             prompt_embeds = prompt_embeds.to(dtype_override)
-            prompt_attention_mask = prompt_attention_mask.to(dtype_override)
             guidance = guidance.to(dtype_override)
 
         return [latents, timestep, prompt_embeds, prompt_attention_mask, guidance]
