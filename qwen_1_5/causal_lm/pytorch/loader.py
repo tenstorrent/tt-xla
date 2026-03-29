@@ -30,7 +30,6 @@ class ModelVariant(StrEnum):
 
     QWEN_1_5_0_5B = "0.5B"
     QWEN_1_5_0_5B_CHAT = "0_5B_Chat"
-    QWEN_1_5_1_8B_CHAT = "1_8B_Chat"
     QWEN_1_5_1_8B_CHAT_GPTQ_4BIT = "1_8B_Chat_GPTQ_4bit"
     QWEN_1_5_7B = "7B"
     QWEN_1_5_72B_CHAT = "72B_Chat"
@@ -49,12 +48,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen1.5-0.5B-Chat",
             max_length=512,
         ),
-        ModelVariant.QWEN_1_5_1_8B_CHAT: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen1.5-1.8B-Chat",
-            max_length=512,
-        ),
         ModelVariant.QWEN_1_5_1_8B_CHAT_GPTQ_4BIT: LLMModelConfig(
-            pretrained_model_name="ModelCloud/Qwen1.5-1.8B-Chat-GPTQ-4bits-dynamic-cfg-with-lm_head-symTrue",
+            pretrained_model_name="ModelCloud/Qwen1.5-1.8B-Chat-GPTQ-4bits-dynamic-cfg-with-lm_head-symFalse",
             max_length=512,
         ),
         ModelVariant.QWEN_1_5_7B: LLMModelConfig(
@@ -103,7 +98,6 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         variant_groups = {
-            ModelVariant.QWEN_1_5_1_8B_CHAT: ModelGroup.VULCAN,
             ModelVariant.QWEN_1_5_1_8B_CHAT_GPTQ_4BIT: ModelGroup.VULCAN,
             ModelVariant.QWEN_1_5_7B: ModelGroup.VULCAN,
             ModelVariant.QWEN_1_5_72B_CHAT: ModelGroup.VULCAN,
@@ -172,12 +166,16 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
+        is_gptq = self._variant == ModelVariant.QWEN_1_5_1_8B_CHAT_GPTQ_4BIT
+        if is_gptq:
+            model_kwargs["device_map"] = "cpu"
+
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        if self._variant == ModelVariant.QWEN_1_5_1_8B_CHAT_GPTQ_4BIT:
+        if is_gptq:
             model = AutoModelForCausalLM.from_pretrained(
                 pretrained_model_name, **model_kwargs
             )
