@@ -23,6 +23,7 @@ from ....base import ForgeModel
 class ModelVariant(StrEnum):
     """Available Hermes 4 model variants for causal language modeling."""
 
+    HERMES_4_14B = "14B"
     HERMES_4_70B_MLX_8BIT = "70B_MLX_8bit"
 
 
@@ -30,13 +31,17 @@ class ModelLoader(ForgeModel):
     """Hermes 4 model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.HERMES_4_14B: LLMModelConfig(
+            pretrained_model_name="NousResearch/Hermes-4-14B",
+            max_length=128,
+        ),
         ModelVariant.HERMES_4_70B_MLX_8BIT: LLMModelConfig(
             pretrained_model_name="lmstudio-community/Hermes-4-70B-MLX-8bit",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.HERMES_4_70B_MLX_8BIT
+    DEFAULT_VARIANT = ModelVariant.HERMES_4_14B
 
     sample_text = "Hey how are you doing today?"
 
