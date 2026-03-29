@@ -23,25 +23,25 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available SigLIP2 timm model variants."""
 
-    VIT_L_16_512 = "ViT_L_16_512"
+    VIT_L_16_256 = "ViT_L_16_256"
 
 
 # Mapping from variant to OpenCLIP tokenizer name
 _TOKENIZER_NAME = {
-    ModelVariant.VIT_L_16_512: "hf-hub:timm/ViT-L-16-SigLIP2-512",
+    ModelVariant.VIT_L_16_256: "ViT-L-16-SigLIP2-256",
 }
 
 
 class ModelLoader(ForgeModel):
-    """SigLIP2 (timm/OpenCLIP) model loader for image-text similarity tasks."""
+    """SigLIP2 model loader using OpenCLIP for image-text similarity tasks."""
 
     _VARIANTS = {
-        ModelVariant.VIT_L_16_512: ModelConfig(
-            pretrained_model_name="hf-hub:timm/ViT-L-16-SigLIP2-512",
+        ModelVariant.VIT_L_16_256: ModelConfig(
+            pretrained_model_name="hf-hub:timm/ViT-L-16-SigLIP2-256",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.VIT_L_16_512
+    DEFAULT_VARIANT = ModelVariant.VIT_L_16_256
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -52,7 +52,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="SigLIP2_timm",
+            model="SIGLIP2_TIMM",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_IMAGE_TEXT_SIM,
@@ -61,7 +61,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the SigLIP2 model instance via OpenCLIP.
+        """Load and return the SigLIP2 model instance.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
@@ -125,7 +125,7 @@ class ModelLoader(ForgeModel):
         return {"image": pixel_values, "text": text_tokens}
 
     def post_process(self, outputs):
-        """Post-process model outputs to extract similarity scores.
+        """Post-process SigLIP2 model outputs to extract similarity scores.
 
         Args:
             outputs: Raw model output (image_features, text_features, logit_scale)
