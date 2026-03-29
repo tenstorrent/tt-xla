@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     QWEN_3_32B_GGUF = "32B_GGUF"
     QWEN_3_30B_A3B_GGUF = "30B_A3B_GGUF"
     QWEN_3_30B_A3B_THINKING_2507_GGUF = "30B_A3B_Thinking_2507_GGUF"
+    QWEN_3_235B_A22B_INSTRUCT_2507_GGUF = "235B_A22B_Instruct_2507_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -44,6 +45,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_32B_GGUF
@@ -52,6 +57,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_32B_GGUF: "Qwen3-32B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_30B_A3B_GGUF: "Qwen3-30B-A3B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_30B_A3B_THINKING_2507_GGUF: "Qwen3-30B-A3B-Thinking-2507-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_GGUF: "Qwen3-235B-A22B-Instruct-2507-Q4_K_M.gguf",
     }
 
     @property
@@ -162,6 +168,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_30B_A3B_GGUF,
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_GGUF,
+            ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_GGUF,
         )
 
     def load_shard_spec(self, model):
