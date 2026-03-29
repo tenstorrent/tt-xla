@@ -117,7 +117,7 @@ class ModelVariant(StrEnum):
 
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
-    TINYLLAMA_1_1B_INTERMEDIATE = "Tinyllama_1.1B_Intermediate"
+    TINYLLAMA_1_1B_CHAT_V0_6 = "TinyLlama_1.1B_Chat_v0.6"
 
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
@@ -283,8 +283,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="TinyLlama/TinyLlama_v1.1",
             max_length=128,
         ),
-        ModelVariant.TINYLLAMA_1_1B_INTERMEDIATE: LLMModelConfig(
-            pretrained_model_name="TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T",
+        ModelVariant.TINYLLAMA_1_1B_CHAT_V0_6: LLMModelConfig(
+            pretrained_model_name="TinyLlama/TinyLlama-1.1B-Chat-v0.6",
             max_length=128,
         ),
         # JackFram variants
@@ -388,6 +388,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.JACKFRAM_LLAMA_160M,
             ModelVariant.CHUANLI11_LLAMA_3_2_3B_INSTRUCT_UNCENSORED,
             ModelVariant.NOUSRESEARCH_LLAMA_3_1_8B,
+            ModelVariant.TINYLLAMA_1_1B_CHAT_V0_6,
         ]:
             group = ModelGroup.VULCAN
         else:
