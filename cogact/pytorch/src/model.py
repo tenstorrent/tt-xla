@@ -34,7 +34,7 @@ class TimestepEmbedder(nn.Module):
             / half
         )
         args = t[:, None].float() * freqs[None]
-        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+        embedding = torch.cat([torch.sin(args), torch.cos(args)], dim=-1)
         if dim % 2:
             embedding = torch.cat(
                 [embedding, torch.zeros_like(embedding[:, :1])], dim=-1
@@ -124,6 +124,7 @@ class DiT(nn.Module):
         mlp_ratio=4.0,
     ):
         super().__init__()
+        self.action_dim = action_dim
         self.num_action_tokens = num_action_tokens
 
         self.x_embedder = ActionEmbedder(action_dim, hidden_size)
@@ -200,7 +201,7 @@ class CogACTWrapper(nn.Module):
         noisy_actions = torch.randn(
             B,
             self.action_model.num_action_tokens,
-            7,
+            self.action_model.action_dim,
             device=device,
             dtype=dtype,
         )

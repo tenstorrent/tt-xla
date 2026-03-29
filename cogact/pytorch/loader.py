@@ -120,7 +120,8 @@ class ModelLoader(ForgeModel):
             num_action_tokens=16,
         )
 
-        # Load weights from CogACT checkpoint
+        # Load weights from CogACT checkpoint (weights_only=False required for
+        # raw .pt checkpoint containing nested dicts with custom structure)
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
         if "model" in checkpoint:
