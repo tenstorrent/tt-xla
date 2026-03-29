@@ -94,6 +94,7 @@ class ModelVariant(StrEnum):
     """Available UniDepth V2 model variants."""
 
     VIT_L14 = "ViT-L14"
+    VIT_S14 = "ViT-S14"
 
 
 class ModelLoader(ForgeModel):
@@ -102,6 +103,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.VIT_L14: UniDepthV2Config(
             pretrained_model_name="lpiccinelli/unidepth-v2-vitl14",
+            source=ModelSource.HUGGING_FACE,
+        ),
+        ModelVariant.VIT_S14: UniDepthV2Config(
+            pretrained_model_name="lpiccinelli/unidepth-v2-vits14",
             source=ModelSource.HUGGING_FACE,
         ),
     }
