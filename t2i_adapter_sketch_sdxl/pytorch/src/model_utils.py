@@ -12,6 +12,9 @@ from diffusers import StableDiffusionXLAdapterPipeline, T2IAdapter
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
+from diffusers.pipelines.t2i_adapter.pipeline_stable_diffusion_xl_adapter import (
+    _preprocess_adapter_image,
+)
 from PIL import Image
 
 
@@ -195,20 +198,16 @@ def t2i_adapter_sketch_sdxl_preprocessing(
     added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
 
     # 5. Prepare adapter image and get adapter features
-    adapter_image = pipe.prepare_image(
-        image=adapter_image,
-        width=width,
-        height=height,
-        batch_size=batch_size * num_images_per_prompt,
-        num_images_per_prompt=num_images_per_prompt,
-        device=device,
-        dtype=pipe.adapter.dtype,
-        do_classifier_free_guidance=do_classifier_free_guidance,
-    )
+    adapter_input = _preprocess_adapter_image(adapter_image, height, width)
+    adapter_input = adapter_input.to(device=device, dtype=pipe.adapter.dtype)
 
     # Run adapter to get down_intrablock_additional_residuals
-    adapter_state = pipe.adapter(adapter_image)
-    adapter_state = [each * adapter_conditioning_scale for each in adapter_state]
+    adapter_state = pipe.adapter(adapter_input)
+    for k, v in enumerate(adapter_state):
+        adapter_state[k] = v * adapter_conditioning_scale
+    if do_classifier_free_guidance:
+        for k, v in enumerate(adapter_state):
+            adapter_state[k] = torch.cat([v] * 2, dim=0)
 
     # 6. Prepare latent model input
     latent_model_input = (
