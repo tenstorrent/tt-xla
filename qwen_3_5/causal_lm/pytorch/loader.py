@@ -46,6 +46,9 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B_CLAUDE_4_6_OPUS_ABLITERATED = "27B_Claude_4.6_Opus_abliterated"
     QWEN_3_5_4B_TATSUYAAAAAAA_GGUF = "4B_tatsuyaaaaaaa_GGUF"
     QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF = "35B_A3B_Derestricted_i1_GGUF"
+    QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_THINKING_HERETIC_UNCENSORED = (
+        "9B_Claude_4.6_HighIQ_THINKING_HERETIC_UNCENSORED"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -139,6 +142,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF: LLMModelConfig(
             pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Derestricted-i1-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_THINKING_HERETIC_UNCENSORED: LLMModelConfig(
+            pretrained_model_name="DavidAU/Qwen3.5-9B-Claude-4.6-HighIQ-THINKING-HERETIC-UNCENSORED",
             max_length=128,
         ),
     }
