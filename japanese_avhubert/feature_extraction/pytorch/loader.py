@@ -6,7 +6,6 @@
 Japanese AVHuBERT model loader implementation for audio-visual feature extraction.
 """
 
-import torch
 from typing import Optional
 
 from ....base import ForgeModel
