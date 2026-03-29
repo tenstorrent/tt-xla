@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available XLM-RoBERTa PyTorch model variants for masked language modeling."""
 
+    AFRO_XLMR_BASE = "Afro_Xlmr_Base"
     AFRO_XLMR_LARGE_76L = "Afro_Xlmr_Large_76L"
 
 
@@ -30,6 +31,9 @@ class ModelLoader(ForgeModel):
     """XLM-RoBERTa model loader implementation for masked language modeling."""
 
     _VARIANTS = {
+        ModelVariant.AFRO_XLMR_BASE: ModelConfig(
+            pretrained_model_name="Davlan/afro-xlmr-base",
+        ),
         ModelVariant.AFRO_XLMR_LARGE_76L: ModelConfig(
             pretrained_model_name="Davlan/afro-xlmr-large-76L",
         ),
