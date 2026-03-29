@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
 
     GRANITE_ENGLISH_R2 = "Granite_English_R2"
     GRANITE_SMALL_ENGLISH_R2 = "Granite_Small_English_R2"
-    HUNGARIAN_BASE_V3 = "Hungarian_Base_V3"
+    DEEPVK_USER2_BASE = "deepvk_USER2_base"
 
 
 class ModelLoader(ForgeModel):
@@ -39,14 +39,17 @@ class ModelLoader(ForgeModel):
         ModelVariant.GRANITE_SMALL_ENGLISH_R2: ModelConfig(
             pretrained_model_name="ibm-granite/granite-embedding-small-english-r2",
         ),
-        ModelVariant.HUNGARIAN_BASE_V3: ModelConfig(
-            pretrained_model_name="karsar/ModernBERT-base-hu_v3",
+        ModelVariant.DEEPVK_USER2_BASE: ModelConfig(
+            pretrained_model_name="deepvk/USER2-base",
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GRANITE_SMALL_ENGLISH_R2
 
-    sample_sentences = ["The cat sits on the mat"]
+    _SAMPLE_SENTENCES = {
+        ModelVariant.GRANITE_SMALL_ENGLISH_R2: ["The cat sits on the mat"],
+        ModelVariant.DEEPVK_USER2_BASE: ["search_query: Кошка сидит на коврике"],
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -131,8 +134,12 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
+        sample_sentences = self._SAMPLE_SENTENCES.get(
+            self._variant, ["The cat sits on the mat"]
+        )
+
         inputs = self.tokenizer(
-            self.sample_sentences,
+            sample_sentences,
             padding=True,
             truncation=True,
             return_tensors="pt",
