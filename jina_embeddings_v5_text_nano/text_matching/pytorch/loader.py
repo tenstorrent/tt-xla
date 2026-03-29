@@ -5,6 +5,7 @@
 Jina Embeddings v5 Text Nano model loader implementation for text matching.
 """
 import torch
+import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
 
@@ -123,8 +124,6 @@ class ModelLoader(ForgeModel):
         sentence_embeddings = torch.sum(
             token_embeddings * input_mask_expanded, 1
         ) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
-        import torch.nn.functional as F
 
         sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
 
