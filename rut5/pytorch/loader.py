@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ruT5 model loader implementation for multitask text generation.
+ruT5 model loader implementation
 """
 
 import torch
+from transformers import AutoTokenizer, T5ForConditionalGeneration, AutoConfig
 from typing import Optional
 
 from ...base import ForgeModel
@@ -23,33 +24,55 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available ruT5 model variants."""
 
-    COINTEGRATED_RUT5_BASE_MULTITASK = "cointegrated/rut5-base-multitask"
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
-    """ruT5 model loader implementation for multitask text generation."""
+    """ruT5 model loader implementation for conditional generation tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.COINTEGRATED_RUT5_BASE_MULTITASK: LLMModelConfig(
-            pretrained_model_name="cointegrated/rut5-base-multitask",
+        ModelVariant.BASE: LLMModelConfig(
+            pretrained_model_name="ai-forever/ruT5-base",
             max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.COINTEGRATED_RUT5_BASE_MULTITASK
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.BASE
 
-    sample_text = "translate ru-en | Каждый охотник желает знать, где сидит фазан."
+    # Shared configuration parameters
+    sample_text = """summarize: Researchers have extensively studied the benefits of having pets,
+                    particularly dogs, on human health and well-being. Findings suggest that pet ownership
+                    can lead to improved mental health, reduced stress levels, and even physical health benefits
+                    such as lower blood pressure and increased physical activity levels due to regular walks."""
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant."""
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
-        self._tokenizer = None
-        self._model = None
-        self._model_name = self._variant_config.pretrained_model_name
+        self.tokenizer = None
+        self._cached_model = None
+        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant."""
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="ruT5",
             variant=variant,
@@ -60,46 +83,89 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant."""
-        from transformers import T5Tokenizer
+        """Load tokenizer for the current variant.
 
-        self._tokenizer = T5Tokenizer.from_pretrained(self._model_name)
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
 
-        return self._tokenizer
+        Returns:
+            The loaded tokenizer instance
+        """
+        # Initialize tokenizer with dtype override if specified
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        # Load the tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        )
+
+        return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the ruT5 model instance for this instance's variant."""
-        from transformers import T5ForConditionalGeneration
+        """Load and return the ruT5 model instance for this instance's variant.
 
-        if self._tokenizer is None:
-            self._load_tokenizer(dtype_override)
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
-        model_kwargs = {"return_dict": False}
+        Returns:
+            torch.nn.Module: The ruT5 model instance for conditional generation.
+        """
+        # Get the pretrained model name from the instance's variant config
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        # Ensure tokenizer is loaded
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
+
+        # Load the model with dtype override if specified
+        model_kwargs = {"use_cache": False}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config.num_layers = self.num_layers
+            config.num_decoder_layers = self.num_layers
+            model_kwargs["config"] = config
+
         model = T5ForConditionalGeneration.from_pretrained(
-            self._model_name, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         model.eval()
-        self._model = model
-
+        # Cache model for use in load_inputs (to avoid reloading)
+        self._cached_model = model
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the ruT5 model."""
-        if self._tokenizer is None:
-            self._load_tokenizer(dtype_override)
+        """Load and return sample inputs for the ruT5 model with this instance's variant settings.
 
-        inputs = self._tokenizer(
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
+        # Ensure tokenizer is initialized
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
+
+        # Create tokenized inputs
+        inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
         )
 
-        decoder_start_token_id = self._model.config.decoder_start_token_id
+        # T5 requires decoder input ids also as an input
+        decoder_start_token_tensor = torch.tensor(
+            self._cached_model.generation_config.decoder_start_token_id,
+            dtype=torch.long,
+        )
         decoder_input_ids = (
-            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
         )
         inputs["decoder_input_ids"] = decoder_input_ids
 
