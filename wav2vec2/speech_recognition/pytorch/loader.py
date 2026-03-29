@@ -25,10 +25,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 PyTorch speech recognition model variants."""
 
     BASE_960H = "Base_960h"
-    XLSR_MARATHI = "XLSR_Marathi"
-    XLSR_LITHUANIAN = "XLSR_Lithuanian"
-    XLSR_TURKISH_CV8 = "XLSR_Turkish_CV8"
-    BASE_KOREAN = "Base_Korean"
+    YSU_ASPRAM = "YSU_aspram"
 
 
 class ModelLoader(ForgeModel):
@@ -38,17 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_960H: ModelConfig(
             pretrained_model_name="facebook/wav2vec2-base-960h",
         ),
-        ModelVariant.XLSR_MARATHI: ModelConfig(
-            pretrained_model_name="sumedh/wav2vec2-large-xlsr-marathi",
-        ),
-        ModelVariant.XLSR_LITHUANIAN: ModelConfig(
-            pretrained_model_name="m3hrdadfi/wav2vec2-large-xlsr-lithuanian",
-        ),
-        ModelVariant.XLSR_TURKISH_CV8: ModelConfig(
-            pretrained_model_name="mpoyraz/wav2vec2-xls-r-300m-cv8-turkish",
-        ),
-        ModelVariant.BASE_KOREAN: ModelConfig(
-            pretrained_model_name="Kkonjeong/wav2vec2-base-korean",
+        ModelVariant.YSU_ASPRAM: ModelConfig(
+            pretrained_model_name="YSU/aspram",
         ),
     }
 
