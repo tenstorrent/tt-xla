@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     OPENMED_PII_ITALIAN_CLINICALLONGFORMER_BASE_149M_V1 = (
         "PII-Italian-ClinicalLongformer-Base-149M-v1"
     )
+    OPENMED_PII_BIOMEDELECTRA_BASE_110M_V1 = "PII-BiomedELECTRA-Base-110M-v1"
     OPENMED_PII_SUPERCLINICAL_SMALL_44M_V1 = "PII-SuperClinical-Small-44M-v1"
 
 
@@ -58,6 +59,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-PII-Italian-ClinicalLongformer-Base-149M-v1",
             max_length=128,
         ),
+        ModelVariant.OPENMED_PII_BIOMEDELECTRA_BASE_110M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-BiomedELECTRA-Base-110M-v1",
+            max_length=128,
+        ),
         ModelVariant.OPENMED_PII_SUPERCLINICAL_SMALL_44M_V1: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1",
             max_length=128,
@@ -72,6 +77,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_PATHOLOGYDETECT_BIOPATIENT_108M: "Early detection of breast cancer improves survival rates.",
         ModelVariant.OPENMED_NER_PROTEINDETECT_MODERNMED_395M: "The BRCA1 protein and p53 are involved in DNA damage response and tumor suppression pathways.",
         ModelVariant.OPENMED_PII_ITALIAN_CLINICALLONGFORMER_BASE_149M_V1: "Dr. Marco Rossi può essere contattato a marco.rossi@ospedale.it o al +39 333 123 4567.",
+        ModelVariant.OPENMED_PII_BIOMEDELECTRA_BASE_110M_V1: "Patient John Smith (DOB: 03/15/1985, SSN: 123-45-6789) was seen today. Contact: john.smith@email.com, Phone: (555) 123-4567.",
         ModelVariant.OPENMED_PII_SUPERCLINICAL_SMALL_44M_V1: "Patient John Smith, DOB 03/15/1985, SSN 123-45-6789, was admitted to Springfield General Hospital on January 10, 2024.",
     }
 
