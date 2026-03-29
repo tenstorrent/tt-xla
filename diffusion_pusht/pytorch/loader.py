@@ -13,7 +13,6 @@ import types
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 import torch
 
 from ...base import ForgeModel
@@ -81,7 +80,6 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.preprocess = None
         self.config = None
 
     @classmethod
@@ -93,17 +91,6 @@ class ModelLoader(ForgeModel):
             task=ModelTask.MM_ACTION_PREDICTION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
-        )
-
-    def _load_processors(self, device: torch.device):
-        _setup_policies_namespace()
-        import lerobot.policies.diffusion.configuration_diffusion  # noqa: F401
-        from lerobot.processor import PolicyProcessorPipeline
-
-        self.preprocess = PolicyProcessorPipeline.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            config_filename="policy_preprocessor.json",
-            overrides={"device_processor": {"device": str(device)}},
         )
 
     def load_model(self, *, dtype_override=None, device: str = "cpu", **kwargs):
@@ -120,8 +107,6 @@ class ModelLoader(ForgeModel):
             model = model.to(dtype=torch.float32)
         model.eval()
         self.config = model.config
-        if self.preprocess is None:
-            self._load_processors(torch.device(device))
         return DiffusionPolicyInferenceWrapper(model)
 
     def load_inputs(
@@ -129,46 +114,35 @@ class ModelLoader(ForgeModel):
     ):
         _setup_policies_namespace()
         from lerobot.policies.diffusion.configuration_diffusion import DiffusionConfig
-        from lerobot.policies.utils import prepare_observation_for_inference
 
         if self.config is None:
             self.config = DiffusionConfig.from_pretrained(
                 self._variant_config.pretrained_model_name
             )
 
-        if self.preprocess is None:
-            self._load_processors(torch.device(device))
+        n_obs_steps = self.config.n_obs_steps
+        dtype = dtype_override or torch.float32
 
-        dummy_observation = _build_dummy_observation(self.config.input_features or {})
-        obs_frame = prepare_observation_for_inference(
-            observation=dummy_observation,
-            device=torch.device(device),
-        )
+        # Build dummy observation batch matching the model's expected input format.
+        # The diffusion policy expects n_obs_steps frames stacked along dim 1.
+        batch = {}
+        for key, feature in (self.config.input_features or {}).items():
+            if feature.type.name == "VISUAL":
+                # Image observations: (batch, n_obs_steps, C, H, W)
+                c, h, w = feature.shape
+                batch[key] = torch.zeros(
+                    (batch_size, n_obs_steps, c, h, w), dtype=dtype, device=device
+                )
+            elif feature.type.name in ("STATE", "ENV"):
+                # State observations: (batch, n_obs_steps, state_dim)
+                batch[key] = torch.zeros(
+                    (batch_size, n_obs_steps, *feature.shape),
+                    dtype=dtype,
+                    device=device,
+                )
 
-        inputs = self.preprocess(obs_frame)
-
-        if batch_size > 1:
-            for key, value in inputs.items():
-                if torch.is_tensor(value) and value.dim() > 0:
-                    inputs[key] = value.repeat_interleave(batch_size, dim=0)
-
-        return {"batch": inputs}
+        return {"batch": batch}
 
     def unpack_forward_output(self, fwd_output):
         """predict_action_chunk returns action tensor directly."""
         return fwd_output
-
-
-def _build_dummy_observation(input_features: dict) -> dict[str, np.ndarray]:
-    from lerobot.configs.types import FeatureType
-
-    observation: dict[str, np.ndarray] = {}
-    for key, feature in input_features.items():
-        if not key.startswith("observation."):
-            continue
-        if feature.type == FeatureType.VISUAL:
-            channels, height, width = feature.shape
-            observation[key] = np.zeros((height, width, channels), dtype=np.uint8)
-        elif feature.type in (FeatureType.STATE, FeatureType.ENV):
-            observation[key] = np.zeros(feature.shape, dtype=np.float32)
-    return observation
