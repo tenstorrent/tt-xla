@@ -23,21 +23,15 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 GGUF model variants for causal language modeling."""
 
-    QWEN_2_5_0_5B_INSTRUCT_GGUF = "0.5B_Instruct_GGUF"
-    QWEN_2_5_1_5B_INSTRUCT_GGUF = "1.5B_Instruct_GGUF"
-    QWEN_2_5_3B_INSTRUCT_GGUF = "3B_Instruct_GGUF"
+    QWEN_2_5_7B_INSTRUCT_GGUF = "7B_INSTRUCT_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 2.5 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_0_5B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.QWEN_2_5_1_5B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+        ModelVariant.QWEN_2_5_7B_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="paultimothymooney/Qwen2.5-7B-Instruct-Q4_K_M-GGUF",
             max_length=128,
         ),
         ModelVariant.QWEN_2_5_3B_INSTRUCT_GGUF: LLMModelConfig(
@@ -46,14 +40,11 @@ class ModelLoader(ForgeModel):
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_1_5B_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_7B_INSTRUCT_GGUF
 
-    _GGUF_FILES = {
-        ModelVariant.QWEN_2_5_0_5B_INSTRUCT_GGUF: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
-        ModelVariant.QWEN_2_5_1_5B_INSTRUCT_GGUF: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-    }
+    GGUF_FILE = "qwen2.5-7b-instruct-q4_k_m.gguf"
 
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -67,10 +58,6 @@ class ModelLoader(ForgeModel):
     @property
     def _gguf_file(self):
         """Get the GGUF filename for the current variant."""
-        return self._GGUF_FILES[self._variant]
-
-    @property
-    def gguf_file(self):
         return self._GGUF_FILES[self._variant]
 
     @classmethod
@@ -88,7 +75,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.gguf_file
+        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -108,11 +95,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.gguf_file
+        model_kwargs["gguf_file"] = self.GGUF_FILE
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.gguf_file
+                pretrained_model_name, gguf_file=self.GGUF_FILE
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -170,17 +157,13 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
+            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
         )
         return self.config
