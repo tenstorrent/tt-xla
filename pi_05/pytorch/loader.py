@@ -4,8 +4,7 @@
 """
 Pi-0.5 model loader implementation for action prediction tasks
 """
-import torch
-from typing import Optional, Dict, Any
+from typing import Optional
 from ...base import ForgeModel
 from ...config import (
     ModelConfig,
@@ -90,7 +89,6 @@ class ModelLoader(ForgeModel):
         """
         from lerobot.policies.factory import make_pre_post_processors
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
-        from .src.model import preprocess_for_sampling
 
         self.preprocess, self.postprocess_fn = make_pre_post_processors(
             self.pi_05.config,
