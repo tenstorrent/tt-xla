@@ -2,22 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Meditron model loader implementation for causal language modeling.
+Meditron model loader implementation for causal language modeling
 """
-
-from typing import Optional
-
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     ModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
@@ -25,33 +23,47 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Meditron model variants."""
 
-    MEDITRON3_8B = "3_8B"
+    MEDITRON_7B = "Meditron_7B"
 
 
 class ModelLoader(ForgeModel):
     """Meditron model loader implementation for causal language modeling tasks."""
 
+    # Dictionary of available model variants
     _VARIANTS = {
-        ModelVariant.MEDITRON3_8B: ModelConfig(
-            pretrained_model_name="OpenMeditron/Meditron3-8B",
+        ModelVariant.MEDITRON_7B: ModelConfig(
+            pretrained_model_name="epfl-llm/meditron-7b",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MEDITRON3_8B
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.MEDITRON_7B
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+        """Implementation method for getting model info with validated variant.
 
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="Meditron",
             variant=variant,
@@ -62,24 +74,39 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        """Load tokenizer for the current variant.
 
-        tokenizer_kwargs = {}
+        Returns:
+            The loaded tokenizer instance
+        """
+        tokenizer_kwargs = {
+            "padding_side": "left",
+        }
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-
+        # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
-
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Meditron model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype.
+
+        Returns:
+            torch.nn.Module: The Meditron model instance for causal language modeling.
+        """
+        # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
+        # Ensure tokenizer is loaded
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -91,22 +118,46 @@ class ModelLoader(ForgeModel):
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
+        # Load pre-trained model from HuggingFace
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
 
-        self.config = model.config
-        self.model = model
+        # Disable gradients for inference
+        for param in model.parameters():
+            param.requires_grad = False
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the Meditron model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Optional batch size to override the default batch size of 1.
+
+        Returns:
+            dict: Input tensors (input_ids, attention_mask) that can be fed to the model.
+        """
+        # Ensure tokenizer is initialized
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        test_input = "What are the common symptoms of type 2 diabetes?"
+        # Sample text input
+        test_input = "What are the common symptoms of diabetes?"
 
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        # Tokenize input
+        self.tokenizer.padding_side = "right"
+        inputs = self.tokenizer(
+            test_input,
+            return_tensors="pt",
+            max_length=32,
+            padding="max_length",
+            add_special_tokens=True,
+            truncation=True,
+        )
 
+        # Add batch dimension
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
@@ -114,15 +165,19 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+        """Helper method to decode model outputs into human-readable text.
 
+        Args:
+            outputs: Model output from a forward pass
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            str: Decoded next token text
+        """
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
+
+        # Get logits for the last token
         next_token_logits = outputs.logits[:, -1]
         next_token = next_token_logits.softmax(dim=-1).argmax()
         return self.tokenizer.decode([next_token])
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
-        return self.config
