@@ -11,7 +11,7 @@ import torch
 from PIL import Image
 from typing import Optional
 
-from llava.constants import IMAGE_TOKEN_INDEX
+from llava.constants import DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
 from llava.conversation import conv_templates
 from llava.mm_utils import process_images, tokenizer_image_token
 from llava.model.builder import load_pretrained_model
@@ -102,8 +102,6 @@ class ModelLoader(ForgeModel):
             "The LMM response: [The image shows two cats lying on a pink blanket.]\n"
             "ASSISTANT:\n"
         )
-
-        from llava.constants import DEFAULT_IMAGE_TOKEN
 
         question = DEFAULT_IMAGE_TOKEN + "\n" + critic_prompt
         conv = copy.deepcopy(conv_templates["qwen_1_5"])
