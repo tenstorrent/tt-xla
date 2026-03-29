@@ -122,7 +122,6 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             unet = unet.to(dtype=dtype_override)
 
-        self._unet_config = unet.config
         return unet
 
     def load_inputs(self, dtype_override=None, batch_size=1):
