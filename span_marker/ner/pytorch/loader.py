@@ -5,7 +5,6 @@
 SpanMarker NER model loader implementation for named entity recognition.
 """
 
-import torch
 from span_marker import SpanMarkerModel
 from third_party.tt_forge_models.config import (
     ModelInfo,
