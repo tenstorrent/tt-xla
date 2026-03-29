@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
         "9B_Claude_4.6_HighIQ_THINKING_HERETIC_UNCENSORED"
     )
     QWEN_3_5_2B_ABLITERATED_I1_GGUF = "2B_Abliterated_i1_GGUF"
+    QWEN_3_5_9B_AWQ_BF16_INT4 = "9B_AWQ_BF16_INT4"
 
 
 class ModelLoader(ForgeModel):
@@ -151,6 +152,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_2B_ABLITERATED_I1_GGUF: LLMModelConfig(
             pretrained_model_name="mradermacher/Qwen3.5-2B_Abliterated-i1-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_9B_AWQ_BF16_INT4: LLMModelConfig(
+            pretrained_model_name="cyankiwi/Qwen3.5-9B-AWQ-BF16-INT4",
             max_length=128,
         ),
     }
@@ -356,7 +361,10 @@ class ModelLoader(ForgeModel):
 
     def _is_awq_variant(self):
         """Check if the current variant uses AWQ quantization."""
-        return False
+        return self._variant in (
+            ModelVariant.QWEN_3_5_35B_A3B_AWQ_4BIT,
+            ModelVariant.QWEN_3_5_9B_AWQ_BF16_INT4,
+        )
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
