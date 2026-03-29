@@ -25,8 +25,6 @@ class ModelVariant(StrEnum):
     """Available Moonshine PyTorch speech recognition model variants."""
 
     TINY = "Tiny"
-    BASE = "Base"
-    TINY_DE = "Tiny DE"
 
 
 class ModelLoader(ForgeModel):
@@ -35,12 +33,6 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TINY: ModelConfig(
             pretrained_model_name="UsefulSensors/moonshine-tiny",
-        ),
-        ModelVariant.BASE: ModelConfig(
-            pretrained_model_name="UsefulSensors/moonshine-base",
-        ),
-        ModelVariant.TINY_DE: ModelConfig(
-            pretrained_model_name="fidoriel/moonshine-tiny-de",
         ),
     }
 
