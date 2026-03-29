@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MiT-B5 ImageNet model loader implementation for image classification.
+MiT-B5 ImageNet model loader implementation for image segmentation.
 
-Uses the segmentation-models-pytorch (smp) library to load the MiT-B5
-encoder pretrained on ImageNet from smp-hub/mit_b5.imagenet.
+Uses the segmentation-models-pytorch (smp) library to load a segmentation
+model with MiT-B5 encoder pretrained on ImageNet from smp-hub/mit_b5.imagenet.
 """
 import torch
 from PIL import Image
@@ -23,7 +23,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from ...tools.utils import VisionPreprocessor, VisionPostprocessor
+from ...tools.utils import VisionPreprocessor
 
 
 class ModelVariant(StrEnum):
@@ -47,7 +47,6 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.model = None
         self._preprocessor = None
-        self._postprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -57,13 +56,13 @@ class ModelLoader(ForgeModel):
             model="MiT-B5 ImageNet",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.CV_IMAGE_CLS,
+            task=ModelTask.CV_IMAGE_SEG,
             source=ModelSource.CUSTOM,
             framework=Framework.TORCH,
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the MiT-B5 encoder model from segmentation-models-pytorch."""
+        """Load the MiT-B5 segmentation model from segmentation-models-pytorch."""
         import segmentation_models_pytorch as smp
 
         model = smp.from_pretrained(self._variant_config.pretrained_model_name)
@@ -73,8 +72,6 @@ class ModelLoader(ForgeModel):
 
         if self._preprocessor is not None:
             self._preprocessor.set_cached_model(model)
-        if self._postprocessor is not None:
-            self._postprocessor.set_model_instance(model)
 
         if dtype_override is not None:
             model = model.to(dtype_override)
@@ -127,15 +124,3 @@ class ModelLoader(ForgeModel):
             dtype_override=dtype_override,
             batch_size=batch_size,
         )
-
-    def output_postprocess(self, output, top_k=1):
-        if self._postprocessor is None:
-            model_name = self._variant_config.pretrained_model_name
-
-            self._postprocessor = VisionPostprocessor(
-                model_source=ModelSource.TORCHVISION,
-                model_name=model_name,
-                model_instance=self.model,
-            )
-
-        return self._postprocessor.postprocess(output, top_k=top_k, return_dict=True)
