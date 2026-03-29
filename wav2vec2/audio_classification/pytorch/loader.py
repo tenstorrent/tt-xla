@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Wav2Vec2 audio classification model variants."""
 
     LARGE_ROBUST_12_FT_EMOTION_MSP_DIM = "Large_Robust_12_FT_Emotion_MSP_Dim"
+    LARGE_ROBUST_6_FT_AGE_GENDER = "Large_Robust_6_FT_Age_Gender"
     LARGE_XLSR_53_SPEECH_EMOTION = "Large_XLSR_53_Speech_Emotion"
 
 
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LARGE_ROBUST_12_FT_EMOTION_MSP_DIM: ModelConfig(
             pretrained_model_name="audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim",
+        ),
+        ModelVariant.LARGE_ROBUST_6_FT_AGE_GENDER: ModelConfig(
+            pretrained_model_name="audeering/wav2vec2-large-robust-6-ft-age-gender",
         ),
         ModelVariant.LARGE_XLSR_53_SPEECH_EMOTION: ModelConfig(
             pretrained_model_name="firdhokk/speech-emotion-recognition-with-facebook-wav2vec2-large-xlsr-53",
@@ -90,6 +94,8 @@ class ModelLoader(ForgeModel):
 
         if self._variant == ModelVariant.LARGE_XLSR_53_SPEECH_EMOTION:
             model = self._load_auto_model(**model_kwargs)
+        elif self._variant == ModelVariant.LARGE_ROBUST_6_FT_AGE_GENDER:
+            model = self._load_custom_age_gender_model(**model_kwargs)
         else:
             model = self._load_custom_emotion_model(**model_kwargs)
 
@@ -169,12 +175,69 @@ class ModelLoader(ForgeModel):
             **model_kwargs,
         )
 
-    def load_model(self, *, dtype_override=None, **kwargs):
-        if self._variant == ModelVariant.LARGE_XLSR_DEEPFAKE_AUDIO_CLS:
-            return self._load_sequence_classification_model(
-                dtype_override=dtype_override, **kwargs
-            )
-        return self._load_emotion_model(dtype_override=dtype_override, **kwargs)
+    def _load_custom_age_gender_model(self, **model_kwargs):
+        import torch
+        import torch.nn as nn
+        from transformers import Wav2Vec2Config
+        from transformers.models.wav2vec2.modeling_wav2vec2 import (
+            Wav2Vec2Model,
+            Wav2Vec2PreTrainedModel,
+        )
+
+        class ModelHead(nn.Module):
+            """Classification head."""
+
+            def __init__(self, config, num_labels):
+                super().__init__()
+                self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+                self.dropout = nn.Dropout(config.final_dropout)
+                self.out_proj = nn.Linear(config.hidden_size, num_labels)
+
+            def forward(self, features, **kwargs):
+                x = features
+                x = self.dropout(x)
+                x = self.dense(x)
+                x = torch.tanh(x)
+                x = self.dropout(x)
+                x = self.out_proj(x)
+                return x
+
+        class AgeGenderModel(Wav2Vec2PreTrainedModel):
+            """Speech age and gender classifier."""
+
+            def __init__(self, config):
+                super().__init__(config)
+                self.config = config
+                self.wav2vec2 = Wav2Vec2Model(config)
+                self.age = ModelHead(config, 1)
+                self.gender = ModelHead(config, 3)
+                self.init_weights()
+
+            def forward(self, input_values):
+                outputs = self.wav2vec2(input_values)
+                hidden_states = outputs[0]
+                hidden_states = torch.mean(hidden_states, dim=1)
+                logits_age = self.age(hidden_states)
+                logits_gender = torch.softmax(self.gender(hidden_states), dim=1)
+                return hidden_states, logits_age, logits_gender
+
+        # Load config with workaround for vocab_size=None in upstream config
+        import json
+        from huggingface_hub import hf_hub_download
+
+        config_path = hf_hub_download(
+            self._variant_config.pretrained_model_name, "config.json"
+        )
+        with open(config_path) as f:
+            config_dict = json.load(f)
+        config_dict["vocab_size"] = config_dict.get("vocab_size") or 1
+        config = Wav2Vec2Config(**config_dict)
+
+        return AgeGenderModel.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            config=config,
+            **model_kwargs,
+        )
 
     def load_inputs(self, dtype_override=None):
         import numpy as np
