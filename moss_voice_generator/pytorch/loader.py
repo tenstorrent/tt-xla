@@ -78,6 +78,7 @@ class ModelLoader(ForgeModel):
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
             torch_dtype=dtype_override or torch.float32,
+            **kwargs,
         )
         model = MossVoiceGeneratorWrapper(full_model)
         model.eval()
