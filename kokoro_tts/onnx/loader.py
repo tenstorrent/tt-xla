@@ -7,7 +7,6 @@ Kokoro-82M v1.1 zh ONNX model loader implementation for text-to-speech tasks.
 
 from typing import Optional
 
-import numpy as np
 import onnx
 import torch
 
