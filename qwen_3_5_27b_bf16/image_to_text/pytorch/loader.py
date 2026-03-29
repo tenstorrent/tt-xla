@@ -73,7 +73,7 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
         messages = [
             {
                 "role": "user",
