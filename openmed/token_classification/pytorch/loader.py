@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     OPENMED_NER_DISEASEDETECT_BIOCLINICAL_108M = (
         "OpenMed/OpenMed-NER-DiseaseDetect-BioClinical-108M"
     )
+    OPENMED_PII_CLINICALE5_SMALL_33M_V1 = "OpenMed/OpenMed-PII-ClinicalE5-Small-33M-v1"
 
 
 class ModelLoader(ForgeModel):
@@ -63,6 +64,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-NER-DiseaseDetect-BioClinical-108M",
             max_length=128,
         ),
+        ModelVariant.OPENMED_PII_CLINICALE5_SMALL_33M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-ClinicalE5-Small-33M-v1",
+            max_length=384,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M
@@ -73,6 +78,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M: "Escherichia coli and Staphylococcus aureus were isolated from the patient samples.",
         ModelVariant.OPENMED_NER_BLOODCANCERDETECT_TINYMED_82M: "The patient presented with chronic lymphocytic leukemia symptoms.",
         ModelVariant.OPENMED_NER_DISEASEDETECT_BIOCLINICAL_108M: "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
+        ModelVariant.OPENMED_PII_CLINICALE5_SMALL_33M_V1: "Patient John Smith (DOB: 03/15/1985, SSN: 123-45-6789) was seen today.",
     }
 
     def __init__(self, variant=None):
