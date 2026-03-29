@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     """Available NFNet model variants."""
 
     ECA_NFNET_L0_RA2_IN1K = "ECA_NFNet_L0_RA2_IN1K"
+    DM_NFNET_F1_DM_IN1K = "DM_NFNet_F1_DM_IN1K"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.ECA_NFNET_L0_RA2_IN1K: NfnetConfig(
             pretrained_model_name="hf_hub:timm/eca_nfnet_l0.ra2_in1k",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.DM_NFNET_F1_DM_IN1K: NfnetConfig(
+            pretrained_model_name="hf_hub:timm/dm_nfnet_f1.dm_in1k",
             source=ModelSource.TIMM,
         ),
     }
