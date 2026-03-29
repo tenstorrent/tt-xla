@@ -6,9 +6,7 @@ Utility functions for Lotus Normal G v1.1 model loading and preprocessing.
 """
 
 import torch
-import numpy as np
-from PIL import Image
-from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
+from diffusers import UNet2DConditionModel
 from transformers import CLIPTextModel, CLIPTokenizer
 
 
