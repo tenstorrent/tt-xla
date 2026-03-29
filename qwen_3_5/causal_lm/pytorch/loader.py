@@ -43,6 +43,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_35B_A3B_MLX_4BIT = "35B_A3B_MLX_4bit"
+    QWEN_3_5_9B_MLX_4BIT = "9B_MLX_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -124,6 +125,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_MLX_4BIT: LLMModelConfig(
             pretrained_model_name="mlx-community/Qwen3.5-35B-A3B-4bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_9B_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3.5-9B-OptiQ-4bit",
             max_length=128,
         ),
     }
