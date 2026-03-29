@@ -2,12 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Svara TTS v1 model loader implementation for text-to-speech tasks.
-
-Svara TTS is an Orpheus-style multilingual TTS model built on LlamaForCausalLM
-that generates discrete audio tokens for 19 languages (18 Indic + Indian English).
+Svara TTS voice clone model loader implementation for text-to-speech tasks.
 """
 import torch
+import torch.nn as nn
 from typing import Optional
 
 from ...base import ForgeModel
@@ -22,22 +20,44 @@ from ...config import (
 )
 
 
+class SvaraTTSWrapper(nn.Module):
+    """Wrapper around the Svara TTS LlamaForCausalLM backbone.
+
+    Exposes a clean forward pass that takes pre-computed input embeddings
+    and produces next-token logits over the expanded vocabulary (including
+    audio tokens).
+    """
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, inputs_embeds):
+        outputs = self.model(
+            input_ids=None,
+            inputs_embeds=inputs_embeds,
+            use_cache=False,
+            return_dict=True,
+        )
+        return outputs.logits
+
+
 class ModelVariant(StrEnum):
     """Available Svara TTS model variants."""
 
-    SVARA_TTS_V1 = "svara_tts_v1"
+    VOICECLONE_BETA = "voiceclone-beta"
 
 
 class ModelLoader(ForgeModel):
-    """Svara TTS v1 model loader implementation for text-to-speech tasks."""
+    """Svara TTS model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.SVARA_TTS_V1: ModelConfig(
-            pretrained_model_name="kenpath/svara-tts-v1",
+        ModelVariant.VOICECLONE_BETA: ModelConfig(
+            pretrained_model_name="kenpath/svara-tts-voiceclone-beta",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SVARA_TTS_V1
+    DEFAULT_VARIANT = ModelVariant.VOICECLONE_BETA
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -56,25 +76,17 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         from transformers import AutoModelForCausalLM
 
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        dtype = dtype_override or torch.bfloat16
-
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name,
-            torch_dtype=dtype,
-            **kwargs,
+        full_model = AutoModelForCausalLM.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            torch_dtype=dtype_override or torch.float32,
         )
+
+        model = SvaraTTSWrapper(full_model)
         model.eval()
         return model
 
-    def load_inputs(self, *, dtype_override=None, **kwargs):
-        from transformers import AutoTokenizer
-
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
-
-        # Sample Hindi text with Orpheus-style emotion tag
-        text = "नमस्ते, मैं स्वरा हूं। <happy>"
-        tokens = tokenizer(text, return_tensors="pt")
-
-        return tokens
+    def load_inputs(self, dtype_override=None):
+        dtype = dtype_override or torch.float32
+        # Llama 3.2-based backbone with hidden_size=3072, use a short sequence
+        inputs_embeds = torch.randn(1, 32, 3072, dtype=dtype)
+        return (inputs_embeds,)
