@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ModernBERT Token Classification PyTorch implementation.
+ModernBERT AI4Privacy PyTorch implementation for token classification.
 """
 from .loader import ModelLoader, ModelVariant

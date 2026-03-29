@@ -2,68 +2,53 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ModernBERT model loader implementation for token classification.
+ModernBERT model loader implementation for token classification (PII detection).
 """
 
 import torch
 from transformers import AutoTokenizer, AutoModelForTokenClassification
-from third_party.tt_forge_models.config import (
+from ....base import ForgeModel
+from ....config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    LLMModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ModernBERT model variants for token classification."""
+    """Available ModernBERT token classification model variants."""
 
-    OPENMED_PII_GERMAN_BIOCLINICAL_MODERNBERT_BASE = (
-        "OpenMed-PII-German-BioClinicalModern-Base-149M-v1"
+    AI4PRIVACY_MULTILINGUAL_ANONYMISER = (
+        "ai4privacy_multilingual_categorical_anonymiser_openpii"
     )
 
 
 class ModelLoader(ForgeModel):
-    """ModernBERT model loader implementation for token classification."""
+    """ModernBERT model loader implementation for token classification tasks."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_PII_GERMAN_BIOCLINICAL_MODERNBERT_BASE: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-German-BioClinicalModern-Base-149M-v1",
-            max_length=128,
+        ModelVariant.AI4PRIVACY_MULTILINGUAL_ANONYMISER: ModelConfig(
+            pretrained_model_name="ai4privacy/llama-ai4privacy-multilingual-categorical-anonymiser-openpii",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_PII_GERMAN_BIOCLINICAL_MODERNBERT_BASE
+    DEFAULT_VARIANT = ModelVariant.AI4PRIVACY_MULTILINGUAL_ANONYMISER
 
     def __init__(self, variant=None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional string specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
         super().__init__(variant)
-
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        self.model_name = pretrained_model_name
-        self.sample_text = "Dr. Müller behandelte den Patienten Johann Schmidt in der Berliner Charité."
-        self.max_length = 128
         self.tokenizer = None
+        self.model = None
+        self.sample_text = (
+            "My name is John Smith and my email is john.smith@example.com"
+        )
+        self.max_length = 128
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
-        """Get model information for dashboard and metrics reporting.
-
-        Args:
-            variant_name: Optional variant name string. If None, uses default.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
+    def _get_model_info(cls, variant_name=None):
         if variant_name is None:
             variant_name = cls.DEFAULT_VARIANT
         return ModelInfo(
@@ -76,15 +61,9 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load ModernBERT model for token classification from Hugging Face.
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The ModernBERT model instance.
-        """
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -92,21 +71,13 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         model = AutoModelForTokenClassification.from_pretrained(
-            self.model_name, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
-        self.model = model
         model.eval()
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Prepare sample input for ModernBERT token classification.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
         if self.tokenizer is None:
             self.load_model(dtype_override=dtype_override)
 
@@ -121,11 +92,6 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def decode_output(self, co_out):
-        """Decode the model output for token classification.
-
-        Args:
-            co_out: Model output
-        """
         inputs = self.load_inputs()
         predicted_token_class_ids = co_out[0].argmax(-1)
         predicted_token_class_ids = torch.masked_select(
@@ -136,4 +102,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Answer: {predicted_tokens_classes}")
+        print(f"Predicted Labels: {predicted_tokens_classes}")
