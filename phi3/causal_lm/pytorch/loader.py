@@ -22,6 +22,7 @@ from ....tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
+    MEDIUM_128K = "Medium_128K_Instruct"
     MINI_128K = "Mini_128K_Instruct"
     MINI_4K = "Mini_4K_Instruct"
     MINI_4K_GPTQ_4BIT = "Mini_4K_Instruct_GPTQ_4bit"
@@ -31,6 +32,9 @@ class ModelVariant(StrEnum):
 
 class ModelLoader(ForgeModel):
     _VARIANTS = {
+        ModelVariant.MEDIUM_128K: ModelConfig(
+            pretrained_model_name="microsoft/Phi-3-medium-128k-instruct"
+        ),
         ModelVariant.MINI_128K: ModelConfig(
             pretrained_model_name="microsoft/Phi-3-mini-128k-instruct"
         ),
@@ -70,8 +74,8 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
         group = ModelGroup.RED
         if variant in (
+            ModelVariant.MEDIUM_128K,
             ModelVariant.MINI_4K_GPTQ_4BIT,
-            ModelVariant.MINI_4K_AWQ,
             ModelVariant.TINY_RANDOM,
         ):
             group = ModelGroup.VULCAN
