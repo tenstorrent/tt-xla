@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen 3.5 122B Uncensored GGUF model loader implementation for causal language modeling.
+Qwen 3.5 Uncensored GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,26 +21,26 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen 3.5 122B Uncensored GGUF model variants for causal language modeling."""
+    """Available Qwen 3.5 Uncensored GGUF model variants for causal language modeling."""
 
-    QWEN_3_5_122B_UNCENSORED_GGUF = "122B_Uncensored_GGUF"
+    QWEN_3_5_4B_UNCENSORED_GGUF = "4B_Uncensored_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen 3.5 122B Uncensored GGUF model loader implementation for causal language modeling tasks."""
+    """Qwen 3.5 Uncensored GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_5_122B_UNCENSORED_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/qwen-3.5-122B-uncensored-stxt-i1-GGUF",
+        ModelVariant.QWEN_3_5_4B_UNCENSORED_GGUF: LLMModelConfig(
+            pretrained_model_name="Andycurrent/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_122B_UNCENSORED_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_4B_UNCENSORED_GGUF
 
-    GGUF_FILE = "qwen-3.5-122B-uncensored-stxt.i1-Q4_K_S.gguf"
+    GGUF_FILE = "Qwen3.5-4B-Uncensored-HauhauCS-Aggressive_Q4_k_m.gguf"
 
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Qwen 3.5 122B Uncensored GGUF",
+            model="Qwen 3.5 Uncensored GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -134,6 +134,23 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
