@@ -24,6 +24,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available DeepSeek Coder 33B model variants."""
 
+    DEEPSEEK_33B_BASE = "33B_Base"
     DEEPSEEK_33B_INSTRUCT = "33B_Instruct"
 
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     """DeepSeek Coder 33B model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.DEEPSEEK_33B_BASE: LLMModelConfig(
+            pretrained_model_name="deepseek-ai/deepseek-coder-33b-base",
+            max_length=2048,
+        ),
         ModelVariant.DEEPSEEK_33B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="deepseek-ai/deepseek-coder-33b-instruct",
             max_length=2048,
@@ -91,12 +96,18 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        messages = [{"role": "user", "content": self.sample_text}]
-        inputs = self.tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            return_tensors="pt",
-        )
+        if self._variant == ModelVariant.DEEPSEEK_33B_BASE:
+            inputs = self.tokenizer(
+                self.sample_text,
+                return_tensors="pt",
+            )["input_ids"]
+        else:
+            messages = [{"role": "user", "content": self.sample_text}]
+            inputs = self.tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt",
+            )
         padded_inputs, seq_len = pad_inputs(inputs)
         self.seq_len = seq_len
 
