@@ -34,11 +34,13 @@ class ModelVariant(StrEnum):
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_L6_H768_UNCASED = "gaunernst/bert-L6-H768-uncased"
     BERT_BASE_DUTCH_CASED = "wietsedv/bert-base-dutch-cased"
+    CHINESE_MACBERT_LARGE = "hfl/chinese-macbert-large"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.BERT_LARGE_PORTUGUESE_CASED: "A capital de Portugal é [MASK].",
     ModelVariant.BERT_BASE_DUTCH_CASED: "Amsterdam is de hoofdstad van [MASK].",
+    ModelVariant.CHINESE_MACBERT_LARGE: "巴黎是[MASK]国的首都。",
 }
 
 
@@ -81,6 +83,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_BASE_DUTCH_CASED: LLMModelConfig(
             pretrained_model_name="wietsedv/bert-base-dutch-cased",
+            max_length=128,
+        ),
+        ModelVariant.CHINESE_MACBERT_LARGE: LLMModelConfig(
+            pretrained_model_name="hfl/chinese-macbert-large",
             max_length=128,
         ),
     }
@@ -128,6 +134,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_L6_H768_UNCASED,
             ModelVariant.BERT_BASE_DUTCH_CASED,
+            ModelVariant.CHINESE_MACBERT_LARGE,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
