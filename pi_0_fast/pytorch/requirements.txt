@@ -1,0 +1,8 @@
+transformers @ git+https://github.com/huggingface/transformers.git@fix/lerobot_openpi
+tokenizers==0.21.1
+draccus==0.10.0
+gymnasium==1.2.3
+torchcodec==0.9.1
+pyserial==3.5
+deepdiff==8.6.1
+av==15.0.0
