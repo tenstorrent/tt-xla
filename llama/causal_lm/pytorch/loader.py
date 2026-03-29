@@ -100,7 +100,7 @@ class ModelVariant(StrEnum):
 
     # Llama 2 variants
     LLAMA_2_7B = "2_7B"
-    LLAMA_2_70B_CHAT = "2_70B_Chat"
+    LLAMA_2_7B_CHAT_AWQ = "2_7B_Chat_Awq"
 
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
@@ -244,8 +244,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="meta-llama/Llama-2-7b-hf",
             max_length=128,
         ),
-        ModelVariant.LLAMA_2_70B_CHAT: LLMModelConfig(
-            pretrained_model_name="meta-llama/Llama-2-70b-chat-hf",
+        ModelVariant.LLAMA_2_7B_CHAT_AWQ: LLMModelConfig(
+            pretrained_model_name="TheBloke/Llama-2-7B-Chat-AWQ",
             max_length=128,
         ),
         # HuggingFace community variants
@@ -369,7 +369,7 @@ class ModelLoader(ForgeModel):
             group = ModelGroup.PRIORITY
         elif variant in [
             ModelVariant.LLAMA_2_7B,
-            ModelVariant.LLAMA_2_7B_CHAT,
+            ModelVariant.LLAMA_2_7B_CHAT_AWQ,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
@@ -440,16 +440,10 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-        # Check if this is an AWQ or BnB variant and configure accordingly
-        if (
-            pretrained_model_name
-            in (
-                "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
-                "TheBloke/TinyLlama-1.1B-Chat-v0.3-AWQ",
-                "AMead10/Llama-3.2-3B-Instruct-AWQ",
-            )
-            or self._variant == ModelVariant.LLAMA_3_2_3B_BNB_4BIT
-            or self._variant == ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT
+        # Check if this is an AWQ variant and configure accordingly
+        if pretrained_model_name in (
+            "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+            "TheBloke/Llama-2-7B-Chat-AWQ",
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
@@ -660,8 +654,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_BNB_4BIT,
             ModelVariant.HUGGYLLAMA_7B,
             ModelVariant.LLAMA_2_7B,
-            ModelVariant.LLAMA_2_7B_CHAT,
-            ModelVariant.AMD_QUARK_TINY_LLAMA,
+            ModelVariant.LLAMA_2_7B_CHAT_AWQ,
             ModelVariant.JACKFRAM_LLAMA_160M,
             ModelVariant.JDCHANG_LLAMA3_SMALL,
         ]:
