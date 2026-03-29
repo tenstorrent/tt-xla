@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: MIT
 # Source: https://github.com/louaaron/Score-Entropy-Discrete-Diffusion
 import torch
-from torch import nn
 
 
 class Rotary(torch.nn.Module):
