@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
     MS_MARCO_MINILM_L4_V2 = "ms-marco-MiniLM-L4-v2"
     MS_MARCO_MINILM_L6_V2 = "ms-marco-MiniLM-L6-v2"
     MS_MARCO_MINILM_L12_V2 = "ms-marco-MiniLM-L12-v2"
-    MS_MARCO_TINYBERT_L2 = "ms-marco-TinyBERT-L2"
+    MMARCO_GERMAN_DISTILBERT_BASE = "mmarco-german-distilbert-base"
 
 
 class ModelLoader(ForgeModel):
@@ -47,8 +47,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MS_MARCO_MINILM_L12_V2: ModelConfig(
             pretrained_model_name="cross-encoder/ms-marco-MiniLM-L12-v2",
         ),
-        ModelVariant.MS_MARCO_TINYBERT_L2: ModelConfig(
-            pretrained_model_name="cross-encoder/ms-marco-TinyBERT-L2",
+        ModelVariant.MMARCO_GERMAN_DISTILBERT_BASE: ModelConfig(
+            pretrained_model_name="ml6team/cross-encoder-mmarco-german-distilbert-base",
         ),
     }
 
@@ -62,6 +62,16 @@ class ModelLoader(ForgeModel):
             "Berlin had a population of 3,520,031 registered inhabitants in an area of 891.82 square kilometers.",
         ),
     ]
+
+    # Variant-specific sample pairs (e.g., for non-English models)
+    _VARIANT_SAMPLE_PAIRS = {
+        ModelVariant.MMARCO_GERMAN_DISTILBERT_BASE: [
+            (
+                "Wie viele Menschen leben in Berlin?",
+                "Berlin hatte mass 3.520.031 registrierte Einwohner auf einer Flaeche von 891,82 Quadratkilometern.",
+            ),
+        ],
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -144,8 +154,9 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        queries = [pair[0] for pair in self.sample_pairs]
-        passages = [pair[1] for pair in self.sample_pairs]
+        pairs = self._VARIANT_SAMPLE_PAIRS.get(self._variant, self.sample_pairs)
+        queries = [pair[0] for pair in pairs]
+        passages = [pair[1] for pair in pairs]
 
         inputs = self.tokenizer(
             queries,
