@@ -4,6 +4,7 @@
 """
 ESM-1v model loader implementation for masked language modeling on protein sequences.
 """
+import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import Optional
 
@@ -22,19 +23,38 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available ESM-1v model variants."""
 
+    ESM1V_T33_650M_UR90S_1 = "facebook/esm1v_t33_650M_UR90S_1"
+    ESM1V_T33_650M_UR90S_2 = "facebook/esm1v_t33_650M_UR90S_2"
+    ESM1V_T33_650M_UR90S_3 = "facebook/esm1v_t33_650M_UR90S_3"
     ESM1V_T33_650M_UR90S_4 = "facebook/esm1v_t33_650M_UR90S_4"
+    ESM1V_T33_650M_UR90S_5 = "facebook/esm1v_t33_650M_UR90S_5"
 
 
 class ModelLoader(ForgeModel):
     """ESM-1v model loader implementation for masked language modeling on protein sequences."""
 
     _VARIANTS = {
+        ModelVariant.ESM1V_T33_650M_UR90S_1: ModelConfig(
+            pretrained_model_name="facebook/esm1v_t33_650M_UR90S_1",
+        ),
+        ModelVariant.ESM1V_T33_650M_UR90S_2: ModelConfig(
+            pretrained_model_name="facebook/esm1v_t33_650M_UR90S_2",
+        ),
+        ModelVariant.ESM1V_T33_650M_UR90S_3: ModelConfig(
+            pretrained_model_name="facebook/esm1v_t33_650M_UR90S_3",
+        ),
         ModelVariant.ESM1V_T33_650M_UR90S_4: ModelConfig(
             pretrained_model_name="facebook/esm1v_t33_650M_UR90S_4",
         ),
+        ModelVariant.ESM1V_T33_650M_UR90S_5: ModelConfig(
+            pretrained_model_name="facebook/esm1v_t33_650M_UR90S_5",
+        ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ESM1V_T33_650M_UR90S_4
+    DEFAULT_VARIANT = ModelVariant.ESM1V_T33_650M_UR90S_3
+
+    # Short protein sequence for testing
+    sample_sequence = "MGSSHHHHHHSSGLVPRGSHM"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
