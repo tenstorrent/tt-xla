@@ -8,7 +8,6 @@ AIMv2 model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 import timm
-import torch
 
 from ...config import (
     ModelConfig,
