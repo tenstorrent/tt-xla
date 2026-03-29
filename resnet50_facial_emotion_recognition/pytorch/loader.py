@@ -5,7 +5,6 @@
 ResNet50 Facial Emotion Recognition model loader implementation
 """
 
-import torch
 import numpy as np
 from transformers import AutoModelForImageClassification
 from torchvision import transforms
