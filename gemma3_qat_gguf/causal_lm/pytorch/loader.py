@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Gemma 3 QAT GGUF model variants for causal language modeling."""
 
-    GEMMA_3_4B_IT_QAT_Q4_0 = "4B_IT_QAT_Q4_0"
+    GEMMA_3_4B_IT_QAT_GGUF = "4B_IT_QAT_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Gemma 3 QAT GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GEMMA_3_4B_IT_QAT_Q4_0: LLMModelConfig(
-            pretrained_model_name="google/gemma-3-4b-it-qat-q4_0-gguf",
+        ModelVariant.GEMMA_3_4B_IT_QAT_GGUF: LLMModelConfig(
+            pretrained_model_name="ggml-org/gemma-3-4b-it-qat-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GEMMA_3_4B_IT_QAT_Q4_0
+    DEFAULT_VARIANT = ModelVariant.GEMMA_3_4B_IT_QAT_GGUF
 
-    GGUF_FILE = "gemma-3-4b-it-q4_0.gguf"
+    GGUF_FILE = "gemma-3-4b-it-qat-Q4_0.gguf"
 
     sample_text = "What is your favorite city?"
 
