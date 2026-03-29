@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     NEMOTRON_3_NANO_30B_A3B_MLX_4BIT = "3_Nano_30B_A3B_MLX_4bit"
     NEMOTRON_3_SUPER_120B_A12B_NVFP4 = "3_Super_120B_A12B_NVFP4"
     LLAMA_3_3_NEMOTRON_SUPER_49B_V1_5_FP8 = "Llama_3_3_Super_49B_v1_5_FP8"
+    RESEARCH_REASONING_QWEN_1_5B = "Research_Reasoning_Qwen_1_5B"
 
 
 class ModelLoader(ForgeModel):
@@ -53,6 +54,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_3_NEMOTRON_SUPER_49B_V1_5_FP8: LLMModelConfig(
             pretrained_model_name="nvidia/Llama-3_3-Nemotron-Super-49B-v1_5-FP8",
+            max_length=128,
+        ),
+        ModelVariant.RESEARCH_REASONING_QWEN_1_5B: LLMModelConfig(
+            pretrained_model_name="nvidia/Nemotron-Research-Reasoning-Qwen-1.5B",
             max_length=128,
         ),
     }
@@ -108,6 +113,9 @@ class ModelLoader(ForgeModel):
     # Base (non-instruct) variants that lack a chat template.
     _BASE_VARIANTS = {ModelVariant.NEMOTRON_CC_NORWEGIAN_TOWER_9B}
 
+    # Qwen2-based variants don't support enable_thinking in chat templates.
+    _QWEN2_VARIANTS = {ModelVariant.RESEARCH_REASONING_QWEN_1_5B}
+
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -137,16 +145,17 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        if self._variant in self._BASE_VARIANTS:
-            text = self.sample_text
-        else:
-            messages = [{"role": "user", "content": self.sample_text}]
-            text = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
-                enable_thinking=False,
-            )
+        messages = [{"role": "user", "content": self.sample_text}]
+        chat_kwargs = {
+            "tokenize": False,
+            "add_generation_prompt": True,
+        }
+        if self._variant not in self._QWEN2_VARIANTS:
+            chat_kwargs["enable_thinking"] = False
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            **chat_kwargs,
+        )
 
         inputs = self.tokenizer(
             [text],
