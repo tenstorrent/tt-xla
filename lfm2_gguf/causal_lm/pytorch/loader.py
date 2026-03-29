@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 LFM2 GGUF model loader implementation for causal language modeling.
+
+Supports LiquidAI's LFM2 Mixture-of-Experts models in GGUF format.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -23,32 +25,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available LFM2 GGUF model variants for causal language modeling."""
 
-    LFM2_1_2B_EXTRACT_GGUF = "1.2B_Extract_GGUF"
-    LFM2_2_6B_EXP_GGUF = "2.6B_Exp_GGUF"
+    LFM2_8B_A1B_Q4_K_M = "8B_A1B_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
     """LFM2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LFM2_1_2B_EXTRACT_GGUF: LLMModelConfig(
-            pretrained_model_name="LiquidAI/LFM2-1.2B-Extract-GGUF",
-            max_length=128,
-        ),
-        ModelVariant.LFM2_2_6B_EXP_GGUF: LLMModelConfig(
-            pretrained_model_name="LiquidAI/LFM2-2.6B-Exp-GGUF",
+        ModelVariant.LFM2_8B_A1B_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="LiquidAI/LFM2-8B-A1B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LFM2_1_2B_EXTRACT_GGUF
+    DEFAULT_VARIANT = ModelVariant.LFM2_8B_A1B_Q4_K_M
 
-    _GGUF_FILES = {
-        ModelVariant.LFM2_1_2B_EXTRACT_GGUF: "LFM2-1.2B-Extract-Q4_K_M.gguf",
-        ModelVariant.LFM2_2_6B_EXP_GGUF: "LFM2-2.6B-Exp-Q4_K_M.gguf",
-    }
+    GGUF_FILE = "LFM2-8B-A1B-Q4_K_M.gguf"
 
-    sample_text = "Extract the invoice number and total amount from this document."
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -57,10 +51,6 @@ class ModelLoader(ForgeModel):
         self.tokenizer = None
         self.config = None
         self.num_layers = num_layers
-
-    @property
-    def gguf_file(self):
-        return self._GGUF_FILES[self._variant]
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -77,7 +67,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.gguf_file
+        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -97,11 +87,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.gguf_file
+        model_kwargs["gguf_file"] = self.GGUF_FILE
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.gguf_file
+                pretrained_model_name, gguf_file=self.GGUF_FILE
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -149,6 +139,6 @@ class ModelLoader(ForgeModel):
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
+            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
         )
         return self.config
