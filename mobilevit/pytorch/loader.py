@@ -37,7 +37,7 @@ class ModelVariant(StrEnum):
 
     # HuggingFace variants
     SMALL = "Small"
-    TINY_RANDOM = "Tiny_Random"
+    XX_SMALL = "XX-Small"
 
 
 class ModelLoader(ForgeModel):
@@ -49,8 +49,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="apple/mobilevit-small",
             source=ModelSource.HUGGING_FACE,
         ),
-        ModelVariant.TINY_RANDOM: MobileViTConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-mobilevit",
+        ModelVariant.XX_SMALL: MobileViTConfig(
+            pretrained_model_name="apple/mobilevit-xx-small",
             source=ModelSource.HUGGING_FACE,
         ),
     }
