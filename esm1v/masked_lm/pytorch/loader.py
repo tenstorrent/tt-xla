@@ -22,22 +22,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available ESM-1v model variants."""
 
-    ESM1V_T33_650M_UR90S_5 = "facebook/esm1v_t33_650M_UR90S_5"
+    ESM1V_T33_650M_UR90S_4 = "facebook/esm1v_t33_650M_UR90S_4"
 
 
 class ModelLoader(ForgeModel):
     """ESM-1v model loader implementation for masked language modeling on protein sequences."""
 
     _VARIANTS = {
-        ModelVariant.ESM1V_T33_650M_UR90S_5: ModelConfig(
-            pretrained_model_name="facebook/esm1v_t33_650M_UR90S_5",
+        ModelVariant.ESM1V_T33_650M_UR90S_4: ModelConfig(
+            pretrained_model_name="facebook/esm1v_t33_650M_UR90S_4",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.ESM1V_T33_650M_UR90S_5
-
-    # Short protein sequence with a mask token for testing
-    sample_sequence = "MGSSHHHHHHSSGLVPRGSHMASK"
+    DEFAULT_VARIANT = ModelVariant.ESM1V_T33_650M_UR90S_4
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
