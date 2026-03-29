@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.MN_12B_CELESTE_V1_9_GGUF
 
-    GGUF_FILE = "MN-12B-Celeste-V1.9-Q4_K_M.gguf"
+    GGUF_FILE = "Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
