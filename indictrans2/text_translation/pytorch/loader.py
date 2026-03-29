@@ -24,19 +24,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available IndicTrans2 model variants."""
 
-    EN_INDIC_DIST_200M = "En_Indic_Dist_200M"
+    EN_INDIC_1B = "En_Indic_1B"
 
 
 class ModelLoader(ForgeModel):
     """IndicTrans2 model loader implementation for text translation."""
 
     _VARIANTS = {
-        ModelVariant.EN_INDIC_DIST_200M: LLMModelConfig(
-            pretrained_model_name="ai4bharat/indictrans2-en-indic-dist-200M",
+        ModelVariant.EN_INDIC_1B: LLMModelConfig(
+            pretrained_model_name="ai4bharat/indictrans2-en-indic-1B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.EN_INDIC_DIST_200M
+    DEFAULT_VARIANT = ModelVariant.EN_INDIC_1B
 
     sample_text = "Hello, how are you today?"
 
