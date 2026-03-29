@@ -2,5 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Flair model implementation for Tenstorrent projects.
+Flair model implementations for Tenstorrent projects.
 """
