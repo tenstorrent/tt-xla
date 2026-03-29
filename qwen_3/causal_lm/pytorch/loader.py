@@ -54,6 +54,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_1_7B_GGUF = "1_7B_GGUF"
+    QWEN_3_0_6B_FP8_BLOCK = "0_6B_FP8_Block"
 
 
 class ModelLoader(ForgeModel):
@@ -161,6 +162,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="geoffmunn/Qwen3-1.7B-f16",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_0_6B_FP8_BLOCK: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Qwen3-0.6B-FP8-BLOCK",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -218,6 +223,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_1_7B_GGUF,
+            ModelVariant.QWEN_3_0_6B_FP8_BLOCK,
         ):
             group = ModelGroup.VULCAN
         else:
