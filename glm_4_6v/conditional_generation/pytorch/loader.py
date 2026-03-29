@@ -5,7 +5,7 @@
 GLM-4.6V model loader implementation for multimodal conditional generation.
 """
 import torch
-from transformers import AutoProcessor, Glm4vForConditionalGeneration
+from transformers import AutoProcessor, Glm4vMoeForConditionalGeneration
 from typing import Optional
 
 from ....base import ForgeModel
@@ -25,19 +25,19 @@ from PIL import Image
 class ModelVariant(StrEnum):
     """Available GLM-4.6V model variants for multimodal conditional generation."""
 
-    GLM_4_6V_FLASH = "glm_4_6v_flash"
+    GLM_4_6V = "glm_4_6v"
 
 
 class ModelLoader(ForgeModel):
     """GLM-4.6V model loader implementation for multimodal conditional generation."""
 
     _VARIANTS = {
-        ModelVariant.GLM_4_6V_FLASH: LLMModelConfig(
-            pretrained_model_name="zai-org/GLM-4.6V-Flash",
+        ModelVariant.GLM_4_6V: LLMModelConfig(
+            pretrained_model_name="zai-org/GLM-4.6V",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GLM_4_6V_FLASH
+    DEFAULT_VARIANT = ModelVariant.GLM_4_6V
 
     sample_text = "What do you see in this image?"
     sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"
@@ -79,7 +79,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = Glm4vForConditionalGeneration.from_pretrained(
+        model = Glm4vMoeForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
