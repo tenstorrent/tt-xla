@@ -54,6 +54,7 @@ class ModelVariant(StrEnum):
     VIT_SMALL_PATCH16_384_AUGREG_IN21K_FT_IN1K = (
         "Small_Patch16_384_AugReg_IN21K_FT_IN1K"
     )
+    VIT_BASE_PATCH16_SIGLIP_512 = "Base_Patch16_SigLIP_512"
     VIT_LARGE_PATCH14_CLIP_336_LAION2B_FT_IN12K_IN1K = (
         "Large_Patch14_CLIP_336_LAION2B_FT_IN12K_IN1K"
     )
@@ -113,6 +114,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.VIT_BASE_PATCH16_SIGLIP_224_V2_WEBLI: ViTConfig(
             pretrained_model_name="vit_base_patch16_siglip_224.v2_webli",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.VIT_BASE_PATCH16_SIGLIP_512: ViTConfig(
+            pretrained_model_name="vit_base_patch16_siglip_512",
             source=ModelSource.TIMM,
         ),
         ModelVariant.VIT_SMALL_PATCH16_384_AUGREG_IN21K_FT_IN1K: ViTConfig(
