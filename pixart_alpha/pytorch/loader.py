@@ -59,6 +59,7 @@ class ModelLoader(ForgeModel):
         load_kwargs = {"use_safetensors": True}
         if dtype_override is not None:
             load_kwargs["torch_dtype"] = dtype_override
+        load_kwargs |= kwargs
 
         self.transformer = PixArtTransformer2DModel.from_pretrained(
             self._variant_config.pretrained_model_name,
@@ -81,9 +82,6 @@ class ModelLoader(ForgeModel):
         # Image dimensions for latent space
         sample_size = config.sample_size  # 128 for 1024px model
         in_channels = config.in_channels  # 4
-        num_attention_heads = config.num_attention_heads  # 16
-        attention_head_dim = config.attention_head_dim  # 72
-        inner_dim = num_attention_heads * attention_head_dim  # 1152
         cross_attention_dim = config.cross_attention_dim  # 1152
 
         # Latent input: (B, C, H, W) where H,W = sample_size
