@@ -2,51 +2,64 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-I-BERT model loader implementation for masked language modeling.
+I-BERT For Masked LM model loader implementation
 """
+import torch
+from transformers import AutoTokenizer, AutoModelForMaskedLM
+from typing import Optional
 
-from transformers import AutoModelForMaskedLM, AutoTokenizer
-from third_party.tt_forge_models.config import (
+from ....base import ForgeModel
+from ....config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    LLMModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available I-BERT model variants for masked language modeling."""
+    """Available I-BERT For Masked LM model variants."""
 
-    TINY_RANDOM = "Tiny_Random"
+    IBERT_ROBERTA_BASE = "Ibert_Roberta_Base"
 
 
 class ModelLoader(ForgeModel):
-    """I-BERT model loader implementation for masked language modeling."""
+    """I-BERT For Masked LM model loader implementation for masked language modeling tasks."""
 
+    # Dictionary of available model variants
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-ibert",
-            max_length=128,
+        ModelVariant.IBERT_ROBERTA_BASE: ModelConfig(
+            pretrained_model_name="kssteven/ibert-roberta-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.IBERT_ROBERTA_BASE
 
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
-        self.model_name = self._variant_config.pretrained_model_name
-        self.max_length = self._variant_config.max_length
-        self.sample_text = "The capital of France is <mask>."
         self.tokenizer = None
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="I-BERT",
             variant=variant,
@@ -56,38 +69,91 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_tokenizer(self):
+        """Load tokenizer for the current variant.
+
+        Returns:
+            The loaded tokenizer instance
+        """
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+        return self.tokenizer
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        """Load and return the I-BERT For Masked LM model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use bfloat16.
+
+        Returns:
+            torch.nn.Module: The I-BERT For Masked LM model instance for masked language modeling.
+        """
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        if self.tokenizer is None:
+            self._load_tokenizer()
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForMaskedLM.from_pretrained(self.model_name, **model_kwargs)
-        model.eval()
+        model = AutoModelForMaskedLM.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        )
+
         return model
 
-    def load_inputs(self, dtype_override=None):
-        if self.tokenizer is None:
-            self.load_model(dtype_override=dtype_override)
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the I-BERT For Masked LM model.
 
-        inputs = self.tokenizer(
-            self.sample_text,
-            max_length=self.max_length,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt",
-        )
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Optional batch size to override the default batch size of 1.
+
+        Returns:
+            dict: Input tensors (input_ids, attention_mask) that can be fed to the model.
+        """
+        if self.tokenizer is None:
+            self._load_tokenizer()
+
+        test_input = "The capital of France is <mask>."
+
+        inputs = self.tokenizer(test_input, return_tensors="pt")
+
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
-    def decode_output(self, co_out):
+    def decode_output(self, outputs):
+        """Helper method to decode model outputs for masked language modeling.
+
+        Args:
+            outputs: Model output from a forward pass
+
+        Returns:
+            str: Decoded predicted token for the mask position
+        """
+        if self.tokenizer is None:
+            self._load_tokenizer()
+
+        if isinstance(outputs, list):
+            logits = outputs[0].logits if hasattr(outputs[0], "logits") else outputs[0]
+        else:
+            logits = outputs.logits if hasattr(outputs, "logits") else outputs
+
         inputs = self.load_inputs()
-        logits = co_out[0]
+
         mask_token_index = (inputs["input_ids"] == self.tokenizer.mask_token_id)[
             0
         ].nonzero(as_tuple=True)[0]
+
         predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
-        predicted_token = self.tokenizer.decode(predicted_token_id)
-        print("The predicted token for the <mask> is:", predicted_token)
+
+        output = self.tokenizer.decode(predicted_token_id)
+
+        return f"Output: {output}"
