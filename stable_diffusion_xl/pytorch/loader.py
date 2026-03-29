@@ -26,9 +26,9 @@ class ModelVariant(StrEnum):
 
     STABLE_DIFFUSION_XL_BASE_1_0 = "Base_1.0"
     TINY_RANDOM_STABLE_DIFFUSION_XL = "tiny-random-stable-diffusion-xl"
-    DVINE82_XL = "dvine82-xl"
-    PREFECT_ILLUSTRIOUS_XL_V15 = "prefect-illustrious-xl-v15"
-    CYBER_REALISTIC_PONY = "cyber-realistic-pony"
+    ECHARLAIX_TINY_RANDOM_STABLE_DIFFUSION_XL = (
+        "echarlaix-tiny-random-stable-diffusion-xl"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -42,14 +42,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL: ModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-stable-diffusion-xl",
         ),
-        ModelVariant.DVINE82_XL: ModelConfig(
-            pretrained_model_name="martineux/dvine82-xl",
-        ),
-        ModelVariant.PREFECT_ILLUSTRIOUS_XL_V15: ModelConfig(
-            pretrained_model_name="John6666/prefect-illustrious-xl-v15-sdxl",
-        ),
-        ModelVariant.CYBER_REALISTIC_PONY: ModelConfig(
-            pretrained_model_name="cyberdelia/CyberRealisticPony",
+        ModelVariant.ECHARLAIX_TINY_RANDOM_STABLE_DIFFUSION_XL: ModelConfig(
+            pretrained_model_name="echarlaix/tiny-random-stable-diffusion-xl",
         ),
     }
 
@@ -85,9 +79,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.RED
         if variant in (
             ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL,
-            ModelVariant.DVINE82_XL,
-            ModelVariant.PREFECT_ILLUSTRIOUS_XL_V15,
-            ModelVariant.CYBER_REALISTIC_PONY,
+            ModelVariant.ECHARLAIX_TINY_RANDOM_STABLE_DIFFUSION_XL,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
