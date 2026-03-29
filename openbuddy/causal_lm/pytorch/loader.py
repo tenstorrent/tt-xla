@@ -23,6 +23,7 @@ from ....base import ForgeModel
 class ModelVariant(StrEnum):
     """Available OpenBuddy model variants for causal language modeling."""
 
+    OPENBUDDY_MISTRAL_22B_V21_1_32K = "OpenBuddy_Mistral_22B_v21.1_32K"
     OPENBUDDY_ZERO_56B_V21_2_32K = "OpenBuddy_Zero_56B_v21.2_32K"
 
 
@@ -30,6 +31,10 @@ class ModelLoader(ForgeModel):
     """OpenBuddy model loader implementation."""
 
     _VARIANTS = {
+        ModelVariant.OPENBUDDY_MISTRAL_22B_V21_1_32K: LLMModelConfig(
+            pretrained_model_name="OpenBuddy/openbuddy-mistral-22b-v21.1-32k",
+            max_length=256,
+        ),
         ModelVariant.OPENBUDDY_ZERO_56B_V21_2_32K: LLMModelConfig(
             pretrained_model_name="OpenBuddy/openbuddy-zero-56b-v21.2-32k",
             max_length=256,
