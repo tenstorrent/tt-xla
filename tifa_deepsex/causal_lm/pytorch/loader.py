@@ -1,76 +1,178 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Tifa-Deepsex-14b-CoT model loader implementation for causal language modeling.
-
-Fine-tuned from DeepSeek-R1-Distill-Qwen-14B for roleplay and
-chain-of-thought reasoning tasks.
+Tifa-Deepsex GGUF model loader implementation for causal language modeling.
 """
-
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
-    ModelGroup,
+    LLMModelConfig,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
+    StrEnum,
 )
 
 
-class ModelLoader(ForgeModel):
-    """Tifa-Deepsex-14b-CoT model loader for causal language modeling."""
+class ModelVariant(StrEnum):
+    """Available Tifa-Deepsex GGUF model variants for causal language modeling."""
 
-    def __init__(self, variant=None):
+    TIFA_DEEPSEX_14B_COT_Q8 = "14B_CoT_Q8"
+    TIFA_DEEPSEX_14B_COT_CHAT_Q8 = "14B_CoT_Chat_Q8"
+    TIFA_DEEPSEX_14B_COT_CRAZY_Q8 = "14B_CoT_Crazy_Q8"
+
+
+class ModelLoader(ForgeModel):
+    """Tifa-Deepsex GGUF model loader implementation for causal language modeling tasks."""
+
+    _VARIANTS = {
+        ModelVariant.TIFA_DEEPSEX_14B_COT_Q8: LLMModelConfig(
+            pretrained_model_name="ValueFX9507/Tifa-Deepsex-14b-CoT-Q8",
+            max_length=128,
+        ),
+        ModelVariant.TIFA_DEEPSEX_14B_COT_CHAT_Q8: LLMModelConfig(
+            pretrained_model_name="ValueFX9507/Tifa-Deepsex-14b-CoT-Q8",
+            max_length=128,
+        ),
+        ModelVariant.TIFA_DEEPSEX_14B_COT_CRAZY_Q8: LLMModelConfig(
+            pretrained_model_name="ValueFX9507/Tifa-Deepsex-14b-CoT-Q8",
+            max_length=128,
+        ),
+    }
+
+    DEFAULT_VARIANT = ModelVariant.TIFA_DEEPSEX_14B_COT_Q8
+
+    _GGUF_FILES = {
+        ModelVariant.TIFA_DEEPSEX_14B_COT_Q8: "Tifa-Deepsex-14b-CoT-Q8.gguf",
+        ModelVariant.TIFA_DEEPSEX_14B_COT_CHAT_Q8: "Tifa-Deepsex-14b-CoT-Chat-Q8.gguf",
+        ModelVariant.TIFA_DEEPSEX_14B_COT_CRAZY_Q8: "Tifa-Deepsex-14b-CoT-Crazy-Q8.gguf",
+    }
+
+    @property
+    def GGUF_FILE(self):
+        return self._GGUF_FILES[self._variant]
+
+    sample_text = "Give me a short introduction to large language models."
+
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
         super().__init__(variant)
-        self.model_name = "ValueFX9507/Tifa-Deepsex-14b-CoT"
         self.tokenizer = None
-        self.prompt = "What is machine learning?"
+        self.config = None
+        self.num_layers = num_layers
 
     @classmethod
-    def _get_model_info(cls, variant_name: str = None):
-        if variant_name is None:
-            variant_name = "base"
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Tifa-Deepsex-14b-CoT",
-            variant=variant_name,
+            model="Tifa-Deepsex GGUF",
+            variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def load_model(self, *, dtype_override=None, **kwargs):
+    def _load_tokenizer(self, dtype_override=None):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        return self.tokenizer
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
+        model_kwargs["gguf_file"] = self.GGUF_FILE
 
-        model = AutoModelForCausalLM.from_pretrained(self.model_name, **model_kwargs)
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, gguf_file=self.GGUF_FILE
+            )
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
 
+        model = AutoModelForCausalLM.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        ).eval()
+
+        self.config = model.config
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self.load_model(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        messages = [{"role": "user", "content": self.prompt}]
+        max_length = self._variant_config.max_length
+
+        messages = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
         text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
         )
-        inputs = self.tokenizer(text, return_tensors="pt")
+        prompts = [text]
+
+        inputs = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+        )
 
         for key in inputs:
-            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+        return shard_specs
+
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+        )
+        return self.config
