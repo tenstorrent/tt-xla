@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa model loader implementation for sequence classification (NLI).
+DeBERTa model loader implementation for sequence classification.
 """
 from typing import Optional
 
@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available DeBERTa model variants for sequence classification."""
 
     DEBERTA_XLARGE_MNLI = "XLarge_MNLI"
+    DEV_AUTHOR_EM_CLF = "Dev_Author_EM_Clf"
 
 
 class ModelLoader(ForgeModel):
@@ -30,6 +31,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DEBERTA_XLARGE_MNLI: ModelConfig(
             pretrained_model_name="microsoft/deberta-xlarge-mnli",
+        ),
+        ModelVariant.DEV_AUTHOR_EM_CLF: ModelConfig(
+            pretrained_model_name="evamxb/dev-author-em-clf",
         ),
     }
 
@@ -70,6 +74,9 @@ class ModelLoader(ForgeModel):
         model.eval()
         return model
 
+    def _is_nli_variant(self):
+        return self._variant == ModelVariant.DEBERTA_XLARGE_MNLI
+
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
             from transformers import AutoTokenizer
@@ -78,22 +85,41 @@ class ModelLoader(ForgeModel):
                 self._variant_config.pretrained_model_name
             )
 
-        premise = "A man is eating food."
-        hypothesis = "A man is eating a meal."
-
-        inputs = self.tokenizer(
-            premise,
-            hypothesis,
-            max_length=128,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt",
-        )
+        if self._is_nli_variant():
+            premise = "A man is eating food."
+            hypothesis = "A man is eating a meal."
+            inputs = self.tokenizer(
+                premise,
+                hypothesis,
+                max_length=128,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt",
+            )
+        else:
+            text = "This is a sample text for classification."
+            inputs = self.tokenizer(
+                text,
+                max_length=128,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt",
+            )
 
         return inputs
 
-    def decode_output(self, co_out):
+    def decode_output(self, co_out, framework_model=None):
         logits = co_out[0]
         predicted_class_id = logits.argmax(-1).item()
-        labels = ["contradiction", "neutral", "entailment"]
-        print(f"Predicted: {labels[predicted_class_id]}")
+        if self._is_nli_variant():
+            labels = ["contradiction", "neutral", "entailment"]
+            print(f"Predicted: {labels[predicted_class_id]}")
+        elif (
+            framework_model
+            and hasattr(framework_model, "config")
+            and hasattr(framework_model.config, "id2label")
+        ):
+            predicted_label = framework_model.config.id2label[predicted_class_id]
+            print(f"Predicted: {predicted_label}")
+        else:
+            print(f"Predicted class ID: {predicted_class_id}")
