@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Nucleotide Transformer v3 model loader implementation for masked language modeling on DNA sequences.
+NTv3 model loader implementation for masked language modeling on DNA sequences.
 """
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+from transformers import AutoTokenizer, AutoModel
 from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -22,20 +22,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available NTv3 model variants."""
 
-    NTV3_100M_PRE = "InstaDeepAI/NTv3_100M_pre"
+    NTV3_100M_POST = "InstaDeepAI/NTv3_100M_post"
 
 
 class ModelLoader(ForgeModel):
-    """Nucleotide Transformer v3 model loader for masked language modeling on DNA sequences."""
+    """NTv3 model loader implementation for masked language modeling on DNA sequences."""
 
     _VARIANTS = {
-        ModelVariant.NTV3_100M_PRE: LLMModelConfig(
-            pretrained_model_name="InstaDeepAI/NTv3_100M_pre",
-            max_length=128,
+        ModelVariant.NTV3_100M_POST: ModelConfig(
+            pretrained_model_name="InstaDeepAI/NTv3_100M_post",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NTV3_100M_PRE
+    DEFAULT_VARIANT = ModelVariant.NTV3_100M_POST
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -70,7 +69,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForMaskedLM.from_pretrained(
+        model = AutoModel.from_pretrained(
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
             **model_kwargs,
@@ -82,16 +81,13 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        # Sample DNA sequence with a mask token for masked LM task
-        masked_sequence = "ATTCCGATTCCGATT<mask>CGATTCCGATTCCG"
+        # DNA sequence with <mask> token for masked LM task
+        masked_sequence = "ACGTACGT<mask>ACGTACGTACGT"
 
-        max_length = self._variant_config.max_length
         inputs = self.tokenizer(
             masked_sequence,
-            padding="max_length",
-            truncation=True,
-            max_length=max_length,
             return_tensors="pt",
+            add_special_tokens=True,
         )
 
         return inputs
