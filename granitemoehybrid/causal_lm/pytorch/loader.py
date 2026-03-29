@@ -13,6 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
+    LLMModelConfig,
     ModelConfig,
     ModelGroup,
     ModelInfo,
@@ -20,12 +21,17 @@ from ....config import (
     ModelTask,
     StrEnum,
 )
+from ....tools.utils import (
+    pad_inputs,
+    cast_input_to_type,
+)
 
 
 class ModelVariant(StrEnum):
     """Available GraniteMoeHybrid model variants."""
 
     TINY_RANDOM = "tiny_random"
+    GRANITE_4_0_H_TINY = "granite_4_0_h_tiny"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +40,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TINY_RANDOM: ModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-granitemoehybrid",
+        ),
+        ModelVariant.GRANITE_4_0_H_TINY: LLMModelConfig(
+            pretrained_model_name="unsloth/granite-4.0-h-tiny",
+            max_length=128,
         ),
     }
 
@@ -45,6 +55,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
+        self.seq_len = None
         self.num_layers = num_layers
 
     @classmethod
@@ -110,6 +121,18 @@ class ModelLoader(ForgeModel):
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        if dtype_override is not None:
+            for key in inputs:
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
+
+        max_length = getattr(self._variant_config, "max_length", None)
+        if max_length is not None:
+            padded_input_ids, seq_len = pad_inputs(inputs["input_ids"], max_length)
+            padded_attention_mask, _ = pad_inputs(inputs["attention_mask"], max_length)
+            self.seq_len = seq_len
+            inputs["input_ids"] = padded_input_ids
+            inputs["attention_mask"] = padded_attention_mask
 
         return inputs
 
