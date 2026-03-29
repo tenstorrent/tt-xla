@@ -5,7 +5,7 @@
 Q3.5-BlueStar-27B GGUF model loader implementation for causal language modeling.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Q3.5-BlueStar-27B GGUF model variants for causal language modeling."""
 
-    Q3_5_BLUESTAR_27B_Q4_K_M_GGUF = "Q3_5_BLUESTAR_27B_Q4_K_M_GGUF"
+    Q3_5_BLUESTAR_27B_GGUF = "27B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Q3.5-BlueStar-27B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.Q3_5_BLUESTAR_27B_Q4_K_M_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Q3.5-BlueStar-27B-i1-GGUF",
+        ModelVariant.Q3_5_BLUESTAR_27B_GGUF: LLMModelConfig(
+            pretrained_model_name="zerofata/Q3.5-BlueStar-27B-gguf",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.Q3_5_BLUESTAR_27B_Q4_K_M_GGUF
+    DEFAULT_VARIANT = ModelVariant.Q3_5_BLUESTAR_27B_GGUF
 
-    GGUF_FILE = "Q3.5-BlueStar-27B.i1-Q4_K_M.gguf"
+    GGUF_FILE = "Q3.5-BlueStar-27B-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "Give me a short introduction to large language model."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -118,6 +118,7 @@ class ModelLoader(ForgeModel):
             messages,
             tokenize=False,
             add_generation_prompt=True,
+            enable_thinking=True,
         )
         prompts = [text]
 
