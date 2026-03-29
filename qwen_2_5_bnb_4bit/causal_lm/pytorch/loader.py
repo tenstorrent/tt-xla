@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2.5 BnB 4-bit model variants for causal LM."""
 
     QWEN_2_5_3B_BNB_4BIT = "3B_BnB_4bit"
+    QWEN_2_5_72B_INSTRUCT_BNB_4BIT = "72B_Instruct_BnB_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_2_5_3B_BNB_4BIT: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen2.5-3B-bnb-4bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_2_5_72B_INSTRUCT_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen2.5-72B-Instruct-bnb-4bit",
             max_length=128,
         ),
     }
