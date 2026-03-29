@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     BASE_960H = "Base_960h"
     XLSR_MARATHI = "XLSR_Marathi"
     XLSR_LITHUANIAN = "XLSR_Lithuanian"
+    XLSR_TURKISH_CV8 = "XLSR_Turkish_CV8"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLSR_LITHUANIAN: ModelConfig(
             pretrained_model_name="m3hrdadfi/wav2vec2-large-xlsr-lithuanian",
+        ),
+        ModelVariant.XLSR_TURKISH_CV8: ModelConfig(
+            pretrained_model_name="mpoyraz/wav2vec2-xls-r-300m-cv8-turkish",
         ),
     }
 
