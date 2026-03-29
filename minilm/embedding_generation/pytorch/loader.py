@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
     """Available MiniLM model variants for embedding generation."""
 
     ALL_MINILM_L6_V2 = "all-MiniLM-L6-v2"
-    ALL_MINILM_L6_V2_4BIT = "all-MiniLM-L6-v2-4bit"
+    OPTIMUM_INTEL_ALL_MINILM_L6_V2 = "optimum-intel-all-MiniLM-L6-v2"
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ALL_MINILM_L6_V2: ModelConfig(
             pretrained_model_name="sentence-transformers/all-MiniLM-L6-v2",
         ),
-        ModelVariant.ALL_MINILM_L6_V2_4BIT: ModelConfig(
-            pretrained_model_name="mlx-community/all-MiniLM-L6-v2-4bit",
+        ModelVariant.OPTIMUM_INTEL_ALL_MINILM_L6_V2: ModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/all-MiniLM-L6-v2",
         ),
     }
 
