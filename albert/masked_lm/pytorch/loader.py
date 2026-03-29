@@ -5,7 +5,7 @@
 ALBERT model loader implementation for masked language modeling.
 """
 import torch
-from transformers import AlbertForMaskedLM, AlbertTokenizer
+from transformers import AlbertForMaskedLM, AlbertTokenizer, BertTokenizerFast
 from typing import Optional
 
 from ....base import ForgeModel
@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
     LARGE_V2 = "Large_v2"
     XLARGE_V2 = "Xlarge_v2"
     XXLARGE_V2 = "Xxlarge_v2"
-    TINY_RANDOM = "Tiny_Random"
+    KOR_BASE = "Kor_Base"
 
 
 class ModelLoader(ForgeModel):
@@ -71,8 +71,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="albert-xxlarge-v2",
             max_length=128,
         ),
-        ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-albert",
+        ModelVariant.KOR_BASE: LLMModelConfig(
+            pretrained_model_name="kykim/albert-kor-base",
             max_length=128,
         ),
     }
@@ -82,6 +82,14 @@ class ModelLoader(ForgeModel):
 
     # Shared configuration parameters
     sample_text = "The capital of France is [MASK]."
+
+    # Variants that use BertTokenizerFast instead of AlbertTokenizer
+    _BERT_TOKENIZER_VARIANTS = {ModelVariant.KOR_BASE}
+
+    # Per-variant sample texts (Korean variant uses Korean text)
+    _SAMPLE_TEXTS = {
+        ModelVariant.KOR_BASE: "한국의 수도는 [MASK]입니다.",
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -104,10 +112,11 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
-        group = ModelGroup.GENERALITY
-        if variant == ModelVariant.TINY_RANDOM:
-            group = ModelGroup.VULCAN
-
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.KOR_BASE
+            else ModelGroup.GENERALITY
+        )
         return ModelInfo(
             model="ALBERT",
             variant=variant,
@@ -132,8 +141,13 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        # Load the tokenizer
-        self.tokenizer = AlbertTokenizer.from_pretrained(
+        # Load the tokenizer (Korean variant uses BertTokenizerFast)
+        tokenizer_cls = (
+            BertTokenizerFast
+            if self._variant in self._BERT_TOKENIZER_VARIANTS
+            else AlbertTokenizer
+        )
+        self.tokenizer = tokenizer_cls.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
@@ -183,8 +197,9 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
 
         # Create tokenized inputs for the masked language modeling task
+        text = self._SAMPLE_TEXTS.get(self._variant, self.sample_text)
         inputs = self.tokenizer(
-            self.sample_text,
+            text,
             max_length=max_length,
             padding="max_length",
             truncation=True,
