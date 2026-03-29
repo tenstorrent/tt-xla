@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE_960H = "Base_960h"
     XLS_R_300M_ARMENIAN = "XLS_R_300M_Armenian"
+    XLS_R_1B_FINNISH_LM_V2 = "XLS_R_1B_Finnish_LM_v2"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLS_R_300M_ARMENIAN: ModelConfig(
             pretrained_model_name="infinitejoy/wav2vec2-large-xls-r-300m-armenian",
+        ),
+        ModelVariant.XLS_R_1B_FINNISH_LM_V2: ModelConfig(
+            pretrained_model_name="Finnish-NLP/wav2vec2-xlsr-1b-finnish-lm-v2",
         ),
     }
 
