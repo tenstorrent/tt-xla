@@ -6,6 +6,7 @@ Parler-TTS model loader implementation for text-to-speech tasks.
 """
 import torch
 import torch.nn as nn
+from transformers import AutoTokenizer
 from typing import Optional
 
 from ...base import ForgeModel
@@ -20,49 +21,46 @@ from ...config import (
 )
 
 
-class ParlerTTSDecoderWrapper(nn.Module):
-    """Wrapper around ParlerTTSForConditionalGeneration decoder.
+class ParlerTTSWrapper(nn.Module):
+    """Wrapper around ParlerTTSForConditionalGeneration.
 
-    Exposes the decoder forward pass that takes encoder hidden states
-    and decoder input IDs to produce codec logits for speech synthesis.
+    Exposes the encoder-decoder forward pass that takes tokenized description
+    and decoder input IDs, returning logits for audio code prediction.
     """
 
     def __init__(self, model):
         super().__init__()
-        self.decoder = model.decoder
-        self.lm_heads = model.lm_heads
+        self.model = model
 
-    def forward(self, encoder_hidden_states, decoder_input_ids):
-        outputs = self.decoder(
-            input_ids=decoder_input_ids,
-            encoder_hidden_states=encoder_hidden_states,
+    def forward(self, input_ids, attention_mask, decoder_input_ids):
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
         )
-        lm_logits = torch.stack(
-            [head(outputs.last_hidden_state) for head in self.lm_heads], dim=1
-        )
-        return lm_logits
+        return outputs.logits
 
 
 class ModelVariant(StrEnum):
     """Available Parler-TTS model variants."""
 
-    MINI_V1_1 = "mini-v1.1"
+    MINI_V0_1 = "mini_v0.1"
 
 
 class ModelLoader(ForgeModel):
     """Parler-TTS model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.MINI_V1_1: ModelConfig(
-            pretrained_model_name="parler-tts/parler-tts-mini-v1.1",
+        ModelVariant.MINI_V0_1: ModelConfig(
+            pretrained_model_name="parler-tts/parler_tts_mini_v0.1",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MINI_V1_1
+    DEFAULT_VARIANT = ModelVariant.MINI_V0_1
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self._model = None
+        self.tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -78,33 +76,35 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         from parler_tts import ParlerTTSForConditionalGeneration
 
-        self._model = ParlerTTSForConditionalGeneration.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            torch_dtype=dtype_override or torch.float32,
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+
+        model_kwargs = {}
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
+        full_model = ParlerTTSForConditionalGeneration.from_pretrained(
+            pretrained_model_name, **model_kwargs
         )
-        model = ParlerTTSDecoderWrapper(self._model)
+        model = ParlerTTSWrapper(full_model)
         model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
-        from transformers import AutoTokenizer
-
-        dtype = dtype_override or torch.float32
-
-        description_tokenizer = AutoTokenizer.from_pretrained(
-            self._model.config.text_encoder._name_or_path
+        description = (
+            "A female speaker with a slightly low-pitched voice delivers her words"
+            " quite expressively, in a very confined sounding environment with clear"
+            " audio quality. She speaks very fast."
         )
-        description = "A female speaker with a clear voice."
-        input_ids = description_tokenizer(description, return_tensors="pt").input_ids
+        prompt = "Hey, how are you doing today?"
 
-        encoder_outputs = self._model.text_encoder(input_ids=input_ids)
-        encoder_hidden_states = encoder_outputs.last_hidden_state.to(dtype)
+        description_tokens = self.tokenizer(description, return_tensors="pt")
+        prompt_tokens = self.tokenizer(prompt, return_tensors="pt")
 
-        # Single-step decoder input: BOS token for each codebook
-        num_codebooks = self._model.config.decoder.num_codebooks
-        decoder_input_ids = (
-            torch.ones(num_codebooks, 1, dtype=torch.long)
-            * self._model.config.decoder.bos_token_id
+        return (
+            description_tokens["input_ids"],
+            description_tokens["attention_mask"],
+            prompt_tokens["input_ids"],
         )
-
-        return encoder_hidden_states, decoder_input_ids
