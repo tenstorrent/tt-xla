@@ -1,15 +1,19 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MediPhi-Instruct causal language modeling loader
+MediPhi causal language model loader
+
+MediPhi is a 3.8B parameter medical domain-adapted language model based on
+Phi-3.5-mini-instruct, fine-tuned for clinical NLP tasks.
 """
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
-
+from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -17,34 +21,38 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
-from ....tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
-    INSTRUCT = "Instruct"
+    """Available MediPhi model variants."""
+
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
+    """MediPhi model loader for causal language modeling tasks."""
+
     _VARIANTS = {
-        ModelVariant.INSTRUCT: LLMModelConfig(
-            pretrained_model_name="microsoft/MediPhi-Instruct"
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="microsoft/MediPhi",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.INSTRUCT
+    DEFAULT_VARIANT = ModelVariant.BASE
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self.tokenizer = None
-        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+        """Get model information for dashboard and metrics reporting."""
         return ModelInfo(
             model="MediPhi",
             variant=variant,
@@ -54,46 +62,53 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _ensure_tokenizer(self):
-        if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name,
-                trust_remote_code=True,
-            )
-            if self.tokenizer.pad_token is None:
-                self.tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+    def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant."""
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
+            **tokenizer_kwargs,
+        )
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+        return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        self._ensure_tokenizer()
-
-        model_kwargs = {"use_cache": False, "trust_remote_code": True}
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                self._variant_config.pretrained_model_name,
-                trust_remote_code=True,
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
-
-        model_kwargs |= kwargs
-
+        """Load and return the MediPhi model instance."""
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override)
+        model_dtype = dtype_override if dtype_override is not None else torch.bfloat16
         model = AutoModelForCausalLM.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+            pretrained_model_name,
+            use_cache=False,
+            trust_remote_code=True,
+            torch_dtype=model_dtype,
+            attn_implementation="eager",
+            **kwargs,
         )
-        if dtype_override is not None:
-            model = model.to(dtype_override)
+        model.eval()
         return model
 
-    def load_inputs(self, dtype_override=None, prompt: Optional[str] = None):
-        self._ensure_tokenizer()
-        input_prompt = [
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the MediPhi model."""
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override)
+        prompt = [
+            {
+                "role": "system",
+                "content": "Extract medical keywords from this operative note, focusing on anatomical, pathological, or procedural vocabulary.",
+            },
             {
                 "role": "user",
-                "content": prompt or "What are the common symptoms of type 2 diabetes?",
-            }
+                "content": "Operative Report:\nPerformed: Cholecystectomy\nOperative Findings: The gallbladder contained multiple stones and had thickening of its wall.",
+            },
         ]
         text = self.tokenizer.apply_chat_template(
-            input_prompt, add_generation_prompt=True, tokenize=False
+            prompt, tokenize=False, add_generation_prompt=True
         )
         inputs = self.tokenizer(
             [text],
@@ -101,10 +116,7 @@ class ModelLoader(ForgeModel):
             padding=True,
             truncation=True,
         )
-        input_ids = inputs["input_ids"]
-        attn_mask = inputs["attention_mask"]
-        if dtype_override is not None:
-            input_ids = cast_input_to_type(input_ids, dtype_override)
-            attn_mask = cast_input_to_type(attn_mask, dtype_override)
-
-        return [input_ids, attn_mask]
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+        return inputs
