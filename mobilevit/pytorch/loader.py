@@ -37,10 +37,7 @@ class ModelVariant(StrEnum):
 
     # HuggingFace variants
     SMALL = "Small"
-    XXS_CVNETS_IN1K = "XXS_CVNETS_IN1K"
-
-    # TIMM variants
-    SMALL_CVNETS_IN1K = "Small_CVNETS_IN1K"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -52,10 +49,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="apple/mobilevit-small",
             source=ModelSource.HUGGING_FACE,
         ),
-        # TIMM variants
-        ModelVariant.SMALL_CVNETS_IN1K: MobileViTConfig(
-            pretrained_model_name="mobilevit_s.cvnets_in1k",
-            source=ModelSource.TIMM,
+        ModelVariant.TINY_RANDOM: MobileViTConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-mobilevit",
+            source=ModelSource.HUGGING_FACE,
         ),
     }
 
