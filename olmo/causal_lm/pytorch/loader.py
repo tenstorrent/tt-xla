@@ -24,7 +24,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available OLMo model variants for causal language modeling."""
 
-    TINY_RANDOM_OLMO_HF = "tiny_random_olmo_hf"
+    OLMo_7B_0724 = "7b_0724"
 
 
 class ModelLoader(ForgeModel):
@@ -32,14 +32,14 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM_OLMO_HF: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-olmo-hf",
+        ModelVariant.OLMo_7B_0724: LLMModelConfig(
+            pretrained_model_name="allenai/OLMo-7B-0724-hf",
             max_length=256,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM_OLMO_HF
+    DEFAULT_VARIANT = ModelVariant.OLMo_7B_0724
 
     # Shared configuration parameters
     sample_text = "Who would win in a fight - a dinosaur or a cow named Moo Moo?"
@@ -166,6 +166,37 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+
+        # Prefer (1, N) when heads divide N, otherwise try (2, N/2)
+        if self.config.num_attention_heads % num_devices == 0:
+            mesh_shape = (1, num_devices)
+        elif (
+            self.config.num_attention_heads % (num_devices // 2) == 0
+            and num_devices % 2 == 0
+        ):
+            mesh_shape = (2, num_devices // 2)
+        else:
+            raise ValueError(
+                f"Cannot evenly distribute {self.config.num_attention_heads} heads across {num_devices} devices"
+            )
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("batch", "model")
+
+        return shard_specs
 
     def load_config(self):
         """Load and return the configuration for the OLMo model variant.
