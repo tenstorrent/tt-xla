@@ -6,7 +6,6 @@ DINO ViT model loader implementation for feature extraction (PyTorch).
 """
 
 import torch
-from transformers import ViTImageProcessor, ViTModel
 from datasets import load_dataset
 from typing import Optional
 
@@ -25,19 +24,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available DINO ViT feature extraction model variants."""
 
-    BASE_PATCH8 = "Base_Patch8"
+    SMALL_8 = "Small_8"
 
 
 class ModelLoader(ForgeModel):
     """DINO ViT model loader implementation for feature extraction (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.BASE_PATCH8: ModelConfig(
-            pretrained_model_name="facebook/dino-vitb8",
+        ModelVariant.SMALL_8: ModelConfig(
+            pretrained_model_name="facebook/dino-vits8",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE_PATCH8
+    DEFAULT_VARIANT = ModelVariant.SMALL_8
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -78,6 +77,8 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded processor instance
         """
+        from transformers import ViTImageProcessor
+
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.processor = ViTImageProcessor.from_pretrained(pretrained_model_name)
         return self.processor
@@ -91,6 +92,8 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The DINO ViT model instance for feature extraction.
         """
+        from transformers import ViTModel
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
@@ -103,21 +106,23 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
         """Load and return sample inputs for the DINO ViT model.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
             batch_size: Batch size for the inputs.
+            image: Optional input image. If None, loads from HuggingFace datasets.
 
         Returns:
             dict: Input tensors that can be fed to the model.
         """
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
+
         if self.processor is None:
             self._load_processor()
-
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
 
         inputs = self.processor(images=image, return_tensors="pt")
 
