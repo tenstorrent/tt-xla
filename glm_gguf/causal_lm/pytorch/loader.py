@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     GLM_4_7_FLASH_UNCENSORED_HERETIC_AYUN_I1_Q4_K_M = (
         "4.7_Flash_Uncensored_Heretic_Ayun_i1_Q4_K_M"
     )
+    CODGENX_GLM_4_7_FLASH_I1_Q4_K_M = "CodgenX_GLM_4.7_Flash_i1_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
@@ -46,6 +47,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mradermacher/GLM-4.7-Flash-ultimate-uncensored-heretic-ayun-i1-GGUF",
             max_length=128,
         ),
+        ModelVariant.CODGENX_GLM_4_7_FLASH_I1_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="mradermacher/CodgenX-GLM-4.7-Flash-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GLM_4_7_FLASH_REASONING_DISTILL_Q4_K_M
@@ -54,6 +59,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.GLM_4_7_FLASH_REASONING_DISTILL_Q4_K_M: "GLM-4.7-Flash-Claude-Opus-4.5-High-Reasoning-Distill-Q4_K_M.gguf",
         ModelVariant.GLM_4_7_FLASH_REAP_23B_A3B_Q4_K_M: "GLM-4.7-Flash-REAP-23B-A3B-Q4_K_M.gguf",
         ModelVariant.GLM_4_7_FLASH_UNCENSORED_HERETIC_AYUN_I1_Q4_K_M: "GLM-4.7-Flash-ultimate-uncensored-heretic-ayun.i1-Q4_K_M.gguf",
+        ModelVariant.CODGENX_GLM_4_7_FLASH_I1_Q4_K_M: "CodgenX-GLM-4.7-Flash.i1-Q4_K_M.gguf",
     }
 
     @property
