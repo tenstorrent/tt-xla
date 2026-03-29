@@ -44,8 +44,7 @@ class ModelVariant(StrEnum):
     SWINV2_TINY_HF = "v2_Tiny_Patch4_Window8_256"
 
     # TIMM variants
-    SWINV2_SMALL_WINDOW16_256_TIMM = "v2_Small_Window16_256_TIMM"
-    SWIN_BASE_PATCH4_WINDOW12_384_TIMM = "Base_Patch4_Window12_384_TIMM"
+    SWIN_LARGE_PATCH4_WINDOW7_224_TIMM = "Large_Patch4_Window7_224_TIMM"
 
     # Torchvision variants
     SWIN_T = "T"
@@ -75,12 +74,8 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
         ),
         # TIMM variants
-        ModelVariant.SWINV2_SMALL_WINDOW16_256_TIMM: SwinConfig(
-            pretrained_model_name="hf_hub:timm/swinv2_small_window16_256.ms_in1k",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.SWIN_BASE_PATCH4_WINDOW12_384_TIMM: SwinConfig(
-            pretrained_model_name="hf_hub:timm/swin_base_patch4_window12_384.ms_in22k_ft_in1k",
+        ModelVariant.SWIN_LARGE_PATCH4_WINDOW7_224_TIMM: SwinConfig(
+            pretrained_model_name="swin_large_patch4_window7_224.ms_in22k_ft_in1k",
             source=ModelSource.TIMM,
         ),
         # Torchvision variants
@@ -130,13 +125,12 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
-        if variant == ModelVariant.SWIN_S:
-            group = ModelGroup.RED
-        elif variant in (
-            ModelVariant.SWINV2_SMALL_WINDOW16_256_TIMM,
-            ModelVariant.SWIN_BASE_PATCH4_WINDOW12_384_TIMM,
-        ):
+        if variant in [
+            ModelVariant.SWIN_LARGE_PATCH4_WINDOW7_224_TIMM,
+        ]:
             group = ModelGroup.VULCAN
+        elif variant == ModelVariant.SWIN_S:
+            group = ModelGroup.RED
         else:
             group = ModelGroup.GENERALITY
 
@@ -185,7 +179,7 @@ class ModelLoader(ForgeModel):
             )
 
         elif source == ModelSource.TIMM:
-            # Load model from TIMM
+            # Load model using timm
             model = timm.create_model(model_name, pretrained=True)
 
         elif source == ModelSource.TORCHVISION:
