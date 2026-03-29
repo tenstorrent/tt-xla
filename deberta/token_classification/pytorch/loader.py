@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M = (
         "OpenMed/OpenMed-NER-ChemicalDetect-SuperClinical-434M"
     )
+    OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1 = (
+        "OpenMed/OpenMed-PII-German-SuperClinical-Base-184M-v1"
+    )
     BLAZE999_MEDICAL_NER = "blaze999/Medical-NER"
 
 
@@ -34,6 +37,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-SuperClinical-434M",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-German-SuperClinical-Base-184M-v1",
             max_length=128,
         ),
         ModelVariant.BLAZE999_MEDICAL_NER: LLMModelConfig(
@@ -50,6 +57,10 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         if self._variant == ModelVariant.BLAZE999_MEDICAL_NER:
             self.sample_text = "45 year old woman diagnosed with CAD"
+        elif (
+            self._variant == ModelVariant.OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1
+        ):
+            self.sample_text = "Dr. Maria Müller behandelte Patient Hans Schmidt im Universitätsklinikum Berlin am 15.03.2024."
         else:
             self.sample_text = (
                 "The patient was administered acetylsalicylic acid for pain relief."
