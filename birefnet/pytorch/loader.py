@@ -5,11 +5,11 @@
 BiRefNet model loader implementation for dichotomous image segmentation
 """
 
+from typing import Optional
+
 import torch
-from PIL import Image
 from torchvision import transforms
 from transformers import AutoModelForImageSegmentation
-from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
