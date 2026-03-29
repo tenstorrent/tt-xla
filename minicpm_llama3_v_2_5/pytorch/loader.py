@@ -20,7 +20,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import cast_input_to_type, get_file
+from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -96,15 +96,7 @@ class ModelLoader(ForgeModel):
 
         msgs = [{"role": "user", "content": self.sample_text}]
 
-        # MiniCPM-Llama3-V-2.5 uses a custom chat method; prepare inputs
-        # compatible with the model's expected format
-        inputs = {
-            "image": image,
-            "msgs": msgs,
-            "tokenizer": self.tokenizer,
-        }
-
-        return inputs
+        return {"image": image, "msgs": msgs}
 
     def unpack_forward_output(self, fwd_output):
         if hasattr(fwd_output, "logits"):
