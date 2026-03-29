@@ -20,7 +20,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -89,22 +88,11 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        image_file = get_file(
-            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
-        )
-
         text = "Please describe this image in detail."
-        image = image_file
 
-        # The model's generate method accepts text and image path directly.
-        # For the test harness, we provide the inputs as a dict.
         inputs = self.tokenizer(text, return_tensors="pt")
         input_ids = inputs["input_ids"]
         attention_mask = inputs["attention_mask"]
-
-        if dtype_override is not None:
-            input_ids = input_ids.to(dtype_override)
-            attention_mask = attention_mask.to(dtype_override)
 
         if batch_size > 1:
             input_ids = input_ids.repeat_interleave(batch_size, dim=0)
@@ -113,7 +101,6 @@ class ModelLoader(ForgeModel):
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
-            "image": image,
         }
 
     def decode_output(self, outputs, input_length=None):
