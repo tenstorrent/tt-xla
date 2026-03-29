@@ -26,19 +26,19 @@ from ....tools.utils import cast_input_to_type, get_file
 class ModelVariant(StrEnum):
     """Available DeepSeek Janus-Pro model variants."""
 
-    JANUS_PRO_7B = "Janus_Pro_7B"
+    JANUS_PRO_1B = "Janus_Pro_1B"
 
 
 class ModelLoader(ForgeModel):
     """DeepSeek Janus-Pro model loader for multimodal understanding."""
 
     _VARIANTS = {
-        ModelVariant.JANUS_PRO_7B: ModelConfig(
-            pretrained_model_name="deepseek-ai/Janus-Pro-7B",
+        ModelVariant.JANUS_PRO_1B: ModelConfig(
+            pretrained_model_name="deepseek-ai/Janus-Pro-1B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.JANUS_PRO_7B
+    DEFAULT_VARIANT = ModelVariant.JANUS_PRO_1B
 
     sample_text = "Describe this image."
 
