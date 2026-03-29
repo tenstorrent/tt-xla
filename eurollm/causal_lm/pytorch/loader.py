@@ -4,41 +4,41 @@
 """
 EuroLLM model loader implementation for causal language modeling.
 """
-
-from typing import Optional
-
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     LLMModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available EuroLLM model variants."""
+    """Available EuroLLM model variants for causal language modeling."""
 
-    EUROLLM_1_7B_INSTRUCT = "1.7B_Instruct"
+    EUROLLM_22B_INSTRUCT_2512 = "EuroLLM_22B_Instruct_2512"
 
 
 class ModelLoader(ForgeModel):
-    """EuroLLM model loader implementation for causal language modeling tasks."""
+    """EuroLLM model loader for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.EUROLLM_1_7B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="utter-project/EuroLLM-1.7B-Instruct",
-            max_length=128,
+        ModelVariant.EUROLLM_22B_INSTRUCT_2512: LLMModelConfig(
+            pretrained_model_name="utter-project/EuroLLM-22B-Instruct-2512",
+            max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.EUROLLM_1_7B_INSTRUCT
+    DEFAULT_VARIANT = ModelVariant.EUROLLM_22B_INSTRUCT_2512
+
+    sample_text = "What is the capital of Portugal? How would you describe it?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -51,7 +51,6 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="EuroLLM",
             variant=variant,
@@ -62,17 +61,14 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name,
+            self._variant_config.pretrained_model_name,
             **tokenizer_kwargs,
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -80,7 +76,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -94,29 +90,19 @@ class ModelLoader(ForgeModel):
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
+        model.eval()
 
-        self.config = model.config
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         max_length = self._variant_config.max_length
 
-        messages = [
-            {
-                "role": "user",
-                "content": "Translate the following English text to French: The weather is nice today.",
-            },
-        ]
-        text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-
         inputs = self.tokenizer(
-            [text],
+            [self.sample_text],
             return_tensors="pt",
             padding="max_length",
             truncation=True,
@@ -128,17 +114,3 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
-
-    def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name,
-        )
-        return self.config
