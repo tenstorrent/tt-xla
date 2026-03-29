@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     HERON = "Heron"
     EGRET_LARGE = "Egret_Large"
+    EGRET_XLARGE = "Egret_XLarge"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.EGRET_LARGE: ModelConfig(
             pretrained_model_name="docling-project/docling-layout-egret-large",
+        ),
+        ModelVariant.EGRET_XLARGE: ModelConfig(
+            pretrained_model_name="docling-project/docling-layout-egret-xlarge",
         ),
     }
 
@@ -68,7 +72,7 @@ class ModelLoader(ForgeModel):
 
     def _load_model_class(self):
         """Return the appropriate model class for the current variant."""
-        if self._variant == ModelVariant.EGRET_LARGE:
+        if self._variant in (ModelVariant.EGRET_LARGE, ModelVariant.EGRET_XLARGE):
             from transformers import DFineForObjectDetection
 
             return DFineForObjectDetection
