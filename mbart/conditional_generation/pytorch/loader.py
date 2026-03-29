@@ -22,7 +22,7 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available MBart model variants."""
+    """Available MBart model variants for conditional generation."""
 
     TINY_RANDOM = "Tiny_Random"
 
@@ -32,7 +32,7 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-mbart",
+            pretrained_model_name="akreal/tiny-random-mbart",
         ),
     }
 
@@ -41,11 +41,27 @@ class ModelLoader(ForgeModel):
     sample_text = "Hello, my dog is cute."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self._tokenizer = None
+        self._model = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="MBart",
             variant=variant,
@@ -56,6 +72,14 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional dtype to override the tokenizer's default dtype.
+
+        Returns:
+            tokenizer: The loaded tokenizer instance
+        """
         from transformers import AutoTokenizer
 
         self._tokenizer = AutoTokenizer.from_pretrained(
@@ -65,6 +89,14 @@ class ModelLoader(ForgeModel):
         return self._tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the MBart model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            model: The loaded model instance
+        """
         from transformers import MBartForConditionalGeneration
 
         if self._tokenizer is None:
@@ -78,28 +110,36 @@ class ModelLoader(ForgeModel):
         model = MBartForConditionalGeneration.from_pretrained(
             self._variant_config.pretrained_model_name, **model_kwargs
         )
+        model.eval()
+        self._model = model
 
         return model
 
     def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the MBart model.
+
+        Args:
+            dtype_override: Optional dtype to override the model's default dtype.
+
+        Returns:
+            inputs: Input tensors that can be fed to the model.
+        """
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override)
 
+        if self._model is None:
+            self.load_model(dtype_override=dtype_override)
+
         inputs = self._tokenizer(
             self.sample_text,
+            truncation=True,
             return_tensors="pt",
         )
 
-        # Seq2seq models need decoder_input_ids for the forward pass.
-        lang_code_to_id = getattr(self._tokenizer, "lang_code_to_id", {})
-        decoder_start_token_id = lang_code_to_id.get(
-            "en_XX", self._tokenizer.bos_token_id
+        decoder_start_token_id = self._model.config.decoder_start_token_id
+        decoder_input_ids = (
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id
         )
-        inputs["decoder_input_ids"] = torch.tensor([[decoder_start_token_id]])
-
-        if dtype_override is not None:
-            for key, value in inputs.items():
-                if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
-                    inputs[key] = value.to(dtype_override)
+        inputs["decoder_input_ids"] = decoder_input_ids
 
         return inputs
