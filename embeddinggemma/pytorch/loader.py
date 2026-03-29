@@ -2,45 +2,47 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-EmbeddingGemma-300M model loader for sentence embedding generation.
+EmbeddingGemma model loader implementation for text embedding generation.
 """
 import torch
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
 
-from third_party.tt_forge_models.config import (
+from ...base import ForgeModel
+from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    LLMModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available model variants for EmbeddingGemma."""
+    """Available EmbeddingGemma model variants."""
 
-    EMBEDDINGGEMMA_300M = "unsloth/embeddinggemma-300m"
+    EMBEDDINGGEMMA_300M = "300M"
 
 
 class ModelLoader(ForgeModel):
-    """EmbeddingGemma-300M model loader."""
+    """EmbeddingGemma model loader implementation for text embedding generation."""
 
     _VARIANTS = {
-        ModelVariant.EMBEDDINGGEMMA_300M: LLMModelConfig(
-            pretrained_model_name="unsloth/embeddinggemma-300m",
-            max_length=256,
+        ModelVariant.EMBEDDINGGEMMA_300M: ModelConfig(
+            pretrained_model_name="google/embeddinggemma-300m",
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.EMBEDDINGGEMMA_300M
 
+    sample_sentences = [
+        "Represent this sentence for searching relevant passages: A man is eating a piece of bread"
+    ]
+
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.model = None
         self.tokenizer = None
 
     @classmethod
@@ -49,7 +51,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="embeddinggemma",
+            model="EmbeddingGemma",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_EMBED_GEN,
@@ -57,86 +59,45 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self):
-        if self.tokenizer is None:
-            model_name = self._variant_config.pretrained_model_name
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+    def _load_tokenizer(self, dtype_override=None):
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        )
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
-        model_name = self._variant_config.pretrained_model_name
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {}
         if dtype_override is not None:
-            model_kwargs["dtype"] = dtype_override
+            model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(model_name, **model_kwargs)
+        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
-
-        self.model = model
 
         return model
 
-    def load_inputs(self, dtype_override=None, sentence=None):
+    def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
-            self._load_tokenizer()
-
-        if sentence is None:
-            sentence = "This is an example sentence for semantic similarity."
-
-        max_length = getattr(self._variant_config, "max_length", 256)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
-            sentence,
+            self.sample_sentences,
             padding="max_length",
             truncation=True,
-            max_length=max_length,
+            max_length=128,
             return_tensors="pt",
         )
 
+        if dtype_override is not None:
+            for key, value in inputs.items():
+                if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
+                    inputs[key] = value.to(dtype_override)
+
         return inputs
-
-    def output_postprocess(self, output, inputs=None):
-        if inputs is None:
-            inputs = self.load_inputs()
-
-        attention_mask = inputs["attention_mask"]
-
-        if isinstance(output, (tuple, list)):
-            token_embeddings = output[0]
-        elif hasattr(output, "last_hidden_state"):
-            token_embeddings = output.last_hidden_state
-        else:
-            token_embeddings = output
-
-        input_mask_expanded = (
-            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        )
-        sentence_embeddings = torch.sum(
-            token_embeddings * input_mask_expanded, 1
-        ) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
-        return sentence_embeddings
-
-    def decode_output(self, outputs, inputs=None):
-        return self.output_postprocess(outputs, inputs=inputs)
-
-    def unpack_forward_output(self, fwd_output):
-        tensors = []
-
-        if hasattr(fwd_output, "last_hidden_state"):
-            tensors.append(fwd_output.last_hidden_state.flatten())
-        if (
-            hasattr(fwd_output, "pooler_output")
-            and fwd_output.pooler_output is not None
-        ):
-            tensors.append(fwd_output.pooler_output.flatten())
-
-        if tensors:
-            return torch.cat(tensors, dim=0)
-        return fwd_output
