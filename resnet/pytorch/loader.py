@@ -56,9 +56,7 @@ class ModelVariant(StrEnum):
     RESNET_50_A1_IN1K_TIMM = "ResNet50_A1_IN1K_TIMM"
     RESNET_50_TV2_IN1K_TIMM = "ResNet50_TV2_IN1K_TIMM"
     TEST_RESNET_R160_IN1K_TIMM = "TestResNet_R160_IN1K_TIMM"
-    RESNET_34D_RA2_IN1K_TIMM = "ResNet34D_RA2_IN1K_TIMM"
-    RESNET_50D_RA2_IN1K_TIMM = "ResNet50D_RA2_IN1K_TIMM"
-    RESNET_50_GN_A1H_IN1K_TIMM = "ResNet50_GN_A1H_IN1K_TIMM"
+    RESNETV2_50X1_BIT_GOOG_IN21K_TIMM = "ResNetV2_50x1_BiT_Goog_In21k_TIMM"
 
     # Torchvision variants
     RESNET_18 = "ResNet18"
@@ -118,16 +116,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="test_resnet.r160_in1k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.RESNET_34D_RA2_IN1K_TIMM: ResNetConfig(
-            pretrained_model_name="resnet34d.ra2_in1k",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.RESNET_50D_RA2_IN1K_TIMM: ResNetConfig(
-            pretrained_model_name="resnet50d.ra2_in1k",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.RESNET_50_GN_A1H_IN1K_TIMM: ResNetConfig(
-            pretrained_model_name="resnet50_gn.a1h_in1k",
+        ModelVariant.RESNETV2_50X1_BIT_GOOG_IN21K_TIMM: ResNetConfig(
+            pretrained_model_name="resnetv2_50x1_bit.goog_in21k",
             source=ModelSource.TIMM,
         ),
         # Torchvision variants
@@ -201,9 +191,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.RESNET_50_A1_IN1K_TIMM,
             ModelVariant.RESNET_50_TV2_IN1K_TIMM,
             ModelVariant.TEST_RESNET_R160_IN1K_TIMM,
-            ModelVariant.RESNET_34D_RA2_IN1K_TIMM,
-            ModelVariant.RESNET_50D_RA2_IN1K_TIMM,
-            ModelVariant.RESNET_50_GN_A1H_IN1K_TIMM,
+            ModelVariant.RESNETV2_50X1_BIT_GOOG_IN21K_TIMM,
         ]:
             group = ModelGroup.VULCAN
         else:
