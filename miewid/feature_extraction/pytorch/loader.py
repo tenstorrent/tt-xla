@@ -5,7 +5,6 @@
 MiewID model loader implementation for wildlife re-identification feature extraction.
 """
 
-import torch
 import torchvision.transforms as transforms
 from transformers import AutoModel
 from datasets import load_dataset
