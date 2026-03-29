@@ -1,4 +1,7 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from .loader import ModelLoader, ModelVariant
+"""
+Granite causal language modeling PyTorch implementation.
+"""
+from .loader import ModelLoader
