@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available PhoBERT model variants."""
 
     PHOBERT_BASE = "Base"
+    PHOBERT_LARGE = "Large"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.PHOBERT_BASE: ModelConfig(
             pretrained_model_name="vinai/phobert-base",
+        ),
+        ModelVariant.PHOBERT_LARGE: ModelConfig(
+            pretrained_model_name="vinai/phobert-large",
         ),
     }
 
