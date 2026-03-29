@@ -83,7 +83,7 @@ class ModelLoader(ForgeModel):
         from transformers import AutoTokenizer
 
         self._tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
+            "hf-internal-testing/tiny-random-mbart",
         )
 
         return self._tokenizer
