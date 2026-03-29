@@ -5,7 +5,6 @@
 Nunchaku FLUX.1-Kontext model loader implementation for image-to-image generation
 """
 import torch
-import numpy as np
 from diffusers import FluxKontextPipeline, AutoencoderTiny
 from typing import Optional
 
