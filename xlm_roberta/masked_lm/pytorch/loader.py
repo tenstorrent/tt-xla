@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa For Masked LM model variants."""
 
     TF_XLM_ROBERTA_BASE = "Tf_Xlm_Roberta_Base"
+    TWITTER_XLM_ROBERTA_BASE = "Twitter_Xlm_Roberta_Base"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TF_XLM_ROBERTA_BASE: ModelConfig(
             pretrained_model_name="jplu/tf-xlm-roberta-base",
+        ),
+        ModelVariant.TWITTER_XLM_ROBERTA_BASE: ModelConfig(
+            pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base",
         ),
     }
 
@@ -64,7 +68,9 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        model_kwargs = {"from_tf": True}
+        model_kwargs = {}
+        if self._variant == ModelVariant.TF_XLM_ROBERTA_BASE:
+            model_kwargs["from_tf"] = True
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
