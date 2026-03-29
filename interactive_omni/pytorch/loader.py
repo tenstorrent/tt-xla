@@ -7,8 +7,6 @@ InteractiveOmni-4B model loader implementation for multimodal conditional genera
 
 from typing import Optional
 
-import torch
-from PIL import Image
 from transformers import AutoModel, AutoTokenizer
 
 from ...base import ForgeModel
@@ -21,7 +19,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file, cast_input_to_type
+from ...tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -94,15 +92,8 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        # Load sample image
-        image_file = get_file(
-            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
-        )
-        image = Image.open(image_file).convert("RGB")
-
-        # Build prompt with image token
-        question = f"<image>\n{self.sample_text}"
-        messages = [{"role": "user", "content": question}]
+        # Build prompt
+        messages = [{"role": "user", "content": self.sample_text}]
         text_prompt = self.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
