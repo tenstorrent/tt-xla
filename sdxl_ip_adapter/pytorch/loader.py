@@ -44,7 +44,7 @@ class ModelLoader(ForgeModel):
 
     prompt = "A beautiful landscape painting in the style of the reference image"
     base_model = "stabilityai/stable-diffusion-xl-base-1.0"
-    ip_adapter_subfolder = "sdxl_models"
+    ip_adapter_subfolder = "."
     ip_adapter_weight_name = "ip-adapter_sdxl_vit-h.safetensors"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
