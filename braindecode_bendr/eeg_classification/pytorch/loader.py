@@ -70,7 +70,12 @@ class ModelLoader(ForgeModel):
             filename="pytorch_model.bin",
         )
         checkpoint = torch.load(checkpoint_path, weights_only=True)
-        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        # Handle both raw state_dict and wrapped {"model_state_dict": ...} formats
+        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+            state_dict = checkpoint["model_state_dict"]
+        else:
+            state_dict = checkpoint
+        model.load_state_dict(state_dict, strict=False)
 
         model.eval()
         if dtype_override is not None:
