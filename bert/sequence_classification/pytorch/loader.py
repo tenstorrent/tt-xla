@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     SADICKAM_SDGBERT = "sadickam_sdgBERT"
+    MFAC_BERT_TINY_FINETUNED_MNLI = "M-FAC_bert-tiny-finetuned-mnli"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="sadickam/sdgBERT",
             max_length=128,
         ),
+        ModelVariant.MFAC_BERT_TINY_FINETUNED_MNLI: LLMModelConfig(
+            pretrained_model_name="M-FAC/bert-tiny-finetuned-mnli",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -72,6 +77,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.SADICKAM_SDGBERT: "Achieving sustainable consumption and production through a circular economy approach is essential for environmental protection.",
+        ModelVariant.MFAC_BERT_TINY_FINETUNED_MNLI: "A man is eating food. A man is eating a meal.",
     }
 
     def __init__(self, variant=None):
@@ -108,6 +114,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.SADICKAM_SDGBERT,
+            ModelVariant.MFAC_BERT_TINY_FINETUNED_MNLI,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
