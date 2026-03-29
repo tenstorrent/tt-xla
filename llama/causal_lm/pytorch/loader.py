@@ -116,6 +116,9 @@ class ModelVariant(StrEnum):
         "Cosail_Knu_Llama2_7B_Gptq_Draft_400M_Code"
     )
 
+    # Facebook LayerSkip variants
+    FACEBOOK_LAYERSKIP_LLAMA_3_2_1B = "Facebook_Layerskip_3.2_1B"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -273,6 +276,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cosail-knu/llama2-7b_gptq-draft-400m-code",
             max_length=128,
         ),
+        # Facebook LayerSkip variants
+        ModelVariant.FACEBOOK_LAYERSKIP_LLAMA_3_2_1B: LLMModelConfig(
+            pretrained_model_name="facebook/layerskip-llama3.2-1B",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -319,6 +327,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.TINYLLAMA_1_1B_CHAT_V0_3_AWQ,
+            ModelVariant.FACEBOOK_LAYERSKIP_LLAMA_3_2_1B,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -637,6 +646,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
             ModelVariant.COSAIL_KNU_LLAMA2_7B_GPTQ_DRAFT_400M_CODE,
+            ModelVariant.FACEBOOK_LAYERSKIP_LLAMA_3_2_1B,
         ]:
             return None
 
