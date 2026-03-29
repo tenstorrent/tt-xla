@@ -4,8 +4,10 @@
 """
 mDeBERTa V3 model loader implementation for masked language modeling.
 
-Uses the DebertaV2Model base encoder from microsoft/mdeberta-v3-base, a multilingual
-DeBERTa V3 model pre-trained on CC100 multilingual data covering 100+ languages.
+Uses the DebertaV2Model base encoder from mDeBERTa V3 checkpoints. Supports:
+- microsoft/mdeberta-v3-base: multilingual DeBERTa V3 pre-trained on CC100 (100+ languages)
+- lighthouse/mdeberta-v3-base-kor-further: further pre-trained on ~40GB Korean text
+
 The checkpoint's LM head weights use non-standard naming that is incompatible with
 transformers' DebertaV2ForMaskedLM, so we load the base encoder only.
 """
@@ -27,6 +29,7 @@ class ModelVariant(StrEnum):
     """Available mDeBERTa V3 model variants."""
 
     MDEBERTA_V3_BASE = "mDeBERTa_V3_Base"
+    MDEBERTA_V3_BASE_KOR_FURTHER = "mDeBERTa_V3_Base_Kor_Further"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +38,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MDEBERTA_V3_BASE: LLMModelConfig(
             pretrained_model_name="microsoft/mdeberta-v3-base",
+            max_length=128,
+        ),
+        ModelVariant.MDEBERTA_V3_BASE_KOR_FURTHER: LLMModelConfig(
+            pretrained_model_name="lighthouse/mdeberta-v3-base-kor-further",
             max_length=128,
         ),
     }
