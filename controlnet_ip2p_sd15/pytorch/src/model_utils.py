@@ -63,11 +63,9 @@ def create_ip2p_conditioning_image(height=512, width=512):
     """
     image = np.zeros((height, width, 3), dtype=np.uint8)
     # Create a simple gradient pattern as a source image
-    for i in range(height):
-        for j in range(width):
-            image[i, j, 0] = int(255 * i / height)
-            image[i, j, 1] = int(255 * j / width)
-            image[i, j, 2] = 128
+    image[:, :, 0] = (np.arange(height)[:, None] * 255 // height).astype(np.uint8)
+    image[:, :, 1] = (np.arange(width)[None, :] * 255 // width).astype(np.uint8)
+    image[:, :, 2] = 128
     return Image.fromarray(image)
 
 
