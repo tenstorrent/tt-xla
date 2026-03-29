@@ -11,8 +11,9 @@ Available variants:
 - MOODY_PORN_MIX_V10_DPO_Q4_K_M: Q4_K_M quantized variant
 """
 
-import torch
 from typing import Optional
+
+import torch
 
 from ...base import ForgeModel
 from ...config import (
