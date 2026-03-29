@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_9B_BASE_UNSLOTH = "9B_Base_unsloth"
+    QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_4B_AWQ = "4B_Awq"
 
@@ -96,6 +97,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_9B_BASE_UNSLOTH: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen3.5-9B-Base",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3.5-35B-A3B-Base",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_35B_A3B_NVFP4: LLMModelConfig(
@@ -265,6 +270,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_9B_BASE,
             ModelVariant.QWEN_3_5_9B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
+            ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
         ):
             prompts = [self.sample_text]
         else:
@@ -320,6 +326,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
+            ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
         )
 
