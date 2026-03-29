@@ -8,6 +8,7 @@ Uses the japanese_clip package to load the rinna/japanese-cloob-vit-b-16 model,
 which performs contrastive image-text matching with Japanese text.
 """
 import torch
+import torch.nn as nn
 from typing import Optional
 
 from ...base import ForgeModel
@@ -21,6 +22,21 @@ from ...config import (
     StrEnum,
 )
 from datasets import load_dataset
+
+
+class JapaneseCLOOBWrapper(nn.Module):
+    """Wrapper to combine image and text feature extraction into a single forward pass."""
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, image, input_ids, attention_mask):
+        image_features = self.model.get_image_features(image)
+        text_features = self.model.get_text_features(
+            input_ids=input_ids, attention_mask=attention_mask
+        )
+        return image_features, text_features
 
 
 class ModelVariant(StrEnum):
@@ -73,11 +89,13 @@ class ModelLoader(ForgeModel):
         )
         self.tokenizer = ja_clip.load_tokenizer()
 
-        if dtype_override is not None:
-            model = model.to(dtype_override)
+        wrapper = JapaneseCLOOBWrapper(model)
 
-        model.eval()
-        return model
+        if dtype_override is not None:
+            wrapper = wrapper.to(dtype_override)
+
+        wrapper.eval()
+        return wrapper
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample inputs for the Japanese CLOOB model.
