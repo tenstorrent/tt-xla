@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     ECHARLAIX_TINY_RANDOM_STABLE_DIFFUSION_XL = (
         "echarlaix-tiny-random-stable-diffusion-xl"
     )
+    SEAART_FURRY_XL_1_0 = "SeaArt-Furry-XL-1.0"
 
 
 class ModelLoader(ForgeModel):
@@ -44,6 +45,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.ECHARLAIX_TINY_RANDOM_STABLE_DIFFUSION_XL: ModelConfig(
             pretrained_model_name="echarlaix/tiny-random-stable-diffusion-xl",
+        ),
+        ModelVariant.SEAART_FURRY_XL_1_0: ModelConfig(
+            pretrained_model_name="SeaArtLab/SeaArt-Furry-XL-1.0",
         ),
     }
 
@@ -80,6 +84,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.TINY_RANDOM_STABLE_DIFFUSION_XL,
             ModelVariant.ECHARLAIX_TINY_RANDOM_STABLE_DIFFUSION_XL,
+            ModelVariant.SEAART_FURRY_XL_1_0,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
