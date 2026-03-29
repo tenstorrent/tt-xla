@@ -5,9 +5,10 @@
 UniWorld V1 model loader implementation for unified visual understanding and generation.
 """
 
+from typing import Optional
+
 import torch
 from transformers import AutoProcessor
-from typing import Optional
 from univa.models.qwen2p5vl.modeling_univa_qwen2p5vl import (
     UnivaQwen2p5VLForConditionalGeneration,
 )
