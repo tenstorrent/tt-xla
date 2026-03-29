@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-TRELLIS Text-to-3D PyTorch model implementation for Tenstorrent projects.
+TRELLIS text-to-3D PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

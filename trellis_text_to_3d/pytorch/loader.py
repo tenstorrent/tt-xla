@@ -4,9 +4,9 @@
 """
 TRELLIS model loader implementation for text-to-3D generation.
 
-Loads the SparseStructureFlowModel (DiT XL backbone) from the TRELLIS pipeline,
+Loads the SparseStructureFlowModel (DiT backbone) from the TRELLIS pipeline,
 which is the core flow-matching transformer for generating 3D sparse structures
-from text conditioning via CLIP ViT-L/14.
+from text conditioning via CLIP (openai/clip-vit-large-patch14).
 
 Requires the TRELLIS repository to be cloned at /tmp/trellis_repo.
 """
@@ -64,26 +64,26 @@ def _ensure_trellis_importable():
 class ModelVariant(StrEnum):
     """Available TRELLIS text-to-3D model variants."""
 
-    SPARSE_STRUCTURE_FLOW_XL = "Sparse_Structure_Flow_XL"
+    SPARSE_STRUCTURE_FLOW = "Sparse_Structure_Flow"
 
 
 class ModelLoader(ForgeModel):
-    """TRELLIS model loader for the text-conditioned SparseStructureFlowModel (DiT XL backbone)."""
+    """TRELLIS model loader for the text-conditioned SparseStructureFlowModel (DiT backbone)."""
 
     _VARIANTS = {
-        ModelVariant.SPARSE_STRUCTURE_FLOW_XL: ModelConfig(
-            pretrained_model_name="microsoft/TRELLIS-text-xlarge",
+        ModelVariant.SPARSE_STRUCTURE_FLOW: ModelConfig(
+            pretrained_model_name="microsoft/TRELLIS-text-large",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SPARSE_STRUCTURE_FLOW_XL
+    DEFAULT_VARIANT = ModelVariant.SPARSE_STRUCTURE_FLOW
 
-    # Model config from ss_flow_txt_dit_XL_16l8_fp16.json
-    _CKPT_NAME = "ckpts/ss_flow_txt_dit_XL_16l8_fp16"
+    # Model config from ss_flow_txt_dit_L_16l8_fp16.json
+    _CKPT_NAME = "ckpts/ss_flow_txt_dit_L_16l8_fp16"
     _RESOLUTION = 16
     _IN_CHANNELS = 8
-    _COND_CHANNELS = 768  # CLIP ViT-L/14 text encoder output dimension
-    _COND_SEQ_LEN = 77  # CLIP text tokenizer max sequence length
+    _COND_CHANNELS = 768  # CLIP ViT-L/14 text embedding dimension
+    _COND_SEQ_LEN = 77  # CLIP max text token sequence length
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -100,10 +100,10 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the TRELLIS SparseStructureFlowModel.
+        """Load and return the TRELLIS text-conditioned SparseStructureFlowModel.
 
         Returns:
-            torch.nn.Module: The sparse structure flow model (DiT XL backbone).
+            torch.nn.Module: The sparse structure flow model (DiT backbone).
         """
         _ensure_trellis_importable()
         from trellis.models.sparse_structure_flow import SparseStructureFlowModel
@@ -130,7 +130,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load sample inputs for the SparseStructureFlowModel.
+        """Load sample inputs for the text-conditioned SparseStructureFlowModel.
 
         Returns:
             dict: Input tensors (x, t, cond) for the model forward pass.
