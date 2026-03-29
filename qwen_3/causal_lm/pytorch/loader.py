@@ -57,6 +57,9 @@ class ModelVariant(StrEnum):
     REDHATAI_QWEN_3_30B_A3B_FP8_BLOCK = "RedHatAI_30B_A3B_FP8_Block"
     UNSLOTH_QWEN_3_235B_A22B_GGUF = "unsloth_235B_A22B_GGUF"
     TINY_RANDOM_QWEN3 = "Tiny_Random"
+    MICHAELBENAYOUN_TINY_4KV_HEADS_4LAYERS_RANDOM = (
+        "michaelbenayoun_Tiny_4KV_Heads_4Layers_Random"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -180,6 +183,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="llamafactory/tiny-random-qwen3",
             max_length=128,
         ),
+        ModelVariant.MICHAELBENAYOUN_TINY_4KV_HEADS_4LAYERS_RANDOM: LLMModelConfig(
+            pretrained_model_name="michaelbenayoun/qwen3-tiny-4kv-heads-4layers-random",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -241,6 +248,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.REDHATAI_QWEN_3_30B_A3B_FP8_BLOCK,
             ModelVariant.UNSLOTH_QWEN_3_235B_A22B_GGUF,
             ModelVariant.TINY_RANDOM_QWEN3,
+            ModelVariant.MICHAELBENAYOUN_TINY_4KV_HEADS_4LAYERS_RANDOM,
         ):
             group = ModelGroup.VULCAN
         else:
