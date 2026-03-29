@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-SpanMarker NER PyTorch implementation.
+SpanMarker NER PyTorch implementation for named entity recognition.
 """
 from .loader import ModelLoader, ModelVariant
