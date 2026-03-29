@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-RoBERTa model loader implementation for sequence classification (emotion detection).
+RoBERTa model loader implementation for sequence classification.
 """
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -23,26 +23,38 @@ class ModelVariant(StrEnum):
     """Available RoBERTa sequence classification model variants."""
 
     EMOTION_ENGLISH_LARGE = "Emotion_English_Large"
+    BASE_EMPATHY = "Base_Empathy"
 
 
 class ModelLoader(ForgeModel):
-    """RoBERTa model loader implementation for sequence classification (emotion detection)."""
+    """RoBERTa model loader implementation for sequence classification."""
 
     _VARIANTS = {
         ModelVariant.EMOTION_ENGLISH_LARGE: LLMModelConfig(
             pretrained_model_name="j-hartmann/emotion-english-roberta-large",
             max_length=128,
         ),
+        ModelVariant.BASE_EMPATHY: LLMModelConfig(
+            pretrained_model_name="bdotloh/roberta-base-empathy",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.EMOTION_ENGLISH_LARGE
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.EMOTION_ENGLISH_LARGE: "I am so happy today, everything is going great!",
+        ModelVariant.BASE_EMPATHY: "It breaks my heart to see so many people suffering after the earthquake.",
+    }
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.sample_text = "I am so happy today, everything is going great!"
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant, "I am so happy today, everything is going great!"
+        )
 
     @classmethod
     def _get_model_info(cls, variant_name: str = None):
