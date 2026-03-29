@@ -48,7 +48,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="Docling_Layout",
+            model="HuggingPanda_Docling_Layout",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_OBJECT_DET,
