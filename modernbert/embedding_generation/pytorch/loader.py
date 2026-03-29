@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available ModernBERT model variants for embedding generation."""
 
     GRANITE_SMALL_ENGLISH_R2 = "Granite_Small_English_R2"
+    HUNGARIAN_BASE_V3 = "Hungarian_Base_V3"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GRANITE_SMALL_ENGLISH_R2: ModelConfig(
             pretrained_model_name="ibm-granite/granite-embedding-small-english-r2",
+        ),
+        ModelVariant.HUNGARIAN_BASE_V3: ModelConfig(
+            pretrained_model_name="karsar/ModernBERT-base-hu_v3",
         ),
     }
 
