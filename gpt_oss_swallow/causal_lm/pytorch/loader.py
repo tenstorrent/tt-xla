@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available GPT-OSS-Swallow model variants for causal language modeling."""
 
+    GPT_OSS_SWALLOW_20B_SFT = "20B_SFT"
     GPT_OSS_SWALLOW_120B_RL = "120B_RL"
 
 
@@ -30,6 +31,10 @@ class ModelLoader(ForgeModel):
     """GPT-OSS-Swallow model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.GPT_OSS_SWALLOW_20B_SFT: LLMModelConfig(
+            pretrained_model_name="tokyotech-llm/GPT-OSS-Swallow-20B-SFT-v0.1",
+            max_length=256,
+        ),
         ModelVariant.GPT_OSS_SWALLOW_120B_RL: LLMModelConfig(
             pretrained_model_name="tokyotech-llm/GPT-OSS-Swallow-120B-RL-v0.1",
             max_length=256,
