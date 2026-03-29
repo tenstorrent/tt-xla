@@ -51,8 +51,7 @@ class ModelVariant(StrEnum):
         "Small_24B_INSTRUCT_2501_Quantized_W8A8"
     )
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MISTRAL_7B_INSTRUCT_V03_BNB_4BIT = "7B_instruct_v03_bnb_4bit"
-    MINISTRAL_3_14B_REASONING_2512_GGUF = "Ministral_3_14B_Reasoning_2512_GGUF"
+    MISTRAL_SMALL_INSTRUCT_2409_BNB_4BIT = "Small_Instruct_2409_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -140,11 +139,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.MISTRAL_7B_INSTRUCT_V03_BNB_4BIT: ModelConfig(
-            pretrained_model_name="unsloth/mistral-7b-instruct-v0.3-bnb-4bit",
-        ),
-        ModelVariant.MINISTRAL_3_14B_REASONING_2512_GGUF: ModelConfig(
-            pretrained_model_name="unsloth/Ministral-3-14B-Reasoning-2512-GGUF",
+        ModelVariant.MISTRAL_SMALL_INSTRUCT_2409_BNB_4BIT: ModelConfig(
+            pretrained_model_name="unsloth/Mistral-Small-Instruct-2409-bnb-4bit",
         ),
     }
 
@@ -183,6 +179,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MISTRAL_NEMO_INSTRUCT_2407_ABLITERATED,
+            ModelVariant.MISTRAL_SMALL_INSTRUCT_2409_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
@@ -270,7 +267,7 @@ class ModelLoader(ForgeModel):
         # BnB variants need device_map="cpu" for CPU-based loading
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_7B_INSTRUCT_V03_BNB_4BIT,
+            ModelVariant.MISTRAL_SMALL_INSTRUCT_2409_BNB_4BIT,
         ):
             model_kwargs["device_map"] = "cpu"
 
