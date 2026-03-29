@@ -9,7 +9,7 @@ from typing import Optional
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 
 from ....config import (
-    ModelConfig,
+    LLMModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
 
 class ModelLoader(ForgeModel):
     _VARIANTS = {
-        ModelVariant.INSTRUCT: ModelConfig(
+        ModelVariant.INSTRUCT: LLMModelConfig(
             pretrained_model_name="microsoft/MediPhi-Instruct"
         ),
     }
