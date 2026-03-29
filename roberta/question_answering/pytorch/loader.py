@@ -24,7 +24,9 @@ class ModelVariant(StrEnum):
     """Available RoBERTa question answering model variants."""
 
     DEEPSET_ROBERTA_BASE_SQUAD2 = "deepset_roberta_base_squad2"
-    RAKIB_ROBERTA_BASE_ON_CUAD = "rakib_roberta_base_on_cuad"
+    ARMAGEDDON_ROBERTA_LARGE_SQUAD2_COVID_QA_DEEPSET = (
+        "armageddon_roberta_large_squad2_covid_qa_deepset"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -35,8 +37,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="deepset/roberta-base-squad2",
             max_length=384,
         ),
-        ModelVariant.RAKIB_ROBERTA_BASE_ON_CUAD: LLMModelConfig(
-            pretrained_model_name="Rakib/roberta-base-on-cuad",
+        ModelVariant.ARMAGEDDON_ROBERTA_LARGE_SQUAD2_COVID_QA_DEEPSET: LLMModelConfig(
+            pretrained_model_name="armageddon/roberta-large-squad2-covid-qa-deepset",
             max_length=384,
         ),
     }
