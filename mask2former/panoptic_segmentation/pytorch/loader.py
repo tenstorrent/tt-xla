@@ -25,19 +25,19 @@ from datasets import load_dataset
 class ModelVariant(StrEnum):
     """Available Mask2Former model variants for panoptic segmentation."""
 
-    SWIN_T_COCO_PANOPTIC = "Swin_Tiny_Coco_Panoptic"
+    SWIN_L_MAPILLARY_VISTAS = "Swin_Large_Mapillary_Vistas"
 
 
 class ModelLoader(ForgeModel):
     """Mask2Former model loader implementation for panoptic segmentation tasks."""
 
     _VARIANTS = {
-        ModelVariant.SWIN_T_COCO_PANOPTIC: ModelConfig(
-            pretrained_model_name="facebook/mask2former-swin-tiny-coco-panoptic"
+        ModelVariant.SWIN_L_MAPILLARY_VISTAS: ModelConfig(
+            pretrained_model_name="facebook/mask2former-swin-large-mapillary-vistas-panoptic"
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SWIN_T_COCO_PANOPTIC
+    DEFAULT_VARIANT = ModelVariant.SWIN_L_MAPILLARY_VISTAS
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
