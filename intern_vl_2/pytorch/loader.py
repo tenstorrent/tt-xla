@@ -117,6 +117,7 @@ class ModelVariant(StrEnum):
 
     INTERN_VL2_1B = "1B"
     INTERN_VL2_2B = "2B"
+    INTERN_VL2_4B = "4B"
 
 
 class ModelLoader(ForgeModel):
@@ -128,6 +129,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.INTERN_VL2_2B: ModelConfig(
             pretrained_model_name="OpenGVLab/InternVL2-2B",
+        ),
+        ModelVariant.INTERN_VL2_4B: ModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL2-4B",
         ),
     }
 
