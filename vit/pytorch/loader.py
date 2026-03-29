@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     VIT_BASE_PATCH14_DINOV2_LVD142M = "Base_Patch14_DINOv2_LVD142M"
     VIT_BASE_PATCH16_224_AUGREG_IN1K = "Base_Patch16_224_AugReg_IN1K"
     VIT_BASE_PATCH16_224_AUGREG_IN21K = "Base_Patch16_224_AugReg_IN21K"
+    VIT_GIANT_PATCH14_DINOV2_LVD142M = "Giant_Patch14_DINOv2_LVD142M"
     VIT_SMALL_PATCH32_224_AUGREG_IN21K = "Small_Patch32_224_AugReg_IN21K"
 
 
@@ -103,6 +104,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.VIT_BASE_PATCH16_224_AUGREG_IN21K: ViTConfig(
             pretrained_model_name="vit_base_patch16_224.augreg_in21k",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.VIT_GIANT_PATCH14_DINOV2_LVD142M: ViTConfig(
+            pretrained_model_name="vit_giant_patch14_dinov2.lvd142m",
             source=ModelSource.TIMM,
         ),
         ModelVariant.VIT_SMALL_PATCH32_224_AUGREG_IN21K: ViTConfig(
