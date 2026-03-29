@@ -8,6 +8,8 @@ EfficientNet model loader implementation
 import torch
 from typing import Optional
 from dataclasses import dataclass
+from PIL import Image
+from torchvision import transforms
 
 from ...config import (
     ModelConfig,
@@ -38,6 +40,7 @@ class EfficientNetConfig(ModelConfig):
     weights_class: str = None
     use_1k_labels: bool = False
     source: ModelSource = ModelSource.TORCHVISION
+    smp_encoder_name: Optional[str] = None
 
 
 class ModelVariant(StrEnum):
@@ -52,6 +55,9 @@ class ModelVariant(StrEnum):
     B5 = "B5"
     B6 = "B6"
     B7 = "B7"
+
+    # SMP (Segmentation Models PyTorch) variants
+    SMP_B3 = "SMP_B3"
 
     # TIMM variants (values are identifiers for reporting; pretrained model names live in config)
     TIMM_EFFICIENTNET_B0 = "Timm_B0"
@@ -180,6 +186,13 @@ class ModelLoader(ForgeModel):
         use_1k_labels=True,
     )
 
+    # SMP config instances
+    SMP_B3_CONFIG = EfficientNetConfig(
+        pretrained_model_name="smp-hub/efficientnet-b3.imagenet",
+        source=ModelSource.CUSTOM,
+        smp_encoder_name="efficientnet-b3",
+    )
+
     # Dictionary using the static dataclass instances (for compatibility with existing tests)
     _VARIANTS = {
         # Torchvision variants
@@ -201,6 +214,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K: HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_S_IN21K: HF_TIMM_TF_EFFICIENTNETV2_S_IN21K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K: HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K_CONFIG,
+        # SMP variants
+        ModelVariant.SMP_B3: SMP_B3_CONFIG,
     }
 
     # Default variant to use
@@ -241,7 +256,11 @@ class ModelLoader(ForgeModel):
                 if variant == ModelVariant.B0
                 else (
                     ModelGroup.VULCAN
-                    if variant == ModelVariant.HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K
+                    if variant
+                    in [
+                        ModelVariant.HF_TIMM_TF_EFFICIENTNET_B2_NS_JFT_IN1K,
+                        ModelVariant.SMP_B3,
+                    ]
                     else ModelGroup.GENERALITY
                 )
             ),
@@ -262,7 +281,17 @@ class ModelLoader(ForgeModel):
         """
         source = self._variant_config.source
 
-        if source == ModelSource.TORCHVISION:
+        if (
+            source == ModelSource.CUSTOM
+            and self._variant_config.smp_encoder_name is not None
+        ):
+            import segmentation_models_pytorch as smp
+
+            model = smp.encoders.get_encoder(
+                self._variant_config.smp_encoder_name,
+                weights="imagenet",
+            )
+        elif source == ModelSource.TORCHVISION:
             # Setup state dict function
             WeightsEnum.get_state_dict = get_state_dict
 
@@ -302,8 +331,38 @@ class ModelLoader(ForgeModel):
             model_name = self._variant_config.pretrained_model_name
             source = self._variant_config.source
 
+            # For SMP encoder, use standard ImageNet preprocessing via SMP params
+            if (
+                source == ModelSource.CUSTOM
+                and self._variant_config.smp_encoder_name is not None
+            ):
+                import segmentation_models_pytorch as smp
+
+                params = smp.encoders.get_preprocessing_params(
+                    self._variant_config.smp_encoder_name
+                )
+                smp_std = torch.tensor(params["std"]).view(1, 3, 1, 1)
+                smp_mean = torch.tensor(params["mean"]).view(1, 3, 1, 1)
+
+                def custom_preprocess_fn(img: Image.Image) -> torch.Tensor:
+                    preprocess = transforms.Compose(
+                        [
+                            transforms.Resize(256),
+                            transforms.CenterCrop(224),
+                            transforms.ToTensor(),
+                        ]
+                    )
+                    img_tensor = preprocess(img).unsqueeze(0)
+                    return (img_tensor - smp_mean) / smp_std
+
+                self._preprocessor = VisionPreprocessor(
+                    model_source=ModelSource.CUSTOM,
+                    model_name=model_name,
+                    custom_preprocess_fn=custom_preprocess_fn,
+                )
+
             # For TORCHVISION, use standard ImageNet preprocessing
-            if source == ModelSource.TORCHVISION:
+            elif source == ModelSource.TORCHVISION:
 
                 def weight_class_name_fn(name: str) -> str:
                     # Handle efficientnet_b0 -> EfficientNet_B0_Weights
@@ -377,6 +436,15 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Prediction dict with top predictions.
         """
+        # SMP encoder returns a list of feature maps, not classification logits
+        if self._variant_config.smp_encoder_name is not None:
+            if isinstance(output, (list, tuple)):
+                return {
+                    "features": [f.shape for f in output],
+                    "num_stages": len(output),
+                }
+            return {"features": [output.shape], "num_stages": 1}
+
         if self._postprocessor is None:
             model_name = self._variant_config.pretrained_model_name
             source = self._variant_config.source
