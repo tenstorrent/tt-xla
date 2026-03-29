@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Longformer feature extraction PyTorch implementation.
+Longformer Feature Extraction PyTorch implementation.
 """
 from .loader import ModelLoader, ModelVariant
