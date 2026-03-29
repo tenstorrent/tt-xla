@@ -4,7 +4,6 @@
 """
 Xenova Qwen 1.5 model loader implementation for causal language modeling.
 """
-import torch
 from transformers import Qwen2ForCausalLM, AutoTokenizer
 from typing import Optional
 
