@@ -28,21 +28,21 @@ from .src.model_utils import (
 class ModelVariant(StrEnum):
     """Available ControlNet Scribble SD1.5 model variants."""
 
-    CONTROLNET_SCRIBBLE_SD15 = "ControlNet_Scribble_SD1.5"
+    LLLYASVIEL_CONTROL_V11P_SD15_SCRIBBLE = "lllyasviel_control_v11p_sd15_scribble"
 
 
 class ModelLoader(ForgeModel):
     """ControlNet Scribble SD1.5 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.CONTROLNET_SCRIBBLE_SD15: ModelConfig(
-            pretrained_model_name="lllyasviel/sd-controlnet-scribble",
+        ModelVariant.LLLYASVIEL_CONTROL_V11P_SD15_SCRIBBLE: ModelConfig(
+            pretrained_model_name="lllyasviel/control_v11p_sd15_scribble",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CONTROLNET_SCRIBBLE_SD15
+    DEFAULT_VARIANT = ModelVariant.LLLYASVIEL_CONTROL_V11P_SD15_SCRIBBLE
 
-    prompt = "a bag"
+    prompt = "michael jackson concert"
     base_model = "runwayml/stable-diffusion-v1-5"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
