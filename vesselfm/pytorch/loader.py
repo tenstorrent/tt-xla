@@ -10,8 +10,9 @@ based on MONAI's DynUNet architecture. It segments blood vessels across arbitrar
 """
 import torch
 from huggingface_hub import hf_hub_download
-from monai.networks.nets import DynUNet
 from typing import Optional
+
+from .src.model import DynUNet
 
 from ...base import ForgeModel
 from ...config import (
