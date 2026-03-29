@@ -10,9 +10,7 @@ representation.
 """
 
 import torch
-import numpy as np
 from typing import Optional
-from PIL import Image
 
 from ...base import ForgeModel
 from ...config import (
