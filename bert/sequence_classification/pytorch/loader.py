@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     TEXTATTACK_BERT_BASE_UNCASED_YELP_POLARITY = "Base_Uncased_Yelp_Polarity"
+    MINEJ_BERT_BASE_PERSONALITY = "Minej_Bert_Base_Personality"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="textattack/bert-base-uncased-yelp-polarity",
             max_length=128,
         ),
+        ModelVariant.MINEJ_BERT_BASE_PERSONALITY: LLMModelConfig(
+            pretrained_model_name="Minej/bert-base-personality",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -72,6 +77,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_YELP_POLARITY: "This restaurant had amazing food and excellent service!",
+        ModelVariant.MINEJ_BERT_BASE_PERSONALITY: "I love exploring new ideas and meeting different people from around the world.",
     }
 
     def __init__(self, variant=None):
@@ -108,6 +114,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.TEXTATTACK_BERT_BASE_UNCASED_YELP_POLARITY,
+            ModelVariant.MINEJ_BERT_BASE_PERSONALITY,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
