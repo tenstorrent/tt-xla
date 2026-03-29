@@ -44,12 +44,11 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.CODE_RANK_LLM
 
-    # Sample query-passage pairs for testing
-    sample_pairs = [
-        (
-            "How to read a file in Python?",
-            "def read_file(path):\n    with open(path, 'r') as f:\n        return f.read()",
-        ),
+    # Sample query and code passages for testing
+    sample_query = "How to read a file in Python?"
+    sample_passages = [
+        "def read_file(path):\n    with open(path, 'r') as f:\n        return f.read()",
+        "import os\nfiles = os.listdir('.')",
     ]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -75,6 +74,25 @@ class ModelLoader(ForgeModel):
         )
         return self.tokenizer
 
+    def _format_input(self, query, passages):
+        """Format a query and code passages using the model's chat template."""
+        passage_list = "\n".join(
+            f"[{i + 1}] {passage}" for i, passage in enumerate(passages)
+        )
+        user_content = (
+            f"Query: {query}\n\nPassages:\n{passage_list}\n\n"
+            f"Rank the passages above by relevance to the query."
+        )
+        messages = [
+            {"role": "user", "content": user_content},
+        ]
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        return text
+
     def load_model(self, *, dtype_override=None, **kwargs):
         from transformers import AutoModelForCausalLM
 
@@ -96,12 +114,10 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        queries = [pair[0] for pair in self.sample_pairs]
-        passages = [pair[1] for pair in self.sample_pairs]
+        texts = [self._format_input(self.sample_query, self.sample_passages)]
 
         inputs = self.tokenizer(
-            queries,
-            passages,
+            texts,
             padding=True,
             truncation=True,
             max_length=512,
