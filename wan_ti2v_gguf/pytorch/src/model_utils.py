@@ -6,10 +6,9 @@ Helper functions for loading GGUF-quantized Wan2.2-TI2V-5B-Turbo models.
 """
 
 import torch
-from diffusers import AutoencoderKLWan, GGUFQuantizationConfig, WanImageToVideoPipeline
+from diffusers import AutoencoderKLWan, DiffusionPipeline, GGUFQuantizationConfig
 from diffusers.models import WanTransformer3DModel
 from huggingface_hub import hf_hub_download
-from PIL import Image
 
 
 def load_wan_ti2v_gguf_pipe(repo_id: str, gguf_filename: str, base_model: str):
@@ -21,7 +20,7 @@ def load_wan_ti2v_gguf_pipe(repo_id: str, gguf_filename: str, base_model: str):
         base_model: HuggingFace repository ID of the base Wan model for pipeline components.
 
     Returns:
-        WanImageToVideoPipeline: Loaded pipeline with GGUF-quantized transformer.
+        DiffusionPipeline: Loaded pipeline with GGUF-quantized transformer.
     """
     model_path = hf_hub_download(repo_id=repo_id, filename=gguf_filename)
 
@@ -39,7 +38,7 @@ def load_wan_ti2v_gguf_pipe(repo_id: str, gguf_filename: str, base_model: str):
         torch_dtype=torch.float32,
     )
 
-    pipe = WanImageToVideoPipeline.from_pretrained(
+    pipe = DiffusionPipeline.from_pretrained(
         base_model,
         transformer=transformer,
         vae=vae,
@@ -55,35 +54,4 @@ def load_wan_ti2v_gguf_pipe(repo_id: str, gguf_filename: str, base_model: str):
                 if param.requires_grad:
                     param.requires_grad = False
 
-    if hasattr(pipe, "image_encoder") and pipe.image_encoder is not None:
-        pipe.image_encoder.eval()
-        for param in pipe.image_encoder.parameters():
-            if param.requires_grad:
-                param.requires_grad = False
-
     return pipe
-
-
-def wan_ti2v_preprocessing(pipe, prompt, image=None):
-    """Prepare inputs for the Wan TI2V pipeline.
-
-    Args:
-        pipe: WanImageToVideoPipeline instance.
-        prompt: Text prompt for generation.
-        image: Optional PIL image input. If None, a synthetic image is used.
-
-    Returns:
-        dict: Input arguments for the pipeline.
-    """
-    if image is None:
-        image = Image.new("RGB", (832, 480), color=(128, 128, 200))
-
-    return {
-        "image": image,
-        "prompt": prompt,
-        "height": 480,
-        "width": 832,
-        "num_frames": 9,
-        "num_inference_steps": 2,
-        "guidance_scale": 1.0,
-    }

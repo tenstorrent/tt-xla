@@ -23,7 +23,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from .src.model_utils import load_wan_ti2v_gguf_pipe, wan_ti2v_preprocessing
+from .src.model_utils import load_wan_ti2v_gguf_pipe
 
 REPO_ID = "hum-ma/Wan2.2-TI2V-5B-Turbo-GGUF"
 BASE_MODEL = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
@@ -85,9 +85,6 @@ class ModelLoader(ForgeModel):
         """Load and return sample inputs for the model.
 
         Returns:
-            dict: Input arguments for the Wan TI2V pipeline.
+            dict: Prompt dict for the Wan TI2V pipeline.
         """
-        if self.pipeline is None:
-            self.load_model(dtype_override=dtype_override)
-
-        return wan_ti2v_preprocessing(self.pipeline, self.prompt)
+        return {"prompt": self.prompt}
