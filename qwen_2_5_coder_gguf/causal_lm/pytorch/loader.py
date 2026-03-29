@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2.5 Coder GGUF model variants for causal language modeling."""
 
     QWEN_2_5_CODER_32B_INSTRUCT_GGUF = "32B_Instruct_GGUF"
+    QWEN_2_5_CODER_32B_GGUF = "32B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -34,13 +35,24 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_2_5_CODER_32B_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen2.5-Coder-32B-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_GGUF
 
-    GGUF_FILE = "qwen2.5-coder-32b-instruct-q4_k_m.gguf"
+    _GGUF_FILES = {
+        ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_GGUF: "qwen2.5-coder-32b-instruct-q4_k_m.gguf",
+        ModelVariant.QWEN_2_5_CODER_32B_GGUF: "Qwen2.5-Coder-32B-Q4_K_M.gguf",
+    }
 
     sample_text = "write a quick sort algorithm."
+
+    @property
+    def gguf_file(self):
+        return self._GGUF_FILES[self._variant]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -65,7 +77,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
+        tokenizer_kwargs["gguf_file"] = self.gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -85,11 +97,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
+        model_kwargs["gguf_file"] = self.gguf_file
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
+                pretrained_model_name, gguf_file=self.gguf_file
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -108,19 +120,22 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [
-            {
-                "role": "system",
-                "content": "You are Qwen, created by TT Cloud. You are a helpful assistant.",
-            },
-            {"role": "user", "content": self.sample_text},
-        ]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        prompts = [text]
+        if self._variant == ModelVariant.QWEN_2_5_CODER_32B_GGUF:
+            prompts = [self.sample_text]
+        else:
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are Qwen, created by TT Cloud. You are a helpful assistant.",
+                },
+                {"role": "user", "content": self.sample_text},
+            ]
+            text = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            prompts = [text]
 
         inputs = self.tokenizer(
             prompts,
@@ -159,6 +174,6 @@ class ModelLoader(ForgeModel):
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
         )
         return self.config
