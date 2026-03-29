@@ -1,12 +1,13 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
 Typhoon OCR model loader implementation for image-to-text OCR tasks.
 """
 import torch
-from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from typing import Optional
+
 
 from ....base import ForgeModel
 from ....config import (
@@ -18,12 +19,13 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from .src.model import Wrapper
 
 
 class ModelVariant(StrEnum):
     """Available Typhoon OCR model variants for image-to-text tasks."""
 
-    TYPHOON_OCR_1_5_2B = "typhoon_ocr_1_5_2b"
+    TYPHOON_OCR_3B = "3B"
 
 
 class ModelLoader(ForgeModel):
@@ -31,13 +33,40 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.TYPHOON_OCR_1_5_2B: LLMModelConfig(
-            pretrained_model_name="typhoon-ai/typhoon-ocr1.5-2b",
+        ModelVariant.TYPHOON_OCR_3B: LLMModelConfig(
+            pretrained_model_name="typhoon-ai/typhoon-ocr-3b",
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.TYPHOON_OCR_1_5_2B
+    DEFAULT_VARIANT = ModelVariant.TYPHOON_OCR_3B
+
+    # Shared configuration parameters
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "image": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/pipeline-cat-chonk.jpeg",
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        "Below is an image of a document page along with its dimensions. "
+                        "Simply return the markdown representation of this document, presenting tables in markdown format as they naturally appear.\n"
+                        "If the document contains images, use a placeholder like dummy.png for each image.\n"
+                        "Your final output must be in JSON format with a single key `natural_text` containing the response.\n"
+                        "RAW_TEXT_START\n\nRAW_TEXT_END"
+                    ),
+                },
+            ],
+        }
+    ]
+
+    # Vision processing parameters
+    min_pixels = 56 * 56
+    max_pixels = 13 * 28 * 1280
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -61,7 +90,7 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="typhoon_ocr",
+            model="Typhoon OCR",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_DOC_OCR,
@@ -69,21 +98,21 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
-        """Load Processor for the current variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the processor's default dtype.
+    def _load_processor(self):
+        """Load processor for the current variant.
 
         Returns:
             The loaded processor instance
         """
-        kwargs = {}
-        if dtype_override is not None:
-            kwargs["torch_dtype"] = dtype_override
+        # Initialize processor with vision parameters
+        processor_kwargs = {
+            "min_pixels": self.min_pixels,
+            "max_pixels": self.max_pixels,
+        }
 
+        # Load the processor
         self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name, **kwargs
+            self._variant_config.pretrained_model_name, **processor_kwargs
         )
 
         return self.processor
@@ -96,58 +125,63 @@ class ModelLoader(ForgeModel):
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The Typhoon OCR model instance for image-to-text tasks.
+            torch.nn.Module: The Wrapped Typhoon OCR model instance for image-to-text tasks.
         """
+        # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+        model_kwargs = {"low_cpu_mem_usage": True, "use_cache": False}
 
-        model_kwargs = {}
+        # Load the model with dtype override if specified
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        else:
+            model_kwargs["torch_dtype"] = torch.float32
         model_kwargs |= kwargs
 
-        model = Qwen3VLForConditionalGeneration.from_pretrained(
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
+        model = Wrapper(model)
+
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the Typhoon OCR model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-            batch_size: Batch size for the inputs.
+                           If specified, converts pixel_values to the specified dtype.
 
         Returns:
             dict: Input tensors that can be fed to the model.
         """
+        # Ensure processor is initialized
         if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+            self._load_processor()
 
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "image": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/pipeline-cat-chonk.jpeg",
-                    },
-                    {"type": "text", "text": "Read all the text in the image."},
-                ],
-            }
-        ]
-        inputs = self.processor.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_dict=True,
+        # Apply chat template to get text prompt
+        text = self.processor.apply_chat_template(
+            self.messages, tokenize=False, add_generation_prompt=True
+        )
+
+        from qwen_vl_utils import process_vision_info
+
+        # Process vision inputs
+        image_inputs, video_inputs = process_vision_info(self.messages)
+
+        # Process all inputs together
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
             return_tensors="pt",
         )
-        # Add batch dimension
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        # Convert pixel_values to specified dtype if provided
+        if dtype_override is not None:
+            inputs["pixel_values"] = inputs["pixel_values"].to(dtype_override)
+
         return inputs
