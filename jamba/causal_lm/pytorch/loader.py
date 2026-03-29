@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -13,7 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    LLMModelConfig,
+    ModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -25,19 +25,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Jamba model variants."""
 
-    JAMBA_V01 = "v0.1"
+    AI21_JAMBA_REASONING_3B = "AI21_Jamba_Reasoning_3B"
 
 
 class ModelLoader(ForgeModel):
     """Jamba model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.JAMBA_V01: LLMModelConfig(
-            pretrained_model_name="ai21labs/Jamba-v0.1",
+        ModelVariant.AI21_JAMBA_REASONING_3B: ModelConfig(
+            pretrained_model_name="ai21labs/AI21-Jamba-Reasoning-3B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.JAMBA_V01
+    DEFAULT_VARIANT = ModelVariant.AI21_JAMBA_REASONING_3B
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -103,7 +103,10 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override)
 
-        test_input = "What is the capital of France?"
+        messages = [{"role": "user", "content": "What is the capital of France?"}]
+        test_input = self.tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, tokenize=False
+        )
 
         inputs = self.tokenizer(test_input, return_tensors="pt")
 
