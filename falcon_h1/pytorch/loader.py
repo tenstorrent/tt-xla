@@ -4,39 +4,48 @@
 """
 Falcon-H1 model loader implementation for causal language modeling.
 """
+
 from typing import Optional
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
-from ...config import (
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
-    Framework,
-    StrEnum,
-    ModelConfig,
-)
 from ...base import ForgeModel
+from ...config import (
+    Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
+    StrEnum,
+)
 
 
 class ModelVariant(StrEnum):
     """Available Falcon-H1 model variants."""
 
-    FALCON_H1_7B_BASE = "H1_7B_Base"
+    FALCON_H1_34B_BASE = "H1_34B_Base"
 
 
 class ModelLoader(ForgeModel):
-    """Falcon-H1 model loader implementation for causal LM tasks."""
+    """Falcon-H1 model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.FALCON_H1_7B_BASE: ModelConfig(
-            pretrained_model_name="tiiuae/Falcon-H1-7B-Base",
+        ModelVariant.FALCON_H1_34B_BASE: ModelConfig(
+            pretrained_model_name="tiiuae/Falcon-H1-34B-Base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.FALCON_H1_7B_BASE
+    DEFAULT_VARIANT = ModelVariant.FALCON_H1_34B_BASE
+
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
+        super().__init__(variant)
+        self.tokenizer = None
+        self.model = None
+        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -52,68 +61,65 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def __init__(self, variant=None, num_layers: Optional[int] = None):
-        super().__init__(variant)
-        self.input_text = "In a shocking discovery, scientists stumbled upon a herd of unicorns living in a remote, unexplored valley in the Andes Mountains. To their astonishment, these unicorns could speak perfect English. Describe the scientists' reactions, the unicorns' personalities, and the conversations that unfold between them. Include vivid details of the valley, the unicorns' appearance, and any surprising or magical behaviors they display."
-        self.max_length = 512
-        self.tokenizer = None
-        self.config = None
-        self.num_layers = num_layers
-
-    def load_model(self, *, dtype_override=None, **kwargs):
+    def _load_tokenizer(self, dtype_override=None):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             pretrained_model_name, **tokenizer_kwargs
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        return self.tokenizer
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-
-        config = AutoConfig.from_pretrained(pretrained_model_name)
-        config.use_cache = False
-        if self.num_layers is not None:
-            config.num_hidden_layers = self.num_layers
-        model_kwargs["config"] = config
         model_kwargs |= kwargs
+
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
-        self.model = model
+        ).eval()
+
         self.config = model.config
+        self.model = model
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self.load_model()
+            self._load_tokenizer(dtype_override)
 
-        inputs = self.tokenizer(
-            self.input_text,
-            add_special_tokens=True,
-            return_tensors="pt",
-            max_length=self.max_length,
-            truncation=True,
-        )
+        test_input = "What is the capital of France?"
+
+        inputs = self.tokenizer(test_input, return_tensors="pt")
+
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
         return inputs
 
-    def decode_output(self, outputs, inputs=None):
+    def decode_output(self, outputs, dtype_override=None):
         if self.tokenizer is None:
-            self.load_model()
+            self._load_tokenizer(dtype_override)
 
-        if inputs is None:
-            inputs = self.load_inputs()
-
-        response_start = torch.argmax(outputs.start_logits)
-        response_end = torch.argmax(outputs.end_logits) + 1
-        response_tokens = inputs.input_ids[0, response_start:response_end]
-
-        return self.tokenizer.decode(response_tokens)
+        next_token_logits = outputs.logits[:, -1]
+        next_token = next_token_logits.softmax(dim=-1).argmax()
+        return self.tokenizer.decode([next_token])
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
