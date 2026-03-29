@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available Granite model variants for causal language modeling."""
 
     GRANITE_3_2_8B_INSTRUCT = "3.2-8B-Instruct"
+    MICRO_G3_3_8B_INSTRUCT_1B = "micro-g3.3-8b-instruct-1b"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GRANITE_3_2_8B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="ibm-granite/granite-3.2-8b-instruct",
+            max_length=128,
+        ),
+        ModelVariant.MICRO_G3_3_8B_INSTRUCT_1B: LLMModelConfig(
+            pretrained_model_name="ibm-ai-platform/micro-g3.3-8b-instruct-1b",
             max_length=128,
         ),
     }
