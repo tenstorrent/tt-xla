@@ -35,11 +35,13 @@ class ModelVariant(StrEnum):
     BERT_BASE_ITALIAN_XXL_CASED = "dbmdz/bert-base-italian-xxl-cased"
     BERT_SMALL_UNCASED = "Small_Uncased"
     BERT_BASE_SWEDISH_CASED = "KBLab/bert-base-swedish-cased"
+    BIOBERTPT_ALL = "pucpr/biobertpt-all"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.BERT_BASE_ITALIAN_XXL_CASED: "La capitale d'Italia è [MASK].",
     ModelVariant.BERT_BASE_SWEDISH_CASED: "Stockholm är huvudstaden i [MASK].",
+    ModelVariant.BIOBERTPT_ALL: "O paciente foi diagnosticado com [MASK].",
 }
 
 
@@ -88,6 +90,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="KBLab/bert-base-swedish-cased",
             max_length=128,
         ),
+        ModelVariant.BIOBERTPT_ALL: LLMModelConfig(
+            pretrained_model_name="pucpr/biobertpt-all",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -134,6 +140,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_BASE_ITALIAN_XXL_CASED,
             ModelVariant.BERT_SMALL_UNCASED,
             ModelVariant.BERT_BASE_SWEDISH_CASED,
+            ModelVariant.BIOBERTPT_ALL,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
