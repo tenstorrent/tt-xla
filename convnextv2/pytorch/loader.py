@@ -9,7 +9,7 @@ from typing import Optional
 from dataclasses import dataclass
 import timm
 import torch
-from transformers import AutoModelForImageClassification
+from transformers import AutoImageProcessor, AutoModelForImageClassification
 
 from transformers import ConvNextV2ForImageClassification
 from ...config import (
@@ -42,9 +42,7 @@ class ModelVariant(StrEnum):
     ATTO_FCMAE_FT_IN1K = "Atto_FCMAE_FT_IN1K"
     LARGE_FCMAE_FT_IN22K_IN1K_384 = "Large_FCMAE_FT_IN22K_IN1K_384"
     NANO_FCMAE_FT_IN22K_IN1K = "Nano_FCMAE_FT_IN22K_IN1K"
-    NANO_FCMAE_FT_IN22K_IN1K_384 = "Nano_FCMAE_FT_IN22K_IN1K_384"
-    TINY_FCMAE_FT_IN1K = "Tiny_FCMAE_FT_IN1K"
-    LARGE_FCMAE_FT_IN22K_IN1K = "Large_FCMAE_FT_IN22K_IN1K"
+    LARGE_FOOD101 = "Large_Food101"
 
 
 class ModelLoader(ForgeModel):
@@ -63,17 +61,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnextv2_nano.fcmae_ft_in22k_in1k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.NANO_FCMAE_FT_IN22K_IN1K_384: ConvNeXtV2Config(
-            pretrained_model_name="hf_hub:timm/convnextv2_nano.fcmae_ft_in22k_in1k_384",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.TINY_FCMAE_FT_IN1K: ConvNeXtV2Config(
-            pretrained_model_name="hf_hub:timm/convnextv2_tiny.fcmae_ft_in1k",
-            source=ModelSource.TIMM,
-        ),
-        ModelVariant.LARGE_FCMAE_FT_IN22K_IN1K: ConvNeXtV2Config(
-            pretrained_model_name="hf_hub:timm/convnextv2_large.fcmae_ft_in22k_in1k",
-            source=ModelSource.TIMM,
+        ModelVariant.LARGE_FOOD101: ConvNeXtV2Config(
+            pretrained_model_name="lakshyaM/convnextv2_large_food101",
+            source=ModelSource.HUGGING_FACE,
         ),
     }
 
@@ -84,6 +74,7 @@ class ModelLoader(ForgeModel):
         self.model = None
         self._preprocessor = None
         self._postprocessor = None
+        self._hf_processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -106,14 +97,18 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.HUGGING_FACE:
+            model_kwargs = {}
+            if dtype_override is not None:
+                model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs |= kwargs
+
             model = AutoModelForImageClassification.from_pretrained(
-                model_name, **kwargs
+                model_name, **model_kwargs
             )
-        elif source == ModelSource.TIMM:
+        else:
             model = timm.create_model(model_name, pretrained=True)
 
         model.eval()
-
         self.model = model
 
         if self._preprocessor is not None:
@@ -122,7 +117,7 @@ class ModelLoader(ForgeModel):
         if self._postprocessor is not None:
             self._postprocessor.set_model_instance(model)
 
-        if dtype_override is not None:
+        if dtype_override is not None and source != ModelSource.HUGGING_FACE:
             model = model.to(dtype_override)
 
         return model
@@ -132,9 +127,31 @@ class ModelLoader(ForgeModel):
             dataset = load_dataset("huggingface/cats-image", split="test")
             image = dataset[0]["image"]
 
+        source = self._variant_config.source
+
+        if source == ModelSource.HUGGING_FACE:
+            if self._hf_processor is None:
+                model_name = self._variant_config.pretrained_model_name
+                self._hf_processor = AutoImageProcessor.from_pretrained(model_name)
+
+            inputs = self._hf_processor(images=image, return_tensors="pt")
+
+            for key in inputs:
+                if torch.is_tensor(inputs[key]):
+                    inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+            if dtype_override is not None:
+                for key in inputs:
+                    if (
+                        torch.is_tensor(inputs[key])
+                        and inputs[key].dtype.is_floating_point
+                    ):
+                        inputs[key] = inputs[key].to(dtype_override)
+
+            return inputs
+
         if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
-            source = self._variant_config.source
 
             self._preprocessor = VisionPreprocessor(
                 model_source=source,
