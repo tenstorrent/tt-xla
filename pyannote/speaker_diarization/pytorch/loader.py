@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     DIARIZATION_3_0 = "Diarization_3_0"
     DIARIZATION_3_1 = "Diarization_3_1"
     DIARIZATION_COMMUNITY_1 = "Diarization_Community_1"
+    TEZUESH_DIARIZATION = "Tezuesh_Diarization"
 
 
 class ModelLoader(ForgeModel):
@@ -48,6 +49,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DIARIZATION_COMMUNITY_1: ModelConfig(
             pretrained_model_name="pyannote/speaker-diarization-community-1",
+        ),
+        ModelVariant.TEZUESH_DIARIZATION: ModelConfig(
+            pretrained_model_name="tezuesh/diarization",
         ),
     }
 
