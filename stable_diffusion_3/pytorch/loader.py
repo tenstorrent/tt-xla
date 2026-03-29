@@ -17,7 +17,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from .src.model_utils import load_pipe, stable_diffusion_3_preprocessing
+from .src.model_utils import load_pipe, stable_diffusion_preprocessing_v3
 
 
 class ModelVariant(StrEnum):
@@ -29,22 +29,40 @@ class ModelVariant(StrEnum):
 class ModelLoader(ForgeModel):
     """Stable Diffusion 3 model loader implementation."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
         ModelVariant.STABLE_DIFFUSION_3_MEDIUM: ModelConfig(
-            pretrained_model_name="stable-diffusion-3-medium-diffusers",
+            pretrained_model_name="stabilityai/stable-diffusion-3-medium-diffusers",
         ),
     }
 
+    # Default variant to use
     DEFAULT_VARIANT = ModelVariant.STABLE_DIFFUSION_3_MEDIUM
 
+    # Shared configuration parameters
     prompt = "An astronaut riding a green horse"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self.pipeline = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
@@ -61,6 +79,7 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
+                           If not provided, the model will use its default dtype (typically float32).
 
         Returns:
             torch.nn.Module: The Stable Diffusion 3 transformer instance.
@@ -95,7 +114,7 @@ class ModelLoader(ForgeModel):
             timestep,
             prompt_embeds,
             pooled_prompt_embeds,
-        ) = stable_diffusion_3_preprocessing(self.pipeline, self.prompt)
+        ) = stable_diffusion_preprocessing_v3(self.pipeline, self.prompt)
 
         if dtype_override:
             latent_model_input = latent_model_input.to(dtype_override)

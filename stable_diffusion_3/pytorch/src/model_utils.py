@@ -17,21 +17,22 @@ def load_pipe(variant):
     """Load Stable Diffusion 3 pipeline.
 
     Args:
-        variant: Model variant name (HuggingFace repo suffix)
+        variant: Pretrained model name or path
 
     Returns:
         StableDiffusion3Pipeline: Loaded pipeline with components set to eval mode
     """
-    pipe = StableDiffusion3Pipeline.from_pretrained(
-        f"stabilityai/{variant}", torch_dtype=torch.float32
-    )
+    pipe = StableDiffusion3Pipeline.from_pretrained(variant, torch_dtype=torch.float32)
     modules = [
         pipe.text_encoder,
         pipe.transformer,
         pipe.text_encoder_2,
-        pipe.text_encoder_3,
         pipe.vae,
     ]
+
+    # T5 text_encoder_3 may not be present in all variants
+    if pipe.text_encoder_3 is not None:
+        modules.append(pipe.text_encoder_3)
 
     pipe.to("cpu")
 
@@ -44,7 +45,7 @@ def load_pipe(variant):
     return pipe
 
 
-def stable_diffusion_3_preprocessing(
+def stable_diffusion_preprocessing_v3(
     pipe,
     prompt,
     device="cpu",
