@@ -83,7 +83,7 @@ class ModelLoader(ForgeModel):
         predicted_answer = "The traffic light shows a red signal."
 
         text = (
-            f"[CLS] Question: {question} "
+            f"Question: {question} "
             f"Answer: {reference_answer} "
             f"Student: {predicted_answer}"
         )
