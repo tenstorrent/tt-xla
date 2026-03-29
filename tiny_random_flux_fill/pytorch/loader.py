@@ -86,12 +86,10 @@ class ModelLoader(ForgeModel):
         num_images_per_prompt = 1
         dtype = dtype_override if dtype_override is not None else torch.float32
 
-        # The FluxFill transformer expects in_channels=20 which accounts for:
-        # - latent channels * 4 (packed latents)
-        # - masked image latent channels * 4 (packed)
-        # - mask channel * 4 (packed)
-        # For this tiny model: latent_channels=2, so num_channels_latents=2
-        num_channels_latents = self.pipe.transformer.config.in_channels // 4
+        # For FluxFill, in_channels = (latent_channels + latent_channels + 1) * 4
+        # where the three components are: noise latents, masked image latents, and mask
+        # Use VAE latent_channels for the noise/image portions (not in_channels // 4)
+        num_channels_latents = self.pipe.vae.config.latent_channels
 
         # Text encoding for CLIP
         text_inputs_clip = self.pipe.tokenizer(
