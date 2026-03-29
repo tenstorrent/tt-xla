@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     DISTILL_QWEN_14B = "Distill_Qwen_14B"
     DISTILL_LLAMA_8B = "Distill_Llama_8B"
     DISTILL_QWEN_7B_AWQ = "Distill_Qwen_7B_AWQ"
+    DISTILL_QWEN_1_5B_QUANTIZED_W8A8 = "Distill_Qwen_1_5B_Quantized_W8A8"
 
 
 class ModelLoader(ForgeModel):
@@ -61,6 +62,11 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DISTILL_QWEN_7B_AWQ: LLMModelConfig(
             pretrained_model_name="casperhansen/deepseek-r1-distill-qwen-7b-awq",
+            max_length=2048,
+        ),
+        # RedHatAI INT8 quantized variant
+        ModelVariant.DISTILL_QWEN_1_5B_QUANTIZED_W8A8: LLMModelConfig(
+            pretrained_model_name="RedHatAI/DeepSeek-R1-Distill-Qwen-1.5B-quantized.w8a8",
             max_length=2048,
         ),
     }
@@ -104,10 +110,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # AWQ quantized variants require explicit CPU device mapping
-        if (
-            self._variant_config.pretrained_model_name
-            == "casperhansen/deepseek-r1-distill-qwen-7b-awq"
+        # Quantized variants require explicit CPU device mapping
+        if self._variant in (
+            ModelVariant.DISTILL_QWEN_7B_AWQ,
+            ModelVariant.DISTILL_QWEN_1_5B_QUANTIZED_W8A8,
         ):
             model_kwargs["device_map"] = "cpu"
 
