@@ -46,6 +46,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_27B_ESPER3_1_I1_GGUF = "27B_Esper3.1_i1_GGUF"
     QWEN_3_5_35B_A3B_MLX_MXFP4 = "35B_A3B_MLX_MXFP4"
     QWEN_3_5_35B_A3B_TEXT_MLX_QX64_HI = "35B_A3B_Text_MLX_qx64_hi"
+    QWEN_3_5_122B_A10B_MLX_8BIT = "122B_A10B_MLX_8BIT"
 
 
 class ModelLoader(ForgeModel):
@@ -139,6 +140,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_TEXT_MLX_QX64_HI: LLMModelConfig(
             pretrained_model_name="nightmedia/Qwen3.5-35B-A3B-Text-qx64-hi-mlx",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_122B_A10B_MLX_8BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3.5-122B-A10B-8bit",
             max_length=128,
         ),
     }
@@ -356,6 +361,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_MLX_MXFP4,
             ModelVariant.QWEN_3_5_35B_A3B_TEXT_MLX_QX64_HI,
             ModelVariant.QWEN_3_5_122B_A10B_GGUF,
+            ModelVariant.QWEN_3_5_122B_A10B_MLX_8BIT,
         )
 
     def load_shard_spec(self, model):
