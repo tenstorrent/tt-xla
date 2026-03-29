@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     )
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
     REFUTATION_DETECTOR_DISTILBERT = "refutation-detector-distilbert"
+    SBCBI_SENTIMENT_ANALYSIS = "sbcBI-sentiment-analysis"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="garak-llm/refutation_detector_distilbert",
             max_length=128,
         ),
+        ModelVariant.SBCBI_SENTIMENT_ANALYSIS: LLMModelConfig(
+            pretrained_model_name="sbcBI/sentiment_analysis_model",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -60,6 +65,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
         ModelVariant.REFUTATION_DETECTOR_DISTILBERT: "That is not true, the earth is not flat.",
+        ModelVariant.SBCBI_SENTIMENT_ANALYSIS: "The service was excellent and I had a wonderful experience.",
     }
 
     def __init__(self, variant=None):
@@ -94,6 +100,7 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
             ModelVariant.REFUTATION_DETECTOR_DISTILBERT,
+            ModelVariant.SBCBI_SENTIMENT_ANALYSIS,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
