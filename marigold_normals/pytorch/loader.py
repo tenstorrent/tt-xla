@@ -75,55 +75,17 @@ class ModelLoader(ForgeModel):
         if self.pipeline is None:
             self._load_pipeline(dtype_override=dtype_override)
 
-        return self.pipeline.unet
+        return self.pipeline
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.pipeline is None:
             self._load_pipeline(dtype_override=dtype_override)
 
         pipe = self.pipeline
-        dtype = dtype_override or torch.float32
 
-        # Encode a sample image through the VAE to get the image latent
         dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"].resize((768, 768))
-        image_tensor = (
-            torch.tensor([list(image.getdata())], dtype=dtype)
-            .reshape(1, image.size[1], image.size[0], 3)
-            .permute(0, 3, 1, 2)
-            / 255.0
-        )
-        image_tensor = image_tensor * 2.0 - 1.0
+        image = dataset[0]["image"]
 
-        with torch.no_grad():
-            image_latent = pipe.vae.encode(image_tensor.to(dtype)).latent_dist.mean
-            image_latent = image_latent * pipe.vae.config.scaling_factor
+        inputs = {"image": image, "num_inference_steps": 10, "batch_size": batch_size}
 
-        # Generate noise latent and concatenate with image latent for 8-channel input
-        noise_latent = torch.randn_like(image_latent)
-        latent_model_input = torch.cat([image_latent, noise_latent], dim=1)
-
-        # Prepare timestep
-        pipe.scheduler.set_timesteps(10)
-        timestep = pipe.scheduler.timesteps[0].expand(batch_size)
-
-        # Encode empty prompt for unconditional generation
-        text_inputs = pipe.tokenizer(
-            "",
-            padding="max_length",
-            max_length=pipe.tokenizer.model_max_length,
-            truncation=True,
-            return_tensors="pt",
-        )
-        with torch.no_grad():
-            encoder_hidden_states = pipe.text_encoder(text_inputs.input_ids)[0].to(
-                dtype
-            )
-
-        if batch_size > 1:
-            latent_model_input = latent_model_input.repeat_interleave(batch_size, dim=0)
-            encoder_hidden_states = encoder_hidden_states.repeat_interleave(
-                batch_size, dim=0
-            )
-
-        return [latent_model_input, timestep, encoder_hidden_states]
+        return inputs
