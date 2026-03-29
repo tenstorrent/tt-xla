@@ -2,59 +2,72 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeepSeek Coder V2 Lite Instruct model loader implementation for causal language modeling.
-
-DeepSeek-Coder-V2 is a Mixture-of-Experts (MoE) code language model with
-16B total parameters and 2.4B active parameters, supporting 338 programming
-languages and a 128K context window.
+DeepSeek Coder V2 model loader implementation for causal language modeling.
 """
 
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
+from ....tools.utils import generate_no_cache, pad_inputs
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     LLMModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
-from ....tools.utils import generate_no_cache, pad_inputs
 
 
 class ModelVariant(StrEnum):
     """Available DeepSeek Coder V2 model variants."""
 
-    LITE_INSTRUCT = "Lite_Instruct"
+    DEEPSEEK_CODER_V2_INSTRUCT = "Instruct"
 
 
 class ModelLoader(ForgeModel):
     """DeepSeek Coder V2 model loader implementation for causal language modeling tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.LITE_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
+        ModelVariant.DEEPSEEK_CODER_V2_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="deepseek-ai/DeepSeek-Coder-V2-Instruct",
             max_length=2048,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LITE_INSTRUCT
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.DEEPSEEK_CODER_V2_INSTRUCT
 
-    sample_text = "write a quick sort algorithm in python."
+    # Sample prompt text
+    sample_text = "write a bubble sort algorithm in python."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
         self.tokenizer = None
         self.seq_len = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+
+        Returns:
+            ModelInfo: Information about the model and variant.
+        """
         return ModelInfo(
-            model="DeepSeek-Coder-V2",
+            model="DeepSeek Coder V2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -63,6 +76,7 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant."""
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
@@ -76,9 +90,10 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the DeepSeek Coder V2 model instance."""
+
         model_kwargs = {
             "trust_remote_code": True,
-            "attn_implementation": "eager",
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
@@ -94,6 +109,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
+        """Load and return sample inputs for the DeepSeek Coder V2 model."""
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
@@ -109,6 +125,14 @@ class ModelLoader(ForgeModel):
         return padded_inputs
 
     def decode_output(self, max_new_tokens, model, inputs, tokenizer):
+        """Generates text from the model.
+
+        Args:
+            max_new_tokens (int): The maximum number of new tokens to generate.
+            model (torch.nn.Module): The language model used for token generation.
+            inputs (torch.Tensor): Input tensor of shape (batch_size, seq_len), representing tokenized text.
+            tokenizer: The tokenizer used to decode token IDs into text.
+        """
         generated_text = generate_no_cache(
             max_new_tokens, model, inputs, self.seq_len, tokenizer
         )
