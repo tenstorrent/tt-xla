@@ -40,7 +40,7 @@ class ModelLoader(ForgeModel):
 
     GGUF_FILE = "codellama-7b.Q4_K_M.gguf"
 
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = "import socket\n\ndef ping_exponential_backoff(host: str):"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -108,21 +108,8 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [
-            {
-                "role": "user",
-                "content": self.sample_text,
-            }
-        ]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        prompts = [text]
-
         inputs = self.tokenizer(
-            prompts,
+            [self.sample_text],
             return_tensors="pt",
             padding=True,
             truncation=True,
