@@ -11,7 +11,6 @@ from transformers import (
     AutoModelForKeypointMatching,
 )
 from typing import Optional
-from PIL import Image
 
 from ...base import ForgeModel
 from ...config import (
