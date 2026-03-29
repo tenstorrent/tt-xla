@@ -22,7 +22,7 @@ class ModelVariant(StrEnum):
     """Available ELECTRA question answering model variants."""
 
     LARGE_DISCRIMINATOR_SQUAD2_512 = "Large_Discriminator_Squad2_512"
-    DEEPSET_BASE_SQUAD2 = "Deepset_Base_Squad2"
+    GELECTRA_LARGE_GERMANQUAD = "GElectra_Large_GermanQuAD"
 
 
 class ModelLoader(ForgeModel):
@@ -33,13 +33,29 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="ahotrod/electra_large_discriminator_squad2_512",
             max_length=512,
         ),
-        ModelVariant.DEEPSET_BASE_SQUAD2: LLMModelConfig(
-            pretrained_model_name="deepset/electra-base-squad2",
-            max_length=384,
+        ModelVariant.GELECTRA_LARGE_GERMANQUAD: LLMModelConfig(
+            pretrained_model_name="deepset/gelectra-large-germanquad",
+            max_length=512,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.LARGE_DISCRIMINATOR_SQUAD2_512
+
+    _SAMPLE_DATA = {
+        ModelVariant.LARGE_DISCRIMINATOR_SQUAD2_512: {
+            "context": (
+                "Super Bowl 50 was an American football game to determine the champion of the National Football League "
+                "(NFL) for the 2015 season. The American Football Conference (AFC) champion Denver Broncos defeated the "
+                "National Football Conference (NFC) champion Carolina Panthers 24\u201310 to earn their third Super Bowl title. "
+                "The game was played on February 7, 2016, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California."
+            ),
+            "question": "Which NFL team represented the AFC at Super Bowl 50?",
+        },
+        ModelVariant.GELECTRA_LARGE_GERMANQUAD: {
+            "context": "Mein Name ist Wolfgang und ich lebe in Berlin.",
+            "question": "Wo wohne ich?",
+        },
+    }
 
     def __init__(self, variant=None):
         super().__init__(variant)
@@ -47,14 +63,9 @@ class ModelLoader(ForgeModel):
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
 
-        # Sample data from SQuAD 2.0
-        self.context = (
-            "Super Bowl 50 was an American football game to determine the champion of the National Football League "
-            "(NFL) for the 2015 season. The American Football Conference (AFC) champion Denver Broncos defeated the "
-            "National Football Conference (NFC) champion Carolina Panthers 24\u201310 to earn their third Super Bowl title. "
-            "The game was played on February 7, 2016, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California."
-        )
-        self.question = "Which NFL team represented the AFC at Super Bowl 50?"
+        sample = self._SAMPLE_DATA[self._variant]
+        self.context = sample["context"]
+        self.question = sample["question"]
 
     @classmethod
     def _get_model_info(cls, variant=None):
