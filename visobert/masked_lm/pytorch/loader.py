@@ -86,7 +86,6 @@ class ModelLoader(ForgeModel):
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use bfloat16.
 
         Returns:
             torch.nn.Module: The VisoBERT For Masked LM model instance for masked language modeling.
