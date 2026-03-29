@@ -25,6 +25,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MMS TTS model variants."""
 
+    BENGALI = "Bengali"
     KINYARWANDA = "Kinyarwanda"
 
 
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     """MMS TTS model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
+        ModelVariant.BENGALI: ModelConfig(
+            pretrained_model_name="facebook/mms-tts-ben",
+        ),
         ModelVariant.KINYARWANDA: ModelConfig(
             pretrained_model_name="facebook/mms-tts-kin",
         ),
@@ -39,7 +43,12 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.KINYARWANDA
 
-    sample_text = "Muraho, murakaza neza mu gukoresha sisitemu yacu."
+    _SAMPLE_TEXTS = {
+        ModelVariant.BENGALI: "আমাদের সিস্টেম ব্যবহার করার জন্য স্বাগতম।",
+        ModelVariant.KINYARWANDA: "Muraho, murakaza neza mu gukoresha sisitemu yacu.",
+    }
+
+    sample_text = _SAMPLE_TEXTS[DEFAULT_VARIANT]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -90,6 +99,7 @@ class ModelLoader(ForgeModel):
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self._tokenizer(self.sample_text, return_tensors="pt")
+        sample_text = self._SAMPLE_TEXTS.get(self._variant, self.sample_text)
+        inputs = self._tokenizer(sample_text, return_tensors="pt")
 
         return inputs
