@@ -70,10 +70,14 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The merged LoRA model instance.
         """
-        from transformers import BertForTokenClassification, BertTokenizer
+        from transformers import AutoConfig, BertForTokenClassification, BertTokenizer
         from peft import PeftModel
 
         self.tokenizer = BertTokenizer.from_pretrained(self.BASE_MODEL_NAME)
+
+        # Load config from the adapter repo to get the correct num_labels and id2label
+        adapter_name = self._variant_config.pretrained_model_name
+        config = AutoConfig.from_pretrained(adapter_name)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -81,11 +85,9 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         base_model = BertForTokenClassification.from_pretrained(
-            self.BASE_MODEL_NAME, **model_kwargs
+            self.BASE_MODEL_NAME, config=config, **model_kwargs
         )
-        model = PeftModel.from_pretrained(
-            base_model, self._variant_config.pretrained_model_name
-        )
+        model = PeftModel.from_pretrained(base_model, adapter_name)
         model = model.merge_and_unload()
         model.eval()
         self.model = model
