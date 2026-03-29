@@ -6,7 +6,6 @@ XLM-V model loader implementation for sequence classification (language identifi
 """
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from typing import Optional
 
 from ....config import (
     ModelInfo,
