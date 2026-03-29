@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Llama-3-8B-ProLong-64k-Instruct model loader implementation for causal language modeling.
+Llama-3-8B-ProLong model loader implementation for causal language modeling.
 """
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
@@ -28,14 +28,19 @@ class ModelVariant(StrEnum):
     """Available Llama-3-8B-ProLong model variants for causal LM."""
 
     LLAMA3_8B_PROLONG_64K_INSTRUCT = "8B-ProLong-64k-Instruct"
+    LLAMA3_8B_PROLONG_512K_BASE = "8B-ProLong-512k-Base"
 
 
 class ModelLoader(ForgeModel):
-    """Llama-3-8B-ProLong-64k-Instruct model loader for causal language modeling."""
+    """Llama-3-8B-ProLong model loader for causal language modeling."""
 
     _VARIANTS = {
         ModelVariant.LLAMA3_8B_PROLONG_64K_INSTRUCT: LLMModelConfig(
             pretrained_model_name="princeton-nlp/Llama-3-8B-ProLong-64k-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA3_8B_PROLONG_512K_BASE: LLMModelConfig(
+            pretrained_model_name="princeton-nlp/Llama-3-8B-ProLong-512k-Base",
             max_length=128,
         ),
     }
@@ -58,7 +63,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="Llama-3-8B-ProLong-64k-Instruct",
+            model="Llama-3-8B-ProLong",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
