@@ -57,6 +57,7 @@ class ModelTask(StrEnum):
     CV_IMAGE_FE = "cv_image_fe"
     CV_MASK_GEN = "cv_mask_gen"
     CV_KEYPOINT_DET = "cv_keypoint_det"
+    CV_KEYPOINT_MATCHING = "cv_keypoint_matching"
     CV_KNOW_DISTILL = "cv_know_distill"
     CV_PANOPTIC_SEG = "cv_panoptic_seg"
     CV_IMAGE_TO_TEXT = "cv_image_to_text"
