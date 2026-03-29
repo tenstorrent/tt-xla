@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.LLAMA_3_2_8X4B_MOE_V2_DARK_CHAMPION_21B_GGUF
 
-    GGUF_FILE = "Llama-3.2-8X4B-MOE-V2-Dark-Champion-Instruct-uncensored-abliterated-21B-Q4_K_M.gguf"
+    GGUF_FILE = "L3.2-8X4B-MOE-V2-Dark-Champion-Inst-21B-uncen-ablit-D_AU-Q4_k_m.gguf"
 
     sample_text = "What is your favorite city?"
 
