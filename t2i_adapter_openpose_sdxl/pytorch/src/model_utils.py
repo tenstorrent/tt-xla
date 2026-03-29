@@ -12,6 +12,9 @@ from diffusers import StableDiffusionXLAdapterPipeline, T2IAdapter
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
+from diffusers.pipelines.t2i_adapter.pipeline_stable_diffusion_xl_adapter import (
+    _preprocess_adapter_image,
+)
 from PIL import Image
 
 
@@ -195,10 +198,8 @@ def t2i_adapter_openpose_sdxl_preprocessing(
     added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
 
     # 5. Prepare adapter image and get adapter conditioning
-    adapter_image = pipe.image_processor.preprocess(
-        adapter_image, height=height, width=width
-    )
-    adapter_image = adapter_image.to(device=device, dtype=pipe.unet.dtype)
+    adapter_image = _preprocess_adapter_image(adapter_image, height, width)
+    adapter_image = adapter_image.to(device=device, dtype=pipe.adapter.dtype)
 
     adapter_state = pipe.adapter(adapter_image)
     adapter_state = [each * adapter_conditioning_scale for each in adapter_state]
