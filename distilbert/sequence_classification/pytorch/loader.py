@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
     GARAK_LLM_TOXIC_COMMENT_MODEL = "garak-llm-toxic-comment-model"
     DANSWER_INTENT_MODEL = "danswer-intent-model"
+    TYPEFORM_DISTILBERT_BASE_UNCASED_MNLI = "typeform-distilbert-base-uncased-mnli"
 
 
 class ModelLoader(ForgeModel):
@@ -50,6 +51,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Danswer/intent-model",
             max_length=128,
         ),
+        ModelVariant.TYPEFORM_DISTILBERT_BASE_UNCASED_MNLI: LLMModelConfig(
+            pretrained_model_name="typeform/distilbert-base-uncased-mnli",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -66,6 +71,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
         ModelVariant.GARAK_LLM_TOXIC_COMMENT_MODEL: "This is a perfectly normal and friendly comment.",
         ModelVariant.DANSWER_INTENT_MODEL: "What is the capital of France?",
+        ModelVariant.TYPEFORM_DISTILBERT_BASE_UNCASED_MNLI: "I love transformers and the wide range of NLP tasks they can handle.",
     }
 
     def __init__(self, variant=None):
@@ -101,6 +107,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
             ModelVariant.GARAK_LLM_TOXIC_COMMENT_MODEL,
             ModelVariant.DANSWER_INTENT_MODEL,
+            ModelVariant.TYPEFORM_DISTILBERT_BASE_UNCASED_MNLI,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
