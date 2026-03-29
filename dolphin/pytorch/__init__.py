@@ -4,4 +4,4 @@
 """
 Dolphin PyTorch model implementation for Tenstorrent projects.
 """
-from .loader import ModelLoader, ModelVariant
+from .loader import ModelLoader
