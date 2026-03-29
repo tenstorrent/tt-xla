@@ -34,6 +34,9 @@ class ModelVariant(StrEnum):
     SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS = (
         "sonoisa/sentence-bert-base-ja-mean-tokens"
     )
+    PORTULAN_SERAFIM_100M_PORTUGUESE_PT_SENTENCE_ENCODER_IR = (
+        "PORTULAN/serafim-100m-portuguese-pt-sentence-encoder-ir"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -59,6 +62,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS: LLMModelConfig(
             pretrained_model_name="sonoisa/sentence-bert-base-ja-mean-tokens",
+            max_length=128,
+        ),
+        ModelVariant.PORTULAN_SERAFIM_100M_PORTUGUESE_PT_SENTENCE_ENCODER_IR: LLMModelConfig(
+            pretrained_model_name="PORTULAN/serafim-100m-portuguese-pt-sentence-encoder-ir",
             max_length=128,
         ),
     }
@@ -101,6 +108,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BIOBERT_V1_1: ModelGroup.VULCAN,
             ModelVariant.TINYBERT_L4_H312_V2: ModelGroup.VULCAN,
             ModelVariant.SONOISA_SENTENCE_BERT_BASE_JA_MEAN_TOKENS: ModelGroup.VULCAN,
+            ModelVariant.PORTULAN_SERAFIM_100M_PORTUGUESE_PT_SENTENCE_ENCODER_IR: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
