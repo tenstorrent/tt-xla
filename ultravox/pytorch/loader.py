@@ -28,6 +28,7 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available Ultravox model variants."""
 
+    V0_3 = "v0_3"
     V0_5_LLAMA_3_2_1B = "v0_5_Llama_3_2_1B"
 
 
@@ -35,6 +36,9 @@ class ModelLoader(ForgeModel):
     """Ultravox model loader implementation for speech language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.V0_3: ModelConfig(
+            pretrained_model_name="fixie-ai/ultravox-v0_3",
+        ),
         ModelVariant.V0_5_LLAMA_3_2_1B: ModelConfig(
             pretrained_model_name="fixie-ai/ultravox-v0_5-llama-3_2-1b",
         ),
