@@ -25,7 +25,7 @@ class ModelVariant(StrEnum):
 
     OPUS_MT_JA_EN = "Opus_Mt_Ja_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
-    OPUS_MT_MUL_EN = "Opus_Mt_Mul_En"
+    OPUS_MT_UK_EN = "Opus_Mt_Uk_En"
 
 
 class ModelLoader(ForgeModel):
@@ -38,8 +38,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
-        ModelVariant.OPUS_MT_MUL_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-mul-en",
+        ModelVariant.OPUS_MT_UK_EN: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-uk-en",
         ),
     }
 
@@ -47,18 +47,17 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
-        ModelVariant.OPUS_MT_MUL_EN: "Bonjour le monde, il fait très beau aujourd'hui.",
+        ModelVariant.OPUS_MT_UK_EN: "Привіт світе, сьогодні чудова погода.",
     }
+
+    sample_text = _SAMPLE_TEXTS[DEFAULT_VARIANT]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
         self._tokenizer = None
         self._model = None
-        self.sample_text = self._SAMPLE_TEXTS.get(
-            self._variant,
-            "La vie est belle et pleine de surprises.",
-        )
+        self.sample_text = self._SAMPLE_TEXTS[self._variant]
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
