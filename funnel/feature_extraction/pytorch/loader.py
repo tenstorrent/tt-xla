@@ -4,7 +4,6 @@
 """
 Funnel Transformer model loader for feature extraction.
 """
-import torch
 from typing import Optional
 
 from third_party.tt_forge_models.config import (
