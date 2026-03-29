@@ -38,6 +38,9 @@ class ModelVariant(StrEnum):
         "OpenMed/OpenMed-NER-DiseaseDetect-BioClinical-108M"
     )
     OPENMED_PII_CLINICALE5_SMALL_33M_V1 = "OpenMed/OpenMed-PII-ClinicalE5-Small-33M-v1"
+    OPENMED_PII_ITALIAN_BIOCLINICALMODERN_LARGE_395M_V1 = (
+        "OpenMed/OpenMed-PII-Italian-BioClinicalModern-Large-395M-v1"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -68,6 +71,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-PII-ClinicalE5-Small-33M-v1",
             max_length=384,
         ),
+        ModelVariant.OPENMED_PII_ITALIAN_BIOCLINICALMODERN_LARGE_395M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-Italian-BioClinicalModern-Large-395M-v1",
+            max_length=512,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M
@@ -79,6 +86,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_NER_BLOODCANCERDETECT_TINYMED_82M: "The patient presented with chronic lymphocytic leukemia symptoms.",
         ModelVariant.OPENMED_NER_DISEASEDETECT_BIOCLINICAL_108M: "The patient was diagnosed with diabetes mellitus type 2 and hypertension.",
         ModelVariant.OPENMED_PII_CLINICALE5_SMALL_33M_V1: "Patient John Smith (DOB: 03/15/1985, SSN: 123-45-6789) was seen today.",
+        ModelVariant.OPENMED_PII_ITALIAN_BIOCLINICALMODERN_LARGE_395M_V1: "Paziente Marco Bianchi (nato il 15/03/1985, CF: BNCMRC85C15H501Z) è stato visitato oggi.",
     }
 
     def __init__(self, variant=None):
