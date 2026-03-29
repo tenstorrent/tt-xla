@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available NeuralSynthesis model variants for causal language modeling."""
 
     NEURALSYNTHESIS_7B_V0_1 = "7b_v0.1"
+    NEURALSYNTHESIS_7B_V0_3 = "7b_v0.3"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.NEURALSYNTHESIS_7B_V0_1: LLMModelConfig(
             pretrained_model_name="Kukedlc/NeuralSynthesis-7B-v0.1",
+            max_length=128,
+        ),
+        ModelVariant.NEURALSYNTHESIS_7B_V0_3: LLMModelConfig(
+            pretrained_model_name="Kukedlc/NeuralSynthesis-7B-v0.3",
             max_length=128,
         ),
     }
