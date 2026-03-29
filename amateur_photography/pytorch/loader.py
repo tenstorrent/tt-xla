@@ -11,9 +11,10 @@ Available variants:
 - AMATEUR_PHOTOGRAPHY: falanaja/Amateur-Photography LoRA text-to-image generation
 """
 
+from typing import Optional
+
 import torch
 from diffusers import FluxPipeline, AutoencoderTiny
-from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
