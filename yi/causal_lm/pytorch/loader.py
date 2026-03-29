@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
 
     YI_1_5_6B_CHAT = "1.5_6B_Chat"
     YI_9B = "9B"
+    YISM_BLOSSOM_5_1_34B_SLERP = "YiSM_Blossom5.1_34B_SLERP"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.YI_9B: ModelConfig(
             pretrained_model_name="01-ai/Yi-9B",
+        ),
+        ModelVariant.YISM_BLOSSOM_5_1_34B_SLERP: ModelConfig(
+            pretrained_model_name="CombinHorizon/YiSM-blossom5.1-34B-SLERP",
         ),
     }
 
