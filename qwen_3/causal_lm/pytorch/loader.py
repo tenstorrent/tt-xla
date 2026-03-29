@@ -56,6 +56,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_YOYO_V4_GEMINI250_INSTRUCT_DAVIDAU = (
         "30B_A3B_YOYO_V4_Gemini250_Instruct_DavidAU"
     )
+    FROGBOSS_32B_2510_MICROSOFT = "FrogBoss_32B_2510_Microsoft"
     TINY_RANDOM_QWEN3 = "Tiny_Random_Qwen3"
 
 
@@ -168,6 +169,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="DavidAU/Qwen3-30B-A3B-YOYO-V4-Gemini250-Instruct",
             max_length=128,
         ),
+        ModelVariant.FROGBOSS_32B_2510_MICROSOFT: LLMModelConfig(
+            pretrained_model_name="microsoft/FrogBoss-32B-2510",
+            max_length=128,
+        ),
         ModelVariant.TINY_RANDOM_QWEN3: LLMModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-qwen3",
             max_length=128,
@@ -230,6 +235,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4,
             ModelVariant.QWEN_3_0_6B_REVERSE_TEXT_SFT_PRIMEINTELLECT,
             ModelVariant.QWEN_3_30B_A3B_YOYO_V4_GEMINI250_INSTRUCT_DAVIDAU,
+            ModelVariant.FROGBOSS_32B_2510_MICROSOFT,
             ModelVariant.TINY_RANDOM_QWEN3,
         ):
             group = ModelGroup.VULCAN
