@@ -8,7 +8,6 @@ This is a small (2.36M parameter) attention-only transformer from Neel Nanda's
 mechanistic interpretability research, loaded via the TransformerLens library.
 """
 
-import torch
 from transformer_lens import HookedTransformer
 from typing import Optional
 
@@ -72,7 +71,11 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        """Load sample text inputs for the model."""
+        """Load sample token inputs for the model.
+
+        Returns a tensor of token IDs, as HookedTransformer expects a
+        positional tensor input rather than keyword arguments.
+        """
         if self.tokenizer is None:
             self._load_tokenizer()
 
@@ -84,7 +87,7 @@ class ModelLoader(ForgeModel):
             max_length=128,
         )
 
-        return {"input_ids": tokens["input_ids"]}
+        return tokens["input_ids"]
 
     def _load_tokenizer(self):
         """Load the tokenizer used by this model."""
@@ -96,13 +99,17 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def decode_output(self, outputs, inputs=None):
-        """Decode model outputs into human-readable text."""
+        """Decode model outputs into human-readable text.
+
+        HookedTransformer returns raw logits as a tensor of shape
+        (batch, seq_len, vocab_size).
+        """
         if self.tokenizer is None:
             self._load_tokenizer()
 
         if inputs is None:
             inputs = self.load_inputs()
 
-        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+        logits = outputs.logits if hasattr(outputs, "logits") else outputs
         generated_ids = logits.argmax(-1)
         return self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
