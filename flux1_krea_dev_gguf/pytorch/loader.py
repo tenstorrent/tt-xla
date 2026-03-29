@@ -37,7 +37,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.DEV_Q4_K_M
 
-    GGUF_FILE = "FLUX.1-Krea-dev-Q4_K_M.gguf"
+    GGUF_FILE = "flux1-krea-dev-Q4_K_M.gguf"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
