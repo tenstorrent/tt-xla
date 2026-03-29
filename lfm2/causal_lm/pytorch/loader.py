@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LFM2 MoE model loader implementation for causal language modeling.
+LFM2 model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,14 +21,14 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available LFM2 MoE model variants for causal language modeling."""
+    """Available LFM2 model variants for causal language modeling."""
 
     LFM2_24B_A2B = "lfm2_24b_a2b"
-    TINY_RANDOM_LFM2 = "tiny_random_lfm2"
+    LFM2_2_6B_MLX_4BIT = "lfm2_2_6b_mlx_4bit"
 
 
 class ModelLoader(ForgeModel):
-    """LFM2 MoE model loader implementation for causal language modeling tasks."""
+    """LFM2 model loader implementation for causal language modeling tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
@@ -36,8 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="LiquidAI/LFM2-24B-A2B",
             max_length=128,
         ),
-        ModelVariant.TINY_RANDOM_LFM2: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-lfm2",
+        ModelVariant.LFM2_2_6B_MLX_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/LFM2-2.6B-4bit",
             max_length=128,
         ),
     }
@@ -74,7 +74,7 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         return ModelInfo(
-            model="LFM2 MoE",
+            model="LFM2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -104,13 +104,13 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the LFM2 MoE model instance for this instance's variant.
+        """Load and return the LFM2 model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            torch.nn.Module: The LFM2 MoE model instance for causal language modeling.
+            torch.nn.Module: The LFM2 model instance for causal language modeling.
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -120,6 +120,8 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        if self._variant == ModelVariant.LFM2_2_6B_MLX_4BIT:
+            model_kwargs["device_map"] = "cpu"
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
@@ -136,7 +138,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the LFM2 MoE model.
+        """Load and return sample inputs for the LFM2 model.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
@@ -173,10 +175,10 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def load_config(self):
-        """Load and return the configuration for the LFM2 MoE model variant.
+        """Load and return the configuration for the LFM2 model variant.
 
         Returns:
-            The configuration object for the LFM2 MoE model.
+            The configuration object for the LFM2 model.
         """
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name
