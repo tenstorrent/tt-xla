@@ -51,6 +51,7 @@ class ModelVariant(StrEnum):
     )
     QWEN_3_5_2B_ABLITERATED_I1_GGUF = "2B_Abliterated_i1_GGUF"
     QWEN_3_5_9B_AWQ_BF16_INT4 = "9B_AWQ_BF16_INT4"
+    QWEN_3_5_4B_ABLITERATED = "4B_Abliterated"
 
 
 class ModelLoader(ForgeModel):
@@ -156,6 +157,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_9B_AWQ_BF16_INT4: LLMModelConfig(
             pretrained_model_name="cyankiwi/Qwen3.5-9B-AWQ-BF16-INT4",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_4B_ABLITERATED: LLMModelConfig(
+            pretrained_model_name="SicariusSicariiStuff/Qwen3.5-4B_Abliterated",
             max_length=128,
         ),
     }
