@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Midm model loader implementation for causal language modeling.
+Mi:dm 2.0 model loader implementation for causal language modeling.
 """
 
 from typing import Optional
@@ -23,21 +23,21 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Midm model variants."""
+    """Available Mi:dm model variants."""
 
-    MIDM_2_0_MINI_INSTRUCT = "2.0_Mini_Instruct"
+    MIDM_2_0_BASE_INSTRUCT = "2.0_Base_Instruct"
 
 
 class ModelLoader(ForgeModel):
-    """Midm model loader implementation for causal language modeling tasks."""
+    """Mi:dm model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.MIDM_2_0_MINI_INSTRUCT: ModelConfig(
-            pretrained_model_name="K-intelligence/Midm-2.0-Mini-Instruct",
+        ModelVariant.MIDM_2_0_BASE_INSTRUCT: ModelConfig(
+            pretrained_model_name="K-intelligence/Midm-2.0-Base-Instruct",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MIDM_2_0_MINI_INSTRUCT
+    DEFAULT_VARIANT = ModelVariant.MIDM_2_0_BASE_INSTRUCT
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="Midm",
+            model="Mi:dm",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
