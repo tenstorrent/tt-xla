@@ -93,8 +93,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # Unsloth BNB 4-bit quantized variants
-    UNSLOTH_LLAMA_3_1_8B_BNB_4BIT = "Unsloth_3.1_8B_Bnb_4bit"
+    # migtissera variants
+    SYNTHIA_3_70B_V3_5 = "Synthia_3_70B_v3.5"
 
 
 class ModelLoader(ForgeModel):
@@ -231,9 +231,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # Unsloth BNB 4-bit quantized variants
-        ModelVariant.UNSLOTH_LLAMA_3_1_8B_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Llama-3.1-8B-unsloth-bnb-4bit",
+        # migtissera variants
+        ModelVariant.SYNTHIA_3_70B_V3_5: LLMModelConfig(
+            pretrained_model_name="migtissera/Llama-3-70B-Synthia-v3.5",
             max_length=128,
         ),
     }
@@ -284,6 +284,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16,
             ModelVariant.TINYLLAMA_W8W8_STATIC,
+            ModelVariant.SYNTHIA_3_70B_V3_5,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -552,6 +553,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK,
+            ModelVariant.SYNTHIA_3_70B_V3_5,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
