@@ -5,11 +5,11 @@
 LTX-Video model loader for tt_forge_models.
 
 LTX-Video is a text-to-video diffusion model using a 3D transformer backbone
-with a T5 text encoder and a video VAE. This loader uses the tiny-random variant
-from optimum-intel-internal-testing for lightweight CI testing.
+with a T5 text encoder and a video VAE.
 
-Repository:
+Repositories:
 - https://huggingface.co/optimum-intel-internal-testing/tiny-random-ltx-video
+- https://huggingface.co/Lightricks/LTX-Video-0.9.8-13B-distilled
 
 Available subfolders:
 - transformer: LTXVideoTransformer3DModel
@@ -19,7 +19,7 @@ Available subfolders:
 from typing import Any, Optional
 
 import torch
-from diffusers import LTXPipeline
+from diffusers import DiffusionPipeline
 
 from ...base import ForgeModel
 from ...config import (
@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
     """Available LTX-Video variants."""
 
     TINY_RANDOM = "tiny_random"
+    LTX_VIDEO_0_9_8_13B_DISTILLED = "LTX_Video_0_9_8_13B_distilled"
 
 
 class ModelLoader(ForgeModel):
@@ -53,6 +54,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TINY_RANDOM: ModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-ltx-video",
+        ),
+        ModelVariant.LTX_VIDEO_0_9_8_13B_DISTILLED: ModelConfig(
+            pretrained_model_name="Lightricks/LTX-Video-0.9.8-13B-distilled",
         ),
     }
 
@@ -69,7 +73,7 @@ class ModelLoader(ForgeModel):
                 f"Unknown subfolder: {subfolder}. Supported: {SUPPORTED_SUBFOLDERS}"
             )
         self._subfolder = subfolder
-        self.pipeline: Optional[LTXPipeline] = None
+        self.pipeline: Optional[DiffusionPipeline] = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -85,8 +89,8 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_pipeline(self, dtype: torch.dtype) -> LTXPipeline:
-        self.pipeline = LTXPipeline.from_pretrained(
+    def _load_pipeline(self, dtype: torch.dtype) -> DiffusionPipeline:
+        self.pipeline = DiffusionPipeline.from_pretrained(
             self._variant_config.pretrained_model_name,
             torch_dtype=dtype,
         )
