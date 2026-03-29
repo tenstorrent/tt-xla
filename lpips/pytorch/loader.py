@@ -11,7 +11,6 @@ as input and returns a scalar perceptual distance score.
 Reference: https://huggingface.co/zeahub/lpips
 """
 
-import torch
 import lpips as lpips_lib
 from typing import Optional
 from PIL import Image
