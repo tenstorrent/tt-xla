@@ -122,7 +122,7 @@ class ModelLoader(ForgeModel):
         image_file = get_file(image_url or self.sample_image_url)
         image = Image.open(image_file).convert("RGB")
 
-        if self.variant == ModelVariant.MISTRAL_SMALL_3_1_24B_BASE:
+        if self._variant == ModelVariant.MISTRAL_SMALL_3_1_24B_BASE:
             text_prompt = prompt or self.sample_text
         else:
             text_prompt = self.processor.apply_chat_template(
