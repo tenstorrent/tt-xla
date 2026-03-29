@@ -23,19 +23,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available HuBERT audio classification model variants."""
 
-    BASE_CH_SPEECH_EMOTION = "Base_CH_Speech_Emotion"
+    BASE_SUPERB_ER = "Base_Superb_ER"
 
 
 class ModelLoader(ForgeModel):
     """HuBERT model loader implementation for audio classification (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.BASE_CH_SPEECH_EMOTION: ModelConfig(
-            pretrained_model_name="xmj2002/hubert-base-ch-speech-emotion-recognition",
+        ModelVariant.BASE_SUPERB_ER: ModelConfig(
+            pretrained_model_name="superb/hubert-base-superb-er",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE_CH_SPEECH_EMOTION
+    DEFAULT_VARIANT = ModelVariant.BASE_SUPERB_ER
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -69,50 +69,14 @@ class ModelLoader(ForgeModel):
         return self._processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        import torch
-        import torch.nn as nn
-        from transformers import HubertPreTrainedModel, HubertModel
-
-        class HubertClassificationHead(nn.Module):
-            """Classification head for speech emotion recognition."""
-
-            def __init__(self, config):
-                super().__init__()
-                self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-                self.dropout = nn.Dropout(config.final_dropout)
-                self.out_proj = nn.Linear(config.hidden_size, config.num_labels)
-
-            def forward(self, features, **kwargs):
-                x = features
-                x = self.dropout(x)
-                x = self.dense(x)
-                x = torch.tanh(x)
-                x = self.dropout(x)
-                x = self.out_proj(x)
-                return x
-
-        class HubertForSpeechClassification(HubertPreTrainedModel):
-            """HuBERT-based speech emotion classifier."""
-
-            def __init__(self, config):
-                super().__init__(config)
-                self.hubert = HubertModel(config)
-                self.classifier = HubertClassificationHead(config)
-                self.post_init()
-
-            def forward(self, input_values):
-                outputs = self.hubert(input_values)
-                hidden_states = outputs[0]
-                hidden_states = torch.mean(hidden_states, dim=1)
-                logits = self.classifier(hidden_states)
-                return logits
+        from transformers import HubertForSequenceClassification
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = HubertForSpeechClassification.from_pretrained(
+        model = HubertForSequenceClassification.from_pretrained(
             self._variant_config.pretrained_model_name,
             **model_kwargs,
         )
