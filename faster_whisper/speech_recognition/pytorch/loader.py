@@ -31,19 +31,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Faster Whisper speech recognition model variants."""
 
-    MEDIUM = "Medium"
+    LARGE_V3_TURBO = "Large_v3_Turbo"
 
 
 class ModelLoader(ForgeModel):
     """Faster Whisper model loader implementation for speech recognition (ASR)."""
 
     _VARIANTS = {
-        ModelVariant.MEDIUM: ModelConfig(
-            pretrained_model_name="openai/whisper-medium",
+        ModelVariant.LARGE_V3_TURBO: ModelConfig(
+            pretrained_model_name="openai/whisper-large-v3-turbo",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MEDIUM
+    DEFAULT_VARIANT = ModelVariant.LARGE_V3_TURBO
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -81,11 +81,8 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
+    def _load_processor(self):
         """Load audio processor for the current variant.
-
-        Args:
-            dtype_override: Optional dtype to override the processor's default dtype.
 
         Returns:
             processor: The loaded audio processor instance
@@ -93,13 +90,7 @@ class ModelLoader(ForgeModel):
 
         from transformers import WhisperProcessor
 
-        processor_kwargs = {}
-        if dtype_override is not None:
-            processor_kwargs["torch_dtype"] = dtype_override
-
-        self._processor = WhisperProcessor.from_pretrained(
-            self._model_name, **processor_kwargs
-        )
+        self._processor = WhisperProcessor.from_pretrained(self._model_name)
 
         return self._processor
 
@@ -141,7 +132,7 @@ class ModelLoader(ForgeModel):
         from transformers import WhisperConfig
 
         if self._processor is None:
-            self._load_processor(dtype_override=dtype_override)
+            self._load_processor()
 
         # Generate synthetic 30-second audio at 16kHz to match Whisper's receptive field
         sampling_rate = 16000
@@ -160,10 +151,12 @@ class ModelLoader(ForgeModel):
 
         input_features = inputs.input_features
         if dtype_override is not None:
-            input_features = input_features.to(dtype=dtype_override)
+            input_features = input_features.to(dtype_override)
 
         decoder_input_ids = torch.full(
-            (1, 2), whisper_config.decoder_start_token_id, dtype=torch.long
+            (1, 1),
+            whisper_config.decoder_start_token_id,
+            dtype=torch.long,
         )
 
         return [input_features, decoder_input_ids]
