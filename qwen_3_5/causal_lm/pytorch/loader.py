@@ -44,6 +44,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_4B_IMATRIX_GGUF = "4B_imatrix_GGUF"
     QWEN_3_5_35B_A3B_W4A16 = "35B_A3B_W4A16"
     QWEN_3_5_2B_MLX_8BIT = "2B_MLX_8bit"
+    QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF = "35B_A3B_Reasoning_Distilled_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -131,6 +132,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mlx-community/Qwen3.5-2B-MLX-8bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: LLMModelConfig(
+            pretrained_model_name="Momix-44/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -145,6 +150,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_122B_A10B_GGUF: "Qwen3.5-122B-A10B-Q4_K_M-00001-of-00002.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF: "Qwen3.5-35B-A3B-heretic-MXFP4_MOE.gguf",
         ModelVariant.QWEN_3_5_4B_IMATRIX_GGUF: "Qwen3.5-4B-imatrix-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: "Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -355,6 +361,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_397B_A17B_MLX_4BIT,
             ModelVariant.QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF,
             ModelVariant.QWEN_3_5_35B_A3B_W4A16,
+            ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF,
         )
 
     def load_shard_spec(self, model):
