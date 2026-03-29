@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DistilRoBERTa model loader implementation for sequence classification (emotion detection).
+DistilRoBERTa model loader implementation for sequence classification.
 """
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available DistilRoBERTa model variants for sequence classification."""
 
     EMOTION_ENGLISH_BASE = "Emotion_English_Base"
+    PROTECTAI_REJECTION_V1 = "ProtectAI_Rejection_V1"
 
 
 class ModelLoader(ForgeModel):
@@ -32,16 +33,27 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="j-hartmann/emotion-english-distilroberta-base",
             max_length=128,
         ),
+        ModelVariant.PROTECTAI_REJECTION_V1: LLMModelConfig(
+            pretrained_model_name="protectai/distilroberta-base-rejection-v1",
+            max_length=512,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.EMOTION_ENGLISH_BASE
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.EMOTION_ENGLISH_BASE: "I am so happy today, everything is going great!",
+        ModelVariant.PROTECTAI_REJECTION_V1: "Sorry, but I can't assist with that request.",
+    }
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.sample_text = "I am so happy today, everything is going great!"
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant, "I am so happy today, everything is going great!"
+        )
 
     @classmethod
     def _get_model_info(cls, variant_name: str = None):
@@ -93,6 +105,6 @@ class ModelLoader(ForgeModel):
             and hasattr(framework_model.config, "id2label")
         ):
             predicted_category = framework_model.config.id2label[predicted_class_id]
-            print(f"Predicted emotion: {predicted_category}")
+            print(f"Predicted category: {predicted_category}")
         else:
             print(f"Predicted class ID: {predicted_class_id}")
