@@ -51,6 +51,7 @@ class ModelVariant(StrEnum):
     DEVSTRAL_SMALL_2_24B_INSTRUCT_2512 = "Devstral_Small_2_24B_Instruct_2512"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
     MISTRAL_FT_OPTIMIZED_1227 = "ft_optimized_1227"
+    MISTRAL_SMALL_INSTRUCT_2409_ABLITERATED = "Small_Instruct_2409_abliterated"
 
 
 class ModelLoader(ForgeModel):
@@ -147,6 +148,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_FT_OPTIMIZED_1227: ModelConfig(
             pretrained_model_name="OpenPipe/mistral-ft-optimized-1227",
         ),
+        ModelVariant.MISTRAL_SMALL_INSTRUCT_2409_ABLITERATED: ModelConfig(
+            pretrained_model_name="byroneverson/Mistral-Small-Instruct-2409-abliterated",
+        ),
     }
 
     # Default variant to use
@@ -185,6 +189,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MISTRAL_SMALL_22B_INSTRUCT_2409,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
             ModelVariant.MISTRAL_FT_OPTIMIZED_1227,
+            ModelVariant.MISTRAL_SMALL_INSTRUCT_2409_ABLITERATED,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
