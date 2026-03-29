@@ -33,7 +33,7 @@ from ...config import (
 BASE_MODEL = "Qwen/Qwen-Image-Edit-2511"
 LORA_REPO = "systms/SYSTMS-INFL8-LoRA-Qwen-Image-Edit-2511"
 
-LORA_WEIGHTS = "SYSTMS-INFL8-01C.safetensors"
+LORA_WEIGHTS = "SYSTMS_INFL8_LoRA_Qwen_Image_Edit_2511.safetensors"
 
 
 class ModelVariant(StrEnum):
