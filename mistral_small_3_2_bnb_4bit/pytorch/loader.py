@@ -13,7 +13,7 @@ from transformers import AutoConfig, Mistral3ForConditionalGeneration
 from ...base import ForgeModel
 from ...config import (
     Framework,
-    LLMModelConfig,
+    ModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -34,9 +34,8 @@ class ModelLoader(ForgeModel):
     """Mistral Small 3.2 BNB 4-bit model loader for image-text-to-text tasks."""
 
     _VARIANTS = {
-        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_BNB_4BIT: LLMModelConfig(
+        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/Mistral-Small-3.2-24B-Instruct-2506-bnb-4bit",
-            max_length=128,
         ),
     }
 
