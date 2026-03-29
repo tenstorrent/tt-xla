@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen 3.5 122B-A10B Abliterated GGUF model loader implementation for causal language modeling.
+Qwen 3.5 Abliterated GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,26 +21,26 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen 3.5 122B-A10B Abliterated GGUF model variants."""
+    """Available Qwen 3.5 Abliterated GGUF model variants for causal language modeling."""
 
-    QWEN_3_5_122B_A10B_ABLITERATED_GGUF = "122B_A10B_abliterated_GGUF"
+    QWEN_3_5_9B_ABLITERATED_Q4_K_M = "9B_Abliterated_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen 3.5 122B-A10B Abliterated GGUF model loader for causal language modeling tasks."""
+    """Qwen 3.5 Abliterated GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_5_122B_A10B_ABLITERATED_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-122B-A10B-abliterated-i1-GGUF",
+        ModelVariant.QWEN_3_5_9B_ABLITERATED_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="Abhiray/Huihui-Qwen3.5-9B-abliterated-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_122B_A10B_ABLITERATED_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B_ABLITERATED_Q4_K_M
 
-    GGUF_FILE = "Qwen3.5-122B-A10B-abliterated.i1-Q4_K_M.gguf"
+    GGUF_FILE = "Huihui-Qwen3.5-9B-abliterated-Q4_K_M.gguf"
 
-    sample_text = "Give me a short introduction to large language model."
+    sample_text = "Give me a short introduction to large language models."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Qwen 3.5 122B-A10B Abliterated GGUF",
+            model="Qwen 3.5 Abliterated GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -91,14 +91,7 @@ class ModelLoader(ForgeModel):
             config = AutoConfig.from_pretrained(
                 pretrained_model_name, gguf_file=self.GGUF_FILE
             )
-            if hasattr(config, "text_config"):
-                config.text_config.num_hidden_layers = self.num_layers
-                if hasattr(config.text_config, "layer_types"):
-                    config.text_config.layer_types = config.text_config.layer_types[
-                        : self.num_layers
-                    ]
-            else:
-                config.num_hidden_layers = self.num_layers
+            config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
@@ -115,7 +108,12 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
+        messages = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -136,30 +134,6 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
-        return mesh_shape, ("batch", "model")
-
-    def load_shard_spec(self, model):
-        shard_specs = {}
-        for layer in model.model.layers:
-            mlp = layer.mlp
-            if hasattr(mlp, "experts"):
-                shard_specs[mlp.experts.gate_up_proj] = (None, "model", "batch")
-                shard_specs[mlp.experts.down_proj] = (None, "batch", "model")
-            if hasattr(mlp, "shared_expert"):
-                shard_specs[mlp.shared_expert.up_proj.weight] = ("model", "batch")
-                shard_specs[mlp.shared_expert.gate_proj.weight] = ("model", "batch")
-                shard_specs[mlp.shared_expert.down_proj.weight] = ("batch", "model")
-            if hasattr(layer, "self_attn"):
-                shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-                shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-                shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-                shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
-
-        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
