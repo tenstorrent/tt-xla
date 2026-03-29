@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     GLM_4_5 = "4.5"
     GLM_4_5_AIR = "4.5_Air"
     GLM_5_MXFP4_Q8 = "5_MXFP4_Q8"
+    GLM_Z1_32B_0414 = "Z1_32B_0414"
 
 
 class ModelLoader(ForgeModel):
@@ -74,6 +75,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GLM_5_MXFP4_Q8: LLMModelConfig(
             pretrained_model_name="mlx-community/GLM-5-MXFP4-Q8",
+            max_length=128,
+        ),
+        ModelVariant.GLM_Z1_32B_0414: LLMModelConfig(
+            pretrained_model_name="zai-org/GLM-Z1-32B-0414",
             max_length=128,
         ),
     }
@@ -114,7 +119,11 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.GLM_5_MXFP4_Q8):
+        if variant in (
+            ModelVariant.GLM_4_7_FLASH,
+            ModelVariant.GLM_5_MXFP4_Q8,
+            ModelVariant.GLM_Z1_32B_0414,
+        ):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
