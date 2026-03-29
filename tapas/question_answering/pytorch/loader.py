@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available TAPAS model variants for table question answering."""
 
     GOOGLE_TAPAS_BASE_FINETUNED_WTQ = "google-tapas-base-finetuned-wtq"
+    LYSANDRE_TINY_TAPAS_RANDOM_SQA = "lysandre-tiny-tapas-random-sqa"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GOOGLE_TAPAS_BASE_FINETUNED_WTQ: LLMModelConfig(
             pretrained_model_name="google/tapas-base-finetuned-wtq",
+            max_length=512,
+        ),
+        ModelVariant.LYSANDRE_TINY_TAPAS_RANDOM_SQA: LLMModelConfig(
+            pretrained_model_name="lysandre/tiny-tapas-random-sqa",
             max_length=512,
         ),
     }
