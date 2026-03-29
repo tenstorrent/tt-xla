@@ -5,7 +5,6 @@
 Velvet model loader implementation for causal language modeling.
 """
 
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 from ...tools.utils import generate_no_cache, pad_inputs
