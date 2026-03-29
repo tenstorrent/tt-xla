@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE = (
         "naoki_hosokawa_Ses_Mail_Classifier_Bert_Japanese"
     )
+    ADAMCODD_TINYBERT_EMOTION_BALANCED = "AdamCodd_TinyBERT_Emotion_Balanced"
 
 
 class ModelLoader(ForgeModel):
@@ -64,6 +65,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="naoki-hosokawa/ses-mail-classifier-bert-japanese",
             max_length=512,
         ),
+        ModelVariant.ADAMCODD_TINYBERT_EMOTION_BALANCED: LLMModelConfig(
+            pretrained_model_name="AdamCodd/tinybert-emotion-balanced",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -82,6 +87,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION: "the movie was great!",
         ModelVariant.NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE: "【案件】Java開発 60万〜80万 渋谷 即日〜長期 面談1回",
+        ModelVariant.ADAMCODD_TINYBERT_EMOTION_BALANCED: "I am so happy and excited about this wonderful news!",
     }
 
     def __init__(self, variant=None):
@@ -119,6 +125,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION,
             ModelVariant.NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE,
+            ModelVariant.ADAMCODD_TINYBERT_EMOTION_BALANCED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
