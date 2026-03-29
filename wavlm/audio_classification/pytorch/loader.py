@@ -71,71 +71,129 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         import torch
         import torch.nn as nn
-        from transformers import WavLMConfig
-        from transformers.models.wavlm.modeling_wavlm import (
-            WavLMModel,
-            WavLMPreTrainedModel,
-        )
+        import torch.nn.functional as F
+        from huggingface_hub import PyTorchModelHubMixin
+        from transformers import WavLMConfig, WavLMModel
 
-        class ModelHead(nn.Module):
-            """Classification/regression head."""
+        class LoRALinear(nn.Module):
+            """LoRA-adapted linear layer matching loralib parameter names."""
 
-            def __init__(self, config, num_labels):
+            def __init__(self, in_features, out_features, rank):
                 super().__init__()
-                self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-                self.dropout = nn.Dropout(config.final_dropout)
-                self.out_proj = nn.Linear(config.hidden_size, num_labels)
+                self.weight = nn.Parameter(torch.empty(out_features, in_features))
+                self.bias = nn.Parameter(torch.empty(out_features))
+                self.lora_A = nn.Parameter(torch.zeros(rank, in_features))
+                self.lora_B = nn.Parameter(torch.zeros(out_features, rank))
 
-            def forward(self, features, **kwargs):
-                x = features
-                x = self.dropout(x)
-                x = self.dense(x)
-                x = torch.tanh(x)
-                x = self.dropout(x)
-                x = self.out_proj(x)
-                return x
+            def forward(self, x):
+                return F.linear(x, self.weight, self.bias) + x @ self.lora_A.transpose(
+                    0, 1
+                ) @ self.lora_B.transpose(0, 1)
 
-        class AgeSexModel(WavLMPreTrainedModel):
-            """WavLM-based age and sex classifier."""
+        class WavLMWrapper(nn.Module, PyTorchModelHubMixin):
+            """WavLM-based age and sex classifier with LoRA fine-tuning."""
 
-            def __init__(self, config):
-                super().__init__(config)
-                self.config = config
-                self.wavlm = WavLMModel(config)
-                self.age = ModelHead(config, 1)
-                self.sex = ModelHead(config, 2)
-                self.init_weights()
+            def __init__(
+                self,
+                pretrain_model="wavlm_large",
+                hidden_dim=256,
+                output_class_num=2,
+                lora_rank=16,
+                finetune_method="lora",
+                freeze_params=True,
+                apply_reg=True,
+                use_conv_output=True,
+                num_dataset=4,
+                apply_gradient_reversal=False,
+            ):
+                super().__init__()
+                self.apply_reg = apply_reg
+
+                # Load backbone config and create model without pretrained weights
+                # (weights will be loaded from the saved state dict)
+                backbone_config = WavLMConfig.from_pretrained("microsoft/wavlm-large")
+                self.backbone_model = WavLMModel(backbone_config)
+                num_layers = backbone_config.num_hidden_layers
+                encoder_dim = backbone_config.hidden_size
+
+                # Apply LoRA to feed-forward layers in the second half of encoder
+                if finetune_method == "lora":
+                    half = num_layers // 2
+                    for i in range(half, num_layers):
+                        layer = self.backbone_model.encoder.layers[i]
+                        ff = layer.feed_forward
+                        ff.intermediate_dense = LoRALinear(
+                            backbone_config.hidden_size,
+                            backbone_config.intermediate_size,
+                            lora_rank,
+                        )
+                        ff.output_dense = LoRALinear(
+                            backbone_config.intermediate_size,
+                            backbone_config.hidden_size,
+                            lora_rank,
+                        )
+
+                # Weighted layer sum across all hidden states
+                self.weights = nn.Parameter(
+                    torch.ones(num_layers + 1) / (num_layers + 1)
+                )
+
+                # Conv1d feature projection
+                self.model_seq = nn.Sequential(
+                    nn.Conv1d(encoder_dim, hidden_dim, 1),
+                    nn.ReLU(),
+                    nn.Dropout(0.1),
+                    nn.Conv1d(hidden_dim, hidden_dim, 1),
+                    nn.ReLU(),
+                    nn.Dropout(0.1),
+                    nn.Conv1d(hidden_dim, hidden_dim, 1),
+                )
+
+                # Age prediction head
+                if apply_reg:
+                    self.age_dist_layer = nn.Sequential(
+                        nn.Linear(hidden_dim, hidden_dim),
+                        nn.ReLU(),
+                        nn.Linear(hidden_dim, 1),
+                    )
+                else:
+                    self.age_dist_layer = nn.Sequential(
+                        nn.Linear(hidden_dim, hidden_dim),
+                        nn.ReLU(),
+                        nn.Linear(hidden_dim, 7),
+                    )
+
+                # Sex classification head
+                self.sex_layer = nn.Sequential(
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, output_class_num),
+                )
 
             def forward(self, input_values):
-                outputs = self.wavlm(input_values)
-                hidden_states = outputs[0]
-                hidden_states = torch.mean(hidden_states, dim=1)
-                logits_age = self.age(hidden_states)
-                logits_sex = torch.softmax(self.sex(hidden_states), dim=1)
-                return hidden_states, logits_age, logits_sex
+                outputs = self.backbone_model(input_values, output_hidden_states=True)
+                hidden_states = torch.stack(outputs.hidden_states, dim=0)
 
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
+                norm_weights = F.softmax(self.weights, dim=0)
+                weighted = (hidden_states * norm_weights.view(-1, 1, 1, 1)).sum(dim=0)
 
-        # Load config
-        import json
-        from huggingface_hub import hf_hub_download
+                # Conv1d expects (batch, channels, time)
+                features = weighted.transpose(1, 2)
+                features = self.model_seq(features)
+                features = features.mean(dim=2)
 
-        config_path = hf_hub_download(
-            self._variant_config.pretrained_model_name, "config.json"
-        )
-        with open(config_path) as f:
-            config_dict = json.load(f)
-        config_dict["vocab_size"] = config_dict.get("vocab_size") or 1
-        config = WavLMConfig(**config_dict)
+                age_pred = self.age_dist_layer(features)
+                if self.apply_reg:
+                    age_pred = torch.sigmoid(age_pred)
 
-        model = AgeSexModel.from_pretrained(
+                sex_pred = self.sex_layer(features)
+
+                return age_pred, sex_pred
+
+        model = WavLMWrapper.from_pretrained(
             self._variant_config.pretrained_model_name,
-            config=config,
-            **model_kwargs,
         )
+
         model.eval()
         if dtype_override is not None:
             model.to(dtype_override)
