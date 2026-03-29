@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available MMS PyTorch speech recognition model variants."""
 
     MMS_1B_ALL = "MMS_1B_All"
+    MMS_1B_FL102 = "MMS_1B_FL102"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MMS_1B_ALL: ModelConfig(
             pretrained_model_name="facebook/mms-1b-all",
+        ),
+        ModelVariant.MMS_1B_FL102: ModelConfig(
+            pretrained_model_name="facebook/mms-1b-fl102",
         ),
     }
 
