@@ -122,7 +122,7 @@ class ModelVariant(StrEnum):
 
     INTERN_VL3_5_8B = "8B"
     INTERN_VL3_5_GPT_OSS_20B_A4B = "GPT_OSS_20B_A4B"
-    INTERN_VL3_5_4B_INSTRUCT = "4B_Instruct"
+    INTERN_VL3_5_14B = "14B"
 
 
 class ModelLoader(ForgeModel):
@@ -135,12 +135,15 @@ class ModelLoader(ForgeModel):
         ModelVariant.INTERN_VL3_5_GPT_OSS_20B_A4B: LLMModelConfig(
             pretrained_model_name="OpenGVLab/InternVL3_5-GPT-OSS-20B-A4B-Preview-HF",
         ),
-        ModelVariant.INTERN_VL3_5_4B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="OpenGVLab/InternVL3_5-4B-Instruct",
+        ModelVariant.INTERN_VL3_5_14B: LLMModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL3_5-14B",
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.INTERN_VL3_5_1B
+
+    # Variants that use native HF format (AutoModelForImageTextToText + AutoProcessor)
+    _HF_NATIVE_VARIANTS = {ModelVariant.INTERN_VL3_5_GPT_OSS_20B_A4B}
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -149,8 +152,8 @@ class ModelLoader(ForgeModel):
         self.model = None
 
     @property
-    def _is_hf_variant(self):
-        return self._variant == ModelVariant.INTERN_VL3_5_GPT_OSS_20B_A4B
+    def _is_hf_native(self):
+        return self._variant in self._HF_NATIVE_VARIANTS
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -171,12 +174,17 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             kwargs["torch_dtype"] = dtype_override
 
-        self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
-            **kwargs,
-        )
-        return self.processor
+        if self._is_hf_native:
+            self.processor = AutoProcessor.from_pretrained(
+                self._variant_config.pretrained_model_name,
+                trust_remote_code=True,
+                **kwargs,
+            )
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self._variant_config.pretrained_model_name,
+                trust_remote_code=True,
+            )
 
     def _load_tokenizer(self):
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -189,6 +197,11 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
+        if self._is_hf_native and self.processor is None:
+            self._load_processor(dtype_override=dtype_override)
+        elif not self._is_hf_native and self.tokenizer is None:
+            self._load_processor(dtype_override=dtype_override)
+
         model_kwargs = {
             "trust_remote_code": True,
             "attn_implementation": "eager",
@@ -197,30 +210,19 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        if self._is_hf_variant:
-            if self.processor is None:
-                self._load_processor(dtype_override=dtype_override)
-
+        if self._is_hf_native:
             model = AutoModelForImageTextToText.from_pretrained(
                 pretrained_model_name, **model_kwargs
             )
         else:
-            if self.tokenizer is None:
-                self._load_tokenizer()
-
             model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
 
         model.eval()
         self.model = model
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        if self._is_hf_variant:
-            return self._load_inputs_hf(dtype_override, batch_size)
-        else:
-            return self._load_inputs_custom(dtype_override, batch_size)
-
-    def _load_inputs_hf(self, dtype_override=None, batch_size=1):
+    def _load_inputs_hf_native(self, dtype_override=None, batch_size=1):
+        """Load inputs for HF-native variants using AutoProcessor."""
         if self.processor is None:
             self._load_processor(dtype_override=dtype_override)
 
@@ -255,8 +257,9 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def _load_inputs_custom(self, dtype_override=None, batch_size=1):
+        """Load inputs for custom-code variants using AutoTokenizer + manual image preprocessing."""
         if self.tokenizer is None:
-            self._load_tokenizer()
+            self._load_processor(dtype_override=dtype_override)
 
         image_file = get_file(
             "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
@@ -268,16 +271,19 @@ class ModelLoader(ForgeModel):
 
         num_patches = pixel_values.shape[0]
 
+        # Set up image context token id
         img_context_token_id = self.tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
         if self.model is not None:
             self.model.img_context_token_id = img_context_token_id
 
+        # Build prompt
         question = "<image>\nWhat is shown in this image?"
         messages = [{"role": "user", "content": question}]
         query = self.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
 
+        # Replace <image> placeholder with the correct number of image tokens
         num_image_token = self.model.num_image_token if self.model is not None else 256
         image_tokens = (
             "<img>" + "<IMG_CONTEXT>" * num_image_token * num_patches + "</img>"
@@ -306,17 +312,26 @@ class ModelLoader(ForgeModel):
             "use_cache": False,
         }
 
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        if self._is_hf_native:
+            return self._load_inputs_hf_native(
+                dtype_override=dtype_override, batch_size=batch_size
+            )
+        return self._load_inputs_custom(
+            dtype_override=dtype_override, batch_size=batch_size
+        )
+
     def decode_output(self, outputs, input_length=None):
         if isinstance(outputs, str):
             return outputs
 
-        if self._is_hf_variant:
+        if self._is_hf_native:
             if self.processor is None:
                 self._load_processor()
             tokenizer = self.processor.tokenizer
         else:
             if self.tokenizer is None:
-                self._load_tokenizer()
+                self._load_processor()
             tokenizer = self.tokenizer
 
         if torch.is_tensor(outputs) and outputs.dtype in [torch.long, torch.int]:
