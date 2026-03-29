@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     XLM_BASE = "Xlm_Base"
     ROBERTA_BASE = "Roberta_Base"
     MENTAL_ROBERTA_BASE = "Mental_Roberta_Base"
+    TWITTER_ROBERTA_BASE = "Twitter_Roberta_Base"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MENTAL_ROBERTA_BASE: ModelConfig(
             pretrained_model_name="mental/mental-roberta-base",
+        ),
+        ModelVariant.TWITTER_ROBERTA_BASE: ModelConfig(
+            pretrained_model_name="cardiffnlp/twitter-roberta-base",
         ),
     }
 
@@ -69,7 +73,11 @@ class ModelLoader(ForgeModel):
             ModelInfo: Information about the model and variant
         """
         group = ModelGroup.GENERALITY
-        if variant in (ModelVariant.ROBERTA_BASE, ModelVariant.MENTAL_ROBERTA_BASE):
+        if variant in (
+            ModelVariant.ROBERTA_BASE,
+            ModelVariant.MENTAL_ROBERTA_BASE,
+            ModelVariant.TWITTER_ROBERTA_BASE,
+        ):
             group = ModelGroup.VULCAN
         return ModelInfo(
             model="RoBERTa",
