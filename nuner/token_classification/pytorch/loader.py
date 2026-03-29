@@ -87,10 +87,8 @@ class ModelLoader(ForgeModel):
 
     def decode_output(self, co_out):
         inputs = self.load_inputs()
-        # NuNER outputs hidden states; concatenate last and 7th-from-last for best quality
-        last_hidden_state = co_out.hidden_states[-1]
-        seventh_hidden_state = co_out.hidden_states[-7]
-        emb = torch.cat((last_hidden_state, seventh_hidden_state), dim=2)
+        # co_out[0] is last_hidden_state: token-level embeddings
+        last_hidden_state = co_out[0]
 
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         active_tokens = [
@@ -100,5 +98,5 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Embedding shape: {emb.shape}")
+        print(f"Embedding shape: {last_hidden_state.shape}")
         print(f"Active tokens: {active_tokens}")
