@@ -2,51 +2,52 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-PhoWhisper model loader implementation
+PhoWhisper model loader implementation for Vietnamese automatic speech recognition (ASR).
 """
 
 import torch
-from transformers import (
-    WhisperProcessor,
-    WhisperForConditionalGeneration,
-    WhisperConfig,
-)
+import numpy as np
+from typing import Optional
+
+from ...base import ForgeModel
 from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    ModelConfig,
 )
-from ...tools.utils import get_file
-from ...base import ForgeModel
-from typing import Optional
 
 
 class ModelVariant(StrEnum):
     """Available PhoWhisper model variants."""
 
-    PHOWHISPER_BASE = "Base"
+    MEDIUM = "Medium"
 
 
 class ModelLoader(ForgeModel):
-    """PhoWhisper model loader implementation."""
+    """PhoWhisper model loader implementation for Vietnamese ASR."""
 
     _VARIANTS = {
-        ModelVariant.PHOWHISPER_BASE: ModelConfig(
-            pretrained_model_name="vinai/PhoWhisper-base",
+        ModelVariant.MEDIUM: ModelConfig(
+            pretrained_model_name="vinai/PhoWhisper-medium",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.PHOWHISPER_BASE
+    DEFAULT_VARIANT = ModelVariant.MEDIUM
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
+        super().__init__(variant)
+        self._processor = None
+        self._model = None
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
-        """Get model information for dashboard and metrics reporting."""
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="PhoWhisper",
             variant=variant,
@@ -56,60 +57,66 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def __init__(self, variant=None):
-        """Initialize ModelLoader with specified variant."""
-        super().__init__(variant)
-
-        self.processor = None
-        self.model = None
-
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load a PhoWhisper model from Hugging Face."""
-
-        pretrained_model_name = self._variant_config.pretrained_model_name
+        from transformers import WhisperForConditionalGeneration
 
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = WhisperForConditionalGeneration.from_pretrained(
-            pretrained_model_name, use_cache=False, **model_kwargs
+        model = WhisperForConditionalGeneration.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            use_cache=False,
+            **model_kwargs,
         )
-        self.processor = WhisperProcessor.from_pretrained(
-            pretrained_model_name, use_cache=False, **model_kwargs
-        )
-
-        self.model.eval()
+        model.eval()
         if dtype_override is not None:
-            self.model.to(dtype_override)
-        return self.model
+            model.to(dtype_override)
+
+        self._model = model
+        return model
+
+    def _load_processor(self):
+        from transformers import WhisperProcessor
+
+        self._processor = WhisperProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name,
+        )
+        return self._processor
 
     def load_inputs(self, dtype_override=None):
-        """Generate sample inputs for PhoWhisper model."""
+        from transformers import WhisperConfig
 
-        if self.model is None or self.processor is None:
-            self.load_model()
+        if self._processor is None:
+            self._load_processor()
+        if self._model is None:
+            self.load_model(dtype_override=dtype_override)
 
-        model_config = WhisperConfig.from_pretrained(
+        # Generate synthetic 1-second audio at 16kHz
+        sampling_rate = 16000
+        duration_seconds = 1
+        audio_array = np.random.randn(sampling_rate * duration_seconds).astype(
+            np.float32
+        )
+
+        model_param = next(self._model.parameters())
+        device = model_param.device
+        dtype = dtype_override or model_param.dtype
+
+        inputs = self._processor(
+            audio_array, sampling_rate=sampling_rate, return_tensors="pt"
+        )
+        input_features = inputs.input_features.to(device=device, dtype=dtype)
+
+        whisper_config = WhisperConfig.from_pretrained(
             self._variant_config.pretrained_model_name
         )
-
-        # Load audio sample
-        weights_pth = get_file("test_files/pytorch/whisper/1272-128104-0000.pt")
-        sample = torch.load(weights_pth, weights_only=False)
-        sample_audio = sample["audio"]["array"]
-        model_param = next(self.model.parameters())
-        device, dtype = model_param.device, dtype_override or model_param.dtype
-
-        # Preprocess audio
-        sampling_rate = 16000
-        processor = self.processor(
-            sample_audio, return_tensors="pt", sampling_rate=sampling_rate
-        )
-        input_features = processor.input_features.to(device=device, dtype=dtype)
-
         decoder_input_ids = torch.full(
-            (1, 2), model_config.decoder_start_token_id, dtype=torch.long, device=device
+            (1, 2),
+            whisper_config.decoder_start_token_id,
+            dtype=torch.long,
+            device=device,
         )
+
         return [input_features, decoder_input_ids]
