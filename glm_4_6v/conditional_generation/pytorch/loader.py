@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available GLM-4.6V model variants for multimodal conditional generation."""
 
     GLM_4_6V = "glm_4_6v"
+    GLM_4_6V_NVFP4 = "glm_4_6v_nvfp4"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.GLM_4_6V: LLMModelConfig(
             pretrained_model_name="zai-org/GLM-4.6V",
+        ),
+        ModelVariant.GLM_4_6V_NVFP4: LLMModelConfig(
+            pretrained_model_name="GadflyII/GLM-4.6V-NVFP4",
         ),
     }
 
@@ -68,6 +72,10 @@ class ModelLoader(ForgeModel):
 
         return self.processor
 
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.GLM_4_6V_NVFP4}
+
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -77,6 +85,8 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
         model_kwargs |= kwargs
 
         model = Glm4vMoeForConditionalGeneration.from_pretrained(
