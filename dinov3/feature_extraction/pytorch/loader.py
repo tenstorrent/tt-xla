@@ -6,9 +6,9 @@ DINOv3 ViT model loader implementation for feature extraction (PyTorch).
 """
 
 import torch
-from transformers import DINOv3ViTImageProcessor, DINOv3ViTModel
 from datasets import load_dataset
 from typing import Optional
+from dataclasses import dataclass
 
 from ....base import ForgeModel
 from ....config import (
@@ -20,21 +20,34 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....tools.utils import VisionPreprocessor
+
+
+@dataclass
+class DINOv3Config(ModelConfig):
+    """Configuration specific to DINOv3 models."""
+
+    source: ModelSource = ModelSource.HUGGING_FACE
 
 
 class ModelVariant(StrEnum):
     """Available DINOv3 ViT feature extraction model variants."""
 
     BASE = "Base"
-    LARGE = "Large"
+    SMALL_QKVB = "Small_QKVB"
 
 
 class ModelLoader(ForgeModel):
     """DINOv3 ViT model loader implementation for feature extraction (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.BASE: ModelConfig(
+        ModelVariant.BASE: DINOv3Config(
             pretrained_model_name="facebook/dinov3-vitb16-pretrain-lvd1689m",
+            source=ModelSource.HUGGING_FACE,
+        ),
+        ModelVariant.SMALL_QKVB: DINOv3Config(
+            pretrained_model_name="vit_small_patch16_dinov3_qkvb.lvd1689m",
+            source=ModelSource.TIMM,
         ),
         ModelVariant.LARGE: ModelConfig(
             pretrained_model_name="camenduru/dinov3-vitl16-pretrain-lvd1689m",
@@ -52,6 +65,8 @@ class ModelLoader(ForgeModel):
         """
         super().__init__(variant)
         self.processor = None
+        self.model = None
+        self._preprocessor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -67,21 +82,25 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        source = cls._VARIANTS[variant].source
+
         return ModelInfo(
             model="DINOv3 ViT",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_IMAGE_FE,
-            source=ModelSource.HUGGING_FACE,
+            source=source,
             framework=Framework.TORCH,
         )
 
     def _load_processor(self):
-        """Load image processor for the current variant.
+        """Load image processor for the current variant (HuggingFace only).
 
         Returns:
             The loaded processor instance
         """
+        from transformers import DINOv3ViTImageProcessor
+
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.processor = DINOv3ViTImageProcessor.from_pretrained(pretrained_model_name)
         return self.processor
@@ -96,42 +115,87 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The DINOv3 ViT model instance for feature extraction.
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
 
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
+        if source == ModelSource.TIMM:
+            import timm
 
-        model = DINOv3ViTModel.from_pretrained(pretrained_model_name, **model_kwargs)
+            model = timm.create_model(
+                pretrained_model_name, pretrained=True, num_classes=0
+            )
+            if dtype_override is not None:
+                model = model.to(dtype_override)
+        elif source == ModelSource.HUGGING_FACE:
+            from transformers import DINOv3ViTModel
+
+            model_kwargs = {}
+            if dtype_override is not None:
+                model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs |= kwargs
+
+            model = DINOv3ViTModel.from_pretrained(
+                pretrained_model_name, **model_kwargs
+            )
+
         model.eval()
+        self.model = model
+
+        if self._preprocessor is not None:
+            self._preprocessor.set_cached_model(model)
 
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
         """Load and return sample inputs for the DINOv3 ViT model.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
             batch_size: Batch size for the inputs.
+            image: Optional input image. If None, loads from HuggingFace datasets.
 
         Returns:
-            dict: Input tensors that can be fed to the model.
+            Model inputs (dict for HuggingFace, tensor for TIMM).
         """
-        if self.processor is None:
-            self._load_processor()
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        source = self._variant_config.source
 
-        inputs = self.processor(images=image, return_tensors="pt")
+        if source == ModelSource.TIMM:
+            if self._preprocessor is None:
+                model_name = self._variant_config.pretrained_model_name
+                self._preprocessor = VisionPreprocessor(
+                    model_source=source,
+                    model_name=model_name,
+                )
+                if self.model is not None:
+                    self._preprocessor.set_cached_model(self.model)
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+            model_for_config = self.model if self.model is not None else None
 
-        if dtype_override is not None:
+            return self._preprocessor.preprocess(
+                image=image,
+                dtype_override=dtype_override,
+                batch_size=batch_size,
+                model_for_config=model_for_config,
+            )
+        else:
+            if self.processor is None:
+                self._load_processor()
+
+            inputs = self.processor(images=image, return_tensors="pt")
+
             for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
-                    inputs[key] = inputs[key].to(dtype_override)
+                if torch.is_tensor(inputs[key]):
+                    inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        return inputs
+            if dtype_override is not None:
+                for key in inputs:
+                    if (
+                        torch.is_tensor(inputs[key])
+                        and inputs[key].dtype.is_floating_point
+                    ):
+                        inputs[key] = inputs[key].to(dtype_override)
+
+            return inputs
