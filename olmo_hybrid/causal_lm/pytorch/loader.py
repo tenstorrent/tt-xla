@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OLMo Hybrid model loader implementation for causal language modeling.
+OlmoHybrid Causal LM model loader implementation
 """
 
 import torch
@@ -22,24 +22,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available OLMo Hybrid model variants for causal language modeling."""
+    """Available OlmoHybrid model variants for causal language modeling."""
 
-    Olmo_Hybrid_7B = "hybrid_7b"
+    Olmo_Hybrid_Instruct_DPO_7B = "hybrid_instruct_dpo_7b"
 
 
 class ModelLoader(ForgeModel):
-    """OLMo Hybrid model loader implementation for causal language modeling tasks."""
+    """OlmoHybrid model loader implementation for causal language modeling tasks."""
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.Olmo_Hybrid_7B: LLMModelConfig(
-            pretrained_model_name="allenai/Olmo-Hybrid-7B",
+        ModelVariant.Olmo_Hybrid_Instruct_DPO_7B: LLMModelConfig(
+            pretrained_model_name="allenai/Olmo-Hybrid-Instruct-DPO-7B",
             max_length=256,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.Olmo_Hybrid_7B
+    DEFAULT_VARIANT = ModelVariant.Olmo_Hybrid_Instruct_DPO_7B
 
     # Shared configuration parameters
     sample_text = "Who would win in a fight - a dinosaur or a cow named Moo Moo?"
@@ -67,10 +67,12 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+
+        group = ModelGroup.VULCAN
         return ModelInfo(
             model="olmo_hybrid",
             variant=variant,
-            group=ModelGroup.VULCAN,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -98,14 +100,14 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the OLMo Hybrid model instance for this instance's variant.
+        """Load and return the OlmoHybrid model instance for this instance's variant.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
                            If not provided, the model will use its default dtype (typically float32).
 
         Returns:
-            torch.nn.Module: The OLMo Hybrid model instance for causal language modeling.
+            torch.nn.Module: The OlmoHybrid model instance for causal language modeling.
         """
         # Get the pretrained model name from the instance's variant config
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -131,7 +133,7 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the OLMo Hybrid model with this instance's variant settings.
+        """Load and return sample inputs for the OlmoHybrid model with this instance's variant settings.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
@@ -165,10 +167,10 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def load_config(self):
-        """Load and return the configuration for the OLMo Hybrid model variant.
+        """Load and return the configuration for the OlmoHybrid model variant.
 
         Returns:
-            The configuration object for the OLMo Hybrid model.
+            The configuration object for the OlmoHybrid model.
         """
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name
