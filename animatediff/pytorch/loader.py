@@ -9,7 +9,7 @@ AnimateDiff extends Stable Diffusion with temporal motion modules for
 text-to-video generation. The UNetMotionModel wraps a standard UNet2D
 with motion adapters that capture temporal dynamics across frames.
 
-Reference: https://huggingface.co/camenduru/AnimateDiff
+Reference: https://huggingface.co/guoyww/animatediff-motion-adapter-v1-5-2
 """
 
 from typing import Any, Optional
@@ -32,7 +32,7 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available AnimateDiff model variants."""
 
-    V1_5_3 = "v1.5.3"
+    V1_5_2 = "v1.5.2"
 
 
 class ModelLoader(ForgeModel):
@@ -44,12 +44,12 @@ class ModelLoader(ForgeModel):
     """
 
     _VARIANTS = {
-        ModelVariant.V1_5_3: ModelConfig(
-            pretrained_model_name="guoyww/animatediff-motion-adapter-v1-5-3",
+        ModelVariant.V1_5_2: ModelConfig(
+            pretrained_model_name="guoyww/animatediff-motion-adapter-v1-5-2",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.V1_5_3
+    DEFAULT_VARIANT = ModelVariant.V1_5_2
 
     BASE_MODEL = "emilianJR/epiCRealism"
 
