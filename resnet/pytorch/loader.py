@@ -54,7 +54,7 @@ class ModelVariant(StrEnum):
     RESNET_34_A1_IN1K_TIMM = "ResNet34_A1_IN1K_TIMM"
     RESNET_34_RA4_E3600_R224_IN1K_TIMM = "ResNet34_RA4_E3600_R224_IN1K_TIMM"
     RESNET_50_A1_IN1K_TIMM = "ResNet50_A1_IN1K_TIMM"
-    RESNET_50_TV_IN1K_TIMM = "ResNet50_TV_IN1K_TIMM"
+    RESNET_50_TV2_IN1K_TIMM = "ResNet50_TV2_IN1K_TIMM"
     TEST_RESNET_R160_IN1K_TIMM = "TestResNet_R160_IN1K_TIMM"
     RESNET_18_FB_SWSL_IG1B_FT_IN1K_TIMM = "ResNet18_FB_SWSL_IG1B_FT_IN1K_TIMM"
 
@@ -108,8 +108,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="resnet50.a1_in1k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.RESNET_50_TV_IN1K_TIMM: ResNetConfig(
-            pretrained_model_name="resnet50.tv_in1k",
+        ModelVariant.RESNET_50_TV2_IN1K_TIMM: ResNetConfig(
+            pretrained_model_name="resnet50.tv2_in1k",
             source=ModelSource.TIMM,
         ),
         ModelVariant.TEST_RESNET_R160_IN1K_TIMM: ResNetConfig(
@@ -189,7 +189,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.RESNET_34_A1_IN1K_TIMM,
             ModelVariant.RESNET_34_RA4_E3600_R224_IN1K_TIMM,
             ModelVariant.RESNET_50_A1_IN1K_TIMM,
-            ModelVariant.RESNET_50_TV_IN1K_TIMM,
+            ModelVariant.RESNET_50_TV2_IN1K_TIMM,
             ModelVariant.TEST_RESNET_R160_IN1K_TIMM,
             ModelVariant.RESNET_18_FB_SWSL_IG1B_FT_IN1K_TIMM,
         ]:
