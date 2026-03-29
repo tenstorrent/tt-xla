@@ -7,7 +7,6 @@ Molmo model loader implementation for multimodal visual question answering.
 
 from typing import Optional
 
-import torch
 from PIL import Image
 from transformers import AutoModelForCausalLM, AutoProcessor
 
@@ -21,7 +20,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file, cast_input_to_type
+from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -103,10 +102,5 @@ class ModelLoader(ForgeModel):
 
         # Add batch dimension
         inputs = {k: v.unsqueeze(0) for k, v in inputs.items()}
-
-        if dtype_override:
-            inputs = {
-                k: cast_input_to_type(v, dtype_override) for k, v in inputs.items()
-            }
 
         return inputs
