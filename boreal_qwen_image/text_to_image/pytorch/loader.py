@@ -34,13 +34,6 @@ from ....config import (
 LORA_REPO_ID = "kudzueye/boreal-qwen-image"
 BASE_MODEL_ID = "Qwen/Qwen-Image"
 
-_LORA_FILES = {
-    "blend_low_rank": "qwen-boreal-blend-low-rank.safetensors",
-    "general_discrete_low_rank": "qwen-boreal-general-discrete-low-rank.safetensors",
-    "portraits_high_rank": "qwen-boreal-portraits-portraits-high-rank.safetensors",
-    "small_discrete_low_rank": "qwen-boreal-small-discrete-low-rank.safetensors",
-}
-
 
 class ModelVariant(StrEnum):
     """Available Boreal-Qwen-Image LoRA variants."""
@@ -51,11 +44,11 @@ class ModelVariant(StrEnum):
     SMALL_DISCRETE_LOW_RANK = "small-discrete-low-rank"
 
 
-_VARIANT_TO_FILE_KEY = {
-    ModelVariant.BLEND_LOW_RANK: "blend_low_rank",
-    ModelVariant.GENERAL_DISCRETE_LOW_RANK: "general_discrete_low_rank",
-    ModelVariant.PORTRAITS_HIGH_RANK: "portraits_high_rank",
-    ModelVariant.SMALL_DISCRETE_LOW_RANK: "small_discrete_low_rank",
+_LORA_FILES = {
+    ModelVariant.BLEND_LOW_RANK: "qwen-boreal-blend-low-rank.safetensors",
+    ModelVariant.GENERAL_DISCRETE_LOW_RANK: "qwen-boreal-general-discrete-low-rank.safetensors",
+    ModelVariant.PORTRAITS_HIGH_RANK: "qwen-boreal-portraits-portraits-high-rank.safetensors",
+    ModelVariant.SMALL_DISCRETE_LOW_RANK: "qwen-boreal-small-discrete-low-rank.safetensors",
 }
 
 
@@ -110,10 +103,9 @@ class ModelLoader(ForgeModel):
             torch_dtype=dtype,
         )
 
-        file_key = _VARIANT_TO_FILE_KEY[self._variant]
         self.pipeline.load_lora_weights(
             LORA_REPO_ID,
-            weight_name=_LORA_FILES[file_key],
+            weight_name=_LORA_FILES[self._variant],
         )
 
         return self.pipeline
