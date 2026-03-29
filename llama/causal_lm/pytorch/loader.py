@@ -113,12 +113,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # Deqing variants
-    DEQING_LLAMA_300M_V5_ADDITION_ADAMW = "Deqing_300M_v5_Addition_Adamw"
-
-    # Unsloth BnB 4-bit variants
-    TINYLLAMA_BNB_4BIT = "Tinyllama_bnb_4bit"
-    LLAMA_3_2_1B_INSTRUCT_BNB_4BIT = "3.2_1B_Instruct_bnb_4bit"
+    # open-unlearning variants
+    TOFU_LLAMA_3_1_8B_INSTRUCT_FULL = "Tofu_3.1_8B_Instruct_Full"
 
 
 class ModelLoader(ForgeModel):
@@ -275,18 +271,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # Deqing variants
-        ModelVariant.DEQING_LLAMA_300M_V5_ADDITION_ADAMW: LLMModelConfig(
-            pretrained_model_name="deqing/llama-300M-v5-addition_adamw",
-            max_length=128,
-        ),
-        # Unsloth BnB 4-bit variants
-        ModelVariant.TINYLLAMA_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/tinyllama-bnb-4bit",
-            max_length=128,
-        ),
-        ModelVariant.LLAMA_3_2_1B_INSTRUCT_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Llama-3.2-1B-Instruct-bnb-4bit",
+        # open-unlearning variants
+        ModelVariant.TOFU_LLAMA_3_1_8B_INSTRUCT_FULL: LLMModelConfig(
+            pretrained_model_name="open-unlearning/tofu_Llama-3.1-8B-Instruct_full",
             max_length=128,
         ),
     }
@@ -340,6 +327,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_MLX_4BIT,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_BNB_4BIT,
+            ModelVariant.TOFU_LLAMA_3_1_8B_INSTRUCT_FULL,
         ]:
             group = ModelGroup.VULCAN
         elif (
