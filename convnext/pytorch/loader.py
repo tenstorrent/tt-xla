@@ -9,6 +9,7 @@ from typing import Optional
 from dataclasses import dataclass
 import timm
 import torch
+from transformers import AutoModelForImageClassification
 
 from ...config import (
     ModelConfig,
@@ -38,7 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
-    SMALL_FB_IN22K_FT_IN1K = "Small_FB_IN22K_FT_IN1K"
+    LARGE_384 = "Large_384"
 
 
 class ModelLoader(ForgeModel):
@@ -49,9 +50,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.SMALL_FB_IN22K_FT_IN1K: ConvNeXtConfig(
-            pretrained_model_name="hf_hub:timm/convnext_small.fb_in22k_ft_in1k",
-            source=ModelSource.TIMM,
+        ModelVariant.LARGE_384: ConvNeXtConfig(
+            pretrained_model_name="facebook/convnext-large-384",
+            source=ModelSource.HUGGING_FACE,
         ),
     }
 
@@ -81,8 +82,21 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
+        source = self._variant_config.source
 
-        model = timm.create_model(model_name, pretrained=True)
+        if source == ModelSource.HUGGING_FACE:
+            model_kwargs = {}
+            if dtype_override is not None:
+                model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs |= kwargs
+            model = AutoModelForImageClassification.from_pretrained(
+                model_name, **model_kwargs
+            )
+        else:
+            model = timm.create_model(model_name, pretrained=True)
+            if dtype_override is not None:
+                model = model.to(dtype_override)
+
         model.eval()
 
         self.model = model
@@ -92,9 +106,6 @@ class ModelLoader(ForgeModel):
 
         if self._postprocessor is not None:
             self._postprocessor.set_model_instance(model)
-
-        if dtype_override is not None:
-            model = model.to(dtype_override)
 
         return model
 
