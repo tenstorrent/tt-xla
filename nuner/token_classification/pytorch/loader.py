@@ -5,7 +5,6 @@
 NuNER model loader implementation for token classification.
 """
 
-import torch
 from transformers import AutoModel, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
