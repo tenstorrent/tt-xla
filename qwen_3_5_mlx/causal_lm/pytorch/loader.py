@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -23,20 +23,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 MLX model variants for causal language modeling."""
 
-    QWEN_3_5_27B_MLX_9BIT = "27B_MLX_9bit"
+    QWEN_3_5_35B_A3B_6BIT = "35B_A3B_6bit"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3.5 MLX model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_5_27B_MLX_9BIT: LLMModelConfig(
-            pretrained_model_name="inferencerlabs/Qwen3.5-27B-MLX-9bit",
+        ModelVariant.QWEN_3_5_35B_A3B_6BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3.5-35B-A3B-6bit",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_27B_MLX_9BIT
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_35B_A3B_6BIT
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -67,8 +67,6 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -81,13 +79,15 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
-            config.num_hidden_layers = self.num_layers
+            if hasattr(config, "text_config"):
+                config.text_config.num_hidden_layers = self.num_layers
+            else:
+                config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
-
-        model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
