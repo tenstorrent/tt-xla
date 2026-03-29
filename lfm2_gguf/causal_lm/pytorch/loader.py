@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LFM2 GGUF model loader implementation for causal language modeling.
+LFM2 MoE GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available LFM2 GGUF model variants for causal language modeling."""
+    """Available LFM2 MoE GGUF model variants for causal language modeling."""
 
-    LFM2_1_2B_GGUF = "1.2B_GGUF"
+    LFM2_24B_A2B_GGUF = "24B_A2B_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """LFM2 GGUF model loader implementation for causal language modeling tasks."""
+    """LFM2 MoE GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LFM2_1_2B_GGUF: LLMModelConfig(
-            pretrained_model_name="LiquidAI/LFM2-1.2B-GGUF",
+        ModelVariant.LFM2_24B_A2B_GGUF: LLMModelConfig(
+            pretrained_model_name="bartowski/LiquidAI_LFM2-24B-A2B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LFM2_1_2B_GGUF
+    DEFAULT_VARIANT = ModelVariant.LFM2_24B_A2B_GGUF
 
-    GGUF_FILE = "LFM2-1.2B-Q4_K_M.gguf"
+    GGUF_FILE = "LiquidAI_LFM2-24B-A2B-Q4_K_M.gguf"
 
     sample_text = "The quick brown fox jumps over the lazy dog."
 
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="LFM2 GGUF",
+            model="LFM2 MoE GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
