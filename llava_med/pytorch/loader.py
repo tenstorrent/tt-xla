@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LLaVA-Med model loader implementation for biomedical visual question answering.
+LLaVA-Med model loader implementation for multimodal conditional generation.
 """
 
 from typing import Optional
 
-from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer, CLIPImageProcessor
+from datasets import load_dataset
+from transformers import LlavaForConditionalGeneration, AutoProcessor
 
 from ...base import ForgeModel
 from ...config import (
@@ -20,7 +20,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file, cast_input_to_type
+from ...tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -30,23 +30,22 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """LLaVA-Med model loader for biomedical visual question answering."""
+    """LLaVA-Med model loader for multimodal conditional generation."""
 
     _VARIANTS = {
         ModelVariant.LLAVA_MED_V1_5_MISTRAL_7B: ModelConfig(
-            pretrained_model_name="microsoft/llava-med-v1.5-mistral-7b",
+            pretrained_model_name="chaoyinshe/llava-med-v1.5-mistral-7b-hf",
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.LLAVA_MED_V1_5_MISTRAL_7B
 
-    sample_text = "What organ is shown in this image?"
+    sample_text = "What is shown in this image?"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize LLaVA-Med model loader."""
         super().__init__(variant)
-        self.tokenizer = None
-        self.image_processor = None
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -56,70 +55,69 @@ class ModelLoader(ForgeModel):
             model="LLaVA-Med",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.MM_VISUAL_QA,
+            task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self):
-        model_name = self._variant_config.pretrained_model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name, trust_remote_code=True
+    def _load_processor(self):
+        self.processor = AutoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
         )
-        return self.tokenizer
-
-    def _load_image_processor(self):
-        self.image_processor = CLIPImageProcessor.from_pretrained(
-            "openai/clip-vit-large-patch14-336"
-        )
-        return self.image_processor
+        return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the LLaVA-Med model instance."""
         model_name = self._variant_config.pretrained_model_name
-        model = AutoModelForCausalLM.from_pretrained(
-            str(model_name), trust_remote_code=True, **kwargs
-        )
+        model = LlavaForConditionalGeneration.from_pretrained(str(model_name), **kwargs)
         model.eval()
 
         if dtype_override:
             model = model.to(dtype_override)
 
-        if self.tokenizer is None:
-            self._load_tokenizer()
-
-        if self.image_processor is None:
-            self._load_image_processor()
+        if self.processor is None:
+            self._load_processor()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return input tensors for LLaVA-Med."""
-        if self.tokenizer is None:
-            self._load_tokenizer()
+        if self.processor is None:
+            self._load_processor()
 
-        if self.image_processor is None:
-            self._load_image_processor()
+        # Build prompt
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": self.sample_text},
+                ],
+            }
+        ]
 
-        # Load sample image
-        image_file = get_file(
-            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+        text_prompt = self.processor.apply_chat_template(
+            conversation, padding=True, add_generation_prompt=True
         )
-        image = Image.open(image_file)
 
-        # Process image
-        pixel_values = self.image_processor(
-            images=image, return_tensors="pt"
-        ).pixel_values
+        # Load dataset
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
-        # Tokenize text
-        input_ids = self.tokenizer(self.sample_text, return_tensors="pt").input_ids
+        # Preprocess
+        inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
+
+        input_ids = inputs["input_ids"]
+        attention_mask = inputs["attention_mask"]
+        pixel_values = inputs["pixel_values"]
 
         if dtype_override:
             input_ids = cast_input_to_type(input_ids, dtype_override)
+            attention_mask = cast_input_to_type(attention_mask, dtype_override)
             pixel_values = cast_input_to_type(pixel_values, dtype_override)
 
         return {
             "input_ids": input_ids,
-            "images": pixel_values,
+            "attention_mask": attention_mask,
+            "pixel_values": pixel_values,
         }
