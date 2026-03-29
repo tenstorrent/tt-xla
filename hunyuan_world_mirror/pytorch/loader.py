@@ -68,8 +68,6 @@ class ModelLoader(ForgeModel):
 
     # Model architecture constants
     _IMG_SIZE = 518
-    _PATCH_SIZE = 14
-    _EMBED_DIM = 1024
     _NUM_VIEWS = 2  # Minimum number of input views for 3D reconstruction
 
     def __init__(self, variant: Optional[ModelVariant] = None):
