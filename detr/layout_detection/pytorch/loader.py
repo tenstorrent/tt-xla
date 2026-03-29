@@ -5,8 +5,7 @@
 DETR model loader implementation for layout detection.
 """
 import torch
-from transformers import AutoImageProcessor
-from transformers.models.detr import DetrForSegmentation
+from transformers import AutoImageProcessor, DetrForSegmentation
 from datasets import load_dataset
 from typing import Optional
 
