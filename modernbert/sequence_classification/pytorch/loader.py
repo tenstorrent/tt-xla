@@ -2,40 +2,39 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ModernBERT model loader implementation for sequence classification (NLI).
+ModernBERT model loader implementation for sequence classification (emotion detection).
 """
-import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from typing import Optional
 
-from third_party.tt_forge_models.config import (
-    ModelConfig,
+from ....config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
+from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available ModernBERT model variants for sequence classification."""
 
-    LARGE_NLI = "Large_NLI"
+    GO_EMOTIONS_BASE = "Go_Emotions_Base"
 
 
 class ModelLoader(ForgeModel):
-    """ModernBERT model loader implementation for sequence classification (NLI)."""
+    """ModernBERT model loader implementation for sequence classification."""
 
     _VARIANTS = {
-        ModelVariant.LARGE_NLI: ModelConfig(
-            pretrained_model_name="tasksource/ModernBERT-large-nli",
+        ModelVariant.GO_EMOTIONS_BASE: LLMModelConfig(
+            pretrained_model_name="cirimus/modernbert-base-go-emotions",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LARGE_NLI
+    DEFAULT_VARIANT = ModelVariant.GO_EMOTIONS_BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -55,49 +54,51 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {"return_dict": False}
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
 
         model = AutoModelForSequenceClassification.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
-
         return model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
+            from transformers import AutoTokenizer
+
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name,
+                self._variant_config.pretrained_model_name
             )
 
-        premise = "A man is eating food."
-        hypothesis = "A man is eating a meal."
+        sample_text = "I am so happy and excited about this opportunity!"
 
         inputs = self.tokenizer(
-            premise,
-            hypothesis,
-            padding=True,
+            sample_text,
+            max_length=self._variant_config.max_length,
+            padding="max_length",
             truncation=True,
             return_tensors="pt",
         )
 
-        if dtype_override is not None:
-            for key, value in inputs.items():
-                if isinstance(value, torch.Tensor):
-                    if value.dtype == torch.float32:
-                        inputs[key] = value.to(dtype_override)
-
         return inputs
 
-    def decode_output(self, co_out):
-        logits = co_out[0]
-        predicted_class_id = logits.argmax(-1).item()
-        labels = ["contradiction", "entailment", "neutral"]
-        print(f"Predicted: {labels[predicted_class_id]}")
+    def decode_output(self, co_out, framework_model=None):
+        predicted_class_id = co_out[0].argmax().item()
+        if (
+            framework_model
+            and hasattr(framework_model, "config")
+            and hasattr(framework_model.config, "id2label")
+        ):
+            predicted_emotion = framework_model.config.id2label[predicted_class_id]
+            print(f"Predicted emotion: {predicted_emotion}")
+        else:
+            print(f"Predicted class ID: {predicted_class_id}")

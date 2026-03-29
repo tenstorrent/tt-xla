@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ModernBERT Sequence Classification PyTorch implementation.
+ModernBERT Go Emotions PyTorch implementation for sequence classification.
 """
 from .loader import ModelLoader, ModelVariant
