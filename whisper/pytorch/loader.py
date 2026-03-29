@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     WHISPER_LARGE_V2 = "Large_v2"
     WHISPER_LARGE_V3 = "Large_v3"
     WHISPER_LARGE_V3_TURBO = "Large_v3_Turbo"
+    WHISPER_MEDIUM_JP = "Medium_jp"
     WHISPER_BASE_BUNGOMA_EN = "Base_Bungoma_en"
 
 
@@ -89,6 +90,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.WHISPER_LARGE_V3_TURBO: ModelConfig(
             pretrained_model_name="openai/whisper-large-v3-turbo",
         ),
+        ModelVariant.WHISPER_MEDIUM_JP: ModelConfig(
+            pretrained_model_name="vumichien/whisper-medium-jp",
+        ),
         ModelVariant.WHISPER_BASE_BUNGOMA_EN: ModelConfig(
             pretrained_model_name="eai6/whisper-base-bungoma.en",
         ),
@@ -127,6 +131,7 @@ class ModelLoader(ForgeModel):
                 if variant
                 in (
                     ModelVariant.WHISPER_MEDIUM_EN,
+                    ModelVariant.WHISPER_MEDIUM_JP,
                     ModelVariant.WHISPER_BASE_BUNGOMA_EN,
                 )
                 else ModelGroup.GENERALITY
