@@ -51,7 +51,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_THINKING_2507_FP8 = "30B_A3B_Thinking_2507_FP8"
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
-    QWEN_3_32B_INT4_GPTQ = "32B_Int4_Gptq"
+    QWEN_3_14B_BASE_BNB_4BIT = "14B_Base_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -151,8 +151,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-14B-AWQ",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_32B_INT4_GPTQ: LLMModelConfig(
-            pretrained_model_name="AngelSlim/Qwen3-32B_int4_gptq",
+        ModelVariant.QWEN_3_14B_BASE_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-14B-Base-unsloth-bnb-4bit",
             max_length=128,
         ),
     }
@@ -210,8 +210,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_THINKING_2507_FP8,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
-            ModelVariant.QWEN_3_32B_INT4_GPTQ,
-            ModelVariant.QWEN_3_1_7B_FP8,
+            ModelVariant.QWEN_3_14B_BASE_BNB_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -277,24 +276,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # Check if this is an AWQ, GPTQ, or BnB variant and configure accordingly
+        # Check if this is an AWQ or BnB variant and configure accordingly
         if pretrained_model_name in (
             "Qwen/Qwen3-8B-AWQ",
-            "cyankiwi/Qwen3-30B-A3B-Instruct-2507-AWQ-8bit",
-            "nytopop/Qwen3-8B.w8a8",
-            "Qwen/Qwen3-235B-A22B-GPTQ-Int4",
+            "unsloth/Qwen3-14B-Base-unsloth-bnb-4bit",
         ):
-            model_kwargs["device_map"] = "cpu"
-
-        # BnB variants need device_map="cpu" for CPU-based loading
-        if self._variant in (
-            ModelVariant.QWEN_3_4B_BNB_4BIT,
-            ModelVariant.QWEN_3_32B_BNB_4BIT,
-        ):
-            model_kwargs["device_map"] = "cpu"
-
-        # GPTQ variants need device_map="cpu" for CPU-based loading
-        if self._variant == ModelVariant.QWEN_3_30B_A3B_GPTQ_INT4:
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
@@ -349,8 +335,7 @@ class ModelLoader(ForgeModel):
         if self._variant in (
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_8B_BASE,
-            ModelVariant.TINY_RANDOM_QWEN3,
-            ModelVariant.TINY_SMOKE_QWEN3_NM_TESTING,
+            ModelVariant.QWEN_3_14B_BASE_BNB_4BIT,
         ):
             prompts = [self.sample_text]
         else:
