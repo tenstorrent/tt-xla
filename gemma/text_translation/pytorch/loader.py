@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Gemma model variants."""
 
     TRANSLATEGEMMA_4B_IT = "Translategemma_4B_IT"
+    TRANSLATEGEMMA_12B_IT = "Translategemma_12B_IT"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TRANSLATEGEMMA_4B_IT: LLMModelConfig(
             pretrained_model_name="google/translategemma-4b-it",
+        ),
+        ModelVariant.TRANSLATEGEMMA_12B_IT: LLMModelConfig(
+            pretrained_model_name="google/translategemma-12b-it",
         ),
     }
 
@@ -75,10 +79,18 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
+        if variant == ModelVariant.TRANSLATEGEMMA_12B_IT:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="Gemma",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_TRANSLATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
