@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_EN_HE = "Opus_Mt_En_He"
     OPUS_MT_EN_ID = "Opus_Mt_En_Id"
     OPUS_MT_FR_ES = "Opus_Mt_Fr_Es"
+    OPUS_MT_NL_ES = "Opus_Mt_Nl_Es"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
     OPUS_MT_EN_EL = "Opus_Mt_En_El"
     OPUS_MT_EN_SV = "Opus_Mt_En_Sv"
@@ -50,6 +51,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPUS_MT_FR_ES: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-fr-es",
+        ),
+        ModelVariant.OPUS_MT_NL_ES: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-nl-es",
         ),
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
