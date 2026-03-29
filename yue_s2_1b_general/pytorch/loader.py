@@ -4,7 +4,6 @@
 """
 YuE-s2-1B-general model loader implementation
 """
-import torch
 from transformers import AutoTokenizer, LlamaForCausalLM, GenerationConfig
 
 from ...config import (
