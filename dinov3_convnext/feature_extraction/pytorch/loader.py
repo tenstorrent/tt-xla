@@ -6,7 +6,7 @@ DINOv3 ConvNeXt model loader implementation for feature extraction (PyTorch).
 """
 
 import torch
-from transformers import AutoImageProcessor, DINOv3ConvNextModel
+from transformers import AutoImageProcessor, AutoModel
 from datasets import load_dataset
 from typing import Optional
 
@@ -25,19 +25,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available DINOv3 ConvNeXt feature extraction model variants."""
 
-    BASE = "Base"
+    LARGE = "Large"
 
 
 class ModelLoader(ForgeModel):
     """DINOv3 ConvNeXt model loader implementation for feature extraction (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.BASE: ModelConfig(
-            pretrained_model_name="facebook/dinov3-convnext-base-pretrain-lvd1689m",
+        ModelVariant.LARGE: ModelConfig(
+            pretrained_model_name="facebook/dinov3-convnext-large-pretrain-lvd1689m",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE
+    DEFAULT_VARIANT = ModelVariant.LARGE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -98,9 +98,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = DINOv3ConvNextModel.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        )
+        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
 
         return model
