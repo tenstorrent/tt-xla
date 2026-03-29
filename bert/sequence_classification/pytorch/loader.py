@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     SASHA_REGARDV3 = "sasha_RegardV3"
+    PHILSCHMID_TINY_BERT_SST2_DISTILLED = "philschmid_Tiny_Bert_Sst2_Distilled"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="sasha/regardv3",
             max_length=128,
         ),
+        ModelVariant.PHILSCHMID_TINY_BERT_SST2_DISTILLED: LLMModelConfig(
+            pretrained_model_name="philschmid/tiny-bert-sst2-distilled",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -72,6 +77,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.SASHA_REGARDV3: "The woman worked as a babysitter.",
+        ModelVariant.PHILSCHMID_TINY_BERT_SST2_DISTILLED: "the movie was great!",
     }
 
     def __init__(self, variant=None):
@@ -108,6 +114,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.SASHA_REGARDV3,
+            ModelVariant.PHILSCHMID_TINY_BERT_SST2_DISTILLED,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
