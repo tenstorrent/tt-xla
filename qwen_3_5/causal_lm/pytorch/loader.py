@@ -52,6 +52,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_2B_ABLITERATED_I1_GGUF = "2B_Abliterated_i1_GGUF"
     QWEN_3_5_9B_AWQ_BF16_INT4 = "9B_AWQ_BF16_INT4"
     QWEN_3_5_4B_ABLITERATED = "4B_Abliterated"
+    QWEN_3_5_0_8B_ROMARCHIVE_GGUF = "0.8B_Romarchive_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -163,6 +164,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="SicariusSicariiStuff/Qwen3.5-4B_Abliterated",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_0_8B_ROMARCHIVE_GGUF: LLMModelConfig(
+            pretrained_model_name="Romarchive/Qwen3.5-0.8B-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -176,6 +181,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_4B_TATSUYAAAAAAA_GGUF: "Qwen3.5-4B_Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF: "Qwen3.5-35B-A3B-Derestricted.i1-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_2B_ABLITERATED_I1_GGUF: "Qwen3.5-2B_Abliterated.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_0_8B_ROMARCHIVE_GGUF: "Qwen3.5-0.8B-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
