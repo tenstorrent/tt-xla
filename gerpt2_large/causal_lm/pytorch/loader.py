@@ -7,7 +7,6 @@ GerPT2 Large model loader implementation for causal language modeling.
 GerPT2 Large is a German GPT-2 Large model trained on the CC-100 German corpus.
 Source: https://huggingface.co/benjamin/gerpt2-large
 """
-import torch
 from transformers import GPT2LMHeadModel, AutoTokenizer, GPT2Config
 from typing import Optional
 
