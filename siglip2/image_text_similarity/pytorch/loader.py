@@ -36,8 +36,9 @@ class ModelVariant(StrEnum):
     SO400M_PATCH14_384 = "So400m_Patch14_384"
     LARGE_PATCH16_256 = "Large_Patch16_256"
 
-    # OpenCLIP variant
+    # OpenCLIP variants
     VIT_SO400M_14_SIGLIP2 = "ViT_SO400M_14_SigLIP2"
+    VIT_SO400M_16_SIGLIP2_256 = "ViT_SO400M_16_SigLIP2_256"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.VIT_SO400M_14_SIGLIP2: SigLIP2Config(
             pretrained_model_name="hf-hub:timm/ViT-SO400M-14-SigLIP2",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.VIT_SO400M_16_SIGLIP2_256: SigLIP2Config(
+            pretrained_model_name="hf-hub:timm/ViT-SO400M-16-SigLIP2-256",
             source=ModelSource.TIMM,
         ),
     }
