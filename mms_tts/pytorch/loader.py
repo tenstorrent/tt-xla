@@ -40,7 +40,10 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.ORM
 
-    sample_text = "Baga nagaan dhuftan"
+    _SAMPLE_TEXTS = {
+        ModelVariant.ORM: "Baga nagaan dhuftan",
+        ModelVariant.YOR: "Ẹ n lẹ, bawo ni ọjọ yín ṣe rí?",
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -89,7 +92,8 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_inputs = self.tokenizer(self.sample_text, return_tensors="pt")
+        sample_text = self._SAMPLE_TEXTS.get(self._variant)
+        model_inputs = self.tokenizer(sample_text, return_tensors="pt")
 
         inputs = {
             "input_ids": model_inputs["input_ids"],
