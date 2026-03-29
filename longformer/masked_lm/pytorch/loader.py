@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
 
     LONGFORMER_BASE_4096 = "Base_4096"
     CLINICAL_LONGFORMER = "Clinical-Longformer"
+    SCIBERT_SCIVOCAB_UNCASED_LONG_4096 = "yorko/scibert_scivocab_uncased_long_4096"
 
 
 class ModelLoader(ForgeModel):
@@ -37,15 +38,25 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="yikuan8/Clinical-Longformer",
             max_length=512,
         ),
+        ModelVariant.SCIBERT_SCIVOCAB_UNCASED_LONG_4096: LLMModelConfig(
+            pretrained_model_name="yorko/scibert_scivocab_uncased_long_4096",
+            max_length=512,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.LONGFORMER_BASE_4096
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.SCIBERT_SCIVOCAB_UNCASED_LONG_4096: "The [MASK] of neural networks has revolutionized natural language processing.",
+    }
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = "The capital of France is <mask>."
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant, "The capital of France is <mask>."
+        )
         self.tokenizer = None
 
     @classmethod
@@ -95,4 +106,5 @@ class ModelLoader(ForgeModel):
         ].nonzero(as_tuple=True)[0]
         predicted_token_id = logits[0, mask_token_index].argmax(axis=-1)
         predicted_token = self.tokenizer.decode(predicted_token_id)
-        print("The predicted token for the <mask> is:", predicted_token)
+        mask_token = self.tokenizer.mask_token
+        print(f"The predicted token for the {mask_token} is:", predicted_token)
