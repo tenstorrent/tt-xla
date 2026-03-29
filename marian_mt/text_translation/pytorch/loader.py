@@ -31,11 +31,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_ROA_EN = "Opus_Mt_Roa_En"
     OPUS_MT_EU_EN = "Opus_Mt_Eu_En"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
-    OPUS_MT_IT_ES = "Opus_Mt_It_Es"
-    OPUS_MT_EN_HI = "Opus_Mt_En_Hi"
-    OPUS_MT_EN_SK = "Opus_Mt_En_Sk"
-    OPUS_MT_TC_BIG_EN_ES = "Opus_Mt_Tc_Big_En_Es"
-    STUDENT_MARIAN_EN_RO_6_1 = "Student_Marian_En_Ro_6_1"
+    OPUS_MT_EN_AF = "Opus_Mt_En_Af"
 
 
 class ModelLoader(ForgeModel):
@@ -66,20 +62,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
-        ModelVariant.OPUS_MT_IT_ES: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-it-es",
-        ),
-        ModelVariant.OPUS_MT_EN_HI: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-hi",
-        ),
-        ModelVariant.OPUS_MT_EN_SK: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-sk",
-        ),
-        ModelVariant.OPUS_MT_TC_BIG_EN_ES: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-tc-big-en-es",
-        ),
-        ModelVariant.STUDENT_MARIAN_EN_RO_6_1: LLMModelConfig(
-            pretrained_model_name="sshleifer/student_marian_en_ro_6_1",
+        ModelVariant.OPUS_MT_EN_AF: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-en-af",
         ),
     }
 
@@ -87,11 +71,7 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
-        ModelVariant.OPUS_MT_IT_ES: "Ciao mondo, oggi il tempo è molto bello.",
-        ModelVariant.OPUS_MT_EN_HI: "Hello, how are you today?",
-        ModelVariant.OPUS_MT_EN_SK: "The weather is beautiful today.",
-        ModelVariant.OPUS_MT_TC_BIG_EN_ES: "Hello, how are you today?",
-        ModelVariant.STUDENT_MARIAN_EN_RO_6_1: "Hello, how are you today?",
+        ModelVariant.OPUS_MT_EN_AF: "My name is Wolfgang and I live in Berlin.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
@@ -148,7 +128,7 @@ class ModelLoader(ForgeModel):
         if self._model is None:
             self.load_model(dtype_override=dtype_override)
 
-        sample_text = self._SAMPLE_TEXTS[self._variant]
+        sample_text = self._SAMPLE_TEXTS.get(self._variant)
         inputs = self._tokenizer(
             sample_text,
             return_tensors="pt",
