@@ -28,6 +28,9 @@ class ModelVariant(StrEnum):
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     SNUNLP_KR_FINBERT_SC = "snunlp_KR_FinBert_SC"
+    NEURALY_BERT_BASE_ITALIAN_CASED_SENTIMENT = (
+        "neuraly_Bert_Base_Italian_Cased_Sentiment"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +58,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="snunlp/KR-FinBert-SC",
             max_length=128,
         ),
+        ModelVariant.NEURALY_BERT_BASE_ITALIAN_CASED_SENTIMENT: LLMModelConfig(
+            pretrained_model_name="neuraly/bert-base-italian-cased-sentiment",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -72,6 +79,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.SNUNLP_KR_FINBERT_SC: "삼성전자 주가가 오늘 3% 상승했다.",
+        ModelVariant.NEURALY_BERT_BASE_ITALIAN_CASED_SENTIMENT: "Il film era fantastico, mi è piaciuto molto!",
     }
 
     def __init__(self, variant=None):
@@ -108,6 +116,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.SNUNLP_KR_FINBERT_SC,
+            ModelVariant.NEURALY_BERT_BASE_ITALIAN_CASED_SENTIMENT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
