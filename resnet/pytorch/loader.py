@@ -55,7 +55,7 @@ class ModelVariant(StrEnum):
     RESNET_34_TV_IN1K_TIMM = "ResNet34_TV_IN1K_TIMM"
     RESNET_50_A1_IN1K_TIMM = "ResNet50_A1_IN1K_TIMM"
     TEST_RESNET_R160_IN1K_TIMM = "TestResNet_R160_IN1K_TIMM"
-    TINY_RANDOM_HF = "TinyRandom_HuggingFace"
+    RESNET_152_A1H_IN1K_TIMM = "ResNet152_A1H_IN1K_TIMM"
 
     # Torchvision variants
     RESNET_18 = "ResNet18"
@@ -111,14 +111,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="test_resnet.r160_in1k",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.TINY_RANDOM_HF: ResNetConfig(
-            pretrained_model_name="peft-internal-testing/tiny-random-ResNetForImageClassification",
-            source=ModelSource.HUGGING_FACE,
-        ),
-        ModelVariant.RESNET_10_HF: ResNetConfig(
-            pretrained_model_name="helper2424/resnet10",
-            source=ModelSource.HUGGING_FACE,
-            trust_remote_code=True,
+        ModelVariant.RESNET_152_A1H_IN1K_TIMM: ResNetConfig(
+            pretrained_model_name="resnet152.a1h_in1k",
+            source=ModelSource.TIMM,
         ),
         # Torchvision variants
         ModelVariant.RESNET_18: ResNetConfig(
@@ -190,8 +185,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.RESNET_34_TV_IN1K_TIMM,
             ModelVariant.RESNET_50_A1_IN1K_TIMM,
             ModelVariant.TEST_RESNET_R160_IN1K_TIMM,
-            ModelVariant.TINY_RANDOM_HF,
-            ModelVariant.RESNET_10_HF,
+            ModelVariant.RESNET_152_A1H_IN1K_TIMM,
         ]:
             group = ModelGroup.VULCAN
         else:
