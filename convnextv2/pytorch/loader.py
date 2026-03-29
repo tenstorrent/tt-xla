@@ -8,6 +8,8 @@ ConvNeXt V2 model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 import timm
+import torch
+from transformers import ConvNextV2ForImageClassification
 
 from transformers import ConvNextV2ForImageClassification
 from ...config import (
@@ -39,6 +41,7 @@ class ModelVariant(StrEnum):
 
     NANO_FCMAE_FT_IN22K_IN1K = "Nano_FCMAE_FT_IN22K_IN1K"
     BASE_FCMAE_FT_IN22K_IN1K_384 = "Base_FCMAE_FT_IN22K_IN1K_384"
+    NANO_22K_224 = "Nano_22K_224"
 
 
 class ModelLoader(ForgeModel):
@@ -52,6 +55,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_FCMAE_FT_IN22K_IN1K_384: ConvNeXtV2Config(
             pretrained_model_name="hf_hub:timm/convnextv2_base.fcmae_ft_in22k_in1k_384",
             source=ModelSource.TIMM,
+        ),
+        ModelVariant.NANO_22K_224: ConvNeXtV2Config(
+            pretrained_model_name="facebook/convnextv2-nano-22k-224",
+            source=ModelSource.HUGGING_FACE,
         ),
     }
 
@@ -87,9 +94,8 @@ class ModelLoader(ForgeModel):
             model = ConvNextV2ForImageClassification.from_pretrained(
                 model_name, **kwargs
             )
-        elif source == ModelSource.TIMM:
+        else:
             model = timm.create_model(model_name, pretrained=True)
-
         model.eval()
 
         self.model = model
