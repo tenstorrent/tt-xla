@@ -28,6 +28,9 @@ class ModelVariant(StrEnum):
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     KK08_CRYPTOBERT = "kk08_CryptoBERT"
+    BHADRESH_SAVANI_BERT_BASE_UNCASED_EMOTION = (
+        "bhadresh_savani_Bert_Base_Uncased_Emotion"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +58,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="kk08/CryptoBERT",
             max_length=128,
         ),
+        ModelVariant.BHADRESH_SAVANI_BERT_BASE_UNCASED_EMOTION: LLMModelConfig(
+            pretrained_model_name="bhadresh-savani/bert-base-uncased-emotion",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -72,6 +79,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.KK08_CRYPTOBERT: "Bitcoin surged past $60,000 as institutional investors increased their holdings.",
+        ModelVariant.BHADRESH_SAVANI_BERT_BASE_UNCASED_EMOTION: "I am so happy today, everything is going great!",
     }
 
     def __init__(self, variant=None):
@@ -108,6 +116,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.KK08_CRYPTOBERT,
+            ModelVariant.BHADRESH_SAVANI_BERT_BASE_UNCASED_EMOTION,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
