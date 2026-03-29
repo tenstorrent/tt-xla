@@ -7,6 +7,9 @@ Qwen3 Reranker Sequence Classification model loader for passage ranking.
 This uses the tomaarsen/Qwen3-Reranker-4B-seq-cls model which converts the
 original Qwen3-Reranker from a CausalLM to a standard SequenceClassification
 architecture, allowing direct logit-based relevance scoring.
+
+Also supports the dolfsai/Qwen3-Reranker-4B-seq-cls-vllm-W4A16 variant which
+is a GPTQ W4A16 quantized version optimized for vLLM inference.
 """
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -28,6 +31,7 @@ class ModelVariant(StrEnum):
     """Available Qwen3 Reranker Sequence Classification model variants."""
 
     QWEN_3_RERANKER_4B_SEQ_CLS = "4B_seq_cls"
+    QWEN_3_RERANKER_4B_SEQ_CLS_W4A16 = "4B_seq_cls_w4a16"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +40,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_RERANKER_4B_SEQ_CLS: ModelConfig(
             pretrained_model_name="tomaarsen/Qwen3-Reranker-4B-seq-cls",
+        ),
+        ModelVariant.QWEN_3_RERANKER_4B_SEQ_CLS_W4A16: ModelConfig(
+            pretrained_model_name="dolfsai/Qwen3-Reranker-4B-seq-cls-vllm-W4A16",
         ),
     }
 
