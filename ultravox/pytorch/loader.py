@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
 
     V0_3 = "v0_3"
     V0_5_LLAMA_3_2_1B = "v0_5_Llama_3_2_1B"
-    V0_6_LLAMA_3_1_8B = "v0_6_Llama_3_1_8B"
+    V0_5_LLAMA_3_1_8B = "v0_5_Llama_3_1_8B"
 
 
 class ModelLoader(ForgeModel):
@@ -43,8 +43,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.V0_5_LLAMA_3_2_1B: ModelConfig(
             pretrained_model_name="fixie-ai/ultravox-v0_5-llama-3_2-1b",
         ),
-        ModelVariant.V0_6_LLAMA_3_1_8B: ModelConfig(
-            pretrained_model_name="fixie-ai/ultravox-v0_6-llama-3_1-8b",
+        ModelVariant.V0_5_LLAMA_3_1_8B: ModelConfig(
+            pretrained_model_name="fixie-ai/ultravox-v0_5-llama-3_1-8b",
         ),
     }
 
@@ -124,7 +124,34 @@ class ModelLoader(ForgeModel):
         if "text_config" not in config_dict or not isinstance(
             config_dict.get("text_config"), dict
         ):
-            config_dict["text_config"] = self._get_text_config()
+            # Provide inline text_config to avoid fetching gated Llama configs.
+            text_configs = {
+                ModelVariant.V0_5_LLAMA_3_2_1B: {
+                    "model_type": "llama",
+                    "hidden_size": 2048,
+                    "intermediate_size": 8192,
+                    "num_attention_heads": 32,
+                    "num_hidden_layers": 16,
+                    "num_key_value_heads": 8,
+                    "vocab_size": 128256,
+                    "max_position_embeddings": 131072,
+                    "rms_norm_eps": 1e-5,
+                    "rope_theta": 500000.0,
+                },
+                ModelVariant.V0_5_LLAMA_3_1_8B: {
+                    "model_type": "llama",
+                    "hidden_size": 4096,
+                    "intermediate_size": 14336,
+                    "num_attention_heads": 32,
+                    "num_hidden_layers": 32,
+                    "num_key_value_heads": 8,
+                    "vocab_size": 128256,
+                    "max_position_embeddings": 131072,
+                    "rms_norm_eps": 1e-5,
+                    "rope_theta": 500000.0,
+                },
+            }
+            config_dict["text_config"] = text_configs[self._variant]
 
         tmpdir = tempfile.mkdtemp()
 
