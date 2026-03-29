@@ -19,25 +19,24 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
     """Available Pix2Struct PyTorch image-to-text model variants."""
 
-    TINY_RANDOM = "Tiny_Random"
+    TEXTCAPS_BASE = "Textcaps_Base"
 
 
 class ModelLoader(ForgeModel):
     """Pix2Struct model loader implementation for image-to-text (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/pix2struct-tiny-random",
+        ModelVariant.TEXTCAPS_BASE: ModelConfig(
+            pretrained_model_name="google/pix2struct-textcaps-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.TEXTCAPS_BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -83,8 +82,7 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        image_path = get_file("http://images.cocodataset.org/val2017/000000039769.jpg")
-        image = Image.open(str(image_path)).convert("RGB")
+        image = Image.new("RGB", (384, 384))
 
         inputs = self.processor(images=image, return_tensors="pt")
 
