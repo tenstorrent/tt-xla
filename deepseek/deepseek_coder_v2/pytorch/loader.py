@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available DeepSeek Coder V2 model variants."""
 
     DEEPSEEK_CODER_V2_LITE_INSTRUCT = "Lite_Instruct"
+    DEEPSEEK_CODER_V2_LITE_INSTRUCT_AWQ = "Lite_Instruct_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DEEPSEEK_CODER_V2_LITE_INSTRUCT: LLMModelConfig(
             pretrained_model_name="deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
+            max_length=2048,
+        ),
+        ModelVariant.DEEPSEEK_CODER_V2_LITE_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="TechxGenus/DeepSeek-Coder-V2-Lite-Instruct-AWQ",
             max_length=2048,
         ),
     }
@@ -90,15 +95,22 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the DeepSeek Coder V2 model instance."""
 
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         model_kwargs = {
             "trust_remote_code": True,
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # AWQ variants require explicit CPU device mapping
+        if pretrained_model_name == "TechxGenus/DeepSeek-Coder-V2-Lite-Instruct-AWQ":
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         model = AutoModelForCausalLM.from_pretrained(
-            self._variant_config.pretrained_model_name, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
 
         if self.tokenizer is None:
