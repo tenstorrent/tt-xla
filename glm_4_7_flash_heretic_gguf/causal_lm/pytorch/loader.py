@@ -2,45 +2,47 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-GLM-4.7-Flash-heretic GGUF model loader implementation for causal language modeling.
+GLM-4.7-Flash-heretic GGUF model loader for causal language modeling.
 """
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+
 from typing import Optional
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    LLMModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available GLM-4.7-Flash-heretic GGUF model variants for causal language modeling."""
+    """Available GLM-4.7-Flash-heretic GGUF model variants."""
 
-    GLM_4_7_FLASH_HERETIC_GGUF = "4.7_Flash_Heretic_GGUF"
+    GLM_4_7_FLASH_HERETIC_GGUF = "4.7_Flash_heretic_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """GLM-4.7-Flash-heretic GGUF model loader implementation for causal language modeling tasks."""
+    """GLM-4.7-Flash-heretic GGUF model loader for causal language modeling."""
 
     _VARIANTS = {
         ModelVariant.GLM_4_7_FLASH_HERETIC_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/GLM-4.7-Flash-heretic-1.2.0-i1-GGUF",
+            pretrained_model_name="bartowski/jtl11_GLM-4.7-Flash-heretic-GGUF",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GLM_4_7_FLASH_HERETIC_GGUF
 
-    GGUF_FILE = "GLM-4.7-Flash-heretic-1.2.0.i1-Q4_K_M.gguf"
+    GGUF_FILE = "jtl11_GLM-4.7-Flash-heretic-Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "Give me a short introduction to large language models."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -142,14 +144,21 @@ class ModelLoader(ForgeModel):
     def load_shard_spec(self, model):
         shard_specs = {}
         for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+            mlp = layer.mlp
+            if hasattr(mlp, "experts"):
+                shard_specs[mlp.experts.gate_up_proj] = (None, "model", "batch")
+                shard_specs[mlp.experts.down_proj] = (None, "batch", "model")
+            if hasattr(mlp, "shared_expert"):
+                shard_specs[mlp.shared_expert.up_proj.weight] = ("model", "batch")
+                shard_specs[mlp.shared_expert.gate_proj.weight] = ("model", "batch")
+                shard_specs[mlp.shared_expert.down_proj.weight] = ("batch", "model")
+            if hasattr(layer, "self_attn"):
+                shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+                shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
 
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
         return shard_specs
 
     def load_config(self):
