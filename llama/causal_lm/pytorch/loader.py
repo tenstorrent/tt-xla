@@ -49,6 +49,7 @@ class ModelVariant(StrEnum):
     LLAMA_3_2_1B_INSTRUCT = "3.2_1B_Instruct"
     LLAMA_3_2_3B = "3.2_3B"
     LLAMA_3_2_3B_INSTRUCT = "3.2_3B_Instruct"
+    LLAMA_3_2_3B_INSTRUCT_AWQ = "3.2_3B_Instruct_Awq"
     LLAMA_3_2_3B_INSTRUCT_MLX_8BIT = "3.2_3B_Instruct_MLX_8bit"
     LLAMA_3_2_3B_BNB_4BIT = "3.2_3B_bnb_4bit"
 
@@ -182,6 +183,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LLAMA_3_2_3B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="meta-llama/Llama-3.2-3B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.LLAMA_3_2_3B_INSTRUCT_AWQ: LLMModelConfig(
+            pretrained_model_name="AMead10/Llama-3.2-3B-Instruct-AWQ",
             max_length=128,
         ),
         ModelVariant.LLAMA_3_2_3B_INSTRUCT_MLX_8BIT: LLMModelConfig(
@@ -323,6 +328,7 @@ class ModelLoader(ForgeModel):
         if variant in [
             ModelVariant.LLAMA_3_2_1B_FP8,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
+            ModelVariant.LLAMA_3_2_3B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_MLX_8BIT,
             ModelVariant.LLAMA_3_2_3B_BNB_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
@@ -431,6 +437,7 @@ class ModelLoader(ForgeModel):
             in (
                 "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
                 "TheBloke/TinyLlama-1.1B-Chat-v0.3-AWQ",
+                "AMead10/Llama-3.2-3B-Instruct-AWQ",
             )
             or self._variant == ModelVariant.LLAMA_3_2_3B_BNB_4BIT
         ):
