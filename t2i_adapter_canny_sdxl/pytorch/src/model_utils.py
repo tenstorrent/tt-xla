@@ -17,6 +17,9 @@ from diffusers import (
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
+from diffusers.pipelines.t2i_adapter.pipeline_stable_diffusion_xl_adapter import (
+    _preprocess_adapter_image,
+)
 from PIL import Image
 
 
@@ -96,7 +99,6 @@ def t2i_adapter_canny_sdxl_preprocessing(
     original_size=None,
     target_size=None,
     adapter_conditioning_scale=0.8,
-    adapter_conditioning_factor=1.0,
     crops_coords_top_left: Tuple[int, int] = (0, 0),
     negative_original_size: Optional[Tuple[int, int]] = None,
     negative_target_size: Optional[Tuple[int, int]] = None,
@@ -121,7 +123,6 @@ def t2i_adapter_canny_sdxl_preprocessing(
         original_size: Original size tuple (optional)
         target_size: Target size tuple (optional)
         adapter_conditioning_scale: Adapter conditioning scale (default: 0.8)
-        adapter_conditioning_factor: Adapter conditioning factor (default: 1.0)
         crops_coords_top_left: Crop coordinates (default: (0, 0))
         negative_original_size: Negative original size (optional)
         negative_target_size: Negative target size (optional)
@@ -129,7 +130,7 @@ def t2i_adapter_canny_sdxl_preprocessing(
 
     Returns:
         tuple: (latent_model_input, timesteps, prompt_embeds, added_cond_kwargs,
-                down_block_additional_residuals, mid_block_additional_residual)
+                adapter_state)
     """
     default_sample_size = pipe.unet.config.sample_size
     height = height or default_sample_size * pipe.vae_scale_factor
@@ -216,21 +217,16 @@ def t2i_adapter_canny_sdxl_preprocessing(
     added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
 
     # 5. Prepare adapter image
-    adapter_image = pipe.prepare_image(
-        image=adapter_image,
-        width=width,
-        height=height,
-        batch_size=batch_size * num_images_per_prompt,
-        num_images_per_prompt=num_images_per_prompt,
-        device=device,
-        dtype=pipe.adapter.dtype,
-        do_classifier_free_guidance=do_classifier_free_guidance,
-    )
+    adapter_image = _preprocess_adapter_image(adapter_image, height, width)
+    adapter_image = adapter_image.to(device=device, dtype=pipe.adapter.dtype)
 
     # 6. Run adapter to get conditioning features
     adapter_state = pipe.adapter(adapter_image)
     for k, v in enumerate(adapter_state):
         adapter_state[k] = v * adapter_conditioning_scale
+    if do_classifier_free_guidance:
+        for k, v in enumerate(adapter_state):
+            adapter_state[k] = torch.cat([v] * 2, dim=0)
 
     # 7. Prepare latent model input
     latent_model_input = (
@@ -239,13 +235,6 @@ def t2i_adapter_canny_sdxl_preprocessing(
     latent_model_input = pipe.scheduler.scale_model_input(
         latent_model_input, timesteps[0]
     )
-
-    # 8. Add adapter conditioning to added_cond_kwargs
-    if (
-        hasattr(pipe.unet, "config")
-        and pipe.unet.config.addition_embed_type == "text_time"
-    ):
-        added_cond_kwargs["adapter_state"] = adapter_state
 
     return (
         latent_model_input,
