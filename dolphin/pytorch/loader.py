@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available Dolphin model variants."""
 
     V2_9_1_YI_1_5_9B = "2.9.1_Yi_1.5_9B"
+    V2_9_4_LLAMA3_1_8B = "2.9.4_Llama3.1_8B"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.V2_9_1_YI_1_5_9B: LLMModelConfig(
             pretrained_model_name="dphn/dolphin-2.9.1-yi-1.5-9b",
+        ),
+        ModelVariant.V2_9_4_LLAMA3_1_8B: LLMModelConfig(
+            pretrained_model_name="dphn/dolphin-2.9.4-llama3.1-8b",
         ),
     }
 
