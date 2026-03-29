@@ -57,6 +57,7 @@ class ModelVariant(StrEnum):
     QWEN_3_8B_W8A8 = "8B_w8a8"
     QWEN_3_30B_A3B_MLX_4BIT = "30B_A3B_MLX_4bit"
     QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT = "235B_A22B_Instruct_2507_MLX_4bit"
+    QWEN_3_235B_A22B_GPTQ_INT4 = "235B_A22B_GPTQ_Int4"
 
 
 class ModelLoader(ForgeModel):
@@ -184,6 +185,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mlx-community/Qwen3-235B-A22B-Instruct-2507-4bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_235B_A22B_GPTQ_INT4: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-235B-A22B-GPTQ-Int4",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -244,6 +249,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_MLX_4BIT,
             ModelVariant.QWEN_3_8B_W8A8,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT,
+            ModelVariant.QWEN_3_235B_A22B_GPTQ_INT4,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -310,6 +316,7 @@ class ModelLoader(ForgeModel):
             "Qwen/Qwen3-8B-AWQ",
             "cyankiwi/Qwen3-30B-A3B-Instruct-2507-AWQ-8bit",
             "nytopop/Qwen3-8B.w8a8",
+            "Qwen/Qwen3-235B-A22B-GPTQ-Int4",
         ):
             model_kwargs["device_map"] = "cpu"
 
@@ -440,6 +447,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_MLX_4BIT,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT,
+            ModelVariant.QWEN_3_235B_A22B_GPTQ_INT4,
         )
 
     def load_shard_spec(self, model):
