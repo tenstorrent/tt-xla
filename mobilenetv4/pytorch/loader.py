@@ -29,19 +29,19 @@ from datasets import load_dataset
 class ModelVariant(StrEnum):
     """Available MobileNetV4 model variants."""
 
-    CONV_SMALL_050_E3000_R224_IN1K = "Conv_Small_050_E3000_R224_In1k"
+    HYBRID_MEDIUM_E200_R256_IN12K_FT_IN1K = "Hybrid_Medium_E200_R256_In12k_Ft_In1k"
 
 
 class ModelLoader(ForgeModel):
     """MobileNetV4 model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.CONV_SMALL_050_E3000_R224_IN1K: ModelConfig(
-            pretrained_model_name="hf_hub:timm/mobilenetv4_conv_small_050.e3000_r224_in1k",
+        ModelVariant.HYBRID_MEDIUM_E200_R256_IN12K_FT_IN1K: ModelConfig(
+            pretrained_model_name="hf_hub:timm/mobilenetv4_hybrid_medium.e200_r256_in12k_ft_in1k",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.CONV_SMALL_050_E3000_R224_IN1K
+    DEFAULT_VARIANT = ModelVariant.HYBRID_MEDIUM_E200_R256_IN12K_FT_IN1K
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
