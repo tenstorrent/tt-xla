@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Gemma 3 Uncensored GGUF model variants for causal language modeling."""
 
-    GEMMA_3_12B_IT_UNCENSORED_GGUF = "12B_IT_Uncensored_GGUF"
+    GEMMA_3_4B_IT_UNCENSORED_V2_GGUF = "4B_IT_UNCENSORED_V2_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Gemma 3 Uncensored GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GEMMA_3_12B_IT_UNCENSORED_GGUF: LLMModelConfig(
-            pretrained_model_name="Andycurrent/gemma-3-12b-it-uncensored-GGUF",
+        ModelVariant.GEMMA_3_4B_IT_UNCENSORED_V2_GGUF: LLMModelConfig(
+            pretrained_model_name="Andycurrent/gemma-3-4b-it-uncensored-v2-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GEMMA_3_12B_IT_UNCENSORED_GGUF
+    DEFAULT_VARIANT = ModelVariant.GEMMA_3_4B_IT_UNCENSORED_V2_GGUF
 
-    GGUF_FILE = "gemma-3-12b-it-uncensored-Q4_K_M.gguf"
+    GGUF_FILE = "gemma-3-4b-it-uncensored-v2.Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
