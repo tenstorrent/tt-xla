@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
     QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_4BIT = "30B_A3B_Instruct_GPTQ_4bit"
     QWEN_3_CODER_480B_A35B_INSTRUCT = "480B_A35B_Instruct"
+    QWEN_3_CODER_NEXT_4BIT = "Next_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -54,6 +55,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_CODER_480B_A35B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_CODER_NEXT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3-Coder-Next-4bit",
             max_length=128,
         ),
     }
@@ -150,8 +155,10 @@ class ModelLoader(ForgeModel):
             "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-4bit",
         ):
             model_kwargs["device_map"] = "cpu"
-        if self._variant in self._NVFP4_VARIANTS:
+        # MLX variants may have mismatched weight shapes after quantization
+        if self._variant == ModelVariant.QWEN_3_CODER_NEXT_4BIT:
             model_kwargs["ignore_mismatched_sizes"] = True
+        model_kwargs |= kwargs
 
         is_awq = self._variant in self._AWQ_VARIANTS
         if is_awq:
