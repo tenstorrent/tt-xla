@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2.5 Coder GGUF model variants for causal language modeling."""
 
     QWEN_2_5_CODER_14B_INSTRUCT_ABLITERATED_GGUF = "14B_Instruct_abliterated_GGUF"
+    QWEN_2_5_CODER_7B_INSTRUCT_SOTA_GGUF = "7B_Instruct_SOTA_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -34,13 +35,24 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bartowski/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_SOTA_GGUF: LLMModelConfig(
+            pretrained_model_name="CISCai/Qwen2.5-Coder-7B-Instruct-SOTA-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_ABLITERATED_GGUF
 
-    GGUF_FILE = "Qwen2.5-Coder-14B-Instruct-abliterated-Q4_K_M.gguf"
+    _GGUF_FILES = {
+        ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_ABLITERATED_GGUF: "Qwen2.5-Coder-14B-Instruct-abliterated-Q4_K_M.gguf",
+        ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_SOTA_GGUF: "Qwen2.5-Coder-7B-Instruct.IQ4_XS.gguf",
+    }
 
     sample_text = "Write a Python function to check if a number is prime."
+
+    @property
+    def _gguf_file(self):
+        return self._GGUF_FILES[self._variant]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -65,7 +77,7 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
+        tokenizer_kwargs["gguf_file"] = self._gguf_file
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -85,11 +97,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
+        model_kwargs["gguf_file"] = self._gguf_file
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
+                pretrained_model_name, gguf_file=self._gguf_file
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
@@ -158,6 +170,6 @@ class ModelLoader(ForgeModel):
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+            self._variant_config.pretrained_model_name, gguf_file=self._gguf_file
         )
         return self.config
