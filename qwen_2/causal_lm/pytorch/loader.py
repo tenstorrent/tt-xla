@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     QWEN2_7B_INSTRUCT = "Qwen2_7B_Instruct"
     QWEN2_72B = "Qwen2_72B"
     TINY_QWEN2_2_5 = "tiny_Qwen2ForCausalLM_2.5"
-    QWEN2_1_5B_INSTRUCT_FP8 = "Qwen2_1.5B_Instruct_FP8"
+    JANE_STREET_DORMANT_MODEL_WARMUP = "Jane_Street_Dormant_Model_Warmup"
 
 
 class ModelLoader(ForgeModel):
@@ -56,8 +56,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="trl-internal-testing/tiny-Qwen2ForCausalLM-2.5",
             max_length=128,
         ),
-        ModelVariant.QWEN2_1_5B_INSTRUCT_FP8: LLMModelConfig(
-            pretrained_model_name="RedHatAI/Qwen2-1.5B-Instruct-FP8",
+        ModelVariant.JANE_STREET_DORMANT_MODEL_WARMUP: LLMModelConfig(
+            pretrained_model_name="jane-street/dormant-model-warmup",
             max_length=128,
         ),
     }
@@ -98,6 +98,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TINY_QWEN2_2_5,
             ModelVariant.QWEN2_7B_INSTRUCT,
             ModelVariant.QWEN2_72B,
+            ModelVariant.JANE_STREET_DORMANT_MODEL_WARMUP,
         ):
             group = ModelGroup.VULCAN
 
