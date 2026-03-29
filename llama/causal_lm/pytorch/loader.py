@@ -122,14 +122,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # mlx-community quantized variants
-    LLAMA_3_2_3B_INSTRUCT_4BIT = "3.2_3B_Instruct_4bit"
-
-    # chuanli11 variants
-    CHUANLI11_LLAMA_3_2_3B_INSTRUCT_UNCENSORED = "Chuanli11_3.2_3B_Instruct_Uncensored"
-
-    # NousResearch variants
-    NOUSRESEARCH_LLAMA_3_1_8B = "NousResearch_3.1_8B"
+    # RLHFlow variants
+    RLHFLOW_LLAMA_3_1_8B_PRM_DEEPSEEK_DATA = "RLHFlow_3.1_8B_PRM_Deepseek_Data"
 
 
 class ModelLoader(ForgeModel):
@@ -292,19 +286,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # mlx-community quantized variants
-        ModelVariant.LLAMA_3_2_3B_INSTRUCT_4BIT: LLMModelConfig(
-            pretrained_model_name="mlx-community/Llama-3.2-3B-Instruct-4bit",
-            max_length=128,
-        ),
-        # chuanli11 variants
-        ModelVariant.CHUANLI11_LLAMA_3_2_3B_INSTRUCT_UNCENSORED: LLMModelConfig(
-            pretrained_model_name="chuanli11/Llama-3.2-3B-Instruct-uncensored",
-            max_length=128,
-        ),
-        # NousResearch variants
-        ModelVariant.NOUSRESEARCH_LLAMA_3_1_8B: LLMModelConfig(
-            pretrained_model_name="NousResearch/Meta-Llama-3.1-8B",
+        # RLHFlow variants
+        ModelVariant.RLHFLOW_LLAMA_3_1_8B_PRM_DEEPSEEK_DATA: LLMModelConfig(
+            pretrained_model_name="RLHFlow/Llama3.1-8B-PRM-Deepseek-Data",
             max_length=128,
         ),
     }
@@ -386,9 +370,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_FP8_DYNAMIC,
             ModelVariant.AMD_QUARK_TINY_LLAMA,
             ModelVariant.JACKFRAM_LLAMA_160M,
-            ModelVariant.CHUANLI11_LLAMA_3_2_3B_INSTRUCT_UNCENSORED,
-            ModelVariant.NOUSRESEARCH_LLAMA_3_1_8B,
-            ModelVariant.TINYLLAMA_1_1B_CHAT_V0_6,
+            ModelVariant.RLHFLOW_LLAMA_3_1_8B_PRM_DEEPSEEK_DATA,
         ]:
             group = ModelGroup.VULCAN
         else:
