@@ -24,7 +24,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Nemotron model variants for causal language modeling."""
 
-    LLAMA_3_1_NEMOTRON_70B_INSTRUCT_HF = "Llama_3_1_Nemotron_70B_Instruct_HF"
+    NEMOTRON_MINI_4B_INSTRUCT = "Mini_4B_Instruct"
     NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
     NEMOTRON_3_SUPER_120B_A12B_NVFP4 = "3_Super_120B_A12B_NVFP4"
     NEMOTRON_TERMINAL_32B = "Terminal_32B"
@@ -34,8 +34,8 @@ class ModelLoader(ForgeModel):
     """Nemotron model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.LLAMA_3_1_NEMOTRON_70B_INSTRUCT_HF: LLMModelConfig(
-            pretrained_model_name="nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
+        ModelVariant.NEMOTRON_MINI_4B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="nvidia/Nemotron-Mini-4B-Instruct",
             max_length=128,
         ),
         ModelVariant.NEMOTRON_3_NANO_30B_A3B_FP8: LLMModelConfig(
