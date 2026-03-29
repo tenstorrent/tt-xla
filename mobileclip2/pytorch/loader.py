@@ -18,18 +18,17 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from datasets import load_dataset
 
 
 class ModelVariant(StrEnum):
     """Available MobileCLIP2 model variants."""
 
-    S0 = "S0"
+    S2 = "S2"
 
 
 # Mapping from variant to OpenCLIP tokenizer name
 _TOKENIZER_NAME = {
-    ModelVariant.S0: "MobileCLIP2-S0",
+    ModelVariant.S2: "MobileCLIP2-S2",
 }
 
 
@@ -37,12 +36,12 @@ class ModelLoader(ForgeModel):
     """MobileCLIP2 model loader using OpenCLIP for image-text similarity tasks."""
 
     _VARIANTS = {
-        ModelVariant.S0: ModelConfig(
-            pretrained_model_name="hf-hub:timm/MobileCLIP2-S0-OpenCLIP",
+        ModelVariant.S2: ModelConfig(
+            pretrained_model_name="hf-hub:timm/MobileCLIP2-S2-OpenCLIP",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.S0
+    DEFAULT_VARIANT = ModelVariant.S2
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -102,6 +101,8 @@ class ModelLoader(ForgeModel):
             self.tokenizer = get_tokenizer(_TOKENIZER_NAME[self._variant])
 
         # Load image from HuggingFace dataset
+        from datasets import load_dataset
+
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"]
 
