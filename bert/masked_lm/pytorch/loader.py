@@ -34,10 +34,12 @@ class ModelVariant(StrEnum):
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_BASE_SWEDISH_CASED = "KB/bert-base-swedish-cased"
     BERT_BASE_GERMAN_CASED = "dbmdz/bert-base-german-cased"
+    LEGAL_BERTIMBAU_BASE = "rufimelo/Legal-BERTimbau-base"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.BERT_BASE_GERMAN_CASED: "Die Hauptstadt von Deutschland ist [MASK].",
+    ModelVariant.LEGAL_BERTIMBAU_BASE: "O advogado apresentou [MASK] ao juiz.",
 }
 
 
@@ -80,6 +82,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.BERT_BASE_GERMAN_CASED: LLMModelConfig(
             pretrained_model_name="dbmdz/bert-base-german-cased",
+            max_length=128,
+        ),
+        ModelVariant.LEGAL_BERTIMBAU_BASE: LLMModelConfig(
+            pretrained_model_name="rufimelo/Legal-BERTimbau-base",
             max_length=128,
         ),
     }
@@ -127,6 +133,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_BASE_SWEDISH_CASED,
             ModelVariant.BERT_BASE_GERMAN_CASED,
+            ModelVariant.LEGAL_BERTIMBAU_BASE,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
