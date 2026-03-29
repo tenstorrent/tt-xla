@@ -139,20 +139,6 @@ class ModelLoader(ForgeModel):
         mesh_shape = (1, num_devices)
         return mesh_shape, ("batch", "model")
 
-    def load_shard_spec(self, model):
-        shard_specs = {}
-        for layer in model.model.layers:
-            for expert in layer.block_sparse_moe.experts:
-                shard_specs[expert.w1.weight] = ("model", "batch")
-                shard_specs[expert.w3.weight] = ("model", "batch")
-                shard_specs[expert.w2.weight] = ("batch", "model")
-
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        return shard_specs
-
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
