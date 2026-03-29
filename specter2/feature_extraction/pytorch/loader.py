@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available model variants for SPECTER2."""
 
     SPECTER2_BASE = "allenai/specter2_base"
+    SPECTER2_AUG2023REFRESH_BASE = "allenai/specter2_aug2023refresh_base"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.SPECTER2_BASE: LLMModelConfig(
             pretrained_model_name="allenai/specter2_base",
+            max_length=512,
+        ),
+        ModelVariant.SPECTER2_AUG2023REFRESH_BASE: LLMModelConfig(
+            pretrained_model_name="allenai/specter2_aug2023refresh_base",
             max_length=512,
         ),
     }
