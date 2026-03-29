@@ -4,9 +4,10 @@
 """
 Dolphin 2.6 Mistral 7B GGUF model loader implementation for causal language modeling.
 """
+from typing import Optional
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
-from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
