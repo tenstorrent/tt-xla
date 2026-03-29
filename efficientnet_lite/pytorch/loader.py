@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     TF_EFFICIENTNET_LITE2_IN1K = "Tf_Efficientnet_Lite2.in1k"
     TF_EFFICIENTNET_LITE3_IN1K = "Tf_Efficientnet_Lite3.in1k"
     TF_EFFICIENTNET_LITE4_IN1K = "Tf_Efficientnet_Lite4.in1k"
+    EFFICIENTNET_LITE0_RA_IN1K = "Efficientnet_Lite0.ra_in1k"
 
 
 class ModelLoader(ForgeModel):
@@ -57,6 +58,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.TF_EFFICIENTNET_LITE4_IN1K: ModelConfig(
             pretrained_model_name="tf_efficientnet_lite4.in1k",
         ),
+        ModelVariant.EFFICIENTNET_LITE0_RA_IN1K: ModelConfig(
+            pretrained_model_name="hf_hub:timm/efficientnet_lite0.ra_in1k",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TF_EFFICIENTNET_LITE0_IN1K
@@ -65,10 +69,14 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        if variant == ModelVariant.EFFICIENTNET_LITE0_RA_IN1K:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
         return ModelInfo(
             model="EfficientNet-Lite",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=ModelSource.TIMM,
             framework=Framework.TORCH,
