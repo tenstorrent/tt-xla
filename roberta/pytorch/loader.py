@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
     ROBERTA_BASE_EMOTION_MULTILABEL = "Base_Emotion_Multilabel"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
-    EMAIL_SPAM_DETECTION = "Email_Spam_Detection"
+    ROBERTA_BASE_DIANPING_CHINESE = "Base_Dianping_Chinese"
 
 
 class ModelLoader(ForgeModel):
@@ -47,8 +47,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
             pretrained_model_name="FacebookAI/roberta-large-mnli",
         ),
-        ModelVariant.EMAIL_SPAM_DETECTION: ModelConfig(
-            pretrained_model_name="dima806/email-spam-detection-roberta",
+        ModelVariant.ROBERTA_BASE_DIANPING_CHINESE: ModelConfig(
+            pretrained_model_name="uer/roberta-base-finetuned-dianping-chinese",
         ),
     }
 
@@ -73,7 +73,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
             ModelVariant.ROBERTA_BASE_EMOTION_MULTILABEL,
             ModelVariant.ROBERTA_LARGE_MNLI,
-            ModelVariant.EMAIL_SPAM_DETECTION,
+            ModelVariant.ROBERTA_BASE_DIANPING_CHINESE,
         ):
             group = ModelGroup.VULCAN
 
@@ -103,6 +103,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_BASE_SUICIDE_PREDICTION: "I like you. I love you",
     }
 
+    # Chinese sample text for Dianping variant
+    _DIANPING_TEXT = "这家餐厅的食物非常好吃，服务也很周到，下次还会再来。"
+
     def __init__(self, variant=None, num_layers: Optional[int] = None):
         """Initialize ModelLoader with specified variant.
 
@@ -114,10 +117,9 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        if self._variant == ModelVariant.EMAIL_SPAM_DETECTION:
-            self.text = "Congratulations! You've won a $1000 gift card. Click here to claim your prize now!"
-        else:
-            self.text = """Great road trip views! @ Shartlesville, Pennsylvania"""
+        self.text = """Great road trip views! @ Shartlesville, Pennsylvania"""
+        if self._variant == ModelVariant.ROBERTA_BASE_DIANPING_CHINESE:
+            self.text = self._DIANPING_TEXT
         self.max_length = 128
         self.tokenizer = None
         self.num_layers = num_layers
