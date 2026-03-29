@@ -44,6 +44,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_35B_A3B_MLX_4BIT = "35B_A3B_MLX_4bit"
     QWEN_3_5_9B_MLX_4BIT = "9B_MLX_4bit"
+    QWEN_3_5_9B_BASE_TEXT_NVFP4 = "9B_Base_Text_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -129,6 +130,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_9B_MLX_4BIT: LLMModelConfig(
             pretrained_model_name="mlx-community/Qwen3.5-9B-OptiQ-4bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_9B_BASE_TEXT_NVFP4: LLMModelConfig(
+            pretrained_model_name="osoleve/Qwen3.5-9B-Base-Text-NVFP4",
             max_length=128,
         ),
     }
