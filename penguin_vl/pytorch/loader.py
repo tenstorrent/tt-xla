@@ -6,7 +6,6 @@ Penguin-VL model loader implementation for multimodal visual question answering.
 """
 import torch
 from transformers import AutoProcessor, AutoModelForCausalLM
-from PIL import Image
 from typing import Optional
 
 from ...tools.utils import get_file
@@ -120,7 +119,6 @@ class ModelLoader(ForgeModel):
         image_file = get_file(
             "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
         )
-        image = Image.open(image_file)
 
         conversation = [
             {
