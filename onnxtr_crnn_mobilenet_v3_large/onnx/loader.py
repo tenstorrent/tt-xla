@@ -6,9 +6,7 @@ OnnxTR CRNN MobileNet V3 Large ONNX model loader implementation for text recogni
 """
 from typing import Optional
 
-import numpy as np
 import onnx
-import torch
 from datasets import load_dataset
 from torchvision import transforms
 
