@@ -38,6 +38,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_AWQ_8BIT = "35B_A3B_AWQ_8BIT"
     QWEN_3_5_2B_W4A16 = "2B_W4A16"
     QWEN_3_5_0_8B_UNREDACTED_MAX_GGUF = "0.8B_Unredacted_MAX_GGUF"
+    QWEN_3_5_35B_A3B_UNCENSORED_GGUF = "35B_A3B_Uncensored_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -101,6 +102,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mradermacher/Qwen3.5-0.8B-Unredacted-MAX-i1-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_UNCENSORED_GGUF: LLMModelConfig(
+            pretrained_model_name="LuffyTheFox/Qwen3.5-35B-A3B-Uncensored-HauhauCS-Kullback-Leibler",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -111,6 +116,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_0_8B_UNREDACTED_MAX_GGUF: "Qwen3.5-0.8B-Unredacted-MAX.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_UNCENSORED_GGUF: "Qwen3.5-35B-A3B-Uncensored-Kullback-Leibler-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -323,6 +329,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
             ModelVariant.QWEN_3_5_35B_A3B_AWQ_8BIT,
+            ModelVariant.QWEN_3_5_35B_A3B_UNCENSORED_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
         )
 
