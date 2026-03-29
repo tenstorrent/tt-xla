@@ -4,8 +4,7 @@
 """
 Qwen 3 EAGLE3 draft model loader implementation for causal language modeling.
 """
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
 from ....base import ForgeModel
@@ -23,20 +22,20 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 EAGLE3 model variants for causal language modeling."""
 
-    QWEN_3_1_7B_EAGLE3 = "1_7B_Eagle3"
+    QWEN3_8B_EAGLE3 = "Qwen3_8B_Eagle3"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 EAGLE3 draft model loader for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_1_7B_EAGLE3: LLMModelConfig(
-            pretrained_model_name="AngelSlim/Qwen3-1.7B_eagle3",
+        ModelVariant.QWEN3_8B_EAGLE3: LLMModelConfig(
+            pretrained_model_name="Tengyunw/qwen3_8b_eagle3",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_1_7B_EAGLE3
+    DEFAULT_VARIANT = ModelVariant.QWEN3_8B_EAGLE3
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -45,7 +44,6 @@ class ModelLoader(ForgeModel):
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.config = None
         self.num_layers = num_layers
 
     @classmethod
@@ -67,7 +65,7 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
             trust_remote_code=True,
-            **tokenizer_kwargs
+            **tokenizer_kwargs,
         )
 
         return self.tokenizer
@@ -81,42 +79,46 @@ class ModelLoader(ForgeModel):
         model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
 
         if self.num_layers is not None:
-            from transformers import AutoConfig
-
             config = AutoConfig.from_pretrained(
                 pretrained_model_name, trust_remote_code=True
             )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        model_kwargs |= kwargs
-
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
 
-        self.config = model.config
-        self.model = model
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
+    def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        max_length = self._variant_config.max_length
-
         inputs = self.tokenizer(
-            [self.sample_text],
+            self.sample_text,
             return_tensors="pt",
-            padding=True,
+            max_length=self._variant_config.max_length,
+            padding="max_length",
             truncation=True,
-            max_length=max_length,
         )
 
-        for key in inputs:
-            if torch.is_tensor(inputs[key]):
-                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
-
         return inputs
+
+    def decode_output(self, outputs, inputs=None):
+        if self.tokenizer is None:
+            self._load_tokenizer()
+
+        if inputs is None:
+            inputs = self.load_inputs()
+
+        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+        predicted_token_ids = logits.argmax(dim=-1)
+        predicted_text = self.tokenizer.decode(
+            predicted_token_ids[0], skip_special_tokens=True
+        )
+
+        return predicted_text
