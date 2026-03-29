@@ -48,7 +48,7 @@ class ModelVariant(StrEnum):
     RESNEXT101_32X8D_WSL = "101_32x8d_Wsl"
 
     # TIMM variants
-    RESNEXT50_32X4D_A1H_IN1K = "50_32x4d_A1h_In1k"
+    RESNEXT101_32X8D_TIMM = "101_32x8d_Timm"
 
     # OSMR variants
     RESNEXT14_32X4D_OSMR = "14_32x4d_Osmr"
@@ -83,8 +83,8 @@ class ModelLoader(ForgeModel):
             hub_source="facebookresearch/WSL-Images",
         ),
         # TIMM variants
-        ModelVariant.RESNEXT50_32X4D_A1H_IN1K: ResNeXtConfig(
-            pretrained_model_name="resnext50_32x4d.a1h_in1k",
+        ModelVariant.RESNEXT101_32X8D_TIMM: ResNeXtConfig(
+            pretrained_model_name="hf_hub:timm/resnext101_32x8d.tv_in1k",
             source=ModelSource.TIMM,
         ),
         # OSMR variants
@@ -138,9 +138,7 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
-        if variant in [
-            ModelVariant.RESNEXT50_32X4D_A1H_IN1K,
-        ]:
+        if variant in [ModelVariant.RESNEXT101_32X8D_TIMM]:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
