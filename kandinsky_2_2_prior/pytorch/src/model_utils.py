@@ -57,7 +57,6 @@ def kandinsky_prior_preprocessing(pipe, prompt, device="cpu", num_inference_step
         return_tensors="pt",
     )
     text_input_ids = text_inputs.input_ids.to(device)
-    text_mask = text_inputs.attention_mask.to(device)
 
     text_encoder_output = pipe.text_encoder(text_input_ids)
     prompt_embeds = text_encoder_output.text_embeds
