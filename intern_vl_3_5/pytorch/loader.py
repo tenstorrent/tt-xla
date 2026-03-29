@@ -136,7 +136,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenGVLab/InternVL3_5-GPT-OSS-20B-A4B-Preview-HF",
         ),
         ModelVariant.INTERN_VL3_5_38B: LLMModelConfig(
-            pretrained_model_name="OpenGVLab/InternVL3_5-38B",
+            pretrained_model_name="OpenGVLab/InternVL3_5-38B-HF",
         ),
     }
 
