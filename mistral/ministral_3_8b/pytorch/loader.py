@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Ministral 3 8B model variants."""
 
     MINISTRAL_3_8B_INSTRUCT_2512_BF16 = "3_8B_Instruct_2512_BF16"
+    MINISTRAL_3_8B_INSTRUCT_2512_BNB_4BIT = "3_8B_Instruct_2512_bnb_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MINISTRAL_3_8B_INSTRUCT_2512_BF16: ModelConfig(
             pretrained_model_name="mistralai/Ministral-3-8B-Instruct-2512-BF16",
+        ),
+        ModelVariant.MINISTRAL_3_8B_INSTRUCT_2512_BNB_4BIT: ModelConfig(
+            pretrained_model_name="unsloth/Ministral-3-8B-Instruct-2512-unsloth-bnb-4bit",
         ),
     }
 
@@ -69,6 +73,9 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
+
+        if self._variant == ModelVariant.MINISTRAL_3_8B_INSTRUCT_2512_BNB_4BIT:
+            model_kwargs["device_map"] = "cpu"
 
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
