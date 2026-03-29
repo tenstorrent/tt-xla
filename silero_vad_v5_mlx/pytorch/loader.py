@@ -7,7 +7,6 @@ Silero VAD v5 (MLX) model loader implementation for voice activity detection.
 
 import torch
 import torch.nn as nn
-import numpy as np
 from typing import Optional
 
 from ...base import ForgeModel
