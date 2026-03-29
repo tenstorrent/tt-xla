@@ -23,22 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Strawberrylemonade L3 70B GGUF model variants for causal language modeling."""
 
-    STRAWBERRYLEMONADE_L3_70B_V1_2_HERETIC2_I1_GGUF = "v1.2_heretic2_i1_GGUF"
+    STRAWBERRYLEMONADE_L3_70B_GGUF = "L3_70B_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Strawberrylemonade L3 70B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.STRAWBERRYLEMONADE_L3_70B_V1_2_HERETIC2_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Strawberrylemonade-L3-70B-v1.2-heretic2-i1-GGUF",
+        ModelVariant.STRAWBERRYLEMONADE_L3_70B_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Strawberrylemonade-L3-70B-v1.2-heretic3-i1-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.STRAWBERRYLEMONADE_L3_70B_V1_2_HERETIC2_I1_GGUF
+    DEFAULT_VARIANT = ModelVariant.STRAWBERRYLEMONADE_L3_70B_GGUF
 
-    GGUF_FILE = "Strawberrylemonade-L3-70B-v1.2-heretic2.i1-Q4_K_M.gguf"
+    GGUF_FILE = "Strawberrylemonade-L3-70B-v1.2-heretic3.i1-Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
