@@ -1,13 +1,13 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DanTagGen-alpha model loader implementation for causal language modeling.
+DanTagGen model loader implementation for causal language modeling.
 """
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+import torch
 from typing import Optional
 
-from ....base import ForgeModel
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -17,56 +17,49 @@ from ....config import (
     Framework,
     StrEnum,
 )
+from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available DanTagGen model variants for causal language modeling."""
 
-    DANTAGGEN_ALPHA = "Alpha"
+    DELTA = "delta"
 
 
 class ModelLoader(ForgeModel):
-    """DanTagGen-alpha model loader implementation for causal language modeling tasks."""
+    """DanTagGen model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.DANTAGGEN_ALPHA: LLMModelConfig(
-            pretrained_model_name="KBlueLeaf/DanTagGen-alpha",
+        ModelVariant.DELTA: LLMModelConfig(
+            pretrained_model_name="KBlueLeaf/DanTagGen-delta",
             max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DANTAGGEN_ALPHA
+    DEFAULT_VARIANT = ModelVariant.DELTA
 
     sample_text = (
-        "<|special|>, <|characters|>, <|copyrights|>, <|artist|>, "
-        "<|general|>, <|quality|>, <|meta|>, <|rating|>"
+        "quality: best\n"
+        "rating: general\n"
+        "artist: <|empty|>\n"
+        "characters: <|empty|>\n"
+        "copyrights: <|empty|>\n"
+        "aspect ratio: 1.0\n"
+        "target: <|short|>\n"
+        "general: 1girl, solo<|input_end|>"
     )
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
-        """
         super().__init__(variant)
         self.tokenizer = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="DanTagGen",
             variant=variant,
@@ -77,39 +70,20 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
-            **tokenizer_kwargs,
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the DanTagGen-alpha model instance for this instance's variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The DanTagGen-alpha model instance for causal language modeling.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
@@ -121,43 +95,49 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, trust_remote_code=True
-            )
+            config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
-
         model.eval()
-
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the DanTagGen-alpha model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-            batch_size: Batch size for the inputs.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         max_length = self._variant_config.max_length
 
-        prompts = [self.sample_text] * batch_size
-
-        inputs = self.tokenizer(
-            prompts,
+        tokenized_inputs = self.tokenizer(
+            self.sample_text,
             return_tensors="pt",
+            max_length=max_length,
             padding=True,
             truncation=True,
-            max_length=max_length,
         )
 
+        inputs = {
+            "input_ids": tokenized_inputs.input_ids,
+            "attention_mask": tokenized_inputs.attention_mask,
+        }
+
+        for key in inputs:
+            inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
         return inputs
+
+    def decode_output(self, outputs, dtype_override=None, inputs=None):
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
+
+        if inputs is None:
+            inputs = self.load_inputs()
+
+        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+        token_ids = torch.argmax(logits, dim=-1)
+        decoded = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
+
+        return decoded[0] if len(decoded) == 1 else decoded
