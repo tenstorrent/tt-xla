@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 GGUF model variants for causal language modeling."""
 
     QWEN_3_1_7B_GGUF = "1.7B_GGUF"
+    QWEN_3_32B_GGUF = "32B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -34,12 +35,17 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="ggml-org/Qwen3-1.7B-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_32B_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen3-32B-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_1_7B_GGUF
 
     _GGUF_FILES = {
         ModelVariant.QWEN_3_1_7B_GGUF: "Qwen3-1.7B-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_32B_GGUF: "Qwen3-32B-Q4_K_M.gguf",
     }
 
     sample_text = "Give me a short introduction to large language models."
