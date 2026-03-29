@@ -5,9 +5,10 @@
 L-MChat model loader implementation for causal language modeling.
 """
 
+from typing import Optional
+
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
