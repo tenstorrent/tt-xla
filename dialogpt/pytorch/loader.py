@@ -4,7 +4,6 @@
 """
 DialoGPT model loader implementation for conversational text generation.
 """
-import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, GPT2Config
 from typing import Optional
 
