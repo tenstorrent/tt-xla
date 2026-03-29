@@ -60,6 +60,7 @@ class ModelVariant(StrEnum):
     DEEPLABV3_MOBILENET_V2_HF = "Deeplabv3_Mobilenet_v2_1.0_513"
 
     # TIMM variants
+    MOBILENET_V2_050_LAMB_IN1K_TIMM = "050_Lamb_IN1K"
     MOBILENET_V2_100_TIMM = "100"
 
     # TORCHVISION variants
@@ -97,6 +98,10 @@ class ModelLoader(ForgeModel):
             source=ModelSource.HUGGING_FACE,
         ),
         # TIMM variants
+        ModelVariant.MOBILENET_V2_050_LAMB_IN1K_TIMM: MobileNetV2Config(
+            pretrained_model_name="mobilenetv2_050.lamb_in1k",
+            source=ModelSource.TIMM,
+        ),
         ModelVariant.MOBILENET_V2_100_TIMM: MobileNetV2Config(
             pretrained_model_name="mobilenetv2_100",
             source=ModelSource.TIMM,
@@ -148,7 +153,7 @@ class ModelLoader(ForgeModel):
 
         if variant in [ModelVariant.MOBILENET_V2_TORCH_HUB]:
             group = ModelGroup.RED
-        elif variant in [ModelVariant.MOBILENET_V2_SMP]:
+        elif variant in [ModelVariant.MOBILENET_V2_050_LAMB_IN1K_TIMM]:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
