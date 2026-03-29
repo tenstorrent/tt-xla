@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     )
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     PATRICKQUICK_BERTICELLI = "patrickquick_BERTicelli"
+    YUCHUANTIAN_AIGC_DETECTOR_ZHV3SHORT = "yuchuantian_AIGC_detector_zhv3short"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="patrickquick/BERTicelli",
             max_length=128,
         ),
+        ModelVariant.YUCHUANTIAN_AIGC_DETECTOR_ZHV3SHORT: LLMModelConfig(
+            pretrained_model_name="yuchuantian/AIGC_detector_zhv3short",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -72,6 +77,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT: "The product quality is excellent and I love it!",
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.PATRICKQUICK_BERTICELLI: "I really enjoyed meeting new people from different cultures.",
+        ModelVariant.YUCHUANTIAN_AIGC_DETECTOR_ZHV3SHORT: "这篇文章的内容是由人类撰写的，包含了丰富的个人观点和经验。",
     }
 
     def __init__(self, variant=None):
@@ -108,6 +114,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.NLPTOWN_BERT_BASE_MULTILINGUAL_UNCASED_SENTIMENT,
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.PATRICKQUICK_BERTICELLI,
+            ModelVariant.YUCHUANTIAN_AIGC_DETECTOR_ZHV3SHORT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
