@@ -36,7 +36,7 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="microsoft/phi-4",
         ),
         ModelVariant.PHI_4_MINI_INSTRUCT: ModelConfig(
-            pretrained_model_name="microsoft/Phi-4-mini-instruct",
+            pretrained_model_name="unsloth/Phi-4-mini-instruct",
         ),
     }
 
@@ -71,7 +71,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         group = ModelGroup.RED
-        if variant == ModelVariant.PHI_4_MINI_INSTRUCT:
+        if variant in (ModelVariant.PHI_4_MINI_INSTRUCT,):
             group = ModelGroup.VULCAN
         return ModelInfo(
             model="Phi-4",
