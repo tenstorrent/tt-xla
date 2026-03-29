@@ -2,75 +2,58 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Fast dLLM v2 model loader implementation for causal language modeling.
+Fast-dLLM v2 7B model loader implementation for causal language modeling.
+
+A block diffusion language model based on Qwen2.5-7B-Instruct that generates
+text in parallel blocks rather than sequentially, achieving up to 2.5x throughput
+speedup with no quality loss.
 """
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    LLMModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available Fast dLLM v2 model variants."""
+    """Available Fast-dLLM v2 model variants for causal language modeling."""
 
-    FAST_DLLM_V2_1_5B = "v2-1.5B"
+    FAST_DLLM_V2_7B = "7B"
 
 
 class ModelLoader(ForgeModel):
-    """Fast dLLM v2 model loader implementation for causal language modeling tasks."""
+    """Fast-dLLM v2 7B model loader for causal language modeling."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.FAST_DLLM_V2_1_5B: LLMModelConfig(
-            pretrained_model_name="Efficient-Large-Model/Fast_dLLM_v2_1.5B",
+        ModelVariant.FAST_DLLM_V2_7B: LLMModelConfig(
+            pretrained_model_name="Efficient-Large-Model/Fast_dLLM_v2_7B",
+            max_length=128,
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.FAST_DLLM_V2_1_5B
+    DEFAULT_VARIANT = ModelVariant.FAST_DLLM_V2_7B
 
-    # Shared configuration parameters
-    sample_messages = [
-        {"role": "user", "content": "What is the capital of France?"},
-    ]
+    sample_text = "What is your favorite city?"
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
-        """
+    def __init__(self, variant=None, num_layers=None):
         super().__init__(variant)
         self.tokenizer = None
+        self.config = None
         self.num_layers = num_layers
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
+    def _get_model_info(cls, variant=None):
         return ModelInfo(
-            model="Fast dLLM v2",
+            model="Fast-dLLM v2",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -79,45 +62,27 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        """Load tokenizer for the current variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
-
-        Returns:
-            The loaded tokenizer instance
-        """
-        tokenizer_kwargs = {}
+        tokenizer_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
-            tokenizer_kwargs["dtype"] = dtype_override
+            tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
-            **tokenizer_kwargs,
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Fast dLLM v2 model instance for this instance's variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-
-        Returns:
-            torch.nn.Module: The Fast dLLM v2 model instance for causal language modeling.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
-            model_kwargs["dtype"] = dtype_override
-        model_kwargs |= kwargs
+            model_kwargs["torch_dtype"] = dtype_override
 
         if self.num_layers is not None:
             from transformers import AutoConfig
@@ -128,34 +93,37 @@ class ModelLoader(ForgeModel):
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **model_kwargs
-        )
+        model_kwargs |= kwargs
 
+        model = AutoModelForCausalLM.from_pretrained(
+            pretrained_model_name, **model_kwargs
+        ).eval()
+
+        self.config = model.config
+        self.model = model
         return model
 
-    def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the Fast dLLM v2 model.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self.tokenizer.apply_chat_template(
-            self.sample_messages, tokenize=False, add_generation_prompt=True
-        )
-        inputs = self.tokenizer(
-            inputs, return_tensors="pt", return_token_type_ids=False
+        max_length = self._variant_config.max_length
+
+        messages = [{"role": "user", "content": self.sample_text}]
+        text = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
         )
 
-        if dtype_override is not None:
-            for key, value in inputs.items():
-                if isinstance(value, torch.Tensor) and value.dtype == torch.float32:
-                    inputs[key] = value.to(dtype_override)
+        inputs = self.tokenizer(
+            [text],
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+        )
+
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
