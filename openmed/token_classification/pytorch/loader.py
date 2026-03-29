@@ -42,6 +42,9 @@ class ModelVariant(StrEnum):
         "OpenMed/OpenMed-PII-Italian-BioClinicalModern-Large-395M-v1"
     )
     OPENMED_PII_EUROMED_LARGE_210M_V1 = "OpenMed/OpenMed-PII-EuroMed-Large-210M-v1"
+    OPENMED_PII_SUPERMEDICAL_LARGE_355M_V1 = (
+        "OpenMed/OpenMed-PII-SuperMedical-Large-355M-v1"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -80,6 +83,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenMed/OpenMed-PII-EuroMed-Large-210M-v1",
             max_length=512,
         ),
+        ModelVariant.OPENMED_PII_SUPERMEDICAL_LARGE_355M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-SuperMedical-Large-355M-v1",
+            max_length=512,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPENMED_NER_SPECIESDETECT_SUPERCLINICAL_434M
@@ -93,6 +100,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENMED_PII_CLINICALE5_SMALL_33M_V1: "Patient John Smith (DOB: 03/15/1985, SSN: 123-45-6789) was seen today.",
         ModelVariant.OPENMED_PII_ITALIAN_BIOCLINICALMODERN_LARGE_395M_V1: "Paziente Marco Bianchi (nato il 15/03/1985, CF: BNCMRC85C15H501Z) è stato visitato oggi.",
         ModelVariant.OPENMED_PII_EUROMED_LARGE_210M_V1: "Dr. Emily Johnson (DOB: 07/22/1990, SSN: 987-65-4321) was admitted to General Hospital on 03/15/2024.",
+        ModelVariant.OPENMED_PII_SUPERMEDICAL_LARGE_355M_V1: "Patient Sarah Williams (MRN: 456789, DOB: 11/08/1978) was referred by Dr. Robert Chen for evaluation.",
     }
 
     def __init__(self, variant=None):
