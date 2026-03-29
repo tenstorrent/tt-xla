@@ -8,7 +8,7 @@ Autoformer model loader implementation for time series forecasting.
 from typing import Optional
 
 import torch
-from transformers import AutoformerForPrediction
+from transformers import AutoformerConfig, AutoformerForPrediction
 
 from ...config import (
     ModelConfig,
@@ -83,9 +83,9 @@ class ModelLoader(ForgeModel):
         # The model requires context_length + max(lags_sequence) past time steps
         # For tourism-monthly: context_length=24, max(lags_sequence)=37, so past_length=61
         # num_time_features=2, num_static_categorical_features=1, prediction_length=24
-        config = AutoformerForPrediction.from_pretrained(
+        config = AutoformerConfig.from_pretrained(
             self._variant_config.pretrained_model_name
-        ).config
+        )
         past_length = config.context_length + max(config.lags_sequence)
         prediction_length = config.prediction_length
         num_time_features = config.num_time_features
