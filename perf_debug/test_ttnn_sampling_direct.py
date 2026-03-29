@@ -636,40 +636,72 @@ def benchmark_sampling_only(device, reduced_vocab, num_iters=100, warmup=10):
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="ttnn.sampling() verification and benchmarks"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=[
+            "all",
+            "correctness",
+            "bench",
+            "bench-llama",
+            "bench-opt",
+            "bench-topk",
+        ],
+        default="all",
+        help="What to run (default: all)",
+    )
+    parser.add_argument(
+        "--iters", type=int, default=50, help="Benchmark iterations (default: 50)"
+    )
+    args = parser.parse_args()
+
     device = open_device()
     try:
-        print("=" * 60)
-        print("Phase 1a: Vocab size limitation (L1 constraint)")
-        print("=" * 60)
+        if args.mode in ("all", "correctness"):
+            print("=" * 60)
+            print("Phase 1a: Vocab size limitation (L1 constraint)")
+            print("=" * 60)
+            test_direct_sampling_vocab_limit(device)
 
-        test_direct_sampling_vocab_limit(device)
+            print("\n" + "=" * 60)
+            print("Phase 1b: Correctness tests (topk + sampling pipeline)")
+            print("=" * 60)
+            test_small_sampling_only(device)
+            test_llama_vocab(device)
+            test_opt_vocab(device)
+            test_determinism(device)
+            test_greedy_topk1(device)
+            test_per_user_params(device)
+            test_topp_disabled(device)
 
-        print("\n" + "=" * 60)
-        print("Phase 1b: Correctness tests (topk + sampling pipeline)")
-        print("=" * 60)
+        if args.mode in ("all", "bench", "bench-topk"):
+            print("\n" + "=" * 60)
+            print("Benchmark: ttnn.topk() alone")
+            print("=" * 60)
+            benchmark_topk_only(device, num_iters=args.iters)
 
-        test_small_sampling_only(device)
-        test_llama_vocab(device)
-        test_opt_vocab(device)
-        test_determinism(device)
-        test_greedy_topk1(device)
-        test_per_user_params(device)
-        test_topp_disabled(device)
+        if args.mode in ("all", "bench"):
+            print("\n" + "=" * 60)
+            print("Benchmark: ttnn.sampling() on reduced vocab")
+            print("=" * 60)
+            benchmark_sampling_only(device, reduced_vocab=64, num_iters=args.iters)
 
-        print("\n" + "=" * 60)
-        print("Phase 2: Performance benchmarks")
-        print("=" * 60)
+        if args.mode in ("all", "bench", "bench-opt"):
+            print("\n" + "=" * 60)
+            print("Benchmark: topk+sampling, OPT vocab (50272)")
+            print("=" * 60)
+            benchmark_full_pipeline(device, vocab_size=50272, num_iters=args.iters)
 
-        # topk alone (the dominant cost)
-        benchmark_topk_only(device)
+        if args.mode in ("all", "bench", "bench-llama"):
+            print("\n" + "=" * 60)
+            print("Benchmark: topk+sampling, Llama vocab (128256)")
+            print("=" * 60)
+            benchmark_full_pipeline(device, vocab_size=128256, num_iters=args.iters)
 
-        # Sampling-only benchmark (reduced vocab after topk)
-        benchmark_sampling_only(device, reduced_vocab=64, num_iters=100)
-
-        # Full pipeline benchmarks
-        benchmark_full_pipeline(device, vocab_size=50272, num_iters=50)
-        benchmark_full_pipeline(device, vocab_size=128256, num_iters=50)
-
-        print("\nAll tests passed!")
+        print("\nDone!")
     finally:
         ttnn.close_device(device)
