@@ -6,7 +6,7 @@ ModernBERT model loader implementation for token classification.
 """
 
 import torch
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForTokenClassification
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -22,8 +22,8 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available ModernBERT model variants for token classification."""
 
-    LLM_SEMANTIC_ROUTER_MMBERT32K_PII_DETECTOR_MERGED = (
-        "llm-semantic-router/mmbert32k-pii-detector-merged"
+    OPENMED_PII_GERMAN_BIOCLINICAL_MODERNBERT_BASE = (
+        "OpenMed-PII-German-BioClinicalModern-Base-149M-v1"
     )
 
 
@@ -31,13 +31,13 @@ class ModelLoader(ForgeModel):
     """ModernBERT model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.LLM_SEMANTIC_ROUTER_MMBERT32K_PII_DETECTOR_MERGED: LLMModelConfig(
-            pretrained_model_name="llm-semantic-router/mmbert32k-pii-detector-merged",
+        ModelVariant.OPENMED_PII_GERMAN_BIOCLINICAL_MODERNBERT_BASE: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-German-BioClinicalModern-Base-149M-v1",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LLM_SEMANTIC_ROUTER_MMBERT32K_PII_DETECTOR_MERGED
+    DEFAULT_VARIANT = ModelVariant.OPENMED_PII_GERMAN_BIOCLINICAL_MODERNBERT_BASE
 
     def __init__(self, variant=None):
         """Initialize ModelLoader with specified variant.
@@ -50,9 +50,7 @@ class ModelLoader(ForgeModel):
 
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.sample_text = (
-            "My email is john.smith@example.com and phone is 555-123-4567"
-        )
+        self.sample_text = "Dr. Müller behandelte den Patienten Johann Schmidt in der Berliner Charité."
         self.max_length = 128
         self.tokenizer = None
 
@@ -68,7 +66,6 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="ModernBERT",
             variant=variant_name,
@@ -139,4 +136,4 @@ class ModelLoader(ForgeModel):
         ]
 
         print(f"Context: {self.sample_text}")
-        print(f"Predicted Labels: {predicted_tokens_classes}")
+        print(f"Answer: {predicted_tokens_classes}")
