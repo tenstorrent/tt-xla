@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Ministral 3B Reasoning GGUF model loader implementation for causal language modeling.
+unsloth Ministral 3B Reasoning GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -23,24 +23,26 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Ministral 3B Reasoning GGUF model variants for causal language modeling."""
 
-    MINISTRAL_3B_REASONING_2512_GGUF = "3B_Reasoning_2512_GGUF"
+    MINISTRAL_3B_REASONING_GGUF = "3B_Reasoning_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Ministral 3B Reasoning GGUF model loader implementation for causal language modeling tasks."""
+    """unsloth Ministral 3B Reasoning GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.MINISTRAL_3B_REASONING_2512_GGUF: LLMModelConfig(
-            pretrained_model_name="mistralai/Ministral-3-3B-Reasoning-2512-GGUF",
+        ModelVariant.MINISTRAL_3B_REASONING_GGUF: LLMModelConfig(
+            pretrained_model_name="unsloth/Ministral-3-3B-Reasoning-2512-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MINISTRAL_3B_REASONING_2512_GGUF
+    DEFAULT_VARIANT = ModelVariant.MINISTRAL_3B_REASONING_GGUF
 
     GGUF_FILE = "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf"
 
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = (
+        "What are the key differences between classical and quantum computing?"
+    )
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
