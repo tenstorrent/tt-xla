@@ -49,6 +49,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_14B_INSTRUCT_1M_AWQ = "14B_Instruct_1M_Awq"
     QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
     UNSLOTH_QWEN_2_5_32B_INSTRUCT = "Unsloth_32B_Instruct"
+    QWEN_2_5_7B_INSTRUCT_FP8_DYNAMIC = "7B_Instruct_FP8_Dynamic"
 
 
 class ModelLoader(ForgeModel):
@@ -150,6 +151,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen2.5-32B-Instruct",
             max_length=128,
         ),
+        # RedHatAI FP8 dynamic quantized variant
+        ModelVariant.QWEN_2_5_7B_INSTRUCT_FP8_DYNAMIC: LLMModelConfig(
+            pretrained_model_name="RedHatAI/Qwen2.5-7B-Instruct-FP8-dynamic",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -205,6 +211,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_14B_INSTRUCT_1M_AWQ,
             ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
             ModelVariant.UNSLOTH_QWEN_2_5_32B_INSTRUCT,
+            ModelVariant.QWEN_2_5_7B_INSTRUCT_FP8_DYNAMIC,
         ]:
             group = ModelGroup.VULCAN
 
