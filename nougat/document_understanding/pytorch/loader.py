@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available Nougat model variants for document understanding tasks."""
 
     NOUGAT_BASE = "nougat_base"
+    NOUGAT_LATEX_BASE = "nougat_latex_base"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +36,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.NOUGAT_BASE: ModelConfig(
             pretrained_model_name="facebook/nougat-base",
+        ),
+        ModelVariant.NOUGAT_LATEX_BASE: ModelConfig(
+            pretrained_model_name="Norm/nougat-latex-base",
         ),
     }
 
