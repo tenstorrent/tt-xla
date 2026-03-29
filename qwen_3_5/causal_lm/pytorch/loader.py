@@ -49,6 +49,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_CLAUDE_4_6_HIGHIQ_THINKING_HERETIC_UNCENSORED = (
         "9B_Claude_4.6_HighIQ_THINKING_HERETIC_UNCENSORED"
     )
+    QWEN_3_5_2B_ABLITERATED_I1_GGUF = "2B_Abliterated_i1_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -148,6 +149,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="DavidAU/Qwen3.5-9B-Claude-4.6-HighIQ-THINKING-HERETIC-UNCENSORED",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_2B_ABLITERATED_I1_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-2B_Abliterated-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -160,6 +165,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_9B_HERETIC_V2_GGUF: "Qwen3.5-9b-heretic-v2-q8_0.gguf",
         ModelVariant.QWEN_3_5_4B_TATSUYAAAAAAA_GGUF: "Qwen3.5-4B_Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF: "Qwen3.5-35B-A3B-Derestricted.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_2B_ABLITERATED_I1_GGUF: "Qwen3.5-2B_Abliterated.i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
