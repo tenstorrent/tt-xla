@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     BERT_LARGE_PORTUGUESE_CASED = "Large_Portuguese_Cased"
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     RETROMAE_MSMARCO_DISTILL = "Shitao/RetroMAE_MSMARCO_distill"
+    BERT_LARGE_UNCASED_WWM = "Large_Uncased_Whole_Word_Masking"
 
 
 class ModelLoader(ForgeModel):
@@ -75,6 +76,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.RETROMAE_MSMARCO_DISTILL: LLMModelConfig(
             pretrained_model_name="Shitao/RetroMAE_MSMARCO_distill",
+            max_length=128,
+        ),
+        ModelVariant.BERT_LARGE_UNCASED_WWM: LLMModelConfig(
+            pretrained_model_name="bert-large-uncased-whole-word-masking",
             max_length=128,
         ),
     }
@@ -122,6 +127,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_LARGE_PORTUGUESE_CASED,
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.RETROMAE_MSMARCO_DISTILL,
+            ModelVariant.BERT_LARGE_UNCASED_WWM,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
