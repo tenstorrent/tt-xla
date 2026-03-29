@@ -67,7 +67,7 @@ class ModelLoader(ForgeModel):
             model="T5_Chess",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.NLP_CAUSAL_LM,
+            task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
