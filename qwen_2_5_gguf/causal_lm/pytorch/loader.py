@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     QWEN_2_5_1_5B_INSTRUCT_GGUF = "1.5B_Instruct_GGUF"
     BARTOWSKI_QWEN_2_5_1_5B_INSTRUCT_GGUF = "Bartowski_1.5B_Instruct_GGUF"
+    LMSTUDIO_QWEN_2_5_7B_INSTRUCT_1M_GGUF = "Lmstudio_7B_Instruct_1M_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +44,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bartowski/Qwen2.5-1.5B-Instruct-GGUF",
             max_length=128,
         ),
+        ModelVariant.LMSTUDIO_QWEN_2_5_7B_INSTRUCT_1M_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen2.5-7B-Instruct-1M-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_2_5_7B_INSTRUCT_GGUF
@@ -50,6 +55,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_2_5_1_5B_INSTRUCT_GGUF: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
         ModelVariant.BARTOWSKI_QWEN_2_5_1_5B_INSTRUCT_GGUF: "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+        ModelVariant.LMSTUDIO_QWEN_2_5_7B_INSTRUCT_1M_GGUF: "Qwen2.5-7B-Instruct-1M-Q4_K_M.gguf",
     }
 
     sample_text = "What is your favorite city?"
