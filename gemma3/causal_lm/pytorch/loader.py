@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_1B_IT_QAT_4BIT = "1B_Instruct_QAT_4bit"
     GEMMA_3_27B_IT = "27B_Instruct"
     GEMMA_3_4B_IT_OPENBOOKQA_DPO_D = "4B_Instruct_OpenbookQA_DPO_D"
+    GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F = "4B_Instruct_OpenbookQA_SFT_DPO_F"
 
 
 class ModelLoader(ForgeModel):
@@ -65,6 +66,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-DPO-D",
             max_length=256,
         ),
+        ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F: LLMModelConfig(
+            pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-SFT-DPO-F",
+            max_length=256,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GEMMA_3_270M_IT
@@ -89,6 +94,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GEMMA_3_1B_PT,
             ModelVariant.GEMMA_3_27B_IT,
             ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_DPO_D,
+            ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F,
         ):
             group = ModelGroup.VULCAN
         else:
