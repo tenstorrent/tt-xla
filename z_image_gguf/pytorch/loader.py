@@ -4,14 +4,18 @@
 """
 Z-Image GGUF model loader implementation.
 
-Loads quantized GGUF variants of the Z-Image text-to-image
-DiT transformer from unsloth/Z-Image-GGUF.
+Loads the quantized GGUF transformer from jayn7/Z-Image-GGUF and builds
+a ZImagePipeline for text-to-image generation.
+
+Available variants:
+- Z_IMAGE_Q4_K_M: Q4_K_M quantized transformer (4.98 GB)
 """
 
 from typing import Any, Optional
 
 import torch
-from diffusers import ZImagePipeline, ZImageTransformer2DModel, GGUFQuantizationConfig
+from diffusers import ZImagePipeline
+from diffusers.quantizers import GGUFQuantizationConfig
 from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
@@ -25,29 +29,30 @@ from ...config import (
     StrEnum,
 )
 
-GGUF_REPO_ID = "unsloth/Z-Image-GGUF"
+GGUF_REPO_ID = "jayn7/Z-Image-GGUF"
 PIPELINE_REPO_ID = "Tongyi-MAI/Z-Image"
 
 
 class ModelVariant(StrEnum):
     """Available Z-Image GGUF model variants."""
 
-    Z_IMAGE_GGUF_Q4_K_M = "Q4_K_M"
+    Z_IMAGE_Q4_K_M = "Q4_K_M"
+
+
+GGUF_FILES = {
+    ModelVariant.Z_IMAGE_Q4_K_M: "z_image-Q4_K_M.gguf",
+}
 
 
 class ModelLoader(ForgeModel):
     """Z-Image GGUF model loader."""
 
     _VARIANTS = {
-        ModelVariant.Z_IMAGE_GGUF_Q4_K_M: ModelConfig(
+        ModelVariant.Z_IMAGE_Q4_K_M: ModelConfig(
             pretrained_model_name=GGUF_REPO_ID,
         ),
     }
-    DEFAULT_VARIANT = ModelVariant.Z_IMAGE_GGUF_Q4_K_M
-
-    GGUF_FILES = {
-        ModelVariant.Z_IMAGE_GGUF_Q4_K_M: "z-image-Q4_K_M.gguf",
-    }
+    DEFAULT_VARIANT = ModelVariant.Z_IMAGE_Q4_K_M
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -66,23 +71,19 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_transformer(self, dtype: torch.dtype = torch.bfloat16):
-        """Load the GGUF-quantized transformer."""
-        gguf_file = self.GGUF_FILES[self._variant]
-        gguf_path = hf_hub_download(repo_id=GGUF_REPO_ID, filename=gguf_file)
-        transformer = ZImageTransformer2DModel.from_single_file(
-            gguf_path,
-            quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
-            torch_dtype=dtype,
-        )
-        return transformer
-
     def _load_pipeline(self, dtype: torch.dtype = torch.bfloat16) -> ZImagePipeline:
-        """Load the Z-Image pipeline with GGUF transformer."""
-        transformer = self._load_transformer(dtype)
+        """Load the Z-Image pipeline with GGUF-quantized transformer."""
+        gguf_filename = GGUF_FILES[self._variant]
+        gguf_path = hf_hub_download(
+            repo_id=GGUF_REPO_ID,
+            filename=gguf_filename,
+        )
+
+        quantization_config = GGUFQuantizationConfig(compute_dtype=dtype)
         self._pipe = ZImagePipeline.from_pretrained(
             PIPELINE_REPO_ID,
-            transformer=transformer,
+            transformer_path=gguf_path,
+            quantization_config=quantization_config,
             torch_dtype=dtype,
             low_cpu_mem_usage=False,
         )
@@ -93,10 +94,12 @@ class ModelLoader(ForgeModel):
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
         if self._pipe is None:
             self._load_pipeline(dtype)
+        if dtype_override is not None:
+            self._pipe.transformer = self._pipe.transformer.to(dtype_override)
         return self._pipe.transformer
 
     def load_inputs(self, **kwargs) -> Any:
-        """Prepare inputs for the GGUF transformer."""
+        """Prepare transformer inputs for the Z-Image GGUF model."""
         dtype = kwargs.get("dtype_override", torch.bfloat16)
         height = 128
         width = 128
@@ -124,10 +127,6 @@ class ModelLoader(ForgeModel):
         # Prepare timestep
         timestep = torch.tensor([0.5], dtype=dtype)
 
-        # The transformer expects:
-        #   x: list of tensors [1, channels, 1, H, W] (one per batch)
-        #   t: timestep tensor
-        #   cap_feats: prompt_embeds (list of text embeddings)
         latent_input = latents.to(dtype).unsqueeze(2)
         latent_input_list = list(latent_input.unbind(dim=0))
 
