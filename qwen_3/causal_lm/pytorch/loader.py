@@ -59,6 +59,7 @@ class ModelVariant(StrEnum):
     FROGBOSS_32B_2510_MICROSOFT = "FrogBoss_32B_2510_Microsoft"
     QWEN_3_8B_FP8_UNSLOTH = "8B_FP8_Unsloth"
     TINY_RANDOM_QWEN3 = "Tiny_Random_Qwen3"
+    TINY_SMOKE_QWEN3_NM_TESTING = "Tiny_Smoke_Qwen3_NM_Testing"
 
 
 class ModelLoader(ForgeModel):
@@ -182,6 +183,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-qwen3",
             max_length=128,
         ),
+        ModelVariant.TINY_SMOKE_QWEN3_NM_TESTING: LLMModelConfig(
+            pretrained_model_name="nm-testing/tinysmokeqwen3",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -243,6 +248,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.FROGBOSS_32B_2510_MICROSOFT,
             ModelVariant.QWEN_3_8B_FP8_UNSLOTH,
             ModelVariant.TINY_RANDOM_QWEN3,
+            ModelVariant.TINY_SMOKE_QWEN3_NM_TESTING,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -389,6 +395,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_BASE,
             ModelVariant.QWEN_3_8B_BASE,
             ModelVariant.TINY_RANDOM_QWEN3,
+            ModelVariant.TINY_SMOKE_QWEN3_NM_TESTING,
         ):
             prompts = [self.sample_text]
         else:
