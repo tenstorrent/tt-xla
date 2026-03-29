@@ -30,6 +30,7 @@ class MobileNetV1Config(ModelConfig):
     """Configuration specific to MobileNetV1 models"""
 
     source: ModelSource
+    group: ModelGroup = ModelGroup.GENERALITY
 
 
 class ModelVariant(StrEnum):
@@ -41,6 +42,9 @@ class ModelVariant(StrEnum):
     # HuggingFace variants
     MOBILENET_V1_075_192_HF = "Mobilenet_v1_0.75_192"
     MOBILENET_V1_100_224_HF = "Mobilenet_v1_1.0_224"
+
+    # Optimum Intel variants
+    MOBILENET_V1_075_192_OPTIMUM = "Optimum_Mobilenet_v1_0.75_192"
 
     # TIMM variants
     MOBILENET_V1_100_TIMM = "100.ra4_E3600_R224_In1k"
@@ -64,6 +68,12 @@ class ModelLoader(ForgeModel):
         ModelVariant.MOBILENET_V1_100_224_HF: MobileNetV1Config(
             pretrained_model_name="google/mobilenet_v1_1.0_224",
             source=ModelSource.HUGGING_FACE,
+        ),
+        # Optimum Intel variants
+        ModelVariant.MOBILENET_V1_075_192_OPTIMUM: MobileNetV1Config(
+            pretrained_model_name="optimum-intel-internal-testing/mobilenet_v1_0.75_192",
+            source=ModelSource.HUGGING_FACE,
+            group=ModelGroup.VULCAN,
         ),
         # TIMM variants
         ModelVariant.MOBILENET_V1_100_TIMM: MobileNetV1Config(
@@ -104,10 +114,13 @@ class ModelLoader(ForgeModel):
         # Get source from variant config
         source = cls._VARIANTS[variant].source
 
+        # Get group from variant config
+        group = cls._VARIANTS[variant].group
+
         return ModelInfo(
             model="MobileNetV1",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.CV_IMAGE_CLS,
             source=source,
             framework=Framework.TORCH,
