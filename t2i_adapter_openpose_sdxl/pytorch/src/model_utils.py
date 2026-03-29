@@ -7,15 +7,40 @@ Helper functions for T2I Adapter OpenPose SDXL model loading and processing.
 """
 
 from typing import Optional, Tuple
+import numpy as np
 import torch
 from diffusers import StableDiffusionXLAdapterPipeline, T2IAdapter
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
-from diffusers.pipelines.t2i_adapter.pipeline_stable_diffusion_xl_adapter import (
-    _preprocess_adapter_image,
-)
 from PIL import Image
+
+
+def _preprocess_adapter_image(image, height, width):
+    """Preprocess adapter image to tensor format.
+
+    Adapted from diffusers pipeline to avoid transitive import issues.
+    """
+    if isinstance(image, torch.Tensor):
+        return image
+    elif isinstance(image, Image.Image):
+        image = [image]
+
+    if isinstance(image[0], Image.Image):
+        image = [
+            np.array(i.resize((width, height), resample=Image.LANCZOS)) for i in image
+        ]
+        image = [i[None, ..., None] if i.ndim == 2 else i[None, ...] for i in image]
+        image = np.concatenate(image, axis=0)
+        image = np.array(image).astype(np.float32) / 255.0
+        image = image.transpose(0, 3, 1, 2)
+        image = torch.from_numpy(image)
+    elif isinstance(image[0], torch.Tensor):
+        if image[0].ndim == 3:
+            image = torch.stack(image, dim=0)
+        elif image[0].ndim == 4:
+            image = torch.cat(image, dim=0)
+    return image
 
 
 def load_t2i_adapter_openpose_sdxl_pipe(adapter_model_name, base_model_name):
