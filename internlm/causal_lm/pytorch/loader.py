@@ -25,6 +25,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available InternLM2 model variants."""
 
+    INTERNLM2_1_8B = "1_8B"
     INTERNLM2_BASE_7B = "Base_7B"
 
 
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     """InternLM2 model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.INTERNLM2_1_8B: ModelConfig(
+            pretrained_model_name="internlm/internlm2-1_8b",
+        ),
         ModelVariant.INTERNLM2_BASE_7B: ModelConfig(
             pretrained_model_name="internlm/internlm2-base-7b",
         ),
