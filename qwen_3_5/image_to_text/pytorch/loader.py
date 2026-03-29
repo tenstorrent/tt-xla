@@ -5,15 +5,13 @@
 Qwen 3.5 model loader implementation for image to text.
 """
 
-from transformers import (
-    AutoModelForImageTextToText,
-    AutoProcessor,
-)
 from typing import Optional
+
+from transformers import AutoModelForImageTextToText, AutoProcessor, AutoConfig
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -26,54 +24,40 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for image to text."""
 
-    QWEN_3_5_9B_PARO = "9b_paro"
-    GLIESE_QWEN_3_5_0_8B_ABLITERATED_CAPTION = "gliese_0_8b_abliterated_caption"
+    QWEN_3_5_4B_BASE_GGUF = "4B_Base_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen 3.5 model loader implementation for image to text tasks."""
+    """Qwen 3.5 model loader for image to text tasks."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.QWEN_3_5_9B_PARO: LLMModelConfig(
-            pretrained_model_name="z-lab/Qwen3.5-9B-PARO",
-            max_length=128,
-        ),
-        ModelVariant.GLIESE_QWEN_3_5_0_8B_ABLITERATED_CAPTION: LLMModelConfig(
-            pretrained_model_name="prithivMLmods/Gliese-Qwen3.5-0.8B-Abliterated-Caption",
-            max_length=128,
+        ModelVariant.QWEN_3_5_4B_BASE_GGUF: ModelConfig(
+            pretrained_model_name="titan0115/Qwen3.5-4B-Base",
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B_PARO
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_5_4B_BASE_GGUF
 
-    # Shared configuration parameters
-    sample_image = (
-        "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg"
-    )
+    _GGUF_FILES = {
+        ModelVariant.QWEN_3_5_4B_BASE_GGUF: "Qwen3.5-4B-Base-Q4_K_M.gguf",
+    }
+
+    _PROCESSOR_NAME = "Qwen/Qwen3.5-4B-Base"
+
+    sample_text = "Describe this image."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-        """
+        """Initialize Qwen 3.5 image to text model loader."""
         super().__init__(variant)
         self.processor = None
+        self.config = None
+
+    @property
+    def gguf_file(self):
+        return self._GGUF_FILES[self._variant]
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Implementation method for getting model info with validated variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-
-        Returns:
-            ModelInfo: Information about the model and variant
-        """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
@@ -85,57 +69,45 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_processor(self):
+        self.processor = AutoProcessor.from_pretrained(self._PROCESSOR_NAME)
+        return self.processor
+
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Qwen 3.5 model instance for this instance's variant.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-                           If not provided, the model will use its default dtype (typically float32).
-
-        Returns:
-            torch.nn.Module: The Qwen 3.5 model instance for image to text.
-        """
-        # Get the pretrained model name from the instance's variant config
+        """Load and return the Qwen 3.5 model instance for image to text."""
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        # Load the model with dtype override if specified
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-
-        # Quantized variant loads with device_map="cpu"
-        model_kwargs["device_map"] = "cpu"
-
         model_kwargs |= kwargs
-
-        self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
+        model_kwargs["gguf_file"] = self.gguf_file
 
         model = AutoModelForImageTextToText.from_pretrained(
             pretrained_model_name, **model_kwargs
-        )
-        model.eval()
+        ).eval()
+
+        self.config = model.config
+
+        if self.processor is None:
+            self._load_processor()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Qwen 3.5 model with this instance's variant settings.
+        """Load and return input tensors for Qwen 3.5 image to text."""
+        if self.processor is None:
+            self._load_processor()
 
-        Args:
-            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
-            batch_size: Batch size for the inputs.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
         messages = [
             {
                 "role": "user",
                 "content": [
                     {
                         "type": "image",
-                        "image": self.sample_image,
+                        "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
                     },
-                    {"type": "text", "text": "Describe this image."},
+                    {"type": "text", "text": self.sample_text},
                 ],
             }
         ]
@@ -148,3 +120,9 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
         return inputs
+
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
+        )
+        return self.config
