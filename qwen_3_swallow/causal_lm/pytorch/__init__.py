@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen 3 Swallow PyTorch model implementation for Tenstorrent projects.
+Qwen3 Swallow PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
