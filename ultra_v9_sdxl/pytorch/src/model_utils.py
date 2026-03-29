@@ -5,7 +5,7 @@
 Helper functions for Ultra V9 SDXL model loading and processing.
 """
 
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple
 import torch
 from diffusers import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
@@ -143,12 +143,6 @@ def stable_diffusion_preprocessing_xl(
     else:
         batch_size = prompt_embeds.shape[0]
     num_channels_latents = pipe.unet.config.in_channels
-    shape = (
-        batch_size,
-        num_channels_latents,
-        int(height) // pipe.vae_scale_factor,
-        int(width) // pipe.vae_scale_factor,
-    )
     torch.manual_seed(42)
     latents = torch.randn(
         (
