@@ -2,18 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Diffusion Policy PushT model loader implementation for action prediction.
+Diffusion Policy PushT model loader for tt_forge_models.
+
+Diffusion Policy uses a denoising U-Net conditioned on environment keypoints
+and agent state to predict action sequences for robotic control tasks.
+The model iteratively denoises through the U-Net to produce actions.
+
+Reference: https://huggingface.co/lerobot/diffusion_pusht_keypoints
 """
 
-from __future__ import annotations
-
-import importlib.util
-import sys
-import types
-from pathlib import Path
 from typing import Optional
 
 import torch
+from lerobot.policies.diffusion import DiffusionPolicy
 
 from ...base import ForgeModel
 from ...config import (
@@ -27,63 +28,37 @@ from ...config import (
 )
 
 
-def _setup_policies_namespace() -> None:
-    """Register lerobot.policies in sys.modules so subpackage imports work when this loader
-    is imported outside the normal lerobot package context (e.g. via tt-forge-models dynamic
-    import). Without this, 'from lerobot.policies.diffusion...' can fail with import errors.
-    """
-    spec = importlib.util.find_spec("lerobot")
-    if spec is None or spec.origin is None:
-        return
-    policies_path = Path(spec.origin).resolve().parent / "policies"
-    if not policies_path.exists():
-        return
-    if "lerobot.policies" in sys.modules:
-        return
-    policies_module = types.ModuleType("lerobot.policies")
-    policies_module.__path__ = [str(policies_path)]
-    sys.modules["lerobot.policies"] = policies_module
-
-
-class DiffusionPolicyInferenceWrapper(torch.nn.Module):
-    """Wraps DiffusionPolicy to use predict_action_chunk (inference) instead of forward (training).
-
-    DiffusionPolicy.forward() computes training loss; for inference we use predict_action_chunk.
-    See: https://github.com/huggingface/lerobot/blob/main/src/lerobot/policies/diffusion/modeling_diffusion.py
-    """
-
-    def __init__(self, policy):
-        super().__init__()
-        self.policy = policy
-
-    def forward(self, batch: dict) -> torch.Tensor:
-        """Run inference via predict_action_chunk. Returns action tensor."""
-        return self.policy.predict_action_chunk(batch)
-
-
 class ModelVariant(StrEnum):
     """Available Diffusion Policy PushT model variants."""
 
-    DIFFUSION_PUSHT = "diffusion_pusht"
+    KEYPOINTS = "keypoints"
 
 
 class ModelLoader(ForgeModel):
-    """Diffusion Policy PushT model loader implementation for action prediction tasks."""
+    """Diffusion Policy PushT model loader.
+
+    Loads the Diffusion Policy model trained on the PushT keypoints
+    environment for robotic action prediction. The model predicts
+    2D agent actions from environment state and agent position.
+    """
 
     _VARIANTS = {
-        ModelVariant.DIFFUSION_PUSHT: ModelConfig(
-            pretrained_model_name="lerobot/diffusion_pusht",
+        ModelVariant.KEYPOINTS: ModelConfig(
+            pretrained_model_name="lerobot/diffusion_pusht_keypoints",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DIFFUSION_PUSHT
+    DEFAULT_VARIANT = ModelVariant.KEYPOINTS
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.config = None
+        self.policy = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="DiffusionPushT",
             variant=variant,
@@ -93,56 +68,37 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def load_model(self, *, dtype_override=None, device: str = "cpu", **kwargs):
-        _setup_policies_namespace()
-        from lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
+    def load_model(self, *, dtype_override=None, **kwargs):
+        dtype = dtype_override if dtype_override is not None else torch.float32
 
-        model = DiffusionPolicy.from_pretrained(
-            self._variant_config.pretrained_model_name, **kwargs
+        self.policy = DiffusionPolicy.from_pretrained(
+            self._variant_config.pretrained_model_name,
         )
-        model.to(device)
-        if dtype_override is not None:
-            model = model.to(dtype=dtype_override)
-        else:
-            model = model.to(dtype=torch.float32)
-        model.eval()
-        self.config = model.config
-        return DiffusionPolicyInferenceWrapper(model)
+        self.policy.eval()
 
-    def load_inputs(
-        self, dtype_override=None, batch_size: int = 1, device: str = "cpu"
-    ):
-        _setup_policies_namespace()
-        from lerobot.policies.diffusion.configuration_diffusion import DiffusionConfig
+        return self.policy
 
-        if self.config is None:
-            self.config = DiffusionConfig.from_pretrained(
-                self._variant_config.pretrained_model_name
-            )
+    def load_inputs(self, dtype_override=None, **kwargs):
+        dtype = dtype_override if dtype_override is not None else torch.float32
 
-        n_obs_steps = self.config.n_obs_steps
-        dtype = dtype_override or torch.float32
+        batch_size = 1
+        n_obs_steps = 2
 
-        # Build dummy observation batch matching the model's expected input format.
-        # The diffusion policy expects n_obs_steps frames stacked along dim 1.
-        batch = {}
-        for key, feature in (self.config.input_features or {}).items():
-            if feature.type.name == "VISUAL":
-                # Image observations: (batch, n_obs_steps, C, H, W)
-                c, h, w = feature.shape
-                batch[key] = torch.zeros(
-                    (batch_size, n_obs_steps, c, h, w), dtype=dtype, device=device
-                )
-            elif feature.type.name in ("STATE", "ENV"):
-                # State observations: (batch, n_obs_steps, state_dim)
-                batch[key] = torch.zeros(
-                    (batch_size, n_obs_steps, *feature.shape),
-                    dtype=dtype,
-                    device=device,
-                )
+        # observation.environment_state: 16-dim keypoints of the T-block
+        environment_state = torch.randn((batch_size, n_obs_steps, 16), dtype=dtype)
+        # observation.state: 2-dim agent position (x, y)
+        state = torch.randn((batch_size, n_obs_steps, 2), dtype=dtype)
 
-        return {"batch": batch}
+        return {
+            "observation.environment_state": environment_state,
+            "observation.state": state,
+        }
 
-    def unpack_forward_output(self, fwd_output):
-        """predict_action_chunk returns action tensor directly."""
-        return fwd_output
+    def unpack_forward_output(self, output):
+        if isinstance(output, dict) and "action" in output:
+            return output["action"]
+        elif isinstance(output, torch.Tensor):
+            return output
+        elif isinstance(output, tuple):
+            return output[0]
+        return output
