@@ -8,7 +8,7 @@ This is an EAGLE-3 speculative decoding draft model based on Llama architecture,
 designed to accelerate inference of Qwen/Qwen3-VL-8B-Instruct.
 """
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
 
 from ....base import ForgeModel
