@@ -4,7 +4,6 @@
 """
 SELFormer model loader implementation for masked language modeling on molecular SELFIES.
 """
-import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import Optional
 
