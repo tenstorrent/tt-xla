@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_8B_INSTRUCT_AWQ = "8b_instruct_awq"
     QWEN_3_VL_30B_A3B_INSTRUCT = "30b_a3b_instruct"
     QWEN_3_VL_30B_A3B_INSTRUCT_ABLITERATED = "30b_a3b_instruct_abliterated"
+    QWEN_3_VL_30B_A3B_INSTRUCT_NVFP4 = "30b_a3b_instruct_nvfp4"
     QWEN_3_VL_32B_INSTRUCT = "32b_instruct"
     UNSLOTH_QWEN_3_VL_4B_INSTRUCT = "unsloth_4b_instruct"
 
@@ -92,6 +93,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="prithivMLmods/Qwen3-VL-30B-A3B-Instruct-abliterated-v1",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_NVFP4: LLMModelConfig(
+            pretrained_model_name="ig1/Qwen3-VL-30B-A3B-Instruct-NVFP4",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_VL_32B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-VL-32B-Instruct",
             max_length=128,
@@ -106,7 +111,12 @@ class ModelLoader(ForgeModel):
     _MOE_VARIANTS = {
         ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
         ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_ABLITERATED,
+        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_NVFP4,
     }
+
+    # Variants with NVFP4 quantized weights require ignore_mismatched_sizes
+    # because the packed FP4 weight shapes differ from the model definition.
+    _NVFP4_VARIANTS = {ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_NVFP4}
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.QWEN_3_VL_2B_INSTRUCT
@@ -149,6 +159,7 @@ class ModelLoader(ForgeModel):
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT_AWQ,
                 ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
                 ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_ABLITERATED,
+                ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_NVFP4,
                 ModelVariant.QWEN_3_VL_32B_INSTRUCT,
                 ModelVariant.UNSLOTH_QWEN_3_VL_4B_INSTRUCT,
             )
@@ -181,12 +192,11 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # AWQ/BnB variants load with device_map="cpu" to keep quantized weights on CPU
-        if self._variant in (ModelVariant.QWEN_3_VL_4B_INSTRUCT_BNB_4BIT,):
-            model_kwargs["device_map"] = "cpu"
-        else:
-            model_kwargs["dtype"] = "auto"
-            model_kwargs["device_map"] = "auto"
+        model_kwargs["dtype"] = "auto"
+        model_kwargs["device_map"] = "auto"
+
+        if self._variant in self._NVFP4_VARIANTS:
+            model_kwargs["ignore_mismatched_sizes"] = True
 
         # MLX variants may have mismatched tensor layouts
         if self._variant == ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_8BIT:
