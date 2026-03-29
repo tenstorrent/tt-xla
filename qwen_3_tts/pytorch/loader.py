@@ -41,6 +41,7 @@ class Qwen3TTSTalkerWrapper(nn.Module):
 class ModelVariant(StrEnum):
     """Available Qwen3-TTS model variants."""
 
+    QWEN3_TTS_1_7B_BASE = "1.7B-Base"
     QWEN3_TTS_1_7B_VOICE_DESIGN = "1.7B-VoiceDesign"
 
 
@@ -48,12 +49,15 @@ class ModelLoader(ForgeModel):
     """Qwen3-TTS model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
+        ModelVariant.QWEN3_TTS_1_7B_BASE: ModelConfig(
+            pretrained_model_name="Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+        ),
         ModelVariant.QWEN3_TTS_1_7B_VOICE_DESIGN: ModelConfig(
             pretrained_model_name="Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN3_TTS_1_7B_VOICE_DESIGN
+    DEFAULT_VARIANT = ModelVariant.QWEN3_TTS_1_7B_BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
