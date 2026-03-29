@@ -12,14 +12,36 @@ from ...config import (
     ModelTask,
     ModelSource,
     Framework,
+    StrEnum,
+    LLMModelConfig,
 )
 from ...base import ForgeModel
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from typing import Optional
 
 
+class ModelVariant(StrEnum):
+    """Available StarCoder2 model variants."""
+
+    STARCODER2_7B = "7B"
+    STARCODER2_15B_AWQ = "15B_Awq"
+
+
 class ModelLoader(ForgeModel):
     """StarCoder2 model loader implementation."""
+
+    _VARIANTS = {
+        ModelVariant.STARCODER2_7B: LLMModelConfig(
+            pretrained_model_name="bigcode/starcoder2-7b",
+            max_length=128,
+        ),
+        ModelVariant.STARCODER2_15B_AWQ: LLMModelConfig(
+            pretrained_model_name="TechxGenus/starcoder2-15b-AWQ",
+            max_length=128,
+        ),
+    }
+
+    DEFAULT_VARIANT = ModelVariant.STARCODER2_7B
 
     def __init__(self, variant=None, num_layers: Optional[int] = None):
         """Initialize ModelLoader with specified variant.
@@ -32,7 +54,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
 
         # Configuration parameters
-        self.model_name = "bigcode/starcoder2-7b"
+        self.model_name = self._variant_config.pretrained_model_name
         self.tokenizer = None
         self.num_layers = num_layers
 
@@ -48,10 +70,13 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
+
+        group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="StarCoder2",
             variant=variant_name,
-            group=ModelGroup.VULCAN,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -73,6 +98,11 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
+
+        # AWQ quantized variants need device_map="cpu" for CPU-based loading
+        if self._variant == ModelVariant.STARCODER2_15B_AWQ:
+            model_kwargs["device_map"] = "cpu"
+
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
