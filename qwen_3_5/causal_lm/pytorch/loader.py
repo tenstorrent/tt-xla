@@ -41,6 +41,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
     QWEN_3_5_27B_REASONING_DISTILLED_NVFP4 = "27B_Reasoning_Distilled_NVFP4"
     QWEN_3_5_122B_A10B_HERETIC_INT4 = "122B_A10B_heretic_int4"
+    QWEN_3_5_35B_A3B_MLX_5_5BIT = "35B_A3B_MLX_5.5bit"
 
 
 class ModelLoader(ForgeModel):
@@ -114,6 +115,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_122B_A10B_HERETIC_INT4: LLMModelConfig(
             pretrained_model_name="happypatrick/Qwen3.5-122B-A10B-heretic-int4-AutoRound",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_MLX_5_5BIT: LLMModelConfig(
+            pretrained_model_name="inferencerlabs/Qwen3.5-35B-A3B-MLX-5.5bit",
             max_length=128,
         ),
     }
@@ -337,6 +342,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_122B_A10B,
             ModelVariant.QWEN_3_5_122B_A10B_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B_HERETIC_INT4,
+            ModelVariant.QWEN_3_5_35B_A3B_MLX_5_5BIT,
         )
 
     def load_shard_spec(self, model):
