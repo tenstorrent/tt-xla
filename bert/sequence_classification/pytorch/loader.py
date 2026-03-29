@@ -35,6 +35,9 @@ class ModelVariant(StrEnum):
     BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT = (
         "bvanaken_Clinical_Assertion_Negation_BERT"
     )
+    UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE = (
+        "uer_Roberta_Base_Finetuned_Chinanews_Chinese"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -74,6 +77,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bvanaken/clinical-assertion-negation-bert",
             max_length=128,
         ),
+        ModelVariant.UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE: LLMModelConfig(
+            pretrained_model_name="uer/roberta-base-finetuned-chinanews-chinese",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -94,6 +101,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT: "この映画はとても面白かったです。",
         ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY: "The results of this study clearly demonstrate a significant improvement.",
         ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT: "The patient recovered during the night and now denies any [entity] shortness of breath [entity].",
+        ModelVariant.UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE: "中国经济在过去几十年中取得了巨大的发展成就",
     }
 
     def __init__(self, variant=None):
@@ -133,6 +141,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT,
             ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY,
             ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT,
+            ModelVariant.UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
