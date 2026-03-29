@@ -7,7 +7,6 @@ nanoLLaVA GGUF model loader implementation for image-text-to-text tasks.
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
-from transformers.image_utils import load_image
 from typing import Optional
 
 from ....base import ForgeModel
