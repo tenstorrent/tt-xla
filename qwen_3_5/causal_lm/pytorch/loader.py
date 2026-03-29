@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_397B_A17B_GGUF = "397B_A17B_GGUF"
     QWEN_3_5_27B_CLAUDE_OPUS_DISTILLED_MLX_6BIT = "27B_Claude_Opus_Distilled_MLX_6bit"
+    QWEN_3_5_122B_A10B_MXFP4 = "122B_A10B_MXFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -134,6 +135,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_27B_CLAUDE_OPUS_DISTILLED_MLX_6BIT: LLMModelConfig(
             pretrained_model_name="mlx-community/Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_122B_A10B_MXFP4: LLMModelConfig(
+            pretrained_model_name="olka-fi/Qwen3.5-122B-A10B-MXFP4",
             max_length=128,
         ),
     }
@@ -362,6 +367,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
             ModelVariant.QWEN_3_5_122B_A10B,
+            ModelVariant.QWEN_3_5_122B_A10B_MXFP4,
             ModelVariant.QWEN_3_5_397B_A17B_GGUF,
         )
 
