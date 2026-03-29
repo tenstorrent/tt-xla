@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.WIZARDCODER_PYTHON_34B_V1_0_LLAMAFILE
 
-    GGUF_FILE = "wizardcoder-python-34b-v1.0.q4_K_M.llamafile"
+    GGUF_FILE = "wizardcoder-python-34b-v1.0.Q4_K_M.llamafile"
 
     sample_text = "def fibonacci(n):"
 
