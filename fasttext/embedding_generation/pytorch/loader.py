@@ -4,6 +4,7 @@
 
 """NeuML/fasttext model loader implementation for word embedding generation."""
 
+import json
 from typing import Optional
 
 import torch
@@ -84,8 +85,6 @@ class ModelLoader(ForgeModel):
             repo_id=self._variant_config.pretrained_model_name,
             filename="vocab.json",
         )
-        import json
-
         with open(vocab_path) as f:
             self._vocab = json.load(f)
 
