@@ -8,8 +8,6 @@ Fine-tuned from DeepSeek-R1-Distill-Qwen-14B for roleplay and
 chain-of-thought reasoning tasks.
 """
 
-from typing import Optional
-
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
