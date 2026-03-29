@@ -20,6 +20,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
+from ...tools.utils import cast_input_to_type
 
 
 class ModelVariant(StrEnum):
@@ -91,7 +92,6 @@ class ModelLoader(ForgeModel):
 
         # Create a small synthetic video (8 frames of 64x64 RGB)
         video = np.random.randint(0, 255, (8, 64, 64, 3), dtype=np.uint8)
-        video_frames = [video[i] for i in range(video.shape[0])]
 
         messages = [
             {
@@ -99,7 +99,7 @@ class ModelLoader(ForgeModel):
                 "content": [
                     {
                         "type": "video",
-                        "video": video_frames,
+                        "video": [video[i] for i in range(video.shape[0])],
                     },
                     {"type": "text", "text": self.sample_text},
                 ],
@@ -118,8 +118,8 @@ class ModelLoader(ForgeModel):
         )
 
         if dtype_override is not None:
-            for key in inputs:
-                if hasattr(inputs[key], "to"):
-                    inputs[key] = inputs[key].to(dtype_override)
+            inputs = {
+                k: cast_input_to_type(v, dtype_override) for k, v in inputs.items()
+            }
 
         return dict(inputs)
