@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
+    BASE_CLIP_LAION2B_AUGREG_FT_IN1K = "Base_CLIP_LAION2B_Augreg_FT_IN1K"
     LARGE_MLP_CLIP_LAION2B_SOUP_FT_IN12K_IN1K_384 = (
         "Large_MLP_CLIP_LAION2B_Soup_FT_IN12K_IN1K_384"
     )
@@ -51,6 +52,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BASE_CLIP_LAION2B: ConvNeXtConfig(
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.BASE_CLIP_LAION2B_AUGREG_FT_IN1K: ConvNeXtConfig(
+            pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b_augreg_ft_in1k",
             source=ModelSource.TIMM,
         ),
         ModelVariant.LARGE_MLP_CLIP_LAION2B_SOUP_FT_IN12K_IN1K_384: ConvNeXtConfig(
