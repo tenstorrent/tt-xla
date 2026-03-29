@@ -32,6 +32,9 @@ class ModelVariant(StrEnum):
         "koheiduck_Bert_Japanese_Finetuned_Sentiment"
     )
     PEDROPEI_ASPECT_LEVEL_CERTAINTY = "pedropei_Aspect_Level_Certainty"
+    BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT = (
+        "bvanaken_Clinical_Assertion_Negation_BERT"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -67,6 +70,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="pedropei/aspect-level-certainty",
             max_length=128,
         ),
+        ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT: LLMModelConfig(
+            pretrained_model_name="bvanaken/clinical-assertion-negation-bert",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -86,6 +93,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.SPAMX_MURIL_V2: "Congratulations! You have won a free prize. Click here to claim now!",
         ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT: "この映画はとても面白かったです。",
         ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY: "The results of this study clearly demonstrate a significant improvement.",
+        ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT: "The patient recovered during the night and now denies any [entity] shortness of breath [entity].",
     }
 
     def __init__(self, variant=None):
@@ -124,6 +132,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.SPAMX_MURIL_V2,
             ModelVariant.KOHEIDUCK_BERT_JAPANESE_FINETUNED_SENTIMENT,
             ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY,
+            ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
