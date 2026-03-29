@@ -4,57 +4,54 @@
 """
 Granite MoE model loader implementation for causal language modeling.
 """
-
-from typing import Optional
-
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    Framework,
     LLMModelConfig,
-    ModelGroup,
     ModelInfo,
-    ModelSource,
+    ModelGroup,
     ModelTask,
+    ModelSource,
+    Framework,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available Granite MoE model variants."""
+    """Available Granite MoE model variants for causal language modeling."""
 
-    GRANITE_3_1_3B_A800M_INSTRUCT = "3.1_3B_A800M_Instruct"
+    GRANITE_3_0_1B_A400M_BASE = "3.0_1B_A400M_Base"
 
 
 class ModelLoader(ForgeModel):
     """Granite MoE model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GRANITE_3_1_3B_A800M_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="ibm-granite/granite-3.1-3b-a800m-instruct",
+        ModelVariant.GRANITE_3_0_1B_A400M_BASE: LLMModelConfig(
+            pretrained_model_name="ibm-granite/granite-3.0-1b-a400m-base",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GRANITE_3_1_3B_A800M_INSTRUCT
+    DEFAULT_VARIANT = ModelVariant.GRANITE_3_0_1B_A400M_BASE
+
+    sample_text = "Where is the Thomas J. Watson Research Center located?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
-        self.model = None
+        self.config = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
-            model="GraniteMoE",
+            model="Granite MoE",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -63,16 +60,15 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -80,7 +76,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -102,25 +98,25 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        test_input = "What is the capital of France?"
+        max_length = self._variant_config.max_length
 
-        inputs = self.tokenizer(test_input, return_tensors="pt")
+        prompts = [self.sample_text]
+
+        inputs = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+        )
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
