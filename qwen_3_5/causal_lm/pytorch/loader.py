@@ -39,6 +39,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_SEHYO_NVFP4 = "35B_A3B_Sehyo_NVFP4"
     QWEN_3_5_35B_A3B_HUIHUI_ABLITERATED = "35B_A3B_Huihui_Abliterated"
     QWEN_3_5_9B_MLX_4BIT = "9B_MLX_4bit"
+    QWEN_3_5_24B_A3B_REAP_0_32_GGUF = "24B_A3B_REAP_0.32_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -106,6 +107,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mlx-community/Qwen3.5-9B-4bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_24B_A3B_REAP_0_32_GGUF: LLMModelConfig(
+            pretrained_model_name="sandeshrajx/Qwen3.5-24B-A3B-REAP-0.32-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -115,13 +120,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_2B_GGUF: "Qwen3.5-2B-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_2B_REASONING_DISTILLED_GGUF: "Qwen3.5-2B.Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_122B_A10B_GGUF: "Qwen3.5-122B-A10B-Q4_K_M-00001-of-00002.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF: "Qwen3.5-35B-A3B-heretic-MXFP4_MOE.gguf",
-        ModelVariant.QWEN_3_5_4B_IMATRIX_GGUF: "Qwen3.5-4B-imatrix-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: "Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-Q4_K_M.gguf",
-        ModelVariant.QWEN_3_5_0_8B_ABLITERATED_I1_GGUF: "Huihui-Qwen3.5-0.8B-abliterated.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_24B_A3B_REAP_0_32_GGUF: "Qwen3.5-24B-A3B-REAP-0.32-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -324,11 +323,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
             ModelVariant.QWEN_3_5_35B_A3B_HUIHUI_ABLITERATED,
             ModelVariant.QWEN_3_5_122B_A10B,
-            ModelVariant.QWEN_3_5_122B_A10B_GGUF,
-            ModelVariant.QWEN_3_5_397B_A17B_MLX_4BIT,
-            ModelVariant.QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF,
-            ModelVariant.QWEN_3_5_35B_A3B_W4A16,
-            ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF,
+            ModelVariant.QWEN_3_5_24B_A3B_REAP_0_32_GGUF,
         )
 
     def load_shard_spec(self, model):
