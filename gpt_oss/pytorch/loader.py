@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     GPT_OSS_20B_UNCENSORED = "20B_uncensored"
     GPT_OSS_120B = "120B"
     GPT_OSS_120B_BNB_4BIT = "120B_bnb_4bit"
+    GPT_OSS_20B_WFP8_AFP8_KVFP8 = "20B_WFP8_AFP8_KVFP8"
 
 
 class ModelLoader(ForgeModel):
@@ -49,6 +50,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.GPT_OSS_120B_BNB_4BIT: LLMModelConfig(
             pretrained_model_name="unsloth/gpt-oss-120b-unsloth-bnb-4bit",
+            max_length=256,
+        ),
+        ModelVariant.GPT_OSS_20B_WFP8_AFP8_KVFP8: LLMModelConfig(
+            pretrained_model_name="amd/gpt-oss-20b-WFP8-AFP8-KVFP8",
             max_length=256,
         ),
     }
@@ -90,6 +95,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.GPT_OSS_120B_BNB_4BIT,
             ModelVariant.GPT_OSS_20B_UNCENSORED,
+            ModelVariant.GPT_OSS_20B_WFP8_AFP8_KVFP8,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -151,8 +157,10 @@ class ModelLoader(ForgeModel):
             "attn_implementation": "eager",
         }
 
-        # BnB variants have quantization config baked in; others use Mxfp4
+        # Pre-quantized variants have quantization config baked in; others use Mxfp4
         if self._variant == ModelVariant.GPT_OSS_120B_BNB_4BIT:
+            model_kwargs["device_map"] = "cpu"
+        elif self._variant == ModelVariant.GPT_OSS_20B_WFP8_AFP8_KVFP8:
             model_kwargs["device_map"] = "cpu"
         else:
             quantization_config = Mxfp4Config(dequantize=True)
