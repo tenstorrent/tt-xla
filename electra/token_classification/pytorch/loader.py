@@ -20,40 +20,39 @@ from third_party.tt_forge_models.base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available ELECTRA token classification model variants."""
+    """Available ELECTRA model variants for token classification."""
 
-    OPENMED_NER_SPECIESDETECT_ELECTRAMED_335M = (
-        "OpenMed_NER_SpeciesDetect_ElectraMed_335M"
-    )
+    STEVETRAN_OB_NER_MODEL = "SteveTran/ob_ner_model"
 
 
 class ModelLoader(ForgeModel):
     """ELECTRA model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_SPECIESDETECT_ELECTRAMED_335M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-SpeciesDetect-ElectraMed-335M",
+        ModelVariant.STEVETRAN_OB_NER_MODEL: LLMModelConfig(
+            pretrained_model_name="SteveTran/ob_ner_model",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_SPECIESDETECT_ELECTRAMED_335M
+    DEFAULT_VARIANT = ModelVariant.STEVETRAN_OB_NER_MODEL
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
-        self.sample_text = "Escherichia coli bacteria were found in the water samples."
+        self.sample_text = "Nike black leather running shoes size 10 for men"
         self.tokenizer = None
         self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name=None):
+        if variant_name is None:
+            variant_name = "base"
+
         return ModelInfo(
             model="ELECTRA",
-            variant=variant,
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
