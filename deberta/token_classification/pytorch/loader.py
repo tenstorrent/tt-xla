@@ -28,6 +28,9 @@ class ModelVariant(StrEnum):
     OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1 = (
         "OpenMed/OpenMed-PII-German-SuperClinical-Base-184M-v1"
     )
+    OPENMED_PII_SUPERCLINICAL_BASE_184M_V1 = (
+        "OpenMed/OpenMed-PII-SuperClinical-Base-184M-v1"
+    )
     BLAZE999_MEDICAL_NER = "blaze999/Medical-NER"
 
 
@@ -41,6 +44,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1: LLMModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-German-SuperClinical-Base-184M-v1",
+            max_length=128,
+        ),
+        ModelVariant.OPENMED_PII_SUPERCLINICAL_BASE_184M_V1: LLMModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-SuperClinical-Base-184M-v1",
             max_length=128,
         ),
         ModelVariant.BLAZE999_MEDICAL_NER: LLMModelConfig(
@@ -61,6 +68,8 @@ class ModelLoader(ForgeModel):
             self._variant == ModelVariant.OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1
         ):
             self.sample_text = "Dr. Maria Müller behandelte Patient Hans Schmidt im Universitätsklinikum Berlin am 15.03.2024."
+        elif self._variant == ModelVariant.OPENMED_PII_SUPERCLINICAL_BASE_184M_V1:
+            self.sample_text = "Patient John Smith (DOB: 03/15/1985, SSN: 123-45-6789) was seen today at Stanford Medical Center."
         else:
             self.sample_text = (
                 "The patient was administered acetylsalicylic acid for pain relief."
