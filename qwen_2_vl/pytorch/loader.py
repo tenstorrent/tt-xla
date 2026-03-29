@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     QWEN_2_VL_2B_INSTRUCT = "2B_Instruct"
     QWEN_2_VL_7B = "7B"
     QWEN_2_VL_7B_INSTRUCT = "7B_Instruct"
-    QWEN_2_VL_72B_INSTRUCT = "72B_Instruct"
+    QWEN_2_VL_2B_INSTRUCT_UNSLOTH_BNB_4BIT = "2B_Instruct_Unsloth_BnB_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -45,8 +45,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_2_VL_7B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2-VL-7B-Instruct",
         ),
-        ModelVariant.QWEN_2_VL_72B_INSTRUCT: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2-VL-72B-Instruct",
+        # Unsloth BnB 4-bit variants
+        ModelVariant.QWEN_2_VL_2B_INSTRUCT_UNSLOTH_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen2-VL-2B-Instruct-unsloth-bnb-4bit",
         ),
     }
 
