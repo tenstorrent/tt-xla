@@ -15,7 +15,7 @@ def preprocess_for_sampling(self, batch: dict[str, Tensor]):
 
     This method extracts and prepares all inputs required by the
     inference-time `forward` method, replicating the preprocessing
-    logic originally used inside `select_action`.
+    logic originally used inside `predict_action_chunk`.
 
     Args:
         batch (dict[str, Tensor]): Dictionary containing environment observations.
@@ -25,7 +25,6 @@ def preprocess_for_sampling(self, batch: dict[str, Tensor]):
         img_masks (Tensor): Masks indicating valid pixels in images.
         lang_tokens (Tensor): Tokenized language observations.
         lang_masks (Tensor): Attention masks for language tokens.
-        state (Tensor): State vector including proprioception / joint positions.
     """
     if (
         "observation.images.base_0_rgb" in self.config.image_features
@@ -40,9 +39,7 @@ def preprocess_for_sampling(self, batch: dict[str, Tensor]):
     lang_tokens = batch["observation.language.tokens"]
     lang_masks = batch["observation.language.attention_mask"]
 
-    state = self.prepare_state(batch)
-
-    return images, img_masks, lang_tokens, lang_masks, state
+    return images, img_masks, lang_tokens, lang_masks
 
 
 @torch.no_grad()
@@ -52,16 +49,15 @@ def forward(
     img_masks: Tensor,
     lang_tokens: Tensor,
     lang_masks: Tensor,
-    state: Tensor,
     **kwargs,
 ) -> Tensor:
     """
     Forward pass replicating ``select_action`` queue behavior.
 
     On the first call (or when the queue is drained), runs
-    ``generate_actions`` to produce a chunk of actions and fills a queue.
-    Subsequent calls pop the next action from that queue without
-    re-running the model.
+    ``sample_actions_fast`` to produce FAST action tokens, detokenizes
+    them into continuous actions, and fills a queue. Subsequent calls
+    pop the next action from that queue without re-running the model.
 
     Queues are kept **per-device** so that the test harness (which calls
     forward once on CPU and once on the TT device using the same model
@@ -73,8 +69,7 @@ def forward(
         img_masks (Tensor): Masks for images.
         lang_tokens (Tensor): Tokenized language observations.
         lang_masks (Tensor): Attention masks for language tokens.
-        state (Tensor): State vector including proprioception / joint positions.
-        **kwargs: Additional keyword arguments passed to `generate_actions`.
+        **kwargs: Additional keyword arguments passed to `sample_actions_fast`.
 
     Returns:
         Tensor: A single action from the model (shape: [batch_size, action_dim]).
@@ -82,7 +77,7 @@ def forward(
     if not hasattr(self, "_device_queues"):
         self._device_queues = {}
 
-    device_key = str(state.device)
+    device_key = str(images.device)
     if device_key not in self._device_queues:
         self._device_queues[device_key] = deque()
 
@@ -97,15 +92,23 @@ def forward(
 
         torch.cumsum = _safe_cumsum
         try:
-            actions = self.model.generate_actions(
-                images, img_masks, lang_tokens, lang_masks, state, **kwargs
+            action_tokens = self.model.sample_actions_fast(
+                images,
+                img_masks,
+                lang_tokens,
+                lang_masks,
+                max_decoding_steps=self.config.max_decoding_steps,
+                temperature=self.config.temperature,
             )
         finally:
             torch.cumsum = original_cumsum
 
-        original_action_dim = self.config.output_features["action"].shape[0]
-        actions = actions[:, :, :original_action_dim]
-        actions = actions[:, : self.config.n_action_steps]
+        action_horizon = self.config.n_action_steps
+        action_dim = self.config.output_features["action"].shape[0]
+        actions = self.detokenize_actions(
+            action_tokens, action_horizon=action_horizon, action_dim=action_dim
+        )
+        actions = actions[:, :action_horizon]
 
         queue.extend(actions.transpose(0, 1))
 

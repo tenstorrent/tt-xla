@@ -4,7 +4,6 @@
 """
 Pi-0 FAST model loader implementation for action prediction tasks
 """
-import torch
 from typing import Optional
 from ...base import ForgeModel
 from ...config import (
@@ -85,11 +84,10 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None, episode_index=0):
         """
         Load and preprocess inputs for action sampling.
-        Returns images, image masks, language tokens, language masks, and state.
+        Returns images, image masks, language tokens, and language masks.
         """
         from lerobot.policies.factory import make_pre_post_processors
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
-        from .src.model import preprocess_for_sampling
 
         self.preprocess, self.postprocess_fn = make_pre_post_processors(
             self.pi_0_fast.config,
@@ -105,10 +103,9 @@ class ModelLoader(ForgeModel):
             img_masks,
             lang_tokens,
             lang_masks,
-            state,
         ) = self.pi_0_fast.preprocess_for_sampling(batch)
 
-        return images, img_masks, lang_tokens, lang_masks, state
+        return images, img_masks, lang_tokens, lang_masks
 
     def postprocess(self, pred_action):
         """Apply postprocessing to predicted actions."""
