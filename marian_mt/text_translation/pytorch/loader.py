@@ -38,6 +38,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_EN_UK = "Opus_Mt_En_Uk"
     OPUS_MT_TC_BIG_KO_EN = "Opus_Mt_Tc_Big_Ko_En"
     OPUS_MT_JAP_EN = "Opus_Mt_Jap_En"
+    OPUS_MT_EN_MUL = "Opus_Mt_En_Mul"
 
 
 class ModelLoader(ForgeModel):
@@ -89,6 +90,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_JAP_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-jap-en",
         ),
+        ModelVariant.OPUS_MT_EN_MUL: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-en-mul",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.OPUS_MT_TR_EN
@@ -102,6 +106,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_EN_UK: "My name is Wolfgang and I live in Berlin.",
         ModelVariant.OPUS_MT_TC_BIG_KO_EN: "2, 4, 6 등은 짝수이다.",
         ModelVariant.OPUS_MT_JAP_EN: "今日はとても良い天気です。",
+        ModelVariant.OPUS_MT_EN_MUL: ">>fra<< The weather is beautiful today.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
