@@ -109,6 +109,9 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
+    # Deqing variants
+    DEQING_LLAMA_300M_V5_ADDITION_ADAMW = "Deqing_300M_v5_Addition_Adamw"
+
     # Unsloth BnB 4-bit variants
     TINYLLAMA_BNB_4BIT = "Tinyllama_bnb_4bit"
     LLAMA_3_2_1B_INSTRUCT_BNB_4BIT = "3.2_1B_Instruct_bnb_4bit"
@@ -264,6 +267,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
+        # Deqing variants
+        ModelVariant.DEQING_LLAMA_300M_V5_ADDITION_ADAMW: LLMModelConfig(
+            pretrained_model_name="deqing/llama-300M-v5-addition_adamw",
+            max_length=128,
+        ),
         # Unsloth BnB 4-bit variants
         ModelVariant.TINYLLAMA_BNB_4BIT: LLMModelConfig(
             pretrained_model_name="unsloth/tinyllama-bnb-4bit",
@@ -354,6 +362,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.JACKFRAM_LLAMA_160M,
             ModelVariant.TINYLLAMA_BNB_4BIT,
             ModelVariant.LLAMA_3_2_1B_INSTRUCT_BNB_4BIT,
+            ModelVariant.DEQING_LLAMA_300M_V5_ADDITION_ADAMW,
         ]:
             group = ModelGroup.VULCAN
         else:
