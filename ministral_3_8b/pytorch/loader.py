@@ -7,7 +7,7 @@ Ministral 3-8B model loader implementation for multimodal vision-language modeli
 
 from typing import Optional
 
-from ....config import (
+from ...config import (
     LLMModelConfig,
     ModelInfo,
     ModelGroup,
@@ -16,7 +16,7 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
+from ...base import ForgeModel
 
 
 class ModelVariant(StrEnum):
@@ -110,7 +110,7 @@ class ModelLoader(ForgeModel):
             dict: Input tensors that can be fed to the model.
         """
         from PIL import Image
-        from ....tools.utils import cast_input_to_type, get_file
+        from ...tools.utils import cast_input_to_type, get_file
 
         if self.processor is None:
             self._load_processor(dtype_override)
