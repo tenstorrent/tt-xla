@@ -52,6 +52,7 @@ class ModelVariant(StrEnum):
     QIAW99_QWEN_2_5_7B_INSTRUCT_OPENBOOKQA_DPO = "qiaw99_7B_Instruct_OpenbookQA_DPO"
     ORION_ZHEN_QWEN_2_5_7B_INSTRUCT_UNCENSORED = "Orion_zhen_7B_Instruct_Uncensored"
     AMD_QWEN_2_5_1_5B_INSTRUCT_QUARK_FP8 = "AMD_1.5B_Instruct_Quark_FP8"
+    MESOLITICA_QWEN_2_5_72B_INSTRUCT_FP8 = "Mesolitica_72B_Instruct_FP8"
 
 
 class ModelLoader(ForgeModel):
@@ -168,6 +169,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="amd/Qwen2.5-1.5B-Instruct-ptpc-Quark-ts",
             max_length=128,
         ),
+        # Mesolitica FP8 dynamic quantized variant
+        ModelVariant.MESOLITICA_QWEN_2_5_72B_INSTRUCT_FP8: LLMModelConfig(
+            pretrained_model_name="mesolitica/Qwen2.5-72B-Instruct-FP8",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -226,6 +232,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QIAW99_QWEN_2_5_7B_INSTRUCT_OPENBOOKQA_DPO,
             ModelVariant.ORION_ZHEN_QWEN_2_5_7B_INSTRUCT_UNCENSORED,
             ModelVariant.AMD_QWEN_2_5_1_5B_INSTRUCT_QUARK_FP8,
+            ModelVariant.MESOLITICA_QWEN_2_5_72B_INSTRUCT_FP8,
         ]:
             group = ModelGroup.VULCAN
 
