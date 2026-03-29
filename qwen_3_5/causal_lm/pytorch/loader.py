@@ -43,6 +43,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_HERETIC_MXFP4_GGUF = "35B_A3B_Heretic_MXFP4_GGUF"
     QWEN_3_5_4B_IMATRIX_GGUF = "4B_imatrix_GGUF"
     QWEN_3_5_35B_A3B_W4A16 = "35B_A3B_W4A16"
+    QWEN_3_5_2B_MLX_8BIT = "2B_MLX_8bit"
 
 
 class ModelLoader(ForgeModel):
@@ -124,6 +125,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_W4A16: LLMModelConfig(
             pretrained_model_name="apolo13x/Qwen3.5-35B-A3B-quantized.w4a16",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_2B_MLX_8BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen3.5-2B-MLX-8bit",
             max_length=128,
         ),
     }
