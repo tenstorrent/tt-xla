@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available AST audio classification model variants."""
 
     FINETUNED_AUDIOSET_16_16_0442 = "Finetuned_Audioset_16_16_0.442"
+    DISTIL_AUDIOSET = "Distil_Audioset"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.FINETUNED_AUDIOSET_16_16_0442: ModelConfig(
             pretrained_model_name="MIT/ast-finetuned-audioset-16-16-0.442",
+        ),
+        ModelVariant.DISTIL_AUDIOSET: ModelConfig(
+            pretrained_model_name="bookbot/distil-ast-audioset",
         ),
     }
 
