@@ -31,7 +31,6 @@ from ...config import (
 _REPO_ID = "Supertone/supertonic-2"
 _TEXT_ENCODER_ONNX = "onnx/text_encoder.onnx"
 _VOICE_STYLE_FILE = "voice_styles/F1.json"
-_CONFIG_FILE = "onnx/tts.json"
 _UNICODE_INDEXER_FILE = "onnx/unicode_indexer.json"
 
 
