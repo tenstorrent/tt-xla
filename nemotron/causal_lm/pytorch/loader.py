@@ -27,7 +27,7 @@ class ModelVariant(StrEnum):
     NEMOTRON_MINI_4B_INSTRUCT = "Mini_4B_Instruct"
     NEMOTRON_3_NANO_30B_A3B_FP8 = "3_Nano_30B_A3B_FP8"
     NEMOTRON_3_SUPER_120B_A12B_NVFP4 = "3_Super_120B_A12B_NVFP4"
-    NEMOTRON_TERMINAL_32B = "Terminal_32B"
+    NEMOTRON_CC_NORWEGIAN_TOWER_9B = "CC_Norwegian_Tower_9B"
 
 
 class ModelLoader(ForgeModel):
@@ -46,8 +46,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
             max_length=128,
         ),
-        ModelVariant.NEMOTRON_TERMINAL_32B: LLMModelConfig(
-            pretrained_model_name="nvidia/Nemotron-Terminal-32B",
+        ModelVariant.NEMOTRON_CC_NORWEGIAN_TOWER_9B: LLMModelConfig(
+            pretrained_model_name="MultiSynt/nemotron-cc-norwegian-tower9b",
             max_length=128,
         ),
     }
@@ -96,6 +96,9 @@ class ModelLoader(ForgeModel):
     # because the packed FP4 weight shapes differ from the model definition.
     _NVFP4_VARIANTS = {ModelVariant.NEMOTRON_3_SUPER_120B_A12B_NVFP4}
 
+    # Base (non-instruct) variants that lack a chat template.
+    _BASE_VARIANTS = {ModelVariant.NEMOTRON_CC_NORWEGIAN_TOWER_9B}
+
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -123,13 +126,16 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=False,
-        )
+        if self._variant in self._BASE_VARIANTS:
+            text = self.sample_text
+        else:
+            messages = [{"role": "user", "content": self.sample_text}]
+            text = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
 
         inputs = self.tokenizer(
             [text],
