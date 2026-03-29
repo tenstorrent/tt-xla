@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F = "4B_Instruct_OpenbookQA_SFT_DPO_F"
     GEMMA_3_4B_IT_OPENBOOKQA_SFT_C = "4B_Instruct_OpenbookQA_SFT_C"
     GEMMA_3_4B_IT_OPENBOOKQA_SFT_D = "4B_Instruct_OpenbookQA_SFT_D"
+    GEMMA_3_34M = "34M"
 
 
 class ModelLoader(ForgeModel):
@@ -80,6 +81,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="qiaw99/Gemma3-4b-it-OpenbookQA-SFT-D",
             max_length=256,
         ),
+        ModelVariant.GEMMA_3_34M: LLMModelConfig(
+            pretrained_model_name="axolotl-ai-co/gemma-3-34M",
+            max_length=256,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GEMMA_3_270M_IT
@@ -107,6 +112,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_DPO_F,
             ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_C,
             ModelVariant.GEMMA_3_4B_IT_OPENBOOKQA_SFT_D,
+            ModelVariant.GEMMA_3_34M,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -188,7 +194,11 @@ class ModelLoader(ForgeModel):
         max_length = self._variant_config.max_length
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
-        if self._variant in (ModelVariant.GEMMA_3_270M, ModelVariant.GEMMA_3_1B_PT):
+        if self._variant in (
+            ModelVariant.GEMMA_3_270M,
+            ModelVariant.GEMMA_3_1B_PT,
+            ModelVariant.GEMMA_3_34M,
+        ):
             inputs = self.tokenizer(
                 prompt or self.sample_text,
                 return_tensors="pt",
