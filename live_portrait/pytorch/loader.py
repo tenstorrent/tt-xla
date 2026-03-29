@@ -9,7 +9,6 @@ to 3D appearance feature volumes for animation synthesis.
 Source: https://huggingface.co/KlingTeam/LivePortrait
 """
 
-import torch
 from huggingface_hub import hf_hub_download
 from torchvision import transforms
 from datasets import load_dataset
