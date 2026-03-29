@@ -10,7 +10,6 @@ with a Qwen2 language model backbone, connected via an MLP projector.
 
 from typing import Optional
 
-import torch
 from PIL import Image
 from transformers import AutoModelForImageTextToText, AutoProcessor
 
