@@ -25,6 +25,7 @@ from .src.model import Wrapper
 class ModelVariant(StrEnum):
     """Available NuExtract 2.0 model variants."""
 
+    NUEXTRACT_2_0_4B = "4B"
     NUEXTRACT_2_0_8B = "8B"
 
 
@@ -32,6 +33,9 @@ class ModelLoader(ForgeModel):
     """NuExtract 2.0 model loader for structured information extraction tasks."""
 
     _VARIANTS = {
+        ModelVariant.NUEXTRACT_2_0_4B: LLMModelConfig(
+            pretrained_model_name="numind/NuExtract-2.0-4B",
+        ),
         ModelVariant.NUEXTRACT_2_0_8B: LLMModelConfig(
             pretrained_model_name="numind/NuExtract-2.0-8B",
         ),
