@@ -62,7 +62,10 @@ class ModelLoader(ForgeModel):
 
         pretrained_model_name = self._variant_config.pretrained_model_name
         self.model_name = pretrained_model_name
-        self.sample_text = "The capital of France is [MASK]."
+        if self.variant == ModelVariant.JA_310M:
+            self.sample_text = "おはようございます、今日の天気は<mask>です。"
+        else:
+            self.sample_text = "The capital of France is [MASK]."
         self.max_length = 128
         self.tokenizer = None
 
