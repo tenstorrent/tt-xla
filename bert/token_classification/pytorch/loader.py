@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     DSLIM_BERT_BASE_NER = "dslim/bert-base-NER"
     HATMIMOHA_ARABIC_NER = "hatmimoha/arabic-ner"
     CELIUDOS_LEGAL_BERT_LGPD = "celiudos/legal-bert-lgpd"
+    SAMRAWAL_BERT_BASE_UNCASED_CLINICAL_NER = "samrawal/bert-base-uncased_clinical-ner"
 
 
 class ModelLoader(ForgeModel):
@@ -55,6 +56,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="celiudos/legal-bert-lgpd",
             max_length=512,
         ),
+        ModelVariant.SAMRAWAL_BERT_BASE_UNCASED_CLINICAL_NER: LLMModelConfig(
+            pretrained_model_name="samrawal/bert-base-uncased_clinical-ner",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -76,6 +81,10 @@ class ModelLoader(ForgeModel):
             self.sample_text = "نبيه بري النائب علي حسن خليل من البنك الدولي"
         elif self._variant == ModelVariant.CELIUDOS_LEGAL_BERT_LGPD:
             self.sample_text = "O autor João da Silva, portador do CPF 123.456.789-00, residente na Rua das Flores, 123, São Paulo"
+        elif self._variant == ModelVariant.SAMRAWAL_BERT_BASE_UNCASED_CLINICAL_NER:
+            self.sample_text = (
+                "The patient was diagnosed with diabetes and prescribed metformin"
+            )
         else:
             self.sample_text = "HuggingFace is a company based in Paris and New York"
         self.max_length = self._variant_config.max_length
@@ -99,6 +108,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.DSLIM_BERT_BASE_NER,
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.CELIUDOS_LEGAL_BERT_LGPD,
+            ModelVariant.SAMRAWAL_BERT_BASE_UNCASED_CLINICAL_NER,
         ):
             group = ModelGroup.VULCAN
 
