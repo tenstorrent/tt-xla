@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available Mistral Small 3.1 model variants."""
 
     MISTRAL_SMALL_3_1_24B_INSTRUCT = "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+    MISTRAL_SMALL_3_1_24B_BASE = "mistralai/Mistral-Small-3.1-24B-Base-2503"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT: LLMModelConfig(
             pretrained_model_name=str(ModelVariant.MISTRAL_SMALL_3_1_24B_INSTRUCT),
+        ),
+        ModelVariant.MISTRAL_SMALL_3_1_24B_BASE: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.MISTRAL_SMALL_3_1_24B_BASE),
         ),
     }
 
@@ -118,18 +122,21 @@ class ModelLoader(ForgeModel):
         image_file = get_file(image_url or self.sample_image_url)
         image = Image.open(image_file).convert("RGB")
 
-        text_prompt = self.processor.apply_chat_template(
-            [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image"},
-                        {"type": "text", "text": prompt or self.sample_text},
-                    ],
-                }
-            ],
-            add_generation_prompt=True,
-        )
+        if self.variant == ModelVariant.MISTRAL_SMALL_3_1_24B_BASE:
+            text_prompt = prompt or self.sample_text
+        else:
+            text_prompt = self.processor.apply_chat_template(
+                [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image"},
+                            {"type": "text", "text": prompt or self.sample_text},
+                        ],
+                    }
+                ],
+                add_generation_prompt=True,
+            )
 
         inputs = self.processor(
             text=text_prompt,
