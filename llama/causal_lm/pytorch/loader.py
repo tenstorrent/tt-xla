@@ -86,6 +86,7 @@ class ModelVariant(StrEnum):
     # TinyLlama variants
     TINYLLAMA_V1_1 = "Tinyllama_v1.1"
     TINYLLAMA_W8W8_STATIC = "Tinyllama_W8W8_Static"
+    TINYLLAMA_W8A8_DYNAMIC_TOKEN_V2 = "Tinyllama_W8A8_Dynamic_Token_v2"
 
     # AMD Quark variants
     AMD_QUARK_TINY_LLAMA = "Amd_Quark_Tiny_Llama"
@@ -221,6 +222,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="nm-testing/tinyllama-oneshot-w8w8-test-static-shape-change",
             max_length=128,
         ),
+        ModelVariant.TINYLLAMA_W8A8_DYNAMIC_TOKEN_V2: LLMModelConfig(
+            pretrained_model_name="nm-testing/tinyllama-oneshot-w8a8-dynamic-token-v2",
+            max_length=128,
+        ),
         # AMD Quark variants
         ModelVariant.AMD_QUARK_TINY_LLAMA: LLMModelConfig(
             pretrained_model_name="amd-quark/tiny-llama-fast-tokenizer",
@@ -284,6 +289,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_FP8_BLOCK,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_QUANTIZED_W4A16,
             ModelVariant.TINYLLAMA_W8W8_STATIC,
+            ModelVariant.TINYLLAMA_W8A8_DYNAMIC_TOKEN_V2,
             ModelVariant.SYNTHIA_3_70B_V3_5,
         ]:
             group = ModelGroup.VULCAN
@@ -386,6 +392,7 @@ class ModelLoader(ForgeModel):
             "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16",
             "RedHatAI/Llama-3.3-70B-Instruct-FP8-block",
             "nm-testing/tinyllama-oneshot-w8w8-test-static-shape-change",
+            "nm-testing/tinyllama-oneshot-w8a8-dynamic-token-v2",
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
