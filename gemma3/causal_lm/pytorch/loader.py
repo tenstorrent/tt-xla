@@ -127,10 +127,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
         model_kwargs = {}
-        if self._variant == ModelVariant.GEMMA_3_4B_IT_AWQ_INT4:
-            model_kwargs["device_map"] = "cpu"
-        else:
-            model_kwargs["use_cache"] = False
+        model_kwargs["use_cache"] = False
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
