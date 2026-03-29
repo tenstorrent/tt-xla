@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
         "shahrukhx01_Question_vs_Statement_Classifier"
     )
     PEFT_INTERNAL_TESTING_TINY_RANDOM = "peft_internal_testing_Tiny_Random"
+    LIYUAN_AMAZON_REVIEW_SENTIMENT_ANALYSIS = "LiYuan_Amazon_Review_Sentiment_Analysis"
 
 
 class ModelLoader(ForgeModel):
@@ -62,6 +63,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="peft-internal-testing/tiny-random-BertForSequenceClassification",
             max_length=128,
         ),
+        ModelVariant.LIYUAN_AMAZON_REVIEW_SENTIMENT_ANALYSIS: LLMModelConfig(
+            pretrained_model_name="LiYuan/amazon-review-sentiment-analysis",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -80,6 +85,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.SHAHRUKHX01_QUESTION_VS_STATEMENT_CLASSIFIER: "What is the capital of France?",
         ModelVariant.PEFT_INTERNAL_TESTING_TINY_RANDOM: "the movie was great!",
+        ModelVariant.LIYUAN_AMAZON_REVIEW_SENTIMENT_ANALYSIS: "This product exceeded my expectations and works perfectly!",
     }
 
     def __init__(self, variant=None):
@@ -117,6 +123,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.SHAHRUKHX01_QUESTION_VS_STATEMENT_CLASSIFIER,
             ModelVariant.PEFT_INTERNAL_TESTING_TINY_RANDOM,
+            ModelVariant.LIYUAN_AMAZON_REVIEW_SENTIMENT_ANALYSIS,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
