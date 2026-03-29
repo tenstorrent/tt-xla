@@ -40,12 +40,14 @@ _GGUF_FILES = {
     "I2V_14B_720P_Q4_K_M": "wan2.1-i2v-14b-720p-Q4_K_M.gguf",
 }
 
-# WanTransformer3DModel input dimensions (from default config)
+# WanTransformer3DModel input dimensions
+# I2V transformer uses in_channels=36 (16 video + 16 image + 4 mask)
 IN_CHANNELS = 36
 TEXT_DIM = 4096
-NUM_FRAMES = 9
-LATENT_HEIGHT = 60
-LATENT_WIDTH = 104
+# Small test dimensions; must satisfy patch_size=(1,2,2) divisibility
+NUM_FRAMES = 1
+LATENT_HEIGHT = 8
+LATENT_WIDTH = 8
 
 
 class ModelVariant(StrEnum):
