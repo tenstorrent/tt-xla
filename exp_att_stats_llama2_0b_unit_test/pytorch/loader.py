@@ -36,11 +36,13 @@ class ModelVariant(StrEnum):
 class ExpectedAttentionStats(nn.Module):
     """Wrapper module for pre-computed attention statistics loaded from safetensors."""
 
-    def __init__(self, num_layers, num_heads, head_dim):
+    def __init__(self, num_layers, num_heads, head_dim, state_dict):
         super().__init__()
         self.num_layers = num_layers
         self.num_heads = num_heads
         self.head_dim = head_dim
+        for name, tensor in state_dict.items():
+            self.register_buffer(name.replace(".", "_"), tensor)
 
     def forward(self, x):
         return x
@@ -81,15 +83,15 @@ class ModelLoader(ForgeModel):
         with open(config_path) as f:
             config = json.load(f)
 
+        weights_path = hf_hub_download(repo_id=repo_id, filename="model.safetensors")
+        state_dict = load_file(weights_path)
+
         model = ExpectedAttentionStats(
             num_layers=config["num_layers"],
             num_heads=config["num_heads"],
             head_dim=config["head_dim"],
+            state_dict=state_dict,
         )
-
-        weights_path = hf_hub_download(repo_id=repo_id, filename="model.safetensors")
-        state_dict = load_file(weights_path)
-        model.load_state_dict(state_dict, strict=False)
 
         if dtype_override is not None:
             model = model.to(dtype_override)
