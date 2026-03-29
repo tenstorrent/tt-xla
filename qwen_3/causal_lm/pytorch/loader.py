@@ -58,6 +58,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_MLX_4BIT = "30B_A3B_MLX_4bit"
     QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT = "235B_A22B_Instruct_2507_MLX_4bit"
     QWEN_3_235B_A22B_GPTQ_INT4 = "235B_A22B_GPTQ_Int4"
+    QWEN_3_235B_A22B_NVFP4 = "235B_A22B_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -189,6 +190,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-235B-A22B-GPTQ-Int4",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_235B_A22B_NVFP4: LLMModelConfig(
+            pretrained_model_name="nvidia/Qwen3-235B-A22B-NVFP4",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -250,6 +255,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_8B_W8A8,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT,
             ModelVariant.QWEN_3_235B_A22B_GPTQ_INT4,
+            ModelVariant.QWEN_3_235B_A22B_NVFP4,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -448,6 +454,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_MLX_4BIT,
             ModelVariant.QWEN_3_235B_A22B_GPTQ_INT4,
+            ModelVariant.QWEN_3_235B_A22B_NVFP4,
         )
 
     def load_shard_spec(self, model):
