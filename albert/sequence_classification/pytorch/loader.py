@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available ALBERT model variants for sequence classification."""
 
     IMDB = "Imdb"
+    RCI_WIKISQL_ROW = "RciWikisqlRow"
 
 
 class ModelLoader(ForgeModel):
@@ -34,13 +35,19 @@ class ModelLoader(ForgeModel):
         ModelVariant.IMDB: ModelConfig(
             pretrained_model_name="textattack/albert-base-v2-imdb",
         ),
+        ModelVariant.RCI_WIKISQL_ROW: ModelConfig(
+            pretrained_model_name="michaelrglass/albert-base-rci-wikisql-row",
+        ),
     }
 
     # Default variant to use
     DEFAULT_VARIANT = ModelVariant.IMDB
 
-    # Shared configuration parameters
-    sample_text = "Hello, my dog is cute."
+    # Variant-specific sample texts
+    _SAMPLE_TEXTS = {
+        ModelVariant.IMDB: "Hello, my dog is cute.",
+        ModelVariant.RCI_WIKISQL_ROW: "How many people attended? col : event | venue | attendance row : championship game | lucas oil stadium | 67,246",
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -63,10 +70,15 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        variant_groups = {
+            ModelVariant.IMDB: ModelGroup.GENERALITY,
+            ModelVariant.RCI_WIKISQL_ROW: ModelGroup.VULCAN,
+        }
+
         return ModelInfo(
             model="ALBERT",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=variant_groups.get(variant, ModelGroup.GENERALITY),
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -139,7 +151,8 @@ class ModelLoader(ForgeModel):
             self._load_tokenizer(dtype_override=dtype_override)
 
         # Create tokenized inputs for the sequence classification task
-        inputs = self.tokenizer(self.sample_text, return_tensors="pt")
+        sample_text = self._SAMPLE_TEXTS.get(self._variant, "Hello, my dog is cute.")
+        inputs = self.tokenizer(sample_text, return_tensors="pt")
 
         return inputs
 
