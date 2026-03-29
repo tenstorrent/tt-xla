@@ -116,11 +116,6 @@ class ModelLoader(ForgeModel):
             "pad_id": tokenizer.pad_id,
         }
 
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-
         zipvoice_model = ZipVoiceDistill(
             **self._model_config["model"],
             **tokenizer_config,
