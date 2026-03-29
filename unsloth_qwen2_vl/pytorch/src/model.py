@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Unsloth Qwen2 VL model wrapper for extracting logits from model outputs.
+"""
+
+import torch
+
+
+# https://github.com/tenstorrent/tt-xla/issues/1661
+class Wrapper(torch.nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(
+        self, input_ids, attention_mask, pixel_values, image_grid_thw, **kwargs
+    ):
+        inputs = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "pixel_values": pixel_values,
+            "image_grid_thw": image_grid_thw,
+            **kwargs,
+        }
+        outputs = self.model(**inputs)
+        return outputs.logits
