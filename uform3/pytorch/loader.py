@@ -6,6 +6,7 @@ UForm3 model loader implementation for image-text similarity.
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from typing import Optional
 
 from ...base import ForgeModel
@@ -69,16 +70,18 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processors(self):
-        """Load text and image processors from the uform package."""
+    def _load_uform(self):
+        """Load processors and models from the uform package."""
         from uform import get_model, Modality
 
-        processors, _ = get_model(
+        processors, models = get_model(
             self._variant_config.pretrained_model_name,
             modalities=[Modality.TEXT_ENCODER, Modality.IMAGE_ENCODER],
         )
         self._text_processor = processors[Modality.TEXT_ENCODER]
         self._image_processor = processors[Modality.IMAGE_ENCODER]
+        self._text_encoder = models[Modality.TEXT_ENCODER]
+        self._image_encoder = models[Modality.IMAGE_ENCODER]
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the UForm3 model instance.
@@ -89,18 +92,12 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The UForm3 wrapper model for image-text similarity.
         """
-        from uform import get_model, Modality
-
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
-        _, models = get_model(
-            pretrained_model_name,
-            modalities=[Modality.TEXT_ENCODER, Modality.IMAGE_ENCODER],
-        )
+        if not hasattr(self, "_text_encoder"):
+            self._load_uform()
 
         model = UForm3ImageTextModel(
-            text_encoder=models[Modality.TEXT_ENCODER],
-            image_encoder=models[Modality.IMAGE_ENCODER],
+            text_encoder=self._text_encoder,
+            image_encoder=self._image_encoder,
         )
 
         if dtype_override is not None:
@@ -120,7 +117,7 @@ class ModelLoader(ForgeModel):
             dict: Input tensors containing images, input_ids, and attention_mask.
         """
         if self._text_processor is None or self._image_processor is None:
-            self._load_processors()
+            self._load_uform()
 
         # Load image from HuggingFace dataset
         dataset = load_dataset("huggingface/cats-image")["test"]
@@ -158,8 +155,6 @@ class ModelLoader(ForgeModel):
         Args:
             outputs: Raw model output (image_embeddings, text_embeddings)
         """
-        import torch.nn.functional as F
-
         if self.text_prompts is None:
             self.text_prompts = ["a photo of a cat", "a photo of a dog"]
 
