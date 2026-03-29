@@ -11,6 +11,7 @@ from transformers import (
     AutoProcessor,
     Gemma3nForConditionalGeneration,
 )
+from PIL import Image
 
 from ....config import (
     LLMModelConfig,
@@ -23,29 +24,24 @@ from ....config import (
 )
 from ....base import ForgeModel
 from ....tools.utils import cast_input_to_type, get_file
-from PIL import Image
 
 
 class ModelVariant(StrEnum):
     """Available Gemma3n multimodal model variants."""
 
-    GEMMA_3N_E2B_IT = "google/gemma-3n-E2B-it"
-    GEMMA_3N_E4B_IT = "google/gemma-3n-E4B-it"
+    GEMMA_3N_E2B = "google/gemma-3n-E2B"
 
 
 class ModelLoader(ForgeModel):
     """Gemma3n model loader implementation for multimodal modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GEMMA_3N_E2B_IT: LLMModelConfig(
-            pretrained_model_name=str(ModelVariant.GEMMA_3N_E2B_IT),
-        ),
-        ModelVariant.GEMMA_3N_E4B_IT: LLMModelConfig(
-            pretrained_model_name=str(ModelVariant.GEMMA_3N_E4B_IT),
+        ModelVariant.GEMMA_3N_E2B: LLMModelConfig(
+            pretrained_model_name=str(ModelVariant.GEMMA_3N_E2B),
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GEMMA_3N_E4B_IT
+    DEFAULT_VARIANT = ModelVariant.GEMMA_3N_E2B
 
     sample_text = "What do you see in this image?"
     sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"
@@ -141,7 +137,7 @@ class ModelLoader(ForgeModel):
             return_tensors="pt",
         )
 
-        if dtype_override is not None:
+        if dtype_override is not None and "pixel_values" in inputs:
             inputs["pixel_values"] = cast_input_to_type(
                 inputs["pixel_values"], dtype_override
             )
