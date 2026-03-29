@@ -52,6 +52,24 @@ class ModelLoader(ForgeModel):
         self.tokenizer = None
         self._cached_model = None
 
+    def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        )
+        return self.tokenizer
+
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting.
@@ -84,7 +102,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {"use_cache": False}
         if dtype_override is not None:
@@ -108,12 +126,10 @@ class ModelLoader(ForgeModel):
             dict: Input tensors that can be fed to the model.
         """
         if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name
-            )
+            self._load_tokenizer(dtype_override=dtype_override)
 
         inputs = self.tokenizer(
-            self.sample_text + "</s>",
+            self.sample_text,
             return_tensors="pt",
         )
 
