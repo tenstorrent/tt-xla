@@ -4,7 +4,6 @@
 """
 UniChart model loader implementation for chart understanding tasks.
 """
-import torch
 from PIL import Image
 from transformers import DonutProcessor, VisionEncoderDecoderModel
 from typing import Optional
