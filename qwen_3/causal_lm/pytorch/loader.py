@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4 = "30B_A3B_Instruct_2507_GPTQ_Int4"
     QWEN_3_14B_AWQ = "14B_Awq"
     QWEN_3_4B_THINKING_2507_BNB_4BIT = "4B_Thinking_2507_Bnb_4bit"
+    QWEN_3_4B_INSTRUCT_2507_BNB_4BIT = "4B_Instruct_2507_Bnb_4bit"
     QWEN_3_30B_A3B_INSTRUCT_2507_UNSLOTH = "30B_A3B_Instruct_2507_Unsloth"
 
 
@@ -150,6 +151,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen3-4B-Thinking-2507-unsloth-bnb-4bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_4B_INSTRUCT_2507_BNB_4BIT: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3-4B-Instruct-2507-bnb-4bit",
+            max_length=128,
+        ),
         ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_UNSLOTH: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen3-30B-A3B-Instruct-2507",
             max_length=128,
@@ -207,6 +212,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
             ModelVariant.QWEN_3_14B_AWQ,
             ModelVariant.QWEN_3_4B_THINKING_2507_BNB_4BIT,
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507_BNB_4BIT,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_UNSLOTH,
         ):
             group = ModelGroup.VULCAN
@@ -279,6 +285,7 @@ class ModelLoader(ForgeModel):
             "Qwen/Qwen3-8B-AWQ",
             "JunHowie/Qwen3-30B-A3B-Instruct-2507-GPTQ-Int4",
             "unsloth/Qwen3-4B-Thinking-2507-unsloth-bnb-4bit",
+            "unsloth/Qwen3-4B-Instruct-2507-bnb-4bit",
             "unsloth/Qwen3-30B-A3B-Instruct-2507",
         ):
             model_kwargs["device_map"] = "cpu"
@@ -347,7 +354,7 @@ class ModelLoader(ForgeModel):
             # Instruct-2507 variants do not support thinking mode
             enable_thinking = self._variant not in (
                 ModelVariant.QWEN_3_4B_INSTRUCT_2507,
-                ModelVariant.QWEN_3_4B_INSTRUCT_2507_MLX_5BIT,
+                ModelVariant.QWEN_3_4B_INSTRUCT_2507_BNB_4BIT,
                 ModelVariant.QWEN_3_14B_INSTRUCT_OPENPIPE,
                 ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
                 ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_GPTQ_INT4,
@@ -391,6 +398,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_4B_THINKING_2507_BNB_4BIT,
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507_BNB_4BIT,
         ]:
             text_config = self._get_text_config()
             assert (
@@ -417,6 +425,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_4B_INSTRUCT_2507,
             ModelVariant.QWEN_3_4B_INSTRUCT_2507_FP8,
             ModelVariant.QWEN_3_4B_THINKING_2507_BNB_4BIT,
+            ModelVariant.QWEN_3_4B_INSTRUCT_2507_BNB_4BIT,
         ]:
             return None
 
