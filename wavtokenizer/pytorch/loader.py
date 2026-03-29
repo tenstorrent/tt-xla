@@ -7,7 +7,12 @@ WavTokenizer model loader for discrete audio codec tokenization.
 WavTokenizer is a VQ-VAE style audio codec that compresses raw audio waveforms
 into discrete tokens using a single codebook, operating at 24kHz with 75 tokens
 per second of audio.
+
+Requires the WavTokenizer repository to be cloned at /tmp/wavtokenizer_repo.
 """
+
+import os
+import sys
 
 import torch
 from typing import Optional
@@ -22,6 +27,27 @@ from ...config import (
     Framework,
     StrEnum,
 )
+
+WAVTOKENIZER_REPO_PATH = "/tmp/wavtokenizer_repo"
+
+
+def _ensure_wavtokenizer_importable():
+    """Ensure the WavTokenizer repo is cloned and importable."""
+    if not os.path.isdir(WAVTOKENIZER_REPO_PATH):
+        import subprocess
+
+        subprocess.check_call(
+            [
+                "git",
+                "clone",
+                "--filter=blob:none",
+                "https://github.com/jishengpeng/WavTokenizer.git",
+                WAVTOKENIZER_REPO_PATH,
+            ]
+        )
+
+    if WAVTOKENIZER_REPO_PATH not in sys.path:
+        sys.path.insert(0, WAVTOKENIZER_REPO_PATH)
 
 
 class ModelVariant(StrEnum):
@@ -44,6 +70,13 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.LARGE_SPEECH_75TOKEN
 
+    # Config YAML is hosted in the base novateur/WavTokenizer repo
+    _CONFIG_REPO = "novateur/WavTokenizer"
+    _CONFIG_FILENAME = (
+        "wavtokenizer_smalldata_frame75_3s_nq1_code4096_dim512_kmeans200_attn.yaml"
+    )
+    _CKPT_FILENAME = "wavtokenizer_large_speech_320_v2.ckpt"
+
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.model = None
@@ -63,14 +96,21 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the WavTokenizer decoder model."""
-        from huggingface_hub import snapshot_download
+        from huggingface_hub import hf_hub_download
+
+        _ensure_wavtokenizer_importable()
         from decoder.pretrained import WavTokenizer
 
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        local_path = snapshot_download(repo_id=pretrained_model_name)
+        # Download config YAML from base WavTokenizer repo
+        config_path = hf_hub_download(
+            repo_id=self._CONFIG_REPO, filename=self._CONFIG_FILENAME
+        )
 
-        config_path = f"{local_path}/configs/wavtokenizer_large_speech_320.yaml"
-        model_path = f"{local_path}/wavtokenizer_large_speech_320_v2.ckpt"
+        # Download checkpoint from the large-speech variant repo
+        model_path = hf_hub_download(
+            repo_id=self._variant_config.pretrained_model_name,
+            filename=self._CKPT_FILENAME,
+        )
 
         model = WavTokenizer.from_pretrained0802(config_path, model_path)
 
