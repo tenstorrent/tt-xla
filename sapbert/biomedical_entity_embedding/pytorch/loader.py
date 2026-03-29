@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     SAPBERT_FROM_PUBMEDBERT_FULLTEXT_MEAN_TOKEN = (
         "cambridgeltl/SapBERT-from-PubMedBERT-fulltext-mean-token"
     )
+    BIOSYN_SAPBERT_BC5CDR_DISEASE = "dmis-lab/biosyn-sapbert-bc5cdr-disease"
 
 
 class ModelLoader(ForgeModel):
@@ -35,6 +36,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.SAPBERT_FROM_PUBMEDBERT_FULLTEXT_MEAN_TOKEN: LLMModelConfig(
             pretrained_model_name="cambridgeltl/SapBERT-from-PubMedBERT-fulltext-mean-token",
+            max_length=25,
+        ),
+        ModelVariant.BIOSYN_SAPBERT_BC5CDR_DISEASE: LLMModelConfig(
+            pretrained_model_name="dmis-lab/biosyn-sapbert-bc5cdr-disease",
             max_length=25,
         ),
     }
@@ -73,6 +78,7 @@ class ModelLoader(ForgeModel):
 
         variant_groups = {
             ModelVariant.SAPBERT_FROM_PUBMEDBERT_FULLTEXT_MEAN_TOKEN: ModelGroup.VULCAN,
+            ModelVariant.BIOSYN_SAPBERT_BC5CDR_DISEASE: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
