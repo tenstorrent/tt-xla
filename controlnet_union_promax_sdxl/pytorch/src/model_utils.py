@@ -230,8 +230,14 @@ def controlnet_union_promax_sdxl_preprocessing(
         latent_model_input, timesteps[0]
     )
 
-    # 7. Prepare control mode tensor for ControlNet Union
-    control_type = torch.zeros(1, dtype=torch.float32, device=device)
+    # 7. Prepare control type tensor for ControlNet Union
+    # ProMax model has 8 control types; control_type is a binary mask of shape (batch, 8)
+    num_control_type = 8
+    effective_batch = latent_model_input.shape[0]
+    control_type = torch.zeros(
+        effective_batch, num_control_type, dtype=torch.float32, device=device
+    )
+    control_type[:, control_mode] = 1.0
 
     # 8. Run controlnet to get residuals
     controlnet_cond_scale = controlnet_conditioning_scale
@@ -239,9 +245,10 @@ def controlnet_union_promax_sdxl_preprocessing(
         latent_model_input,
         timesteps[0],
         encoder_hidden_states=prompt_embeds,
-        controlnet_cond=control_image,
+        controlnet_cond=[control_image],
         conditioning_scale=controlnet_cond_scale,
         control_type=control_type,
+        control_type_idx=[control_mode],
         added_cond_kwargs=added_cond_kwargs,
         return_dict=False,
     )
