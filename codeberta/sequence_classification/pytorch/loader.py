@@ -6,7 +6,6 @@ CodeBERTa model loader implementation for sequence classification (programming l
 """
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from typing import Optional
 
 from ....config import (
     ModelInfo,
