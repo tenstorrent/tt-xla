@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 Coder model variants for causal language modeling."""
 
     QWEN_3_CODER_NEXT = "Next"
-    QWEN_3_CODER_NEXT_FP8_DYNAMIC = "Next_FP8_Dynamic"
+    QWEN_3_CODER_NEXT_GPTQ_4BIT = "Next_GPTQ_4bit"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
     QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_INT8 = "30B_A3B_Instruct_GPTQ_Int8"
     QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4 = "30B_A3B_Instruct_NVFP4"
@@ -45,8 +45,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-Coder-Next",
             max_length=128,
         ),
-        ModelVariant.QWEN_3_CODER_NEXT_FP8_DYNAMIC: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen3-Coder-Next-FP8-Dynamic",
+        ModelVariant.QWEN_3_CODER_NEXT_GPTQ_4BIT: LLMModelConfig(
+            pretrained_model_name="btbtyler09/Qwen3-Coder-Next-GPTQ-4bit",
             max_length=128,
         ),
         ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT: LLMModelConfig(
@@ -150,7 +150,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         # GPTQ variants need device_map="cpu" for CPU-based loading
-        if self._variant == ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_INT8:
+        if pretrained_model_name in (
+            "btbtyler09/Qwen3-Coder-30B-A3B-Instruct-gptq-8bit",
+            "btbtyler09/Qwen3-Coder-Next-GPTQ-4bit",
+        ):
             model_kwargs["device_map"] = "cpu"
         # NVFP4 quantized weights have packed shapes that differ from the model definition
         if self._variant == ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4:
