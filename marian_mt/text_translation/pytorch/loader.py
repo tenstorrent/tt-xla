@@ -26,10 +26,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_TC_BIG_FR_EN = "Opus_Mt_Tc_Big_Fr_En"
     OPUS_MT_EN_ROMANCE = "Opus_Mt_En_Romance"
     OPUS_MT_TR_EN = "Opus_Mt_Tr_En"
-    OPUS_MT_EN_AR = "Opus_Mt_En_Ar"
-    OPUS_MT_DA_EN = "Opus_Mt_Da_En"
-    OPUS_MT_NL_FR = "Opus_Mt_Nl_Fr"
-    OPUS_MT_EN_CA = "Opus_Mt_En_Ca"
+    OPUS_MT_NL_UK = "Opus_Mt_Nl_Uk"
 
 
 class ModelLoader(ForgeModel):
@@ -45,17 +42,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TR_EN: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-tr-en",
         ),
-        ModelVariant.OPUS_MT_EN_AR: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-ar",
-        ),
-        ModelVariant.OPUS_MT_DA_EN: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-da-en",
-        ),
-        ModelVariant.OPUS_MT_NL_FR: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-nl-fr",
-        ),
-        ModelVariant.OPUS_MT_EN_CA: LLMModelConfig(
-            pretrained_model_name="Helsinki-NLP/opus-mt-en-ca",
+        ModelVariant.OPUS_MT_NL_UK: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-nl-uk",
         ),
     }
 
@@ -65,6 +53,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_TC_BIG_FR_EN: "La vie est belle et pleine de surprises.",
         ModelVariant.OPUS_MT_EN_ROMANCE: ">>fr<< The weather is beautiful today and I am happy to be alive.",
         ModelVariant.OPUS_MT_TR_EN: "Merhaba dünya, bugün hava çok güzel.",
+        ModelVariant.OPUS_MT_NL_UK: "Het leven is mooi en vol verrassingen.",
     }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
