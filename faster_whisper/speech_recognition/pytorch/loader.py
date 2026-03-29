@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 """
 Faster Whisper model loader implementation for speech recognition (ASR).
 
@@ -14,11 +15,6 @@ from typing import Optional
 
 import numpy as np
 import torch
-from transformers import (
-    WhisperConfig,
-    WhisperForConditionalGeneration,
-    WhisperProcessor,
-)
 
 from ....base import ForgeModel
 from ....config import (
@@ -36,19 +32,15 @@ class ModelVariant(StrEnum):
     """Available Faster Whisper speech recognition model variants."""
 
     TINY_INT8 = "Tiny_int8"
-    LARGE_V2 = "Large_v2"
     LARGE_V3_TURBO = "Large_v3_Turbo"
 
 
 class ModelLoader(ForgeModel):
-    """Faster Whisper PyTorch model loader implementation for speech recognition (ASR)."""
+    """Faster Whisper model loader implementation for speech recognition (ASR)."""
 
     _VARIANTS = {
         ModelVariant.TINY_INT8: ModelConfig(
             pretrained_model_name="openai/whisper-tiny",
-        ),
-        ModelVariant.LARGE_V2: ModelConfig(
-            pretrained_model_name="openai/whisper-large-v2",
         ),
         ModelVariant.LARGE_V3_TURBO: ModelConfig(
             pretrained_model_name="openai/whisper-large-v3-turbo",
@@ -58,14 +50,32 @@ class ModelLoader(ForgeModel):
     DEFAULT_VARIANT = ModelVariant.TINY_INT8
 
     def __init__(self, variant: Optional[ModelVariant] = None):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
+
         super().__init__(variant)
-        self.processor = None
-        self.model = None
+        self._processor = None
+        self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="Faster_Whisper",
             variant=variant,
@@ -75,48 +85,83 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def load_model(self, *, dtype_override=None, **kwargs):
-        """Load a Faster Whisper model from Hugging Face."""
-        pretrained_model_name = self._variant_config.pretrained_model_name
+    def _load_processor(self, dtype_override=None):
+        """Load audio processor for the current variant.
 
-        model_kwargs = {"use_cache": False}
+        Args:
+            dtype_override: Optional dtype to override the processor's default dtype.
+
+        Returns:
+            processor: The loaded audio processor instance
+        """
+
+        from transformers import WhisperProcessor
+
+        self._processor = WhisperProcessor.from_pretrained(self._model_name)
+
+        return self._processor
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Whisper model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional dtype to override the model's default dtype.
+
+        Returns:
+            model: The loaded model instance
+        """
+
+        from transformers import WhisperForConditionalGeneration
+
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.model = WhisperForConditionalGeneration.from_pretrained(
-            pretrained_model_name, **model_kwargs
+        model = WhisperForConditionalGeneration.from_pretrained(
+            self._model_name, use_cache=False, **model_kwargs
         )
-        self.processor = WhisperProcessor.from_pretrained(pretrained_model_name)
-
-        self.model.eval()
+        model.eval()
         if dtype_override is not None:
-            self.model.to(dtype_override)
-        return self.model
+            model.to(dtype_override)
+        return model
 
     def load_inputs(self, dtype_override=None):
-        """Generate sample inputs for Faster Whisper model."""
-        if self.model is None or self.processor is None:
-            self.load_model()
+        """Load and return sample inputs for the Whisper model.
 
-        model_config = WhisperConfig.from_pretrained(
-            self._variant_config.pretrained_model_name
-        )
+        Args:
+            dtype_override: Optional dtype to override the model's default dtype.
 
-        model_param = next(self.model.parameters())
-        device, dtype = model_param.device, dtype_override or model_param.dtype
+        Returns:
+            inputs: Input tensors that can be fed to the model.
+        """
+
+        from transformers import WhisperConfig
+
+        if self._processor is None:
+            self._load_processor(dtype_override=dtype_override)
 
         # Generate synthetic 30-second audio at 16kHz to match Whisper's receptive field
-        sample_audio = np.random.randn(16000 * 30).astype(np.float32)
-        processor_output = self.processor(
-            sample_audio, return_tensors="pt", sampling_rate=16000
+        sampling_rate = 16000
+        duration_seconds = 30
+        audio_array = np.random.randn(sampling_rate * duration_seconds).astype(
+            np.float32
         )
-        input_features = processor_output.input_features.to(device=device, dtype=dtype)
+
+        whisper_config = WhisperConfig.from_pretrained(self._model_name)
+
+        inputs = self._processor(
+            audio_array,
+            sampling_rate=sampling_rate,
+            return_tensors="pt",
+        )
+        input_features = inputs.input_features
+        if dtype_override is not None:
+            input_features = input_features.to(dtype=dtype_override)
 
         decoder_input_ids = torch.full(
             (1, 2),
-            model_config.decoder_start_token_id,
+            whisper_config.decoder_start_token_id,
             dtype=torch.long,
-            device=device,
         )
         return [input_features, decoder_input_ids]
