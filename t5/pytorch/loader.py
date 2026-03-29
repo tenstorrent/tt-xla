@@ -31,7 +31,7 @@ class ModelVariant(StrEnum):
     FLAN_T5_BASE = "Flan_T5_Base"
     T5_3B = "T5_3B"
     FLAN_T5_LARGE = "Flan_T5_Large"
-    TINY_RANDOM_CALIBRATED = "tiny-random-calibrated"
+    TINY_RANDOM = "tiny-random"
 
 
 class ModelLoader(ForgeModel):
@@ -67,9 +67,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="google/flan-t5-large",
             max_length=512,
         ),
-        ModelVariant.TINY_RANDOM_CALIBRATED: LLMModelConfig(
-            pretrained_model_name="peft-internal-testing/tiny-random-T5ForConditionalGeneration-calibrated",
-            max_length=128,
+        ModelVariant.TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="peft-internal-testing/tiny-random-T5ForConditionalGeneration",
+            max_length=512,
         ),
     }
 
@@ -110,7 +110,7 @@ class ModelLoader(ForgeModel):
         """
         group = (
             ModelGroup.VULCAN
-            if variant in (ModelVariant.T5_3B, ModelVariant.TINY_RANDOM_CALIBRATED)
+            if variant in (ModelVariant.T5_3B, ModelVariant.TINY_RANDOM)
             else ModelGroup.GENERALITY
         )
         return ModelInfo(
