@@ -40,6 +40,9 @@ class ModelVariant(StrEnum):
     LARGE_PATCH14_448_MIM_M38M_FT_IN22K_IN1K = (
         "Large_Patch14_448_MIM_M38M_FT_IN22K_IN1K"
     )
+    LARGE_PATCH14_CLIP_336_MERGED2B_FT_INAT21 = (
+        "Large_Patch14_CLIP_336_Merged2B_FT_INAT21"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -48,6 +51,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.LARGE_PATCH14_448_MIM_M38M_FT_IN22K_IN1K: Eva02Config(
             pretrained_model_name="hf_hub:timm/eva02_large_patch14_448.mim_m38m_ft_in22k_in1k",
+            source=ModelSource.TIMM,
+        ),
+        ModelVariant.LARGE_PATCH14_CLIP_336_MERGED2B_FT_INAT21: Eva02Config(
+            pretrained_model_name="hf_hub:timm/eva02_large_patch14_clip_336.merged2b_ft_inat21",
             source=ModelSource.TIMM,
         ),
     }
