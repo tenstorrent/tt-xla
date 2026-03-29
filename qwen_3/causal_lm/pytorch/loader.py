@@ -50,6 +50,7 @@ class ModelVariant(StrEnum):
     QWEN_3_32B_NVFP4 = "32B_NVFP4"
     QWEN_3_1_7B_W2G64_GPTQ_V2 = "1_7B_W2G64_GPTQ_V2"
     QWEN_3_0_6B_Q4F16_1_MLC = "0_6B_Q4F16_1_MLC"
+    QWEN_3_30B_A3B_NSFW_JP_ARATAKO = "30B_A3B_NSFW_JP_Aratako"
 
 
 class ModelLoader(ForgeModel):
@@ -145,6 +146,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mlc-ai/Qwen3-0.6B-q4f16_1-MLC",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_30B_A3B_NSFW_JP_ARATAKO: LLMModelConfig(
+            pretrained_model_name="Aratako/Qwen3-30B-A3B-NSFW-JP",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -195,6 +200,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_32B_NVFP4,
             ModelVariant.QWEN_3_1_7B_W2G64_GPTQ_V2,
             ModelVariant.QWEN_3_0_6B_Q4F16_1_MLC,
+            ModelVariant.QWEN_3_30B_A3B_NSFW_JP_ARATAKO,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -382,7 +388,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_30B_A3B,
             ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507,
-            ModelVariant.QWEN_3_30B_A3B_INSTRUCT_2507_NVFP4,
+            ModelVariant.QWEN_3_30B_A3B_NSFW_JP_ARATAKO,
             ModelVariant.QWEN_3_235B_A22B_INSTRUCT_2507_FP8,
         )
 
