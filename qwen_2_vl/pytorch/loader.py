@@ -31,6 +31,9 @@ class ModelVariant(StrEnum):
     QWEN_2_VL_2B_INSTRUCT_AWQ = "2B_INSTRUCT_Awq"
     QWEN_2_VL_2B_INSTRUCT_GPTQ_INT4 = "2B_INSTRUCT_Gptq_Int4"
 
+    # mlx-community quantized variants
+    QWEN_2_VL_2B_INSTRUCT_4BIT = "2B_Instruct_4bit"
+
 
 class ModelLoader(ForgeModel):
     """Qwen 2 VL model loader implementation for vision-language tasks."""
@@ -46,11 +49,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_2_VL_7B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2-VL-7B-Instruct",
         ),
-        ModelVariant.QWEN_2_VL_2B_INSTRUCT_AWQ: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2-VL-2B-Instruct-AWQ",
-        ),
-        ModelVariant.QWEN_2_VL_2B_INSTRUCT_GPTQ_INT4: LLMModelConfig(
-            pretrained_model_name="Qwen/Qwen2-VL-2B-Instruct-GPTQ-Int4",
+        # mlx-community quantized variants
+        ModelVariant.QWEN_2_VL_2B_INSTRUCT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/Qwen2-VL-2B-Instruct-4bit",
         ),
     }
 
@@ -96,6 +97,8 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
             model="Qwen 2-VL",
             variant=variant,
@@ -156,6 +159,10 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         else:
             model_kwargs["torch_dtype"] = torch.float32
+
+        if "mlx-community" in pretrained_model_name:
+            model_kwargs["ignore_mismatched_sizes"] = True
+
         model_kwargs |= kwargs
 
         model = Qwen2VLForConditionalGeneration.from_pretrained(
