@@ -77,7 +77,7 @@ class ModelLoader(ForgeModel):
         """Load and return the Flax VAE model.
 
         Returns:
-            FlaxAutoencoderKL instance and its parameters.
+            FlaxAutoencoderKL instance.
         """
         from diffusers import FlaxAutoencoderKL
 
