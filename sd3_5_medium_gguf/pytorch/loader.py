@@ -13,8 +13,6 @@ Available variants:
 
 from typing import Optional
 
-import torch
-
 from ...base import ForgeModel
 from ...config import (
     ModelConfig,

@@ -5,8 +5,6 @@
 Helper functions for loading GGUF-quantized Stable Diffusion 3.5 models.
 """
 
-from typing import Optional, Tuple
-
 import torch
 from diffusers import DiffusionPipeline, GGUFQuantizationConfig
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
