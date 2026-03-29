@@ -35,6 +35,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_GGUF = "9B_GGUF"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
     QWEN_3_5_35B_A3B_GGUF = "35B_A3B_GGUF"
+    QWEN_3_5_35B_A3B_REASONING_DISTILLED = "35B_A3B_Reasoning_Distilled"
     QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF = "35B_A3B_Reasoning_Distilled_GGUF"
     QWEN_3_5_35B_A3B_BASE_I1_GGUF = "35B_A3B_Base_i1_GGUF"
     QWEN_3_5_122B_A10B_GGUF = "122B_A10B_GGUF"
@@ -89,6 +90,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_35B_A3B_GGUF: LLMModelConfig(
             pretrained_model_name="janhq/Qwen3.5-35B-A3B-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED: LLMModelConfig(
+            pretrained_model_name="Jackrong/Qwen3.5-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF: LLMModelConfig(
@@ -326,6 +331,7 @@ class ModelLoader(ForgeModel):
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
+            ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED,
             ModelVariant.QWEN_3_5_35B_A3B_REASONING_DISTILLED_GGUF,
             ModelVariant.QWEN_3_5_35B_A3B_BASE_I1_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B,
