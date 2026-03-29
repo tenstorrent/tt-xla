@@ -1,73 +1,16 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Kimi K2 Instruct model loader implementation for causal language modeling.
+Kimi K2 Instruct quantized (W4A16) model loader implementation for causal language modeling.
 
 Uses reduced MoE configuration for testing since the full 1T parameter
 model is too large to load directly.
 """
 
-import os
-import sys
 from typing import Optional
-from unittest.mock import patch
-
-import torch
-
-# Patch missing functions before importing model code that depends on them.
-# The model's remote code was written for an older transformers that included
-# these helpers; newer versions removed them.
-import transformers.utils
-import transformers.utils.import_utils
-
-if not hasattr(transformers.utils, "is_flash_attn_greater_or_equal_2_10"):
-
-    def _is_flash_attn_gte_2_10():
-        return False
-
-    transformers.utils.is_flash_attn_greater_or_equal_2_10 = _is_flash_attn_gte_2_10
-    sys.modules["transformers.utils"].__dict__[
-        "is_flash_attn_greater_or_equal_2_10"
-    ] = _is_flash_attn_gte_2_10
-
-if not hasattr(transformers.utils.import_utils, "is_torch_fx_available"):
-
-    def _is_torch_fx_available():
-        return False
-
-    transformers.utils.import_utils.is_torch_fx_available = _is_torch_fx_available
-    sys.modules["transformers.utils.import_utils"].__dict__[
-        "is_torch_fx_available"
-    ] = _is_torch_fx_available
-
-# Patch DynamicCache.from_legacy_cache removed in newer transformers
-from transformers.cache_utils import DynamicCache
-
-if not hasattr(DynamicCache, "from_legacy_cache"):
-
-    @classmethod  # type: ignore[misc]
-    def _from_legacy_cache(cls, past_key_values=None):
-        cache = cls()
-        if past_key_values is not None:
-            for layer_idx, (key, value) in enumerate(past_key_values):
-                cache.update(key, value, layer_idx)
-        return cache
-
-    DynamicCache.from_legacy_cache = _from_legacy_cache
-
-if not hasattr(DynamicCache, "to_legacy_cache"):
-
-    def _to_legacy_cache(self):
-        legacy_cache = []
-        for layer in self.layers:
-            legacy_cache.append((layer.keys, layer.values))
-        return legacy_cache
-
-    DynamicCache.to_legacy_cache = _to_legacy_cache
 
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
-from transformers.dynamic_module_utils import get_class_from_dynamic_module, get_imports
 
 from ...base import ForgeModel
 from ...config import (
@@ -76,48 +19,26 @@ from ...config import (
     ModelInfo,
     ModelSource,
     ModelTask,
-    StrEnum,
 )
 
 
-def fixed_get_imports(filename: str | os.PathLike) -> list[str]:
-    imports = get_imports(filename)
-    if not torch.cuda.is_available() and "flash_attn" in imports:
-        imports.remove("flash_attn")
-    return imports
-
-
-class ModelVariant(StrEnum):
-    """Available Kimi K2 Instruct model variants."""
-
-    KIMI_K2_INSTRUCT_0905 = "Kimi-K2-Instruct-0905"
-
-
 class ModelLoader(ForgeModel):
-    """Kimi K2 Instruct model loader implementation."""
+    """Kimi K2 Instruct quantized (W4A16) model loader for causal language modeling."""
 
-    _VARIANTS = {
-        ModelVariant.KIMI_K2_INSTRUCT_0905: None,
-    }
-
-    DEFAULT_VARIANT = ModelVariant.KIMI_K2_INSTRUCT_0905
-
-    def __init__(
-        self,
-        variant: Optional[ModelVariant] = None,
-        num_layers: Optional[int] = None,
-    ):
+    def __init__(self, variant=None, num_layers: Optional[int] = None):
         super().__init__(variant)
-        self.model_name = "moonshotai/Kimi-K2-Instruct-0905"
+        self.model_name = "RedHatAI/Kimi-K2-Instruct-quantized.w4a16"
         self.tokenizer = None
-        self.text = "What is machine learning?"
+        self.text = "Give me a short introduction to large language models."
         self.num_layers = num_layers
 
     @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+    def _get_model_info(cls, variant_name: str = None):
+        if variant_name is None:
+            variant_name = "base"
         return ModelInfo(
-            model="Kimi-K2-Instruct-0905",
-            variant=variant,
+            model="Kimi-K2-Instruct-quantized-w4a16",
+            variant=variant_name,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
@@ -125,38 +46,29 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
-            config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
+        config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
 
-            # Reduce model dimensions for testing
-            if self.num_layers is not None:
-                config.num_hidden_layers = self.num_layers
-            else:
-                config.num_hidden_layers = 2
-            config.num_attention_heads = 16
-            config.hidden_size = 1024
-            config.num_key_value_heads = 16
-            config.intermediate_size = 1024 * 4
-            config.num_experts_per_tok = 2
-            config.q_lora_rank = 256
-            config.use_flash_attention = False
-            config._attn_implementation = "eager"
+        # Reduce model dimensions for testing
+        if self.num_layers is not None:
+            config.num_hidden_layers = self.num_layers
+        else:
+            config.num_hidden_layers = 2
+        config.num_attention_heads = 16
+        config.hidden_size = 1024
+        config.num_key_value_heads = 16
+        config.intermediate_size = 1024 * 4
+        config.num_experts_per_tok = 2
+        config.q_lora_rank = 256
 
-            model_kwargs = {
-                "attn_implementation": "eager",
-                "trust_remote_code": True,
-            }
-            if dtype_override is not None:
-                model_kwargs["torch_dtype"] = dtype_override
-            model_kwargs |= kwargs
+        model_kwargs = {
+            "attn_implementation": "eager",
+            "trust_remote_code": True,
+        }
+        if dtype_override is not None:
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
 
-            model_class = get_class_from_dynamic_module(
-                "modeling_deepseek.DeepseekV3ForCausalLM",
-                self.model_name,
-                trust_remote_code=True,
-            )
-            model = model_class(config)
-            model.eval()
+        model = AutoModelForCausalLM.from_config(config, **model_kwargs)
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name, trust_remote_code=True
