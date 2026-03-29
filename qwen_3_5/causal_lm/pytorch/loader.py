@@ -49,6 +49,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_397B_A17B_GPTQ_INT4 = "397B_A17B_GPTQ_Int4"
     QWEN_3_5_4B_CLAUDE_OPUS_REASONING_DISTILLED = "4B_Claude_Opus_Reasoning_Distilled"
     QWEN_3_5_35B_A3B_UBERGARM_GGUF = "35B_A3B_ubergarm_GGUF"
+    QWEN_3_5_9B_ANTIREP_GGUF = "9B_Antirep_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -156,6 +157,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="ubergarm/Qwen3.5-35B-A3B-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_9B_ANTIREP_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-9B-Antirep-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -169,6 +174,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_122B_A10B_GGUF: "Qwen3.5-122B-A10B-f16-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_27B_GUARDPOINT_GGUF: "Qwen3.5-27B-Guardpoint-i1-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_35B_A3B_UBERGARM_GGUF: "Qwen3.5-35B-A3B-Q4_0.gguf",
+        ModelVariant.QWEN_3_5_9B_ANTIREP_GGUF: "Qwen3.5-9B-Antirep-i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
