@@ -54,6 +54,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_ULTIMATE_IRREFUSABLE_HERETIC_GGUF = (
         "9B_Ultimate_Irrefusable_Heretic_GGUF"
     )
+    QWEN_3_5_4B_ABLITERATED_GGUF = "4B_Abliterated_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -173,6 +174,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mradermacher/Qwen3.5-9B-ultimate-irrefusable-heretic-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_4B_ABLITERATED_GGUF: LLMModelConfig(
+            pretrained_model_name="SicariusSicariiStuff/Qwen3.5-4B_Abliterated_GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -189,6 +194,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_9B_ANTIREP_GGUF: "Qwen3.5-9B-Antirep-i1-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_DPO_4B_2_GGUF: "Qwen3.5-DPO-4B-2-i1-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_ULTIMATE_IRREFUSABLE_HERETIC_GGUF: "Qwen3.5-9B-ultimate-irrefusable-heretic.Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_4B_ABLITERATED_GGUF: "Qwen3.5-4B_Abliterated-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
