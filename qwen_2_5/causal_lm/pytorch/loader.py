@@ -50,6 +50,9 @@ class ModelVariant(StrEnum):
     QWEN_2_5_14B_INSTRUCT_1M_AWQ = "14B_Instruct_1M_Awq"
     QWEN_2_5_1_5B_QUANTIZED_W8A8 = "1.5B_Quantized_W8A8"
     UNSLOTH_QWEN_2_5_3B_INSTRUCT = "Unsloth_3B_Instruct"
+    QIAW99_QWEN_2_5_7B_INSTRUCT_OPENBOOKQA_DPO_C_NEW = (
+        "qiaw99_7B_Instruct_OpenbookQA_DPO_C_new"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -155,6 +158,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Qwen2.5-3B-Instruct",
             max_length=128,
         ),
+        # qiaw99 DPO fine-tuned variant
+        ModelVariant.QIAW99_QWEN_2_5_7B_INSTRUCT_OPENBOOKQA_DPO_C_NEW: LLMModelConfig(
+            pretrained_model_name="qiaw99/Qwen2.5-7B-Instruct-OpenbookQA-DPO-C-new",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -210,6 +218,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_14B_INSTRUCT_1M_AWQ,
             ModelVariant.QWEN_2_5_1_5B_QUANTIZED_W8A8,
             ModelVariant.UNSLOTH_QWEN_2_5_3B_INSTRUCT,
+            ModelVariant.QIAW99_QWEN_2_5_7B_INSTRUCT_OPENBOOKQA_DPO_C_NEW,
         ]:
             group = ModelGroup.VULCAN
 
