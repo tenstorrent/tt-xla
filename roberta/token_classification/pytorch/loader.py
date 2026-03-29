@@ -24,15 +24,13 @@ class ModelVariant(StrEnum):
 
     INDONESIAN_ROBERTA_BASE_POSP_TAGGER = "Indonesian_RoBERTa_Base_POSP_Tagger"
     TNER_ROBERTA_LARGE_TWEETNER7_ALL = "tner/roberta-large-tweetner7-all"
-    OPENMED_NER_ANATOMYDETECT_SUPERMEDICAL_125M = (
-        "OpenMed_NER_AnatomyDetect_SuperMedical_125M"
-    )
+    SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER = "syssec-utd/py39-pylingual-v1-segmenter"
 
 
 _VARIANT_SAMPLE_TEXTS = {
     ModelVariant.INDONESIAN_ROBERTA_BASE_POSP_TAGGER: "Saya sedang membaca buku di perpustakaan",
     ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: "Jacob Collier is an amazing musician from London",
-    ModelVariant.OPENMED_NER_ANATOMYDETECT_SUPERMEDICAL_125M: "The patient complained of pain in the left ventricle region.",
+    ModelVariant.SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER: "LOAD_FAST x LOAD_FAST y BINARY_OP Add RETURN_VALUE",
 }
 
 
@@ -46,8 +44,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.TNER_ROBERTA_LARGE_TWEETNER7_ALL: ModelConfig(
             pretrained_model_name="tner/roberta-large-tweetner7-all",
         ),
-        ModelVariant.OPENMED_NER_ANATOMYDETECT_SUPERMEDICAL_125M: ModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-AnatomyDetect-SuperMedical-125M",
+        ModelVariant.SYSSEC_UTD_PY39_PYLINGUAL_V1_SEGMENTER: ModelConfig(
+            pretrained_model_name="syssec-utd/py39-pylingual-v1-segmenter",
         ),
     }
 
