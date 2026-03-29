@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available SmolLM2 GGUF model variants for causal language modeling."""
 
-    SMOLLM2_1_7B_INSTRUCT_GGUF = "1.7B_Instruct_GGUF"
+    SMOLLM2_135M_INSTRUCT_GGUF = "135M_Instruct_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """SmolLM2 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.SMOLLM2_1_7B_INSTRUCT_GGUF: LLMModelConfig(
-            pretrained_model_name="HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF",
+        ModelVariant.SMOLLM2_135M_INSTRUCT_GGUF: LLMModelConfig(
+            pretrained_model_name="owalsh/SmolLM2-135M-Instruct-GGUF-Split",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SMOLLM2_1_7B_INSTRUCT_GGUF
+    DEFAULT_VARIANT = ModelVariant.SMOLLM2_135M_INSTRUCT_GGUF
 
-    GGUF_FILE = "smollm2-1.7b-instruct-q4_k_m.gguf"
+    GGUF_FILE = "Q4_0/SmolLM2-135M-Instruct-Q4_0-00001-of-00003.gguf"
 
-    sample_text = "What is gravity?"
+    sample_text = "Give me a short introduction to large language models."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -61,14 +61,9 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_tokenizer(self, dtype_override=None):
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
-
+    def _load_tokenizer(self):
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -79,7 +74,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer()
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -104,7 +99,7 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer()
 
         max_length = self._variant_config.max_length
 
@@ -134,23 +129,6 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
-        return mesh_shape, ("batch", "model")
-
-    def load_shard_spec(self, model):
-        shard_specs = {}
-        for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
-
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
