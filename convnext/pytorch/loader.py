@@ -8,6 +8,7 @@ ConvNeXt model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 import timm
+import torch
 from transformers import AutoModelForImageClassification
 
 from ...config import (
@@ -38,7 +39,7 @@ class ModelVariant(StrEnum):
     """Available ConvNeXt model variants."""
 
     BASE_CLIP_LAION2B = "Base_CLIP_LAION2B"
-    LARGE_FB_IN22K_FT_IN1K_384 = "Large_FB_IN22K_FT_IN1K_384"
+    TINY_RANDOM = "Tiny_Random"
 
 
 class ModelLoader(ForgeModel):
@@ -49,9 +50,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="hf_hub:timm/convnext_base.clip_laion2b",
             source=ModelSource.TIMM,
         ),
-        ModelVariant.LARGE_FB_IN22K_FT_IN1K_384: ConvNeXtConfig(
-            pretrained_model_name="hf_hub:timm/convnext_large.fb_in22k_ft_in1k_384",
-            source=ModelSource.TIMM,
+        ModelVariant.TINY_RANDOM: ConvNeXtConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-convnext",
+            source=ModelSource.HUGGING_FACE,
         ),
     }
 
@@ -84,17 +85,11 @@ class ModelLoader(ForgeModel):
         source = self._variant_config.source
 
         if source == ModelSource.HUGGING_FACE:
-            model_kwargs = {}
-            if dtype_override is not None:
-                model_kwargs["torch_dtype"] = dtype_override
-            model_kwargs |= kwargs
             model = AutoModelForImageClassification.from_pretrained(
-                model_name, **model_kwargs
+                model_name, **kwargs
             )
         else:
             model = timm.create_model(model_name, pretrained=True)
-            if dtype_override is not None:
-                model = model.to(dtype_override)
 
         model.eval()
 
