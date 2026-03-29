@@ -31,6 +31,7 @@ class ModelVariant(StrEnum):
     GEMMA_3_1B_IT_UNSLOTH = "1B_Instruct_Unsloth"
     GEMMA_3_27B_IT = "27B_Instruct"
     UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT = "unsloth_270M_Instruct_bnb_4bit"
+    MLX_GEMMA_3_1B_IT_4BIT = "mlx_1B_Instruct_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -65,6 +66,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/gemma-3-270m-it-unsloth-bnb-4bit",
             max_length=256,
         ),
+        ModelVariant.MLX_GEMMA_3_1B_IT_4BIT: LLMModelConfig(
+            pretrained_model_name="mlx-community/gemma-3-1b-it-4bit",
+            max_length=256,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GEMMA_3_270M_IT
@@ -87,6 +92,7 @@ class ModelLoader(ForgeModel):
         if variant in (
             ModelVariant.GEMMA_3_27B_IT,
             ModelVariant.UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT,
+            ModelVariant.MLX_GEMMA_3_1B_IT_4BIT,
         ):
             group = ModelGroup.VULCAN
         else:
@@ -138,7 +144,10 @@ class ModelLoader(ForgeModel):
         if self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4:
             model_kwargs["device_map"] = "cpu"
             self._patch_torchao_int4_config()
-        elif self._variant == ModelVariant.UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT:
+        elif self._variant in (
+            ModelVariant.UNSLOTH_GEMMA_3_270M_IT_BNB_4BIT,
+            ModelVariant.MLX_GEMMA_3_1B_IT_4BIT,
+        ):
             model_kwargs["device_map"] = "cpu"
         else:
             model_kwargs["use_cache"] = False
