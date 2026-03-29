@@ -30,7 +30,7 @@ from ...config import (
 
 BASE_MODEL = "black-forest-labs/FLUX.2-dev"
 LORA_REPO = "ostris/flux2_berthe_morisot"
-LORA_WEIGHT_NAME = "pytorch_lora_weights.safetensors"
+LORA_WEIGHT_NAME = "flux2_berthe_morisot.safetensors"
 
 
 class ModelVariant(StrEnum):
