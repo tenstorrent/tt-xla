@@ -147,6 +147,7 @@ class ModelArch(BaseEnum):
     BEVFORMER = ("bevformer", "Bevformer")
     FLUX = ("flux", "Flux")
     PIXTRAL = ("pixtral", "Pixtral")
+    PIXTRAL_LARGE = ("pixtral_large", "Pixtral Large")
     SOLAR = ("solar", "Solar")
     VADV2 = ("vadv2", "Vadv2")
     QWENV3 = ("qwen_v3", "Qwen_v3")
