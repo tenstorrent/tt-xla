@@ -5,9 +5,10 @@
 Sentence-LUKE-Japanese-Base-Lite model loader
 for sentence embedding generation.
 """
+from typing import Optional
+
 import torch
 from transformers import AutoModel, AutoTokenizer
-from typing import Optional
 
 from third_party.tt_forge_models.config import (
     ModelInfo,
