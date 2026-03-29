@@ -24,6 +24,9 @@ class ModelVariant(StrEnum):
     """Available PubMedBERT model variants."""
 
     PUBMEDBERT_BASE_EMBEDDINGS = "NeuML/pubmedbert-base-embeddings"
+    PUBMEDBERT_BASE_EMBEDDINGS_MATRYOSHKA = (
+        "NeuML/pubmedbert-base-embeddings-matryoshka"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.PUBMEDBERT_BASE_EMBEDDINGS: LLMModelConfig(
             pretrained_model_name="NeuML/pubmedbert-base-embeddings",
+            max_length=512,
+        ),
+        ModelVariant.PUBMEDBERT_BASE_EMBEDDINGS_MATRYOSHKA: LLMModelConfig(
+            pretrained_model_name="NeuML/pubmedbert-base-embeddings-matryoshka",
             max_length=512,
         ),
     }
