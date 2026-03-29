@@ -49,6 +49,7 @@ class ModelVariant(StrEnum):
     QWEN_3_8B_BASE_UNSLOTH = "8B_Base_Unsloth"
     QWEN_3_32B_NVFP4 = "32B_NVFP4"
     QWEN_3_1_7B_W2G64_GPTQ_V2 = "1_7B_W2G64_GPTQ_V2"
+    QWEN_3_0_6B_Q4F16_1_MLC = "0_6B_Q4F16_1_MLC"
 
 
 class ModelLoader(ForgeModel):
@@ -140,6 +141,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="XXXXyu/Qwen3-1.7B-w2g64-gptq_v2",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_0_6B_Q4F16_1_MLC: LLMModelConfig(
+            pretrained_model_name="mlc-ai/Qwen3-0.6B-q4f16_1-MLC",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -189,6 +194,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_32B_FP8,
             ModelVariant.QWEN_3_32B_NVFP4,
             ModelVariant.QWEN_3_1_7B_W2G64_GPTQ_V2,
+            ModelVariant.QWEN_3_0_6B_Q4F16_1_MLC,
         ):
             group = ModelGroup.VULCAN
         else:
