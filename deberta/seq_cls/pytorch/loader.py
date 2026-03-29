@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
 
     DEBERTA_XLARGE_MNLI = "XLarge_MNLI"
     DEBERTA_V3_BASE_ZEROSHOT_NLI = "V3_Base_Zeroshot_NLI"
+    DEBERTA_V3_LARGE_TASKSOURCE_NLI = "V3_Large_Tasksource_NLI"
 
 
 class ModelLoader(ForgeModel):
@@ -51,6 +52,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DEBERTA_V3_BASE_ZEROSHOT_NLI: ModelConfig(
             pretrained_model_name="Raffix/routing_module_action_question_conversation_move_hack_debertav3_nli",
+        ),
+        ModelVariant.DEBERTA_V3_LARGE_TASKSOURCE_NLI: ModelConfig(
+            pretrained_model_name="sileod/deberta-v3-large-tasksource-nli",
         ),
     }
 
