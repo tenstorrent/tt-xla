@@ -6,7 +6,6 @@ XLM-RoBERTa model loader implementation for sequence classification (sentiment a
 """
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from typing import Optional
 
 from ....config import (
     ModelInfo,
@@ -27,6 +26,7 @@ class ModelVariant(StrEnum):
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT_FINETUNNED = (
         "citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
     )
+    XLM_ROBERTA_LARGE_DANISH_CAP_V3 = "poltextlab/xlm-roberta-large-danish-cap-v3"
 
 
 class ModelLoader(ForgeModel):
@@ -41,16 +41,29 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="citizenlab/twitter-xlm-roberta-base-sentiment-finetunned",
             max_length=128,
         ),
+        ModelVariant.XLM_ROBERTA_LARGE_DANISH_CAP_V3: LLMModelConfig(
+            pretrained_model_name="poltextlab/xlm-roberta-large-danish-cap-v3",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
+        ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT_FINETUNNED: "Great road trip views! @ Shartlesville, Pennsylvania",
+        ModelVariant.XLM_ROBERTA_LARGE_DANISH_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
+    }
 
     def __init__(self, variant=None):
         super().__init__(variant)
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.text = "Great road trip views! @ Shartlesville, Pennsylvania"
+        self.text = self._SAMPLE_TEXTS.get(
+            self._variant,
+            "Great road trip views! @ Shartlesville, Pennsylvania",
+        )
 
     @classmethod
     def _get_model_info(cls, variant_name: str = None):
