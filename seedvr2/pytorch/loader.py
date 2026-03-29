@@ -105,7 +105,6 @@ class ModelLoader(ForgeModel):
         if repo_path not in sys.path:
             sys.path.insert(0, repo_path)
 
-        from models.dit.nadit import NaDiT
         from utils.utils import instantiate_from_config
 
         config = OmegaConf.load(f"{repo_path}/configs_7b/main.yaml")
