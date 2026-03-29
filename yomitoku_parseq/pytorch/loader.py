@@ -5,7 +5,6 @@
 Yomitoku PaRSEQ (Permutation-invariant Autoregressive Sequence-to-sequence)
 model loader for Japanese scene/document text recognition.
 """
-import torch
 from PIL import Image
 from typing import Optional
 from torchvision import transforms
