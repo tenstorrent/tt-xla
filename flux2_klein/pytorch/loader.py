@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-FLUX.2-klein model loader implementation for text-to-image generation
+FLUX.2 Klein 4B model loader implementation for text-to-image generation.
 """
 import torch
 from diffusers.models import Flux2Transformer2DModel
@@ -21,26 +21,25 @@ from ...config import (
 
 
 class ModelVariant(StrEnum):
-    """Available FLUX.2-klein model variants."""
+    """Available FLUX.2 Klein model variants."""
 
-    KLEIN_4B = "Klein-4B"
+    KLEIN_BASE_4B = "Klein_Base_4B"
 
 
 class ModelLoader(ForgeModel):
-    """FLUX.2-klein model loader implementation for text-to-image generation tasks."""
+    """FLUX.2 Klein 4B model loader for text-to-image generation."""
 
     _VARIANTS = {
-        ModelVariant.KLEIN_4B: ModelConfig(
-            pretrained_model_name="black-forest-labs/FLUX.2-klein-4B",
+        ModelVariant.KLEIN_BASE_4B: ModelConfig(
+            pretrained_model_name="Runware/BFL-FLUX.2-klein-base-4B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.KLEIN_4B
+    DEFAULT_VARIANT = ModelVariant.KLEIN_BASE_4B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.transformer = None
-        self.guidance_scale = 4.0
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -48,7 +47,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="FLUX.2-klein",
+            model="FLUX.2-Klein",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_IMAGE_TTT,
@@ -124,16 +123,12 @@ class ModelLoader(ForgeModel):
         text_ids = torch.cartesian_prod(t, h, w, l)
         text_ids = text_ids.unsqueeze(0).expand(batch_size, -1, -1).to(dtype=dtype)
 
-        # Guidance
-        guidance = torch.full([batch_size], self.guidance_scale, dtype=dtype)
-
         # Timestep
         timestep = torch.tensor([1.0 / 1000], dtype=dtype).expand(batch_size)
 
         inputs = {
             "hidden_states": latents,
             "timestep": timestep,
-            "guidance": guidance,
             "encoder_hidden_states": prompt_embeds,
             "txt_ids": text_ids,
             "img_ids": latent_ids,
