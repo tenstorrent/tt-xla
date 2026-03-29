@@ -6,63 +6,78 @@ WD ViT Tagger model loader implementation
 """
 
 from typing import Optional
-from datasets import load_dataset
+from dataclasses import dataclass
+import timm
+import torch
 
 from ...config import (
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
-    ModelConfig,
 )
 from ...base import ForgeModel
-from ...tools.utils import VisionPreprocessor, VisionPostprocessor
+from ...tools.utils import (
+    VisionPreprocessor,
+    VisionPostprocessor,
+)
+from datasets import load_dataset
+
+
+@dataclass
+class WdVitTaggerConfig(ModelConfig):
+    """Configuration specific to WD ViT Tagger models"""
+
+    source: ModelSource
 
 
 class ModelVariant(StrEnum):
     """Available WD ViT Tagger model variants."""
 
-    V3 = "v3"
+    LARGE_V3 = "Large_V3"
 
 
 class ModelLoader(ForgeModel):
     """WD ViT Tagger model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.V3: ModelConfig(
-            pretrained_model_name="SmilingWolf/wd-vit-tagger-v3",
+        ModelVariant.LARGE_V3: WdVitTaggerConfig(
+            pretrained_model_name="hf_hub:SmilingWolf/wd-vit-large-tagger-v3",
+            source=ModelSource.TIMM,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.V3
+    DEFAULT_VARIANT = ModelVariant.LARGE_V3
 
-    @classmethod
-    def _get_model_info(cls, variant: Optional[ModelVariant] = None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
-        return ModelInfo(
-            model="WD ViT Tagger",
-            variant=variant,
-            group=ModelGroup.VULCAN,
-            task=ModelTask.CV_IMAGE_CLS,
-            source=ModelSource.TIMM,
-            framework=Framework.TORCH,
-        )
-
-    def __init__(self, variant=None):
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self.model = None
         self._preprocessor = None
         self._postprocessor = None
 
-    def load_model(self, *, dtype_override=None, **kwargs):
-        import timm
+    @classmethod
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
 
-        model = timm.create_model(
-            "hf-hub:" + self._variant_config.pretrained_model_name, pretrained=True
+        source = cls._VARIANTS[variant].source
+
+        return ModelInfo(
+            model="WD ViT Tagger",
+            variant=variant,
+            group=ModelGroup.VULCAN,
+            task=ModelTask.CV_IMAGE_CLS,
+            source=source,
+            framework=Framework.TORCH,
         )
+
+    def load_model(self, *, dtype_override=None, **kwargs):
+        model_name = self._variant_config.pretrained_model_name
+
+        model = timm.create_model(model_name, pretrained=True)
         model.eval()
 
         self.model = model
@@ -78,11 +93,17 @@ class ModelLoader(ForgeModel):
 
         return model
 
-    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
+    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
+        if image is None:
+            dataset = load_dataset("huggingface/cats-image", split="test")
+            image = dataset[0]["image"]
+
         if self._preprocessor is None:
             model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
             self._preprocessor = VisionPreprocessor(
-                model_source=ModelSource.TIMM,
+                model_source=source,
                 model_name=model_name,
             )
 
@@ -100,23 +121,15 @@ class ModelLoader(ForgeModel):
             model_for_config=model_for_config,
         )
 
-    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
-        if image is None:
-            dataset = load_dataset("huggingface/cats-image", split="test")
-            image = dataset[0]["image"]
-        return self.input_preprocess(
-            image=image,
-            dtype_override=dtype_override,
-            batch_size=batch_size,
-        )
-
-    def output_postprocess(self, output, top_k=1):
+    def output_postprocess(self, output):
         if self._postprocessor is None:
             model_name = self._variant_config.pretrained_model_name
+            source = self._variant_config.source
+
             self._postprocessor = VisionPostprocessor(
-                model_source=ModelSource.TIMM,
+                model_source=source,
                 model_name=model_name,
                 model_instance=self.model,
             )
 
-        return self._postprocessor.postprocess(output, top_k=top_k, return_dict=True)
+        return self._postprocessor.postprocess(output, top_k=1, return_dict=True)
