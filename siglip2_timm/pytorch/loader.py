@@ -26,12 +26,6 @@ class ModelVariant(StrEnum):
     VIT_L_16_256 = "ViT_L_16_256"
 
 
-# Mapping from variant to OpenCLIP tokenizer name
-_TOKENIZER_NAME = {
-    ModelVariant.VIT_L_16_256: "ViT-L-16-SigLIP2-256",
-}
-
-
 class ModelLoader(ForgeModel):
     """SigLIP2 model loader using OpenCLIP for image-text similarity tasks."""
 
@@ -74,7 +68,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model, self.preprocess = create_model_from_pretrained(pretrained_model_name)
-        self.tokenizer = get_tokenizer(_TOKENIZER_NAME[self._variant])
+        self.tokenizer = get_tokenizer(pretrained_model_name)
 
         if dtype_override is not None:
             model = model.to(dtype_override)
@@ -98,7 +92,7 @@ class ModelLoader(ForgeModel):
             _, self.preprocess = create_model_from_pretrained(
                 self._variant_config.pretrained_model_name
             )
-            self.tokenizer = get_tokenizer(_TOKENIZER_NAME[self._variant])
+            self.tokenizer = get_tokenizer(self._variant_config.pretrained_model_name)
 
         # Load image from HuggingFace dataset
         from datasets import load_dataset
