@@ -2,7 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LFM2 VL model loader implementation for multimodal visual question answering.
+LFM2-VL (Liquid Foundation Model 2 - Vision Language) loader implementation
+for multimodal visual question answering.
+
+Supports LiquidAI's LFM2-VL hybrid conv+attention vision-language models.
 """
 
 import torch
@@ -11,7 +14,7 @@ from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
+    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
@@ -22,21 +25,21 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available LFM2 VL model variants."""
+    """Available LFM2-VL model variants."""
 
-    LFM2_VL_3B = "3B"
+    LFM2_VL_1_6B = "1.6B"
 
 
 class ModelLoader(ForgeModel):
-    """LFM2 VL model loader implementation for multimodal visual question answering tasks."""
+    """LFM2-VL model loader implementation for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.LFM2_VL_3B: LLMModelConfig(
-            pretrained_model_name="LiquidAI/LFM2-VL-3B",
+        ModelVariant.LFM2_VL_1_6B: ModelConfig(
+            pretrained_model_name="LiquidAI/LFM2-VL-1.6B",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.LFM2_VL_3B
+    DEFAULT_VARIANT = ModelVariant.LFM2_VL_1_6B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -48,7 +51,7 @@ class ModelLoader(ForgeModel):
             variant = cls.DEFAULT_VARIANT
 
         return ModelInfo(
-            model="LFM2 VL",
+            model="LFM2-VL",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.MM_VISUAL_QA,
@@ -63,6 +66,7 @@ class ModelLoader(ForgeModel):
 
         self.processor = AutoProcessor.from_pretrained(
             self._variant_config.pretrained_model_name,
+            trust_remote_code=True,
             **kwargs,
         )
         return self.processor
@@ -74,7 +78,7 @@ class ModelLoader(ForgeModel):
             self._load_processor(dtype_override=dtype_override)
 
         model_kwargs = {
-            "attn_implementation": "eager",
+            "trust_remote_code": True,
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override

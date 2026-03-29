@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LFM2 VL PyTorch model loader implementation.
+LFM2-VL PyTorch model loader implementation.
 """
 from .loader import ModelLoader, ModelVariant
 
