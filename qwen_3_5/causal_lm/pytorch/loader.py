@@ -45,6 +45,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_HERETIC_V2_GGUF = "9B_heretic_v2_GGUF"
     QWEN_3_5_27B_CLAUDE_4_6_OPUS_ABLITERATED = "27B_Claude_4.6_Opus_abliterated"
     QWEN_3_5_4B_TATSUYAAAAAAA_GGUF = "4B_tatsuyaaaaaaa_GGUF"
+    QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF = "35B_A3B_Derestricted_i1_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -136,6 +137,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="tatsuyaaaaaaa/Qwen3.5-4B-gguf",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3.5-35B-A3B-Derestricted-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -147,6 +152,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_HERETIC_V2_GGUF: "Qwen3.5-9b-heretic-v2-q8_0.gguf",
         ModelVariant.QWEN_3_5_4B_TATSUYAAAAAAA_GGUF: "Qwen3.5-4B_Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF: "Qwen3.5-35B-A3B-Derestricted.i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
@@ -346,12 +352,8 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
             ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_35B_A3B_GGUF,
-            ModelVariant.QWEN_3_5_35B_A3B_MLX_MXFP4,
-            ModelVariant.QWEN_3_5_35B_A3B_TEXT_MLX_QX64_HI,
-            ModelVariant.QWEN_3_5_122B_A10B_GGUF,
-            ModelVariant.QWEN_3_5_122B_A10B_MLX_8BIT,
-            ModelVariant.QWEN_3_5_397B_A17B_MLX_8BIT,
+            ModelVariant.QWEN_3_5_122B_A10B,
+            ModelVariant.QWEN_3_5_35B_A3B_DERESTRICTED_I1_GGUF,
         )
 
     def load_shard_spec(self, model):
