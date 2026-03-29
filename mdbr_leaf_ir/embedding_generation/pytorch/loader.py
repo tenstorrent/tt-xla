@@ -5,9 +5,10 @@
 MDBR-Leaf-IR model loader implementation for sentence embedding generation.
 """
 
+from typing import Optional
+
 import torch
 from transformers import AutoModel, AutoTokenizer
-from typing import Optional
 
 from ....base import ForgeModel
 from ....config import (
