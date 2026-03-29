@@ -4,7 +4,6 @@
 """
 MCDSE-2B model loader implementation for multimodal document embedding.
 """
-import torch
 import torch.nn.functional as F
 from PIL import Image
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
@@ -106,19 +105,6 @@ class ModelLoader(ForgeModel):
             }
         ]
         return messages, [dummy_image]
-
-    def _format_document(self, image):
-        """Format a document image for embedding."""
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": self.sample_query},
-                ],
-            }
-        ]
-        return messages, [image]
 
     def load_inputs(self, dtype_override=None):
         """Load and return sample inputs using a text query with dummy image.
