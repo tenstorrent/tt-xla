@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
     """Available MMS-TTS model variants."""
 
     ORM = "orm"
+    YOR = "yor"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.ORM: ModelConfig(
             pretrained_model_name="facebook/mms-tts-orm",
+        ),
+        ModelVariant.YOR: ModelConfig(
+            pretrained_model_name="facebook/mms-tts-yor",
         ),
     }
 
