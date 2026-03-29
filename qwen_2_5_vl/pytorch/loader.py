@@ -30,8 +30,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_VL_3B_INSTRUCT_AWQ = "3B_INSTRUCT_Awq"
     QWEN_2_5_VL_7B_INSTRUCT_AWQ = "7B_INSTRUCT_Awq"
     QWEN_2_5_VL_72B_INSTRUCT = "72B_Instruct"
-    QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT = "7B_Instruct_BNB_4bit"
-    QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT_V2 = "7B_Instruct_BNB_4bit_v2"
+    QWEN_2_5_VL_7B_ABLITERATED_CAPTION_IT = "7B_Abliterated_Caption_It"
 
 
 class ModelLoader(ForgeModel):
@@ -54,11 +53,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_2_5_VL_72B_INSTRUCT: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen2.5-VL-72B-Instruct",
         ),
-        ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-VL-7B-Instruct-unsloth-bnb-4bit",
-        ),
-        ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT_V2: LLMModelConfig(
-            pretrained_model_name="unsloth/Qwen2.5-VL-7B-Instruct-bnb-4bit",
+        ModelVariant.QWEN_2_5_VL_7B_ABLITERATED_CAPTION_IT: LLMModelConfig(
+            pretrained_model_name="prithivMLmods/Qwen2.5-VL-7B-Abliterated-Caption-it",
         ),
     }
 
@@ -106,10 +102,7 @@ class ModelLoader(ForgeModel):
         """
         if variant == ModelVariant.QWEN_2_5_VL_3B_INSTRUCT:
             group = ModelGroup.RED
-        elif variant in (
-            ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT,
-            ModelVariant.QWEN_2_5_VL_7B_INSTRUCT_BNB_4BIT_V2,
-        ):
+        elif variant == ModelVariant.QWEN_2_5_VL_7B_ABLITERATED_CAPTION_IT:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
