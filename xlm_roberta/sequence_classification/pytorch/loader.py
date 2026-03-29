@@ -24,6 +24,9 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
+    TWITTER_XLM_ROBERTA_BASE_SENTIMENT_FINETUNNED = (
+        "citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: LLMModelConfig(
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
+            max_length=128,
+        ),
+        ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT_FINETUNNED: LLMModelConfig(
+            pretrained_model_name="citizenlab/twitter-xlm-roberta-base-sentiment-finetunned",
             max_length=128,
         ),
     }
