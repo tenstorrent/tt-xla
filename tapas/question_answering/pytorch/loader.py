@@ -5,7 +5,6 @@
 TAPAS model loader implementation for table question answering
 """
 import pandas as pd
-import torch
 from transformers import TapasForQuestionAnswering, TapasTokenizer
 from typing import Optional
 
