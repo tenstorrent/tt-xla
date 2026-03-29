@@ -7,7 +7,6 @@ LanguageBind Video model loader implementation for zero-shot video classificatio
 from dataclasses import dataclass
 from typing import Optional
 
-import numpy as np
 import torch
 from transformers import CLIPModel, CLIPTokenizerFast
 
