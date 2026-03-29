@@ -100,6 +100,8 @@ class ModelLoader(ForgeModel):
             "max_pixels": self.max_pixels,
         }
 
+        # Load processor from the canonical (non-GGUF) repo since GGUF repos
+        # do not include processor/tokenizer files.
         self.processor = AutoProcessor.from_pretrained(
             "Qwen/Qwen2-VL-2B-Instruct", **processor_kwargs
         )
