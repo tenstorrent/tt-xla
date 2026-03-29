@@ -1,13 +1,14 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-OpenBuddy model loader implementation for causal language modeling.
+OpenBuddy Yi1.5-34B model loader implementation for causal language modeling.
 """
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
     ModelInfo,
@@ -17,44 +18,42 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
     """Available OpenBuddy model variants for causal language modeling."""
 
-    OPENBUDDY_MISTRAL_22B_V21_1_32K = "OpenBuddy_Mistral_22B_v21.1_32K"
-    OPENBUDDY_ZERO_56B_V21_2_32K = "OpenBuddy_Zero_56B_v21.2_32K"
+    OPENBUDDY_YI1_5_34B_V21_3_32K = "openbuddy_yi1_5_34b_v21_3_32k"
 
 
 class ModelLoader(ForgeModel):
-    """OpenBuddy model loader implementation."""
+    """OpenBuddy Yi1.5-34B model loader implementation for causal language modeling tasks."""
 
+    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.OPENBUDDY_MISTRAL_22B_V21_1_32K: LLMModelConfig(
-            pretrained_model_name="OpenBuddy/openbuddy-mistral-22b-v21.1-32k",
-            max_length=256,
-        ),
-        ModelVariant.OPENBUDDY_ZERO_56B_V21_2_32K: LLMModelConfig(
-            pretrained_model_name="OpenBuddy/openbuddy-zero-56b-v21.2-32k",
-            max_length=256,
+        ModelVariant.OPENBUDDY_YI1_5_34B_V21_3_32K: LLMModelConfig(
+            pretrained_model_name="OpenBuddy/openbuddy-yi1.5-34b-v21.3-32k",
+            max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENBUDDY_ZERO_56B_V21_2_32K
+    # Default variant to use
+    DEFAULT_VARIANT = ModelVariant.OPENBUDDY_YI1_5_34B_V21_3_32K
 
-    sample_text = "What is the capital of France?"
+    # Shared configuration parameters
+    sample_text = "The quick brown fox jumps over the lazy dog."
 
-    def __init__(self, variant: Optional[ModelVariant] = None):
+    def __init__(
+        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
+    ):
         super().__init__(variant)
         self.tokenizer = None
+        self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="openbuddy",
+            model="OpenBuddy Yi1.5-34B",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -69,12 +68,8 @@ class ModelLoader(ForgeModel):
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
             **tokenizer_kwargs,
         )
-
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -89,10 +84,17 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
+        if self.num_layers is not None:
+            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config.num_hidden_layers = self.num_layers
+            model_kwargs["config"] = config
+
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         model.eval()
+        self.config = model.config
+
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
@@ -104,7 +106,7 @@ class ModelLoader(ForgeModel):
         inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
-            padding=True,
+            padding="max_length",
             truncation=True,
             max_length=max_length,
         )
@@ -114,3 +116,10 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+
+        return self.config
