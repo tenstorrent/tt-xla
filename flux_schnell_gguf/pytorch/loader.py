@@ -46,7 +46,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.FLUX1_SCHNELL_Q4_0
 
-    GGUF_FILE = "flux1-schnell-Q4_0.gguf"
+    GGUF_FILE = "flux1-schnell-q4_0.gguf"
 
     prompt = "An astronaut riding a green horse"
 
