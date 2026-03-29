@@ -1,0 +1,1 @@
+opensora @ git+https://github.com/hpcaitech/Open-Sora.git
