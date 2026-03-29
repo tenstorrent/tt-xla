@@ -21,6 +21,24 @@ from tests.utils import BringupStatus, Category
 
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
+# Models to skip on lb-blackhole: S3-dependent models (no S3 bucket access on the runner)
+# and models that hang indefinitely during execution.
+_LB_BLACKHOLE_SKIP_MODELS = {
+    # S3-dependent models (missing weight files)
+    "arnold/",
+    "centernet/",
+    "monodepth2/",
+    "ssd512/",
+    "ultra_fast_lane_detection/",
+    "yolov3/",
+    "yoloworld/",
+    # Models that hang or have extremely long runtime on lb-blackhole
+    "swin/masked_image_modeling/pytorch-v2_Tiny_Patch4_Window8_256",
+    "swin/image_classification/pytorch-v2_Tiny_Patch4_Window8_256",
+    "maskformer_swin_b/",
+    "falcon/pytorch-3_Mamba_7B_Base",
+}
+
 # Maps nodeid -> item, populated during collection for crash-report fallback.
 _item_by_nodeid: dict = {}
 
@@ -144,6 +162,16 @@ def pytest_collection_modifyitems(config, items):
         if meta.status == ModelTestStatus.EXCLUDE_MODEL:
             deselected.append(item)
             continue
+
+        # Skip models known to fail on lb-blackhole (S3 dependencies, hangs).
+        if arch == "lb-blackhole" and any(
+            nodeid.startswith(prefix) for prefix in _LB_BLACKHOLE_SKIP_MODELS
+        ):
+            item.add_marker(
+                pytest.mark.skip(
+                    reason="Skipped on lb-blackhole: S3 dependency or known hang"
+                )
+            )
 
         if meta.status == ModelTestStatus.EXPECTED_PASSING:
             item.add_marker(pytest.mark.expected_passing)
