@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Command R model variants."""
 
     COMMAND_R7B_ARABIC = "7B_Arabic"
+    COMMAND_R_PLUS_08_2024 = "Plus_08_2024"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.COMMAND_R7B_ARABIC: LLMModelConfig(
             pretrained_model_name="CohereLabs/c4ai-command-r7b-arabic-02-2025",
+        ),
+        ModelVariant.COMMAND_R_PLUS_08_2024: LLMModelConfig(
+            pretrained_model_name="CohereLabs/c4ai-command-r-plus-08-2024",
         ),
     }
 
