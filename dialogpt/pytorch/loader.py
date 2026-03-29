@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DialoGPT model loader implementations for conversational text generation.
+DialoGPT model loader implementation for conversational text generation.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, GPT2Config
+from transformers import AutoTokenizer, AutoModelForCausalLM, GPT2Config
 from typing import Optional
 
 from ...base import ForgeModel
@@ -23,30 +23,22 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available DialoGPT model variants."""
 
-    DIALOGPT_SMALL = "Small"
-    DIALOGPT_MEDIUM = "Medium"
     DIALOGPT_LARGE = "Large"
 
 
 class ModelLoader(ForgeModel):
-    """DialoGPT loader for conversational causal language modeling."""
+    """DialoGPT model loader for conversational text generation."""
 
     _VARIANTS = {
-        ModelVariant.DIALOGPT_SMALL: LLMModelConfig(
-            pretrained_model_name="microsoft/DialoGPT-small",
-            max_length=256,
-        ),
-        ModelVariant.DIALOGPT_MEDIUM: LLMModelConfig(
-            pretrained_model_name="microsoft/DialoGPT-medium",
-            max_length=256,
-        ),
         ModelVariant.DIALOGPT_LARGE: LLMModelConfig(
             pretrained_model_name="microsoft/DialoGPT-large",
             max_length=256,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DIALOGPT_SMALL
+    DEFAULT_VARIANT = ModelVariant.DIALOGPT_LARGE
+
+    sample_text = "Hey, how are you doing today?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -73,12 +65,16 @@ class ModelLoader(ForgeModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        model_name = self._variant_config.pretrained_model_name
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        config = GPT2Config.from_pretrained(model_name)
+        if self.tokenizer is None:
+            self._load_tokenizer()
+
+        config = GPT2Config.from_pretrained(pretrained_model_name)
         config_dict = config.to_dict()
         config_dict["use_cache"] = True
         if dtype_override is not None:
@@ -87,31 +83,30 @@ class ModelLoader(ForgeModel):
             config_dict["num_hidden_layers"] = self.num_layers
         config = GPT2Config(**config_dict)
 
+        model_kwargs = {}
+        model_kwargs |= kwargs
+
         model = AutoModelForCausalLM.from_pretrained(
-            model_name, config=config, **kwargs
+            pretrained_model_name, config=config, **model_kwargs
         )
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
             self._load_tokenizer()
 
-        vocab_size = GPT2Config.from_pretrained(
-            self._variant_config.pretrained_model_name
-        ).vocab_size
+        tokenized = self.tokenizer(
+            self.sample_text + self.tokenizer.eos_token,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self._variant_config.max_length,
+        )
 
-        input_ids = torch.cat(
-            [
-                torch.randint(1, vocab_size, (1, 255)),
-                torch.zeros(1, 1, dtype=torch.int64),
-            ],
-            dim=-1,
-        ).to(torch.int64)
-
-        return {"input_ids": input_ids}
+        return {"input_ids": tokenized["input_ids"]}
 
     def decode_output(self, outputs, inputs=None):
-        """Helper method to decode model outputs into human-readable text."""
         if self.tokenizer is None:
             self._load_tokenizer()
 
