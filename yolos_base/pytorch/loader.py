@@ -5,22 +5,18 @@
 YOLOS-Base model loader implementation for object detection.
 """
 
-import torch
 from transformers import (
     YolosImageProcessor,
     YolosForObjectDetection,
 )
-from typing import Optional
 
 from ...base import ForgeModel
 from ...config import (
-    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
-    StrEnum,
 )
 from datasets import load_dataset
 
