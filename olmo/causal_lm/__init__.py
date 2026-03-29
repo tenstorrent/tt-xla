@@ -4,3 +4,4 @@
 """
 OLMo causal language modeling implementation for Tenstorrent projects.
 """
+from .pytorch import ModelLoader, ModelVariant
