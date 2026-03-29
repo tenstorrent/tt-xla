@@ -9,6 +9,7 @@ from transformers import (
     Qwen3VLForConditionalGeneration,
     Qwen3VLMoeForConditionalGeneration,
     AutoProcessor,
+    AwqConfig,
 )
 from typing import Optional
 
@@ -36,7 +37,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_30B_A3B_INSTRUCT = "30b_a3b_instruct"
     QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT = "30b_a3b_instruct_mlx_5bit"
     QWEN_3_VL_32B_INSTRUCT = "32b_instruct"
-    HUIHUI_QWEN_3_VL_4B_INSTRUCT_ABLITERATED = "huihui_4b_instruct_abliterated"
+    QWEN_3_VL_32B_INSTRUCT_AWQ_4BIT = "32b_instruct_awq_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -84,8 +85,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen3-VL-32B-Instruct",
             max_length=128,
         ),
-        ModelVariant.HUIHUI_QWEN_3_VL_4B_INSTRUCT_ABLITERATED: LLMModelConfig(
-            pretrained_model_name="huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated",
+        ModelVariant.QWEN_3_VL_32B_INSTRUCT_AWQ_4BIT: LLMModelConfig(
+            pretrained_model_name="cyankiwi/Qwen3-VL-32B-Instruct-AWQ-4bit",
             max_length=128,
         ),
     }
@@ -137,7 +138,7 @@ class ModelLoader(ForgeModel):
                 ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT,
                 ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT,
                 ModelVariant.QWEN_3_VL_32B_INSTRUCT,
-                ModelVariant.HUIHUI_QWEN_3_VL_4B_INSTRUCT_ABLITERATED,
+                ModelVariant.QWEN_3_VL_32B_INSTRUCT_AWQ_4BIT,
             )
             else ModelGroup.RED
         )
@@ -169,7 +170,9 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
 
         # AWQ variant loads with device_map="cpu" to keep quantized weights on CPU
-        if self._variant == ModelVariant.QWEN_3_VL_4B_INSTRUCT_AWQ:
+        if self._variant == ModelVariant.QWEN_3_VL_32B_INSTRUCT_AWQ_4BIT:
+            quantization_config = AwqConfig(version="ipex")
+            model_kwargs["quantization_config"] = quantization_config
             model_kwargs["device_map"] = "cpu"
         else:
             model_kwargs["dtype"] = "auto"
@@ -177,12 +180,13 @@ class ModelLoader(ForgeModel):
 
         model_kwargs |= kwargs
 
-        # MLX repos may not ship a processor; fall back to the base model
-        processor_name = (
-            "Qwen/Qwen3-VL-30B-A3B-Instruct"
-            if self._variant == ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT
-            else pretrained_model_name
-        )
+        # MLX/AWQ repos may not ship a processor; fall back to the base model
+        if self._variant == ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_MLX_5BIT:
+            processor_name = "Qwen/Qwen3-VL-30B-A3B-Instruct"
+        elif self._variant == ModelVariant.QWEN_3_VL_32B_INSTRUCT_AWQ_4BIT:
+            processor_name = "Qwen/Qwen3-VL-32B-Instruct"
+        else:
+            processor_name = pretrained_model_name
         self.processor = AutoProcessor.from_pretrained(processor_name)
 
         model_cls = (
