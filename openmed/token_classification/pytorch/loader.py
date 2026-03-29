@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     OPENMED_PII_GERMAN_CLINICDISCHARGE_BASE_110M_V1 = (
         "OpenMed-PII-German-ClinicDischarge-Base-110M-v1"
     )
+    OPENMED_PII_MCLINICALE5_LARGE_560M_V1 = "OpenMed-PII-mClinicalE5-Large-560M-v1"
     OPENMED_PII_SUPERMEDICAL_BASE_125M_V1 = "OpenMed-PII-SuperMedical-Base-125M-v1"
 
 
@@ -66,6 +67,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_PII_GERMAN_CLINICDISCHARGE_BASE_110M_V1: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-German-ClinicDischarge-Base-110M-v1",
+        ),
+        ModelVariant.OPENMED_PII_MCLINICALE5_LARGE_560M_V1: ModelConfig(
+            pretrained_model_name="OpenMed/OpenMed-PII-mClinicalE5-Large-560M-v1",
         ),
         ModelVariant.OPENMED_PII_SUPERMEDICAL_BASE_125M_V1: ModelConfig(
             pretrained_model_name="OpenMed/OpenMed-PII-SuperMedical-Base-125M-v1",
@@ -98,6 +102,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENMED_PII_GERMAN_CLINICDISCHARGE_BASE_110M_V1: (
             "Patient Hans Schmidt (geboren am 15.03.1985, SVN: 12 150385 M 234) wurde heute untersucht."
+        ),
+        ModelVariant.OPENMED_PII_MCLINICALE5_LARGE_560M_V1: (
+            "Dr. Sarah Johnson (SSN: 123-45-6789) can be reached at sarah.johnson@hospital.org or 555-123-4567."
         ),
         ModelVariant.OPENMED_PII_SUPERMEDICAL_BASE_125M_V1: (
             "Dr. Sarah Johnson (SSN: 123-45-6789) can be reached at sarah.johnson@hospital.org or 555-123-4567."
