@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MeloTTS PyTorch model implementation for Tenstorrent projects.
+MeloTTS-English-v3 PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant

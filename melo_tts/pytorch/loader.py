@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MeloTTS model loader implementation for text-to-speech tasks.
+MeloTTS-English-v3 model loader implementation for text-to-speech tasks.
 """
 import torch
 import torch.nn as nn
@@ -21,37 +21,49 @@ from ...config import (
 
 
 class MeloTTSWrapper(nn.Module):
-    """Wrapper around MeloTTS SynthesizerTrn to expose infer as forward."""
+    """Wrapper around SynthesizerTrn to expose infer as forward."""
 
-    def __init__(self, model):
+    def __init__(self, synthesizer):
         super().__init__()
-        self.model = model
+        self.synthesizer = synthesizer
 
     def forward(self, x, x_lengths, sid, tone, language, bert, ja_bert):
-        audio, *_ = self.model.infer(x, x_lengths, sid, tone, language, bert, ja_bert)
+        audio = self.synthesizer.infer(
+            x,
+            x_lengths,
+            sid,
+            tone,
+            language,
+            bert,
+            ja_bert,
+            sdp_ratio=0.2,
+            noise_scale=0.6,
+            noise_scale_w=0.8,
+            length_scale=1.0,
+        )[0][0, 0]
         return audio
 
 
 class ModelVariant(StrEnum):
     """Available MeloTTS model variants."""
 
-    KOREAN = "Korean"
+    ENGLISH_V3 = "English-v3"
 
 
 class ModelLoader(ForgeModel):
-    """MeloTTS model loader implementation for text-to-speech tasks."""
+    """MeloTTS-English-v3 model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
-        ModelVariant.KOREAN: ModelConfig(
-            pretrained_model_name="myshell-ai/MeloTTS-Korean",
+        ModelVariant.ENGLISH_V3: ModelConfig(
+            pretrained_model_name="myshell-ai/MeloTTS-English-v3",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.KOREAN
+    DEFAULT_VARIANT = ModelVariant.ENGLISH_V3
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.tts = None
+        self._tts = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -67,22 +79,22 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         from melo.api import TTS
 
-        self.tts = TTS(language="KR", device="cpu")
-        model = MeloTTSWrapper(self.tts.model)
+        self._tts = TTS(language="EN_NEWEST", device="cpu")
+        model = MeloTTSWrapper(self._tts.model)
         model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
-        from melo.text import get_text_for_tts_infer
+        from melo import utils as melo_utils
 
-        text = "안녕하세요."
-        bert, ja_bert, phones, tones, lang_ids = get_text_for_tts_infer(
-            text, self.tts.hps, "cpu", self.tts.language, self.tts.symbol_to_id
+        text = "Hello, this is a test of text to speech."
+        bert, ja_bert, phones, tones, lang_ids = melo_utils.get_text_for_tts_infer(
+            text, self._tts.language, self._tts.hps, "cpu", self._tts.symbol_to_id
         )
 
         x = phones.unsqueeze(0)
         x_lengths = torch.LongTensor([phones.size(0)])
-        sid = torch.LongTensor([0])
+        sid = torch.LongTensor([self._tts.hps.data.spk2id["EN-Newest"]])
         tone = tones.unsqueeze(0)
         language = lang_ids.unsqueeze(0)
         bert = bert.unsqueeze(0)
