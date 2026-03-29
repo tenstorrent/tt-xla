@@ -22,6 +22,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available MMS TTS PyTorch model variants."""
 
+    MMS_TTS_HIN = "MMS_Tts_Hin"
     MMS_TTS_SWH = "MMS_Tts_Swh"
 
 
@@ -29,6 +30,9 @@ class ModelLoader(ForgeModel):
     """MMS model loader implementation for text-to-speech (PyTorch)."""
 
     _VARIANTS = {
+        ModelVariant.MMS_TTS_HIN: ModelConfig(
+            pretrained_model_name="facebook/mms-tts-hin",
+        ),
         ModelVariant.MMS_TTS_SWH: ModelConfig(
             pretrained_model_name="facebook/mms-tts-swh",
         ),
@@ -36,11 +40,17 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.MMS_TTS_SWH
 
-    sample_text = "Habari, jina langu ni Tenstorrent."
+    _SAMPLE_TEXTS = {
+        ModelVariant.MMS_TTS_HIN: "नमस्ते, मेरा नाम टेन्सटोरेंट है।",
+        ModelVariant.MMS_TTS_SWH: "Habari, jina langu ni Tenstorrent.",
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
         self._tokenizer = None
+        self.sample_text = self._SAMPLE_TEXTS.get(
+            self._variant, "Habari, jina langu ni Tenstorrent."
+        )
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
