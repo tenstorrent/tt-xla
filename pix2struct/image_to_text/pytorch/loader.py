@@ -7,7 +7,6 @@ Pix2Struct model loader implementation for image-to-text using PyTorch.
 
 import torch
 from typing import Optional
-from PIL import Image
 
 from ....base import ForgeModel
 from ....config import (
@@ -81,6 +80,8 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.processor is None:
             self._load_processor()
+
+        from PIL import Image
 
         image = Image.new("RGB", (384, 384))
 
