@@ -5,7 +5,6 @@
 SmolVLM Instruct GGUF model loader implementation for multimodal conditional generation.
 """
 
-import torch
 from PIL import Image
 from transformers import AutoModelForVision2Seq, AutoProcessor
 from typing import Optional
