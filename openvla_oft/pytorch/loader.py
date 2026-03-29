@@ -37,6 +37,7 @@ class ModelVariant(StrEnum):
     OPENVLA_OFT_FINETUNED_LIBERO_SPATIAL_OBJECT_GOAL_10 = (
         "openvla_oft_finetuned_libero_spatial_object_goal_10"
     )
+    OPENVLA_OFT_SFT_LIBERO10_TRAJALL = "openvla_oft_sft_libero10_trajall"
 
 
 class ModelLoader(ForgeModel):
@@ -57,6 +58,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.OPENVLA_OFT_FINETUNED_LIBERO_SPATIAL_OBJECT_GOAL_10: ModelConfig(
             pretrained_model_name="moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10",
+        ),
+        ModelVariant.OPENVLA_OFT_SFT_LIBERO10_TRAJALL: ModelConfig(
+            pretrained_model_name="Haozhan72/Openvla-oft-SFT-libero10-trajall",
         ),
     }
 
@@ -100,13 +104,17 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        # All OpenVLA-OFT variants are customer-requested (RED)
+        if variant == ModelVariant.OPENVLA_OFT_FINETUNED_LIBERO_10:
+            group = ModelGroup.RED
+        elif variant == ModelVariant.OPENVLA_OFT_SFT_LIBERO10_TRAJALL:
+            group = ModelGroup.VULCAN
+        else:
+            group = ModelGroup.GENERALITY
+
         return ModelInfo(
             model="OpenVLA-OFT",
             variant=variant,
-            group=ModelGroup.RED
-            if variant == ModelVariant.OPENVLA_OFT_FINETUNED_LIBERO_10
-            else ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.MM_ACTION_PREDICTION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
