@@ -8,8 +8,6 @@ Loads the KBLab/robust-swedish-sentiment-multiclass model for Swedish
 multi-class sentiment analysis (NEGATIVE, NEUTRAL, POSITIVE).
 """
 
-from typing import Optional
-
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from ....base import ForgeModel
