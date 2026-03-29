@@ -5,6 +5,7 @@
 RetriBERT model loader for text retrieval feature extraction.
 """
 import torch
+import torch.nn as nn
 from typing import Optional
 
 from third_party.tt_forge_models.config import (
@@ -17,6 +18,22 @@ from third_party.tt_forge_models.config import (
     LLMModelConfig,
 )
 from third_party.tt_forge_models.base import ForgeModel
+
+
+class RetriBertEmbedWrapper(nn.Module):
+    """Wrapper around RetriBertModel that calls embed_questions for inference.
+
+    The native RetriBertModel.forward computes a contrastive loss, which is not
+    useful for feature extraction. This wrapper exposes embed_questions as the
+    forward pass so the model produces query embeddings (projected to 128-dim).
+    """
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, input_ids, attention_mask=None, **kwargs):
+        return self.model.embed_questions(input_ids, attention_mask=attention_mask)
 
 
 class ModelVariant(StrEnum):
@@ -81,9 +98,12 @@ class ModelLoader(ForgeModel):
         model = AutoModel.from_pretrained(model_name, **model_kwargs)
         model.eval()
 
-        self.model = model
+        wrapped = RetriBertEmbedWrapper(model)
+        wrapped.eval()
 
-        return model
+        self.model = wrapped
+
+        return wrapped
 
     def load_inputs(self, dtype_override=None, sentence=None):
         if self.tokenizer is None:
@@ -104,32 +124,12 @@ class ModelLoader(ForgeModel):
 
         return inputs
 
-    def output_postprocess(self, output, inputs=None):
-        if isinstance(output, (tuple, list)):
-            last_hidden_state = output[0]
-        elif hasattr(output, "last_hidden_state"):
-            last_hidden_state = output.last_hidden_state
-        else:
-            last_hidden_state = output
-
-        # Use [CLS] token embedding for retrieval
-        cls_embedding = last_hidden_state[:, 0, :]
-        return cls_embedding
-
     def decode_output(self, outputs, inputs=None):
-        return self.output_postprocess(outputs, inputs=inputs)
+        if isinstance(outputs, (tuple, list)):
+            return outputs[0]
+        return outputs
 
     def unpack_forward_output(self, fwd_output):
-        tensors = []
-
-        if hasattr(fwd_output, "last_hidden_state"):
-            tensors.append(fwd_output.last_hidden_state.flatten())
-        if (
-            hasattr(fwd_output, "pooler_output")
-            and fwd_output.pooler_output is not None
-        ):
-            tensors.append(fwd_output.pooler_output.flatten())
-
-        if tensors:
-            return torch.cat(tensors, dim=0)
-        return fwd_output
+        if isinstance(fwd_output, (tuple, list)):
+            return fwd_output[0].flatten()
+        return fwd_output.flatten()
