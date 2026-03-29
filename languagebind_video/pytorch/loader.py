@@ -9,7 +9,7 @@ from typing import Optional
 
 import numpy as np
 import torch
-from transformers import AutoModel, AutoProcessor
+from transformers import CLIPModel, CLIPTokenizerFast
 
 from ...base import ForgeModel
 from ...config import (
@@ -28,6 +28,7 @@ class LanguageBindVideoConfig(ModelConfig):
     """Configuration specific to LanguageBind Video models."""
 
     num_frames: int = 8
+    image_size: int = 224
 
 
 class ModelVariant(StrEnum):
@@ -43,6 +44,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.VIDEO_FT: LanguageBindVideoConfig(
             pretrained_model_name="LanguageBind/LanguageBind_Video_FT",
             num_frames=8,
+            image_size=224,
         ),
     }
 
@@ -50,7 +52,7 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
+        self.tokenizer = None
         self.text_prompts = None
 
     @classmethod
@@ -67,12 +69,11 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self):
-        self.processor = AutoProcessor.from_pretrained(
+    def _load_tokenizer(self):
+        self.tokenizer = CLIPTokenizerFast.from_pretrained(
             self._variant_config.pretrained_model_name,
-            trust_remote_code=True,
         )
-        return self.processor
+        return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
@@ -82,9 +83,8 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(
+        model = CLIPModel.from_pretrained(
             pretrained_model_name,
-            trust_remote_code=True,
             **model_kwargs,
         )
         model.eval()
@@ -92,25 +92,40 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.processor is None:
-            self._load_processor()
+        if self.tokenizer is None:
+            self._load_tokenizer()
 
         num_frames = self._variant_config.num_frames
+        image_size = self._variant_config.image_size
 
-        # Create synthetic video input: list of frames as numpy arrays
-        video = [
-            np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8)
-            for _ in range(num_frames)
-        ]
+        # Create synthetic video frames and normalize to [0, 1] then apply
+        # CLIP-style normalization (mean=[0.48145466, 0.4578275, 0.40821073],
+        # std=[0.26862954, 0.26130258, 0.27577711])
+        mean = torch.tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1)
+        std = torch.tensor([0.26862954, 0.26130258, 0.27577711]).view(1, 3, 1, 1)
+
+        pixel_values = torch.rand(num_frames, 3, image_size, image_size)
+        pixel_values = (pixel_values - mean) / std
+
+        # Shape for CLIPModel: (batch, channels, height, width)
+        # Average-pool over frames to produce a single image-like input
+        pixel_values = pixel_values.mean(dim=0, keepdim=True)
 
         self.text_prompts = ["playing sports", "eating spaghetti", "go shopping"]
 
-        inputs = self.processor(
-            text=self.text_prompts,
-            videos=[video],
+        text_inputs = self.tokenizer(
+            self.text_prompts,
+            max_length=77,
+            padding="max_length",
+            truncation=True,
             return_tensors="pt",
-            padding=True,
         )
+
+        inputs = {
+            "input_ids": text_inputs["input_ids"],
+            "attention_mask": text_inputs["attention_mask"],
+            "pixel_values": pixel_values,
+        }
 
         # Replicate tensors for batch size
         for key in inputs:
