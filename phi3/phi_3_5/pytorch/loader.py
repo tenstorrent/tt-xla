@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     MINI_INSTRUCT = "Mini_Instruct"
     MOE_INSTRUCT = "Phi_3.5_Moe_Instruct"
+    MINI_ITA = "Mini_ITA"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MOE_INSTRUCT: ModelConfig(
             pretrained_model_name="microsoft/Phi-3.5-MoE-instruct",
+        ),
+        ModelVariant.MINI_ITA: ModelConfig(
+            pretrained_model_name="anakin87/Phi-3.5-mini-ITA",
         ),
     }
 
@@ -56,10 +60,16 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Get model information for dashboard and metrics reporting."""
+        group = ModelGroup.RED
+        if variant in [
+            ModelVariant.MINI_ITA,
+        ]:
+            group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="Phi-3",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
