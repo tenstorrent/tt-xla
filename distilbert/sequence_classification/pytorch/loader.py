@@ -25,8 +25,7 @@ class ModelVariant(StrEnum):
         "distilbert-base-uncased-finetuned-sst-2-english"
     )
     DISTILBERT_BASE_UNCASED_EMOTION = "distilbert-base-uncased-emotion"
-    REFUTATION_DETECTOR_DISTILBERT = "refutation-detector-distilbert"
-    SBCBI_SENTIMENT_ANALYSIS = "sbcBI-sentiment-analysis"
+    ISOM5240_2026SPRING5240L1 = "isom5240-2026Spring5240L1"
 
 
 class ModelLoader(ForgeModel):
@@ -42,12 +41,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bhadresh-savani/distilbert-base-uncased-emotion",
             max_length=128,
         ),
-        ModelVariant.REFUTATION_DETECTOR_DISTILBERT: LLMModelConfig(
-            pretrained_model_name="garak-llm/refutation_detector_distilbert",
-            max_length=128,
-        ),
-        ModelVariant.SBCBI_SENTIMENT_ANALYSIS: LLMModelConfig(
-            pretrained_model_name="sbcBI/sentiment_analysis_model",
+        ModelVariant.ISOM5240_2026SPRING5240L1: LLMModelConfig(
+            pretrained_model_name="isom5240/2026Spring5240L1",
             max_length=128,
         ),
     }
@@ -64,8 +59,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.DISTILBERT_BASE_UNCASED_FINETUNED_SST_2_ENGLISH: "the movie was great!",
         ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION: "I love using transformers. The best part is wide range of support and its easy to use",
-        ModelVariant.REFUTATION_DETECTOR_DISTILBERT: "That is not true, the earth is not flat.",
-        ModelVariant.SBCBI_SENTIMENT_ANALYSIS: "The service was excellent and I had a wonderful experience.",
+        ModelVariant.ISOM5240_2026SPRING5240L1: "the movie was great!",
     }
 
     def __init__(self, variant=None):
@@ -99,8 +93,7 @@ class ModelLoader(ForgeModel):
         group = ModelGroup.GENERALITY
         if variant_name in (
             ModelVariant.DISTILBERT_BASE_UNCASED_EMOTION,
-            ModelVariant.REFUTATION_DETECTOR_DISTILBERT,
-            ModelVariant.SBCBI_SENTIMENT_ANALYSIS,
+            ModelVariant.ISOM5240_2026SPRING5240L1,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
