@@ -30,6 +30,7 @@ class ModelVariant(StrEnum):
     LARGE_XLSR_KN = "Large_XLSR_Kn"
     LARGE_XLSR_53_MONGOLIAN = "Large_XLSR_53_Mongolian"
     NB_300M_NYNORSK = "NB_300m_Nynorsk"
+    FRENCH_PHONEMIZER_V2 = "French_Phonemizer_v2"
 
 
 class ModelLoader(ForgeModel):
@@ -53,6 +54,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NB_300M_NYNORSK: ModelConfig(
             pretrained_model_name="NbAiLab/nb-wav2vec2-300m-nynorsk",
+        ),
+        ModelVariant.FRENCH_PHONEMIZER_V2: ModelConfig(
+            pretrained_model_name="Cnam-LMSSC/wav2vec2-french-phonemizer-v2",
         ),
     }
 
