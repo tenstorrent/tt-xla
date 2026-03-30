@@ -36,7 +36,7 @@ class ModelVariant(StrEnum):
     GLM_4_7_FLASH_HERETIC = "4.7_Flash_heretic"
     GLM_4_5 = "4.5"
     GLM_4_5_AIR = "4.5_Air"
-    IMG5 = "img5"
+    GLM_Z1_9B_0414 = "Z1-9B-0414"
 
 
 class ModelLoader(ForgeModel):
@@ -72,8 +72,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="zai-org/GLM-4.5-Air",
             max_length=128,
         ),
-        ModelVariant.IMG5: LLMModelConfig(
-            pretrained_model_name="belztjti/img5",
+        ModelVariant.GLM_Z1_9B_0414: LLMModelConfig(
+            pretrained_model_name="zai-org/GLM-Z1-9B-0414",
             max_length=128,
         ),
     }
@@ -114,7 +114,7 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
-        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.GLM_4_7_FLASH_HERETIC):
+        if variant in (ModelVariant.GLM_4_7_FLASH, ModelVariant.GLM_Z1_9B_0414):
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.RED
