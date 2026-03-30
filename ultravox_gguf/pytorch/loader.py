@@ -5,7 +5,6 @@
 Ultravox v0.5 Llama 3.1 8B GGUF model loader implementation for speech language modeling.
 """
 
-import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
