@@ -5,29 +5,31 @@
 Tiny Random LLaMA-3 model loader implementation for causal language modeling.
 """
 
-from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
 
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    LLMModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
-from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available Tiny Random LLaMA-3 model variants for causal LM."""
+    """Available Tiny Random LLaMA-3 model variants for causal language modeling."""
 
     DEFAULT = "default"
 
 
 class ModelLoader(ForgeModel):
-    """Tiny Random LLaMA-3 model loader for causal language modeling."""
+    """Tiny Random LLaMA-3 model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
         ModelVariant.DEFAULT: LLMModelConfig(
@@ -59,16 +61,17 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            **tokenizer_kwargs,
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -87,19 +90,26 @@ class ModelLoader(ForgeModel):
             pretrained_model_name, **model_kwargs
         )
         model.eval()
+        self.config = model.config
 
         return model
 
-    def load_inputs(self, dtype_override=None):
+    def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        input_tokens = self.tokenizer(
+        max_length = self._variant_config.max_length
+
+        inputs = self.tokenizer(
             self.sample_text,
-            max_length=self._variant_config.max_length,
-            padding=True,
-            truncation=True,
             return_tensors="pt",
+            padding="max_length",
+            truncation=True,
+            max_length=max_length,
         )
 
-        return [input_tokens["input_ids"], input_tokens["attention_mask"]]
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
+
+        return inputs
