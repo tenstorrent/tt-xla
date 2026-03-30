@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE_960H = "Base_960h"
     YSU_ASPRAM = "YSU_aspram"
+    JZULUAGA_EN_ATC = "Jzuluaga_en_atc"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.YSU_ASPRAM: ModelConfig(
             pretrained_model_name="YSU/aspram",
+        ),
+        ModelVariant.JZULUAGA_EN_ATC: ModelConfig(
+            pretrained_model_name="Jzuluaga/wav2vec2-large-960h-lv60-self-en-atc-uwb-atcc-and-atcosim",
         ),
     }
 
