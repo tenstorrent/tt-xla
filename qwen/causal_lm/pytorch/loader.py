@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen Causal LM model loader implementation
+Qwen model loader implementation for causal language modeling.
 """
-
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen model variants for causal language modeling."""
 
-    QWEN_7B_CHAT_AWQ = "7B_Chat_AWQ"
+    TINY_RANDOM_QWEN = "tiny-random-qwen"
 
 
 class ModelLoader(ForgeModel):
@@ -31,31 +31,43 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.QWEN_7B_CHAT_AWQ: LLMModelConfig(
-            pretrained_model_name="TheBloke/Qwen-7B-Chat-AWQ",
+        ModelVariant.TINY_RANDOM_QWEN: LLMModelConfig(
+            pretrained_model_name="optimum-intel-internal-testing/tiny-random-qwen",
             max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.QWEN_7B_CHAT_AWQ
+    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM_QWEN
 
     # Shared configuration parameters
-    sample_text = "Tell me about AI"
-    chat_messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Tell me about AI"},
-    ]
+    sample_text = "My name is Jim Keller and"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
+        """Initialize ModelLoader with specified variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
+        """
         super().__init__(variant)
         self.tokenizer = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        """Implementation method for getting model info with validated variant.
+
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
         return ModelInfo(
             model="Qwen",
             variant=variant,
@@ -66,6 +78,14 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        """Load tokenizer for the current variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the tokenizer's default dtype.
+
+        Returns:
+            The loaded tokenizer instance
+        """
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
@@ -83,6 +103,14 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        """Load and return the Qwen model instance for this instance's variant.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model's default dtype.
+
+        Returns:
+            torch.nn.Module: The Qwen model instance for causal language modeling.
+        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
@@ -91,9 +119,6 @@ class ModelLoader(ForgeModel):
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
-
-        model_kwargs["device_map"] = "cpu"
-        model_kwargs["trust_remote_code"] = True
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
@@ -104,23 +129,30 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            pretrained_model_name, trust_remote_code=True, **model_kwargs
         )
+
+        model._supports_cache_class = False
         model.eval()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the Qwen model with this instance's variant settings.
+
+        Args:
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
+
+        Returns:
+            dict: Input tensors that can be fed to the model.
+        """
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         max_length = self._variant_config.max_length
 
-        messages = self.chat_messages
-        text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        prompts = [text] * batch_size
+        prompts = [self.sample_text] * batch_size
 
         inputs = self.tokenizer(
             prompts,
