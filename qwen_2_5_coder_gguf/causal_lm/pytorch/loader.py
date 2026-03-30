@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 2.5 Coder GGUF model variants for causal language modeling."""
 
     QWEN_2_5_CODER_14B_INSTRUCT_ABLITERATED_GGUF = "14B_Instruct_abliterated_GGUF"
+    QWEN_2_5_CODER_32B_INSTRUCT_ABLITERATED_I1_GGUF = "32B_Instruct_abliterated_i1_GGUF"
     QWEN_2_5_CODER_7B_INSTRUCT_SOTA_GGUF = "7B_Instruct_SOTA_GGUF"
 
 
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_ABLITERATED_GGUF: LLMModelConfig(
             pretrained_model_name="bartowski/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_ABLITERATED_I1_GGUF: LLMModelConfig(
+            pretrained_model_name="weifile/Qwen2.5-Coder-32B-Instruct-abliterated-i1-GGUF",
             max_length=128,
         ),
         ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_SOTA_GGUF: LLMModelConfig(
@@ -45,6 +50,7 @@ class ModelLoader(ForgeModel):
 
     _GGUF_FILES = {
         ModelVariant.QWEN_2_5_CODER_14B_INSTRUCT_ABLITERATED_GGUF: "Qwen2.5-Coder-14B-Instruct-abliterated-Q4_K_M.gguf",
+        ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_ABLITERATED_I1_GGUF: "Qwen2.5-Coder-32B-Instruct-abliterated.i1-Q4_K_M.gguf",
         ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_SOTA_GGUF: "Qwen2.5-Coder-7B-Instruct.IQ4_XS.gguf",
     }
 
