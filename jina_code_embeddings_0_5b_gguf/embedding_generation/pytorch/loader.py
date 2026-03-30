@@ -4,7 +4,6 @@
 """
 Jina Code Embeddings 0.5B GGUF model loader implementation for code embedding generation.
 """
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
