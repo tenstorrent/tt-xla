@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 VL GGUF model variants for causal language modeling."""
 
     QWEN_3_VL_30B_A3B_INSTRUCT_GGUF = "30B_A3B_Instruct_GGUF"
+    QWEN_3_VL_30B_A3B_INSTRUCT_GGUF_OFFICIAL = "30B_A3B_Instruct_GGUF_Official"
 
 
 class ModelLoader(ForgeModel):
@@ -32,6 +33,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_GGUF: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen3-VL-30B-A3B-Instruct-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_VL_30B_A3B_INSTRUCT_GGUF_OFFICIAL: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-VL-30B-A3B-Instruct-GGUF",
             max_length=128,
         ),
     }
