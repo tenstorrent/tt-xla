@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DINO ViT model loader implementation for feature extraction.
+DINO ViT model loader implementation for feature extraction (PyTorch).
 """
 
-import timm
+import torch
+from transformers import ViTImageProcessor, ViTModel
 from datasets import load_dataset
 from typing import Optional
 
@@ -19,25 +20,24 @@ from ....config import (
     Framework,
     StrEnum,
 )
-from ....tools.utils import VisionPreprocessor
 
 
 class ModelVariant(StrEnum):
     """Available DINO ViT feature extraction model variants."""
 
-    SMALL_PATCH16_224 = "Small_Patch16_224"
+    BASE_PATCH8 = "Base_Patch8"
 
 
 class ModelLoader(ForgeModel):
-    """DINO ViT model loader implementation for feature extraction."""
+    """DINO ViT model loader implementation for feature extraction (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.SMALL_PATCH16_224: ModelConfig(
-            pretrained_model_name="vit_small_patch16_224.dino",
+        ModelVariant.BASE_PATCH8: ModelConfig(
+            pretrained_model_name="facebook/dino-vitb8",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.SMALL_PATCH16_224
+    DEFAULT_VARIANT = ModelVariant.BASE_PATCH8
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant.
@@ -47,12 +47,11 @@ class ModelLoader(ForgeModel):
                      If None, DEFAULT_VARIANT is used.
         """
         super().__init__(variant)
-        self.model = None
-        self._preprocessor = None
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting.
+        """Implementation method for getting model info with validated variant.
 
         Args:
             variant: Optional ModelVariant specifying which variant to use.
@@ -69,9 +68,19 @@ class ModelLoader(ForgeModel):
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.CV_IMAGE_FE,
-            source=ModelSource.TIMM,
+            source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
+
+    def _load_processor(self):
+        """Load image processor for the current variant.
+
+        Returns:
+            The loaded processor instance
+        """
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        self.processor = ViTImageProcessor.from_pretrained(pretrained_model_name)
+        return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the DINO ViT model instance.
@@ -82,68 +91,43 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: The DINO ViT model instance for feature extraction.
         """
-        model_name = self._variant_config.pretrained_model_name
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model = timm.create_model(model_name, pretrained=True)
-        model.eval()
-
-        self.model = model
-
-        if self._preprocessor is not None:
-            self._preprocessor.set_cached_model(model)
-
+        model_kwargs = {}
         if dtype_override is not None:
-            model = model.to(dtype_override)
+            model_kwargs["torch_dtype"] = dtype_override
+        model_kwargs |= kwargs
+
+        model = ViTModel.from_pretrained(pretrained_model_name, **model_kwargs)
+        model.eval()
 
         return model
 
-    def input_preprocess(self, dtype_override=None, batch_size=1, image=None):
-        """Preprocess input image(s) and return model-ready input tensor.
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the DINO ViT model.
 
         Args:
-            dtype_override: Optional torch.dtype override (default: float32).
-            batch_size: Batch size (ignored if image is a list).
-            image: PIL Image, URL string, tensor, list of images/URLs, or None (uses default image).
+            dtype_override: Optional torch.dtype to override the model inputs' default dtype.
+            batch_size: Batch size for the inputs.
 
         Returns:
-            torch.Tensor: Preprocessed input tensor.
+            dict: Input tensors that can be fed to the model.
         """
-        if self._preprocessor is None:
-            model_name = self._variant_config.pretrained_model_name
+        if self.processor is None:
+            self._load_processor()
 
-            self._preprocessor = VisionPreprocessor(
-                model_source=ModelSource.TIMM,
-                model_name=model_name,
-            )
+        dataset = load_dataset("huggingface/cats-image")["test"]
+        image = dataset[0]["image"]
 
-            if self.model is not None:
-                self._preprocessor.set_cached_model(self.model)
+        inputs = self.processor(images=image, return_tensors="pt")
 
-        model_for_config = self.model if self.model is not None else None
+        for key in inputs:
+            if torch.is_tensor(inputs[key]):
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
-        return self._preprocessor.preprocess(
-            image=image,
-            dtype_override=dtype_override,
-            batch_size=batch_size,
-            model_for_config=model_for_config,
-        )
+        if dtype_override is not None:
+            for key in inputs:
+                if torch.is_tensor(inputs[key]) and inputs[key].dtype.is_floating_point:
+                    inputs[key] = inputs[key].to(dtype_override)
 
-    def load_inputs(self, dtype_override=None, batch_size=1, image=None):
-        """Load and return sample inputs for the model.
-
-        Args:
-            dtype_override: Optional torch.dtype override.
-            batch_size: Batch size (default: 1).
-            image: Optional input image. If None, loads from HuggingFace datasets.
-
-        Returns:
-            torch.Tensor: Preprocessed input tensor.
-        """
-        if image is None:
-            dataset = load_dataset("huggingface/cats-image", split="test")
-            image = dataset[0]["image"]
-        return self.input_preprocess(
-            image=image,
-            dtype_override=dtype_override,
-            batch_size=batch_size,
-        )
+        return inputs
