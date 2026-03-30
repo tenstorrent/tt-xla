@@ -1208,26 +1208,23 @@ def _gpt_oss_galaxy_mesh_config_fn(model_loader, num_devices):
 
 
 def _gpt_oss_galaxy_shard_spec_fn(model_loader, model):
-    """Galaxy TP shard layout (variant-aware 20B vs 120B); kept in tests, not tt-forge-models."""
+    """Galaxy 4x8 shard layout aligned with repo ``tt-metal_galaxy_parallelism`` (tt-metal HF tensors).
 
-    from third_party.tt_forge_models.gpt_oss.pytorch.loader import ModelVariant
+    Mesh axes: ``("batch", "model")`` — TP on the 8-wide ``model`` columns; weights use ``None``
+    on ``batch`` (replicated across rows). Activations: batch-sharded via ``input_sharding_fn``.
 
-    variant = model_loader._variant
-    # 20B: TP on "model" only (replicate on batch). 120B: batch axis for capacity.
-    batch_axis = (
-        None if variant and variant == ModelVariant.GPT_OSS_20B else "batch"
-    )
+    MoE / sinks / lm_head axes match the "Closest tt-metal-style shard specs" and shape notes
+    there (vocab-parallel ``lm_head`` on HF ``[vocab, hidden]``).
+    """
+
+    batch_axis = None
 
     shard_specs = {}
 
     shard_specs[model.model.embed_tokens.weight] = (None, batch_axis)
     shard_specs[model.model.norm.weight] = (batch_axis,)
-
-    # lm_head sharding causes 20B hang: https://github.com/tenstorrent/tt-xla/issues/3484
-    if variant and variant == ModelVariant.GPT_OSS_120B:
-        shard_specs[model.lm_head.weight] = ("model", "batch")
-    else:
-        shard_specs[model.lm_head.weight] = (None, None)
+    # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
+    shard_specs[model.lm_head.weight] = ("model", batch_axis)
 
     for layer in model.model.layers:
         shard_specs[layer.self_attn.q_proj.weight] = ("model", batch_axis)
@@ -1238,12 +1235,12 @@ def _gpt_oss_galaxy_shard_spec_fn(model_loader, model):
         shard_specs[layer.self_attn.v_proj.bias] = ("model",)
         shard_specs[layer.self_attn.o_proj.weight] = (batch_axis, "model")
         shard_specs[layer.self_attn.o_proj.bias] = (batch_axis,)
-        shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.self_attn.sinks] = ("model",)
         shard_specs[layer.mlp.router.weight] = (None, batch_axis)
-        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", batch_axis, None)
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
-        shard_specs[layer.mlp.experts.down_proj] = ("model", None, batch_axis)
-        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", batch_axis)
+        shard_specs[layer.mlp.experts.gate_up_proj] = (None, batch_axis, "model")
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (None, "model")
+        shard_specs[layer.mlp.experts.down_proj] = (None, "model", batch_axis)
+        shard_specs[layer.mlp.experts.down_proj_bias] = (None, batch_axis)
         shard_specs[layer.input_layernorm.weight] = (batch_axis,)
         shard_specs[layer.post_attention_layernorm.weight] = (batch_axis,)
 
@@ -1356,6 +1353,8 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
 def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
 ):
+    """Same Galaxy mesh, shard spec, batch size, and input sharding as ``test_gpt_oss_20b_tp_galaxy_batch_size_64``."""
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1373,6 +1372,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         batch_size=(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
+        input_sharding_fn=_batch_parallel_input_sharding_fn,
         arch="wormhole_galaxy",
         optimization_level=1,
         mesh_config_fn=_gpt_oss_galaxy_mesh_config_fn,
