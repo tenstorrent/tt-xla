@@ -25,6 +25,7 @@ from PIL import Image
 class ModelVariant(StrEnum):
     """Available GLM-4.1V model variants for multimodal conditional generation."""
 
+    GLM_4_1V_9B_BASE = "glm_4_1v_9b_base"
     GLM_4_1V_9B_THINKING = "glm_4_1v_9b_thinking"
 
 
@@ -32,12 +33,15 @@ class ModelLoader(ForgeModel):
     """GLM-4.1V model loader implementation for multimodal conditional generation."""
 
     _VARIANTS = {
+        ModelVariant.GLM_4_1V_9B_BASE: LLMModelConfig(
+            pretrained_model_name="zai-org/GLM-4.1V-9B-Base",
+        ),
         ModelVariant.GLM_4_1V_9B_THINKING: LLMModelConfig(
             pretrained_model_name="zai-org/GLM-4.1V-9B-Thinking",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GLM_4_1V_9B_THINKING
+    DEFAULT_VARIANT = ModelVariant.GLM_4_1V_9B_BASE
 
     sample_text = "What do you see in this image?"
     sample_image_url = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"
