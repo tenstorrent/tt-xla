@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available BeetleLM model variants for causal language modeling."""
 
     BEETLELM_ZHO_ENG_BALANCED = "beetlelm_zho_eng_balanced"
+    BEETLELM_ENG_L1_DEU_L2_BALANCED = "beetlelm_eng_L1_deu_L2_balanced"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.BEETLELM_ZHO_ENG_BALANCED: LLMModelConfig(
             pretrained_model_name="BeetleLM/beetlelm_zho-eng_balanced",
+            max_length=128,
+        ),
+        ModelVariant.BEETLELM_ENG_L1_DEU_L2_BALANCED: LLMModelConfig(
+            pretrained_model_name="BeetleLM/beetlelm_eng_L1-deu_L2_balanced",
             max_length=128,
         ),
     }
