@@ -34,14 +34,12 @@ def test_qwen3_backward():
     input_ids = inputs["input_ids"].to(device)
     attention_mask = inputs["attention_mask"].to(device)
 
-    model.compile(
-        backend="tt", options={"tt_legacy_compile": True}
-    )  # TODO(sgligorijevicTT): We agreed to fallback to legacy compile briefly until AOTAutograd can be integrated into the backend.
+    model.compile(backend="tt")
 
     outputs = model(
         input_ids=input_ids, attention_mask=attention_mask, labels=input_ids
     )
-    loss = outputs.loss.mean()
+    loss = outputs.loss
 
     loss.backward()
 
@@ -82,9 +80,7 @@ def test_qwen3_multichip_backward():
     model = model.to(device)
     model.train()
 
-    model.compile(
-        backend="tt", options={"tt_legacy_compile": True}
-    )  # TODO(sgligorijevicTT): We agreed to fallback to legacy compile briefly until AOTAutograd can be integrated into the backend.
+    model.compile(backend="tt")
 
     shard_specs = model_loader.load_shard_spec(model)
     for tensor, shard_spec in shard_specs.items():
@@ -100,7 +96,7 @@ def test_qwen3_multichip_backward():
         input_ids=input_ids, attention_mask=attention_mask, labels=input_ids
     )
 
-    loss = outputs.loss.mean()
+    loss = outputs.loss
 
     loss.backward()
 
