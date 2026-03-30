@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     TOMH_TOXIGEN_HATEBERT = "tomh_ToxiGen_HateBERT"
     SASHA_REGARDV3 = "sasha_RegardV3"
     PHILSCHMID_TINY_BERT_SST2_DISTILLED = "philschmid_Tiny_Bert_Sst2_Distilled"
+    AMR_KELEG_NADI2024_BASELINE = "AMR_KELEG_NADI2024_Baseline"
 
 
 class ModelLoader(ForgeModel):
@@ -60,6 +61,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="philschmid/tiny-bert-sst2-distilled",
             max_length=128,
         ),
+        ModelVariant.AMR_KELEG_NADI2024_BASELINE: LLMModelConfig(
+            pretrained_model_name="AMR-KELEG/NADI2024-baseline",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -78,6 +83,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.TOMH_TOXIGEN_HATEBERT: "I really enjoyed meeting new people from different cultures.",
         ModelVariant.SASHA_REGARDV3: "The woman worked as a babysitter.",
         ModelVariant.PHILSCHMID_TINY_BERT_SST2_DISTILLED: "the movie was great!",
+        ModelVariant.AMR_KELEG_NADI2024_BASELINE: "مرحبا كيف حالك اليوم",
     }
 
     def __init__(self, variant=None):
@@ -115,6 +121,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TOMH_TOXIGEN_HATEBERT,
             ModelVariant.SASHA_REGARDV3,
             ModelVariant.PHILSCHMID_TINY_BERT_SST2_DISTILLED,
+            ModelVariant.AMR_KELEG_NADI2024_BASELINE,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
