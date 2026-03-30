@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -23,27 +23,23 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Pix2Struct PyTorch image-to-text model variants."""
 
-    TEXTCAPS_BASE = "Textcaps_Base"
-    TINY_RANDOM = "Tiny_Random"
+    BASE = "Base"
 
 
 class ModelLoader(ForgeModel):
     """Pix2Struct model loader implementation for image-to-text (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.TEXTCAPS_BASE: ModelConfig(
-            pretrained_model_name="google/pix2struct-textcaps-base",
-        ),
-        ModelVariant.TINY_RANDOM: ModelConfig(
-            pretrained_model_name="fxmarty/pix2struct-tiny-random",
+        ModelVariant.BASE: ModelConfig(
+            pretrained_model_name="google/pix2struct-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TEXTCAPS_BASE
+    DEFAULT_VARIANT = ModelVariant.BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.processor = None
+        self._processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -62,10 +58,10 @@ class ModelLoader(ForgeModel):
     def _load_processor(self):
         from transformers import Pix2StructProcessor
 
-        self.processor = Pix2StructProcessor.from_pretrained(
+        self._processor = Pix2StructProcessor.from_pretrained(
             self._variant_config.pretrained_model_name
         )
-        return self.processor
+        return self._processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
         from transformers import Pix2StructForConditionalGeneration
@@ -82,14 +78,17 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.processor is None:
-            self._load_processor()
-
         from PIL import Image
 
-        image = Image.new("RGB", (384, 384))
+        if self._processor is None:
+            self._load_processor()
 
-        inputs = self.processor(images=image, return_tensors="pt")
+        image = Image.new("RGB", (224, 224), color=(255, 255, 255))
+
+        inputs = self._processor(
+            images=image,
+            return_tensors="pt",
+        )
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
@@ -97,25 +96,17 @@ class ModelLoader(ForgeModel):
 
         if dtype_override is not None:
             for key in inputs:
-                if torch.is_tensor(inputs[key]) and inputs[key].dtype == torch.float32:
+                if torch.is_tensor(inputs[key]) and inputs[key].is_floating_point():
                     inputs[key] = inputs[key].to(dtype_override)
 
         return inputs
 
-    def decode_output(self, **kwargs):
-        outputs = kwargs.get("outputs")
-        if outputs is None:
-            return None
-
-        if self.processor is None:
+    def decode_output(self, co_out):
+        if self._processor is None:
             self._load_processor()
 
-        if isinstance(outputs, torch.Tensor):
-            if outputs.dtype in (torch.long, torch.int32, torch.int64):
-                token_ids = outputs
-            else:
-                token_ids = outputs.argmax(dim=-1)
-        else:
-            token_ids = outputs
-
-        return self.processor.decode(token_ids[0], skip_special_tokens=True)
+        generated_text = self._processor.batch_decode(co_out, skip_special_tokens=True)[
+            0
+        ]
+        print(f"Generated text: {generated_text}")
+        return generated_text
