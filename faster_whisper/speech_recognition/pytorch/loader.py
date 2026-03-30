@@ -14,6 +14,9 @@ distil-whisper/distil-large-v3.5.
 
 Systran/faster-whisper-large-v1 is a CTranslate2-quantized version of
 openai/whisper-large.
+
+Systran/faster-distil-whisper-small.en is a CTranslate2-quantized version of
+distil-whisper/distil-small.en.
 """
 
 from typing import Optional
@@ -37,6 +40,7 @@ class ModelVariant(StrEnum):
     """Available Faster Whisper speech recognition model variants."""
 
     DISTIL_LARGE_V3_5 = "Distil_Large_v3_5"
+    DISTIL_SMALL_EN = "Distil_Small_en"
     LARGE_V1 = "Large_v1"
 
 
@@ -46,6 +50,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DISTIL_LARGE_V3_5: ModelConfig(
             pretrained_model_name="distil-whisper/distil-large-v3.5",
+        ),
+        ModelVariant.DISTIL_SMALL_EN: ModelConfig(
+            pretrained_model_name="distil-whisper/distil-small.en",
         ),
         ModelVariant.LARGE_V1: ModelConfig(
             pretrained_model_name="openai/whisper-large",
