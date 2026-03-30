@@ -21,6 +21,8 @@ CompileOptions CompileOptions::parse(
   options.experimental_weight_dtype =
       internal::parseStringOption(compile_options, "experimental_weight_dtype")
           .value_or(options.experimental_weight_dtype);
+  options.experimental_kv_cache_dtype =
+      internal::parseStringOption(compile_options, "experimental-kv-cache-dtype");
   options.math_fidelity =
       internal::parseStringOption(compile_options, "math_fidelity");
 

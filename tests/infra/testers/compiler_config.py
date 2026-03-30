@@ -31,6 +31,9 @@ class CompilerConfig:
     # Valid values: "", "bfp8", "bfp4". Empty string disables.
     experimental_weight_dtype: str = ""
 
+    # Enables experimental KV cache dtype override in MLIR optimizer passes.
+    experimental_kv_cache_dtype: Optional[str] = None
+
     # Override math fidelity for all ttnn operations exposing compute kernel
     # config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
     # "ttnn_default" - means that we don't override math_fidelity in comiler,
@@ -83,6 +86,9 @@ class CompilerConfig:
 
         if self.experimental_weight_dtype:
             options["experimental_weight_dtype"] = self.experimental_weight_dtype
+
+        if self.experimental_kv_cache_dtype is not None:
+            options["experimental-kv-cache-dtype"] = self.experimental_kv_cache_dtype
 
         if self.math_fidelity is not None:
             options["math_fidelity"] = self.math_fidelity

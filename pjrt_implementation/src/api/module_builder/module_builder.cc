@@ -60,6 +60,7 @@
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
+#include "ttmlir/Dialect/TTNN/Utils/WeightDtypeParser.h"
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/Python/PythonEmitter.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
@@ -1025,6 +1026,20 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
       compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enablePermuteMatmulFusion =
       compile_options.experimental_enable_permute_matmul_fusion;
+
+  if (compile_options.experimental_kv_cache_dtype.has_value()) {
+    const std::string &dtype_str =
+        compile_options.experimental_kv_cache_dtype.value();
+    std::optional<mlir::tt::ttnn::WeightDtype> dtype =
+        mlir::tt::ttnn::symbolizeWeightDtype(dtype_str);
+    if (!dtype.has_value()) {
+      LOG_F(ERROR, "Invalid experimental_kv_cache_dtype value: '%s'. "
+                   "Valid values are: none, bfp_bf8, bfp_bf4",
+            dtype_str.c_str());
+      return tt_pjrt_status::kInvalidArgument;
+    }
+    options.experimentalKVCacheDtype = dtype.value();
+  }
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
@@ -1097,6 +1112,43 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
   options.meshTopology = fabricConfigToMeshTopology(
       client_instance->computeFabricConfig(devices_mesh_shape));
+  auto mesh_topology_to_string = [&options]() {
+    std::string result = "[";
+    for (size_t i = 0; i < options.meshTopology.size(); ++i) {
+      if (i != 0) {
+        result += ",";
+      }
+      result += std::to_string(static_cast<int>(options.meshTopology[i]));
+    }
+    result += "]";
+    return result;
+  };
+  const std::vector<int64_t> mesh_shape(options.meshShape.begin(),
+                                        options.meshShape.end());
+  const std::string mesh_topology_str = mesh_topology_to_string();
+  LOG_F(INFO,
+        "TTIR->TTNN pipeline options: optimization-level=%d, "
+        "system-desc-path=%s, enable-trace=%d, enable-const-eval=%d, "
+        "enable-cpu-hoisted-const-eval=%d, mesh-shape=[%d,%d], "
+        "experimental-weight-dtype=%d, experimental-bfp8-weights=%d, "
+        "experimental-kv-cache-dtype=%d, compute-cfg-math-fidelity=%d, "
+        "compute-cfg-fp32-dest-acc-en=%d, "
+        "enable-fusing-conv2d-with-multiply-pattern=%d, "
+        "enable-permute-matmul-fusion=%d, ttnn-perf-metrics-enabled=%d, "
+        "ttnn-perf-metrics-output-file=%s, mesh-topology=%s",
+        options.optimizationLevel.getValue(), options.systemDescPath.c_str(),
+        options.enableTrace.getValue(), options.enableConstEval.getValue(),
+        options.enableCPUHoistedConstEval.getValue(),
+        static_cast<int>(mesh_shape[0]), static_cast<int>(mesh_shape[1]),
+        static_cast<int>(options.experimentalWeightDtype.getValue()),
+        options.experimentalBfp8Weights.getValue(),
+        static_cast<int>(options.experimentalKVCacheDtype.getValue()),
+        static_cast<int>(options.computeCfgMathFidelity.getValue()),
+        options.computeCfgFp32DestAccEn.getValue(),
+        options.enableFusingConv2dWithMultiplyPattern.getValue(),
+        options.enablePermuteMatmulFusion.getValue(),
+        options.ttnnPerfMetricsEnabled.getValue(),
+        options.ttnnPerfMetricsOutputFile.c_str(), mesh_topology_str.c_str());
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
@@ -1127,6 +1179,7 @@ tt_pjrt_status ModuleBuilder::createFlatbufferBinary(
     tt::runtime::Binary &flatbuffer_binary) {
   flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
 
+  
   tt_pjrt_status status = verifyCreatedFlatbufferBinary(
       flatbuffer_binary, input_shardings, output_shardings);
   if (!tt_pjrt_status_is_ok(status)) {
