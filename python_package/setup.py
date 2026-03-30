@@ -64,7 +64,6 @@ class SetupConfig:
             .strip()
         )
 
-        # NOTE this is how tt-forge-fe does it.
         return "0.1." + date + "+dev." + short_hash
 
     @property
