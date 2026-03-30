@@ -79,7 +79,9 @@ class ModelLoader(ForgeModel):
         """Load tokenizer for the current variant."""
         if self.tokenizer is None:
             model_name = self._variant_config.pretrained_model_name
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_name, trust_remote_code=True
+            )
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
