@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available ELECTRA question answering model variants."""
 
     LARGE_DISCRIMINATOR_SQUAD2_512 = "Large_Discriminator_Squad2_512"
+    DEEPSET_BASE_SQUAD2 = "Deepset_Base_Squad2"
 
 
 class ModelLoader(ForgeModel):
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.LARGE_DISCRIMINATOR_SQUAD2_512: LLMModelConfig(
             pretrained_model_name="ahotrod/electra_large_discriminator_squad2_512",
             max_length=512,
+        ),
+        ModelVariant.DEEPSET_BASE_SQUAD2: LLMModelConfig(
+            pretrained_model_name="deepset/electra-base-squad2",
+            max_length=384,
         ),
     }
 
