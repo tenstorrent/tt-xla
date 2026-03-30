@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
 
     BENGALI = "Bengali"
     KINYARWANDA = "Kinyarwanda"
+    TELUGU = "Telugu"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.KINYARWANDA: ModelConfig(
             pretrained_model_name="facebook/mms-tts-kin",
         ),
+        ModelVariant.TELUGU: ModelConfig(
+            pretrained_model_name="facebook/mms-tts-tel",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.KINYARWANDA
@@ -46,6 +50,7 @@ class ModelLoader(ForgeModel):
     _SAMPLE_TEXTS = {
         ModelVariant.BENGALI: "আমাদের সিস্টেম ব্যবহার করার জন্য স্বাগতম।",
         ModelVariant.KINYARWANDA: "Muraho, murakaza neza mu gukoresha sisitemu yacu.",
+        ModelVariant.TELUGU: "మా వ్యవస్థను ఉపయోగించినందుకు స్వాగతం.",
     }
 
     sample_text = _SAMPLE_TEXTS[DEFAULT_VARIANT]
