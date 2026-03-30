@@ -7,7 +7,6 @@ Granite Vision model loader implementation for multimodal conditional generation
 
 from typing import Optional
 
-import torch
 from PIL import Image
 from transformers import AutoModelForVision2Seq, AutoProcessor
 
