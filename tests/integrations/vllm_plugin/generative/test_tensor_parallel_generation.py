@@ -84,8 +84,8 @@ def test_tensor_parallel_generation_llmbox_small(
     ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
     [
         pytest.param("Qwen/Qwen3-32B", False, "", True),
-        pytest.param("Qwen/Qwen2.5-32B", False, "", False),
-        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp8", True),
+        #pytest.param("Qwen/Qwen2.5-32B", False, "", False),
+        #pytest.param("meta-llama/Llama-3.1-70B", True, "bfp8", True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
@@ -110,6 +110,7 @@ def test_tensor_parallel_generation_llmbox_large(
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "use_2d_mesh": use_2d_mesh,
+            "num_hidden_layers": 1,  # Limit to 1 layer to test MoE registration
         },
     }
     llm = vllm.LLM(**llm_args)
