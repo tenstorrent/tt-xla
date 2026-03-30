@@ -24,7 +24,7 @@ class ModelVariant(StrEnum):
 
     DPR_SINGLE_NQ_BASE = "Question_Encoder_Single_Nq_Base"
     DPR_MULTISET_BASE = "Question_Encoder_Multiset_Base"
-    GBERT_BASE_GERMANDPR = "deepset/gbert-base-germandpr-question_encoder"
+    BERT_SMALL_MM_RETRIEVAL = "deepset/bert-small-mm_retrieval-question_encoder"
 
 
 class ModelLoader(ForgeModel):
@@ -40,8 +40,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="facebook/dpr-question_encoder-multiset-base",
             max_length=128,
         ),
-        ModelVariant.GBERT_BASE_GERMANDPR: LLMModelConfig(
-            pretrained_model_name="deepset/gbert-base-germandpr-question_encoder",
+        ModelVariant.BERT_SMALL_MM_RETRIEVAL: LLMModelConfig(
+            pretrained_model_name="deepset/bert-small-mm_retrieval-question_encoder",
             max_length=128,
         ),
     }
@@ -81,7 +81,7 @@ class ModelLoader(ForgeModel):
         variant_groups = {
             ModelVariant.DPR_SINGLE_NQ_BASE: ModelGroup.GENERALITY,
             ModelVariant.DPR_MULTISET_BASE: ModelGroup.GENERALITY,
-            ModelVariant.GBERT_BASE_GERMANDPR: ModelGroup.VULCAN,
+            ModelVariant.BERT_SMALL_MM_RETRIEVAL: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
