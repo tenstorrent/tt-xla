@@ -41,14 +41,26 @@ class Qwen3TTSTalkerWrapper(nn.Module):
 class ModelVariant(StrEnum):
     """Available Qwen3-TTS model variants."""
 
+    QWEN3_TTS_0_6B_BASE = "0.6B-Base"
     QWEN3_TTS_1_7B_BASE = "1.7B-Base"
     QWEN3_TTS_1_7B_VOICE_DESIGN = "1.7B-VoiceDesign"
+
+
+# Talker hidden sizes per variant for constructing dummy inputs.
+_TALKER_HIDDEN_SIZE = {
+    ModelVariant.QWEN3_TTS_0_6B_BASE: 1024,
+    ModelVariant.QWEN3_TTS_1_7B_BASE: 2048,
+    ModelVariant.QWEN3_TTS_1_7B_VOICE_DESIGN: 2048,
+}
 
 
 class ModelLoader(ForgeModel):
     """Qwen3-TTS model loader implementation for text-to-speech tasks."""
 
     _VARIANTS = {
+        ModelVariant.QWEN3_TTS_0_6B_BASE: ModelConfig(
+            pretrained_model_name="tungpcco/Qwen3-TTS-12Hz-0.6B-Base",
+        ),
         ModelVariant.QWEN3_TTS_1_7B_BASE: ModelConfig(
             pretrained_model_name="Qwen/Qwen3-TTS-12Hz-1.7B-Base",
         ),
@@ -94,6 +106,6 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None):
         dtype = dtype_override or torch.float32
-        # Talker hidden_size=2048, use a short sequence of embeddings
-        inputs_embeds = torch.randn(1, 32, 2048, dtype=dtype)
+        hidden_size = _TALKER_HIDDEN_SIZE[self._variant]
+        inputs_embeds = torch.randn(1, 32, hidden_size, dtype=dtype)
         return (inputs_embeds,)
