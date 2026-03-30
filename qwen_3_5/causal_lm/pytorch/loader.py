@@ -56,6 +56,7 @@ class ModelVariant(StrEnum):
     )
     QWEN_3_5_4B_ABLITERATED_GGUF = "4B_Abliterated_GGUF"
     QWEN_3_5_2B_HERETIC = "2B_Heretic"
+    QWEN_3_5_122B_A10B_MLX_6_5BIT = "122B_A10B_MLX_6.5bit"
 
 
 class ModelLoader(ForgeModel):
@@ -181,6 +182,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_2B_HERETIC: LLMModelConfig(
             pretrained_model_name="coder3101/Qwen3.5-2B-heretic",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_122B_A10B_MLX_6_5BIT: LLMModelConfig(
+            pretrained_model_name="inferencerlabs/Qwen3.5-122B-A10B-MLX-6.5bit",
             max_length=128,
         ),
     }
@@ -416,6 +421,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_3_5_35B_A3B_INT4_AUTOROUND,
             ModelVariant.QWEN_3_5_35B_A3B_UBERGARM_GGUF,
             ModelVariant.QWEN_3_5_122B_A10B_GGUF,
+            ModelVariant.QWEN_3_5_122B_A10B_MLX_6_5BIT,
             ModelVariant.QWEN_3_5_397B_A17B_GPTQ_INT4,
         )
 
