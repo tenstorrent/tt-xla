@@ -413,6 +413,16 @@ class A2aSparseMLP(nn.Module):
 
         # 1. Router
         router_scores, router_indices = self.router(hidden_states)
+        # Keep CPU golden path memory-efficient by delegating to the original
+        # expert implementation. The custom sparse custom-op path is intended
+        # for XLA/TT execution and can materialize larger temporary tensors on CPU.
+        if hidden_states.device.type == "cpu":
+            routed_out = self.experts(
+                hidden_states,
+                router_indices=router_indices,
+                routing_weights=router_scores,
+            )
+            return routed_out, router_scores
         # router_scores: [B*S, E], router_indices: [B*S, K]
 
         # Keep CPU golden path memory-efficient by delegating to the original
