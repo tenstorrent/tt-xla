@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available SpeechT5 model variants."""
 
     TTS = "Tts"
+    CLARTTS_AR = "ClarttsAr"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TTS: ModelConfig(
             pretrained_model_name="microsoft/speecht5_tts",
+        ),
+        ModelVariant.CLARTTS_AR: ModelConfig(
+            pretrained_model_name="MBZUAI/speecht5_tts_clartts_ar",
         ),
     }
 
@@ -63,10 +67,14 @@ class ModelLoader(ForgeModel):
         Returns:
             ModelInfo: Information about the model and variant
         """
+        variant_groups = {
+            ModelVariant.TTS: ModelGroup.GENERALITY,
+            ModelVariant.CLARTTS_AR: ModelGroup.VULCAN,
+        }
         return ModelInfo(
             model="SpeechT5",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=variant_groups.get(variant, ModelGroup.GENERALITY),
             task=ModelTask.MM_TTS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
