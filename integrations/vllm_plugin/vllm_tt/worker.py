@@ -320,6 +320,11 @@ class TTWorker:
     def get_model(self) -> nn.Module:
         return self.model_runner.get_model()
 
+    def get_model_inspection(self) -> str:
+        from vllm.model_inspection import format_model_inspection
+
+        return format_model_inspection(self.get_model())
+
     def get_supported_tasks(self) -> tuple[SupportedTask, ...]:
         return self.model_runner.get_supported_tasks()
 
