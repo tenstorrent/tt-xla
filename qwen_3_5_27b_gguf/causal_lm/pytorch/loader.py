@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen3.5 27B GGUF model loader implementation for causal language modeling.
+Qwen 3.5 27B GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,24 +21,24 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen3.5 27B GGUF model variants for causal language modeling."""
+    """Available Qwen 3.5 27B GGUF model variants for causal language modeling."""
 
     QWEN_3_5_27B_GGUF = "27B_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Qwen3.5 27B GGUF model loader implementation for causal language modeling tasks."""
+    """Qwen 3.5 27B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
         ModelVariant.QWEN_3_5_27B_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-27B-GGUF",
+            pretrained_model_name="Sepolian/Huihui-Qwen3.5-27B-Claude-4.6-Opus-abliterated-Q4_K_M",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_5_27B_GGUF
 
-    GGUF_FILE = "Qwen3.5-27B-Q4_K_M.gguf"
+    GGUF_FILE = "Huihui-Qwen3.5-27B-Claude-4.6-Opus-abliterated-Q4_K_M.gguf"
 
     sample_text = "Give me a short introduction to large language model."
 
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Qwen3.5 27B GGUF",
+            model="Qwen 3.5 27B GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -108,7 +108,12 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
+        messages = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -145,7 +150,6 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
