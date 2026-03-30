@@ -27,6 +27,9 @@ class ModelVariant(StrEnum):
     """Available Qwen 3 VL GGUF model variants for image to text."""
 
     QWEN_3_VL_8B_INSTRUCT_Q4_K_M_GGUF = "8B_INSTRUCT_Q4_K_M_GGUF"
+    HFMASTER_QWEN_3_VL_8B_INSTRUCT_ABLITERATED_Q4_K_M_GGUF = (
+        "hfmaster_8B_INSTRUCT_ABLITERATED_Q4_K_M_GGUF"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -37,12 +40,17 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="bartowski/Qwen_Qwen3-VL-8B-Instruct-GGUF",
             max_length=128,
         ),
+        ModelVariant.HFMASTER_QWEN_3_VL_8B_INSTRUCT_ABLITERATED_Q4_K_M_GGUF: LLMModelConfig(
+            pretrained_model_name="hfmaster/models-moved",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_VL_8B_INSTRUCT_Q4_K_M_GGUF
 
     _GGUF_FILES = {
         ModelVariant.QWEN_3_VL_8B_INSTRUCT_Q4_K_M_GGUF: "Qwen_Qwen3-VL-8B-Instruct-Q4_K_M.gguf",
+        ModelVariant.HFMASTER_QWEN_3_VL_8B_INSTRUCT_ABLITERATED_Q4_K_M_GGUF: "qwen3vl/Qwen3-VL-8B-Instruct-abliterated-v2.0.Q4_K_M.gguf",
     }
 
     sample_image = (
