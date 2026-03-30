@@ -23,8 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available BeetleLM model variants for causal language modeling."""
 
-    BEETLELM_ZHO_ENG_BALANCED = "beetlelm_zho_eng_balanced"
-    BEETLELM_ENG_L1_DEU_L2_BALANCED = "beetlelm_eng_L1_deu_L2_balanced"
+    NLD_BUL_BALANCED = "nld-bul_balanced"
 
 
 class ModelLoader(ForgeModel):
@@ -32,21 +31,17 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.BEETLELM_ZHO_ENG_BALANCED: LLMModelConfig(
-            pretrained_model_name="BeetleLM/beetlelm_zho-eng_balanced",
-            max_length=128,
-        ),
-        ModelVariant.BEETLELM_ENG_L1_DEU_L2_BALANCED: LLMModelConfig(
-            pretrained_model_name="BeetleLM/beetlelm_eng_L1-deu_L2_balanced",
-            max_length=128,
+        ModelVariant.NLD_BUL_BALANCED: LLMModelConfig(
+            pretrained_model_name="BeetleLM/beetlelm_nld-bul_balanced",
+            max_length=512,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.BEETLELM_ZHO_ENG_BALANCED
+    DEFAULT_VARIANT = ModelVariant.NLD_BUL_BALANCED
 
     # Shared configuration parameters
-    sample_text = "The quick brown fox jumps over the lazy dog."
+    sample_text = "De kat zit op de mat."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -101,6 +96,9 @@ class ModelLoader(ForgeModel):
             **tokenizer_kwargs,
         )
 
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
@@ -117,7 +115,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {"trust_remote_code": True}
+        model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -130,7 +128,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            pretrained_model_name, trust_remote_code=True, **model_kwargs
         )
         model.eval()
         self.config = model.config
