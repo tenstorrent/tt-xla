@@ -362,16 +362,10 @@ def benchmark_llm_torch_xla(
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
+        cache_batch_spec = (None, "model", None, None)
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(
-                layer.keys, mesh, (None, "model", None, None)
-            )
-            xs.mark_sharding(
-                layer.values, mesh, (None, "model", None, None)
-            )
-
-        # Decode-only DP: keep prefill unsharded and apply input sharding
-        # inside decode loop (after step 0) via generate_and_benchmark().
+            xs.mark_sharding(layer.keys, mesh, cache_batch_spec)
+            xs.mark_sharding(layer.values, mesh, cache_batch_spec)
 
         # Apply sharding constraint on lm_head output to all_gather logits
         if hasattr(model, "lm_head") and model.lm_head is not None:
@@ -419,6 +413,15 @@ def benchmark_llm_torch_xla(
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
+    if is_multichip:
+        for layer in input_args["past_key_values"].layers:
+            xs.mark_sharding(layer.keys, mesh, cache_batch_spec)
+            xs.mark_sharding(layer.values, mesh, cache_batch_spec)
+
+    ground_truth_for_benchmark = (
+        token_accuracy.reference_tokens if accuracy_testing else None
+    )
+
     # Warmup run
     print("Warming up...")
     warmup_tokens = min(MIN_STEPS, max_output_tokens)
@@ -431,11 +434,51 @@ def benchmark_llm_torch_xla(
         collect_logits=False,
         mesh=mesh,
         input_sharding_fn=input_sharding_fn,
+        ground_truth_tokens=ground_truth_for_benchmark,
     )
 
     tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the perf benchmark run
+    # When input_sharding_fn is active the warmup's compiled decode graph
+    # carries GSPMD-inferred batch sharding that is bound to the warmup
+    # cache tensor.  A fresh cache needs a fresh compilation so GSPMD can
+    # re-infer batch sharding.  We absorb the compilation cost here with a
+    # short second warmup, then create the final benchmark cache below.
+    if is_multichip and input_sharding_fn is not None:
+        torch._dynamo.reset()
+        compile_warmup_wrapper = LLMSamplingWrapper(
+            model, read_logits_fn, return_logits=False
+        )
+        compile_warmup_wrapper.eval()
+        compiled_compile_warmup = torch.compile(
+            compile_warmup_wrapper, backend="tt"
+        )
+
+        compile_warmup_args = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            input_prompt=custom_input_prompt,
+            input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        )
+        compile_warmup_args = transfer_to_device(compile_warmup_args, device)
+        for layer in compile_warmup_args["past_key_values"].layers:
+            xs.mark_sharding(layer.keys, mesh, cache_batch_spec)
+            xs.mark_sharding(layer.values, mesh, cache_batch_spec)
+        _, _ = generate_and_benchmark(
+            compiled_compile_warmup,
+            compile_warmup_args,
+            device,
+            min(2, max_output_tokens),
+            verbose=False,
+            collect_logits=False,
+            mesh=mesh,
+            input_sharding_fn=input_sharding_fn,
+            ground_truth_tokens=ground_truth_for_benchmark,
+        )
+
+    # Reconstruct inputs for the perf benchmark run.
     input_args = construct_inputs(
         tokenizer,
         model.config,
@@ -447,18 +490,13 @@ def benchmark_llm_torch_xla(
     )
     input_args = transfer_to_device(input_args, device)
 
-    # If a fresh cache is rebuilt for DP, re-apply KV sharding on the new cache.
-    if is_multichip:
-        kv_batch_axis = None
+    if is_multichip and input_sharding_fn is not None:
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, (kv_batch_axis, "model", None, None))
-            xs.mark_sharding(layer.values, mesh, (kv_batch_axis, "model", None, None))
+            xs.mark_sharding(layer.keys, mesh, cache_batch_spec)
+            xs.mark_sharding(layer.values, mesh, cache_batch_spec)
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
-    ground_truth_for_benchmark = (
-        token_accuracy.reference_tokens if accuracy_testing else None
-    )
     _, iteration_times = generate_and_benchmark(
         compiled_perf_model,
         input_args,
