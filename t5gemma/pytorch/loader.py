@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available T5Gemma model variants."""
 
     T5GEMMA_9B_9B_UL2 = "9B_9B_UL2"
+    T5GEMMA_ML_ML_UL2_IT = "ML_ML_UL2_IT"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.T5GEMMA_9B_9B_UL2: LLMModelConfig(
             pretrained_model_name="google/t5gemma-9b-9b-ul2",
+            max_length=512,
+        ),
+        ModelVariant.T5GEMMA_ML_ML_UL2_IT: LLMModelConfig(
+            pretrained_model_name="google/t5gemma-ml-ml-ul2-it",
             max_length=512,
         ),
     }
