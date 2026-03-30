@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -21,26 +21,26 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available DeepSeek R1 Distill Qwen 32B GGUF model variants."""
+    """Available DeepSeek R1 Distill Qwen 32B GGUF model variants for causal language modeling."""
 
-    DEEPSEEK_R1_DISTILL_QWEN_32B_Q4_K_M = "DeepSeek_R1_Distill_Qwen_32B_Q4_K_M"
+    DEEPSEEK_R1_DISTILL_QWEN_32B_GGUF = "R1_Distill_Qwen_32B_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """DeepSeek R1 Distill Qwen 32B GGUF model loader for causal language modeling."""
+    """DeepSeek R1 Distill Qwen 32B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.DEEPSEEK_R1_DISTILL_QWEN_32B_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="unsloth/DeepSeek-R1-Distill-Qwen-32B-GGUF",
+        ModelVariant.DEEPSEEK_R1_DISTILL_QWEN_32B_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/DeepSeek-R1-Distill-Qwen-32B-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEEPSEEK_R1_DISTILL_QWEN_32B_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.DEEPSEEK_R1_DISTILL_QWEN_32B_GGUF
 
-    GGUF_FILE = "DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf"
+    GGUF_FILE = "DeepSeek-R1-Distill-Qwen-32B.Q4_K_M.gguf"
 
-    sample_text = "Please reason step by step. What is 25 multiplied by 16?"
+    sample_text = "What is machine learning?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -134,3 +134,27 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def get_mesh_config(self, num_devices: int):
+        mesh_shape = (1, num_devices)
+        return mesh_shape, ("batch", "model")
+
+    def load_shard_spec(self, model):
+        shard_specs = {}
+        for layer in model.model.layers:
+            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
+        return shard_specs
+
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+        )
+        return self.config
