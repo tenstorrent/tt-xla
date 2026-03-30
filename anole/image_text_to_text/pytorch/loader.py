@@ -6,6 +6,7 @@ Anole-7b model loader implementation for image-text-to-text tasks.
 """
 
 import torch
+from PIL import Image
 from transformers import AutoProcessor, ChameleonForConditionalGeneration
 from typing import Optional
 
@@ -19,6 +20,7 @@ from ....config import (
     StrEnum,
 )
 from ....base import ForgeModel
+from ....tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -91,10 +93,8 @@ class ModelLoader(ForgeModel):
         prompt = "What is shown in this image?<image>"
         image_url = "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
 
-        from PIL import Image
-        import requests
-
-        image = Image.open(requests.get(image_url, stream=True).raw).convert("RGB")
+        image_path = get_file(image_url)
+        image = Image.open(image_path).convert("RGB")
 
         inputs = self.processor(
             images=image,
