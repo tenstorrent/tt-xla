@@ -6,6 +6,7 @@ XLM-RoBERTa model loader implementation for sequence classification.
 """
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
 from ....config import (
     ModelInfo,
     ModelGroup,
@@ -22,14 +23,8 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3 = (
-        "poltextlab/xlm-roberta-large-publicopinion-cap-v3"
-    )
-    POLTEXTLAB_XLM_ROBERTA_LARGE_ENGLISH_JUDICIARY_CAP_V3 = (
-        "poltextlab/xlm-roberta-large-english-judiciary-cap-v3"
-    )
-    POLTEXTLAB_XLM_ROBERTA_LARGE_GERMAN_MEDIA_CAP_V3 = (
-        "poltextlab/xlm-roberta-large-german-media-cap-v3"
+    XLM_ROBERTA_LARGE_ITALIAN_PARLSPEECH_CAP_V3 = (
+        "poltextlab/xlm-roberta-large-italian-parlspeech-cap-v3"
     )
 
 
@@ -41,35 +36,17 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-publicopinion-cap-v3",
-            max_length=128,
-        ),
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_ENGLISH_JUDICIARY_CAP_V3: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-english-judiciary-cap-v3",
-            max_length=128,
-        ),
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_GERMAN_MEDIA_CAP_V3: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-german-media-cap-v3",
+        ModelVariant.XLM_ROBERTA_LARGE_ITALIAN_PARLSPEECH_CAP_V3: LLMModelConfig(
+            pretrained_model_name="poltextlab/xlm-roberta-large-italian-parlspeech-cap-v3",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT
 
-    # Variant-specific tokenizer overrides (when model repo has mismatched tokenizer)
-    _TOKENIZER_OVERRIDES = {
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3: "xlm-roberta-large",
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_ENGLISH_JUDICIARY_CAP_V3: "xlm-roberta-large",
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_GERMAN_MEDIA_CAP_V3: "xlm-roberta-large",
-    }
-
-    # Variant-specific sample texts
     _SAMPLE_TEXTS = {
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_ENGLISH_JUDICIARY_CAP_V3: "The court ruled that the new environmental regulations exceed the agency's statutory authority under the Clean Air Act.",
-        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_GERMAN_MEDIA_CAP_V3: "Die Bundesregierung hat neue Maßnahmen zur Bekämpfung des Klimawandels angekündigt.",
+        ModelVariant.XLM_ROBERTA_LARGE_ITALIAN_PARLSPEECH_CAP_V3: "Mi piaci. Ti amo",
     }
 
     def __init__(self, variant=None):
