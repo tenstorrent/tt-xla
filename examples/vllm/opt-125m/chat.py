@@ -30,7 +30,6 @@ MAX_MODEL_LEN_FAST = 256  # Smaller context → faster compilation
 GPU_MEMORY_UTILIZATION = 0.1
 
 BENCHMARK_PROMPTS = [
-    "Explain the theory of relativity in simple terms.",
     "Write a short story about a robot learning to paint.",
     "What are the main differences between Python and Rust?",
     "Describe the process of photosynthesis step by step.",
@@ -41,7 +40,7 @@ BENCHMARK_PROMPTS = [
 ]
 
 
-def create_engine(cpu_sampling=False, fast=False):
+def create_engine(cpu_sampling=False, fast=False, skip_precompile=False):
     max_len = MAX_MODEL_LEN_FAST if fast else MAX_MODEL_LEN
     additional_config = {
         "enable_const_eval": False,
@@ -60,6 +59,10 @@ def create_engine(cpu_sampling=False, fast=False):
         max_num_seqs=1,
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         disable_log_stats=True,
+        # enforce_eager=True skips capture_model() (no precompilation).
+        # First decode token will trigger JIT compilation, but Tracy traces
+        # will be much cleaner — no precompile noise in the trace.
+        enforce_eager=skip_precompile,
         additional_config=additional_config,
     )
     elapsed = time.perf_counter() - start
@@ -69,8 +72,20 @@ def create_engine(cpu_sampling=False, fast=False):
 
 def warmup(llm, temperature):
     print("Warming up ...")
+    try:
+        import tracy
+
+        tracy.signpost("warmup_start")
+    except (ImportError, AttributeError):
+        pass
     params = vllm.SamplingParams(max_tokens=16, temperature=temperature)
     llm.generate(["Hello"], params)
+    try:
+        import tracy
+
+        tracy.signpost("warmup_complete")
+    except (ImportError, AttributeError):
+        pass
     print("Warmup complete.\n")
 
 
@@ -92,11 +107,23 @@ def run_benchmark(llm, args):
     print(f"Generating {args.max_tokens} tokens x {len(prompts)} prompts")
     print("-" * 70)
 
+    try:
+        import tracy as _tracy
+
+        _signpost = _tracy.signpost
+    except (ImportError, AttributeError):
+        _signpost = lambda x: None
+
+    if args.prompt:
+        prompts = [args.prompt]
+
     results = []
     for i, prompt_text in enumerate(prompts):
+        _signpost(f"generate_{i}_start")
         start = time.perf_counter()
         outputs = llm.generate([prompt_text], params)
         elapsed = time.perf_counter() - start
+        _signpost(f"generate_{i}_end")
 
         output = outputs[0]
         num_tokens = len(output.outputs[0].token_ids)
@@ -187,14 +214,36 @@ def main():
         help="Number of benchmark prompts (max 8)",
     )
     parser.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        help="Custom prompt (overrides built-in prompts)",
+    )
+    parser.add_argument(
         "--fast",
         action="store_true",
         help="Use smaller max_model_len (256) for faster compilation",
     )
+    parser.add_argument(
+        "--skip-warmup",
+        action="store_true",
+        help="Skip the warmup generation step",
+    )
+    parser.add_argument(
+        "--skip-precompile",
+        action="store_true",
+        help="Skip precompilation (enforce_eager=True). First token triggers JIT compile. "
+        "Use for cleaner Tracy traces without precompile noise.",
+    )
     args = parser.parse_args()
 
-    llm = create_engine(cpu_sampling=args.cpu_sampling, fast=args.fast)
-    warmup(llm, args.temperature)
+    llm = create_engine(
+        cpu_sampling=args.cpu_sampling,
+        fast=args.fast,
+        skip_precompile=args.skip_precompile,
+    )
+    if not args.skip_warmup:
+        warmup(llm, args.temperature)
 
     if args.benchmark:
         run_benchmark(llm, args)

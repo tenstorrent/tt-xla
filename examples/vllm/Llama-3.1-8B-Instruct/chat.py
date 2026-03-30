@@ -19,6 +19,9 @@ Usage:
 
     # Benchmark: device sampling, greedy (baseline)
     python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --temperature 0.0
+
+    # Fast benchmark (seq_len=128, faster compilation, slightly higher tok/s)
+    python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --temperature 0.8 --fast
 """
 
 import argparse
@@ -28,6 +31,7 @@ import vllm
 
 MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 MAX_MODEL_LEN = 2048
+MAX_MODEL_LEN_FAST = 128  # Smaller context → faster compilation, slightly higher tok/s
 GPU_MEMORY_UTILIZATION = 0.05
 
 BENCHMARK_PROMPTS = [
@@ -42,7 +46,8 @@ BENCHMARK_PROMPTS = [
 ]
 
 
-def create_engine(cpu_sampling=False):
+def create_engine(cpu_sampling=False, fast=False, skip_precompile=False):
+    max_len = MAX_MODEL_LEN_FAST if fast else MAX_MODEL_LEN
     additional_config = {
         "enable_const_eval": False,
         "min_context_len": 32,
@@ -51,24 +56,39 @@ def create_engine(cpu_sampling=False):
         additional_config["cpu_sampling"] = True
 
     sampling_label = "CPU" if cpu_sampling else "device"
-    print(f"Loading {MODEL} (sampling: {sampling_label}) ...")
+    print(f"Loading {MODEL} (sampling: {sampling_label}, max_model_len={max_len}) ...")
+    start = time.perf_counter()
     llm = vllm.LLM(
         model=MODEL,
-        max_model_len=MAX_MODEL_LEN,
-        max_num_batched_tokens=MAX_MODEL_LEN,
+        max_model_len=max_len,
+        max_num_batched_tokens=max_len,
         max_num_seqs=1,
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         disable_log_stats=True,
+        enforce_eager=skip_precompile,
         additional_config=additional_config,
     )
-    print("Engine ready.\n")
+    elapsed = time.perf_counter() - start
+    print(f"Engine ready in {elapsed:.1f}s.\n")
     return llm
 
 
 def warmup(llm, temperature):
     print("Warming up ...")
+    try:
+        import tracy
+
+        tracy.signpost("warmup_start")
+    except (ImportError, AttributeError):
+        pass
     params = vllm.SamplingParams(max_tokens=16, temperature=temperature)
     llm.generate(["Hello"], params)
+    try:
+        import tracy
+
+        tracy.signpost("warmup_complete")
+    except (ImportError, AttributeError):
+        pass
     print("Warmup complete.\n")
 
 
@@ -90,6 +110,16 @@ def run_benchmark(llm, args):
     print(f"Generating {args.max_tokens} tokens x {len(prompts)} prompts")
     print("-" * 70)
 
+    try:
+        import tracy as _tracy
+
+        _signpost = _tracy.signpost
+    except (ImportError, AttributeError):
+        _signpost = lambda x: None
+
+    if args.prompt:
+        prompts = [args.prompt]
+
     results = []
     for i, prompt_text in enumerate(prompts):
         messages = [
@@ -100,9 +130,11 @@ def run_benchmark(llm, args):
             messages, tokenize=False, add_generation_prompt=True
         )
 
+        _signpost(f"generate_{i}_start")
         start = time.perf_counter()
         outputs = llm.generate([prompt], params)
         elapsed = time.perf_counter() - start
+        _signpost(f"generate_{i}_end")
 
         output = outputs[0]
         num_tokens = len(output.outputs[0].token_ids)
@@ -200,10 +232,36 @@ def main():
         default=1,
         help="Number of benchmark prompts (max 8)",
     )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        help="Custom prompt (overrides built-in prompts)",
+    )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help=f"Use smaller max_model_len ({MAX_MODEL_LEN_FAST}) for faster compilation",
+    )
+    parser.add_argument(
+        "--skip-warmup",
+        action="store_true",
+        help="Skip the warmup generation step",
+    )
+    parser.add_argument(
+        "--skip-precompile",
+        action="store_true",
+        help="Skip precompilation (enforce_eager=True). Use for cleaner Tracy traces.",
+    )
     args = parser.parse_args()
 
-    llm = create_engine(cpu_sampling=args.cpu_sampling)
-    warmup(llm, args.temperature)
+    llm = create_engine(
+        cpu_sampling=args.cpu_sampling,
+        fast=args.fast,
+        skip_precompile=args.skip_precompile,
+    )
+    if not args.skip_warmup:
+        warmup(llm, args.temperature)
 
     if args.benchmark:
         run_benchmark(llm, args)
