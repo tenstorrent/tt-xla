@@ -5,7 +5,6 @@
 PaddleOCR-VL-For-Manga model loader implementation for manga OCR tasks.
 """
 
-import torch
 from PIL import Image
 from transformers import AutoModelForCausalLM, AutoProcessor
 from typing import Optional
