@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     XLSR_MARATHI = "XLSR_Marathi"
     XLSR_LITHUANIAN = "XLSR_Lithuanian"
     XLSR_TURKISH_CV8 = "XLSR_Turkish_CV8"
+    BASE_KOREAN = "Base_Korean"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.XLSR_TURKISH_CV8: ModelConfig(
             pretrained_model_name="mpoyraz/wav2vec2-xls-r-300m-cv8-turkish",
+        ),
+        ModelVariant.BASE_KOREAN: ModelConfig(
+            pretrained_model_name="Kkonjeong/wav2vec2-base-korean",
         ),
     }
 
