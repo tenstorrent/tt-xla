@@ -9,7 +9,6 @@ mechanistic interpretability project. It uses a GPT-2-style architecture with
 no MLP layers and is loaded via the TransformerLens library.
 """
 
-import torch
 from transformer_lens import HookedTransformer
 from typing import Optional
 
