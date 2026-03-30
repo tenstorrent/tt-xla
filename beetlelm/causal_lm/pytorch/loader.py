@@ -23,7 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available BeetleLM model variants for causal language modeling."""
 
-    NLD_BUL_BALANCED = "nld-bul_balanced"
+    BEETLELM_DEU_L1_ENG_L2_BALANCED = "beetlelm_deu_L1_eng_L2_balanced"
 
 
 class ModelLoader(ForgeModel):
@@ -31,17 +31,17 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.NLD_BUL_BALANCED: LLMModelConfig(
-            pretrained_model_name="BeetleLM/beetlelm_nld-bul_balanced",
-            max_length=512,
+        ModelVariant.BEETLELM_DEU_L1_ENG_L2_BALANCED: LLMModelConfig(
+            pretrained_model_name="BeetleLM/beetlelm_deu_L1-eng_L2_balanced",
+            max_length=128,
         ),
     }
 
     # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.NLD_BUL_BALANCED
+    DEFAULT_VARIANT = ModelVariant.BEETLELM_DEU_L1_ENG_L2_BALANCED
 
     # Shared configuration parameters
-    sample_text = "De kat zit op de mat."
+    sample_text = "The quick brown fox jumps over the lazy dog."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -96,9 +96,6 @@ class ModelLoader(ForgeModel):
             **tokenizer_kwargs,
         )
 
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
@@ -115,7 +112,7 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
+        model_kwargs = {"trust_remote_code": True}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
@@ -128,7 +125,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, trust_remote_code=True, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         model.eval()
         self.config = model.config
