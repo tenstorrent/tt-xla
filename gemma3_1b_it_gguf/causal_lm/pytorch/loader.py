@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.GEMMA_3_1B_IT_GGUF
 
-    GGUF_FILE = "gemma-3-1b-it-Q4_K_M.gguf"
+    GGUF_FILE = "gemma-3-1b-it_Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
