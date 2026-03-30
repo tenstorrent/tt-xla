@@ -6,16 +6,17 @@ Falcon-H1 model loader implementation for causal language modeling.
 """
 from typing import Optional
 
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 from ...config import (
-    ModelConfig,
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    ModelConfig,
 )
 from ...base import ForgeModel
 
@@ -23,23 +24,25 @@ from ...base import ForgeModel
 class ModelVariant(StrEnum):
     """Available Falcon-H1 model variants."""
 
-    FALCON_H1_0_5B_BASE = "H1_0.5B_Base"
+    FALCON_H1_7B_BASE = "H1_7B_Base"
 
 
 class ModelLoader(ForgeModel):
     """Falcon-H1 model loader implementation for causal LM tasks."""
 
     _VARIANTS = {
-        ModelVariant.FALCON_H1_0_5B_BASE: ModelConfig(
-            pretrained_model_name="tiiuae/Falcon-H1-0.5B-Base",
+        ModelVariant.FALCON_H1_7B_BASE: ModelConfig(
+            pretrained_model_name="tiiuae/Falcon-H1-7B-Base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.FALCON_H1_0_5B_BASE
+    DEFAULT_VARIANT = ModelVariant.FALCON_H1_7B_BASE
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
-        """Get model information for dashboard and metrics reporting."""
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="Falcon-H1",
             variant=variant,
@@ -49,32 +52,15 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def __init__(
-        self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
-    ):
-        """Initialize ModelLoader with specified variant.
-
-        Args:
-            variant: Optional ModelVariant specifying which variant to use.
-                     If None, DEFAULT_VARIANT is used.
-            num_layers: Optional number of hidden layers to use. If None, uses the model's default.
-        """
+    def __init__(self, variant=None, num_layers: Optional[int] = None):
         super().__init__(variant)
-
-        self.text = "Hey how are you doing?"
+        self.input_text = "In a shocking discovery, scientists stumbled upon a herd of unicorns living in a remote, unexplored valley in the Andes Mountains. To their astonishment, these unicorns could speak perfect English. Describe the scientists' reactions, the unicorns' personalities, and the conversations that unfold between them. Include vivid details of the valley, the unicorns' appearance, and any surprising or magical behaviors they display."
+        self.max_length = 512
         self.tokenizer = None
         self.config = None
         self.num_layers = num_layers
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Falcon-H1 model instance.
-
-        Args:
-            dtype_override: Optional torch.dtype to override the model's default dtype.
-
-        Returns:
-            torch.nn.Module: The Falcon-H1 model instance for causal LM.
-        """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         tokenizer_kwargs = {}
@@ -103,24 +89,33 @@ class ModelLoader(ForgeModel):
         self.config = model.config
         return model
 
-    def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample inputs for the Falcon-H1 model.
-
-        Returns:
-            dict: Input tensors that can be fed to the model.
-        """
+    def load_inputs(self, dtype_override=None):
         if self.tokenizer is None:
             self.load_model()
 
         inputs = self.tokenizer(
-            self.text,
+            self.input_text,
+            add_special_tokens=True,
             return_tensors="pt",
+            max_length=self.max_length,
+            truncation=True,
         )
-
         return inputs
 
+    def decode_output(self, outputs, inputs=None):
+        if self.tokenizer is None:
+            self.load_model()
+
+        if inputs is None:
+            inputs = self.load_inputs()
+
+        response_start = torch.argmax(outputs.start_logits)
+        response_end = torch.argmax(outputs.end_logits) + 1
+        response_tokens = inputs.input_ids[0, response_start:response_end]
+
+        return self.tokenizer.decode(response_tokens)
+
     def load_config(self):
-        """Load and return the configuration for the Falcon-H1 model."""
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name
         )
