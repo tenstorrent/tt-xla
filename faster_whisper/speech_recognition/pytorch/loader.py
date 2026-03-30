@@ -7,10 +7,13 @@ Faster Whisper model loader implementation for speech recognition (ASR).
 
 Note: Faster Whisper models are CTranslate2-quantized versions of Whisper models.
 Since CTranslate2 format is not compatible with PyTorch, this loader uses the base
-distil-whisper model via WhisperForConditionalGeneration.
+Whisper models via WhisperForConditionalGeneration.
 
 deepdml/faster-distil-whisper-large-v3.5 is a CTranslate2-quantized version of
 distil-whisper/distil-large-v3.5.
+
+Systran/faster-whisper-large-v1 is a CTranslate2-quantized version of
+openai/whisper-large.
 """
 
 from typing import Optional
@@ -34,6 +37,7 @@ class ModelVariant(StrEnum):
     """Available Faster Whisper speech recognition model variants."""
 
     DISTIL_LARGE_V3_5 = "Distil_Large_v3_5"
+    LARGE_V1 = "Large_v1"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +46,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DISTIL_LARGE_V3_5: ModelConfig(
             pretrained_model_name="distil-whisper/distil-large-v3.5",
+        ),
+        ModelVariant.LARGE_V1: ModelConfig(
+            pretrained_model_name="openai/whisper-large",
         ),
     }
 
