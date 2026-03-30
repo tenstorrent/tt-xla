@@ -5,7 +5,7 @@
 DeepSeek OCR model loader implementation for document OCR tasks.
 """
 import os
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel
 from typing import Optional
 
 from ....base import ForgeModel
@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     """Available DeepSeek OCR model variants."""
 
     DEEPSEEK_OCR = "Ocr"
+    DEEPSEEK_OCR_UNSLOTH = "Ocr-Unsloth"
 
 
 class ModelLoader(ForgeModel):
@@ -37,6 +38,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.DEEPSEEK_OCR: ModelConfig(
             pretrained_model_name="deepseek-ai/DeepSeek-OCR",
+        ),
+        ModelVariant.DEEPSEEK_OCR_UNSLOTH: ModelConfig(
+            pretrained_model_name="unsloth/DeepSeek-OCR",
         ),
     }
 
@@ -73,10 +77,16 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
 
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.DEEPSEEK_OCR_UNSLOTH
+            else ModelGroup.GENERALITY
+        )
+
         return ModelInfo(
             model="DeepSeek",
             variant=variant,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.MM_DOC_OCR,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
@@ -107,33 +117,43 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The DeepSeek OCR model instance for document OCR.
         """
 
-        repo_id = self._variant_config.pretrained_model_name
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        # Create a local folder name from the model name
-        model_path = repo_id.split("/")[-1].replace("-", "_") + "_weights"
+        if self.variant == ModelVariant.DEEPSEEK_OCR_UNSLOTH:
+            model = AutoModel.from_pretrained(
+                pretrained_model_name,
+                trust_remote_code=True,
+                use_safetensors=True,
+                **kwargs,
+            )
+        else:
+            # Create a local folder name from the model name
+            model_path = (
+                pretrained_model_name.split("/")[-1].replace("-", "_") + "_weights"
+            )
 
-        # create folder if it doesn't exist
-        os.makedirs(model_path, exist_ok=True)
+            # create folder if it doesn't exist
+            os.makedirs(model_path, exist_ok=True)
 
-        # Download only the essential files.
-        snapshot_download(
-            repo_id=repo_id,
-            local_dir=model_path,
-            local_dir_use_symlinks=False,
-            allow_patterns=[
-                "*.safetensors",
-                "config.json",
-                "model.safetensors.index.json",
-            ],
-        )
+            # Download only the essential files.
+            snapshot_download(
+                repo_id=pretrained_model_name,
+                local_dir=model_path,
+                local_dir_use_symlinks=False,
+                allow_patterns=[
+                    "*.safetensors",
+                    "config.json",
+                    "model.safetensors.index.json",
+                ],
+            )
 
-        # Load Model
-        model = DeepseekOCRForCausalLM.from_pretrained(
-            model_path,
-            local_files_only=True,
-            trust_remote_code=True,
-            **kwargs,
-        )
+            # Load Model
+            model = DeepseekOCRForCausalLM.from_pretrained(
+                model_path,
+                local_files_only=True,
+                trust_remote_code=True,
+                **kwargs,
+            )
 
         # Configure model settings
         model.config.return_dict = False
