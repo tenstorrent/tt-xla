@@ -94,16 +94,16 @@ class ModelLoader(ForgeModel):
         config = DistilBertConfig.from_pretrained("distilbert-base-uncased")
         model = HybridIntentTokenClassifier(config)
 
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-
         state_dict = torch.hub.load_state_dict_from_url(
             "https://huggingface.co/Danswer/hybrid-intent-token-classifier/resolve/main/pytorch_model.bin",
             map_location="cpu",
             weights_only=False,
         )
         model.load_state_dict(state_dict)
+
+        if dtype_override is not None:
+            model = model.to(dtype=dtype_override)
+
         self.model = model
         model.eval()
         return model
