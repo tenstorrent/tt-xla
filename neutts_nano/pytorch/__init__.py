@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Neuphonic NeuTTS Nano PyTorch model implementation for Tenstorrent projects.
+NeuTTS-Nano PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
