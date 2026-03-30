@@ -23,8 +23,8 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    XLM_ROBERTA_LARGE_ITALIAN_PARLSPEECH_CAP_V3 = (
-        "poltextlab/xlm-roberta-large-italian-parlspeech-cap-v3"
+    NYTK_SENTIMENT_HTS5_XLM_ROBERTA_HUNGARIAN = (
+        "NYTK/sentiment-hts5-xlm-roberta-hungarian"
     )
 
 
@@ -36,8 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.XLM_ROBERTA_LARGE_ITALIAN_PARLSPEECH_CAP_V3: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-italian-parlspeech-cap-v3",
+        ModelVariant.NYTK_SENTIMENT_HTS5_XLM_ROBERTA_HUNGARIAN: LLMModelConfig(
+            pretrained_model_name="NYTK/sentiment-hts5-xlm-roberta-hungarian",
             max_length=128,
         ),
     }
@@ -46,7 +46,7 @@ class ModelLoader(ForgeModel):
 
     _SAMPLE_TEXTS = {
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
-        ModelVariant.XLM_ROBERTA_LARGE_ITALIAN_PARLSPEECH_CAP_V3: "Mi piaci. Ti amo",
+        ModelVariant.NYTK_SENTIMENT_HTS5_XLM_ROBERTA_HUNGARIAN: "Jó reggelt! majd küldöm az élményhozókat :).",
     }
 
     def __init__(self, variant=None):
@@ -63,10 +63,12 @@ class ModelLoader(ForgeModel):
         if variant_name is None:
             variant_name = "base"
 
+        group = ModelGroup.VULCAN
+
         return ModelInfo(
             model="XLM-RoBERTa",
             variant=variant_name,
-            group=ModelGroup.VULCAN,
+            group=group,
             task=ModelTask.NLP_TEXT_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
