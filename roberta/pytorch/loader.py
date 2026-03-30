@@ -28,7 +28,7 @@ class ModelVariant(StrEnum):
     ROBERTA_BASE_SENTIMENT_LATEST = "Base_Sentiment_Latest"
     ROBERTA_BASE_EMOTION_MULTILABEL = "Base_Emotion_Multilabel"
     ROBERTA_LARGE_MNLI = "Large_MNLI"
-    ROBERTA_BASE_DIANPING_CHINESE = "Base_Dianping_Chinese"
+    ROBERTA_BASE_ROTTEN_TOMATOES = "Base_Rotten_Tomatoes"
 
 
 class ModelLoader(ForgeModel):
@@ -47,8 +47,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.ROBERTA_LARGE_MNLI: ModelConfig(
             pretrained_model_name="FacebookAI/roberta-large-mnli",
         ),
-        ModelVariant.ROBERTA_BASE_DIANPING_CHINESE: ModelConfig(
-            pretrained_model_name="uer/roberta-base-finetuned-dianping-chinese",
+        ModelVariant.ROBERTA_BASE_ROTTEN_TOMATOES: ModelConfig(
+            pretrained_model_name="textattack/roberta-base-rotten-tomatoes",
         ),
     }
 
@@ -73,7 +73,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.ROBERTA_BASE_SENTIMENT_LATEST,
             ModelVariant.ROBERTA_BASE_EMOTION_MULTILABEL,
             ModelVariant.ROBERTA_LARGE_MNLI,
-            ModelVariant.ROBERTA_BASE_DIANPING_CHINESE,
+            ModelVariant.ROBERTA_BASE_ROTTEN_TOMATOES,
         ):
             group = ModelGroup.VULCAN
 
