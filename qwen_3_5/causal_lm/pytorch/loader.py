@@ -55,6 +55,7 @@ class ModelVariant(StrEnum):
         "9B_Ultimate_Irrefusable_Heretic_GGUF"
     )
     QWEN_3_5_4B_ABLITERATED_GGUF = "4B_Abliterated_GGUF"
+    QWEN_3_5_2B_HERETIC = "2B_Heretic"
 
 
 class ModelLoader(ForgeModel):
@@ -176,6 +177,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_4B_ABLITERATED_GGUF: LLMModelConfig(
             pretrained_model_name="SicariusSicariiStuff/Qwen3.5-4B_Abliterated_GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_2B_HERETIC: LLMModelConfig(
+            pretrained_model_name="coder3101/Qwen3.5-2B-heretic",
             max_length=128,
         ),
     }
