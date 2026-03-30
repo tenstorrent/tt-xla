@@ -41,16 +41,6 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.AUROLA_3B
 
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "audio", "audio": None},
-                {"type": "text", "text": "Describe this audio."},
-            ],
-        }
-    ]
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ModelLoader with specified variant."""
         super().__init__(variant)
