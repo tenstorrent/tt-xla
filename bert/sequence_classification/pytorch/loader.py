@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
         "naoki_hosokawa_Ses_Mail_Classifier_Bert_Japanese"
     )
     ADAMCODD_TINYBERT_EMOTION_BALANCED = "AdamCodd_TinyBERT_Emotion_Balanced"
+    POLTEXTLAB_HUNEMBERT3 = "poltextlab_HunEmBERT3"
 
 
 class ModelLoader(ForgeModel):
@@ -69,6 +70,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AdamCodd/tinybert-emotion-balanced",
             max_length=128,
         ),
+        ModelVariant.POLTEXTLAB_HUNEMBERT3: LLMModelConfig(
+            pretrained_model_name="poltextlab/HunEmBERT3",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -88,6 +93,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION: "the movie was great!",
         ModelVariant.NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE: "【案件】Java開発 60万〜80万 渋谷 即日〜長期 面談1回",
         ModelVariant.ADAMCODD_TINYBERT_EMOTION_BALANCED: "I am so happy and excited about this wonderful news!",
+        ModelVariant.POLTEXTLAB_HUNEMBERT3: "A kormány új intézkedéseket jelentett be a gazdaság élénkítésére.",
     }
 
     def __init__(self, variant=None):
@@ -126,6 +132,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.GOKULS_TINY_BERT_SST2_MOBILEBERT_DISTILLATION,
             ModelVariant.NAOKI_HOSOKAWA_SES_MAIL_CLASSIFIER_BERT_JAPANESE,
             ModelVariant.ADAMCODD_TINYBERT_EMOTION_BALANCED,
+            ModelVariant.POLTEXTLAB_HUNEMBERT3,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
