@@ -53,25 +53,17 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Higgs Audio V2 Tokenizer model."""
-        from huggingface_hub import hf_hub_download
-        from boson_multimodal.tokenizer import HiggsAudioTokenizer
+        from boson_multimodal.audio_processing.higgs_audio_tokenizer import (
+            load_higgs_audio_tokenizer,
+        )
 
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        # Download config and weights from HuggingFace Hub
-        config_path = hf_hub_download(
-            repo_id=pretrained_model_name, filename="config.json"
-        )
-        model_path = hf_hub_download(
-            repo_id=pretrained_model_name, filename="model.pth"
-        )
-
-        model = HiggsAudioTokenizer.from_pretrained(config_path, model_path)
+        model = load_higgs_audio_tokenizer(pretrained_model_name, device="cpu")
 
         if dtype_override is not None:
             model = model.to(dtype=dtype_override)
 
-        model.eval()
         self.model = model
         return model
 
