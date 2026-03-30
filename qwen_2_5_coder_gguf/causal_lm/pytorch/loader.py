@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
 
     QWEN_2_5_CODER_0_5B_Q8_0_GGUF = "0.5B_Q8_0_GGUF"
     QWEN_2_5_CODER_7B_INSTRUCT_Q8_0_GGUF = "7B_Instruct_Q8_0_GGUF"
+    QWEN_2_5_CODER_32B_INSTRUCT_Q8_0_GGUF = "32B_Instruct_Q8_0_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +40,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="lmstudio-community/Qwen2.5-Coder-7B-Instruct-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_Q8_0_GGUF: LLMModelConfig(
+            pretrained_model_name="lmstudio-community/Qwen2.5-Coder-32B-Instruct-GGUF",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_2_5_CODER_0_5B_Q8_0_GGUF
@@ -46,6 +51,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.QWEN_2_5_CODER_0_5B_Q8_0_GGUF: "qwen2.5-coder-0.5b-q8_0.gguf",
         ModelVariant.QWEN_2_5_CODER_7B_INSTRUCT_Q8_0_GGUF: "Qwen2.5-Coder-7B-Instruct-Q8_0.gguf",
+        ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT_Q8_0_GGUF: "Qwen2.5-Coder-32B-Instruct-Q8_0.gguf",
     }
 
     sample_text = "write a quick sort algorithm."
