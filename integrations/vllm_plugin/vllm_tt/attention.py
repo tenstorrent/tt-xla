@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import torch
 import torch_xla.core.xla_builder as xb
+import torch_xla.distributed.spmd as xs
 import torch_xla.experimental.custom_kernel  # noqa: F401
 
 # Required to register custom ops.
@@ -76,6 +77,7 @@ class TTAttentionMetadataBuilder:
             attn_mask=None,
             page_table=None,
             is_causal=getattr(common_attn_metadata, "causal", True),
+            mesh=None,
         )
 
 
@@ -177,6 +179,7 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    mesh: Optional["xs.Mesh"]
 
     def __init__(
         self,
@@ -185,6 +188,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        mesh: Optional["xs.Mesh"] = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -193,6 +197,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.mesh = mesh
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -239,12 +244,33 @@ class TTAttentionBackendImpl(AttentionImpl):
                 kv_cache_dtype.lower().strip()
             )
 
+        # Store raw sinks - will be prepared with mesh from metadata during forward pass
         self.sinks = sinks
         if self.sinks is not None:
             assert self.sinks.shape[0] == num_heads, (
                 "Sinks must have the same number of heads as the number of "
                 "heads in the layer"
             )
+
+    def _prepare_sinks(
+        self, sinks: Optional[torch.Tensor], mesh: Optional["xs.Mesh"]
+    ) -> Optional[torch.Tensor]:
+        """Prepare and optionally shard the sinks tensor if mesh is available."""
+        if sinks is None:
+            return None
+
+        # Handle sinks: if sinks is 1D then convert it to 2D with second dim as 1
+        if sinks.dim() == 1:
+            sinks = sinks.unsqueeze(-1)
+
+        # Shard the sinks if mesh is available
+        if mesh is not None:
+            # Move to XLA device and mark for sharding
+            if not sinks.device.type == "xla":
+                sinks = sinks.to("xla")
+            xs.mark_sharding(sinks, mesh, ("batch", None))
+
+        return sinks
 
     # @torch.compiler.disable
     def forward(
@@ -543,6 +569,11 @@ class TTAttentionBackendImpl(AttentionImpl):
         # In decode, query_num_tokens == 1 is normal
         query_for_decode = inputs.query.transpose(0, 1)
 
+        # Use sink from self.sinks, prepared with mesh from metadata
+        sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
+
+        # logger.info(f"Running decode attention with query shape {query_for_decode.shape}, k_cache shape {k_cache.shape}, v_cache shape {v_cache.shape}, page_table shape {attn_metadata.page_table.shape if attn_metadata.page_table is not None else None}, cache_position shape {attn_metadata.cache_position.shape if attn_metadata.cache_position is not None else None}, sink shape {sink.shape if sink is not None else None}")
+
         out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
             query_for_decode,
             k_cache,
@@ -551,7 +582,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             cur_pos_tensor=attn_metadata.cache_position,
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
-            attention_sink=self.sinks,
+            attention_sink=sink,
         )
         # out: [query_num_tokens, users, num_heads, head_size]
         out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]
