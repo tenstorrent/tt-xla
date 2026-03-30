@@ -188,6 +188,8 @@ jobs:
             "job_id": """${{ steps.fetch-job-id.outputs.job_id }}""",
             "test_dir": """${{ matrix.build.dir }}""",
             "test_mark": """${{ matrix.build.test-mark }}""",
+            "model_name": """${{ matrix.build.model_name }}""",
+            "specific_test_case": """${{ matrix.build.specific_test_case }}""",
             "runs_on": """${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}""",
             "parallel_groups": """${{ matrix.build.parallel-groups || 1 }}""",
             "group_id": """${{ matrix.build.group-id || 1 }}""",
@@ -312,6 +314,12 @@ jobs:
         fi
 
         MARKS="${{ matrix.build.test-mark }}"
+        SPECIFIC_TEST_CASE="${{ matrix.build.specific_test_case }}"
+        TEST_CONTAINS="${{ matrix.build.contains }}"
+
+        if [[ -n "$SPECIFIC_TEST_CASE" ]]; then
+          TEST_CONTAINS="$SPECIFIC_TEST_CASE"
+        fi
 
         if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
           echo "Only running previously failed tests"
@@ -328,7 +336,7 @@ jobs:
           ${{ matrix.build.dir }} \
           $ARCH \
           -m \"$MARKS\" ${{ matrix.build.args }} \
-          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
+          -k \"$(printf '%q' "$TEST_CONTAINS")\" \
           $PYTEST_SPLITS"
 
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV

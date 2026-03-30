@@ -19,6 +19,14 @@ on:
         description: 'Additional arguments passed to pytest'
         required: false
         type: string
+      model_name:
+        description: 'Optional model identifier for downstream identity/reporting'
+        required: false
+        type: string
+      specific_test_case:
+        description: 'Optional exact Vulcan-dispatched test id used to bound execution'
+        required: false
+        type: string
       runs_on:
         description: 'Choose runners for running test'
         required: true
@@ -95,8 +103,10 @@ jobs:
             --arg shared_runners '${{ inputs.shared_runners }}' \
             --arg args '${{ inputs.args }}' \
             --arg contains '${{ inputs.contains }}' \
+            --arg model_name '${{ inputs.model_name }}' \
+            --arg specific_test_case '${{ inputs.specific_test_case }}' \
             --argjson parallel_groups '${{ inputs.parallel_groups }}' \
-            '[{"runs-on": $runs_on,"name": "Test","dir": $dir,"test-mark": $mark,"shared-runners": $shared_runners,"args": $args,"contains": $contains,"parallel-groups": $parallel_groups}]')
+            '[{"runs-on": $runs_on,"name": "Test","dir": $dir,"test-mark": $mark,"shared-runners": $shared_runners,"args": $args,"contains": $contains,"model_name": $model_name,"specific_test_case": $specific_test_case,"parallel-groups": $parallel_groups}]')
 
           echo $TEST_CONFIG
 
