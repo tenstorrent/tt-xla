@@ -23,6 +23,7 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Llama-Swallow model variants for causal language modeling."""
 
+    LLAMA_3_1_SWALLOW_8B_V0_5 = "3.1_Swallow_8B_v0.5"
     LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5 = "3.1_Swallow_8B_Instruct_v0.5"
     LLAMA_3_1_SWALLOW_70B_INSTRUCT_V0_3 = "3.1_Swallow_70B_Instruct_v0.3"
 
@@ -31,6 +32,10 @@ class ModelLoader(ForgeModel):
     """Llama-Swallow model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
+        ModelVariant.LLAMA_3_1_SWALLOW_8B_V0_5: LLMModelConfig(
+            pretrained_model_name="tokyotech-llm/Llama-3.1-Swallow-8B-v0.5",
+            max_length=256,
+        ),
         ModelVariant.LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5: LLMModelConfig(
             pretrained_model_name="tokyotech-llm/Llama-3.1-Swallow-8B-Instruct-v0.5",
             max_length=256,
@@ -46,6 +51,8 @@ class ModelLoader(ForgeModel):
     messages = [
         {"role": "user", "content": "Who are you?"},
     ]
+
+    sample_text = "Tokyo is the capital of"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -109,15 +116,23 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self.tokenizer.apply_chat_template(
-            self.messages,
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-            padding="max_length",
-            max_length=128,
-        )
+        if self._variant == ModelVariant.LLAMA_3_1_SWALLOW_8B_V0_5:
+            inputs = self.tokenizer(
+                self.sample_text,
+                return_tensors="pt",
+                padding="max_length",
+                max_length=128,
+            )
+        else:
+            inputs = self.tokenizer.apply_chat_template(
+                self.messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+                padding="max_length",
+                max_length=128,
+            )
         if (
             hasattr(self.model.config, "sliding_window")
             and self.model.config.sliding_window is not None
@@ -127,7 +142,10 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def get_mesh_config(self, num_devices: int):
-        if self._variant == ModelVariant.LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5:
+        if self._variant in (
+            ModelVariant.LLAMA_3_1_SWALLOW_8B_V0_5,
+            ModelVariant.LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5,
+        ):
             mesh_shape = (1, num_devices)
         elif num_devices == 32:  # Galaxy
             mesh_shape = (4, 8)
@@ -139,7 +157,10 @@ class ModelLoader(ForgeModel):
         return mesh_shape, ("batch", "model")
 
     def load_shard_spec(self, model):
-        if self._variant == ModelVariant.LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5:
+        if self._variant in (
+            ModelVariant.LLAMA_3_1_SWALLOW_8B_V0_5,
+            ModelVariant.LLAMA_3_1_SWALLOW_8B_INSTRUCT_V0_5,
+        ):
             return None
 
         shard_specs = {}
