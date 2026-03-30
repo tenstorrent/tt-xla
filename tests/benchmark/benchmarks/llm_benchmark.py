@@ -213,6 +213,7 @@ def benchmark_llm_torch_xla(
     arch,
     required_pcc,
     fp32_dest_acc_en=None,
+    experimental_kv_cache_dtype=None,
     accuracy_testing: bool = False,
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
@@ -393,6 +394,8 @@ def benchmark_llm_torch_xla(
     }
     if fp32_dest_acc_en is not None:
         options["fp32_dest_acc_en"] = fp32_dest_acc_en
+    if experimental_kv_cache_dtype is not None:
+        options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
 
     torch_xla.set_custom_compile_options(options)
 
