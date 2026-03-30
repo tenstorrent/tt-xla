@@ -24,6 +24,9 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available EmbeddingGemma model variants for embedding generation."""
 
+    EMBEDDINGGEMMA_300M_QAT_Q4_0_UNQUANTIZED = (
+        "embeddinggemma-300m-qat-q4_0-unquantized"
+    )
     EMBEDDINGGEMMA_300M_QAT_Q8_0_UNQUANTIZED = (
         "embeddinggemma-300m-qat-q8_0-unquantized"
     )
@@ -33,6 +36,9 @@ class ModelLoader(ForgeModel):
     """EmbeddingGemma model loader implementation for sentence embedding generation."""
 
     _VARIANTS = {
+        ModelVariant.EMBEDDINGGEMMA_300M_QAT_Q4_0_UNQUANTIZED: ModelConfig(
+            pretrained_model_name="google/embeddinggemma-300m-qat-q4_0-unquantized",
+        ),
         ModelVariant.EMBEDDINGGEMMA_300M_QAT_Q8_0_UNQUANTIZED: ModelConfig(
             pretrained_model_name="google/embeddinggemma-300m-qat-q8_0-unquantized",
         ),
