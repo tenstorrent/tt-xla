@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -23,22 +23,34 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 3 Coder Next GGUF model variants for causal language modeling."""
 
-    QWEN_3_CODER_NEXT_GGUF = "Next_GGUF"
+    QWEN_3_CODER_NEXT_IQ3_S = "Next_IQ3_S"
+    QWEN_3_CODER_NEXT_IQ4_XS = "Next_IQ4_XS"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 3 Coder Next GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_CODER_NEXT_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Qwen3-Coder-Next-GGUF",
+        ModelVariant.QWEN_3_CODER_NEXT_IQ3_S: LLMModelConfig(
+            pretrained_model_name="dinerburger/Qwen3-Coder-Next-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_CODER_NEXT_IQ4_XS: LLMModelConfig(
+            pretrained_model_name="dinerburger/Qwen3-Coder-Next-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_CODER_NEXT_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_CODER_NEXT_IQ3_S
 
-    GGUF_FILE = "Qwen3-Coder-Next-Q4_K_M.gguf"
+    _GGUF_FILES = {
+        ModelVariant.QWEN_3_CODER_NEXT_IQ3_S: "Qwen3-Coder-Next-IQ3_S.gguf",
+        ModelVariant.QWEN_3_CODER_NEXT_IQ4_XS: "Qwen3-Coder-Next-IQ4_XS.gguf",
+    }
+
+    @property
+    def GGUF_FILE(self):
+        return self._GGUF_FILES[self._variant]
 
     sample_text = "Write a Python function that checks if a number is prime."
 
@@ -118,7 +130,6 @@ class ModelLoader(ForgeModel):
             messages,
             tokenize=False,
             add_generation_prompt=True,
-            enable_thinking=False,
         )
         prompts = [text]
 
