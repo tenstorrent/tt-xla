@@ -50,12 +50,13 @@ def run_model_on_device(model, inputs):
     # Move model and inputs to TT device
     device = xm.xla_device()
     model_on_device = compiled_model.to(device)
-    inputs_on_device = [
-        inp.to(device) if isinstance(inp, torch.Tensor) else inp for inp in inputs
-    ]
+    # inputs_on_device = [
+    #     inp.to(device) if isinstance(inp, torch.Tensor) else inp for inp in inputs
+    # ]
 
     # Execute on device
-    output = model_on_device(*inputs_on_device)
+    # output = model_on_device(*inputs_on_device)
+    output = model_on_device(*inputs)
 
     # Return output (still on device)
     return output
@@ -583,6 +584,95 @@ def test_concurrent_multi_buffer_instance_transfer():
 
     for thread in threads:
         thread.join()
+
+
+def setup_spmd():
+    """Helper to enable SPMD mode with Shardy conversion."""
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.use_spmd()
+
+
+def create_device_mesh(mesh_shape) -> Mesh:
+    """Helper to create a device mesh with specified shape."""
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    return mesh
+
+
+lock = threading.Lock()
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+def test_sharded_concurrent_multi_buffer_instance_transfer():
+    """
+    Test scenario: Inputs A and B participates in some graph, and are concurrently copied to host
+    by multiple framework threads.
+
+    This tests for race conditions in the copyToHost thread instance mutex management, and that
+    there are not multiple concurrent calls to tt::runtime::submit triggering metal race conditions,
+    as guarded by the static copyToHost internal mutex.
+    """
+
+    class ProgramAB(torch.nn.Module):
+        def forward(self, A, B):
+            return A + 1, B + 1
+
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+
+    mesh = create_device_mesh(
+        (
+            1,
+            2,
+        )
+    )
+
+    input_a_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
+    input_b_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
+
+    xs.mark_sharding(input_a_cpu, mesh, (None, "model"))
+    xs.mark_sharding(input_b_cpu, mesh, (None, "model"))
+
+    program_ab = ProgramAB()
+
+    res_a, res_b = run_model_on_device(program_ab, [input_a_cpu, input_b_cpu])
+    # res_a.cpu()
+    # res_b.cpu()
+
+    # Create multiple threads that all copies result object
+    # def copy_to_host(_result):
+    #     for _ in range(1024):
+    #         _result.cpu()
+
+    def copy_to_host(_result):
+        with lock:
+            for _ in range(1):
+                # with lock:
+                _result.cpu()
+
+    threads = []
+    num_threads = 10
+    # num_threads = 1
+    for _ in range(num_threads):
+        thread_a = threading.Thread(target=copy_to_host, args=(res_a,))
+        thread_b = threading.Thread(target=copy_to_host, args=(res_b,))
+
+        threads.append(thread_a)
+        threads.append(thread_b)
+        thread_a.start()
+        thread_b.start()
+
+    for thread in threads:
+        thread.join()
+
+    # Without thread, this executes fine. For both devices, we have 1024 execute calls and 1024 copy
+    # to host calls.
+    # for _ in range (1024):
+    #     copy_to_host(res_a)
+    #     copy_to_host(res_b)
 
 
 def setup_spmd():

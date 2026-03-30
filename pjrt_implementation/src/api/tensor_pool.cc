@@ -60,6 +60,8 @@ bool contains(PjrtTensor *tensor) { return get().contains(tensor); }
 void PjrtTensorPool::insert(PjrtTensor *tensor) {
 
   const std::scoped_lock lock{m_mtx};
+  // log<verb::debug>("Inserting tensor {} into pool.", tensor->uid());
+  DLOG_F(LOG_DEBUG, "Inserting tensor {} into pool.");
   TT_FATAL(!m_tensors.contains(tensor), "Tensor already exists in the pool");
   m_tensors.insert(tensor);
 }
@@ -68,6 +70,8 @@ void PjrtTensorPool::insert(PjrtTensor *tensor) {
 void PjrtTensorPool::erase(PjrtTensor *tensor) {
 
   const std::scoped_lock lock{m_mtx};
+  // log<verb::always>("Erasing tensor {} from pool.", tensor->uid());
+  DLOG_F(LOG_DEBUG, "Erasing tensor {} from pool.");
   TT_FATAL(m_tensors.contains(tensor), "Tensor not found in the pool");
   m_tensors.erase(tensor);
 }
@@ -76,6 +80,8 @@ void PjrtTensorPool::erase(PjrtTensor *tensor) {
 void PjrtTensorPool::clear() {
 
   const std::scoped_lock lock{m_mtx};
+  DLOG_F(LOG_DEBUG, "Clearing tensor pool.");
+  // log<verb::always>("Clearing tensor pool.");
   m_tensors.clear();
 }
 
@@ -89,6 +95,7 @@ void PjrtTensorPool::clear() {
 void PjrtTensorPool::move_tensors_to_host() {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "Moving tensors to host.");
+  // log<verb::always>("Moving tensors to host.");
 
   std::vector<PjrtTensor *> tensors{m_tensors.begin(), m_tensors.end()};
   for (PjrtTensor *tensor : tensors) {

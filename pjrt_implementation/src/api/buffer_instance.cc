@@ -337,6 +337,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
   TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
+  std::cout << "Copy to host!\n";
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);

@@ -236,6 +236,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
+  std::cout << "Invoking submit!\n";
+
   auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
                                   executable_image->getFlatbufferBinary(),
                                   program_index, input_tensors);

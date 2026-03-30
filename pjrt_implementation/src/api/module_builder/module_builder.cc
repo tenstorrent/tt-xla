@@ -388,6 +388,11 @@ ModuleBuilder::buildModule(
     client_instance->getOrCreateMeshDevice(mesh_shape);
   }
 
+  // VLOG_F(LOG_DEBUG, "MLIR Module %s:", "TTNN");
+  // mlir_module->print(llvm::errs(),
+  // mlir::OpPrintingFlags().enableDebugInfo()); llvm::errs() <<
+  // "------------------ END OF MLIR MODULE ------------------\n";
+
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
