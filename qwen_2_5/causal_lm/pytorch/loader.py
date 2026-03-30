@@ -52,6 +52,7 @@ class ModelVariant(StrEnum):
     QWEN_2_5_7B_INSTRUCT_GPTQ_INT8 = "7B_Instruct_GPTQ_Int8"
     QWEN_2_5_0_5B_INSTRUCT_BNB_4BIT = "0.5B_Instruct_Bnb_4bit"
     QWEN_2_5_0_5B_INSTRUCT_AWQ = "0.5B_Instruct_Awq"
+    QWEN_2_5_7B_TRAIN_QUASAR_1214 = "7B_Train_Quasar_1214"
 
 
 class ModelLoader(ForgeModel):
@@ -164,6 +165,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Qwen/Qwen2.5-0.5B-Instruct-AWQ",
             max_length=128,
         ),
+        # xihc-ucb fine-tune of Qwen2.5-7B
+        ModelVariant.QWEN_2_5_7B_TRAIN_QUASAR_1214: LLMModelConfig(
+            pretrained_model_name="xihc-ucb/Qwen2.5-7B-train-Quasar-1214",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -222,6 +228,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.QWEN_2_5_7B_INSTRUCT_GPTQ_INT8,
             ModelVariant.QWEN_2_5_0_5B_INSTRUCT_BNB_4BIT,
             ModelVariant.QWEN_2_5_0_5B_INSTRUCT_AWQ,
+            ModelVariant.QWEN_2_5_7B_TRAIN_QUASAR_1214,
         ]:
             group = ModelGroup.VULCAN
 
