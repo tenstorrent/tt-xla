@@ -1,0 +1,1059 @@
+
+X btsoi/lb_bh_all_models Run Test · 23712685414
+Triggered via workflow_dispatch about 22 hours ago
+
+JOBS
+✓ build-image / check-if-docker-exist in 11s (ID 69074830162)
+- build-image / set-latest-tag (ID 69074841782)
+- build-image / build-image (ID 69074841787)
+✓ build-ttxla / Check for existing artifact in 4s (ID 69074841805)
+✓ build-ttxla / build-ttxla-release / Build tt-xla (release) in 11m27s (ID 69074846700)
+- build-ttxla / build-ttxla-explorer in 0s (ID 69074846754)
+- build-ttxla / build-manylinux-ttxla in 0s (ID 69074846822)
+✓ test / generate-matrix-test / generate in 5s (ID 69075402571)
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 3) in 27m30s (ID 69075409238)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 2) in 37m27s (ID 69075409241)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 1) in 27m49s (ID 69075409248)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 5) in 28m38s (ID 69075409249)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 0) in 17m16s (ID 69075409250)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  ✓ Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 4) in 31m40s (ID 69075409253)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 12) in 26m12s (ID 69075409267)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 11) in 28m20s (ID 69075409269)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 18) in 36m54s (ID 69075409270)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 20) in 8m55s (ID 69075409272)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 24) in 10m27s (ID 69075409273)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 8) in 49m37s (ID 69075409276)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+✓ test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 22) in 11m49s (ID 69075409277)
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 23) in 10m51s (ID 69075409278)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 7) in 55m6s (ID 69075409279)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 13) in 32m43s (ID 69075409281)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 16) in 33m37s (ID 69075409283)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_llm, 25) in 50m31s (ID 69075409285)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 21) in 9m2s (ID 69075409286)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 19) in 24m12s (ID 69075409287)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 15) in 31m10s (ID 69075409288)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 10) in 39m41s (ID 69075409289)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 6) in 46m28s (ID 69075409290)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test  (lb-blackhole, run_standalone_models_lb_blackhole_jax, 27) in 4m15s (ID 69075409293)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  - Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 17) in 37m2s (ID 69075409297)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  * Run tests
+  * Sanitize test_mark
+  * Upload Test Log
+  * Upload Test Report
+  * Upload Benchmark Report
+  * Post Run actions/checkout@v6
+  * Stop containers
+  * Complete runner
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 14) in 23m32s (ID 69075409298)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test single_device (lb-blackhole, run_standalone_models_lb_blackhole_torch, 26) in 13m29s (ID 69075409302)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  - Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+X test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 9) in 38m42s (ID 69075409309)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Initialize containers
+  ✓ Mark repo as safe for git
+  ✓ Log disk space
+  ✓ Set caching env variables
+  ✓ Run actions/checkout@v6
+  ✓ Fetch job id
+  ✓ Set reusable strings
+  ✓ Download and install wheels
+  - Download and setup alchemist library
+  ✓ Check for re-run attempt
+  ✓ Set pytest command
+  ✓ Install System Deps for Forge Models Tests
+  - Validate Forge Models Tests test config file
+  ✓ Collect Tests
+  X Run tests
+  - Sanitize test_mark
+  ✓ Upload Test Log
+  ✓ Upload Test Report
+  ✓ Upload Benchmark Report
+  ✓ Post Run actions/checkout@v6
+  ✓ Stop containers
+  ✓ Complete runner
+  ✓ Complete job
+✓ test / test-summary in 17s (ID 69118340063)
+X TT-XLA model-test-lb-blackhole-weekly in 0s (ID 69118368090)
+
+ANNOTATIONS
+! The `python-version` input is not set.  The version of Python currently in `PATH` will be used.
+test / generate-matrix-test / generate: .github#11
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 3): .github#8316
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 3): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 2): .github#12427
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 2): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 1): .github#7086
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 1): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 5): .github#7319
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 5): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 0): .github#37927
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 0): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 4): .github#7684
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 4): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 12): .github#10866
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 12): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 11): .github#12060
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 11): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 18): .github#42993
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 18): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 20): .github#3138
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 20): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 24): .github#4331
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 24): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 8): .github#19161
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 8): .github#809
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 22): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 23): .github#3712
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 23): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 7): .github#8872
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 7): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 13): .github#8511
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 13): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 16): .github#44764
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 16): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_llm, 25): .github#20231
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_llm, 25): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 21): .github#2823
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_jax, 21): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 19): .github#10811
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 19): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 15): .github#7956
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 15): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 10): .github#41556
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 10): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 6): .github#7409
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 6): .github#809
+
+X Process completed with exit code 1.
+test / test  (lb-blackhole, run_standalone_models_lb_blackhole_jax, 27): .github#179
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test  (lb-blackhole, run_standalone_models_lb_blackhole_jax, 27): .github#809
+
+X The self-hosted runner lost communication with the server. Verify the machine is running and has a healthy network connection. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 17): .github#1
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 14): .github#36321
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 14): .github#809
+
+X Process completed with exit code 1.
+test / test single_device (lb-blackhole, run_standalone_models_lb_blackhole_torch, 26): .github#5768
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test single_device (lb-blackhole, run_standalone_models_lb_blackhole_torch, 26): .github#809
+
+X Process completed with exit code 1.
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 9): .github#13264
+
+- Hugepages service found. Command returned with exit code 3. Restarting it so we can ensure hugepages are available
+test / test p150 and single_device and expected_passing (lb-blackhole, run_forge_models_lb_blackhole_torch, 9): .github#809
+
+! Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: mikepenz/action-junit-report@v5. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+test / test-summary: .github#2
+
+X AttributeError: 'tuple' object has no attribute 'past_key_values'
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#163
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=-0.00423505359531718. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.18069435648397725. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.09695275484577631. Required: pcc=0.985.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.012079886349619207. Required: pcc=0.98.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.08035071017207418. Required: pcc=0.98.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9859073361722469. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=-0.0574083965001179. Required: pcc=0.98.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.10814855983826441. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.08718313411948266. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X FileNotFoundError: File /github/home/.cache/lfcache/test_files/pytorch/yolov4/yolov4.pth is not available, check file path. If path is correct, DOCKER_CACHE_ROOT syncs automatically with S3 bucket every hour so please wait for the next sync.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#116
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.04036700158350784. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.05106726091193326. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.026660841523962493. Required: pcc=0.98.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.03431676413600662. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.2947093392632353. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X FileNotFoundError: File /github/home/.cache/lfcache/test_files/pytorch/Ultrafast_lane_detection_v2/tusimple_res34.pth is not available, check file path. If path is correct, DOCKER_CACHE_ROOT syncs automatically with S3 bucket every hour so please wait for the next sync.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#116
+
+X TypeError: equal(): argument 'input' (position 1) must be Tensor, not EncoderDecoderCache
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#163
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.06177741245833003. Required: pcc=0.98.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.02951966318963762. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9846671928145692. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9757752010388648. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.4781400548202326. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.049213742324906884. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.1406833443984924. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.43040371741187466. Required: pcc=0.98.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.06420068717957542. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.3719691214047444. Required: pcc=0.975.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.2029616849688833. Required: pcc=0.99.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+X AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=-0.029183647562104096. Required: pcc=0.96.
+TT-XLA model-test-lb-blackhole-weekly: tests/runner/test_models.py#170
+
+
+ARTIFACTS
+test-reports-083a7334755040f00df547b75c96a661-1.26-lb-blackhole--69075409302
+test-log-lb-blackhole--69075409302
+perf-reports-083a7334755040f00df547b75c96a661-1.8-lb-blackhole--69075409276
+test-reports-083a7334755040f00df547b75c96a661-1.8-lb-blackhole--69075409276
+test-log-lb-blackhole--69075409276
+perf-reports-083a7334755040f00df547b75c96a661-1.25-lb-blackhole--69075409285
+test-reports-083a7334755040f00df547b75c96a661-1.25-lb-blackhole--69075409285
+test-log-lb-blackhole--69075409285
+perf-reports-083a7334755040f00df547b75c96a661-1.10-lb-blackhole--69075409289
+test-reports-083a7334755040f00df547b75c96a661-1.10-lb-blackhole--69075409289
+test-log-lb-blackhole--69075409289
+perf-reports-083a7334755040f00df547b75c96a661-1.13-lb-blackhole--69075409281
+test-reports-083a7334755040f00df547b75c96a661-1.13-lb-blackhole--69075409281
+test-log-lb-blackhole--69075409281
+test-reports-083a7334755040f00df547b75c96a661-1.23-lb-blackhole--69075409278
+test-log-lb-blackhole--69075409278
+perf-reports-083a7334755040f00df547b75c96a661-1.9-lb-blackhole--69075409309
+test-reports-083a7334755040f00df547b75c96a661-1.9-lb-blackhole--69075409309
+test-log-lb-blackhole--69075409309
+perf-reports-083a7334755040f00df547b75c96a661-1.6-lb-blackhole--69075409290
+test-reports-083a7334755040f00df547b75c96a661-1.6-lb-blackhole--69075409290
+test-log-lb-blackhole--69075409290
+perf-reports-083a7334755040f00df547b75c96a661-1.7-lb-blackhole--69075409279
+test-reports-083a7334755040f00df547b75c96a661-1.7-lb-blackhole--69075409279
+test-log-lb-blackhole--69075409279
+perf-reports-083a7334755040f00df547b75c96a661-1.15-lb-blackhole--69075409288
+test-reports-083a7334755040f00df547b75c96a661-1.15-lb-blackhole--69075409288
+test-log-lb-blackhole--69075409288
+test-reports-083a7334755040f00df547b75c96a661-1.22-lb-blackhole-p150_and_single_device_and_expected_passing-69075409277
+test-log-lb-blackhole-p150_and_single_device_and_expected_passing-69075409277
+perf-reports-083a7334755040f00df547b75c96a661-1.2-lb-blackhole--69075409241
+test-reports-083a7334755040f00df547b75c96a661-1.2-lb-blackhole--69075409241
+test-log-lb-blackhole--69075409241
+test-reports-083a7334755040f00df547b75c96a661-1.24-lb-blackhole--69075409273
+test-log-lb-blackhole--69075409273
+perf-reports-083a7334755040f00df547b75c96a661-1.14-lb-blackhole--69075409298
+test-reports-083a7334755040f00df547b75c96a661-1.14-lb-blackhole--69075409298
+test-log-lb-blackhole--69075409298
+test-reports-083a7334755040f00df547b75c96a661-1.27-lb-blackhole--69075409293
+test-log-lb-blackhole--69075409293
+perf-reports-083a7334755040f00df547b75c96a661-1.16-lb-blackhole--69075409283
+test-reports-083a7334755040f00df547b75c96a661-1.16-lb-blackhole--69075409283
+test-log-lb-blackhole--69075409283
+perf-reports-083a7334755040f00df547b75c96a661-1.4-lb-blackhole--69075409253
+test-reports-083a7334755040f00df547b75c96a661-1.4-lb-blackhole--69075409253
+test-log-lb-blackhole--69075409253
+perf-reports-083a7334755040f00df547b75c96a661-1.11-lb-blackhole--69075409269
+test-reports-083a7334755040f00df547b75c96a661-1.11-lb-blackhole--69075409269
+test-log-lb-blackhole--69075409269
+test-reports-083a7334755040f00df547b75c96a661-1.20-lb-blackhole--69075409272
+test-log-lb-blackhole--69075409272
+perf-reports-083a7334755040f00df547b75c96a661-1.18-lb-blackhole--69075409270
+test-reports-083a7334755040f00df547b75c96a661-1.18-lb-blackhole--69075409270
+test-log-lb-blackhole--69075409270
+perf-reports-083a7334755040f00df547b75c96a661-1.19-lb-blackhole--69075409287
+test-reports-083a7334755040f00df547b75c96a661-1.19-lb-blackhole--69075409287
+test-log-lb-blackhole--69075409287
+test-reports-083a7334755040f00df547b75c96a661-1.21-lb-blackhole--69075409286
+test-log-lb-blackhole--69075409286
+perf-reports-083a7334755040f00df547b75c96a661-1.12-lb-blackhole--69075409267
+test-reports-083a7334755040f00df547b75c96a661-1.12-lb-blackhole--69075409267
+test-log-lb-blackhole--69075409267
+perf-reports-083a7334755040f00df547b75c96a661-1.5-lb-blackhole--69075409249
+test-reports-083a7334755040f00df547b75c96a661-1.5-lb-blackhole--69075409249
+test-log-lb-blackhole--69075409249
+perf-reports-083a7334755040f00df547b75c96a661-1.1-lb-blackhole--69075409248
+test-reports-083a7334755040f00df547b75c96a661-1.1-lb-blackhole--69075409248
+test-log-lb-blackhole--69075409248
+perf-reports-083a7334755040f00df547b75c96a661-1.0-lb-blackhole--69075409250
+test-reports-083a7334755040f00df547b75c96a661-1.0-lb-blackhole--69075409250
+test-log-lb-blackhole--69075409250
+perf-reports-083a7334755040f00df547b75c96a661-1.3-lb-blackhole--69075409238
+test-reports-083a7334755040f00df547b75c96a661-1.3-lb-blackhole--69075409238
+test-log-lb-blackhole--69075409238
+vllm-tt-whl-release-0c92545
+alchemist-lib-release-0c92545
+xla-whl-release-0c92545
+
+To see what failed, try: gh run view 23712685414 --log-failed
+View this run on GitHub: https://github.com/tenstorrent/tt-xla/actions/runs/23712685414
