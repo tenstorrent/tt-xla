@@ -23,13 +23,9 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    MULTILINGUAL_MINILMV2_L6_MNLI_XNLI = (
-        "MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli"
+    XLM_ROBERTA_LARGE_HUNGARIAN_BUDGET_CAP_V3 = (
+        "poltextlab/xlm-roberta-large-hungarian-budget-cap-v3"
     )
-    XLM_ROBERTA_LARGE_POOLED_CAP_MINOR_V5 = (
-        "poltextlab/xlm-roberta-large-pooled-cap-minor-v5"
-    )
-    XLM_ROBERTA_LARGE_SPEECH_CAP_OLD = "poltextlab/xlm-roberta-large-speech-cap-old"
 
 
 class ModelLoader(ForgeModel):
@@ -40,16 +36,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.MULTILINGUAL_MINILMV2_L6_MNLI_XNLI: LLMModelConfig(
-            pretrained_model_name="MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli",
-            max_length=128,
-        ),
-        ModelVariant.XLM_ROBERTA_LARGE_POOLED_CAP_MINOR_V5: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-pooled-cap-minor-v5",
-            max_length=128,
-        ),
-        ModelVariant.XLM_ROBERTA_LARGE_SPEECH_CAP_OLD: LLMModelConfig(
-            pretrained_model_name="poltextlab/xlm-roberta-large-speech-cap-old",
+        ModelVariant.XLM_ROBERTA_LARGE_HUNGARIAN_BUDGET_CAP_V3: LLMModelConfig(
+            pretrained_model_name="poltextlab/xlm-roberta-large-hungarian-budget-cap-v3",
             max_length=128,
         ),
     }
