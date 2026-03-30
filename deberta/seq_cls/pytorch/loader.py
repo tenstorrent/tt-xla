@@ -23,6 +23,7 @@ class ModelVariant(StrEnum):
 
     DEBERTA_XLARGE_MNLI = "XLarge_MNLI"
     DEV_AUTHOR_EM_CLF = "Dev_Author_EM_Clf"
+    DEBERTA_V3_PROMPT_GUARD = "V3_Prompt_Guard"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.DEV_AUTHOR_EM_CLF: ModelConfig(
             pretrained_model_name="evamxb/dev-author-em-clf",
+        ),
+        ModelVariant.DEBERTA_V3_PROMPT_GUARD: ModelConfig(
+            pretrained_model_name="dmasamba/deberta-v3-prompt-guard-mixed-v5",
         ),
     }
 
