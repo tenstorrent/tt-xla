@@ -18,7 +18,10 @@ import tracy
 import transformers
 from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
 from llm_utils.decode_utils import LLMSamplingWrapper
+<<<<<<< HEAD
 from loguru import logger
+=======
+>>>>>>> d4fe22d56 (Decode sampling on device for benchmark LLMs (#3972))
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
@@ -410,6 +413,7 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
+<<<<<<< HEAD
     # Apply per-tensor weight dtype overrides from model's weight_dtype_configs JSON.
     weight_dtype_config = model_loader.get_weight_dtype_config_path()
     if weight_dtype_config:
@@ -417,12 +421,15 @@ def benchmark_llm_torch_xla(
         logger.info(
             f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
         )
+=======
+>>>>>>> d4fe22d56 (Decode sampling on device for benchmark LLMs (#3972))
     # PERFORMANCE BENCHMARK
     # No logits returned to avoid OOM.
     perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
+<<<<<<< HEAD
     # Warmup run (skip in decode-only mode)
     if not decode_only:
         print("Warming up...")
@@ -435,6 +442,19 @@ def benchmark_llm_torch_xla(
             verbose=False,
             collect_logits=False,
         )
+=======
+    # Warmup run
+    print("Warming up...")
+    warmup_tokens = min(MIN_STEPS, max_output_tokens)
+    _, _ = generate_and_benchmark(
+        compiled_perf_model,
+        input_args,
+        device,
+        warmup_tokens,
+        verbose=False,
+        collect_logits=False,
+    )
+>>>>>>> d4fe22d56 (Decode sampling on device for benchmark LLMs (#3972))
 
         tracy.signpost("warmup_complete")
 
@@ -472,6 +492,43 @@ def benchmark_llm_torch_xla(
         tokenizer=tokenizer,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
+<<<<<<< HEAD
+=======
+    )
+
+    # ACCURACY BENCHMARK
+    # Logits moved to CPU each step to avoid OOM.
+    accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+    accuracy_wrapper.eval()
+    compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
+
+    accuracy_steps = max_output_tokens
+
+    # Reconstruct inputs for accuracy run
+    input_args = construct_inputs(
+        tokenizer,
+        model.config,
+        batch_size,
+        max_cache_len,
+        past_key_values=input_args["past_key_values"],
+        input_prompt=custom_input_prompt,
+        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+    )
+    input_args = transfer_to_device(input_args, device)
+
+    print(
+        f"\nStarting accuracy benchmark "
+        f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
+    )
+    output_logits, _ = generate_and_benchmark(
+        compiled_accuracy,
+        input_args,
+        device,
+        accuracy_steps,
+        verbose=False,
+        ground_truth_tokens=ground_truth_for_benchmark,
+        collect_logits=True,
+>>>>>>> d4fe22d56 (Decode sampling on device for benchmark LLMs (#3972))
     )
 
     # ACCURACY BENCHMARK
