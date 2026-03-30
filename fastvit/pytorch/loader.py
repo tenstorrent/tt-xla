@@ -36,20 +36,20 @@ class FastViTConfig(ModelConfig):
 class ModelVariant(StrEnum):
     """Available FastViT model variants."""
 
-    T12_APPLE_IN1K = "T12_Apple_IN1K"
+    S12_APPLE_IN1K = "S12_Apple_IN1K"
 
 
 class ModelLoader(ForgeModel):
     """FastViT model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.T12_APPLE_IN1K: FastViTConfig(
-            pretrained_model_name="hf_hub:timm/fastvit_t12.apple_in1k",
+        ModelVariant.S12_APPLE_IN1K: FastViTConfig(
+            pretrained_model_name="hf_hub:timm/fastvit_s12.apple_in1k",
             source=ModelSource.TIMM,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.T12_APPLE_IN1K
+    DEFAULT_VARIANT = ModelVariant.S12_APPLE_IN1K
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
