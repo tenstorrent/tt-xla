@@ -52,6 +52,7 @@ class ModelVariant(StrEnum):
     LLAMA_3_2_3B_INSTRUCT_AWQ = "3.2_3B_Instruct_Awq"
     LLAMA_3_2_3B_INSTRUCT_MLX_8BIT = "3.2_3B_Instruct_MLX_8bit"
     LLAMA_3_2_3B_BNB_4BIT = "3.2_3B_bnb_4bit"
+    LLAMA_3_2_3B_GPTQ_4BIT = "3.2_3B_Gptq_4bit"
 
     # Llama 3.3 variants
     LLAMA_3_3_70B_INSTRUCT = "3.3_70B_Instruct"
@@ -193,6 +194,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="unsloth/Llama-3.2-3B-bnb-4bit",
             max_length=128,
         ),
+        ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT: LLMModelConfig(
+            pretrained_model_name="sliuau/Llama-3.2-3B_4bits_128group_size",
+            max_length=128,
+        ),
         # RedHatAI FP8 quantized variants
         ModelVariant.LLAMA_3_2_1B_FP8: LLMModelConfig(
             pretrained_model_name="RedHatAI/Llama-3.2-1B-FP8",
@@ -323,6 +328,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_2_3B_INSTRUCT_MLX_8BIT,
             ModelVariant.LLAMA_3_2_3B_BNB_4BIT,
+            ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.TINYLLAMA_1_1B_CHAT_V0_3_AWQ,
             ModelVariant.FACEBOOK_LAYERSKIP_LLAMA_3_2_1B,
@@ -432,6 +438,7 @@ class ModelLoader(ForgeModel):
                 "AMead10/Llama-3.2-3B-Instruct-AWQ",
             )
             or self._variant == ModelVariant.LLAMA_3_2_3B_BNB_4BIT
+            or self._variant == ModelVariant.LLAMA_3_2_3B_GPTQ_4BIT
         ):
             model_kwargs["device_map"] = "cpu"
         if self._variant in self._NVFP4_VARIANTS:
