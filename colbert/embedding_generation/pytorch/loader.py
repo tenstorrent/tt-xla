@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ColBERTv2.0 model loader implementation for embedding generation.
+ColBERT model loader implementation for embedding generation.
 """
 
 import torch
@@ -24,6 +24,7 @@ from third_party.tt_forge_models.base import ForgeModel
 class ModelVariant(StrEnum):
     """Available ColBERT model variants for embedding generation."""
 
+    COLBERT_IR_COLBERTV1_9 = "colbert-ir/colbertv1.9"
     COLBERT_IR_COLBERTV2_0 = "colbert-ir/colbertv2.0"
     ANSWERAI_COLBERT_SMALL_V1 = "answerdotai/answerai-colbert-small-v1"
     NEUML_COLBERT_BERT_TINY = "NeuML/colbert-bert-tiny"
@@ -33,6 +34,10 @@ class ModelLoader(ForgeModel):
     """ColBERT model loader implementation for embedding generation."""
 
     _VARIANTS = {
+        ModelVariant.COLBERT_IR_COLBERTV1_9: LLMModelConfig(
+            pretrained_model_name="colbert-ir/colbertv1.9",
+            max_length=32,
+        ),
         ModelVariant.COLBERT_IR_COLBERTV2_0: LLMModelConfig(
             pretrained_model_name="colbert-ir/colbertv2.0",
             max_length=32,
@@ -85,7 +90,7 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load ColBERTv2.0 model from Hugging Face.
+        """Load ColBERT model from Hugging Face.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
