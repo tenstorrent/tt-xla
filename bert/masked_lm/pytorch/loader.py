@@ -35,11 +35,13 @@ class ModelVariant(StrEnum):
     LEGAL_BERT_BASE_UNCASED = "nlpaueb/legal-bert-base-uncased"
     BERT_BASE_TURKISH_128K_UNCASED = "dbmdz/bert-base-turkish-128k-uncased"
     BERT_BASE_ARABIC = "asafaya/bert-base-arabic"
+    MEDBERT_512_NO_DUPLICATES = "GerMedBERT/medbert-512-no-duplicates"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.BERT_BASE_TURKISH_128K_UNCASED: "Türkiye'nin başkenti [MASK] şehridir.",
     ModelVariant.BERT_BASE_ARABIC: "عاصمة فرنسا هي [MASK].",
+    ModelVariant.MEDBERT_512_NO_DUPLICATES: "Der Patient wurde mit [MASK] diagnostiziert.",
 }
 
 
@@ -88,6 +90,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="asafaya/bert-base-arabic",
             max_length=128,
         ),
+        ModelVariant.MEDBERT_512_NO_DUPLICATES: LLMModelConfig(
+            pretrained_model_name="GerMedBERT/medbert-512-no-duplicates",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -134,6 +140,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LEGAL_BERT_BASE_UNCASED,
             ModelVariant.BERT_BASE_TURKISH_128K_UNCASED,
             ModelVariant.BERT_BASE_ARABIC,
+            ModelVariant.MEDBERT_512_NO_DUPLICATES,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
