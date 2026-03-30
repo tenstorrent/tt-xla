@@ -105,7 +105,7 @@ class ModelLoader(ForgeModel):
 
     def decode_output(self, outputs, dtype_override=None):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override)
+            self._load_tokenizer()
 
         next_token_logits = outputs.logits[:, -1]
         next_token = next_token_logits.softmax(dim=-1).argmax()
