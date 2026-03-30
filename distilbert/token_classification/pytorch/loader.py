@@ -25,10 +25,18 @@ class ModelVariant(StrEnum):
     DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL = (
         "Davlan/distilbert-base-multilingual-cased-ner-hrl"
     )
-    OPENMED_NER_ONCOLOGY_DETECT = "OpenMed_NER_OncologyDetect_TinyMed_66M"
-    OPENMED_NER_GENOMIC_DETECT = "OpenMed_NER_GenomicDetect_TinyMed_135M"
-    D4DATA_BIOMEDICAL_NER_ALL = "d4data/biomedical-ner-all"
-    NARGIZI_SCREEVE_POSTAGGER = "Nargizi/screeve-postagger"
+    NLPIE_CLINICAL_DISTILBERT_I2B2_2010 = "nlpie/clinical-distilbert-i2b2-2010"
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL: "HuggingFace is a company based in Paris and New York",
+    ModelVariant.NLPIE_CLINICAL_DISTILBERT_I2B2_2010: "The patient was diagnosed with diabetes and prescribed metformin",
+}
+
+_VARIANT_MODEL_GROUPS = {
+    ModelVariant.DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL: ModelGroup.GENERALITY,
+    ModelVariant.NLPIE_CLINICAL_DISTILBERT_I2B2_2010: ModelGroup.VULCAN,
+}
 
 
 class ModelLoader(ForgeModel):
@@ -40,20 +48,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="Davlan/distilbert-base-multilingual-cased-ner-hrl",
             max_length=128,
         ),
-        ModelVariant.OPENMED_NER_ONCOLOGY_DETECT: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-OncologyDetect-TinyMed-66M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_NER_GENOMIC_DETECT: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-GenomicDetect-TinyMed-135M",
-            max_length=128,
-        ),
-        ModelVariant.D4DATA_BIOMEDICAL_NER_ALL: LLMModelConfig(
-            pretrained_model_name="d4data/biomedical-ner-all",
-            max_length=128,
-        ),
-        ModelVariant.NARGIZI_SCREEVE_POSTAGGER: LLMModelConfig(
-            pretrained_model_name="Nargizi/screeve-postagger",
+        ModelVariant.NLPIE_CLINICAL_DISTILBERT_I2B2_2010: LLMModelConfig(
+            pretrained_model_name="nlpie/clinical-distilbert-i2b2-2010",
             max_length=128,
         ),
     }
@@ -93,24 +89,28 @@ class ModelLoader(ForgeModel):
         self.model_name = pretrained_model_name
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.sample_text = self._SAMPLE_TEXTS[self._variant]
-
-    _VARIANT_GROUPS = {
-        ModelVariant.DAVLAN_DISTILBERT_BASE_MULTILINGUAL_CASED_NER_HRL: ModelGroup.GENERALITY,
-        ModelVariant.OPENMED_NER_ONCOLOGY_DETECT: ModelGroup.VULCAN,
-        ModelVariant.OPENMED_NER_GENOMIC_DETECT: ModelGroup.VULCAN,
-        ModelVariant.D4DATA_BIOMEDICAL_NER_ALL: ModelGroup.VULCAN,
-        ModelVariant.NARGIZI_SCREEVE_POSTAGGER: ModelGroup.VULCAN,
-    }
+        self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
+            self._variant_name,
+            "HuggingFace is a company based in Paris and New York",
+        )
 
     @classmethod
-    def _get_model_info(cls, variant=None):
-        if variant is None:
-            variant = cls.DEFAULT_VARIANT
+    def _get_model_info(cls, variant_name: str = None):
+        """Get model information for dashboard and metrics reporting.
+
+        Args:
+            variant_name: Optional variant name string. If None, uses 'base'.
+
+        Returns:
+            ModelInfo: Information about the model and variant
+        """
+        if variant_name is None:
+            variant_name = "base"
+        group = _VARIANT_MODEL_GROUPS.get(variant_name, ModelGroup.GENERALITY)
         return ModelInfo(
             model="DistilBERT",
-            variant=variant,
-            group=cls._VARIANT_GROUPS.get(variant, ModelGroup.GENERALITY),
+            variant=variant_name,
+            group=group,
             task=ModelTask.NLP_TOKEN_CLS,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
