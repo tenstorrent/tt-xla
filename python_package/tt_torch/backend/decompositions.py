@@ -392,6 +392,12 @@ def populate_decompositions() -> DecompositionTable:
     # TorchXLA handles dot correctly anyway, so we don't need to decompose it.
     decompositions.pop(torch.ops.aten.dot.default)
 
+    # Sum decompositions were causing a different shape to appear for final reduced loss in a backward test([18] vs [])
+    # And subsequently caused shape mismatch errors in the backward pass.
+    # Same story as above, TorchXLA handles sum correctly anyway, so we don't need to decompose it.
+    decompositions.pop(torch.ops.aten.sum.default)
+    decompositions.pop(torch.ops.aten.sum.out)
+
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())
 
