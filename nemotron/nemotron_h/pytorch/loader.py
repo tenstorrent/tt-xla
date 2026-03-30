@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     NEMOTRON_H_4B_INSTRUCT_128K = "H_4B_Instruct_128K"
     NEMOTRON_NANO_9B_V2_FP8_DYNAMIC = "Nano_9B_v2_FP8_dynamic"
     NEMOTRON_NANO_12B_V2 = "Nano_12B_v2"
+    NEMOTRON_NANO_12B_V2_BASE = "Nano_12B_v2_Base"
 
 
 class ModelLoader(ForgeModel):
@@ -43,6 +44,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.NEMOTRON_NANO_12B_V2: LLMModelConfig(
             pretrained_model_name="nvidia/NVIDIA-Nemotron-Nano-12B-v2",
+            max_length=128,
+        ),
+        ModelVariant.NEMOTRON_NANO_12B_V2_BASE: LLMModelConfig(
+            pretrained_model_name="nvidia/NVIDIA-Nemotron-Nano-12B-v2-Base",
             max_length=128,
         ),
     }
@@ -112,15 +117,20 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [{"role": "user", "content": self.sample_text}]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
+        # Base models use plain text; chat models use chat template
+        if self._variant in (ModelVariant.NEMOTRON_NANO_12B_V2_BASE,):
+            prompts = [self.sample_text]
+        else:
+            messages = [{"role": "user", "content": self.sample_text}]
+            text = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            prompts = [text]
 
         inputs = self.tokenizer(
-            [text],
+            prompts,
             return_tensors="pt",
             padding="max_length",
             truncation=True,
