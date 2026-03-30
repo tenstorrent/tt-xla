@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available InternVL3 model variants."""
 
     INTERN_VL3_38B = "38B"
+    INTERN_VL3_78B_AWQ = "78B_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.INTERN_VL3_38B: LLMModelConfig(
             pretrained_model_name="OpenGVLab/InternVL3-38B",
+        ),
+        ModelVariant.INTERN_VL3_78B_AWQ: LLMModelConfig(
+            pretrained_model_name="OpenGVLab/InternVL3-78B-AWQ",
         ),
     }
 
