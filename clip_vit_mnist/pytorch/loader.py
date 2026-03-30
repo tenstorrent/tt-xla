@@ -86,7 +86,7 @@ class ModelLoader(ForgeModel):
         """
         if self.processor is None:
             self.processor = CLIPImageProcessor.from_pretrained(
-                self._variant_config.pretrained_model_name
+                "openai/clip-vit-base-patch32"
             )
 
         dataset = load_dataset("huggingface/cats-image")["test"]
