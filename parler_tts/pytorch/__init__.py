@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Parler-TTS PyTorch model implementation for Tenstorrent projects.
+Parler-TTS Mini v1.1 PyTorch model implementation for Tenstorrent projects.
 """
 from .loader import ModelLoader, ModelVariant
