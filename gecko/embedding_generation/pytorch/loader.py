@@ -113,7 +113,6 @@ class ModelLoader(ForgeModel):
     def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the Gecko model."""
         import sentencepiece as spm
-        from huggingface_hub import hf_hub_download
 
         repo_id = self._variant_config.pretrained_model_name
 
