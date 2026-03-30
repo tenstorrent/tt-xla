@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -13,7 +13,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from ....base import ForgeModel
 from ....config import (
     Framework,
-    ModelConfig,
+    LLMModelConfig,
     ModelGroup,
     ModelInfo,
     ModelSource,
@@ -32,7 +32,7 @@ class ModelLoader(ForgeModel):
     """Jamba model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.JAMBA_V01: ModelConfig(
+        ModelVariant.JAMBA_V01: LLMModelConfig(
             pretrained_model_name="ai21labs/Jamba-v0.1",
         ),
     }
