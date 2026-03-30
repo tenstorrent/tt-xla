@@ -8,7 +8,7 @@ Loads the GGUF-quantized DiT transformer from babakarto/z-image-base-gguf.
 """
 
 import torch
-from diffusers import GGUFQuantizationConfig, ZImagePipeline
+from diffusers import GGUFQuantizationConfig
 from diffusers.models import ZImageTransformer2DModel
 from typing import Optional
 
@@ -24,7 +24,6 @@ from ...config import (
 )
 
 REPO_ID = "babakarto/z-image-base-gguf"
-PIPELINE_REPO_ID = "Tongyi-MAI/Z-Image"
 
 
 class ModelVariant(StrEnum):
