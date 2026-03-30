@@ -309,7 +309,14 @@ def test_kimi_k2_layer_sparse_moe():
     config = DeepseekV3Config.from_json_file(config_path)
     config._attn_implementation = "eager"
     config.num_hidden_layers = 2
-
+    
+    # config reductions -> 384->16 routed experts, 8->2 experts per token, 2048->512 moe intermediate size, 7168->1024 hidden size, 18432->2048 intermediate size
+    config.n_routed_experts = 64
+    config.num_experts_per_tok = 2
+    config.moe_intermediate_size = 512
+    config.hidden_size = 1024
+    config.intermediate_size = 2048
+    
     layer = DeepseekV3DecoderLayer(config, layer_idx=1)
     layer = layer.eval().to(torch.bfloat16)
 
