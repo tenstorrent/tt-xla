@@ -2,34 +2,56 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-MusicGen Stereo Medium model loader implementation for stereo music generation
+MusicGen Stereo Medium model loader implementation for stereo music generation.
+
+Loads facebook/musicgen-stereo-medium, a 1.5B parameter auto-regressive
+Transformer that generates stereo music from text descriptions.
 """
+
+from typing import Optional
+
 import torch
 from transformers import AutoProcessor, MusicgenForConditionalGeneration
 
 from ...base import ForgeModel
 from ...config import (
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
+    StrEnum,
 )
 
 
-class ModelLoader(ForgeModel):
-    """MusicGen Stereo Medium model loader implementation."""
+class ModelVariant(StrEnum):
+    """Available MusicGen Stereo Medium model variants."""
 
-    def __init__(self, variant=None):
+    MUSICGEN_STEREO_MEDIUM = "MusicGen_Stereo_Medium"
+
+
+class ModelLoader(ForgeModel):
+    """MusicGen Stereo Medium model loader implementation for stereo music generation."""
+
+    _VARIANTS = {
+        ModelVariant.MUSICGEN_STEREO_MEDIUM: ModelConfig(
+            pretrained_model_name="facebook/musicgen-stereo-medium",
+        ),
+    }
+
+    DEFAULT_VARIANT = ModelVariant.MUSICGEN_STEREO_MEDIUM
+
+    def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.model_name = "facebook/musicgen-stereo-medium"
         self.processor = None
         self.model = None
 
     @classmethod
-    def _get_model_info(cls, variant=None):
+    def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
-            variant = "base"
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="MusicGen Stereo Medium",
             variant=variant,
@@ -40,14 +62,16 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        self.processor = AutoProcessor.from_pretrained(self.model_name)
+        self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
         self.model = MusicgenForConditionalGeneration.from_pretrained(
-            self.model_name, **model_kwargs
+            pretrained_model_name, **model_kwargs
         )
         return self.model
 
