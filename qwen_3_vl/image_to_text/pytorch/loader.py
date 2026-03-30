@@ -32,6 +32,7 @@ class ModelVariant(StrEnum):
     QWEN_3_VL_2B_THINKING = "2b_thinking"
     QWEN_3_VL_4B_INSTRUCT = "4b_instruct"
     QWEN_3_VL_4B_THINKING = "4b_thinking"
+    QWEN_3_VL_4B_THINKING_FP8 = "4b_thinking_fp8"
     QWEN_3_VL_8B_INSTRUCT = "8b_instruct"
     QWEN_3_VL_8B_INSTRUCT_FP8 = "8b_instruct_fp8"
     QWEN_3_VL_8B_THINKING_FP8 = "8b_thinking_fp8"
@@ -60,6 +61,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_VL_4B_THINKING: LLMModelConfig(
             pretrained_model_name="Qwen/Qwen3-VL-4B-Thinking",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_VL_4B_THINKING_FP8: LLMModelConfig(
+            pretrained_model_name="Qwen/Qwen3-VL-4B-Thinking-FP8",
             max_length=128,
         ),
         ModelVariant.QWEN_3_VL_8B_INSTRUCT: LLMModelConfig(
@@ -133,6 +138,7 @@ class ModelLoader(ForgeModel):
             ModelGroup.VULCAN
             if variant
             in (
+                ModelVariant.QWEN_3_VL_4B_THINKING_FP8,
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT,
                 ModelVariant.QWEN_3_VL_8B_INSTRUCT_FP8,
                 ModelVariant.QWEN_3_VL_8B_THINKING_FP8,
