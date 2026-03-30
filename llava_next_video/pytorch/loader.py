@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     """Available LLaVA-NeXT-Video model variants."""
 
     TINY_RANDOM = "tiny_random"
+    LLAVA_NEXT_VIDEO_7B = "LLaVA_NeXT_Video_7B"
 
 
 class ModelLoader(ForgeModel):
@@ -42,9 +43,12 @@ class ModelLoader(ForgeModel):
         ModelVariant.TINY_RANDOM: ModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-llava-next-video",
         ),
+        ModelVariant.LLAVA_NEXT_VIDEO_7B: ModelConfig(
+            pretrained_model_name="llava-hf/LLaVA-NeXT-Video-7B-hf",
+        ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
+    DEFAULT_VARIANT = ModelVariant.LLAVA_NEXT_VIDEO_7B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize LLaVA-NeXT-Video model loader."""
@@ -66,16 +70,19 @@ class ModelLoader(ForgeModel):
 
     def _load_processor(self):
         model_name = self._variant_config.pretrained_model_name
-        image_processor = LlavaNextImageProcessor.from_pretrained(model_name)
-        video_processor = LlavaNextVideoVideoProcessor.from_pretrained(model_name)
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.processor = LlavaNextVideoProcessor(
-            video_processor=video_processor,
-            image_processor=image_processor,
-            tokenizer=tokenizer,
-            patch_size=2,
-            vision_feature_select_strategy="default",
-        )
+        if self._variant == ModelVariant.TINY_RANDOM:
+            image_processor = LlavaNextImageProcessor.from_pretrained(model_name)
+            video_processor = LlavaNextVideoVideoProcessor.from_pretrained(model_name)
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.processor = LlavaNextVideoProcessor(
+                video_processor=video_processor,
+                image_processor=image_processor,
+                tokenizer=tokenizer,
+                patch_size=2,
+                vision_feature_select_strategy="default",
+            )
+        else:
+            self.processor = LlavaNextVideoProcessor.from_pretrained(model_name)
         return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
@@ -99,10 +106,24 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        text_prompt = "<video>\nWhat is shown in this video?"
-
-        # Create a small synthetic video (8 frames of 32x32 RGB)
-        video = np.random.randint(0, 255, (8, 32, 32, 3), dtype=np.uint8)
+        if self._variant == ModelVariant.TINY_RANDOM:
+            text_prompt = "<video>\nWhat is shown in this video?"
+            video = np.random.randint(0, 255, (8, 32, 32, 3), dtype=np.uint8)
+        else:
+            conversation = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "video"},
+                        {"type": "text", "text": "What is shown in this video?"},
+                    ],
+                }
+            ]
+            text_prompt = self.processor.apply_chat_template(
+                conversation, add_generation_prompt=True
+            )
+            # Create a synthetic video (8 frames of 224x224 RGB)
+            video = np.random.randint(0, 255, (8, 224, 224, 3), dtype=np.uint8)
 
         inputs = self.processor(text=text_prompt, videos=video, return_tensors="pt")
 
