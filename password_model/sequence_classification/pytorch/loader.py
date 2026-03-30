@@ -5,7 +5,6 @@
 SAP Password Model loader implementation for sequence classification.
 """
 
-import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from third_party.tt_forge_models.config import (
     ModelInfo,
