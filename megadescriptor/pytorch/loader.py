@@ -33,6 +33,7 @@ class MegaDescriptorConfig(ModelConfig):
 class ModelVariant(StrEnum):
     """Available MegaDescriptor model variants."""
 
+    T_224 = "T_224"
     L_384 = "L_384"
 
 
@@ -40,6 +41,10 @@ class ModelLoader(ForgeModel):
     """MegaDescriptor model loader implementation."""
 
     _VARIANTS = {
+        ModelVariant.T_224: MegaDescriptorConfig(
+            pretrained_model_name="hf_hub:BVRA/MegaDescriptor-T-224",
+            source=ModelSource.TIMM,
+        ),
         ModelVariant.L_384: MegaDescriptorConfig(
             pretrained_model_name="hf_hub:BVRA/MegaDescriptor-L-384",
             source=ModelSource.TIMM,
