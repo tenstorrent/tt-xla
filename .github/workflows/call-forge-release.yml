@@ -33,7 +33,7 @@ jobs:
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -46,12 +46,12 @@ jobs:
           password: ${{ github.token }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.12
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
           aws-region: ${{ secrets.AWS_REGION }}
@@ -105,7 +105,7 @@ jobs:
           echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: tenstorrent/tt-forge
           path: tt-forge
@@ -144,8 +144,14 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            Install via pypi
-            pip install tt-forge==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            ### Installation
 
-            Pull docker image
+            #### Via PyPI
+            ```bash
+            pip install tt-forge==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            ```
+
+            #### Via Docker
+            ```bash
             docker pull ${{ steps.build-docker.outputs.docker_image_base }}:${{ inputs.release_tag }}
+            ```

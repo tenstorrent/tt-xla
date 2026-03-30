@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ secrets.TT_XLA_RELEASER }}
@@ -90,9 +90,15 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            Install via pypi
+            ### Installation
+
+            #### Via PyPI
+            ```bash
             pip install pjrt-plugin-tt==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
             pip install vllm-tt==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            ```
 
-            Pull docker image
+            #### Via Docker
+            ```bash
             docker pull ${{ inputs.docker_image_base }}:${{ inputs.release_tag }}
+            ```

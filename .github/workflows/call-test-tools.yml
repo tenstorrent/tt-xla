@@ -44,11 +44,12 @@ jobs:
           git config --global --add safe.directory /__w/tt-xla/tt-xla
           git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
+          sparse-checkout-cone-mode: false
           sparse-checkout: |
-            examples/pytorch
+            examples/pytorch/
 
       - name: Set reusable strings
         id: strings
@@ -60,7 +61,7 @@ jobs:
           echo "tracy-artifacts-dir=$(pwd)/.tracy_artifacts" >> "$GITHUB_OUTPUT"
 
       - name: Download wheel artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ${{ inputs.wheel_artifact_name }}
           path: wheels
@@ -119,7 +120,7 @@ jobs:
           tracy --sync-host-device -r -p -v examples/pytorch/mnist.py
 
       - name: Upload tracy artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: tracy-artifacts-${{ github.run_id }}

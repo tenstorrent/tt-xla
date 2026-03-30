@@ -184,11 +184,13 @@ private:
   collectResultPresharded(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Runs compiler StableHLO pipeline on the MLIR module.
-  tt_pjrt_status
-  runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                               const std::vector<int64_t> &result_presharded,
-                               const std::optional<std::string> &export_path,
-                               const std::string &model_name = "");
+  tt_pjrt_status runCompilerStableHLOPipeline(
+      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      const std::vector<int64_t> &result_presharded,
+      const std::optional<std::string> &export_path,
+      const std::string &model_name = "",
+      const std::optional<std::vector<uint32_t>> &current_mesh_shape =
+          std::nullopt);
 
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status

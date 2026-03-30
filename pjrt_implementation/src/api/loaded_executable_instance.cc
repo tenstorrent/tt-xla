@@ -12,7 +12,6 @@
 #include "tt/runtime/types.h"
 
 // c++ standard library includes
-#include <cassert>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
@@ -35,6 +34,7 @@
 #include "api/error_instance.h"
 #include "api/executable_image.h"
 #include "api/executable_instance.h"
+#include "utils/assert.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -62,6 +62,10 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Execute = internal::onLoadedExecutableExecute;
 }
 
+bool LoadedExecutableInstance::isCompileOnly() const {
+  return m_client_instance->isCompileOnly();
+}
+
 bool LoadedExecutableInstance::isDeleted() {
   std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
   return m_deleted;
@@ -86,8 +90,8 @@ void LoadedExecutableInstance::dumpInputs(
     const std::vector<tt::runtime::Tensor> &input_tensors) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::dumpInputs");
 
-  assert(m_executable_image->getCompileOptions().export_path.has_value() &&
-         "Export path must be set when dumping inputs");
+  TT_FATAL(m_executable_image->getCompileOptions().export_path.has_value(),
+           "Export path must be set when dumping inputs");
 
   std::filesystem::path dump_dir =
       std::filesystem::path(
@@ -159,7 +163,8 @@ std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
   // TODO: Now we will run only on the first one, but this should be somehow
   // explicit. Maybe use `execute_device` from the args?
   if (device_ids.size() == 0) {
-    assert(!m_addressable_devices.empty());
+    TT_FATAL(!m_addressable_devices.empty(),
+             "No addressable devices available");
     device_ids.emplace(m_addressable_devices.front()->getGlobalDeviceId());
   }
 
@@ -224,7 +229,9 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
     }
   } else if (meshType == mlir::tt::ttcore::MeshShardType::Devices) {
     llvm::SmallVector<int64_t> mesh_shape_data = meshSharding.getMeshShape();
-    assert(mesh_shape_data.size() <= 2 && mesh_shape_data.size() >= 1);
+    TT_FATAL(mesh_shape_data.size() <= 2 && mesh_shape_data.size() >= 1,
+             "Mesh shape data size must be 1 or 2: mesh_shape_data.size()={}",
+             mesh_shape_data.size());
     if (mesh_shape_data.size() == 1) {
       strategy["strategy"] = "shard";
       strategy["shard_dim"] = std::to_string(mesh_shape_data[0]);
@@ -319,9 +326,16 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
 
-  tt_pjrt_status status =
-      LoadedExecutableInstance::unwrap(args->executable)->execute(args);
+  LoadedExecutableInstance *instance =
+      LoadedExecutableInstance::unwrap(args->executable);
 
+  if (instance->isCompileOnly()) {
+    LOG_F(ERROR, "Early aborting execution in compile-only mode "
+                 "(TT_COMPILE_ONLY_SYSTEM_DESC is set).");
+    return *ErrorInstance::makeError(tt_pjrt_status::kInternal).release();
+  }
+
+  tt_pjrt_status status = instance->execute(args);
   return *ErrorInstance::makeError(status).release();
 }
 

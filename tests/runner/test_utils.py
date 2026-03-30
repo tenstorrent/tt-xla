@@ -32,6 +32,19 @@ from third_party.tt_forge_models.config import Parallelism
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
+class ResolvedFailingReason:
+    def __init__(self, name: str, description: str, component=None, summary=None):
+        self.name = name
+        self.summary = summary
+
+        class Value:
+            def __init__(self, description, component):
+                self.description = description
+                self.component_checker_description = component
+
+        self.value = Value(description, component)
+
+
 # Optional hint that selects a non-default execution/input-loading phase.
 # Today this is only used to distinguish LLM prefill vs decode; in the future it may
 # be extended to other model families (e.g., vision) if they need phase-specific inputs.
@@ -261,7 +274,22 @@ def update_test_metadata_for_exception(
     runtime_reason = detailed_error if detailed_error else message
 
     setattr(test_metadata, "runtime_reason", runtime_reason)
-    setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+
+    if (
+        exception_reason.failing_reasons is not None
+        and exception_reason.failing_reasons.name != "UNCLASSIFIED"
+    ):
+        setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+    else:
+        failing_reason_obj = ResolvedFailingReason(
+            name=type(exc).__name__,
+            description=runtime_reason,
+            component=None,
+            summary=exception_reason.summary,
+        )
+
+        setattr(test_metadata, "failing_reason", failing_reason_obj)
+
     setattr(test_metadata, "failing_reason_summary", exception_reason.summary)
 
 

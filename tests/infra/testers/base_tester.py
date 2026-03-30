@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from infra.evaluators import (
     ComparisonConfig,
@@ -36,6 +36,7 @@ class BaseTester(ABC):
         quality_config: Optional[QualityConfig] = None,
         metric_names: Optional[List[str]] = None,
         metric_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
+        custom_comparator: Optional[Callable] = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
         self._evaluator_type = evaluator_type
@@ -48,6 +49,10 @@ class BaseTester(ABC):
         )
         self._metric_names = metric_names
         self._metric_kwargs = metric_kwargs
+        # A custom comparator function that takes in the following arguments:
+        # (device_output, golden_output, args, kwargs) and contains just asserts to
+        # verify the correctness of the output. It is expected to be a void function.
+        self._custom_comparator = custom_comparator
 
         # Placeholders for objects that will be set during
         # `_initialize_framework_specific_helpers`. Easier to spot if located in

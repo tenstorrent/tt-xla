@@ -27,15 +27,6 @@ class CompilerConfig:
     #     * Memory layout optimizations (sharding)
     optimization_level: int = 0
 
-    # Enables automatic MLIR graph conversion into block fp8 format. This is
-    # supported only when the graph is in bfloat16 format, to avoid loss in precision.
-    # Final graph will have input and output nodes in bfloat16 and everything
-    # else in bfp8. Essentially adding type casts at the beginning and in the end
-    # of the graph, while all intermediate results are in bfp8. This bfloat16
-    # wrapping is done because block formats are TT hardware specific, and user
-    # should provide and get tensors of common dtype.
-    enable_bfp8_conversion: bool = False
-
     # Target dtype for weight conversion in matmul and linear operations.
     # Valid values: "", "bfp8", "bfp4". Empty string disables.
     experimental_weight_dtype: str = ""
@@ -64,11 +55,6 @@ class CompilerConfig:
     # some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
     experimental_enable_permute_matmul_fusion: bool = True
 
-    # Enables hoisting const-eval subgraphs to CPU module. When enabled, const-eval
-    # operations are hoisted to be executed on the CPU instead of being executed
-    # on the device.
-    enable_const_eval_on_cpu: bool = False
-
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
@@ -95,9 +81,6 @@ class CompilerConfig:
         if self.optimization_level:
             options["optimization_level"] = str(self.optimization_level)
 
-        if self.enable_bfp8_conversion:
-            options["enable_bfp8_conversion"] = "true"
-
         if self.experimental_weight_dtype:
             options["experimental_weight_dtype"] = self.experimental_weight_dtype
 
@@ -112,9 +95,6 @@ class CompilerConfig:
 
         if not self.experimental_enable_permute_matmul_fusion:
             options["experimental_enable_permute_matmul_fusion"] = "false"
-
-        if self.enable_const_eval_on_cpu:
-            options["enable_const_eval_on_cpu"] = "true"
 
         if self.enable_trace:
             options["enable_trace"] = "true"

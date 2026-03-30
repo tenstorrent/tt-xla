@@ -11,7 +11,7 @@
       "df": "bfloat16",
       "lp": 128,
       "ts": "na",
-      "libreq": "libgl1-mesa-glx libglib2.0-0",
+      "libreq": "libgl1 libglib2.0-0",
       "skip-ttir-dump": false,
       "skip-ttnn-dump": false,
       "skip-device-perf": false
@@ -181,6 +181,18 @@
         "pyreq": "datasets loguru pytest requests accelerate torch==2.9.0 tqdm transformers==4.57.1",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_batch_size_1",
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "test_gpt_oss_20b_tp_galaxy_batch_size_64",
+        "pyreq": "datasets loguru pytest requests accelerate torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_galaxy_batch_size_64",
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "test_gpt_oss_120b_tp_galaxy_batch_size_64",
+        "pyreq": "datasets loguru pytest requests accelerate torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_galaxy_batch_size_64",
+        "runs-on": "galaxy-wh-6u"
       },
       {
         "name": "microsoft_phi-1",
@@ -413,6 +425,28 @@
         "pyreq": "datasets loguru pytest requests torch==2.9.0 tqdm transformers==4.57.1",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b",
         "accuracy-testing": true
+      },
+      {
+        "name": "vllm_llama_3_2_3b",
+        "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.6 vllm==0.16.0",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_llama_3_2_3b_batch32",
+        "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.6 vllm==0.16.0",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b-batch32]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
       }
     ]
   }

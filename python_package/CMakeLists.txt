@@ -41,7 +41,7 @@ install(CODE "
     list(GET TTNN_SO_FILES 0 TTNN_SO_SOURCE)
     message(STATUS \"Fixing RPATH for _ttnn.so: \${TTNN_SO_SOURCE}\")
     execute_process(
-      COMMAND \"${PATCHELF}\" --add-rpath \"\$ORIGIN/../../pjrt_plugin_tt/lib\" \"\${TTNN_SO_SOURCE}\"
+      COMMAND \"${PATCHELF}\" --add-rpath \"\$ORIGIN/../../pjrt_plugin_tt/lib:\$ORIGIN/../../pjrt_plugin_tt/lib64\" \"\${TTNN_SO_SOURCE}\"
       COMMAND_ERROR_IS_FATAL ANY
     )
   else()

@@ -18,7 +18,6 @@ from infra.utilities import (
     Tensor,
     compile_jax_workload_for_cpu,
     compile_jax_workload_for_tt_device,
-    compile_torch_workload_for_cpu,
     compile_torch_workload_for_tt_device,
     random_tensor,
     sanitize_test_name,
@@ -41,6 +40,7 @@ class OpTester(BaseTester):
         framework: Framework = Framework.JAX,
         compiler_config: CompilerConfig = None,
         torch_options: dict = None,
+        custom_comparator: Optional[Callable] = None,
     ) -> None:
         """Protected constructor for subclasses to use."""
         if compiler_config is None:
@@ -56,6 +56,7 @@ class OpTester(BaseTester):
             evaluator_type="comparison",
             comparison_config=comparison_config,
             framework=framework,
+            custom_comparator=custom_comparator,
         )
 
     def test(self, workload: Workload, request=None) -> None:
@@ -65,15 +66,16 @@ class OpTester(BaseTester):
         cpu_workload = workload
         if self._framework == Framework.JAX:
             compile_jax_workload_for_cpu(cpu_workload)
-        else:
-            compile_torch_workload_for_cpu(cpu_workload)
         cpu_res = self._device_runner.run_on_cpu(cpu_workload)
 
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
-        self._evaluator.evaluate(tt_res, cpu_res)
+        if self._custom_comparator is not None:
+            self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
+        else:
+            self._evaluator.evaluate(tt_res, cpu_res)
 
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
@@ -187,6 +189,7 @@ def run_op_test(
     mesh: Optional[Mesh] = None,
     shard_spec_fn: Optional[Callable] = None,
     request=None,
+    custom_comparator: Optional[Callable] = None,
 ) -> None:
     """
     Tests `op` with `inputs` by running it on TT device and CPU and comparing the
@@ -194,7 +197,12 @@ def run_op_test(
     """
     if compiler_config is None:
         compiler_config = CompilerConfig()
-    tester = OpTester(comparison_config, framework, compiler_config=compiler_config)
+    tester = OpTester(
+        comparison_config,
+        framework,
+        compiler_config=compiler_config,
+        custom_comparator=custom_comparator,
+    )
     if framework == Framework.TORCH:
         workload = TorchWorkload(
             model=op, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn
@@ -215,6 +223,7 @@ def run_op_test_with_random_inputs(
     compiler_config: CompilerConfig = None,
     torch_options: dict = None,
     request=None,
+    custom_comparator: Optional[Callable] = None,
 ) -> None:
     """
     Tests `op` with random inputs in range [`minval`, `maxval`) by running it on
@@ -227,6 +236,7 @@ def run_op_test_with_random_inputs(
         framework,
         compiler_config=compiler_config,
         torch_options=torch_options,
+        custom_comparator=custom_comparator,
     )
     tester.test_with_random_inputs(
         op, input_shapes, minval, maxval, dtype, request=request
