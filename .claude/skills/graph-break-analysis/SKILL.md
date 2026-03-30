@@ -22,7 +22,7 @@ Common misconception is that different mlir modules are graph breaks. This is no
 - If user's log doesn't meet these criteria, don't proceed with analysis and first run the actual model script. Ask the user for the concrete script that he used and optionally arguments.
 - The user must run a model script and dump outputs into a single log file <file>.log
 - The user must have used tt-xla repo that is built in debug mode. Use `grep CMAKE_BUILD_TYPE build/CMakeCache.txt` and see if you get "Debug". If empty or "Release", you can't use that log.
-- The user must run (has ran) the script with following flags `TORCH_LOGS="+dynamo" XLA_HLO_DEBUG=1`. Go through the log file and find out if that is the case. 
+- The user must run (has ran) the script with following flags `TORCH_LOGS="+dynamo" XLA_HLO_DEBUG=1`. Go through the log file and find out if that is the case.
 - `TORCH_LOGS="+dynamo"`: example of the lines you will see in the log: "venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py", "venv/lib/python3.12/site-packages/torch/_dynamo/", "symbolic_convert.py", "Step 1: torchdynamo start tracing forward /root/tt-xla/graph_break_demo.py", "TRACE starts_line". If these are present you have this variable enabled, if not, then not.
 - `XLA_HLO_DEBUG=1`: example of the lines you will see in the log: loc("/path/to/tt-xla/venv/lib/python3.12/site-packages/path/to/file.py:lines")
 
@@ -35,7 +35,7 @@ Common misconception is that different mlir modules are graph breaks. This is no
 
 1. Search for `"------------------ END OF MLIR MODULE ------------------"` strings in the log to determine the number of graphs
 2. Identify each graph and link them to the source model that caused them (location markers in the log can help)
-3. Find the Python/PyTorch implementation of all models used in the script — search locally or on the web (e.g., HuggingFace, similar libraries) to identify the culprits. Always first search locally, looking at the 1. imports that lead to custom implementation 2. imports that lead to third party implementation (e.g. /path/to/tt-xla/venv/lib/python3.12/site-packages/path/to/[transformers/diffusers]). Only then if you don't find locally, then search the web. This decreases the chance of having discrepancy in model impl. 
+3. Find the Python/PyTorch implementation of all models used in the script — search locally or on the web (e.g., HuggingFace, similar libraries) to identify the culprits. Always first search locally, looking at the 1. imports that lead to custom implementation 2. imports that lead to third party implementation (e.g. /path/to/tt-xla/venv/lib/python3.12/site-packages/path/to/[transformers/diffusers]). Only then if you don't find locally, then search the web. This decreases the chance of having discrepancy in model impl.
 4. Use 5 research agents in parallel for analysis
 
 ## Deliverables
