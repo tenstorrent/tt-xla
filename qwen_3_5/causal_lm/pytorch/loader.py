@@ -46,6 +46,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_MLX_4BIT = "9B_MLX_4bit"
     QWEN_3_5_9B_BASE_TEXT_NVFP4 = "9B_Base_Text_NVFP4"
     QWEN_3_5_2B_NVFP4 = "2B_NVFP4"
+    GEOLLM_QWEN_3_5_27B_GGUF = "GeoLLM_27B_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -141,6 +142,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="AxionML/Qwen3.5-2B-NVFP4",
             max_length=128,
         ),
+        ModelVariant.GEOLLM_QWEN_3_5_27B_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/GeoLLM-Qwen3.5-27B-i1-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -151,9 +156,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_0_8B_GGUF: "Qwen3.5-0.8B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
-        ModelVariant.HUIHUI_QWEN_3_5_27B_ABLITERATED_GGUF: "Huihui-Qwen3.5-27B-abliterated.Q4_K_M.gguf",
-        ModelVariant.JACKRONG_QWEN_3_5_4B_CLAUDE_OPUS_REASONING_GGUF: "Qwen3.5-4B.Q4_K_M.gguf",
-        ModelVariant.TVALL43_QWEN_3_5_14B_A3B_CLAUDE_OPUS_REASONING_GGUF: "Qwen3.5-14B-A3B-Claude-Opus-Reasoning-Distilled-4.6-MXFP4_MOE.gguf",
+        ModelVariant.GEOLLM_QWEN_3_5_27B_GGUF: "GeoLLM-Qwen3.5-27B.i1-Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
