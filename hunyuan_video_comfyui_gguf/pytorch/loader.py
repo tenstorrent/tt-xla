@@ -103,6 +103,7 @@ class ModelLoader(ForgeModel):
         num_frames = 9
         height = 60  # latent height (480p / 8)
         width = 104  # latent width (832p / 8)
+        seq_len = 256
 
         # Latent video tensor: [batch, channels, frames, height, width]
         hidden_states = torch.randn(
@@ -112,15 +113,25 @@ class ModelLoader(ForgeModel):
         # Timestep
         timestep = torch.tensor([1.0], dtype=dtype).expand(batch_size)
 
-        # Text encoder hidden states
+        # Text encoder hidden states: [batch, seq_len, text_embed_dim]
         encoder_hidden_states = torch.randn(
-            batch_size, 256, config.text_dim, dtype=dtype
+            batch_size, seq_len, config.text_embed_dim, dtype=dtype
+        )
+
+        # Encoder attention mask: [batch, seq_len]
+        encoder_attention_mask = torch.ones(batch_size, seq_len, dtype=torch.bool)
+
+        # Pooled projections: [batch, pooled_projection_dim]
+        pooled_projections = torch.randn(
+            batch_size, config.pooled_projection_dim, dtype=dtype
         )
 
         inputs = {
             "hidden_states": hidden_states,
             "timestep": timestep,
             "encoder_hidden_states": encoder_hidden_states,
+            "encoder_attention_mask": encoder_attention_mask,
+            "pooled_projections": pooled_projections,
         }
 
         return inputs
