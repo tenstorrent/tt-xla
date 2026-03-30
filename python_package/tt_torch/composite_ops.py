@@ -227,6 +227,48 @@ def composite_topk_indices(
     return indices
 
 
+def composite_scaled_dot_product_attention(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    attn_mask: Optional[Tensor] = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    scale: Optional[float] = None,
+    enable_gqa: bool = False,
+) -> Tensor:
+    """
+    Creates composite scaled_dot_product_attention operation for torch xla
+    """
+
+    attr = {"is_causal": is_causal}
+    if scale is not None:
+        attr["scale"] = scale
+
+    builder = StableHLOCompositeBuilder(
+        name="tenstorrent.scaled_dot_product_attention", attr=attr
+    )
+
+    if attn_mask is not None:
+        query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
+    else:
+        query, key, value = builder.mark_inputs(query, key, value)
+
+    output = torch.nn.functional.scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        attn_mask=attn_mask,
+        dropout_p=dropout_p,
+        is_causal=is_causal,
+        scale=scale,
+        enable_gqa=enable_gqa,
+    )
+    output = builder.mark_outputs(output)
+
+    return output
+
+
 ################# module replacements #################
 
 
@@ -356,6 +398,7 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
+    torch.nn.functional.scaled_dot_product_attention: composite_scaled_dot_product_attention,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
     # torch.nn.functional.group_norm: composite_group_norm,
     torch.topk: {
