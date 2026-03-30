@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     BASE_960H = "Base_960h"
     LARGE_XLSR_53_BRETON = "Large_XLSR_53_Breton"
     LARGE_XLSR_JAVANESE = "Large_XLSR_Javanese"
+    COMMONPHONE = "CommonPhone"
 
 
 class ModelLoader(ForgeModel):
@@ -41,6 +42,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE_XLSR_JAVANESE: ModelConfig(
             pretrained_model_name="cahya/wav2vec2-large-xlsr-javanese",
+        ),
+        ModelVariant.COMMONPHONE: ModelConfig(
+            pretrained_model_name="pklumpp/Wav2Vec2_CommonPhone",
         ),
     }
 
