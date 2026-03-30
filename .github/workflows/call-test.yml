@@ -310,7 +310,11 @@ jobs:
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
         if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
-          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
+          ARCH_NAME="${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
+          if [[ "$ARCH_NAME" == "qb2-blackhole" ]]; then
+            ARCH_NAME="p150"
+          fi
+          ARCH="--arch $ARCH_NAME"
         fi
 
         MARKS="${{ matrix.build.test-mark }}"
