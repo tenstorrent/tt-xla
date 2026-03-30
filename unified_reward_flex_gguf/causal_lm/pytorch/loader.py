@@ -21,7 +21,7 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available UnifiedReward-Flex GGUF model variants."""
+    """Available UnifiedReward-Flex GGUF model variants for causal language modeling."""
 
     UNIFIED_REWARD_FLEX_QWEN35_9B_I1 = "qwen35_9b_i1"
 
