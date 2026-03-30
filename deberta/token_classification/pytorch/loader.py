@@ -2,86 +2,54 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-DeBERTa model loader implementation for token classification (NER).
+DeBERTa model loader implementation for token classification.
 """
 
 import torch
-from transformers import AutoTokenizer, AutoModelForTokenClassification
-from third_party.tt_forge_models.config import (
-    LLMModelConfig,
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+
+from ....config import (
     ModelInfo,
     ModelGroup,
     ModelTask,
     ModelSource,
     Framework,
     StrEnum,
+    LLMModelConfig,
 )
-from third_party.tt_forge_models.base import ForgeModel
+from ....base import ForgeModel
 
 
 class ModelVariant(StrEnum):
-    """Available DeBERTa token classification model variants."""
+    """Available DeBERTa model variants for token classification."""
 
-    OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M = (
-        "OpenMed/OpenMed-NER-ChemicalDetect-SuperClinical-434M"
-    )
-    OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1 = (
-        "OpenMed/OpenMed-PII-German-SuperClinical-Base-184M-v1"
-    )
-    OPENMED_PII_SUPERCLINICAL_BASE_184M_V1 = (
-        "OpenMed/OpenMed-PII-SuperClinical-Base-184M-v1"
-    )
-    BLAZE999_MEDICAL_NER = "blaze999/Medical-NER"
+    HUGOGIDDINS_TICKER_MULTI_FINE_TUNE_V4 = "HugoGiddins/ticker_multi_fine_tune_v4"
 
 
 class ModelLoader(ForgeModel):
     """DeBERTa model loader implementation for token classification."""
 
     _VARIANTS = {
-        ModelVariant.OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-NER-ChemicalDetect-SuperClinical-434M",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-German-SuperClinical-Base-184M-v1",
-            max_length=128,
-        ),
-        ModelVariant.OPENMED_PII_SUPERCLINICAL_BASE_184M_V1: LLMModelConfig(
-            pretrained_model_name="OpenMed/OpenMed-PII-SuperClinical-Base-184M-v1",
-            max_length=128,
-        ),
-        ModelVariant.BLAZE999_MEDICAL_NER: LLMModelConfig(
-            pretrained_model_name="blaze999/Medical-NER",
+        ModelVariant.HUGOGIDDINS_TICKER_MULTI_FINE_TUNE_V4: LLMModelConfig(
+            pretrained_model_name="HugoGiddins/ticker_multi_fine_tune_v4",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OPENMED_NER_CHEMICALDETECT_SUPERCLINICAL_434M
+    DEFAULT_VARIANT = ModelVariant.HUGOGIDDINS_TICKER_MULTI_FINE_TUNE_V4
 
     def __init__(self, variant=None):
         super().__init__(variant)
-        pretrained_model_name = self._variant_config.pretrained_model_name
-        self.model_name = pretrained_model_name
-        if self._variant == ModelVariant.BLAZE999_MEDICAL_NER:
-            self.sample_text = "45 year old woman diagnosed with CAD"
-        elif (
-            self._variant == ModelVariant.OPENMED_PII_GERMAN_SUPERCLINICAL_BASE_184M_V1
-        ):
-            self.sample_text = "Dr. Maria Müller behandelte Patient Hans Schmidt im Universitätsklinikum Berlin am 15.03.2024."
-        elif self._variant == ModelVariant.OPENMED_PII_SUPERCLINICAL_BASE_184M_V1:
-            self.sample_text = "Patient John Smith (DOB: 03/15/1985, SSN: 123-45-6789) was seen today at Stanford Medical Center."
-        else:
-            self.sample_text = (
-                "The patient was administered acetylsalicylic acid for pain relief."
-            )
-        self.max_length = 128
+        self.model_name = self._variant_config.pretrained_model_name
+        self.max_length = self._variant_config.max_length
+        self.sample_text = "Apple Inc AAPL reported strong earnings while Microsoft MSFT announced a new partnership"
         self.tokenizer = None
-        self.model = None
 
     @classmethod
     def _get_model_info(cls, variant_name: str = None):
         if variant_name is None:
             variant_name = "base"
+
         return ModelInfo(
             model="DeBERTa",
             variant=variant_name,
@@ -102,8 +70,8 @@ class ModelLoader(ForgeModel):
         model = AutoModelForTokenClassification.from_pretrained(
             self.model_name, **model_kwargs
         )
-        model.eval()
         self.model = model
+        model.eval()
         return model
 
     def load_inputs(self, dtype_override=None):
@@ -132,4 +100,3 @@ class ModelLoader(ForgeModel):
 
         print(f"Context: {self.sample_text}")
         print(f"Answer: {predicted_tokens_classes}")
-        return predicted_tokens_classes
