@@ -37,6 +37,10 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      forge_models_ref:
+        description: 'Optional branch, tag, or SHA override for third_party/tt_forge_models'
+        required: false
+        type: string
       manylinux_build:
         description: 'Build and use manylinux wheel'
         required: false
@@ -79,3 +83,4 @@ jobs:
       artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+      forge_models_ref: ${{ inputs.forge_models_ref }}
