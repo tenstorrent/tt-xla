@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Next-OCR GGUF model loader implementation for image-to-text tasks.
+Next-OCR GGUF model loader implementation for image-text-to-text tasks.
 """
 import torch
 from transformers import AutoProcessor, AutoModelForImageTextToText, AutoConfig
+from transformers.image_utils import load_image
 from typing import Optional
 
 from ....base import ForgeModel
@@ -21,13 +22,13 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Next-OCR GGUF model variants for image-to-text tasks."""
+    """Available Next-OCR GGUF model variants for image-text-to-text tasks."""
 
     NEXT_OCR_I1_Q4_K_M = "i1_Q4_K_M"
 
 
 class ModelLoader(ForgeModel):
-    """Next-OCR GGUF model loader implementation for image-to-text tasks."""
+    """Next-OCR GGUF model loader implementation for image-text-to-text tasks."""
 
     _VARIANTS = {
         ModelVariant.NEXT_OCR_I1_Q4_K_M: LLMModelConfig(
@@ -52,7 +53,7 @@ class ModelLoader(ForgeModel):
             model="Next-OCR GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.NLP_IMAGE_TO_TEXT,
+            task=ModelTask.CV_IMAGE_TO_TEXT,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -90,14 +91,15 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor(dtype_override=dtype_override)
 
+        image = load_image(
+            "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/pipeline-cat-chonk.jpeg"
+        )
+
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "image",
-                        "image": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/pipeline-cat-chonk.jpeg",
-                    },
+                    {"type": "image", "image": image},
                     {"type": "text", "text": "Read the text in this image."},
                 ],
             }
