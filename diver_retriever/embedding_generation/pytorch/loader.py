@@ -4,7 +4,6 @@
 """
 Diver-Retriever-4B model loader implementation for embedding generation.
 """
-import torch
 import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
