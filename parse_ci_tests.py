@@ -7,7 +7,7 @@
 import os
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 LOGDIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("ci-logs")
@@ -130,8 +130,6 @@ def parse_log(logfile: Path) -> tuple[dict[str, str], dict[str, str]]:
             "skipped": "SKIPPED",
             "xfailed": "XFAIL",
         }
-        from collections import Counter
-
         found_counts = Counter(results.values())
         for word, result_key in summary_map.items():
             sm = re.search(rf"(\d+) {word}", summary)
@@ -145,6 +143,107 @@ def parse_log(logfile: Path) -> tuple[dict[str, str], dict[str, str]]:
         break  # only process last summary line (already handled by tail matching)
 
     return results, reasons
+
+
+# Regex for PCC failure messages
+PCC_RE = re.compile(
+    r"PCC comparison failed\. Calculated: pcc=([\d.eE+\-nan]+)(?:\s*\(invalid value\))?\."
+    r"\s*Required: pcc=([\d.eE+\-]+)\."
+)
+
+
+def classify_reason(reason: str) -> tuple[str, str]:
+    """Split a failure reason into (error_type, detail).
+
+    Returns a normalized error_type (e.g. 'AssertionError') and the detail
+    message after the first colon+space separator.
+    """
+    # Some reasons have no colon (e.g. bare "AttributeError")
+    if ": " in reason:
+        error_type, detail = reason.split(": ", 1)
+    else:
+        error_type, detail = reason, ""
+    return error_type.strip(), detail.strip()
+
+
+def normalize_reason(error_type: str, detail: str) -> str:
+    """Produce a grouping key by stripping test-specific values."""
+    if error_type == "AssertionError" and "PCC comparison failed" in detail:
+        return "PCC comparison failed"
+    if error_type == "KeyError":
+        return "Missing module key"
+    if error_type == "FileNotFoundError":
+        return "Cached model file not found"
+    if error_type == "ModuleNotFoundError":
+        # Group by module name: "No module named 'X'"
+        m = re.search(r"No module named '([^']+)'", detail)
+        return f"No module named '{m.group(1)}'" if m else detail
+    if error_type == "ImportError":
+        m = re.search(r"cannot import name '([^']+)' from '([^']+)'", detail)
+        if m:
+            return f"cannot import name '{m.group(1)}' from '{m.group(2)}'"
+        return detail
+    return detail or error_type
+
+
+def print_failure_summary(all_results, all_reasons):
+    """Print a grouped failure summary with details per error type."""
+    # Collect failed/error tests with their reasons
+    failures = []  # (test_id, error_type, detail, normalized_key)
+    for test_id, (result, _job_id) in all_results.items():
+        if result not in ("FAILED", "ERROR"):
+            continue
+        reason = all_reasons.get(test_id, "unknown")
+        error_type, detail = classify_reason(reason)
+        norm = normalize_reason(error_type, detail)
+        failures.append((test_id, error_type, detail, norm))
+
+    if not failures:
+        return
+
+    # Group by error_type, then by normalized key
+    by_type = defaultdict(list)
+    for test_id, error_type, detail, norm in failures:
+        by_type[error_type].append((test_id, detail, norm))
+
+    # Sort error types by count descending
+    sorted_types = sorted(by_type.items(), key=lambda x: -len(x[1]))
+
+    print("\n--- Failure Summary ---\n")
+    for error_type, entries in sorted_types:
+        print(f"{error_type} ({len(entries)}):")
+
+        # Sub-group by normalized key
+        by_norm = defaultdict(list)
+        for test_id, detail, norm in entries:
+            by_norm[norm].append((test_id, detail))
+        sorted_norms = sorted(by_norm.items(), key=lambda x: -len(x[1]))
+
+        for norm_key, tests in sorted_norms:
+            print(f"  {norm_key} ({len(tests)}):")
+
+            # For PCC failures, extract and summarize the pcc values
+            if norm_key == "PCC comparison failed":
+                pcc_vals = []
+                for _tid, detail in tests:
+                    m = PCC_RE.search(detail)
+                    if m:
+                        try:
+                            pcc_vals.append(float(m.group(1)))
+                        except ValueError:
+                            pcc_vals.append(float("nan"))
+                if pcc_vals:
+                    valid = [v for v in pcc_vals if v == v]  # exclude nan
+                    nan_count = len(pcc_vals) - len(valid)
+                    if valid:
+                        print(f"    pcc range: {min(valid):.4f} to {max(valid):.4f}")
+                    if nan_count:
+                        print(f"    nan values: {nan_count}")
+
+            for test_id, _detail in sorted(tests):
+                print(f"    {test_id}")
+
+        print()
 
 
 def main():
@@ -198,6 +297,8 @@ def main():
         ui_failed = counts_ui["FAILED"] + counts_ui["ERROR"]
         ui_skipped = counts_ui["SKIPPED"] + counts_ui["XFAIL"]
         print(f"  Passed: {ui_passed}, Failed: {ui_failed}, Skipped: {ui_skipped}")
+
+    print_failure_summary(all_results, all_reasons)
 
 
 if __name__ == "__main__":
