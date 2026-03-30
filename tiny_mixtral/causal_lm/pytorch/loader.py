@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Tiny Mixtral model loader implementation for causal language modeling.
+TinyMixtral model loader implementation for causal language modeling.
 """
 
 from typing import Optional
@@ -23,21 +23,21 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Tiny Mixtral model variants."""
+    """Available TinyMixtral model variants."""
 
-    DEFAULT = "default"
+    TINY_MIXTRAL_4X248M_MOE = "4x248M_MoE"
 
 
 class ModelLoader(ForgeModel):
-    """Tiny Mixtral model loader implementation for causal language modeling tasks."""
+    """TinyMixtral model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.DEFAULT: ModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-mixtral",
+        ModelVariant.TINY_MIXTRAL_4X248M_MOE: ModelConfig(
+            pretrained_model_name="Isotonic/TinyMixtral-4x248M-MoE",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEFAULT
+    DEFAULT_VARIANT = ModelVariant.TINY_MIXTRAL_4X248M_MOE
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
