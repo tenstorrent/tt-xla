@@ -25,6 +25,7 @@ class ModelVariant(StrEnum):
     """Available Nemotron-H model variants for causal language modeling."""
 
     NEMOTRON_H_4B_INSTRUCT_128K = "H_4B_Instruct_128K"
+    NEMOTRON_NANO_9B_V2_FP8_DYNAMIC = "Nano_9B_v2_FP8_dynamic"
     NEMOTRON_NANO_12B_V2 = "Nano_12B_v2"
 
 
@@ -34,6 +35,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.NEMOTRON_H_4B_INSTRUCT_128K: LLMModelConfig(
             pretrained_model_name="nvidia/Nemotron-H-4B-Instruct-128K",
+            max_length=128,
+        ),
+        ModelVariant.NEMOTRON_NANO_9B_V2_FP8_DYNAMIC: LLMModelConfig(
+            pretrained_model_name="RedHatAI/NVIDIA-Nemotron-Nano-9B-v2-FP8-dynamic",
             max_length=128,
         ),
         ModelVariant.NEMOTRON_NANO_12B_V2: LLMModelConfig(
