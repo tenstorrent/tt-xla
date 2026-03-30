@@ -8,6 +8,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
+from infra.testers.compiler_config import CompilerConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from torch_xla.distributed.spmd import Mesh
@@ -499,5 +500,6 @@ def test_deepseek_v3_2_full_sparse_moe():
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
+        compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
     )
     print(f"[mem] after run_graph_test: {peak_rss_gb():.2f} GB")
