@@ -38,6 +38,7 @@ class ModelVariant(StrEnum):
     UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE = (
         "uer_Roberta_Base_Finetuned_Chinanews_Chinese"
     )
+    VANSH180_FINBERT_INDIA_V1 = "Vansh180_FinBERT_India_v1"
 
 
 class ModelLoader(ForgeModel):
@@ -81,6 +82,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="uer/roberta-base-finetuned-chinanews-chinese",
             max_length=128,
         ),
+        ModelVariant.VANSH180_FINBERT_INDIA_V1: LLMModelConfig(
+            pretrained_model_name="Vansh180/FinBERT-India-v1",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -102,6 +107,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY: "The results of this study clearly demonstrate a significant improvement.",
         ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT: "The patient recovered during the night and now denies any [entity] shortness of breath [entity].",
         ModelVariant.UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE: "中国经济在过去几十年中取得了巨大的发展成就",
+        ModelVariant.VANSH180_FINBERT_INDIA_V1: "Reliance Industries reported strong quarterly earnings, boosting investor confidence.",
     }
 
     def __init__(self, variant=None):
@@ -142,6 +148,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.PEDROPEI_ASPECT_LEVEL_CERTAINTY,
             ModelVariant.BVANAKEN_CLINICAL_ASSERTION_NEGATION_BERT,
             ModelVariant.UER_ROBERTA_BASE_FINETUNED_CHINANEWS_CHINESE,
+            ModelVariant.VANSH180_FINBERT_INDIA_V1,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
