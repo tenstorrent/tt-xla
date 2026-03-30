@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     ARMAGEDDON_ROBERTA_LARGE_SQUAD2_COVID_QA_DEEPSET = (
         "armageddon_roberta_large_squad2_covid_qa_deepset"
     )
+    UER_ROBERTA_BASE_CHINESE_EXTRACTIVE_QA = "uer_roberta_base_chinese_extractive_qa"
 
 
 class ModelLoader(ForgeModel):
@@ -40,6 +41,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.ARMAGEDDON_ROBERTA_LARGE_SQUAD2_COVID_QA_DEEPSET: LLMModelConfig(
             pretrained_model_name="armageddon/roberta-large-squad2-covid-qa-deepset",
             max_length=384,
+        ),
+        ModelVariant.UER_ROBERTA_BASE_CHINESE_EXTRACTIVE_QA: LLMModelConfig(
+            pretrained_model_name="uer/roberta-base-chinese-extractive-qa",
+            max_length=512,
         ),
     }
 
