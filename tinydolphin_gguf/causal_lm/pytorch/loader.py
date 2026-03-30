@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.TINYDOLPHIN_2_8_1_1B_GGUF
 
-    GGUF_FILE = "TinyDolphin-2.8-1.1b-Q4_K_M.gguf"
+    GGUF_FILE = "tinydolphin-2.8-1.1b.Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
