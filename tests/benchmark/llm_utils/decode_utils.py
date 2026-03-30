@@ -4,7 +4,7 @@
 
 """Decode utilities for on-device LLM benchmarking and accuracy testing.
 
-Provides LLMDecodeWrapper (keeps token selection on device) and
+Provides LLMSamplingWrapper (keeps token selection on device) and
 generate_and_benchmark() (the timed decode loop).
 """
 
@@ -19,8 +19,8 @@ import tracy
 from transformers.cache_utils import StaticCache
 
 
-class LLMDecodeWrapper(torch.nn.Module):
-    """Wraps an LLM to perform sampling (token selection, cache update) on device.
+class LLMSamplingWrapper(torch.nn.Module):
+    """Wraps an LLM to perform sampling (token selection, cache positionupdate) on device.
 
     By keeping token selection and cache_position increment inside the compiled
     graph, intermediate tensors stay on device between decode steps, eliminating
@@ -150,11 +150,12 @@ def generate_and_benchmark(
     verbose: bool = True,
     ground_truth_tokens: Optional[torch.Tensor] = None,
     collect_logits: bool = True,
+    tokenizer=None,
 ) -> tuple[list[torch.Tensor], list[int]]:
     """On-device decode loop for benchmarks and accuracy testing.
 
     Args:
-        model: LLMDecodeWrapper instance (eval mode, no dropout)
+        model: LLMSamplingWrapper instance (eval mode, no dropout)
         input_args: Dict with input_ids, past_key_values, cache_position, use_cache
         device: Target device
         max_tokens_to_generate: Number of decode steps to run
@@ -166,6 +167,8 @@ def generate_and_benchmark(
                   and logits are moved to CPU each step (for PCC/accuracy).
             False: Model must return (next_token_ids, next_cache_position) only
                   (for performance benchmarking without OOM risk).
+        tokenizer: Optional tokenizer for decoding generated token IDs to text.
+            When provided, decoded tokens are printed alongside timing if verbose=True.
 
     Returns:
         (output_logits, iteration_times)
@@ -201,11 +204,13 @@ def generate_and_benchmark(
             tracy.signpost("prefill_start" if step == 0 else f"decode_{step}_start")
             start = time.perf_counter_ns()
 
+            output = model(**input_args)
+
             if collect_logits:
-                next_token_ids, next_cache_position, logits = model(**input_args)
+                next_token_ids, next_cache_position, logits = output
                 output_logits.append(logits.to("cpu"))
             else:
-                next_token_ids, next_cache_position = model(**input_args)
+                next_token_ids, next_cache_position = output
 
             if ground_truth_tokens is not None:
                 input_args["input_ids"] = gt_cpu[step].to(device)
@@ -213,6 +218,12 @@ def generate_and_benchmark(
                 input_args["input_ids"] = next_token_ids
 
             input_args["cache_position"] = next_cache_position
+
+            if tokenizer is not None:
+                next_token_ids = next_token_ids.to("cpu")
+                output_text = [
+                    tokenizer.decode(next_token_ids[i]) for i in range(batch_size)
+                ]
 
             end = time.perf_counter_ns()
             tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
