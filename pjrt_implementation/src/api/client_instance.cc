@@ -528,7 +528,7 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   // device memory will be freed when the mesh closes. Clearing the pool
   // prevents dangling references in prepareInputTensor when buffers are reused
   // as inputs to subsequent graphs.
-  // TensorPool::clear();
+  TensorPool::clear();
 
   // NOTE: Due to some issues hit when testing, instead of using the reshape
   // mesh API, we are closing and re-opening the device with the wanted mesh

@@ -59,16 +59,18 @@ bool contains(PjrtTensor *tensor) { return get().contains(tensor); }
 // Inserts tensor into tensor pool.
 void PjrtTensorPool::insert(PjrtTensor *tensor) {
 
+  TT_FATAL(!contains(tensor), "Tensor already exists in the pool");
+
   const std::scoped_lock lock{m_mtx};
-  TT_FATAL(m_tensors.count(tensor) == 0, "Tensor already exists in the pool");
   m_tensors.insert(tensor);
 }
 
 // Erases tensor from tensor pool.
 void PjrtTensorPool::erase(PjrtTensor *tensor) {
 
+  TT_FATAL(contains(tensor), "Tensor not found in the pool");
+
   const std::scoped_lock lock{m_mtx};
-  TT_FATAL(m_tensors.count(tensor) > 0, "Tensor not found in the pool");
   m_tensors.erase(tensor);
 }
 
