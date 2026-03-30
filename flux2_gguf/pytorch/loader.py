@@ -2,10 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-FLUX.2 GGUF model loader implementation for text-to-image generation
+FLUX.2 GGUF (arcticlatent/flux2) model loader implementation.
+
+FLUX.2 is a next-generation flow-matching diffusion model from Black Forest Labs
+in GGUF quantized format, for memory-efficient text-to-image generation.
+
+Available variants:
+- FLUX2_DEV_Q8_0: Q8_0 quantized variant
 """
+
 import torch
-from diffusers.models import Flux2Transformer2DModel
 from typing import Optional
 
 from ...base import ForgeModel
@@ -18,26 +24,31 @@ from ...config import (
     Framework,
     StrEnum,
 )
+from .src.model_utils import load_flux2_gguf_transformer
+
+REPO_ID = "arcticlatent/flux2"
 
 
 class ModelVariant(StrEnum):
     """Available FLUX.2 GGUF model variants."""
 
-    DEV_Q4_K_M = "Dev_Q4_K_M"
+    FLUX2_DEV_Q8_0 = "flux2_dev_Q8_0"
 
 
 class ModelLoader(ForgeModel):
-    """FLUX.2 GGUF model loader implementation for text-to-image generation tasks."""
+    """FLUX.2 GGUF model loader implementation."""
 
     _VARIANTS = {
-        ModelVariant.DEV_Q4_K_M: ModelConfig(
-            pretrained_model_name="city96/FLUX.2-dev-gguf",
+        ModelVariant.FLUX2_DEV_Q8_0: ModelConfig(
+            pretrained_model_name=REPO_ID,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DEV_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.FLUX2_DEV_Q8_0
 
-    GGUF_FILE = "flux2-dev-Q4_K_M.gguf"
+    GGUF_FILES = {
+        ModelVariant.FLUX2_DEV_Q8_0: "gguf/flux2_dev_Q8_0.gguf",
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -48,7 +59,6 @@ class ModelLoader(ForgeModel):
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         if variant is None:
             variant = cls.DEFAULT_VARIANT
-
         return ModelInfo(
             model="FLUX.2 GGUF",
             variant=variant,
@@ -59,14 +69,15 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        load_kwargs = {"gguf_file": self.GGUF_FILE}
-        if dtype_override is not None:
-            load_kwargs["torch_dtype"] = dtype_override
+        """Load and return the FLUX.2 transformer from GGUF checkpoint.
 
-        self.transformer = Flux2Transformer2DModel.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            **load_kwargs,
-        )
+        Returns:
+            torch.nn.Module: The FLUX.2 transformer model instance.
+        """
+        if self.transformer is None:
+            variant = self._variant or self.DEFAULT_VARIANT
+            gguf_file = self.GGUF_FILES[variant]
+            self.transformer = load_flux2_gguf_transformer(REPO_ID, gguf_file)
 
         if dtype_override is not None:
             self.transformer = self.transformer.to(dtype_override)
@@ -74,6 +85,11 @@ class ModelLoader(ForgeModel):
         return self.transformer
 
     def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load and return sample inputs for the model.
+
+        Returns:
+            dict: Input tensors for the FLUX.2 transformer model.
+        """
         if self.transformer is None:
             self.load_model(dtype_override=dtype_override)
 
