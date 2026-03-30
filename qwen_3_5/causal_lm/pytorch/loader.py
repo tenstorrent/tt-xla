@@ -47,6 +47,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_9B_BASE_TEXT_NVFP4 = "9B_Base_Text_NVFP4"
     QWEN_3_5_2B_NVFP4 = "2B_NVFP4"
     GEOLLM_QWEN_3_5_27B_GGUF = "GeoLLM_27B_GGUF"
+    QWEN_3_5_27B_ABLITERATED_GGUF = "27B_Abliterated_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -146,6 +147,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="mradermacher/GeoLLM-Qwen3.5-27B-i1-GGUF",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_27B_ABLITERATED_GGUF: LLMModelConfig(
+            pretrained_model_name="khtsly/Qwen3.5-27B-Abliterated-Claude-4.6-Opus-Distilled-32k-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -157,6 +162,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_4B_GGUF: "Qwen3.5-4B-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_GGUF: "Qwen3.5-9B-Q4_K_M.gguf",
         ModelVariant.GEOLLM_QWEN_3_5_27B_GGUF: "GeoLLM-Qwen3.5-27B.i1-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_27B_ABLITERATED_GGUF: "Qwen3.5-27B-Abliterated-Claude-4.6-Opus-Distilled-32k.Q4_K_M.gguf",
     }
 
     # Shared configuration parameters
