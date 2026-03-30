@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     LARGE_XLSR_JAVANESE = "Large_XLSR_Javanese"
     COMMONPHONE = "CommonPhone"
     LARGE_XLSR_ESTONIAN = "Large_XLSR_Estonian"
+    INDICWAV2VEC_HINDI = "IndicWav2Vec_Hindi"
 
 
 class ModelLoader(ForgeModel):
@@ -49,6 +50,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.LARGE_XLSR_ESTONIAN: ModelConfig(
             pretrained_model_name="manandey/wav2vec2-large-xlsr-estonian",
+        ),
+        ModelVariant.INDICWAV2VEC_HINDI: ModelConfig(
+            pretrained_model_name="ai4bharat/indicwav2vec-hindi",
         ),
     }
 
