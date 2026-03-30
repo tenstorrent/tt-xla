@@ -13,6 +13,7 @@ WhisperForConditionalGeneration.
 
 from typing import Optional
 
+import numpy as np
 import torch
 
 from ....base import ForgeModel
@@ -143,8 +144,6 @@ class ModelLoader(ForgeModel):
             self._load_processor(dtype_override=dtype_override)
 
         # Generate synthetic 30-second audio at 16kHz to match Whisper's receptive field
-        import numpy as np
-
         sampling_rate = 16000
         duration_seconds = 30
         audio_array = np.random.randn(sampling_rate * duration_seconds).astype(
