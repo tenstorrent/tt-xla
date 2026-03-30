@@ -90,9 +90,9 @@ class ModelLoader(ForgeModel):
         inputs = self._processor(image, return_tensors="pt")
 
         if batch_size > 1:
-            for key in inputs:
-                import torch
+            import torch
 
+            for key in inputs:
                 if torch.is_tensor(inputs[key]):
                     inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
