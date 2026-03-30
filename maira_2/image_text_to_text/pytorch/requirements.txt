@@ -1,0 +1,4 @@
+pillow
+protobuf
+sentencepiece
+transformers>=4.48.0,<4.52
