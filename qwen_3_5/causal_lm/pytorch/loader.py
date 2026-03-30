@@ -57,6 +57,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_4B_ABLITERATED_GGUF = "4B_Abliterated_GGUF"
     QWEN_3_5_2B_HERETIC = "2B_Heretic"
     QWEN_3_5_122B_A10B_MLX_6_5BIT = "122B_A10B_MLX_6.5bit"
+    QWEN_3_5_4B_GABLITERATED_GGUF = "4B_Gabliterated_GGUF"
 
 
 class ModelLoader(ForgeModel):
@@ -188,6 +189,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="inferencerlabs/Qwen3.5-122B-A10B-MLX-6.5bit",
             max_length=128,
         ),
+        ModelVariant.QWEN_3_5_4B_GABLITERATED_GGUF: LLMModelConfig(
+            pretrained_model_name="jwest33/qwen3.5-4b-gabliterated-GGUF",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -205,6 +210,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.QWEN_3_5_DPO_4B_2_GGUF: "Qwen3.5-DPO-4B-2-i1-Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_9B_ULTIMATE_IRREFUSABLE_HERETIC_GGUF: "Qwen3.5-9B-ultimate-irrefusable-heretic.Q4_K_M.gguf",
         ModelVariant.QWEN_3_5_4B_ABLITERATED_GGUF: "Qwen3.5-4B_Abliterated-Q4_K_M.gguf",
+        ModelVariant.QWEN_3_5_4B_GABLITERATED_GGUF: "Qwen3.5-4B-gabliterated-q8_0.gguf",
     }
 
     # Shared configuration parameters
