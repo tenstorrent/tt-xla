@@ -40,8 +40,6 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.COL_SMOL_500M
 
-    sample_queries = ["Is attention really all you need?"]
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize ColSmol model loader."""
         super().__init__(variant)
