@@ -25,6 +25,7 @@ from .src.model import Wrapper
 class ModelVariant(StrEnum):
     """Available UI-TARS model variants for vision-language GUI agent tasks."""
 
+    UI_TARS_2B_SFT = "2B_SFT"
     UI_TARS_7B_DPO = "7B_DPO"
 
 
@@ -33,6 +34,9 @@ class ModelLoader(ForgeModel):
 
     # Dictionary of available model variants using structured configs
     _VARIANTS = {
+        ModelVariant.UI_TARS_2B_SFT: LLMModelConfig(
+            pretrained_model_name="ByteDance-Seed/UI-TARS-2B-SFT",
+        ),
         ModelVariant.UI_TARS_7B_DPO: LLMModelConfig(
             pretrained_model_name="ByteDance-Seed/UI-TARS-7B-DPO",
         ),
