@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
         "citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
     )
     XLM_ROBERTA_LARGE_DANISH_CAP_V3 = "poltextlab/xlm-roberta-large-danish-cap-v3"
+    XLM_ROBERTA_LARGE_POLISH_CAP_V3 = "poltextlab/xlm-roberta-large-polish-cap-v3"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="poltextlab/xlm-roberta-large-danish-cap-v3",
             max_length=128,
         ),
+        ModelVariant.XLM_ROBERTA_LARGE_POLISH_CAP_V3: LLMModelConfig(
+            pretrained_model_name="poltextlab/xlm-roberta-large-polish-cap-v3",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT
@@ -53,6 +58,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT_FINETUNNED: "Great road trip views! @ Shartlesville, Pennsylvania",
         ModelVariant.XLM_ROBERTA_LARGE_DANISH_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
+        ModelVariant.XLM_ROBERTA_LARGE_POLISH_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
     }
 
     def __init__(self, variant=None):
