@@ -168,7 +168,6 @@ def generate_and_benchmark(
             False: Model must return (next_token_ids, next_cache_position) only
                   (for performance benchmarking without OOM risk).
         tokenizer: Optional tokenizer for decoding generated token IDs to text.
-            When provided, decoded tokens are printed alongside timing if verbose=True.
 
     Returns:
         (output_logits, iteration_times)
@@ -187,6 +186,7 @@ def generate_and_benchmark(
 
     output_logits: list[torch.Tensor] = []
     iteration_times: list[int] = []
+    generated_text: str = ""
 
     # Prepare teacher forcing tokens on CPU; transfer per-step to avoid
     # device-side indexing that can segfault on the TT backend.
@@ -219,11 +219,8 @@ def generate_and_benchmark(
 
             input_args["cache_position"] = next_cache_position
 
-            if tokenizer is not None:
-                next_token_ids = next_token_ids.to("cpu")
-                output_text = [
-                    tokenizer.decode(next_token_ids[i]) for i in range(batch_size)
-                ]
+            if tokenizer:
+                generated_text += tokenizer.decode(next_token_ids[0].to("cpu"))
 
             end = time.perf_counter_ns()
             tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
@@ -233,6 +230,9 @@ def generate_and_benchmark(
                     f"Iteration\t{step}/{max_tokens_to_generate}\t"
                     f"took {iteration_times[-1] / 1e6:.04} ms"
                 )
+
+    if tokenizer and verbose:
+        print(f"Generated text: {generated_text}")
 
     return output_logits, iteration_times
 
