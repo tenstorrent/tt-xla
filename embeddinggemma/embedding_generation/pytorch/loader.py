@@ -4,7 +4,6 @@
 """
 EmbeddingGemma model loader implementation for sentence embedding generation.
 """
-
 import torch
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
@@ -24,11 +23,8 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available EmbeddingGemma model variants for embedding generation."""
 
-    EMBEDDINGGEMMA_300M_QAT_Q4_0_UNQUANTIZED = (
-        "embeddinggemma-300m-qat-q4_0-unquantized"
-    )
-    EMBEDDINGGEMMA_300M_QAT_Q8_0_UNQUANTIZED = (
-        "embeddinggemma-300m-qat-q8_0-unquantized"
+    EMBEDDINGGEMMA_GERMAN_QNA_CHECKPOINT_500 = (
+        "embeddinggemma-german_qna-checkpoint-500"
     )
 
 
@@ -36,17 +32,14 @@ class ModelLoader(ForgeModel):
     """EmbeddingGemma model loader implementation for sentence embedding generation."""
 
     _VARIANTS = {
-        ModelVariant.EMBEDDINGGEMMA_300M_QAT_Q4_0_UNQUANTIZED: ModelConfig(
-            pretrained_model_name="google/embeddinggemma-300m-qat-q4_0-unquantized",
-        ),
-        ModelVariant.EMBEDDINGGEMMA_300M_QAT_Q8_0_UNQUANTIZED: ModelConfig(
-            pretrained_model_name="google/embeddinggemma-300m-qat-q8_0-unquantized",
+        ModelVariant.EMBEDDINGGEMMA_GERMAN_QNA_CHECKPOINT_500: ModelConfig(
+            pretrained_model_name="ktcapraz/embeddinggemma-german_qna-checkpoint-500",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.EMBEDDINGGEMMA_300M_QAT_Q8_0_UNQUANTIZED
+    DEFAULT_VARIANT = ModelVariant.EMBEDDINGGEMMA_GERMAN_QNA_CHECKPOINT_500
 
-    sample_sentences = ["This is an example sentence for generating text embeddings"]
+    sample_sentences = ["This is an example sentence for embedding generation"]
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -80,9 +73,9 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {}
+        model_kwargs = {"return_dict": False}
         if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs["dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
@@ -96,9 +89,9 @@ class ModelLoader(ForgeModel):
 
         inputs = self.tokenizer(
             self.sample_sentences,
-            padding="max_length",
+            padding=True,
             truncation=True,
-            max_length=128,
+            max_length=512,
             return_tensors="pt",
         )
 
@@ -108,6 +101,3 @@ class ModelLoader(ForgeModel):
                     inputs[key] = value.to(dtype_override)
 
         return inputs
-
-    def unpack_forward_output(self, fwd_output) -> torch.Tensor:
-        return fwd_output.last_hidden_state
