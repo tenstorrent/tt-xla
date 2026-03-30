@@ -19,11 +19,17 @@ Common misconception is that different mlir modules are graph breaks. This is no
 - If the log file contains N of these strings, then the script generated N//7 or N//8  different graphs (you will see in runtime what is the case).
 
 ## Requirements for analysis
-- If user's log doesn't meet these criteria, don't proceed with analysis and instead instruct the user to rerun with adequate changes.
+- If user's log doesn't meet these criteria, don't proceed with analysis and first run the actual model script. Ask the user for the concrete script that he used and optionally arguments.
 - The user must run a model script and dump outputs into a single log file <file>.log
+- The user must have used tt-xla repo that is built in debug mode. Use `grep CMAKE_BUILD_TYPE build/CMakeCache.txt` and see if you get "Debug". If empty or "Release", you can't use that log.
 - The user must run (has ran) the script with following flags `TORCH_LOGS="+dynamo" XLA_HLO_DEBUG=1`. Go through the log file and find out if that is the case. 
 - `TORCH_LOGS="+dynamo"`: example of the lines you will see in the log: "venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py", "venv/lib/python3.12/site-packages/torch/_dynamo/", "symbolic_convert.py", "Step 1: torchdynamo start tracing forward /root/tt-xla/graph_break_demo.py", "TRACE starts_line". If these are present you have this variable enabled, if not, then not.
 - `XLA_HLO_DEBUG=1`: example of the lines you will see in the log: loc("/path/to/tt-xla/venv/lib/python3.12/site-packages/path/to/file.py:lines")
+
+## Running user's model script
+1. Do `source venv/activate` (not source venv/bin/activate)
+2. If the build type is not debug, do `cmake --preset debug && cmake --build build`
+3. Run the user's script in format `TTXLA_LOGGER_LEVEL=DEBUG TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG XLA_HLO_DEBUG=1 TORCH_LOGS="+dynamo python userscript.py &> userscript.log`
 
 ## Steps
 
