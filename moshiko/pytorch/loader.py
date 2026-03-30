@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     """Available Moshiko model variants."""
 
     MOSHIKO_BF16 = "Moshiko BF16"
+    MOSHIKO_Q8 = "Moshiko Q8"
 
 
 class ModelLoader(ForgeModel):
@@ -34,6 +35,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.MOSHIKO_BF16: ModelConfig(
             pretrained_model_name="kyutai/moshiko-pytorch-bf16",
+        ),
+        ModelVariant.MOSHIKO_Q8: ModelConfig(
+            pretrained_model_name="kyutai/moshiko-pytorch-q8",
         ),
     }
 
