@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     QWEN2_7B = "Qwen2_7B"
     QWEN2_7B_INSTRUCT = "Qwen2_7B_Instruct"
     QWEN2_AB_ZSX = "Qwen2_ab_zsx"
+    SEA_QWEN2_1_5B = "SeaQwen2_1.5B"
     TINY_QWEN2_2_5 = "tiny_Qwen2ForCausalLM_2.5"
     JANE_STREET_DORMANT_MODEL_WARMUP = "Jane_Street_Dormant_Model_Warmup"
 
@@ -50,6 +51,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN2_AB_ZSX: LLMModelConfig(
             pretrained_model_name="NorseDrunkenSailor/Qwen2_ab_zsx",
+            max_length=128,
+        ),
+        ModelVariant.SEA_QWEN2_1_5B: LLMModelConfig(
+            pretrained_model_name="SeacomSrl/SeaQwen2-1.5B",
             max_length=128,
         ),
         ModelVariant.TINY_QWEN2_2_5: LLMModelConfig(
@@ -95,6 +100,7 @@ class ModelLoader(ForgeModel):
         """
         group = ModelGroup.RED
         if variant in (
+            ModelVariant.SEA_QWEN2_1_5B,
             ModelVariant.TINY_QWEN2_2_5,
             ModelVariant.QWEN2_7B_INSTRUCT,
             ModelVariant.QWEN2_AB_ZSX,
