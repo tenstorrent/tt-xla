@@ -1,6 +1,6 @@
 ---
 name: graph-break-analysis
-description: Analyzes and debugs graph breaks in PyTorch/XLA model compilation. Use when a model generates more graphs than expected during compilation, the user mentions "graph break", or when debugging excessive graph generation in tt-xla pipelines.
+description: Analyzes, debugs and proposes fixes for graph breaks in PyTorch/XLA model compilation. Use when a model generates more graphs than expected during compilation, the user mentions "graph break", or when debugging excessive graph generation in tt-xla pipelines.
 allowed-tools: Bash Read Grep Glob Write Edit Task Fetch
 ---
 
@@ -36,11 +36,12 @@ Common misconception is that different mlir modules are graph breaks. This is no
 1. Search for `"------------------ END OF MLIR MODULE ------------------"` strings in the log to determine the number of graphs
 2. Identify each graph and link them to the source model that caused them (location markers in the log can help)
 3. Find the Python/PyTorch implementation of all models used in the script — search locally or on the web (e.g., HuggingFace, similar libraries) to identify the culprits. Always first search locally, looking at the 1. imports that lead to custom implementation 2. imports that lead to third party implementation (e.g. /path/to/tt-xla/venv/lib/python3.12/site-packages/path/to/[transformers/diffusers]). Only then if you don't find locally, then search the web. This decreases the chance of having discrepancy in model impl.
-4. Use 5 research agents in parallel for analysis
+4. Use 5 research agents in parallel for analysis to make a graph break report
+5. When report is generated, make a new python script that runs the same script/test as the one used originally, but add the python-level monkey patches for all of the graph breaks that occur. Launch one subagent for each graph break fix, and have an orchectrator that merges results in the new script <prev_script_name>_fixed.py.
 
 ## Deliverables
 
-Produce a detailed markdown report of what is causing the graph breaks, sorted by most important/frequent (descending).
+1. Produce a detailed markdown report of what is causing the graph breaks, sorted by most important/frequent (descending).
 
 For each graph break, provide a Python script that reproduces it. Use this format:
 
@@ -68,5 +69,8 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+2. Produce a new script <prev_script_name>_fixed.py that runs the same model as original script, but with added python-level monkey patches.
+
 
 Think carefully and produce a thorough graph break report as instructed.
