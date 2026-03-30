@@ -23,7 +23,15 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    QANASTEK_51_LANGUAGES_CLASSIFIER = "qanastek/51-languages-classifier"
+    XLM_ROBERTA_LARGE_PORTUGUESE_EXECORDER_CAP_V3 = (
+        "poltextlab/xlm-roberta-large-portuguese-execorder-cap-v3"
+    )
+
+
+_VARIANT_SAMPLE_TEXTS = {
+    ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
+    ModelVariant.XLM_ROBERTA_LARGE_PORTUGUESE_EXECORDER_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -34,8 +42,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.QANASTEK_51_LANGUAGES_CLASSIFIER: LLMModelConfig(
-            pretrained_model_name="qanastek/51-languages-classifier",
+        ModelVariant.XLM_ROBERTA_LARGE_PORTUGUESE_EXECORDER_CAP_V3: LLMModelConfig(
+            pretrained_model_name="poltextlab/xlm-roberta-large-portuguese-execorder-cap-v3",
             max_length=128,
         ),
     }
@@ -52,7 +60,7 @@ class ModelLoader(ForgeModel):
         self.model_name = self._variant_config.pretrained_model_name
         self.max_length = self._variant_config.max_length
         self.tokenizer = None
-        self.text = self._SAMPLE_TEXTS.get(
+        self.text = _VARIANT_SAMPLE_TEXTS.get(
             self._variant, "Great road trip views! @ Shartlesville, Pennsylvania"
         )
 
