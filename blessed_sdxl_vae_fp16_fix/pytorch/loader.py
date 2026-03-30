@@ -74,6 +74,7 @@ class ModelLoader(ForgeModel):
         if self._vae is None:
             self._vae = AutoencoderKL.from_pretrained(
                 REPO_ID,
+                subfolder="vae",
                 torch_dtype=dtype,
                 low_cpu_mem_usage=False,
             )
