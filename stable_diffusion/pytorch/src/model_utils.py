@@ -22,8 +22,9 @@ def load_pipe(variant):
     Returns:
         StableDiffusion3Pipeline: Loaded pipeline with components set to eval mode
     """
+    model_name = variant if "/" in variant else f"stabilityai/{variant}"
     pipe = StableDiffusion3Pipeline.from_pretrained(
-        f"stabilityai/{variant}", torch_dtype=torch.float32
+        model_name, torch_dtype=torch.float32
     )
     modules = [
         pipe.text_encoder,

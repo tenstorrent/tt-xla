@@ -24,6 +24,7 @@ class ModelVariant(StrEnum):
     """Available Stable Diffusion v3.5 model variants."""
 
     STABLE_DIFFUSION_3_5_MEDIUM = "3.5_Medium"
+    STABLE_DIFFUSION_3_5_MEDIUM_UNGATED = "3.5_Medium_Ungated"
     STABLE_DIFFUSION_3_5_LARGE = "3.5_Large"
     STABLE_DIFFUSION_3_5_LARGE_TURBO = "3.5_Large_Turbo"
 
@@ -35,6 +36,9 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.STABLE_DIFFUSION_3_5_MEDIUM: ModelConfig(
             pretrained_model_name="stable-diffusion-3.5-medium",
+        ),
+        ModelVariant.STABLE_DIFFUSION_3_5_MEDIUM_UNGATED: ModelConfig(
+            pretrained_model_name="adamo1139/stable-diffusion-3.5-medium-ungated",
         ),
         ModelVariant.STABLE_DIFFUSION_3_5_LARGE: ModelConfig(
             pretrained_model_name="stable-diffusion-3.5-large",
@@ -73,10 +77,15 @@ class ModelLoader(ForgeModel):
         """
         if variant is None:
             variant = cls.DEFAULT_VARIANT
+        group = (
+            ModelGroup.VULCAN
+            if variant == ModelVariant.STABLE_DIFFUSION_3_5_MEDIUM_UNGATED
+            else ModelGroup.RED
+        )
         return ModelInfo(
             model="Stable Diffusion",
             variant=variant,
-            group=ModelGroup.RED,
+            group=group,
             task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
