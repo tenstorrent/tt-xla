@@ -115,6 +115,30 @@ The multi-core topk discovery suggests: **if we replaced the sort+cumsum+softmax
 
 This is essentially the same as the "rewrite sampler torch code" approach above — we're replacing the expensive ops with topk, which happens to have an excellent multi-core implementation when shapes are right.
 
+## Phase 3: Validation results (2026-03-30)
+
+### Composite op lowering confirmed working
+
+After rebasing onto commits including tt-mlir#7504 and tt-xla#3729, tested on new Ubuntu 24.04 container (clang-20):
+
+**`torch.topk` now compiles to `TopKDeviceOperation`, not `SortDeviceOperation`.**
+
+Tracy results from `perf_debug/test_compiled_topk_multicore.py`:
+
+| Op | Cores | Kernel time | Previous (sort) |
+|---|---|---|---|
+| `TopKDeviceOperation` (32768-wide chunk) | **65** | **0.181ms** | 6.11ms (Sort, 110 cores) |
+| `SortDeviceOperation` | **0** (gone) | — | present before |
+
+The composite op pass replaces `torch.topk` → `composite_topk` → `stablehlo.composite @tenstorrent.topk` → `ttnn.topk`. Multi-core triggers at 32768 (power of 2, < 65536).
+
+Direct ttnn benchmark (persistent tensors, confirming no regression):
+- 4-way split multicore topk + sampling: **P50 = 0.90ms** (matching pre-build baseline of 0.89ms)
+
+Note: wall-clock through `torch.compile` path is ~2.1ms P50 due to 4 separate kernel dispatches vs the single-call direct ttnn case. Tracy kernel time (0.181ms × 4 = ~0.72ms) is the real device cost.
+
+**Next step**: rewrite `sampler.py` to use `torch.topk` on padded 32768-wide chunks and verify the full vLLM compiled sampling path gets multi-core topk.
+
 ## Phase 4: Implementation plan
 
 ### Step 1: Rewrite sampler torch code
