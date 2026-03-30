@@ -4,54 +4,54 @@
 """
 Zamba2 model loader implementation for causal language modeling.
 """
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+
 from typing import Optional
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    ModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
 
 class ModelVariant(StrEnum):
-    """Available Zamba2 model variants for causal language modeling."""
+    """Available Zamba2 model variants."""
 
-    TINY_RANDOM = "tiny_random"
+    ZAMBA2_2_7B = "2.7B"
 
 
 class ModelLoader(ForgeModel):
     """Zamba2 model loader implementation for causal language modeling tasks."""
 
-    # Dictionary of available model variants using structured configs
     _VARIANTS = {
-        ModelVariant.TINY_RANDOM: LLMModelConfig(
-            pretrained_model_name="optimum-intel-internal-testing/tiny-random-zamba2",
-            max_length=128,
+        ModelVariant.ZAMBA2_2_7B: ModelConfig(
+            pretrained_model_name="Zyphra/Zamba2-2.7B",
         ),
     }
 
-    # Default variant to use
-    DEFAULT_VARIANT = ModelVariant.TINY_RANDOM
-
-    # Shared configuration parameters
-    sample_text = "The quick brown fox jumps over the lazy dog."
+    DEFAULT_VARIANT = ModelVariant.ZAMBA2_2_7B
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
         super().__init__(variant)
         self.tokenizer = None
+        self.model = None
         self.num_layers = num_layers
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
+        if variant is None:
+            variant = cls.DEFAULT_VARIANT
+
         return ModelInfo(
             model="Zamba2",
             variant=variant,
@@ -62,14 +62,16 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
+        pretrained_model_name = self._variant_config.pretrained_model_name
+
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name,
-            **tokenizer_kwargs,
+            pretrained_model_name, **tokenizer_kwargs
         )
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         return self.tokenizer
 
@@ -77,7 +79,7 @@ class ModelLoader(ForgeModel):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -85,34 +87,44 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, trust_remote_code=True
+            )
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        )
-        model.eval()
-        self.config = model.config
+            pretrained_model_name, trust_remote_code=True, **model_kwargs
+        ).eval()
 
+        self.config = model.config
+        self.model = model
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
+            self._load_tokenizer(dtype_override)
 
-        max_length = self._variant_config.max_length
+        test_input = "What is the capital of France?"
 
-        inputs = self.tokenizer(
-            [self.sample_text],
-            return_tensors="pt",
-            padding="max_length",
-            truncation=True,
-            max_length=max_length,
-        )
+        inputs = self.tokenizer(test_input, return_tensors="pt")
 
         for key in inputs:
             if torch.is_tensor(inputs[key]):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
+
+    def decode_output(self, outputs, dtype_override=None):
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override)
+
+        next_token_logits = outputs.logits[:, -1]
+        next_token = next_token_logits.softmax(dim=-1).argmax()
+        return self.tokenizer.decode([next_token])
+
+    def load_config(self):
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name, trust_remote_code=True
+        )
+        return self.config
