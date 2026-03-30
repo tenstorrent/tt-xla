@@ -110,8 +110,21 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
+        messages = [
+            {
+                "role": "user",
+                "content": self.sample_text,
+            }
+        ]
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        prompts = [text]
+
         inputs = self.tokenizer(
-            self.sample_text,
+            prompts,
             return_tensors="pt",
             padding=True,
             truncation=True,
@@ -123,14 +136,6 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def decode_output(self, outputs, dtype_override=None):
-        if self.tokenizer is None:
-            self._load_tokenizer(dtype_override=dtype_override)
-
-        next_token_logits = outputs.logits[:, -1]
-        next_token = next_token_logits.softmax(dim=-1).argmax()
-        return self.tokenizer.decode([next_token])
 
     def get_mesh_config(self, num_devices: int):
         mesh_shape = (1, num_devices)
