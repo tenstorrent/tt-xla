@@ -45,7 +45,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.SDXL_1_0_Q4_0
 
-    GGUF_FILE = "sdxl-1.0-base-Q4_0.gguf"
+    GGUF_FILE = "stable-diffusion-xl-base-1.0-Q4_0.gguf"
 
     prompt = "An astronaut riding a green horse"
 
