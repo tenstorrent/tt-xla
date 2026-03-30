@@ -1,0 +1,1 @@
+qwen-omni-utils==0.0.8
