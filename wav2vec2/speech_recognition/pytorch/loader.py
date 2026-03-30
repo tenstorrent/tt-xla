@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     LARGE_XLSR_53_BRETON = "Large_XLSR_53_Breton"
     LARGE_XLSR_JAVANESE = "Large_XLSR_Javanese"
     COMMONPHONE = "CommonPhone"
+    LARGE_XLSR_ESTONIAN = "Large_XLSR_Estonian"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.COMMONPHONE: ModelConfig(
             pretrained_model_name="pklumpp/Wav2Vec2_CommonPhone",
+        ),
+        ModelVariant.LARGE_XLSR_ESTONIAN: ModelConfig(
+            pretrained_model_name="manandey/wav2vec2-large-xlsr-estonian",
         ),
     }
 
