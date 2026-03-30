@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     """Available Qwen 3.5 model variants for image to text."""
 
     QWEN_3_5_9B_PARO = "9b_paro"
+    GLIESE_QWEN_3_5_0_8B_ABLITERATED_CAPTION = "gliese_0_8b_abliterated_caption"
 
 
 class ModelLoader(ForgeModel):
@@ -36,6 +37,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.QWEN_3_5_9B_PARO: LLMModelConfig(
             pretrained_model_name="z-lab/Qwen3.5-9B-PARO",
+            max_length=128,
+        ),
+        ModelVariant.GLIESE_QWEN_3_5_0_8B_ABLITERATED_CAPTION: LLMModelConfig(
+            pretrained_model_name="prithivMLmods/Gliese-Qwen3.5-0.8B-Abliterated-Caption",
             max_length=128,
         ),
     }
