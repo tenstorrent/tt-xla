@@ -1,11 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 """
-MMS-TTS model loader implementation for text-to-speech tasks.
+MMS TTS (Massively Multilingual Speech) model loader implementation for text-to-speech tasks using PyTorch.
 """
-
+import torch
 from typing import Optional
 
 from ....base import ForgeModel
@@ -21,25 +20,27 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available MMS-TTS model variants."""
+    """Available MMS TTS PyTorch model variants."""
 
-    MMS_TTS_ENG = "MMS_TTS_ENG"
+    MMS_TTS_POL = "Mms_Tts_Pol"
 
 
 class ModelLoader(ForgeModel):
-    """MMS-TTS model loader implementation for text-to-speech tasks."""
+    """MMS TTS model loader implementation for text-to-speech tasks (PyTorch)."""
 
     _VARIANTS = {
-        ModelVariant.MMS_TTS_ENG: ModelConfig(
-            pretrained_model_name="facebook/mms-tts-eng",
+        ModelVariant.MMS_TTS_POL: ModelConfig(
+            pretrained_model_name="facebook/mms-tts-pol",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MMS_TTS_ENG
+    DEFAULT_VARIANT = ModelVariant.MMS_TTS_POL
+
+    sample_text = "Dzień dobry, to jest test modelu zamiany tekstu na mowę."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self._tokenizer = None
+        self.tokenizer = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -55,8 +56,24 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    def _load_tokenizer(self, dtype_override=None):
+        from transformers import AutoTokenizer
+
+        tokenizer_kwargs = {}
+        if dtype_override is not None:
+            tokenizer_kwargs["torch_dtype"] = dtype_override
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+        )
+
+        return self.tokenizer
+
     def load_model(self, *, dtype_override=None, **kwargs):
         from transformers import VitsModel
+
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -71,13 +88,9 @@ class ModelLoader(ForgeModel):
         return model
 
     def load_inputs(self, dtype_override=None):
-        from transformers import AutoTokenizer
+        if self.tokenizer is None:
+            self._load_tokenizer(dtype_override=dtype_override)
 
-        if self._tokenizer is None:
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                self._variant_config.pretrained_model_name
-            )
-
-        inputs = self._tokenizer("Hello, my dog is cute.", return_tensors="pt")
+        inputs = self.tokenizer(self.sample_text, return_tensors="pt")
 
         return inputs
