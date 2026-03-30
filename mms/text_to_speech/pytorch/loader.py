@@ -26,6 +26,13 @@ class ModelVariant(StrEnum):
     """Available MMS TTS model variants."""
 
     SWAHILI_FINETUNED = "Swahili_Finetuned"
+    INDONESIAN = "Indonesian"
+
+
+_SAMPLE_TEXTS = {
+    ModelVariant.SWAHILI_FINETUNED: "Habari, karibu kwenye mfumo wetu wa kusikiliza kwa Kiswahili.",
+    ModelVariant.INDONESIAN: "Selamat pagi, selamat datang di sistem text-to-speech kami.",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -35,11 +42,12 @@ class ModelLoader(ForgeModel):
         ModelVariant.SWAHILI_FINETUNED: ModelConfig(
             pretrained_model_name="Benjamin-png/swahili-mms-tts-finetuned",
         ),
+        ModelVariant.INDONESIAN: ModelConfig(
+            pretrained_model_name="facebook/mms-tts-ind",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.SWAHILI_FINETUNED
-
-    sample_text = "Habari, karibu kwenye mfumo wetu wa kusikiliza kwa Kiswahili."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -90,6 +98,7 @@ class ModelLoader(ForgeModel):
         if self._tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self._tokenizer(self.sample_text, return_tensors="pt")
+        sample_text = _SAMPLE_TEXTS[self._variant]
+        inputs = self._tokenizer(sample_text, return_tensors="pt")
 
         return inputs
