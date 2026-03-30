@@ -23,28 +23,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Gemma 3n GGUF model variants for causal language modeling."""
 
-    GEMMA_3N_E2B_IT_GGUF = "E2B_IT_GGUF"
+    GEMMA_3N_E4B_IT_Q4_K_M = "Gemma_3n_E4B_IT_Q4_K_M_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Gemma 3n GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.GEMMA_3N_E2B_IT_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/gemma-3n-E2B-it-GGUF",
+        ModelVariant.GEMMA_3N_E4B_IT_Q4_K_M: LLMModelConfig(
+            pretrained_model_name="NexaAI/gemma-3n",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GEMMA_3N_E2B_IT_GGUF
+    DEFAULT_VARIANT = ModelVariant.GEMMA_3N_E4B_IT_Q4_K_M
 
-    _GGUF_FILES = {
-        ModelVariant.GEMMA_3N_E2B_IT_GGUF: "gemma-3n-E2B-it-Q4_K_M.gguf",
-    }
-
-    @property
-    def GGUF_FILE(self):
-        return self._GGUF_FILES[self._variant]
+    GGUF_FILE = "gemma-3n-E4B-it-Q4_K_M-full-vocab.gguf"
 
     sample_text = "What is your favorite city?"
 
@@ -114,21 +108,20 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [
+        input_prompt = [
             {
                 "role": "user",
                 "content": self.sample_text,
             }
         ]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
+        input_text = self.tokenizer.apply_chat_template(
+            input_prompt,
             add_generation_prompt=True,
+            tokenize=False,
         )
-        prompts = [text]
 
         inputs = self.tokenizer(
-            prompts,
+            [input_text],
             return_tensors="pt",
             padding=True,
             truncation=True,
@@ -140,23 +133,6 @@ class ModelLoader(ForgeModel):
                 inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
-
-    def get_mesh_config(self, num_devices: int):
-        mesh_shape = (1, num_devices)
-        return mesh_shape, ("batch", "model")
-
-    def load_shard_spec(self, model):
-        shard_specs = {}
-        for layer in model.model.layers:
-            shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-            shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
-
-            shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        return shard_specs
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
