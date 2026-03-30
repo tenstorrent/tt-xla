@@ -83,8 +83,8 @@ class ModelVariant(StrEnum):
     # JackFram variants
     JACKFRAM_LLAMA_160M = "JackFram_160M"
 
-    # TheBloke GPTQ quantized variants
-    LLAMA_2_7B_CHAT_GPTQ = "2_7B_Chat_GPTQ"
+    # allura-forge variants
+    ALLURA_FORGE_LLAMA_3_3_8B_INSTRUCT = "allura-forge_Llama-3.3-8B-Instruct"
 
 
 class ModelLoader(ForgeModel):
@@ -221,9 +221,9 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="JackFram/llama-160m",
             max_length=128,
         ),
-        # TheBloke GPTQ quantized variants
-        ModelVariant.LLAMA_2_7B_CHAT_GPTQ: LLMModelConfig(
-            pretrained_model_name="TheBloke/Llama-2-7B-Chat-GPTQ",
+        # allura-forge variants
+        ModelVariant.ALLURA_FORGE_LLAMA_3_3_8B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="allura-forge/Llama-3.3-8B-Instruct",
             max_length=128,
         ),
     }
@@ -272,6 +272,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.TINYLLAMA_1_1B_STEP_50K_105B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT_NVFP4,
+            ModelVariant.ALLURA_FORGE_LLAMA_3_3_8B_INSTRUCT,
         ]:
             group = ModelGroup.VULCAN
         elif (
