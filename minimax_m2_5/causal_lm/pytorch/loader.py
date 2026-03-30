@@ -30,7 +30,7 @@ class ModelVariant(StrEnum):
     """Available MiniMax-M2.5 model variants for causal language modeling."""
 
     MINIMAX_M2_5 = "M2.5"
-    MINIMAX_M2_5_MLX_8BIT = "M2.5-MLX-8bit"
+    MINIMAX_M2_5_REAP_139B_A10B_AWQ_4BIT = "M2.5_REAP_139B_A10B_AWQ_4bit"
 
 
 class ModelLoader(ForgeModel):
@@ -42,8 +42,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="MiniMaxAI/MiniMax-M2.5",
             max_length=128,
         ),
-        ModelVariant.MINIMAX_M2_5_MLX_8BIT: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/MiniMax-M2.5-MLX-8bit",
+        ModelVariant.MINIMAX_M2_5_REAP_139B_A10B_AWQ_4BIT: LLMModelConfig(
+            pretrained_model_name="cyankiwi/MiniMax-M2.5-REAP-139B-A10B-AWQ-4bit",
             max_length=128,
         ),
     }
@@ -159,8 +159,8 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
 
-        # AWQ variants need device_map="cpu" for loading
-        if pretrained_model_name == "QuantTrio/MiniMax-M2.5-AWQ":
+        # AWQ quantized variants need explicit CPU device mapping
+        if pretrained_model_name == "cyankiwi/MiniMax-M2.5-REAP-139B-A10B-AWQ-4bit":
             model_kwargs["device_map"] = "cpu"
 
         model_kwargs |= kwargs
