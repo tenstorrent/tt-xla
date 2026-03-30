@@ -125,15 +125,9 @@ class ModelLoader(ForgeModel):
         dataset = load_dataset("huggingface/cats-image")["test"]
         image = dataset[0]["image"].resize((518, 518))
 
-        from torchvision import transforms
+        from torchvision.transforms.functional import to_tensor
 
-        transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        )
-
-        pixel_values = transform(image).unsqueeze(0)
+        pixel_values = to_tensor(image).unsqueeze(0)
 
         if batch_size > 1:
             pixel_values = pixel_values.repeat(batch_size, 1, 1, 1)
