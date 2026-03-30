@@ -19,6 +19,7 @@ from tt_torch.composite_ops import (
     composite_group_norm,
     composite_layer_norm,
     composite_rms_norm,
+    composite_scaled_dot_product_attention,
 )
 
 from tests.infra.evaluators.evaluation_config import ComparisonConfig
@@ -405,3 +406,117 @@ def test_composite_layer_norm(use_weight, use_bias, batch_size, seq_len, embeddi
 #             framework=Framework.TORCH,
 #             torch_options=options,
 #         )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize("is_causal", [True, False])
+@pytest.mark.parametrize("use_attn_mask", [True, False])
+@pytest.mark.parametrize(
+    "batch_size, num_heads, seq_len, head_dim",
+    [(1, 1, 32, 32), (1, 8, 64, 64), (2, 4, 128, 64)],
+)
+def test_composite_sdpa(
+    is_causal, use_attn_mask, batch_size, num_heads, seq_len, head_dim
+):
+    # is_causal and attn_mask cannot both be set
+    if is_causal and use_attn_mask:
+        pytest.skip("is_causal and attn_mask cannot both be set")
+
+    class SDPAModel(torch.nn.Module):
+        def __init__(self, is_causal):
+            super().__init__()
+            self.is_causal = is_causal
+
+        def forward(self, query, key, value, attn_mask=None):
+            return composite_scaled_dot_product_attention(
+                query, key, value, attn_mask=attn_mask, is_causal=self.is_causal
+            )
+
+    options = {"tt_enable_composite_ops": False}
+
+    query = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    value = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+
+    if use_attn_mask:
+        # Additive causal mask: 0 for attend, -inf for mask out
+        # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+        attn_mask = torch.zeros(
+            batch_size, num_heads, seq_len, seq_len, dtype=torch.bfloat16
+        )
+        attn_mask.masked_fill_(
+            ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+        )
+    else:
+        attn_mask = None
+
+    model = SDPAModel(is_causal)
+    inputs = [query, key, value, attn_mask] if use_attn_mask else [query, key, value]
+
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            model,
+            inputs,
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize("is_causal", [True, False])
+@pytest.mark.parametrize("use_attn_mask", [True, False])
+@pytest.mark.parametrize(
+    "batch_size, num_heads, seq_len, head_dim",
+    [(1, 1, 32, 32), (1, 8, 64, 64), (2, 4, 128, 64)],
+)
+def test_patched_sdpa(
+    is_causal, use_attn_mask, batch_size, num_heads, seq_len, head_dim
+):
+    # is_causal and attn_mask cannot both be set
+    if is_causal and use_attn_mask:
+        pytest.skip("is_causal and attn_mask cannot both be set")
+
+    class SDPAModel(torch.nn.Module):
+        def __init__(self, is_causal):
+            super().__init__()
+            self.is_causal = is_causal
+
+        def forward(self, query, key, value, attn_mask=None):
+            return F.scaled_dot_product_attention(
+                query, key, value, attn_mask=attn_mask, is_causal=self.is_causal
+            )
+
+    options = {"tt_enable_composite_ops": True}
+
+    query = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    value = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+
+    if use_attn_mask:
+        # Additive causal mask: 0 for attend, -inf for mask out
+        # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+        attn_mask = torch.zeros(
+            batch_size, num_heads, seq_len, seq_len, dtype=torch.bfloat16
+        )
+        attn_mask.masked_fill_(
+            ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+        )
+    else:
+        attn_mask = None
+
+    model = SDPAModel(is_causal)
+    inputs = [query, key, value, attn_mask] if use_attn_mask else [query, key, value]
+
+    print(model(query, key, value))
+    print(attn_mask)
+
+    run_graph_test(
+        model,
+        inputs,
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
