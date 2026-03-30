@@ -2,5 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-KoBART model implementations for Tenstorrent projects.
+KoBART feature extraction model implementations.
 """
