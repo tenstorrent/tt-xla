@@ -15,6 +15,7 @@ from typing import Optional
 
 import torch
 from diffusers import StableDiffusionXLPipeline
+from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
 from ...config import (
@@ -29,6 +30,7 @@ from ...config import (
 
 
 REPO_ID = "MLbackup/5_2025"
+SAFETENSORS_FILE = "Dawntreader-ILLSXL.fp16.safetensors"
 
 
 class ModelVariant(StrEnum):
@@ -71,12 +73,12 @@ class ModelLoader(ForgeModel):
             StableDiffusionXLPipeline: The pipeline instance.
         """
         dtype = dtype_override if dtype_override is not None else torch.float32
-        checkpoint_url = (
-            f"https://huggingface.co/{REPO_ID}/resolve/main/"
-            "Dawntreader-ILLSXL.fp16.safetensors"
+        ckpt_path = hf_hub_download(
+            repo_id=REPO_ID,
+            filename=SAFETENSORS_FILE,
         )
         self.pipeline = StableDiffusionXLPipeline.from_single_file(
-            checkpoint_url,
+            ckpt_path,
             torch_dtype=dtype,
             **kwargs,
         )
