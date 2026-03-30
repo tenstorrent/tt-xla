@@ -1074,6 +1074,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=fill_page_table,
+            mesh=self.mesh if self.use_2d_mesh else None,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1620,6 +1621,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            mesh=self.mesh if self.use_2d_mesh else None,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
@@ -1736,6 +1738,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
+            # num_tokens = 32
             logger.info("  -- num_tokens: %d", num_tokens)
             self._dummy_run(
                 num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
@@ -1746,6 +1749,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
+            # break
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -1922,6 +1926,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_tokens: int,
     ) -> None:
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
+        return
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:

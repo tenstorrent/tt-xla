@@ -110,6 +110,7 @@ def test_tensor_parallel_generation_llmbox_large(
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "use_2d_mesh": use_2d_mesh,
+            "num_hidden_layers": 1,  # Limit to 1 layer to test MoE registration
         },
     }
     llm = vllm.LLM(**llm_args)
