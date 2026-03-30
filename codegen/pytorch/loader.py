@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
     CODEGEN_350M_MONO = "350M_Mono"
     CODEGEN_350M_MULTI = "350M_Multi"
     CODEGEN_350M_NL = "350M_Nl"
+    CODEGEN_2B_MONO = "2B_Mono"
 
 
 class ModelLoader(ForgeModel):
@@ -42,6 +43,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.CODEGEN_350M_NL: LLMModelConfig(
             pretrained_model_name="Salesforce/codegen-350M-nl",
+            max_length=256,
+        ),
+        ModelVariant.CODEGEN_2B_MONO: LLMModelConfig(
+            pretrained_model_name="Salesforce/codegen-2B-mono",
             max_length=256,
         ),
     }
@@ -76,10 +81,13 @@ class ModelLoader(ForgeModel):
         """
         if variant_name is None:
             variant_name = "base"
+        group = ModelGroup.GENERALITY
+        if variant_name == ModelVariant.CODEGEN_2B_MONO:
+            group = ModelGroup.VULCAN
         return ModelInfo(
             model="CodeGen",
             variant=variant_name,
-            group=ModelGroup.GENERALITY,
+            group=group,
             task=ModelTask.NLP_CAUSAL_LM,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
