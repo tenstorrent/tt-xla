@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
 
     MIXTRAL_8X7B_INSTRUCT_V01 = "8x7B_Instruct_v0.1"
     HFL_CHINESE_MIXTRAL = "hfl_chinese_mixtral"
+    MAZIYARPANAHI_8X22B_INSTRUCT_V01_AWQ = "MaziyarPanahi_8x22B_Instruct_v0.1_AWQ"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.HFL_CHINESE_MIXTRAL: ModelConfig(
             pretrained_model_name="hfl/chinese-mixtral",
+        ),
+        ModelVariant.MAZIYARPANAHI_8X22B_INSTRUCT_V01_AWQ: ModelConfig(
+            pretrained_model_name="MaziyarPanahi/Mixtral-8x22B-Instruct-v0.1-AWQ",
         ),
     }
 
