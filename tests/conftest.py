@@ -4,6 +4,7 @@
 
 import contextlib
 import ctypes
+import fcntl
 import gc
 import io
 import os
@@ -227,6 +228,32 @@ def pytest_addoption(parser):
         default=False,
         help="Enable IR dumping during model tests",
     )
+    parser.addoption(
+        "--process-lock",
+        action="store_true",
+        default=False,
+        help="Acquire a filesystem lock around each test so only one process on the machine can execute a test at a time",
+    )
+
+
+@pytest.fixture(autouse=True)
+def process_lock(request):
+    """
+    Acquire a filesystem lock so only one process on the machine can execute a
+    test at a time. Enabled with --process-lock.
+    """
+    if not (
+        request.config.getoption("--process-lock")
+        or os.environ.get("TT_XLA_PYTEST_PROCESS_LOCK") == "1"
+    ):
+        yield
+        return
+
+    lock_path = Path("/tmp/tt-xla-test.lock")
+    with open(lock_path, "w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        yield
+        fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 @pytest.fixture(autouse=True)
