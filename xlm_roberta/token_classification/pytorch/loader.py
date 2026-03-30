@@ -26,6 +26,7 @@ class ModelVariant(StrEnum):
 
     CRYPTO_NER = "CryptoNER"
     NER_HRL = "NER-HRL"
+    WIKIANN_NER = "WikiANN-NER"
 
 
 class ModelLoader(ForgeModel):
@@ -38,6 +39,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.NER_HRL: ModelConfig(
             pretrained_model_name="Davlan/xlm-roberta-large-ner-hrl",
         ),
+        ModelVariant.WIKIANN_NER: ModelConfig(
+            pretrained_model_name="Davlan/xlm-roberta-base-wikiann-ner",
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.CRYPTO_NER
@@ -46,7 +50,7 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        if self._variant == ModelVariant.NER_HRL:
+        if self._variant in (ModelVariant.NER_HRL, ModelVariant.WIKIANN_NER):
             self.sample_text = "Nader Jokhadar had given Syria the lead with a well-struck header in the seventh minute."
         else:
             self.sample_text = (
