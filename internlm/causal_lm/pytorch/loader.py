@@ -28,6 +28,7 @@ class ModelVariant(StrEnum):
     """Available InternLM model variants for causal LM."""
 
     TINY_RANDOM = "tiny_random"
+    KATUNI4KA_TINY_RANDOM = "katuni4ka_tiny_random"
     INTERNLM2_5_7B_CHAT_1M = "internlm2_5_7b_chat_1m"
 
 
@@ -37,6 +38,10 @@ class ModelLoader(ForgeModel):
     _VARIANTS = {
         ModelVariant.TINY_RANDOM: LLMModelConfig(
             pretrained_model_name="optimum-intel-internal-testing/tiny-random-internlm",
+            max_length=128,
+        ),
+        ModelVariant.KATUNI4KA_TINY_RANDOM: LLMModelConfig(
+            pretrained_model_name="katuni4ka/tiny-random-internlm",
             max_length=128,
         ),
         ModelVariant.INTERNLM2_5_7B_CHAT_1M: LLMModelConfig(
