@@ -173,14 +173,25 @@ def benchmark_vllm(
 
     llm = _create_llm(config)
 
+    try:
+        import tracy as _tracy
+
+        _signpost = _tracy.signpost
+    except (ImportError, AttributeError):
+        _signpost = lambda x: None
+
     if config.warmup_iterations > 0:
+        _signpost("warmup_start")
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
         for _ in range(config.warmup_iterations):
             llm.generate(prompts, sampling_params)
         print("Warmup complete.")
+    _signpost("warmup_complete")
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
+    _signpost("benchmark_start")
     outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+    _signpost("benchmark_end")
 
     # Assert decode is consistent
     _assert_token_counts(outputs, config.max_tokens, config.max_model_len)

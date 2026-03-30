@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -1328,13 +1329,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         local_idx = i - start_index
                         prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
+            # TODO: remove debug signpost — forces device sync for visual profiling
+            if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
+                xm.wait_device_ops()
+                self._signpost("forward_end")
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
-            if not hasattr(self, '_logged_sampling_device'):
-                logger.warning("Sampling on %s (cpu_sampling=%s)", sampling_device, self.tt_config.cpu_sampling)
+            if not hasattr(self, "_logged_sampling_device"):
+                logger.warning(
+                    "Sampling on %s (cpu_sampling=%s)",
+                    sampling_device,
+                    self.tt_config.cpu_sampling,
+                )
                 self._logged_sampling_device = True
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -1352,13 +1361,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
+            # TODO: remove debug signpost — forces device sync for visual profiling
+            if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
+                xm.wait_device_ops()
+                self._signpost("sampling_start")
             _t_sample = time.perf_counter()
             if self.tt_config.cpu_sampling:
                 selected_token_ids = self.sample_from_logits_cpu(
                     logits, tpu_sampling_metadata
                 )
             else:
-                if not hasattr(self, '_logged_device_sampling'):
+                if not hasattr(self, "_logged_device_sampling"):
                     logger.warning("Using DEVICE sampling path")
                     self._logged_device_sampling = True
                 selected_token_ids = self.sample_from_logits(
@@ -1870,22 +1883,38 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("gather_logprobs")
 
+    def _signpost(self, name: str) -> None:
+        try:
+            import tracy
+
+            tracy.signpost(name)
+        except (ImportError, AttributeError):
+            pass
+
     def capture_model(self) -> None:
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        self._signpost("precompile_start")
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
+            self._signpost("precompile_backbone_start")
             self._precompile_mm_encoder()
             self._precompile_backbone()
+            self._signpost("precompile_backbone_end")
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
             if not self.tt_config.cpu_sampling:
+                self._signpost("precompile_sampling_start")
                 self._precompile_sample_from_logits()
+                self._signpost("precompile_sampling_end")
             else:
-                logger.warning("cpu_sampling=True: skipping device sampling precompilation")
+                logger.warning(
+                    "cpu_sampling=True: skipping device sampling precompilation"
+                )
             self._precompile_gather_logprobs()
+        self._signpost("precompile_end")
 
     def profile_run(
         self,
@@ -2168,7 +2197,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             penalty_factor = torch.where(logits > 0, torch.reciprocal(rep_pen), rep_pen)
             logits = torch.where(rep_mask, logits * penalty_factor, logits)
             freq_pen = sampling_metadata.frequency_penalties.cpu().unsqueeze(1)
-            logits -= freq_pen * sampling_metadata.output_token_counts.cpu().to(logits.dtype)
+            logits -= freq_pen * sampling_metadata.output_token_counts.cpu().to(
+                logits.dtype
+            )
             pres_pen = sampling_metadata.presence_penalties.cpu().unsqueeze(1)
             logits -= pres_pen * occurred_output.to(logits.dtype)
 
@@ -2189,7 +2220,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 k = int(top_k[i].item())
                 if k > 0 and k < logits.size(1):
                     topk_vals, _ = torch.topk(logits[i], k)
-                    logits[i][logits[i] < topk_vals[-1]] = float('-inf')
+                    logits[i][logits[i] < topk_vals[-1]] = float("-inf")
 
         # Apply top-p
         if sampling_metadata.top_p is not None:
@@ -2197,10 +2228,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for i in range(logits.size(0)):
                 p = float(top_p[i].item())
                 if p < 1.0:
-                    sorted_logits, sorted_indices = torch.sort(logits[i], descending=True)
-                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                    sorted_logits, sorted_indices = torch.sort(
+                        logits[i], descending=True
+                    )
+                    cumulative_probs = torch.cumsum(
+                        torch.softmax(sorted_logits, dim=-1), dim=-1
+                    )
                     mask = cumulative_probs - torch.softmax(sorted_logits, dim=-1) >= p
-                    sorted_logits[mask] = float('-inf')
+                    sorted_logits[mask] = float("-inf")
                     logits[i] = sorted_logits.scatter(0, sorted_indices, sorted_logits)
 
         # Sample from distribution
