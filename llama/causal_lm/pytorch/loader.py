@@ -119,6 +119,9 @@ class ModelVariant(StrEnum):
     # OpenBuddy variants
     OPENBUDDY_LLAMA3_70B = "OpenBuddy_Llama3_70B"
 
+    # yejingfu nmagic FP8 quantized variants
+    NMAGIC_LLAMA_3_1_8B_INSTRUCT_FP8 = "Nmagic_3.1_8B_Instruct_FP8"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -282,6 +285,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="OpenBuddy/openbuddy-llama3-70b-v21.2-32k",
             max_length=128,
         ),
+        # yejingfu nmagic FP8 quantized variants
+        ModelVariant.NMAGIC_LLAMA_3_1_8B_INSTRUCT_FP8: LLMModelConfig(
+            pretrained_model_name="yejingfu/nmagic-Meta-Llama-3.1-8B-Instruct-FP8",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -332,6 +340,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_W_INT8_A_INT8_SYM,
             ModelVariant.UNICHAT_LLAMA3_CHINESE_8B,
             ModelVariant.OPENBUDDY_LLAMA3_70B,
+            ModelVariant.NMAGIC_LLAMA_3_1_8B_INSTRUCT_FP8,
         ]:
             group = ModelGroup.VULCAN
         elif (
