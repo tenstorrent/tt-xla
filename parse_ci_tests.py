@@ -32,12 +32,13 @@ def strip_line(line: str) -> str:
     return line.rstrip()
 
 
-def parse_log(logfile: Path) -> dict[str, str]:
-    """Parse a single log file and return {test_id: result}."""
+def parse_log(logfile: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """Parse a single log file and return ({test_id: result}, {test_id: reason})."""
     raw_lines = logfile.read_text(errors="replace").splitlines()
     lines = [strip_line(l) for l in raw_lines]
 
     results = {}  # test_id -> PASSED/FAILED/ERROR/SKIPPED
+    reasons = {}  # test_id -> failure/error reason (only for FAILED/ERROR)
 
     # 1. Collect test IDs from multiple sources:
     #    a) pytest-split collection listing (standalone test ID per line)
@@ -65,10 +66,12 @@ def parse_log(logfile: Path) -> dict[str, str]:
             in_summary = True
             continue
         if in_summary:
-            m = re.match(rf"^(FAILED|ERROR)\s+({TID})", line)
+            m = re.match(rf"^(FAILED|ERROR)\s+({TID})(?:\s+-\s+(.+))?", line)
             if m:
-                status, test_id = m.group(1), m.group(2)
+                status, test_id, reason = m.group(1), m.group(2), m.group(3)
                 results[test_id] = status
+                if reason:
+                    reasons[test_id] = reason
             # Summary section ends at the final pytest summary line
             if re.match(r"^=+\s+\d+\s+\w+", line):
                 break
@@ -141,11 +144,12 @@ def parse_log(logfile: Path) -> dict[str, str]:
                     results[placeholder] = result_key
         break  # only process last summary line (already handled by tail matching)
 
-    return results
+    return results, reasons
 
 
 def main():
     all_results = {}  # test_id -> (result, job_id)
+    all_reasons = {}  # test_id -> reason
     manual_jobs = set()
 
     for logfile in sorted(LOGDIR.glob("*.log")):
@@ -156,9 +160,10 @@ def main():
         if "log not found" in first_line:
             manual_jobs.add(job_id)
 
-        results = parse_log(logfile)
+        results, reasons = parse_log(logfile)
         for test_id, result in results.items():
             all_results[test_id] = (result, job_id)
+        all_reasons.update(reasons)
 
     # Print all tests sorted by result then name
     result_order = {"FAILED": 0, "ERROR": 1, "SKIPPED": 2, "XFAIL": 3, "PASSED": 4}
@@ -171,7 +176,9 @@ def main():
 
     for test_id, (result, job_id) in sorted_tests:
         manual_tag = " *" if job_id in manual_jobs else ""
-        print(f"{result:8s}  {test_id}{manual_tag}")
+        reason = all_reasons.get(test_id, "")
+        reason_suffix = f"  -- {reason}" if reason else ""
+        print(f"{result:8s}  {test_id}{manual_tag}{reason_suffix}")
         counts[result] += 1
         if job_id not in manual_jobs:
             counts_ui[result] += 1
