@@ -5,7 +5,6 @@
 SpanMarker model loader implementation for named entity recognition.
 """
 
-import torch
 from ....config import (
     ModelInfo,
     ModelGroup,
