@@ -23,7 +23,9 @@ _LB_BLACKHOLE_SKIP_MODELS = {
     "monodepth2/",
     "ssd512/",
     "ultra_fast_lane_detection/",
+    "ultra_fast_lane_detection_v2/",
     "yolov3/",
+    "yolov4/",
     "yoloworld/",
     # Models that hang or have extremely long runtime on lb-blackhole
     "swin/masked_image_modeling/pytorch-v2_Tiny_Patch4_Window8_256",
