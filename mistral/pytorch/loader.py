@@ -63,6 +63,9 @@ class ModelVariant(StrEnum):
     # openaccess-ai-collective variants
     OPENACCESS_TINY_MISTRAL = "openaccess_tiny_mistral"
 
+    # HuggingFaceH4 variants
+    HUGGINGFACEH4_MISTRAL_7B_SFT_BETA = "HuggingFaceH4_mistral_7b_sft_beta"
+
 
 class ModelLoader(ForgeModel):
     """Mistral model loader implementation for causal language modeling tasks."""
@@ -167,6 +170,10 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPENACCESS_TINY_MISTRAL: ModelConfig(
             pretrained_model_name="openaccess-ai-collective/tiny-mistral",
         ),
+        # HuggingFaceH4 variants
+        ModelVariant.HUGGINGFACEH4_MISTRAL_7B_SFT_BETA: ModelConfig(
+            pretrained_model_name="HuggingFaceH4/mistral-7b-sft-beta",
+        ),
     }
 
     # Default variant to use
@@ -209,6 +216,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MAZIYARPANAHI_7B_INSTRUCT_V02,
             ModelVariant.VAGOSOLUTIONS_SAUERKRAUTLM_PHI3_MEDIUM,
             ModelVariant.OPENACCESS_TINY_MISTRAL,
+            ModelVariant.HUGGINGFACEH4_MISTRAL_7B_SFT_BETA,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
