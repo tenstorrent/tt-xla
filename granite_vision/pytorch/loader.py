@@ -8,7 +8,7 @@ Granite Vision model loader implementation for multimodal conditional generation
 from typing import Optional
 
 import torch
-from datasets import load_dataset
+from PIL import Image
 from transformers import AutoModelForVision2Seq, AutoProcessor
 
 from ...base import ForgeModel
@@ -21,27 +21,27 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import cast_input_to_type
+from ...tools.utils import get_file, cast_input_to_type
 
 
 class ModelVariant(StrEnum):
     """Available Granite Vision model variants."""
 
-    GRANITE_VISION_3_3_2B = "3.3_2B"
+    GRANITE_VISION_3_2_2B = "3.2_2B"
 
 
 class ModelLoader(ForgeModel):
     """Granite Vision model loader for multimodal conditional generation."""
 
     _VARIANTS = {
-        ModelVariant.GRANITE_VISION_3_3_2B: ModelConfig(
-            pretrained_model_name="ibm-granite/granite-vision-3.3-2b",
+        ModelVariant.GRANITE_VISION_3_2_2B: ModelConfig(
+            pretrained_model_name="ibm-granite/granite-vision-3.2-2b",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.GRANITE_VISION_3_3_2B
+    DEFAULT_VARIANT = ModelVariant.GRANITE_VISION_3_2_2B
 
-    sample_text = "Describe this image."
+    sample_text = "What is shown in this image?"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         """Initialize Granite Vision model loader."""
@@ -53,10 +53,10 @@ class ModelLoader(ForgeModel):
         if variant is None:
             variant = cls.DEFAULT_VARIANT
         return ModelInfo(
-            model="Granite Vision",
+            model="Granite-Vision",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.MM_CONDITIONAL_GENERATION,
+            task=ModelTask.CONDITIONAL_GENERATION,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
@@ -70,9 +70,7 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Granite Vision model instance."""
         model_name = self._variant_config.pretrained_model_name
-        model = AutoModelForVision2Seq.from_pretrained(
-            str(model_name), torch_dtype=torch.float32, **kwargs
-        )
+        model = AutoModelForVision2Seq.from_pretrained(str(model_name), **kwargs)
         model.eval()
 
         if dtype_override:
@@ -88,11 +86,7 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        # Load sample image
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
-
-        # Build conversation
+        # Build prompt using chat template
         conversation = [
             {
                 "role": "user",
@@ -103,18 +97,33 @@ class ModelLoader(ForgeModel):
             }
         ]
 
-        # Process inputs using chat template
-        inputs = self.processor.apply_chat_template(
-            conversation,
-            images=[image],
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
+        text_prompt = self.processor.apply_chat_template(
+            conversation, add_generation_prompt=True
         )
 
-        if dtype_override:
-            for key in inputs:
-                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
+        # Load sample image
+        image_file = get_file(
+            "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+        )
+        image = Image.open(image_file)
 
-        return inputs
+        # Preprocess
+        inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
+
+        input_ids = inputs["input_ids"]
+        attention_mask = inputs["attention_mask"]
+        pixel_values = inputs["pixel_values"]
+        image_sizes = inputs["image_sizes"]
+
+        if dtype_override:
+            input_ids = cast_input_to_type(input_ids, dtype_override)
+            attention_mask = cast_input_to_type(attention_mask, dtype_override)
+            pixel_values = cast_input_to_type(pixel_values, dtype_override)
+            image_sizes = cast_input_to_type(image_sizes, dtype_override)
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "pixel_values": pixel_values,
+            "image_sizes": image_sizes,
+        }
