@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     OPUS_MT_IT_ES = "Opus_Mt_It_Es"
     OPUS_MT_EN_HI = "Opus_Mt_En_Hi"
     OPUS_MT_EN_SK = "Opus_Mt_En_Sk"
+    OPUS_MT_TC_BIG_EN_ES = "Opus_Mt_Tc_Big_En_Es"
     STUDENT_MARIAN_EN_RO_6_1 = "Student_Marian_En_Ro_6_1"
 
 
@@ -74,6 +75,9 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_EN_SK: LLMModelConfig(
             pretrained_model_name="Helsinki-NLP/opus-mt-en-sk",
         ),
+        ModelVariant.OPUS_MT_TC_BIG_EN_ES: LLMModelConfig(
+            pretrained_model_name="Helsinki-NLP/opus-mt-tc-big-en-es",
+        ),
         ModelVariant.STUDENT_MARIAN_EN_RO_6_1: LLMModelConfig(
             pretrained_model_name="sshleifer/student_marian_en_ro_6_1",
         ),
@@ -86,6 +90,7 @@ class ModelLoader(ForgeModel):
         ModelVariant.OPUS_MT_IT_ES: "Ciao mondo, oggi il tempo è molto bello.",
         ModelVariant.OPUS_MT_EN_HI: "Hello, how are you today?",
         ModelVariant.OPUS_MT_EN_SK: "The weather is beautiful today.",
+        ModelVariant.OPUS_MT_TC_BIG_EN_ES: "Hello, how are you today?",
         ModelVariant.STUDENT_MARIAN_EN_RO_6_1: "Hello, how are you today?",
     }
 
