@@ -34,6 +34,7 @@ class ModelVariant(StrEnum):
     TINYBERT_GENERAL_4L_312D = "huawei-noah/TinyBERT_General_4L_312D"
     PRAJJWAL1_BERT_SMALL = "prajjwal1/bert-small"
     EPWALSH_BERT_XSMALL_DUMMY = "epwalsh/bert-xsmall-dummy"
+    MICROSOFT_XTREMEDISTIL_L6_H256_UNCASED = "microsoft/xtremedistil-l6-h256-uncased"
 
 
 class ModelLoader(ForgeModel):
@@ -67,6 +68,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.EPWALSH_BERT_XSMALL_DUMMY: LLMModelConfig(
             pretrained_model_name="epwalsh/bert-xsmall-dummy",
+            max_length=128,
+        ),
+        ModelVariant.MICROSOFT_XTREMEDISTIL_L6_H256_UNCASED: LLMModelConfig(
+            pretrained_model_name="microsoft/xtremedistil-l6-h256-uncased",
             max_length=128,
         ),
     }
@@ -111,6 +116,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.TINYBERT_GENERAL_4L_312D: ModelGroup.VULCAN,
             ModelVariant.PRAJJWAL1_BERT_SMALL: ModelGroup.VULCAN,
             ModelVariant.EPWALSH_BERT_XSMALL_DUMMY: ModelGroup.VULCAN,
+            ModelVariant.MICROSOFT_XTREMEDISTIL_L6_H256_UNCASED: ModelGroup.VULCAN,
         }
 
         return ModelInfo(
