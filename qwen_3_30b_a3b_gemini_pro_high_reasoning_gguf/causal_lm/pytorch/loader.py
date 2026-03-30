@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Qwen3 30B A3B Gemini Pro High Reasoning GGUF model loader implementation for causal language modeling.
+Qwen3-30B-A3B-Gemini-Pro-High-Reasoning-2507-HI8 GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,28 +21,28 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Qwen3 30B A3B Gemini Pro High Reasoning GGUF model variants for causal language modeling."""
+    """Available Qwen3-30B-A3B-Gemini-Pro-High-Reasoning-2507-HI8 GGUF model variants for causal language modeling."""
 
-    QWEN_3_30B_A3B_GEMINI_PRO_HIGH_REASONING_I1_GGUF = (
-        "30B_A3B_Gemini_Pro_High_Reasoning_i1_GGUF"
+    QWEN_3_30B_A3B_GEMINI_PRO_HIGH_REASONING_GGUF = (
+        "30B_A3B_Gemini_Pro_High_Reasoning_GGUF"
     )
 
 
 class ModelLoader(ForgeModel):
-    """Qwen3 30B A3B Gemini Pro High Reasoning GGUF model loader implementation for causal language modeling tasks."""
+    """Qwen3-30B-A3B-Gemini-Pro-High-Reasoning-2507-HI8 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_3_30B_A3B_GEMINI_PRO_HIGH_REASONING_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3-30B-A3B-Gemini-Pro-High-Reasoning-2507-ABLITERATED-UNCENSORED-i1-GGUF",
+        ModelVariant.QWEN_3_30B_A3B_GEMINI_PRO_HIGH_REASONING_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen3-30B-A3B-Gemini-Pro-High-Reasoning-2507-HI8-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_3_30B_A3B_GEMINI_PRO_HIGH_REASONING_I1_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_3_30B_A3B_GEMINI_PRO_HIGH_REASONING_GGUF
 
-    GGUF_FILE = "Qwen3-30B-A3B-Gemini-Pro-High-Reasoning-2507-ABLITERATED-UNCENSORED.i1-Q4_K_M.gguf"
+    GGUF_FILE = "Qwen3-30B-A3B-Gemini-Pro-High-Reasoning-2507-HI8.Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "Give me a short introduction to large language model."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -55,7 +55,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Qwen3 30B A3B Gemini Pro High Reasoning GGUF",
+            model="Qwen3-30B-A3B-Gemini-Pro-High-Reasoning-2507-HI8 GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -120,6 +120,7 @@ class ModelLoader(ForgeModel):
             messages,
             tokenize=False,
             add_generation_prompt=True,
+            enable_thinking=True,
         )
         prompts = [text]
 
