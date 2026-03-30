@@ -29,6 +29,7 @@ from ...tools.utils import (
     VisionPostprocessor,
 )
 from datasets import load_dataset
+from transformers import EfficientNetForImageClassification
 import timm
 
 
@@ -70,6 +71,9 @@ class ModelVariant(StrEnum):
     HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K = "Timm_V2_Rw_S_Ra2_In1k"
     HF_TIMM_TF_EFFICIENTNETV2_S_IN21K = "Timm_Tf_V2_S_In21k"
     HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K = "Timm_Tf_V2_B3_In1k"
+
+    # HuggingFace variants
+    HF_B7 = "HF_B7"
 
 
 class ModelLoader(ForgeModel):
@@ -192,6 +196,13 @@ class ModelLoader(ForgeModel):
         use_1k_labels=True,
     )
 
+    # HuggingFace config instances
+    HF_B7_CONFIG = EfficientNetConfig(
+        pretrained_model_name="google/efficientnet-b7",
+        source=ModelSource.HUGGING_FACE,
+        use_1k_labels=True,
+    )
+
     # Dictionary using the static dataclass instances (for compatibility with existing tests)
     _VARIANTS = {
         # Torchvision variants
@@ -214,6 +225,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K: HF_TIMM_EFFICIENTNETV2_RW_S_RA2_IN1K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_S_IN21K: HF_TIMM_TF_EFFICIENTNETV2_S_IN21K_CONFIG,
         ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K: HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K_CONFIG,
+        # HuggingFace variants
+        ModelVariant.HF_B7: HF_B7_CONFIG,
     }
 
     # Default variant to use
@@ -248,7 +261,10 @@ class ModelLoader(ForgeModel):
         source = cls._VARIANTS[variant].source
         if variant == ModelVariant.B0:
             group = ModelGroup.RED
-        elif variant == ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K:
+        elif variant in [
+            ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K,
+            ModelVariant.HF_B7,
+        ]:
             group = ModelGroup.VULCAN
         else:
             group = ModelGroup.GENERALITY
@@ -294,6 +310,12 @@ class ModelLoader(ForgeModel):
 
             # Load model with appropriate weights
             model = model_fn(weights=weights_class.IMAGENET1K_V1)
+        elif source == ModelSource.HUGGING_FACE:
+            # Load using HuggingFace transformers
+            model_name = self._variant_config.pretrained_model_name
+            model = EfficientNetForImageClassification.from_pretrained(
+                model_name, **kwargs
+            )
         else:
             # Load using timm
             model_name = self._variant_config.pretrained_model_name
