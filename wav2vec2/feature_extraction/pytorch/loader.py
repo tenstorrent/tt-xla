@@ -26,8 +26,7 @@ class ModelVariant(StrEnum):
 
     BASE = "Base"
     BASE_VI = "Base_VI"
-    LARGE_ROBUST = "Large_Robust"
-    XLS_R_1B = "XLS_R_1B"
+    SMALL = "Small"
 
 
 class ModelLoader(ForgeModel):
@@ -40,11 +39,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.BASE_VI: ModelConfig(
             pretrained_model_name="nguyenvulebinh/wav2vec2-base-vi",
         ),
-        ModelVariant.LARGE_ROBUST: ModelConfig(
-            pretrained_model_name="facebook/wav2vec2-large-robust",
-        ),
-        ModelVariant.XLS_R_1B: ModelConfig(
-            pretrained_model_name="facebook/wav2vec2-xls-r-1b",
+        ModelVariant.SMALL: ModelConfig(
+            pretrained_model_name="chaanks/wav2vec2-small",
         ),
     }
 
