@@ -33,6 +33,7 @@ class ModelVariant(StrEnum):
     QWEN_3_CODER_NEXT_FP8_DYNAMIC = "Next_FP8_Dynamic"
     QWEN_3_CODER_30B_A3B_INSTRUCT = "30B_A3B_Instruct"
     QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_INT8 = "30B_A3B_Instruct_GPTQ_Int8"
+    QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4 = "30B_A3B_Instruct_NVFP4"
 
 
 class ModelLoader(ForgeModel):
@@ -54,6 +55,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_INT8: LLMModelConfig(
             pretrained_model_name="QuantTrio/Qwen3-Coder-30B-A3B-Instruct-GPTQ-Int8",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4: LLMModelConfig(
+            pretrained_model_name="ig1/Qwen3-Coder-30B-A3B-Instruct-NVFP4",
             max_length=128,
         ),
     }
@@ -147,8 +152,8 @@ class ModelLoader(ForgeModel):
         # GPTQ variants need device_map="cpu" for CPU-based loading
         if self._variant == ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_GPTQ_INT8:
             model_kwargs["device_map"] = "cpu"
-        # MLX variants need ignore_mismatched_sizes for loading
-        if "mlx-community" in pretrained_model_name:
+        # NVFP4 quantized weights have packed shapes that differ from the model definition
+        if self._variant == ModelVariant.QWEN_3_CODER_30B_A3B_INSTRUCT_NVFP4:
             model_kwargs["ignore_mismatched_sizes"] = True
         model_kwargs |= kwargs
 
