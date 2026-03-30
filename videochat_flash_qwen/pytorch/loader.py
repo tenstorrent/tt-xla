@@ -7,7 +7,6 @@ VideoChatFlash-Qwen model loader implementation for multimodal video/image condi
 
 from typing import Optional
 
-import numpy as np
 from transformers import AutoModel, AutoTokenizer
 
 from ...base import ForgeModel
@@ -91,10 +90,6 @@ class ModelLoader(ForgeModel):
 
         text_prompt = "<video>\nWhat is shown in this video?"
 
-        # Create a small synthetic video (8 frames of 32x32 RGB)
-        video = np.random.randint(0, 255, (8, 32, 32, 3), dtype=np.uint8)
-
-        # Tokenize the text prompt
         inputs = self.tokenizer(text_prompt, return_tensors="pt")
 
         if dtype_override:
