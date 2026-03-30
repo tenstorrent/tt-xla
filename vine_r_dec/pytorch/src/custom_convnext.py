@@ -5,7 +5,6 @@
 """
 CustomConvNeXt model definition for VINE watermark decoding.
 """
-import torch
 from torch import nn
 from torchvision import models
 from huggingface_hub import PyTorchModelHubMixin
