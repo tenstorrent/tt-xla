@@ -75,8 +75,7 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The FLUX.2 transformer model instance.
         """
         if self.transformer is None:
-            variant = self._variant or self.DEFAULT_VARIANT
-            gguf_file = self.GGUF_FILES[variant]
+            gguf_file = self.GGUF_FILES[self._variant]
             self.transformer = load_flux2_gguf_transformer(REPO_ID, gguf_file)
 
         if dtype_override is not None:
