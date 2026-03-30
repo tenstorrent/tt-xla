@@ -23,24 +23,24 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Qwen 2.5 Sex GGUF model variants for causal language modeling."""
 
-    QWEN_2_5_1_5B_SEX_GGUF = "1.5B_Sex_GGUF"
+    QWEN_2_5_SEX_GGUF = "QWEN_2_5_SEX_GGUF"
 
 
 class ModelLoader(ForgeModel):
     """Qwen 2.5 Sex GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.QWEN_2_5_1_5B_SEX_GGUF: LLMModelConfig(
-            pretrained_model_name="QuantFactory/Qwen2.5-Sex-GGUF",
+        ModelVariant.QWEN_2_5_SEX_GGUF: LLMModelConfig(
+            pretrained_model_name="mradermacher/Qwen2.5-Sex-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_1_5B_SEX_GGUF
+    DEFAULT_VARIANT = ModelVariant.QWEN_2_5_SEX_GGUF
 
     GGUF_FILE = "Qwen2.5-Sex.Q4_K_M.gguf"
 
-    sample_text = "Give me a short introduction to large language models."
+    sample_text = "What is your favorite city?"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -147,13 +147,9 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
 
             shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.q_proj.bias] = ("model",)
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.k_proj.bias] = ("model",)
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
-            shard_specs[layer.self_attn.v_proj.bias] = ("model",)
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
-        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
