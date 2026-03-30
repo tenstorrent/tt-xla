@@ -22,7 +22,7 @@ class _MarkTensorFn(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, x, name, pos, id, is_input, attr):
-        # Use _AutoDispatchBelowAutograd to call the real XLA/composite kernel
+        # Use _AutoDispatchBelowAutograd to call the real op
         # without re-entering our Autograd registration and recursing.
         with torch._C._AutoDispatchBelowAutograd():
             return torch.ops.xla.mark_tensor(x, name, pos, id, is_input, attr)
