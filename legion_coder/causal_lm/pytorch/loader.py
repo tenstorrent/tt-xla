@@ -4,7 +4,6 @@
 """
 Legion Coder model loader implementation for causal language modeling.
 """
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
