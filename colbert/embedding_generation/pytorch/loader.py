@@ -26,7 +26,7 @@ class ModelVariant(StrEnum):
 
     COLBERT_IR_COLBERTV2_0 = "colbert-ir/colbertv2.0"
     ANSWERAI_COLBERT_SMALL_V1 = "answerdotai/answerai-colbert-small-v1"
-    LIGHTONAI_GTE_MODERNCOLBERT_V1 = "lightonai/GTE-ModernColBERT-v1"
+    NEUML_COLBERT_BERT_TINY = "NeuML/colbert-bert-tiny"
 
 
 class ModelLoader(ForgeModel):
@@ -41,8 +41,8 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="answerdotai/answerai-colbert-small-v1",
             max_length=32,
         ),
-        ModelVariant.LIGHTONAI_GTE_MODERNCOLBERT_V1: LLMModelConfig(
-            pretrained_model_name="lightonai/GTE-ModernColBERT-v1",
+        ModelVariant.NEUML_COLBERT_BERT_TINY: LLMModelConfig(
+            pretrained_model_name="NeuML/colbert-bert-tiny",
             max_length=32,
         ),
     }
@@ -101,7 +101,9 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModel.from_pretrained(model_name, **model_kwargs)
+        model = AutoModel.from_pretrained(
+            model_name, trust_remote_code=True, **model_kwargs
+        )
         model.eval()
 
         self.model = model
