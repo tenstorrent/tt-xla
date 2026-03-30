@@ -4,7 +4,6 @@
 """
 Diver Retriever model loader implementation for embedding tasks.
 """
-import torch
 from transformers import AutoModel, AutoTokenizer, AutoConfig
 from typing import Optional
 
