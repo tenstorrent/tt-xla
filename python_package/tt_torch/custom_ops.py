@@ -5,7 +5,36 @@
 from typing import Optional, Tuple, Union
 
 import torch
+from torch.library import impl
+from torch_xla.core.xla_model import XLA_LIB
 from torch_xla.experimental import stablehlo_custom_call
+
+
+class _MarkTensorFn(torch.autograd.Function):
+    """Identity autograd wrapper for xla::mark_tensor.
+
+    mark_tensor is a metadata-only boundary annotation for StableHLO composite
+    patterns.  It has no effect on tensor values, so gradients pass straight
+    through.  Without this, PyTorch's AutogradNotImplemented fallback fires and
+    silently drops gradients when mark_tensor appears before AOTAutograd tracing
+    (e.g. when composite ops are applied to the pre-AOT graph).
+    """
+
+    @staticmethod
+    def forward(ctx, x, name, pos, id, is_input, attr):
+        # Use _AutoDispatchBelowAutograd to call the real XLA/composite kernel
+        # without re-entering our Autograd registration and recursing.
+        with torch._C._AutoDispatchBelowAutograd():
+            return torch.ops.xla.mark_tensor(x, name, pos, id, is_input, attr)
+
+    @staticmethod
+    def backward(ctx, grad):
+        return grad, None, None, None, None, None
+
+
+@impl(XLA_LIB, "mark_tensor", "Autograd")
+def _mark_tensor_autograd(x, name, pos, id, is_input, attr=None):
+    return _MarkTensorFn.apply(x, name, pos, id, is_input, attr)
 
 
 @torch.library.custom_op(
