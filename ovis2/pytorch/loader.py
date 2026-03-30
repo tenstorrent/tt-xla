@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Ovis2 model loader implementation for multimodal conditional generation.
+Ovis2 model loader implementation for multimodal visual question answering.
 """
 
 import torch
 from PIL import Image
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForImageTextToText, AutoProcessor
 from typing import Optional
 
 from ...base import ForgeModel
@@ -26,25 +26,23 @@ from ...tools.utils import get_file, cast_input_to_type
 class ModelVariant(StrEnum):
     """Available Ovis2 model variants."""
 
-    OVIS2_1B = "1B"
+    OVIS2_2B = "2B"
 
 
 class ModelLoader(ForgeModel):
-    """Ovis2 model loader for multimodal conditional generation."""
+    """Ovis2 model loader for multimodal visual question answering tasks."""
 
     _VARIANTS = {
-        ModelVariant.OVIS2_1B: ModelConfig(
-            pretrained_model_name="AIDC-AI/Ovis2-1B",
+        ModelVariant.OVIS2_2B: ModelConfig(
+            pretrained_model_name="thisisiron/Ovis2-2B-hf",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.OVIS2_1B
+    DEFAULT_VARIANT = ModelVariant.OVIS2_2B
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.text_tokenizer = None
-        self.visual_tokenizer = None
-        self.model = None
+        self.processor = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -55,71 +53,70 @@ class ModelLoader(ForgeModel):
             model="Ovis2",
             variant=variant,
             group=ModelGroup.VULCAN,
-            task=ModelTask.MM_CONDITIONAL_GENERATION,
+            task=ModelTask.MM_VISUAL_QA,
             source=ModelSource.HUGGING_FACE,
             framework=Framework.TORCH,
         )
+
+    def _load_processor(self):
+        self.processor = AutoProcessor.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
+        return self.processor
 
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         model_kwargs = {
-            "trust_remote_code": True,
-            "multimodal_max_length": 8192,
+            "attn_implementation": "eager",
+            "torch_dtype": torch.bfloat16,
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForImageTextToText.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
         model.eval()
-        self.model = model
 
-        self.text_tokenizer = model.get_text_tokenizer()
-        self.visual_tokenizer = model.get_visual_tokenizer()
+        if self.processor is None:
+            self._load_processor()
 
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        if self.model is None:
-            self.load_model(dtype_override=dtype_override)
+        if self.processor is None:
+            self._load_processor()
 
         image_file = get_file(
             "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
         )
-        image = Image.open(image_file)
+        image = Image.open(image_file).convert("RGB")
 
-        query = "<image>\nWhat is shown in this image?"
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": "What is shown in this image?"},
+                ],
+            }
+        ]
 
-        prompt, input_ids, pixel_values = self.model.preprocess_inputs(
-            query, [image], max_partition=9
+        text_prompt = self.processor.apply_chat_template(
+            conversation, add_generation_prompt=True
         )
 
-        attention_mask = torch.ne(input_ids, self.text_tokenizer.pad_token_id)
-        input_ids = input_ids.unsqueeze(0)
-        attention_mask = attention_mask.unsqueeze(0)
+        inputs = self.processor(images=image, text=text_prompt, return_tensors="pt")
 
-        if pixel_values is not None:
-            pixel_values = [pixel_values.to(dtype=self.visual_tokenizer.dtype)]
-
-        if dtype_override is not None:
-            input_ids = cast_input_to_type(input_ids, dtype_override)
-            attention_mask = cast_input_to_type(attention_mask, dtype_override)
+        if dtype_override:
+            for key in inputs:
+                inputs[key] = cast_input_to_type(inputs[key], dtype_override)
 
         if batch_size > 1:
-            input_ids = input_ids.repeat_interleave(batch_size, dim=0)
-            attention_mask = attention_mask.repeat_interleave(batch_size, dim=0)
-            if pixel_values is not None:
-                pixel_values = pixel_values * batch_size
-
-        inputs = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-        }
-        if pixel_values is not None:
-            inputs["pixel_values"] = pixel_values
+            for key in inputs:
+                inputs[key] = inputs[key].repeat_interleave(batch_size, dim=0)
 
         return inputs
 
@@ -127,16 +124,14 @@ class ModelLoader(ForgeModel):
         if isinstance(outputs, str):
             return outputs
 
-        if self.text_tokenizer is None and self.model is not None:
-            self.text_tokenizer = self.model.get_text_tokenizer()
+        if self.processor is None:
+            self._load_processor()
 
         if torch.is_tensor(outputs) and outputs.dtype in [torch.long, torch.int]:
             if input_length is not None:
                 outputs = outputs[:, input_length:]
-            return self.text_tokenizer.batch_decode(outputs, skip_special_tokens=True)[
-                0
-            ]
+            return self.processor.batch_decode(outputs, skip_special_tokens=True)[0]
         else:
             logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
             next_token_id = torch.argmax(logits[:, -1, :], dim=-1)
-            return self.text_tokenizer.decode(next_token_id)
+            return self.processor.decode(next_token_id)
