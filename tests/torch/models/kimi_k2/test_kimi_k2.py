@@ -429,6 +429,12 @@ def test_kimi_k2_layer_sparse_moe_no_cache():
     config._attn_implementation = "eager"
     config.num_hidden_layers = 2
 
+    config.n_routed_experts = 16
+    config.num_experts_per_tok = 2
+    config.moe_intermediate_size = 512
+    config.hidden_size = 1024
+    config.intermediate_size = 2048
+
     layer = DeepseekV3DecoderLayer(config, layer_idx=1)
     layer = layer.eval().to(torch.bfloat16)
 
