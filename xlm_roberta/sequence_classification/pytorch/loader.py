@@ -22,11 +22,8 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa sequence classification model variants."""
 
     TWITTER_XLM_ROBERTA_BASE_SENTIMENT = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
-    TEXTDETOX_XLMR_LARGE_TOXICITY_CLASSIFIER = (
-        "textdetox/xlmr-large-toxicity-classifier"
-    )
-    CLASSLA_XLM_ROBERTA_BASE_MULTILINGUAL_TEXT_GENRE_CLASSIFIER = (
-        "classla/xlm-roberta-base-multilingual-text-genre-classifier"
+    POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3 = (
+        "poltextlab/xlm-roberta-large-publicopinion-cap-v3"
     )
 
 
@@ -38,22 +35,23 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cardiffnlp/twitter-xlm-roberta-base-sentiment",
             max_length=128,
         ),
-        ModelVariant.TEXTDETOX_XLMR_LARGE_TOXICITY_CLASSIFIER: LLMModelConfig(
-            pretrained_model_name="textdetox/xlmr-large-toxicity-classifier",
-            max_length=128,
-        ),
-        ModelVariant.CLASSLA_XLM_ROBERTA_BASE_MULTILINGUAL_TEXT_GENRE_CLASSIFIER: LLMModelConfig(
-            pretrained_model_name="classla/xlm-roberta-base-multilingual-text-genre-classifier",
+        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3: LLMModelConfig(
+            pretrained_model_name="poltextlab/xlm-roberta-large-publicopinion-cap-v3",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT
 
+    # Variant-specific tokenizer overrides (when model repo has mismatched tokenizer)
+    _TOKENIZER_OVERRIDES = {
+        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3: "xlm-roberta-large",
+    }
+
+    # Variant-specific sample texts
     _SAMPLE_TEXTS = {
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
-        ModelVariant.TEXTDETOX_XLMR_LARGE_TOXICITY_CLASSIFIER: "This is a friendly message.",
-        ModelVariant.CLASSLA_XLM_ROBERTA_BASE_MULTILINGUAL_TEXT_GENRE_CLASSIFIER: "The court ruled that the defendant was guilty of fraud.",
+        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
     }
 
     def __init__(self, variant=None):
@@ -82,7 +80,8 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load XLM-RoBERTa model for sequence classification from Hugging Face."""
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        tokenizer_name = self._TOKENIZER_OVERRIDES.get(self._variant, self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
         model_kwargs = {}
         if dtype_override is not None:
