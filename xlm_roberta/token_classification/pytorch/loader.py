@@ -25,8 +25,7 @@ class ModelVariant(StrEnum):
     """Available XLM-RoBERTa token classification model variants."""
 
     CRYPTO_NER = "CryptoNER"
-    NER_HRL = "NER-HRL"
-    WIKIANN_NER = "WikiANN-NER"
+    AR86BAT_MULTILANG_PII_NER = "Ar86Bat/multilang-pii-ner"
 
 
 class ModelLoader(ForgeModel):
@@ -36,11 +35,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.CRYPTO_NER: ModelConfig(
             pretrained_model_name="covalenthq/cryptoNER",
         ),
-        ModelVariant.NER_HRL: ModelConfig(
-            pretrained_model_name="Davlan/xlm-roberta-large-ner-hrl",
-        ),
-        ModelVariant.WIKIANN_NER: ModelConfig(
-            pretrained_model_name="Davlan/xlm-roberta-base-wikiann-ner",
+        ModelVariant.AR86BAT_MULTILANG_PII_NER: ModelConfig(
+            pretrained_model_name="Ar86Bat/multilang-pii-ner",
         ),
     }
 
@@ -50,8 +46,8 @@ class ModelLoader(ForgeModel):
         super().__init__(variant)
         self.tokenizer = None
         self.model = None
-        if self._variant in (ModelVariant.NER_HRL, ModelVariant.WIKIANN_NER):
-            self.sample_text = "Nader Jokhadar had given Syria the lead with a well-struck header in the seventh minute."
+        if self._variant == ModelVariant.AR86BAT_MULTILANG_PII_NER:
+            self.sample_text = "John Doe was born on 12/12/1990 and lives in Berlin."
         else:
             self.sample_text = (
                 "I bought mass Ethereum and mass Bitcoin on Uniswap yesterday"
