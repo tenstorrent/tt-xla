@@ -48,6 +48,9 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_TEXT_MLX_QX64_HI = "35B_A3B_Text_MLX_qx64_hi"
     QWEN_3_5_122B_A10B_MLX_8BIT = "122B_A10B_MLX_8BIT"
     QWEN_3_5_397B_A17B_MLX_8BIT = "397B_A17B_MLX_8BIT"
+    QWEN_3_5_27B_CLAUDE_4_6_OS_INSTRUCT_MXFP8_MLX = (
+        "27B_Claude_4.6_OS_INSTRUCT_mxfp8_mlx"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -149,6 +152,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_397B_A17B_MLX_8BIT: LLMModelConfig(
             pretrained_model_name="mlx-community/Qwen3.5-397B-A17B-8bit",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_27B_CLAUDE_4_6_OS_INSTRUCT_MXFP8_MLX: LLMModelConfig(
+            pretrained_model_name="nightmedia/Qwen3.5-27B-Claude-4.6-OS-INSTRUCT-mxfp8-mlx",
             max_length=128,
         ),
     }
