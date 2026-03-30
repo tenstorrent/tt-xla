@@ -47,10 +47,9 @@ class ModelVariant(StrEnum):
     MISTRAL_SMALL_3_2_24B_INSTRUCT_2506 = "mistral_small_3.2_24b_instruct_2506"
     CODESTRAL_22B_V01 = "Codestral_22B_v01"
     MISTRAL_7B_V03_BNB_4BIT = "7B_v03_bnb_4bit"
-    MISTRAL_7B_INSTRUCT_V02_GPTQ = "7B_INSTRUCT_v02_GPTQ"
-    MISTRAL_7B_INSTRUCT_V02_MLC_Q4F16 = "7B_INSTRUCT_v02_MLC_q4f16_1"
-    DOLPHIN3_R1_MISTRAL_24B = "Dolphin3.0_R1_Mistral_24B"
-    ARATAKO_MISTRAL_NEMO_12B_RP_GGUF = "Aratako_Nemo_12B_RP_GGUF"
+    MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND = (
+        "mistral_small_3.2_24b_instruct_2506_int4_autoround"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -69,8 +68,7 @@ class ModelLoader(ForgeModel):
     _USE_Mistral3ForConditionalGeneration_VARIANTS = {
         ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
         ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506,
-        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_MLX_6BIT,
-        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_MLX_4BIT,
+        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND,
     }
 
     # Dictionary of available model variants
@@ -132,17 +130,8 @@ class ModelLoader(ForgeModel):
         ModelVariant.MISTRAL_7B_V03_BNB_4BIT: ModelConfig(
             pretrained_model_name="unsloth/mistral-7b-v0.3-bnb-4bit",
         ),
-        ModelVariant.MISTRAL_7B_INSTRUCT_V02_GPTQ: ModelConfig(
-            pretrained_model_name="TheBloke/Mistral-7B-Instruct-v0.2-GPTQ",
-        ),
-        ModelVariant.MISTRAL_7B_INSTRUCT_V02_MLC_Q4F16: ModelConfig(
-            pretrained_model_name="mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC",
-        ),
-        ModelVariant.DOLPHIN3_R1_MISTRAL_24B: ModelConfig(
-            pretrained_model_name="cognitivecomputations/Dolphin3.0-R1-Mistral-24B",
-        ),
-        ModelVariant.ARATAKO_MISTRAL_NEMO_12B_RP_GGUF: ModelConfig(
-            pretrained_model_name="Aratako/Mistral-Nemo-12B-RP-GGUF",
+        ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND: ModelConfig(
+            pretrained_model_name="Intel/Mistral-Small-3.2-24B-Instruct-2506-int4-AutoRound",
         ),
     }
 
@@ -180,8 +169,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.MINISTRAL_3B_INSTRUCT_2512_BF16,
             ModelVariant.MISTRAL_7B_INSTRUCT_V02,
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.DEVSTRAL_SMALL_2507,
-            ModelVariant.CODESTRAL_22B_V01,
+            ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND,
         ):
             group = ModelGroup.VULCAN
         elif variant in [
@@ -269,7 +257,7 @@ class ModelLoader(ForgeModel):
         # Quantized variants need device_map="cpu" for CPU-based loading
         if self._variant in (
             ModelVariant.MISTRAL_7B_V03_BNB_4BIT,
-            ModelVariant.MISTRAL_7B_INSTRUCT_V02_GPTQ,
+            ModelVariant.MISTRAL_SMALL_3_2_24B_INSTRUCT_2506_INT4_AUTOROUND,
         ):
             model_kwargs["device_map"] = "cpu"
 
