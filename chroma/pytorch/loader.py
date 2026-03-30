@@ -5,7 +5,6 @@
 Chroma model loader implementation for text-to-image generation
 """
 import torch
-import numpy as np
 from diffusers import ChromaPipeline
 from typing import Optional
 
@@ -127,7 +126,6 @@ class ModelLoader(ForgeModel):
 
         max_sequence_length = 256
         prompt = "An astronaut riding a horse in a futuristic city"
-        num_inference_steps = 1
         height = 128
         width = 128
         num_images_per_prompt = 1
