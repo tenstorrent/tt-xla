@@ -1,12 +1,12 @@
-# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-LongT5 model loader implementation for Conditional Generation.
+LongT5 model loader implementation for feature extraction.
 """
 
 import torch
-from transformers import AutoTokenizer, LongT5ForConditionalGeneration
+from transformers import AutoTokenizer, LongT5Model
 from typing import Optional
 
 from ...base import ForgeModel
@@ -24,50 +24,45 @@ from ...config import (
 class ModelVariant(StrEnum):
     """Available LongT5 model variants."""
 
-    BASE_TGLOBAL = "Base_Tglobal"
-    LARGE_LOCAL = "Large_Local"
-    XL_TGLOBAL = "Xl_Tglobal"
+    TINY = "Tiny"
 
 
 class ModelLoader(ForgeModel):
-    """LongT5 model loader implementation for conditional generation tasks."""
+    """LongT5 model loader implementation for feature extraction."""
 
     _VARIANTS = {
-        ModelVariant.BASE_TGLOBAL: LLMModelConfig(
-            pretrained_model_name="google/long-t5-tglobal-base",
-        ),
-        ModelVariant.LARGE_LOCAL: LLMModelConfig(
-            pretrained_model_name="google/long-t5-local-large",
-        ),
-        ModelVariant.XL_TGLOBAL: LLMModelConfig(
-            pretrained_model_name="google/long-t5-tglobal-xl",
+        ModelVariant.TINY: LLMModelConfig(
+            pretrained_model_name="fxmarty/tiny-random-working-LongT5Model",
+            max_length=512,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.BASE_TGLOBAL
+    DEFAULT_VARIANT = ModelVariant.TINY
 
     sample_text = "summarize: My friends are cool but they eat too many carbs."
 
     def __init__(self, variant: Optional[ModelVariant] = None):
-        """Initialize ModelLoader with specified variant."""
+        """Initialize ModelLoader with specified variant.
 
+        Args:
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
+        """
         super().__init__(variant)
-        self._tokenizer = None
+        self.tokenizer = None
         self._cached_model = None
-        self._model_name = self._variant_config.pretrained_model_name
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         """Implementation method for getting model info with validated variant.
 
         Args:
-             variant: Optional ModelVariant specifying which variant to use.
-                      If None, DEFAULT_VARIANT is used.
+            variant: Optional ModelVariant specifying which variant to use.
+                     If None, DEFAULT_VARIANT is used.
 
         Returns:
-             ModelInfo: Information about the model and variant
+            ModelInfo: Information about the model and variant
         """
-
         return ModelInfo(
             model="LongT5",
             variant=variant,
@@ -86,16 +81,15 @@ class ModelLoader(ForgeModel):
         Returns:
             The loaded tokenizer instance
         """
-
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
-        self._tokenizer = AutoTokenizer.from_pretrained(
-            self._model_name, **tokenizer_kwargs
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._variant_config.pretrained_model_name, **tokenizer_kwargs
         )
 
-        return self._tokenizer
+        return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the LongT5 model instance for this instance's variant.
@@ -104,10 +98,11 @@ class ModelLoader(ForgeModel):
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            torch.nn.Module: The LongT5 model instance for conditional generation.
+            torch.nn.Module: The LongT5 model instance.
         """
+        pretrained_model_name = self._variant_config.pretrained_model_name
 
-        if self._tokenizer is None:
+        if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
         model_kwargs = {"use_cache": False}
@@ -115,9 +110,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
-        model = LongT5ForConditionalGeneration.from_pretrained(
-            self._model_name, **model_kwargs
-        )
+        model = LongT5Model.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
         self._cached_model = model
         return model
@@ -131,21 +124,17 @@ class ModelLoader(ForgeModel):
         Returns:
             dict: Input tensors that can be fed to the model.
         """
-
-        if self._tokenizer is None:
+        if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        inputs = self._tokenizer(
+        inputs = self.tokenizer(
             self.sample_text,
             return_tensors="pt",
         )
 
-        decoder_start_token_tensor = torch.tensor(
-            self._cached_model.generation_config.decoder_start_token_id,
-            dtype=torch.long,
-        )
+        decoder_start_token_id = self._cached_model.config.decoder_start_token_id
         decoder_input_ids = (
-            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_tensor
+            torch.ones((1, 1), dtype=torch.long) * decoder_start_token_id
         )
         inputs["decoder_input_ids"] = decoder_input_ids
 
