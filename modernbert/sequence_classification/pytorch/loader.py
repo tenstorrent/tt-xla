@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-ModernBERT model loader implementation for sequence classification (emotion detection).
+ModernBERT model loader implementation for sequence classification.
 """
 from typing import Optional
 
@@ -22,6 +22,7 @@ class ModelVariant(StrEnum):
     """Available ModernBERT model variants for sequence classification."""
 
     GO_EMOTIONS_BASE = "Go_Emotions_Base"
+    SIMILARITY_CLASSIFIER_F168 = "Similarity_Classifier_F168"
 
 
 class ModelLoader(ForgeModel):
@@ -32,9 +33,23 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="cirimus/modernbert-base-go-emotions",
             max_length=128,
         ),
+        ModelVariant.SIMILARITY_CLASSIFIER_F168: LLMModelConfig(
+            pretrained_model_name="dogtooth/similarity-classifier-f168-hf",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GO_EMOTIONS_BASE
+
+    _SAMPLE_TEXTS = {
+        ModelVariant.GO_EMOTIONS_BASE: (
+            "I am so happy and excited about this opportunity!",
+        ),
+        ModelVariant.SIMILARITY_CLASSIFIER_F168: (
+            "The cat sat on the mat.",
+            "A feline was resting on the rug.",
+        ),
+    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -79,10 +94,13 @@ class ModelLoader(ForgeModel):
                 self._variant_config.pretrained_model_name
             )
 
-        sample_text = "I am so happy and excited about this opportunity!"
+        sample = self._SAMPLE_TEXTS.get(
+            self._variant, ("I am so happy and excited about this opportunity!",)
+        )
+        text_args = sample
 
         inputs = self.tokenizer(
-            sample_text,
+            *text_args,
             max_length=self._variant_config.max_length,
             padding="max_length",
             truncation=True,
@@ -98,7 +116,7 @@ class ModelLoader(ForgeModel):
             and hasattr(framework_model, "config")
             and hasattr(framework_model.config, "id2label")
         ):
-            predicted_emotion = framework_model.config.id2label[predicted_class_id]
-            print(f"Predicted emotion: {predicted_emotion}")
+            predicted_label = framework_model.config.id2label[predicted_class_id]
+            print(f"Predicted label: {predicted_label}")
         else:
             print(f"Predicted class ID: {predicted_class_id}")
