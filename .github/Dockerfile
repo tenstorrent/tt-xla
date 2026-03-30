@@ -84,6 +84,7 @@ WORKDIR /tmp
 RUN git clone --branch ${OMPI_TAG} --depth 1 https://github.com/open-mpi/ompi.git ompi-src && \
     cd ompi-src && \
     git submodule update --init --recursive && \
+    grep -rl 'req_complete = false;' --include='*.h' --include='*.c' . | xargs sed -i 's/req_complete = false;/req_complete = REQUEST_PENDING;/g' && \
     ./autogen.pl && \
     ./configure \
         --prefix=${OMPI_PREFIX} \
