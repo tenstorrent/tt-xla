@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Dolphin 2.9 Llama 3 8B GGUF model loader implementation for causal language modeling.
+Dolphin 2.9 Llama3 8B GGUF model loader implementation for causal language modeling.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -21,26 +21,26 @@ from ....config import (
 
 
 class ModelVariant(StrEnum):
-    """Available Dolphin 2.9 Llama 3 8B GGUF model variants for causal language modeling."""
+    """Available Dolphin 2.9 Llama3 8B GGUF model variants for causal language modeling."""
 
-    DOLPHIN_2_9_LLAMA3_8B_Q4_K_M = "Dolphin_2.9_Llama3_8B_Q4_K_M"
+    DOLPHIN_2_9_LLAMA3_8B_GGUF = "Dolphin_2.9_Llama3_8B_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Dolphin 2.9 Llama 3 8B GGUF model loader implementation for causal language modeling tasks."""
+    """Dolphin 2.9 Llama3 8B GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.DOLPHIN_2_9_LLAMA3_8B_Q4_K_M: LLMModelConfig(
-            pretrained_model_name="dphn/dolphin-2.9-llama3-8b-gguf",
+        ModelVariant.DOLPHIN_2_9_LLAMA3_8B_GGUF: LLMModelConfig(
+            pretrained_model_name="QuantFactory/dolphin-2.9-llama3-8b-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.DOLPHIN_2_9_LLAMA3_8B_Q4_K_M
+    DEFAULT_VARIANT = ModelVariant.DOLPHIN_2_9_LLAMA3_8B_GGUF
 
-    GGUF_FILE = "dolphin-2.9-llama3-8b-q4_K_M.gguf"
+    GGUF_FILE = "dolphin-2.9-llama3-8b.Q4_K_M.gguf"
 
-    sample_text = "What is your favorite city?"
+    sample_text = "Give me a short introduction to large language models."
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -53,7 +53,7 @@ class ModelLoader(ForgeModel):
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
         return ModelInfo(
-            model="Dolphin 2.9 Llama 3 8B GGUF",
+            model="Dolphin 2.9 Llama3 8B GGUF",
             variant=variant,
             group=ModelGroup.VULCAN,
             task=ModelTask.NLP_CAUSAL_LM,
@@ -150,6 +150,7 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
