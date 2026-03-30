@@ -291,8 +291,10 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
-    torch.nn.functional.group_norm: composite_group_norm,
+    # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
+    # torch.nn.functional.group_norm: composite_group_norm,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
-    torch.nn.GroupNorm: replace_group_norm_module,
+    # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
+    # torch.nn.GroupNorm: replace_group_norm_module,
 }
