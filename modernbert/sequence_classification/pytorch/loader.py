@@ -97,10 +97,9 @@ class ModelLoader(ForgeModel):
         sample = self._SAMPLE_TEXTS.get(
             self._variant, ("I am so happy and excited about this opportunity!",)
         )
-        text_args = sample
 
         inputs = self.tokenizer(
-            *text_args,
+            *sample,
             max_length=self._variant_config.max_length,
             padding="max_length",
             truncation=True,
