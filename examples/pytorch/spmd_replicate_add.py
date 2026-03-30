@@ -42,8 +42,9 @@ def main():
     device = torch_xla.device()
     mesh = create_mesh(mesh_shape=(4, 16))
 
-    # Build a 1024x1024 bf16 tensor of ones and move it to the XLA device.
-    x_cpu = torch.ones(1024, 1024, dtype=torch.bfloat16)
+    # Build a 16384x32768 bf16 tensor of ones (~1 GiB) and move it to the XLA device.
+    # 16384 * 32768 * 2 bytes (bfloat16) = 1,073,741,824 bytes = 1 GiB exactly.
+    x_cpu = torch.ones(16384, 32768, dtype=torch.bfloat16)
     x = x_cpu.to(device)
 
     # Replicate across the entire mesh (no sharding on either dimension).
