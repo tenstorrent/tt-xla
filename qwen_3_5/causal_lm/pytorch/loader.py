@@ -36,6 +36,7 @@ class ModelVariant(StrEnum):
     QWEN_3_5_35B_A3B_FP8 = "35B_A3B_FP8"
     QWEN_3_5_4B_GGUF = "4B_GGUF"
     QWEN_3_5_9B_GGUF = "9B_GGUF"
+    QWEN_3_5_2B_BASE_UNSLOTH = "2B_Base_unsloth"
     QWEN_3_5_9B_BASE_UNSLOTH = "9B_Base_unsloth"
     QWEN_3_5_35B_A3B_BASE_UNSLOTH = "35B_A3B_Base_unsloth"
     QWEN_3_5_35B_A3B_NVFP4 = "35B_A3B_NVFP4"
@@ -93,6 +94,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.QWEN_3_5_9B_GGUF: LLMModelConfig(
             pretrained_model_name="unsloth/Qwen3.5-9B-GGUF",
+            max_length=128,
+        ),
+        ModelVariant.QWEN_3_5_2B_BASE_UNSLOTH: LLMModelConfig(
+            pretrained_model_name="unsloth/Qwen3.5-2B-Base",
             max_length=128,
         ),
         ModelVariant.QWEN_3_5_9B_BASE_UNSLOTH: LLMModelConfig(
@@ -268,6 +273,7 @@ class ModelLoader(ForgeModel):
         # Base models use plain text; chat models use chat template
         if self._variant in (
             ModelVariant.QWEN_3_5_9B_BASE,
+            ModelVariant.QWEN_3_5_2B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_9B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
             ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
