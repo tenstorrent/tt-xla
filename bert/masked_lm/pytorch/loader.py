@@ -41,10 +41,12 @@ class ModelVariant(StrEnum):
     BERT_BASE_HISTORIC_MULTILINGUAL_CASED = (
         "dbmdz/bert-base-historic-multilingual-cased"
     )
+    BERT_BASE_CANTONESE = "indiejoseph/bert-base-cantonese"
 
 
 _SAMPLE_TEXTS = {
     ModelVariant.MACBERT4CSC_BASE_CHINESE: "今天新情很好",
+    ModelVariant.BERT_BASE_CANTONESE: "今日天氣好[MASK]。",
 }
 
 
@@ -109,6 +111,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="dbmdz/bert-base-historic-multilingual-cased",
             max_length=128,
         ),
+        ModelVariant.BERT_BASE_CANTONESE: LLMModelConfig(
+            pretrained_model_name="indiejoseph/bert-base-cantonese",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -159,6 +165,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.BERT_BASE_ARABERTV02_TWITTER,
             ModelVariant.MACBERT4CSC_BASE_CHINESE,
             ModelVariant.BERT_BASE_HISTORIC_MULTILINGUAL_CASED,
+            ModelVariant.BERT_BASE_CANTONESE,
         ):
             group = ModelGroup.VULCAN
         return ModelInfo(
