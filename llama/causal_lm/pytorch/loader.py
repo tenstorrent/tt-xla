@@ -116,6 +116,9 @@ class ModelVariant(StrEnum):
     # open-unlearning variants
     TOFU_LLAMA_3_1_8B_INSTRUCT_FULL = "Tofu_3.1_8B_Instruct_Full"
 
+    # NousResearch variants
+    NOUSRESEARCH_LLAMA_3_1_70B_INSTRUCT = "NousResearch_3.1_70B_Instruct"
+
 
 class ModelLoader(ForgeModel):
     """Llama model loader implementation for causal language modeling tasks."""
@@ -276,6 +279,11 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="open-unlearning/tofu_Llama-3.1-8B-Instruct_full",
             max_length=128,
         ),
+        # NousResearch variants
+        ModelVariant.NOUSRESEARCH_LLAMA_3_1_70B_INSTRUCT: LLMModelConfig(
+            pretrained_model_name="NousResearch/Meta-Llama-3.1-70B-Instruct",
+            max_length=128,
+        ),
     }
 
     # Default variant to use
@@ -328,6 +336,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_MLX_4BIT,
             ModelVariant.LLAMA_3_1_8B_INSTRUCT_BNB_4BIT,
             ModelVariant.TOFU_LLAMA_3_1_8B_INSTRUCT_FULL,
+            ModelVariant.NOUSRESEARCH_LLAMA_3_1_70B_INSTRUCT,
         ]:
             group = ModelGroup.VULCAN
         elif (
@@ -600,6 +609,7 @@ class ModelLoader(ForgeModel):
             ModelVariant.LLAMA_3_3_70B_INSTRUCT,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_AWQ,
             ModelVariant.LLAMA_3_3_70B_INSTRUCT_MLX_4BIT,
+            ModelVariant.NOUSRESEARCH_LLAMA_3_1_70B_INSTRUCT,
             ModelVariant.LLAMA_3_1_405B,
             ModelVariant.LLAMA_3_1_405B_INSTRUCT,
             ModelVariant.WHITERABBITNEO_LLAMA_3_1_70B,
