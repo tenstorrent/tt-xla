@@ -8,7 +8,7 @@ Hiera model loader implementation
 from typing import Optional
 from dataclasses import dataclass
 
-from transformers import HieraForPreTraining, AutoImageProcessor
+from transformers import AutoModelForPreTraining, AutoImageProcessor
 
 from ...config import (
     ModelConfig,
@@ -71,7 +71,7 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         model_name = self._variant_config.pretrained_model_name
 
-        model = HieraForPreTraining.from_pretrained(model_name, **kwargs)
+        model = AutoModelForPreTraining.from_pretrained(model_name, **kwargs)
         model.eval()
 
         if dtype_override is not None:
