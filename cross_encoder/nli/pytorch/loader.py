@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Cross-Encoder model loader implementation for natural language inference.
+Cross-Encoder model loader implementation for natural language inference (NLI).
 """
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -23,27 +23,19 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Cross-Encoder model variants for NLI."""
 
-    NLI_DISTILROBERTA_BASE = "nli-distilroberta-base"
+    NLI_DEBERTA_BASE = "nli-deberta-base"
 
 
 class ModelLoader(ForgeModel):
     """Cross-Encoder model loader implementation for natural language inference."""
 
     _VARIANTS = {
-        ModelVariant.NLI_DISTILROBERTA_BASE: ModelConfig(
-            pretrained_model_name="cross-encoder/nli-distilroberta-base",
+        ModelVariant.NLI_DEBERTA_BASE: ModelConfig(
+            pretrained_model_name="cross-encoder/nli-deberta-base",
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.NLI_DISTILROBERTA_BASE
-
-    # Sample premise-hypothesis pairs for NLI testing
-    sample_pairs = [
-        (
-            "A man is eating pizza.",
-            "A man eats something.",
-        ),
-    ]
+    DEFAULT_VARIANT = ModelVariant.NLI_DEBERTA_BASE
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -71,7 +63,7 @@ class ModelLoader(ForgeModel):
 
         model_kwargs = {"return_dict": False}
         if dtype_override is not None:
-            model_kwargs["dtype"] = dtype_override
+            model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
 
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -85,12 +77,12 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        premises = [pair[0] for pair in self.sample_pairs]
-        hypotheses = [pair[1] for pair in self.sample_pairs]
+        premise = "A man is eating pizza"
+        hypothesis = "A man eats something"
 
         inputs = self.tokenizer(
-            premises,
-            hypotheses,
+            premise,
+            hypothesis,
             padding=True,
             truncation=True,
             return_tensors="pt",
