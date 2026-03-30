@@ -29,6 +29,7 @@ class ModelVariant(StrEnum):
     MULTILINGUAL_E5_SMALL = "intfloat/multilingual-e5-small"
     MULTILINGUAL_E5_BASE = "intfloat/multilingual-e5-base"
     MULTILINGUAL_E5_LARGE_INSTRUCT = "intfloat/multilingual-e5-large-instruct"
+    E5_LARGE_TRM_NL = "clips/e5-large-trm-nl"
 
 
 class ModelLoader(ForgeModel):
@@ -45,6 +46,10 @@ class ModelLoader(ForgeModel):
         ),
         ModelVariant.MULTILINGUAL_E5_LARGE_INSTRUCT: LLMModelConfig(
             pretrained_model_name="intfloat/multilingual-e5-large-instruct",
+            max_length=512,
+        ),
+        ModelVariant.E5_LARGE_TRM_NL: LLMModelConfig(
+            pretrained_model_name="clips/e5-large-trm-nl",
             max_length=512,
         ),
     }
@@ -102,6 +107,8 @@ class ModelLoader(ForgeModel):
         if sentence is None:
             if self._variant == ModelVariant.MULTILINGUAL_E5_LARGE_INSTRUCT:
                 sentence = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: How is the weather today?"
+            elif self._variant == ModelVariant.E5_LARGE_TRM_NL:
+                sentence = "query: Hoe is het weer vandaag?"
             else:
                 sentence = "query: How is the weather today?"
 
