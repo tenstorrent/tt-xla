@@ -98,8 +98,8 @@ def test_tt_backend_no_graph_breaks_with_cpu_tensor_attributes():
     """TT backend force-moves CPU args to XLA, preventing graph breaks."""
     captured = {}
 
-    def capturing_fw_compiler(gm, example_inputs, options):
-        executor = fw_compiler(gm, example_inputs, options)
+    def capturing_fw_compiler(gm, example_inputs, options, aot_graph_signature=None):
+        executor = fw_compiler(gm, example_inputs, options, aot_graph_signature)
         captured["executor"] = executor
         return executor
 
