@@ -4,18 +4,20 @@
 """
 Mistral Small 4 119B 2603 GGUF model loader implementation for causal language modeling.
 """
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+
 from typing import Optional
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
-    LLMModelConfig,
-    ModelInfo,
-    ModelGroup,
-    ModelTask,
-    ModelSource,
     Framework,
+    LLMModelConfig,
+    ModelGroup,
+    ModelInfo,
+    ModelSource,
+    ModelTask,
     StrEnum,
 )
 
@@ -23,22 +25,22 @@ from ....config import (
 class ModelVariant(StrEnum):
     """Available Mistral Small 4 119B 2603 GGUF model variants for causal language modeling."""
 
-    MISTRAL_SMALL_4_119B_2603_GGUF = "119B_2603_GGUF"
+    MISTRAL_SMALL_4_119B_IQ4_XS_GGUF = "119B_IQ4_XS_GGUF"
 
 
 class ModelLoader(ForgeModel):
-    """Mistral Small 4 119B 2603 GGUF model loader for causal language modeling tasks."""
+    """Mistral Small 4 119B 2603 GGUF model loader implementation for causal language modeling tasks."""
 
     _VARIANTS = {
-        ModelVariant.MISTRAL_SMALL_4_119B_2603_GGUF: LLMModelConfig(
-            pretrained_model_name="lmstudio-community/Mistral-Small-4-119B-2603-GGUF",
+        ModelVariant.MISTRAL_SMALL_4_119B_IQ4_XS_GGUF: LLMModelConfig(
+            pretrained_model_name="AesSedai/Mistral-Small-4-119B-2603-GGUF",
             max_length=128,
         ),
     }
 
-    DEFAULT_VARIANT = ModelVariant.MISTRAL_SMALL_4_119B_2603_GGUF
+    DEFAULT_VARIANT = ModelVariant.MISTRAL_SMALL_4_119B_IQ4_XS_GGUF
 
-    GGUF_FILE = "Mistral-Small-4-119B-2603-Q4_K_M.gguf"
+    GGUF_FILE = "IQ4_XS/Mistral-Small-4-119B-2603-IQ4_XS-00001-of-00003.gguf"
 
     sample_text = "What is your favorite city?"
 
@@ -150,6 +152,7 @@ class ModelLoader(ForgeModel):
             shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
             shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+        shard_specs[model.lm_head.weight] = ("model", "batch")
         return shard_specs
 
     def load_config(self):
