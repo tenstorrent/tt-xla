@@ -25,6 +25,9 @@ class ModelVariant(StrEnum):
     POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3 = (
         "poltextlab/xlm-roberta-large-publicopinion-cap-v3"
     )
+    POLTEXTLAB_XLM_ROBERTA_LARGE_ENGLISH_JUDICIARY_CAP_V3 = (
+        "poltextlab/xlm-roberta-large-english-judiciary-cap-v3"
+    )
 
 
 class ModelLoader(ForgeModel):
@@ -39,6 +42,10 @@ class ModelLoader(ForgeModel):
             pretrained_model_name="poltextlab/xlm-roberta-large-publicopinion-cap-v3",
             max_length=128,
         ),
+        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_ENGLISH_JUDICIARY_CAP_V3: LLMModelConfig(
+            pretrained_model_name="poltextlab/xlm-roberta-large-english-judiciary-cap-v3",
+            max_length=128,
+        ),
     }
 
     DEFAULT_VARIANT = ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT
@@ -46,12 +53,14 @@ class ModelLoader(ForgeModel):
     # Variant-specific tokenizer overrides (when model repo has mismatched tokenizer)
     _TOKENIZER_OVERRIDES = {
         ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3: "xlm-roberta-large",
+        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_ENGLISH_JUDICIARY_CAP_V3: "xlm-roberta-large",
     }
 
     # Variant-specific sample texts
     _SAMPLE_TEXTS = {
         ModelVariant.TWITTER_XLM_ROBERTA_BASE_SENTIMENT: "Great road trip views! @ Shartlesville, Pennsylvania",
         ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_PUBLICOPINION_CAP_V3: "We will place an immediate 6-month halt on the finance driven closure of beds and wards, and set up an independent audit of needs and facilities.",
+        ModelVariant.POLTEXTLAB_XLM_ROBERTA_LARGE_ENGLISH_JUDICIARY_CAP_V3: "The court ruled that the new environmental regulations exceed the agency's statutory authority under the Clean Air Act.",
     }
 
     def __init__(self, variant=None):
