@@ -10,8 +10,9 @@ activation function to produce more interpretable neurons.
 
 Source: https://huggingface.co/NeelNanda/SoLU_3L512W_C4_Code
 """
-import torch
 from typing import Optional
+
+from transformers import AutoTokenizer
 
 from ....base import ForgeModel
 from ....config import (
@@ -80,21 +81,23 @@ class ModelLoader(ForgeModel):
 
         return model
 
+    def _load_tokenizer(self):
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "NeelNanda/gpt-neox-tokenizer-digits"
+        )
+        return self.tokenizer
+
     def load_inputs(self, dtype_override=None):
         """Prepare sample input for the SoLU model.
 
         Returns:
             dict: Dictionary with 'input_ids' tensor.
         """
-        from transformer_lens import HookedTransformer
-
-        model_name = self._variant_config.pretrained_model_name
-
-        tokenizer = HookedTransformer.from_pretrained(model_name).tokenizer
-        self.tokenizer = tokenizer
+        if self.tokenizer is None:
+            self._load_tokenizer()
 
         input_text = "The quick brown fox jumps over the lazy dog"
-        tokens = tokenizer(
+        tokens = self.tokenizer(
             input_text,
             return_tensors="pt",
             max_length=self._variant_config.max_length,
@@ -106,7 +109,7 @@ class ModelLoader(ForgeModel):
     def decode_output(self, outputs, inputs=None):
         """Decode model outputs into human-readable text."""
         if self.tokenizer is None:
-            self.load_inputs()
+            self._load_tokenizer()
 
         logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
         generated_ids = logits.argmax(-1)
