@@ -315,6 +315,27 @@ def copy_default(
     return src_converted.expand(dst.shape).clone()
 
 
+def masked_scatter(
+    data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
+) -> torch.Tensor:
+    # Custom decomposition for masked_scatter
+    # Decomposes masked_scatter into basic operations: broadcast, reshape, cumsum, clamp, gather, where
+    mask, data = torch.broadcast_tensors(mask, data)
+
+    mask_f = mask.reshape(-1)
+    data_flat = data.reshape(-1)
+    source_flat = source.reshape(-1)
+
+    mask_i = mask_f.long()
+    source_idx = torch.cumsum(mask_i, 0) - 1
+    source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
+
+    gathered = source_flat[source_idx]
+    result_flat = torch.where(mask_f, gathered, data_flat)
+
+    return result_flat.view_as(data)
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -376,6 +397,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.prims.squeeze.default: squeeze,
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
+        aten.masked_scatter.default: masked_scatter,
     }
 
 
