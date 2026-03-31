@@ -2397,6 +2397,16 @@ test_config:
     reason: "Currently hanging - https://github.com/tenstorrent/tt-xla/issues/3852"
     markers: [large]
 
+  unet_3d/pytorch-UNet3D_Small-single_device-inference:
+    status: EXPECTED_PASSING
+    bringup_status: IN_PROGRESS
+
+  unet_3d/pytorch-UNet3D_Large-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "OOM - model too large for single chip DRAM"
+    markers: [large]
+
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
