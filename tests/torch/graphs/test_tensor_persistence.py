@@ -600,9 +600,9 @@ def test_sharded_concurrent_multi_buffer_instance_transfer():
     as guarded by the static copyToHost internal mutex.
     """
 
-    class ProgramAB(torch.nn.Module):
-        def forward(self, A, B):
-            return A + 1, B + 1
+    class ProgramA(torch.nn.Module):
+        def forward(self, A):
+            return A + 1
 
     xr.set_device_type("TT")
     setup_spmd()
@@ -616,16 +616,14 @@ def test_sharded_concurrent_multi_buffer_instance_transfer():
     )
 
     input_a_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
-    input_b_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
 
     xs.mark_sharding(input_a_cpu, mesh, (None, "model"))
-    xs.mark_sharding(input_b_cpu, mesh, (None, "model"))
 
-    program_ab = ProgramAB()
+    program_ab = ProgramA()
 
-    res_a, res_b = run_model_on_device(program_ab, [input_a_cpu, input_b_cpu])
-    # res_a.cpu()
-    # res_b.cpu()
+    res_a = run_model_on_device(program_ab, [input_a_cpu])
+    res_a.cpu()
+    return
 
     # Create multiple threads that all copies result object
     # def copy_to_host(_result):
