@@ -57,23 +57,27 @@ def parse_wall_time(log_path):
     if m:
         return float(m.group(1))
 
-    # chat.py / vLLM logs: parse first timestamp from head, use file mtime as end.
-    # Much faster than scanning the full tail for the last timestamp.
+    # chat.py / vLLM log format: "INFO MM-DD HH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
+    # Scan first 30 lines for start, last 250 lines for end timestamp.
     head = read_head(log_path, 30)
+    shallow_tail = tail_lines(log_path, 250)
     patterns = [
         (r"\d{2}-\d{2} (\d{2}:\d{2}:\d{2})", "%H:%M:%S"),
         (r"\d{4}-\d{2}-\d{2} (\d{2}:\d{2}:\d{2})", "%H:%M:%S"),
     ]
     for ts_pat, ts_fmt in patterns:
-        m = re.search(ts_pat, head)
-        if m:
+        m_start = re.search(ts_pat, head)
+        m_end = None
+        for line in shallow_tail.splitlines():
+            m = re.search(ts_pat, line)
+            if m:
+                m_end = m
+        if m_start and m_end:
             from datetime import datetime
             try:
-                t0 = datetime.strptime(m.group(1), ts_fmt)
-                t1 = datetime.fromtimestamp(os.path.getmtime(log_path))
-                t1_hms = t1.replace(year=2000, month=1, day=1)
-                t0_hms = t0.replace(year=2000, month=1, day=1)
-                diff = (t1_hms - t0_hms).total_seconds()
+                t0 = datetime.strptime(m_start.group(1), ts_fmt)
+                t1 = datetime.strptime(m_end.group(1), ts_fmt)
+                diff = (t1 - t0).total_seconds()
                 if diff < 0:
                     diff += 86400  # midnight wrap
                 if diff > 0:
@@ -106,7 +110,21 @@ def parse_metrics(log_path):
     return tok_s, wall_time
 
 
-def parse_log_name(name):
+def detect_sampling_from_log(log_path):
+    """Detect (sampling, on_device) from log content."""
+    if not os.path.exists(log_path):
+        return "non-greedy", True
+    head = read_head(log_path, 60)
+    cpu = "cpu_sampling': True" in head or "cpu_sampling=True" in head
+    # vllm-bench uses ignore_eos=True with temperature=0 (greedy); chat.py logs temperature explicitly
+    greedy = ("ignore_eos=True" in head or "temperature=0.0" in head
+              or "temperature': 0.0" in head or "temperature': 0}" in head)
+    sampling = "greedy" if greedy else "non-greedy"
+    on_device = not cpu
+    return sampling, on_device
+
+
+def parse_log_name(name, log_path=None):
     """Parse log filename into (model, sampling, seq_len, batch_size, on_device).
 
     Returns dict or None if unrecognized.
@@ -117,12 +135,13 @@ def parse_log_name(name):
         model_raw, batch_raw = m.group(1), m.group(2)
         batch = int(batch_raw.replace("batch", ""))
         model = _fmt_model(model_raw)
+        sampling, on_device = detect_sampling_from_log(log_path)
         return dict(
             model=model,
-            sampling="non-greedy",
+            sampling=sampling,
             seq_len=128,
             batch=batch,
-            on_device=True,
+            on_device=on_device,
             harness="vllm-bench",
             label=name,
         )
@@ -190,7 +209,8 @@ def main():
     rows = []
     seen = set()  # deduplicate by (model, sampling, seq_len, batch, on_device)
     for name in log_names:
-        meta = parse_log_name(name)
+        log_path = os.path.join(no_fix_dir, name + ".log")
+        meta = parse_log_name(name, log_path)
         if meta is None:
             continue
 
