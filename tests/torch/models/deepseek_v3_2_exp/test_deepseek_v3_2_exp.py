@@ -340,7 +340,7 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
     block = model.layers[1]  # layer_id=1 >= n_dense_layers=1 → MoE
     freqs_cis = model.freqs_cis[:seq_len]
 
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
     block.eval()
 
@@ -453,7 +453,7 @@ def test_deepseek_v3_2_full_sparse_moe():
     # but model.to(bf16) converts it. Restore to float32 to match forward's .float() call.
     model.head = model.head.to(torch.float32)
 
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     enable_sparse_mlp(
         model,
         mesh=mesh_shape,
@@ -506,7 +506,12 @@ def test_deepseek_v3_2_full_sparse_moe():
                 # A2aSparseMLPWithSharedExperts (MoE layer)
                 mlp = ffn.mlp
                 shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
-                shard_specs[mlp.experts.gate_up_proj] = (
+                shard_specs[mlp.experts.gate_proj] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
+                )
+                shard_specs[mlp.experts.up_proj] = (
                     ("_axis_0", "_axis_1"),
                     None,
                     None,
@@ -516,7 +521,11 @@ def test_deepseek_v3_2_full_sparse_moe():
                     None,
                     None,
                 )
-                shard_specs[mlp.experts.gate_up_proj_bias] = (
+                shard_specs[mlp.experts.gate_proj_bias] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                )
+                shard_specs[mlp.experts.up_proj_bias] = (
                     ("_axis_0", "_axis_1"),
                     None,
                 )
