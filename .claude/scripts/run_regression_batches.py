@@ -287,8 +287,6 @@ def write_batch_file(batch_file: Path, data: dict, batch_tests: list) -> None:
         "workflow_id": data["workflow_id"],
         "workflow_name": data.get("workflow_name", ""),
         "github_repo": data.get("github_repo", "tenstorrent/tt-xla"),
-        # bisect_repo: dedicated clone where git checkout/bisect/tests run — never the script's own repo
-        "bisect_repo": data.get("bisect_repo", ""),
         "failed_tests": batch_tests,
         "timed_out_jobs": [],
     }
@@ -407,27 +405,11 @@ def main():
     logs_dir = bisection_dir / "logs"
     index_path = logs_dir / "index.json"
 
-    # bisect_repo: dedicated tt-xla clone used exclusively for git bisect operations
-    # (git checkout, submodule updates, test execution). The current repo (repo_root)
-    # is NEVER modified — it only stores logs/results and is the CWD for claude agents.
-    bisect_repo = repo_root.parent / "tt-xla_bisect"
-    if not bisect_repo.exists():
-        print(f"ERROR: bisect repo not found at {bisect_repo}", file=sys.stderr)
-        print(f"  Create it with:", file=sys.stderr)
-        print(f"    git clone <remote_url> {bisect_repo}", file=sys.stderr)
-        print(f"  Then set up its venv the same way as this repo.", file=sys.stderr)
-        sys.exit(1)
-
-    # Propagate bisect_repo into the data dict so it ends up in every batch JSON file
-    data["bisect_repo"] = str(bisect_repo)
-
     n_tests = len(failed_tests)
     n_batches = math.ceil(n_tests / args.batch_size)
 
     print(f"Failures file:  {failures_path.relative_to(repo_root)}")
     print(f"Run ID:         {run_id}")
-    print(f"Script repo:    {repo_root}  (never modified — logs/results live here)")
-    print(f"Bisect repo:    {bisect_repo}  (git checkout/bisect/tests run here)")
     print(f"Failed tests:   {n_tests}")
     print(f"Batch size:     {args.batch_size}")
     print(f"Processes:      {n_batches}  (one per batch, all in parallel)")
