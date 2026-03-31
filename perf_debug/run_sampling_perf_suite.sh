@@ -61,3 +61,12 @@ TTXLA_LOGGER_LEVEL=DEBUG python examples/vllm/Llama-3.1-8B-Instruct/chat.py --be
 TTXLA_LOGGER_LEVEL=DEBUG python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --max-model-len 128  --temperature 0.8 --batch-size 32 --gpu-memory-utilization 0.037 --max-tokens 128 |& tee "$OUTDIR/llama3p1_8b_seq128_batch32_non_greedy_device.log"
 TTXLA_LOGGER_LEVEL=DEBUG python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --max-model-len 2048 --temperature 0.8 --batch-size 16 --gpu-memory-utilization 0.037 --max-tokens 128 |& tee "$OUTDIR/llama3p1_8b_seq2048_batch16_non_greedy_device.log"
 TTXLA_LOGGER_LEVEL=DEBUG python examples/vllm/Llama-3.1-8B-Instruct/chat.py --benchmark --max-model-len 2048 --temperature 0.8 --batch-size 32 --gpu-memory-utilization 0.037 --max-tokens 128 |& tee "$OUTDIR/llama3p1_8b_seq2048_batch32_non_greedy_device.log"
+
+# vllm benchmark pytest suite: 1B, 3B, 8B at batch=1 and batch=32
+# Uses cpu_sampling=True (from existing test config) and seq_len=128
+pytest -svv tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-1b]         |& tee "$OUTDIR/vllm_bench_llama3p2_1b_batch1.log"
+pytest -svv tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-1b-batch32] |& tee "$OUTDIR/vllm_bench_llama3p2_1b_batch32.log"
+pytest -svv tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]         |& tee "$OUTDIR/vllm_bench_llama3p2_3b_batch1.log"
+pytest -svv tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b-batch32] |& tee "$OUTDIR/vllm_bench_llama3p2_3b_batch32.log"
+pytest -svv tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.1-8b]         |& tee "$OUTDIR/vllm_bench_llama3p1_8b_batch1.log"
+pytest -svv tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.1-8b-batch32] |& tee "$OUTDIR/vllm_bench_llama3p1_8b_batch32.log"
