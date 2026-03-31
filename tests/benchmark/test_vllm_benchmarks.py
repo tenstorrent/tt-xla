@@ -20,20 +20,20 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         VLLMBenchmarkConfig(
             model="meta-llama/Llama-3.2-1B",
-            batch_size=32,
-            max_model_len=128,
-            gpu_memory_utilization=0.037,
-        ),
-        id="llama-3.2-1b-batch32",
-    ),
-    pytest.param(
-        VLLMBenchmarkConfig(
-            model="meta-llama/Llama-3.2-1B",
             batch_size=16,
             max_model_len=128,
             gpu_memory_utilization=0.037,
         ),
         id="llama-3.2-1b-batch16",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.2-1B",
+            batch_size=32,
+            max_model_len=128,
+            gpu_memory_utilization=0.037,
+        ),
+        id="llama-3.2-1b-batch32",
     ),
     pytest.param(
         VLLMBenchmarkConfig(
@@ -51,6 +51,32 @@ SINGLE_DEVICE_CONFIGS = [
             gpu_memory_utilization=0.037,
         ),
         id="llama-3.2-3b-batch32",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=1,
+            max_model_len=128,
+        ),
+        id="llama-3.1-8b",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=16,
+            max_model_len=128,
+            gpu_memory_utilization=0.037,
+        ),
+        id="llama-3.1-8b-batch16",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=32,
+            max_model_len=128,
+            gpu_memory_utilization=0.037,
+        ),
+        id="llama-3.1-8b-batch32",
     ),
 ]
 
