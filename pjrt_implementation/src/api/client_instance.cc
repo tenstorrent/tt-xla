@@ -384,6 +384,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
     LOG_F(ERROR, "Found no addressable devices in the system");
     return tt_pjrt_status::kInternal;
   }
+  DLOG_F(LOG_DEBUG, "Asif:: Populate device ");
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
@@ -614,8 +615,11 @@ tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
     const std::vector<uint32_t> &target_mesh_shape) {
 
   // Ensure parent mesh exists with the correct shape
+  DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - Start ");
   tt::runtime::Device parent_mesh = getOrCreateMeshDevice(target_mesh_shape);
 
+  DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - Asif:: get "
+                    "parent mesh device ");
   if (m_optimizer_submesh.has_value()) {
     std::vector<uint32_t> optimizer_submesh_shape =
         tt::runtime::getMeshShape(*m_optimizer_submesh);

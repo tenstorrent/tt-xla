@@ -1076,7 +1076,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
             is_causal=is_causal,
-            mesh=self.mesh if self.use_2d_mesh else None,
+            # mesh=self.mesh if self.use_2d_mesh else None,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1569,7 +1569,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
             is_causal=is_causal,
-            mesh=self.mesh if self.use_2d_mesh else None,
+            # mesh=self.mesh if self.use_2d_mesh else None,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()

@@ -138,6 +138,7 @@ def scaled_dot_product_attention(
     key: torch.Tensor,
     value: torch.Tensor,
     attn_mask: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
 ) -> torch.Tensor:
@@ -193,7 +194,14 @@ def scaled_dot_product_attention(
         if attn_mask is not None:
             inputs.append(attn_mask)
 
-        frontend_attributes = {"is_causal": str(is_causal)}
+        if attention_sink is not None:
+            inputs.append(attention_sink)
+
+        frontend_attributes = {
+            "is_causal": str(is_causal),
+            "has_attention_mask": str(attn_mask is not None),
+            "has_attention_sink": str(attention_sink is not None),
+        }
         if scale is not None:
             frontend_attributes["scale"] = str(scale)
 
@@ -226,6 +234,7 @@ def scaled_dot_product_attention(
     key: torch.Tensor,
     value: torch.Tensor,
     attn_mask: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
 ) -> torch.Tensor:

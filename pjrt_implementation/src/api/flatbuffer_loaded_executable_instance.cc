@@ -207,44 +207,56 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
           m_executable_image->getNumInputs());
     return tt_pjrt_status::kInternal;
   }
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_0 ");
 
   std::optional<tt::runtime::Device> runtime_device =
       getOrCreateMeshDevice(args->argument_lists, args->num_args,
                             args->num_devices, args->execute_device);
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_1 ");
 
   if (!runtime_device) {
     // Logging is done inside `getOrCreateMeshDevice`.
     return tt_pjrt_status::kInternal;
   }
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_2 ");
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_3 ");
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_4 ");
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_5 ");
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
 
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_6 ");
   if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
   }
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_7 ");
 
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_8 ");
 
   auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
                                   executable_image->getFlatbufferBinary(),
                                   program_index, input_tensors);
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_9 ");
 
   if (!r) {
+    DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_9_a ");
     m_client_instance->closeMeshDevice();
     return tt_pjrt_status::kInternal;
   }
 
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_10 ");
   std::vector<tt::runtime::Tensor> &output_tensors = *r;
 
   if (output_tensors.size() != m_executable_image->getNumOutputs()) {
@@ -255,10 +267,12 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_11 ");
   fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
                       m_executable_image->getOutputTypes());
-
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_12 ");
   if (args->device_complete_events) {
+    DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_13 ");
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
       std::unique_ptr<EventInstance> device_complete_event =
           EventInstance::createInstance();
@@ -271,6 +285,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
           *device_complete_event.release();
     }
   }
+  DLOG_F(LOG_DEBUG, "Asif:: fb_loaded_exec_14 ");
 
   return tt_pjrt_status::kSuccess;
 }
