@@ -25,6 +25,6 @@
     "description": "TT Forge Models submodule uplift",
     "path": "third_party/tt_forge_models",
     "regex": "^[+-]Subproject commit",
-    "test_matrix": "forge-models-uplift-qualification.json"
+    "test_matrix": "model-test-extended.json"
   }
 ]

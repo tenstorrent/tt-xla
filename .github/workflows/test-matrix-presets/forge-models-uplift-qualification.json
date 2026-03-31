@@ -1,5 +1,0 @@
-[
-  { "include": ["model-test-extended.json"] },
-  { "runs-on": "n150", "name": "run_mlp_tests",        "dir": "./tests/torch/graphs/test_mlp.py",      "test-mark": "nightly and single_device", "shared-runners": "true" },
-  { "runs-on": "n150", "name": "run_rms_norm_tests",   "dir": "./tests/torch/graphs/test_rms_norm.py", "test-mark": "nightly and single_device", "shared-runners": "true" }
-]
