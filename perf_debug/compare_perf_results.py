@@ -57,30 +57,25 @@ def parse_wall_time(log_path):
     if m:
         return float(m.group(1))
 
-    # chat.py / vLLM log format: "INFO MM-DD HH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
+    # chat.py / vLLM logs: parse first timestamp from head, use file mtime as end.
+    # Much faster than scanning the full tail for the last timestamp.
     head = read_head(log_path, 30)
     patterns = [
-        (r"\d{2}-\d{2} (\d{2}:\d{2}:\d{2})", "%H:%M:%S"),           # MM-DD HH:MM:SS
-        (r"\d{4}-\d{2}-\d{2} (\d{2}:\d{2}:\d{2})", "%H:%M:%S"),     # YYYY-MM-DD HH:MM:SS
+        (r"\d{2}-\d{2} (\d{2}:\d{2}:\d{2})", "%H:%M:%S"),
+        (r"\d{4}-\d{2}-\d{2} (\d{2}:\d{2}:\d{2})", "%H:%M:%S"),
     ]
-    # Need deeper tail since nanobind leak output (no timestamps) appears at end
-    deep_tail = tail_lines(log_path, 2000)
     for ts_pat, ts_fmt in patterns:
-        m_start = re.search(ts_pat, head)
-        # Find last match in tail by scanning all lines
-        m_end = None
-        for line in deep_tail.splitlines():
-            m = re.search(ts_pat, line)
-            if m:
-                m_end = m
-        if m_start and m_end:
+        m = re.search(ts_pat, head)
+        if m:
             from datetime import datetime
             try:
-                t0 = datetime.strptime(m_start.group(1), ts_fmt)
-                t1 = datetime.strptime(m_end.group(1), ts_fmt)
-                diff = (t1 - t0).total_seconds()
+                t0 = datetime.strptime(m.group(1), ts_fmt)
+                t1 = datetime.fromtimestamp(os.path.getmtime(log_path))
+                t1_hms = t1.replace(year=2000, month=1, day=1)
+                t0_hms = t0.replace(year=2000, month=1, day=1)
+                diff = (t1_hms - t0_hms).total_seconds()
                 if diff < 0:
-                    diff += 86400  # handle midnight wrap
+                    diff += 86400  # midnight wrap
                 if diff > 0:
                     return diff
             except ValueError:
