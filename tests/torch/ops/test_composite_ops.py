@@ -678,9 +678,6 @@ def test_patched_sdpa(
     model = SDPAModel(is_causal)
     inputs = [query, key, value, attn_mask] if use_attn_mask else [query, key, value]
 
-    print(model(query, key, value))
-    print(attn_mask)
-
     run_graph_test(
         model,
         inputs,
