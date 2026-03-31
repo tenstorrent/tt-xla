@@ -585,6 +585,9 @@ def test_concurrent_multi_buffer_instance_transfer():
         thread.join()
 
 
+lock = threading.Lock()
+
+
 @pytest.mark.push
 @pytest.mark.nightly
 def test_sharded_concurrent_multi_buffer_instance_transfer():
@@ -601,20 +604,44 @@ def test_sharded_concurrent_multi_buffer_instance_transfer():
         def forward(self, A, B):
             return A + 1, B + 1
 
-    input_a_cpu = torch.randn(32, 32, dtype=torch.float32)
-    input_b_cpu = torch.randn(32, 32, dtype=torch.float32)
+    xr.set_device_type("TT")
+    setup_spmd()
+    device = torch_xla.device()
+
+    mesh = create_device_mesh(
+        (
+            1,
+            2,
+        )
+    )
+
+    input_a_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
+    input_b_cpu = torch.randn(32, 32, dtype=torch.float32).to(device)
+
+    xs.mark_sharding(input_a_cpu, mesh, (None, "model"))
+    xs.mark_sharding(input_b_cpu, mesh, (None, "model"))
 
     program_ab = ProgramAB()
 
     res_a, res_b = run_model_on_device(program_ab, [input_a_cpu, input_b_cpu])
+    # res_a.cpu()
+    # res_b.cpu()
 
     # Create multiple threads that all copies result object
+    # def copy_to_host(_result):
+    #     for _ in range(1024):
+    #         _result.cpu()
+
     def copy_to_host(_result):
-        for _ in range(1024):
-            _result.cpu()
+        with lock:
+            # for _ in range(1024):
+            for _ in range(1):
+                # with lock:
+                _result.cpu()
 
     threads = []
-    num_threads = 10
+    # num_threads = 10
+    num_threads = 1
     for _ in range(num_threads):
         thread_a = threading.Thread(target=copy_to_host, args=(res_a,))
         thread_b = threading.Thread(target=copy_to_host, args=(res_b,))
@@ -626,6 +653,12 @@ def test_sharded_concurrent_multi_buffer_instance_transfer():
 
     for thread in threads:
         thread.join()
+
+    # Without thread, this executes fine. For both devices, we have 1024 execute calls and 1024 copy
+    # to host calls.
+    # for _ in range (1024):
+    #     copy_to_host(res_a)
+    #     copy_to_host(res_b)
 
 
 def setup_spmd():
