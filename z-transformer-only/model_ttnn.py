@@ -19,9 +19,9 @@ Architecture:
     +-- final_layer: FinalLayer (LayerNorm + adaLN + Linear + un-patchify)
 """
 
-import torch
 import ttnn
 from consteval import run_const_evals
+from parameters import load_params_from_pytorch
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -821,10 +821,10 @@ class ZImageTransformerTTNN(LightweightModule):
         self.device = device
 
         # Convert PyTorch state_dict to TTNN tensors on host
-        host_weights = load_weights_from_pytorch(state_dict, device)
+        host_params = load_params_from_pytorch(state_dict, device)
 
         # Run const-evals to prepare weights for device
-        self.ce = run_const_evals(host_weights, device)
+        self.ce = run_const_evals(host_params, device)
 
         # --- Build submodules ---
 
@@ -846,7 +846,7 @@ class ZImageTransformerTTNN(LightweightModule):
         self.cap_embedder_bias = self.ce["cap_embedder.1.bias"]
 
         # Pad tokens and masks (on device)
-        self.x_pad_token = host_weights["x_pad_token"]
+        self.x_pad_token = host_params["x_pad_token"]
         self.cap_pad_token_broadcast = self.ce.get("cap_pad_token_broadcast")
         self.image_pad_mask = self.ce["image_pad_mask"]
         self.cap_pad_mask = self.ce.get("cap_pad_mask")
@@ -868,32 +868,32 @@ class ZImageTransformerTTNN(LightweightModule):
         self.scalar_one = self.ce["scalar_one"]
 
         # Cap embedder norm weight (used directly for rms_norm)
-        self.cap_embedder_norm_weight = host_weights["cap_embedder.0.weight"]
+        self.cap_embedder_norm_weight = host_params["cap_embedder.0.weight"]
 
         # --- Build transformer blocks ---
 
         def _build_block(prefix, modulation):
             """Build a TransformerBlock from weights with the given prefix."""
             attn = Attention(
-                to_q=host_weights[f"{prefix}.attention.to_q.weight"],
-                to_k=host_weights[f"{prefix}.attention.to_k.weight"],
-                to_v=host_weights[f"{prefix}.attention.to_v.weight"],
-                to_out=host_weights[f"{prefix}.attention.to_out.weight"],
-                norm_q_weight=host_weights[f"{prefix}.attention.norm_q.weight"],
-                norm_k_weight=host_weights[f"{prefix}.attention.norm_k.weight"],
+                to_q=host_params[f"{prefix}.attention.to_q.weight"],
+                to_k=host_params[f"{prefix}.attention.to_k.weight"],
+                to_v=host_params[f"{prefix}.attention.to_v.weight"],
+                to_out=host_params[f"{prefix}.attention.to_out.weight"],
+                norm_q_weight=host_params[f"{prefix}.attention.norm_q.weight"],
+                norm_k_weight=host_params[f"{prefix}.attention.norm_k.weight"],
             )
             ff = FeedForward(
-                w1=host_weights[f"{prefix}.feed_forward.w1.weight"],
-                w2=host_weights[f"{prefix}.feed_forward.w2.weight"],
-                w3=host_weights[f"{prefix}.feed_forward.w3.weight"],
+                w1=host_params[f"{prefix}.feed_forward.w1.weight"],
+                w2=host_params[f"{prefix}.feed_forward.w2.weight"],
+                w3=host_params[f"{prefix}.feed_forward.w3.weight"],
             )
             kwargs = dict(
                 attention=attn,
                 feed_forward=ff,
-                attention_norm1_weight=host_weights[f"{prefix}.attention_norm1.weight"],
-                attention_norm2_weight=host_weights[f"{prefix}.attention_norm2.weight"],
-                ffn_norm1_weight=host_weights[f"{prefix}.ffn_norm1.weight"],
-                ffn_norm2_weight=host_weights[f"{prefix}.ffn_norm2.weight"],
+                attention_norm1_weight=host_params[f"{prefix}.attention_norm1.weight"],
+                attention_norm2_weight=host_params[f"{prefix}.attention_norm2.weight"],
+                ffn_norm1_weight=host_params[f"{prefix}.ffn_norm1.weight"],
+                ffn_norm2_weight=host_params[f"{prefix}.ffn_norm2.weight"],
                 modulation=modulation,
             )
             if modulation:
@@ -914,7 +914,7 @@ class ZImageTransformerTTNN(LightweightModule):
         self.final_layer = FinalLayer(
             adaln_weight=self.ce["final_layer.adaLN_modulation.1.weight"],
             adaln_bias=self.ce["final_layer.adaLN_modulation.1.bias"],
-            linear_weight=host_weights["final_layer.linear.weight"],
+            linear_weight=host_params["final_layer.linear.weight"],
             linear_bias_broadcast=self.ce["final_layer.linear.bias_broadcast"],
             scalar_one=self.scalar_one,
             layernorm_eps=self.ce["layernorm_eps"],
@@ -1061,99 +1061,3 @@ class ZImageTransformerTTNN(LightweightModule):
 
         return out
 
-
-# ---------------------------------------------------------------------------
-# Weight loading
-# ---------------------------------------------------------------------------
-
-def load_weights_from_pytorch(state_dict, device):
-    """Convert a PyTorch state_dict to TTNN tensors suitable for const-eval.
-
-    Weight matrices (2D) and 1D biases/norms are converted to ttnn tensors
-    on the host (ROW_MAJOR layout). The const-eval functions will then
-    transfer them to device with the appropriate transformations.
-
-    Weights used directly in matmul with transpose_b=True (attention projections,
-    FFN weights, final_layer.linear.weight) are placed on device in TILE layout
-    but NOT pre-transposed -- they rely on transpose_b=True at runtime.
-
-    Args:
-        state_dict: dict from PyTorch model.state_dict()
-        device: ttnn device handle
-
-    Returns:
-        dict mapping name -> ttnn tensor (mix of host and device tensors)
-    """
-    weights = {}
-
-    # Names of weights that get used directly with transpose_b=True at runtime
-    # (NOT pre-transposed by consteval, just put on device in TILE layout)
-    direct_matmul_weights = set()
-    for prefix in ["noise_refiner", "context_refiner", "layers"]:
-        count = 2 if prefix != "layers" else 30
-        for i in range(count):
-            for suffix in [
-                "attention.to_q.weight", "attention.to_k.weight",
-                "attention.to_v.weight", "attention.to_out.weight",
-                "feed_forward.w1.weight", "feed_forward.w2.weight",
-                "feed_forward.w3.weight",
-            ]:
-                direct_matmul_weights.add(f"{prefix}.{i}.{suffix}")
-    direct_matmul_weights.add("final_layer.linear.weight")
-
-    # Names of weights used as rms_norm weight parameters (on device, BFLOAT16 TILE)
-    norm_weights = set()
-    for prefix in ["noise_refiner", "context_refiner", "layers"]:
-        count = 2 if prefix != "layers" else 30
-        for i in range(count):
-            for suffix in [
-                "attention_norm1.weight", "attention_norm2.weight",
-                "ffn_norm1.weight", "ffn_norm2.weight",
-                "attention.norm_q.weight", "attention.norm_k.weight",
-            ]:
-                norm_weights.add(f"{prefix}.{i}.{suffix}")
-    norm_weights.add("cap_embedder.0.weight")
-
-    for name, tensor in state_dict.items():
-        # Convert PyTorch tensor to ttnn
-        t = ttnn.from_torch(tensor)
-
-        if name in ("cap_pos_ids", "image_pos_ids"):
-            # Int32 position IDs: keep on host, ROW_MAJOR, for consteval RoPE
-            t = ttnn.to_dtype(t, ttnn.DataType.INT32)
-            weights[name] = t
-        elif name.endswith("_pad_mask") or name.endswith("_attn_mask"):
-            # Bool masks: cast to BFLOAT16 for consteval processing
-            t = ttnn.to_dtype(t, ttnn.DataType.BFLOAT16)
-            weights[name] = t
-        elif name in direct_matmul_weights:
-            # Put on device in TILE layout for direct use with transpose_b=True
-            t = ttnn.to_dtype(t, ttnn.DataType.BFLOAT16)
-            t = ttnn.to_layout(t, ttnn.Layout.TILE)
-            t = ttnn.to_device(t, device=device, memory_config=DRAM)
-            weights[name] = t
-        elif name in norm_weights:
-            # Put on device in TILE layout for use as rms_norm weight
-            t = ttnn.to_dtype(t, ttnn.DataType.BFLOAT16)
-            t = ttnn.to_layout(t, ttnn.Layout.TILE)
-            t = ttnn.to_device(t, device=device, memory_config=DRAM)
-            weights[name] = t
-        elif name in ("x_pad_token",):
-            # Pad tokens: put on device in TILE layout
-            t = ttnn.to_dtype(t, ttnn.DataType.BFLOAT16)
-            t = ttnn.to_layout(t, ttnn.Layout.TILE)
-            t = ttnn.to_device(t, device=device, memory_config=DRAM)
-            weights[name] = t
-        elif name in (
-            "rope_embedder.cos_0", "rope_embedder.cos_1", "rope_embedder.cos_2",
-            "rope_embedder.sin_0", "rope_embedder.sin_1", "rope_embedder.sin_2",
-        ):
-            # RoPE tables: keep on host for consteval (it handles to_device)
-            t = ttnn.to_dtype(t, ttnn.DataType.BFLOAT16)
-            weights[name] = t
-        else:
-            # All other weights: keep on host for consteval processing
-            t = ttnn.to_dtype(t, ttnn.DataType.BFLOAT16)
-            weights[name] = t
-
-    return weights
