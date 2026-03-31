@@ -36,35 +36,79 @@ def tail_lines(path, n=500):
         return "\n".join(text.splitlines()[-n:])
 
 
+def read_head(path, n=30):
+    """Read first n lines of a file."""
+    with open(path, errors="replace") as f:
+        return "".join(f.readline() for _ in range(n))
+
+
+def parse_wall_time(log_path):
+    """Extract total wall-clock time (seconds) for the whole test run.
+
+    - chat.py logs: diff between first and last timestamp in the file.
+    - pytest logs: parse "X passed in Y.Ys" from the summary line.
+    """
+    if not os.path.exists(log_path):
+        return None
+
+    # pytest format: "1 passed in 123.12s (0:02:03)"
+    tail = tail_lines(log_path, 20)
+    m = re.search(r"passed.*? in ([\d.]+)s", tail)
+    if m:
+        return float(m.group(1))
+
+    # chat.py / vLLM log format: "INFO MM-DD HH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
+    head = read_head(log_path, 30)
+    patterns = [
+        (r"\d{2}-\d{2} (\d{2}:\d{2}:\d{2})", "%H:%M:%S"),           # MM-DD HH:MM:SS
+        (r"\d{4}-\d{2}-\d{2} (\d{2}:\d{2}:\d{2})", "%H:%M:%S"),     # YYYY-MM-DD HH:MM:SS
+    ]
+    # Need deeper tail since nanobind leak output (no timestamps) appears at end
+    deep_tail = tail_lines(log_path, 2000)
+    for ts_pat, ts_fmt in patterns:
+        m_start = re.search(ts_pat, head)
+        # Find last match in tail by scanning all lines
+        m_end = None
+        for line in deep_tail.splitlines():
+            m = re.search(ts_pat, line)
+            if m:
+                m_end = m
+        if m_start and m_end:
+            from datetime import datetime
+            try:
+                t0 = datetime.strptime(m_start.group(1), ts_fmt)
+                t1 = datetime.strptime(m_end.group(1), ts_fmt)
+                diff = (t1 - t0).total_seconds()
+                if diff < 0:
+                    diff += 86400  # handle midnight wrap
+                if diff > 0:
+                    return diff
+            except ValueError:
+                continue
+
+    return None
+
+
 def parse_metrics(log_path):
-    """Extract (tok_s, total_time_s) from last 500 lines of a log file."""
+    """Extract (tok_s, wall_time_s) from a log file."""
     if not os.path.exists(log_path):
         return None, None
     text = tail_lines(log_path, 500)
 
     tok_s = None
-    total_time = None
+    wall_time = parse_wall_time(log_path)
 
     # chat.py benchmark format
     m = re.search(r"Overall tok/s:\s+([\d.]+)", text)
     if m:
-        tok_s = float(m.group(1))
-    m = re.search(r"Total time:\s+([\d.]+)s", text)
-    if m:
-        total_time = float(m.group(1))
+        return float(m.group(1)), wall_time
 
-    if tok_s is not None:
-        return tok_s, total_time
-
-    # pytest vllm_benchmark format: "decode_tps=21.5", "decode_time=5.202s"
+    # pytest vllm_benchmark format: "decode_tps=21.5"
     tps_vals = re.findall(r"decode_tps=([\d.]+)", text)
     if tps_vals:
         tok_s = sum(float(v) for v in tps_vals) / len(tps_vals)
-    time_vals = re.findall(r"decode_time=([\d.]+)s", text)
-    if time_vals:
-        total_time = sum(float(v) for v in time_vals)
 
-    return tok_s, total_time
+    return tok_s, wall_time
 
 
 def parse_log_name(name):
