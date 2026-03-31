@@ -1,0 +1,521 @@
+{
+  "constEvalFuncWrapperZeroArg_0": {
+    "const_eval_func": "main_const_eval_0",
+    "input_args": [],
+    "input_names": [],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_0": {
+    "const_eval_func": "main_const_eval_1",
+    "input_args": [124],
+    "input_names": ["layers.18.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_1": {
+    "const_eval_func": "main_const_eval_2",
+    "input_args": [274],
+    "input_names": ["layers.3.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_2": {
+    "const_eval_func": "main_const_eval_3",
+    "input_args": [243],
+    "input_names": ["layers.6.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_3": {
+    "const_eval_func": "main_const_eval_4",
+    "input_args": [23],
+    "input_names": ["layers.28.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_4": {
+    "const_eval_func": "main_const_eval_5",
+    "input_args": [364],
+    "input_names": ["noise_refiner.0.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_5": {
+    "const_eval_func": "main_const_eval_6",
+    "input_args": [163],
+    "input_names": ["layers.14.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_6": {
+    "const_eval_func": "main_const_eval_7",
+    "input_args": [2],
+    "input_names": ["final_layer.adaLN_modulation.1.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_7": {
+    "const_eval_func": "main_const_eval_8",
+    "input_args": [331],
+    "input_names": ["cap_pad_mask"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_8": {
+    "const_eval_func": "main_const_eval_9",
+    "input_args": [154],
+    "input_names": ["layers.15.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_9": {
+    "const_eval_func": "main_const_eval_10",
+    "input_args": [34],
+    "input_names": ["layers.27.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_10": {
+    "const_eval_func": "main_const_eval_11",
+    "input_args": [44],
+    "input_names": ["layers.26.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_11": {
+    "const_eval_func": "main_const_eval_12",
+    "input_args": [304],
+    "input_names": ["layers.0.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_12": {
+    "const_eval_func": "main_const_eval_13",
+    "input_args": [53],
+    "input_names": ["layers.25.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_13": {
+    "const_eval_func": "main_const_eval_14",
+    "input_args": [194],
+    "input_names": ["layers.11.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_14": {
+    "const_eval_func": "main_const_eval_15",
+    "input_args": [375],
+    "input_names": ["x_attn_mask"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_15": {
+    "const_eval_func": "main_const_eval_16",
+    "input_args": [143],
+    "input_names": ["layers.16.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_16": {
+    "const_eval_func": "main_const_eval_17",
+    "input_args": [263],
+    "input_names": ["layers.4.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_17": {
+    "const_eval_func": "main_const_eval_18",
+    "input_args": [283],
+    "input_names": ["layers.2.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_18": {
+    "const_eval_func": "main_const_eval_19",
+    "input_args": [193],
+    "input_names": ["layers.11.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_19": {
+    "const_eval_func": "main_const_eval_20",
+    "input_args": [8],
+    "input_names": ["t_embedder.freqs"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapperZeroArg_1": {
+    "const_eval_func": "main_const_eval_21",
+    "input_args": [],
+    "input_names": [],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_20": {
+    "const_eval_func": "main_const_eval_22",
+    "input_args": [333, 334, 335, 336, 337, 338, 339, 376],
+    "input_names": [
+      "cap_pos_ids",
+      "rope_embedder.sin_2",
+      "rope_embedder.sin_1",
+      "rope_embedder.sin_0",
+      "rope_embedder.cos_2",
+      "rope_embedder.cos_1",
+      "rope_embedder.cos_0",
+      "image_pos_ids"
+    ],
+    "num_outputs": 6
+  },
+  "constEvalFuncWrapper_21": {
+    "const_eval_func": "main_const_eval_23",
+    "input_args": [183],
+    "input_names": ["layers.12.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_22": {
+    "const_eval_func": "main_const_eval_24",
+    "input_args": [43],
+    "input_names": ["layers.26.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_23": {
+    "const_eval_func": "main_const_eval_25",
+    "input_args": [244],
+    "input_names": ["layers.6.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_24": {
+    "const_eval_func": "main_const_eval_26",
+    "input_args": [353],
+    "input_names": ["noise_refiner.1.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_25": {
+    "const_eval_func": "main_const_eval_27",
+    "input_args": [64],
+    "input_names": ["layers.24.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_26": {
+    "const_eval_func": "main_const_eval_28",
+    "input_args": [74],
+    "input_names": ["layers.23.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_27": {
+    "const_eval_func": "main_const_eval_29",
+    "input_args": [33],
+    "input_names": ["layers.27.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_28": {
+    "const_eval_func": "main_const_eval_30",
+    "input_args": [284],
+    "input_names": ["layers.2.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_29": {
+    "const_eval_func": "main_const_eval_31",
+    "input_args": [83],
+    "input_names": ["layers.22.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_30": {
+    "const_eval_func": "main_const_eval_32",
+    "input_args": [113],
+    "input_names": ["layers.19.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_31": {
+    "const_eval_func": "main_const_eval_33",
+    "input_args": [332],
+    "input_names": ["cap_attn_mask"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_32": {
+    "const_eval_func": "main_const_eval_34",
+    "input_args": [6],
+    "input_names": ["t_embedder.mlp.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_33": {
+    "const_eval_func": "main_const_eval_35",
+    "input_args": [327],
+    "input_names": ["cap_embedder.1.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_34": {
+    "const_eval_func": "main_const_eval_36",
+    "input_args": [0],
+    "input_names": ["final_layer.linear.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_35": {
+    "const_eval_func": "main_const_eval_37",
+    "input_args": [114],
+    "input_names": ["layers.19.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_36": {
+    "const_eval_func": "main_const_eval_38",
+    "input_args": [371],
+    "input_names": ["x_embedder.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_37": {
+    "const_eval_func": "main_const_eval_39",
+    "input_args": [326],
+    "input_names": ["cap_embedder.1.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_38": {
+    "const_eval_func": "main_const_eval_40",
+    "input_args": [164],
+    "input_names": ["layers.14.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_39": {
+    "const_eval_func": "main_const_eval_41",
+    "input_args": [234],
+    "input_names": ["layers.7.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_40": {
+    "const_eval_func": "main_const_eval_42",
+    "input_args": [153],
+    "input_names": ["layers.15.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_41": {
+    "const_eval_func": "main_const_eval_43",
+    "input_args": [3],
+    "input_names": ["final_layer.adaLN_modulation.1.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_42": {
+    "const_eval_func": "main_const_eval_44",
+    "input_args": [173],
+    "input_names": ["layers.13.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_43": {
+    "const_eval_func": "main_const_eval_45",
+    "input_args": [223],
+    "input_names": ["layers.8.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_44": {
+    "const_eval_func": "main_const_eval_46",
+    "input_args": [93],
+    "input_names": ["layers.21.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_45": {
+    "const_eval_func": "main_const_eval_47",
+    "input_args": [264],
+    "input_names": ["layers.4.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_46": {
+    "const_eval_func": "main_const_eval_48",
+    "input_args": [134],
+    "input_names": ["layers.17.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_47": {
+    "const_eval_func": "main_const_eval_49",
+    "input_args": [204],
+    "input_names": ["layers.10.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_48": {
+    "const_eval_func": "main_const_eval_50",
+    "input_args": [63],
+    "input_names": ["layers.24.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapperZeroArg_2": {
+    "const_eval_func": "main_const_eval_51",
+    "input_args": [],
+    "input_names": [],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_49": {
+    "const_eval_func": "main_const_eval_52",
+    "input_args": [174],
+    "input_names": ["layers.13.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_50": {
+    "const_eval_func": "main_const_eval_53",
+    "input_args": [224],
+    "input_names": ["layers.8.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_51": {
+    "const_eval_func": "main_const_eval_54",
+    "input_args": [13],
+    "input_names": ["layers.29.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_52": {
+    "const_eval_func": "main_const_eval_55",
+    "input_args": [370],
+    "input_names": ["x_embedder.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_53": {
+    "const_eval_func": "main_const_eval_56",
+    "input_args": [73],
+    "input_names": ["layers.23.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_54": {
+    "const_eval_func": "main_const_eval_57",
+    "input_args": [54],
+    "input_names": ["layers.25.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_55": {
+    "const_eval_func": "main_const_eval_58",
+    "input_args": [387],
+    "input_names": ["unified_attn_mask"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_56": {
+    "const_eval_func": "main_const_eval_59",
+    "input_args": [303],
+    "input_names": ["layers.0.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_57": {
+    "const_eval_func": "main_const_eval_60",
+    "input_args": [133],
+    "input_names": ["layers.17.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_58": {
+    "const_eval_func": "main_const_eval_61",
+    "input_args": [354],
+    "input_names": ["noise_refiner.1.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_59": {
+    "const_eval_func": "main_const_eval_62",
+    "input_args": [184],
+    "input_names": ["layers.12.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_60": {
+    "const_eval_func": "main_const_eval_63",
+    "input_args": [273],
+    "input_names": ["layers.3.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_61": {
+    "const_eval_func": "main_const_eval_64",
+    "input_args": [7],
+    "input_names": ["t_embedder.mlp.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_62": {
+    "const_eval_func": "main_const_eval_65",
+    "input_args": [254],
+    "input_names": ["layers.5.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_63": {
+    "const_eval_func": "main_const_eval_66",
+    "input_args": [144],
+    "input_names": ["layers.16.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_64": {
+    "const_eval_func": "main_const_eval_67",
+    "input_args": [203],
+    "input_names": ["layers.10.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_65": {
+    "const_eval_func": "main_const_eval_68",
+    "input_args": [374],
+    "input_names": ["image_pad_mask"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_66": {
+    "const_eval_func": "main_const_eval_69",
+    "input_args": [213],
+    "input_names": ["layers.9.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_67": {
+    "const_eval_func": "main_const_eval_70",
+    "input_args": [294],
+    "input_names": ["layers.1.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_68": {
+    "const_eval_func": "main_const_eval_71",
+    "input_args": [233],
+    "input_names": ["layers.7.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_69": {
+    "const_eval_func": "main_const_eval_72",
+    "input_args": [4],
+    "input_names": ["t_embedder.mlp.2.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_70": {
+    "const_eval_func": "main_const_eval_73",
+    "input_args": [253],
+    "input_names": ["layers.5.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_71": {
+    "const_eval_func": "main_const_eval_74",
+    "input_args": [363],
+    "input_names": ["noise_refiner.0.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_72": {
+    "const_eval_func": "main_const_eval_75",
+    "input_args": [214],
+    "input_names": ["layers.9.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_73": {
+    "const_eval_func": "main_const_eval_76",
+    "input_args": [104],
+    "input_names": ["layers.20.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_74": {
+    "const_eval_func": "main_const_eval_77",
+    "input_args": [84],
+    "input_names": ["layers.22.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_75": {
+    "const_eval_func": "main_const_eval_78",
+    "input_args": [94],
+    "input_names": ["layers.21.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_76": {
+    "const_eval_func": "main_const_eval_79",
+    "input_args": [123],
+    "input_names": ["layers.18.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_77": {
+    "const_eval_func": "main_const_eval_80",
+    "input_args": [14],
+    "input_names": ["layers.29.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_78": {
+    "const_eval_func": "main_const_eval_81",
+    "input_args": [293],
+    "input_names": ["layers.1.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_79": {
+    "const_eval_func": "main_const_eval_82",
+    "input_args": [24],
+    "input_names": ["layers.28.adaLN_modulation.0.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_80": {
+    "const_eval_func": "main_const_eval_83",
+    "input_args": [5],
+    "input_names": ["t_embedder.mlp.2.weight"],
+    "num_outputs": 1
+  },
+  "constEvalFuncWrapper_81": {
+    "const_eval_func": "main_const_eval_84",
+    "input_args": [103],
+    "input_names": ["layers.20.adaLN_modulation.0.bias"],
+    "num_outputs": 1
+  }
+}
