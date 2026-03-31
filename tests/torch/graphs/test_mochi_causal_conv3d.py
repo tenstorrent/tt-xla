@@ -6,7 +6,7 @@ import pytest
 import torch
 from diffusers.models.autoencoders.autoencoder_kl_cogvideox import CogVideoXCausalConv3d
 from infra import Framework, run_graph_test_with_random_inputs
-from utils import Category
+from utils import Category, failed_runtime
 
 
 class MochiCausalConv3dWrapper(torch.nn.Module):
@@ -39,9 +39,27 @@ class MochiCausalConv3dWrapper(torch.nn.Module):
 @pytest.mark.parametrize(
     "in_channels,out_channels",
     [
-        pytest.param(768, 768, id="in_and_out_div32"),
+        pytest.param(
+            768,
+            768,
+            id="in_and_out_div32",
+            marks=pytest.mark.xfail(
+                reason=failed_runtime(
+                    "L1 OOM: https://github.com/tenstorrent/tt-xla/issues/3108"
+                )
+            ),
+        ),
         pytest.param(12, 512, id="in_not_div32"),
-        pytest.param(512, 12, id="out_not_div32"),
+        pytest.param(
+            512,
+            12,
+            id="out_not_div32",
+            marks=pytest.mark.xfail(
+                reason=failed_runtime(
+                    "L1 OOM: https://github.com/tenstorrent/tt-xla/issues/3108"
+                )
+            ),
+        ),
         pytest.param(12, 34, id="neither_div32"),
     ],
 )
