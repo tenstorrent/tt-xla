@@ -11,8 +11,9 @@ Problems this solves vs running the skill directly on a large failures file:
 
 Flow:
   1. Read failures JSON
-  2. Fetch list of previous CI runs (one gh API call, done once)
-  3. Download any missing run logs sequentially (no race conditions)
+  2. Fetch list of 10 previous CI runs of the same workflow
+  3. For each run: if cached check for stub dirs and repair; if not cached download
+     all job logs individually via gh api .../jobs/{job_id}/logs  (no ZIP)
   4. Split failed_tests into batches of --batch-size (default 10)
   5. Spawn one `claude -p /find-regression-boundaries` per batch, all in parallel
   6. Wait for all to finish; retry failed batches up to --max-retries times
@@ -43,39 +44,60 @@ from pathlib import Path
 # Log pre-download helpers
 # ---------------------------------------------------------------------------
 
-def gh_api(endpoint: str, jq: str | None = None) -> str:
+def gh_api(endpoint: str, jq: str | None = None, retries: int = 3, retry_delay: float = 5.0) -> str:
     cmd = ["gh", "api", endpoint]
     if jq:
         cmd += ["--jq", jq]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"gh api {endpoint} failed:\n{result.stderr}")
-    return result.stdout.strip()
+    last_err = ""
+    for attempt in range(retries):
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+        last_err = result.stderr.strip()
+        if any(code in last_err for code in ("HTTP 502", "HTTP 503", "HTTP 504", "HTTP 429")):
+            if attempt < retries - 1:
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+        break
+    raise RuntimeError(f"gh api {endpoint} failed:\n{last_err}")
 
 
-def fetch_run_list(github_repo: str, workflow_id: int, starting_run_id: int, max_runs: int = 15) -> list[dict]:
-    """Return up to 11 runs ordered newest→oldest, starting from starting_run_id."""
-    raw = gh_api(
-        f"repos/{github_repo}/actions/workflows/{workflow_id}/runs?per_page={max_runs}&status=completed",
-        jq='.workflow_runs[] | {id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}'
+def fetch_run_list(github_repo: str, workflow_id: int, starting_run_id: int) -> list[dict]:
+    """Return up to 10 completed runs ordered newest->oldest, starting before starting_run_id."""
+    meta_raw = gh_api(
+        f"repos/{github_repo}/actions/runs/{starting_run_id}",
+        jq='{id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}'
     )
-    runs = []
-    for line in raw.strip().splitlines():
-        line = line.strip()
-        if line:
-            try:
-                runs.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
+    starting_run = json.loads(meta_raw)
+    created_at = starting_run["created_at"]
 
-    runs = [r for r in runs if r.get("conclusion") not in ("cancelled", "skipped")]
+    collected: list[dict] = []
+    page = 1
+    while len(collected) < 10:
+        raw = gh_api(
+            f"repos/{github_repo}/actions/workflows/{workflow_id}/runs"
+            f"?per_page=50&status=completed&created=%3C%3D{created_at}&page={page}",
+            jq='.workflow_runs[] | {id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}'
+        )
+        page_runs = []
+        for line in raw.strip().splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    page_runs.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+        if not page_runs:
+            break
+        for r in page_runs:
+            if r.get("conclusion") in ("cancelled", "skipped"):
+                continue
+            collected.append(r)
+            if len(collected) >= 10:
+                break
+        page += 1
 
-    ids = [r["id"] for r in runs]
-    if starting_run_id not in ids:
-        raise RuntimeError(f"Starting run {starting_run_id} not found in last {max_runs} completed runs")
-
-    start_idx = ids.index(starting_run_id)
-    return runs[start_idx : start_idx + 11]
+    return collected
 
 
 def load_index(index_path: Path) -> dict:
@@ -90,41 +112,143 @@ def save_index(index_path: Path, index: dict):
         json.dump(index, f, indent=2)
 
 
+def fetch_all_run_jobs(run_id: int, github_repo: str) -> list[dict]:
+    """Return all jobs for a run (paginated at 25/page to avoid 502s on large responses)."""
+    all_jobs = []
+    page = 1
+    while True:
+        raw = gh_api(
+            f"repos/{github_repo}/actions/runs/{run_id}/jobs?per_page=25&page={page}",
+            jq='.jobs[] | {id: .id, name: .name, conclusion: .conclusion}'
+        )
+        page_jobs = []
+        for line in raw.strip().splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    page_jobs.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+        if not page_jobs:
+            break
+        all_jobs.extend(page_jobs)
+        if len(page_jobs) < 25:
+            break
+        page += 1
+    return all_jobs
+
+
+def _fetch_job_log(job_id: int, job_dir: Path, job_name: str, github_repo: str) -> str:
+    """Fetch log for one job into job_dir/1_job.txt. Returns 'fetched'/'cached'/'skipped'/'error'."""
+    log_file = job_dir / "1_job.txt"
+    if log_file.exists():
+        return "cached"
+
+    for attempt in range(3):
+        result = subprocess.run(
+            ["gh", "api", f"repos/{github_repo}/actions/jobs/{job_id}/logs"],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            if result.stdout:
+                log_file.write_bytes(result.stdout)
+                return "fetched"
+            return "skipped"
+        err = result.stderr.decode(errors="replace")
+        # Skipped/cancelled jobs genuinely have no logs — not an error
+        if "Not Found" in err or "410" in err or "404" in err:
+            return "skipped"
+        # Retry transient errors (including HTTP/2 stream cancellations)
+        if any(code in err for code in ("502", "503", "504", "429", "CANCEL")):
+            if attempt < 2:
+                time.sleep(10 * (attempt + 1))
+                continue
+        print(f"    WARNING: job {job_id} ({job_name[:60]}): {err[:120]}")
+        return "error"
+
+    return "error"
+
+
+def _print_job_stats(counts: dict) -> None:
+    parts = []
+    if counts.get("fetched"):
+        parts.append(f"{counts['fetched']} fetched")
+    if counts.get("cached"):
+        parts.append(f"{counts['cached']} already cached")
+    if counts.get("skipped"):
+        parts.append(f"{counts['skipped']} skipped (no logs)")
+    if counts.get("error"):
+        parts.append(f"{counts['error']} errors")
+    if parts:
+        print(f"    {', '.join(parts)}", flush=True)
+
+
 def download_run_logs(run_id: int, github_repo: str, logs_dir: Path, index: dict) -> dict:
-    """Download and extract logs for a single run. Updates index in place."""
+    """Ensure all job logs for a run are downloaded.
+
+    - Cached run: scan for stub-only dirs (system.txt only, left by old ZIP downloads)
+      and repair them by fetching each job log individually.
+    - Uncached run: list all jobs via API then fetch each job log individually.
+
+    Job dirs: run_{id}/{job_name}/ containing 1_job.txt.
+    Job names: API uses ' / ', dirs use ' _ ' (matching GitHub ZIP convention).
+    """
     key = f"run_{run_id}"
+    run_dir = logs_dir / f"run_{run_id}"
+
     if key in index:
-        print(f"  run {run_id}: already cached, skipping")
+        # Already indexed — check for stub-only dirs left by old ZIP-based downloads
+        if not run_dir.exists():
+            print(f"  run {run_id}: cached (dir missing)")
+            return index[key]
+
+        stub_dirs = [
+            d for d in run_dir.iterdir()
+            if d.is_dir() and [f.name for f in d.iterdir()] == ["system.txt"]
+        ]
+        if not stub_dirs:
+            print(f"  run {run_id}: cached, no stubs — OK")
+            return index[key]
+
+        print(f"  run {run_id}: cached, {len(stub_dirs)} stub dirs — repairing...", flush=True)
+        all_jobs = fetch_all_run_jobs(run_id, github_repo)
+        name_to_id = {j["name"].replace(" / ", " _ "): j["id"] for j in all_jobs}
+
+        counts: dict = {}
+        for job_dir in stub_dirs:
+            job_name = job_dir.name
+            job_id = name_to_id.get(job_name)
+            if job_id is None:
+                print(f"    WARNING: no job ID for: {job_name[:60]}")
+                counts["error"] = counts.get("error", 0) + 1
+                continue
+            status = _fetch_job_log(job_id, job_dir, job_name, github_repo)
+            counts[status] = counts.get(status, 0) + 1
+        _print_job_stats(counts)
         return index[key]
 
-    print(f"  run {run_id}: downloading...", flush=True)
-
+    # Not cached — fetch metadata then download every job individually
+    print(f"  run {run_id}: fetching metadata...", flush=True)
     meta_raw = gh_api(
         f"repos/{github_repo}/actions/runs/{run_id}",
         jq='{id: .id, workflow_id: .workflow_id, workflow_name: (.name), head_sha: .head_sha, created_at: .created_at}'
     )
     meta = json.loads(meta_raw)
 
-    run_dir = logs_dir / f"run_{run_id}"
     run_dir.mkdir(parents=True, exist_ok=True)
-    zip_path = logs_dir / f"run_{run_id}.zip"
 
-    dl_result = subprocess.run(
-        ["gh", "api", f"repos/{github_repo}/actions/runs/{run_id}/logs"],
-        stdout=open(zip_path, "wb"),
-        stderr=subprocess.PIPE,
-    )
-    if dl_result.returncode != 0:
-        raise RuntimeError(f"Failed to download logs for run {run_id}: {dl_result.stderr.decode()}")
+    all_jobs = fetch_all_run_jobs(run_id, github_repo)
+    print(f"  run {run_id}: {len(all_jobs)} jobs — downloading logs...", flush=True)
 
-    unzip_result = subprocess.run(
-        ["unzip", "-o", str(zip_path), "-d", str(run_dir)],
-        capture_output=True
-    )
-    if unzip_result.returncode not in (0, 1):
-        raise RuntimeError(f"unzip failed for run {run_id}: {unzip_result.stderr.decode()}")
-
-    zip_path.unlink(missing_ok=True)
+    counts = {}
+    for job in all_jobs:
+        job_id = job["id"]
+        job_name = job["name"].replace(" / ", " _ ")
+        job_dir = run_dir / job_name
+        job_dir.mkdir(parents=True, exist_ok=True)
+        status = _fetch_job_log(job_id, job_dir, job_name, github_repo)
+        counts[status] = counts.get(status, 0) + 1
+    _print_job_stats(counts)
 
     entry = {
         "run_id": meta["id"],
@@ -146,7 +270,7 @@ def download_run_logs(run_id: int, github_repo: str, logs_dir: Path, index: dict
 def batch_report_path(bisection_dir: Path, batch_idx: int, run_id: int) -> Path:
     """Return the path where the skill will write the report for this batch.
     Matches the skill's filename derivation:
-      batch_<i>_<run_id>_failures.json → regression_report_batch_<i>_<run_id>.json
+      batch_<i>_<run_id>_failures.json -> regression_report_batch_<i>_<run_id>.json
     """
     return bisection_dir / f"regression_report_batch_{batch_idx}_{run_id}.json"
 
@@ -157,12 +281,14 @@ def batch_input_path(bisection_dir: Path, batch_idx: int, run_id: int) -> Path:
 
 def write_batch_file(batch_file: Path, data: dict, batch_tests: list) -> None:
     batch_data = {
-        "run_id": data["run_id"],  # keep original run_id — output filename is derived from input filename
+        "run_id": data["run_id"],
         "run_date": data.get("run_date", ""),
         "sha": data.get("sha", ""),
         "workflow_id": data["workflow_id"],
         "workflow_name": data.get("workflow_name", ""),
         "github_repo": data.get("github_repo", "tenstorrent/tt-xla"),
+        # bisect_repo: dedicated clone where git checkout/bisect/tests run — never the script's own repo
+        "bisect_repo": data.get("bisect_repo", ""),
         "failed_tests": batch_tests,
         "timed_out_jobs": [],
     }
@@ -222,11 +348,9 @@ def run_batches_parallel(
             try:
                 batch_idx, rc, ok = future.result()
                 done += 1
-                elapsed_marker = ""
                 status = "OK" if ok else f"FAILED (rc={rc})"
                 print(f"  [{done}/{total}] batch {batch_idx:2d}  {status}  log: batch_{batch_idx}_{run_id}_attempt{attempt}.log")
                 if ok:
-                    # OK exit code is not enough — check the report file actually exists
                     if batch_report_path(bisection_dir, batch_idx, run_id).exists():
                         succeeded.append(batch_idx)
                     else:
@@ -283,11 +407,27 @@ def main():
     logs_dir = bisection_dir / "logs"
     index_path = logs_dir / "index.json"
 
+    # bisect_repo: dedicated tt-xla clone used exclusively for git bisect operations
+    # (git checkout, submodule updates, test execution). The current repo (repo_root)
+    # is NEVER modified — it only stores logs/results and is the CWD for claude agents.
+    bisect_repo = repo_root.parent / "tt-xla_bisect"
+    if not bisect_repo.exists():
+        print(f"ERROR: bisect repo not found at {bisect_repo}", file=sys.stderr)
+        print(f"  Create it with:", file=sys.stderr)
+        print(f"    git clone <remote_url> {bisect_repo}", file=sys.stderr)
+        print(f"  Then set up its venv the same way as this repo.", file=sys.stderr)
+        sys.exit(1)
+
+    # Propagate bisect_repo into the data dict so it ends up in every batch JSON file
+    data["bisect_repo"] = str(bisect_repo)
+
     n_tests = len(failed_tests)
     n_batches = math.ceil(n_tests / args.batch_size)
 
     print(f"Failures file:  {failures_path.relative_to(repo_root)}")
     print(f"Run ID:         {run_id}")
+    print(f"Script repo:    {repo_root}  (never modified — logs/results live here)")
+    print(f"Bisect repo:    {bisect_repo}  (git checkout/bisect/tests run here)")
     print(f"Failed tests:   {n_tests}")
     print(f"Batch size:     {args.batch_size}")
     print(f"Processes:      {n_batches}  (one per batch, all in parallel)")
@@ -299,14 +439,15 @@ def main():
     # ------------------------------------------------------------------
     print("Fetching previous run list...")
     run_list = fetch_run_list(github_repo, workflow_id, run_id)
-    print(f"Runs to search ({len(run_list)}, newest → oldest):")
+    print(f"Runs to search ({len(run_list)}, newest -> oldest, prior to run {run_id}):")
     for idx, r in enumerate(run_list):
-        marker = "  ← starting run (known failures)" if r["id"] == run_id else ""
-        print(f"  [{idx}] run {r['id']}  {r['created_at'][:10]}  sha={r['head_sha'][:8]}{marker}")
+        print(f"  [{idx}] run {r['id']}  {r['created_at'][:10]}  sha={r['head_sha'][:8]}")
     print()
 
     # ------------------------------------------------------------------
-    # Phase 2: pre-download all missing logs (sequential, no race)
+    # Phase 2: ensure all run logs are downloaded (sequential, no race)
+    #   - cached runs: check for stub dirs, repair any found
+    #   - uncached runs: fetch all job logs individually via jobs API
     # ------------------------------------------------------------------
     print("Checking / downloading run logs...")
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -350,7 +491,7 @@ def main():
     for i in range(n_batches):
         batch_tests = failed_tests[i * args.batch_size : (i + 1) * args.batch_size]
         write_batch_file(batch_input_path(bisection_dir, i, run_id), data, batch_tests)
-        print(f"  batch {i:2d}: {len(batch_tests):2d} tests → batch_{i}_{run_id}_failures.json")
+        print(f"  batch {i:2d}: {len(batch_tests):2d} tests -> batch_{i}_{run_id}_failures.json")
     print()
 
     # ------------------------------------------------------------------
@@ -439,7 +580,7 @@ def main():
     print(f"  Boundaries found:   {boundaries_found}")
     print(f"  Boundaries missing: {len(all_results) - boundaries_found}")
     if missing_tests:
-        print(f"  Tests absent:       {len(missing_tests)}  ← ERROR")
+        print(f"  Tests absent:       {len(missing_tests)}  <- ERROR")
 
     # ------------------------------------------------------------------
     # Cleanup

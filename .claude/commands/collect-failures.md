@@ -97,35 +97,29 @@ Job breakdown:
 
 Logs are needed for **failed**, **cancelled**, and **timed_out** jobs. If there are none of these, skip this phase.
 
-Read `$REPO_ROOT/bisection/logs/index.json` (if it exists). Check if `run_{run_id}` is present.
-
-**If already cached:** print `Logs already cached for run <run_id>, skipping download.` and proceed to Phase 4.
-
-**If not cached:**
-
-1. Ensure directories exist:
+1. Ensure the log directory exists:
 ```bash
 mkdir -p "$REPO_ROOT/bisection/logs/run_<run_id>"
 ```
 
-2. Download the full run logs ZIP (one API call):
+2. Read `$REPO_ROOT/bisection/logs/index.json` (if it exists). It tracks which job logs have already been downloaded under `run_<run_id>.downloaded_job_ids` (an array of job IDs).
+
+3. For each job in the **failed**, **cancelled**, and **timed_out** buckets, check whether its log is already cached:
+
 ```bash
-gh api "repos/$GITHUB_REPO/actions/runs/<run_id>/logs" \
-  > "$REPO_ROOT/bisection/logs/run_<run_id>.zip"
+# Log file path for a job
+LOG_FILE="$REPO_ROOT/bisection/logs/run_<run_id>/job_<job_id>.txt"
 ```
 
-3. Extract the ZIP:
+- **If the file already exists:** skip download for this job, print `  [cached] job <job_id> (<job_name>)`.
+- **If the file does not exist:** download it:
 ```bash
-cd "$REPO_ROOT/bisection/logs/run_<run_id>"
-unzip -o ../run_<run_id>.zip
+gh api "repos/$GITHUB_REPO/actions/jobs/<job_id>/logs" \
+  > "$REPO_ROOT/bisection/logs/run_<run_id>/job_<job_id>.txt"
 ```
+  Print `  [downloaded] job <job_id> (<job_name>)`.
 
-4. Remove the ZIP to save space:
-```bash
-rm "$REPO_ROOT/bisection/logs/run_<run_id>.zip"
-```
-
-5. Update `bisection/logs/index.json` — add the entry (create the file if it doesn't exist):
+4. After downloading all needed logs, update `bisection/logs/index.json` — merge the entry (create the file if it doesn't exist, do not overwrite other run entries):
 ```json
 {
   "run_<run_id>": {
@@ -134,11 +128,14 @@ rm "$REPO_ROOT/bisection/logs/run_<run_id>.zip"
     "date": "<run_date>",
     "workflow_id": <workflow_id>,
     "workflow_name": "<workflow_name>",
-    "downloaded_at": "<current UTC timestamp>"
+    "downloaded_at": "<current UTC timestamp>",
+    "downloaded_job_ids": [<job_id_1>, <job_id_2>, ...]
   }
 }
 ```
-Use the Write tool to save this file (merge with existing entries if the file already exists — do not overwrite other entries).
+`downloaded_job_ids` should be the union of any previously recorded IDs and the newly downloaded ones.
+
+Use the Write tool to save this file.
 
 ---
 
@@ -146,13 +143,12 @@ Use the Write tool to save this file (merge with existing entries if the file al
 
 Apply this phase to all jobs in the **failed** and **cancelled** buckets.
 
-The extracted logs are in `$REPO_ROOT/bisection/logs/run_<run_id>/`. Files are named `{N}_{job_name}.txt` or similar. List all `.txt` files:
-
-```bash
-find "$REPO_ROOT/bisection/logs/run_<run_id>" -name "*.txt" | sort
+For each job, the log file is:
+```
+$REPO_ROOT/bisection/logs/run_<run_id>/job_<job_id>.txt
 ```
 
-For each failed/cancelled job, find its log file by matching the job name to the file name (fuzzy match on the `{job_name}` portion). If no log file is found, record it as "log not available".
+If the file does not exist (download failed), record `log_file` as `"not available"` and skip log parsing for that job.
 
 #### Step 0 — Extract machine info from the log header
 
@@ -243,7 +239,7 @@ Strip the leading timestamp and `E   ` prefix. If no `E   AssertionError` line i
 
 Apply this phase to all jobs in the **timed_out** bucket.
 
-For each timed_out job, find its log file the same way as Phase 4. Then extract exactly three things:
+For each timed_out job, the log file is `$REPO_ROOT/bisection/logs/run_<run_id>/job_<job_id>.txt`. Then extract exactly three things:
 
 **1. Collected test count** — look for the `collect Tests` section in the log, which lists lines like:
 ```
@@ -287,7 +283,7 @@ Save to `$REPO_ROOT/bisection/run_<run_id>_failures.json`:
       "job_name": "test forge models passing / test n150",
       "job_url": "https://github.com/tenstorrent/tt-xla/actions/runs/.../jobs/...",
       "job_conclusion": "failure",
-      "log_file": "102_test_forge_models_passing _ test n150 ....txt"
+      "log_file": "job_12345678.txt"
     }
   ],
   "timed_out_jobs": [
@@ -347,6 +343,5 @@ To find regression boundaries for failed tests, run:
 | `git rev-parse` fails (not inside a repo) | Stop and tell the user to run this from inside the repository |
 | Jobs API returns empty | Report that no jobs were found for this run ID |
 | No non-succeeded jobs found | Report that all jobs in this run succeeded |
-| ZIP download fails (403/404) | GitHub may not expose logs for this run. Report the error and suggest trying a different run |
-| ZIP extracts empty or no `.txt` files found | Report structure to user, show what files were extracted |
-| Log file for a failed/cancelled/timed_out job not found in ZIP | Include the job entry but mark log_file as "not available" |
+| Per-job log download fails (403/404) | GitHub may not expose logs for this job. Print a warning, mark `log_file` as `"not available"`, continue with remaining jobs |
+| Downloaded log file is empty | Warn the user, mark `log_file` as `"not available"`, continue |
