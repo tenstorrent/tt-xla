@@ -79,6 +79,7 @@ class ModelTester(BaseTester, ABC):
         # Store model instance.
         self._model = self._get_model()
         # Configure it.
+        print("model", self._model)
         self._configure_model()
 
     def _get_shard_specs_function(self) -> Optional[Callable[[Model], ShardSpec]]:
