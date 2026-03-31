@@ -371,6 +371,8 @@ def benchmark_llm_torch_xla(
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
+        if inject_custom_moe:
+            enable_sparse_mlp(model, mesh.mesh_shape, cluster_axis=0)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
