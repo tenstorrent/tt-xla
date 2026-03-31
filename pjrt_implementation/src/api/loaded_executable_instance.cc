@@ -140,6 +140,7 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
   // offset. We need to keep track of opened devices in Client and map the
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
+  DLOG_F(LOG_DEBUG, "Asif:: loaded_exec_0 ");
 
   return m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
 }

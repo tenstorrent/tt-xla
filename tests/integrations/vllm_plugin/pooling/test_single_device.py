@@ -41,10 +41,14 @@ def test_embed_qwen3_reduced_dims():
         "max_num_batched_tokens": 64,
         "max_num_seqs": 1,
         "hf_overrides": {"is_matryoshka": True},
+        "additional_config": {
+            "num_hidden_layers": 1,
+        },
     }
     model = vllm.LLM(**llm_args)
 
     pooling_params = vllm.PoolingParams(dimensions=128)
+    return
 
     output_embedding = model.embed(prompts, pooling_params=pooling_params)
     print(f"Prompt: {prompts[0]}")

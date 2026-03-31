@@ -1635,11 +1635,32 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ),
             set_forward_context(per_layer_attn_metadata, self.vllm_config, 0),
         ):
+            logger.info(
+                f"Asif:: Running dummy forward pass with num_tokens={num_tokens}, num_reqs={num_reqs}, num_blocks={num_blocks}."
+            )
+            print(
+                f"Asif:: Running dummy forward pass with num_tokens={num_tokens}, num_reqs={num_reqs}, num_blocks={num_blocks}.",
+                flush=True,
+            )
             out = self.model(
                 input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
             )
+            logger.info(
+                f"Asif:: Finished dummy forward pass for num_tokens={num_tokens}."
+            )
+            print(
+                f"Asif:: Finished dummy forward pass for num_tokens={num_tokens}.",
+                flush=True,
+            )
 
         self._hidden_states_dtype = out.dtype
+        logger.info(
+            f"Asif:: Set hidden states dtype to {self._hidden_states_dtype} based on dummy run output."
+        )
+        print(
+            f"Asif:: Set hidden states dtype to {self._hidden_states_dtype} based on dummy run output.",
+            flush=True,
+        )
 
     def _set_active_loras(
         self, prompt_lora_mapping, token_lora_mapping, lora_requests
@@ -1738,19 +1759,36 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
-            # num_tokens = 32
+            num_tokens = 32
             logger.info("  -- num_tokens: %d", num_tokens)
+            logger.info(f"Asif:: self.most_model_len: {self.most_model_len}")
             self._dummy_run(
                 num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
             )
             if self.most_model_len is not None:
+                logger.info(f"self.most_model_len")
                 self._dummy_run(
                     num_tokens,
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
-            # break
+            break
+        logger.info(
+            f"Asif:: Finished dummy runs for backbone with num_tokens={num_tokens}."
+        )
+        print(
+            f"Asif:: Finished dummy runs for backbone with num_tokens={num_tokens}.",
+            flush=True,
+        )
         xm.wait_device_ops()
+        torch_xla.sync(wait=False)
+        logger.info(
+            f"Asif:: Starting compilation for backbone with num_tokens={num_tokens}."
+        )
+        print(
+            f"Asif:: Starting compilation for backbone with num_tokens={num_tokens}.",
+            flush=True,
+        )
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("model backbone")
@@ -1914,6 +1952,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         with self.maybe_setup_dummy_loras(self.lora_config):
             self._precompile_mm_encoder()
             self._precompile_backbone()
+            return
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
