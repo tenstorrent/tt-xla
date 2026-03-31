@@ -17,12 +17,30 @@ import re
 import sys
 
 
+def tail_lines(path, n=500):
+    """Read last n lines of a file efficiently."""
+    with open(path, "rb") as f:
+        f.seek(0, 2)
+        size = f.tell()
+        buf = bytearray()
+        pos = size
+        lines_found = 0
+        chunk = 8192
+        while pos > 0 and lines_found < n:
+            read = min(chunk, pos)
+            pos -= read
+            f.seek(pos)
+            buf[:0] = f.read(read)
+            lines_found = buf.count(b"\n")
+        text = buf.decode("utf-8", errors="replace")
+        return "\n".join(text.splitlines()[-n:])
+
+
 def parse_tok_s(log_path):
-    """Extract tok/s from a log file. Returns None if not found."""
+    """Extract tok/s from last 500 lines of a log file."""
     if not os.path.exists(log_path):
         return None
-    with open(log_path) as f:
-        text = f.read()
+    text = tail_lines(log_path, 500)
 
     # chat.py benchmark format
     m = re.search(r"Overall tok/s:\s+([\d.]+)", text)
@@ -30,7 +48,6 @@ def parse_tok_s(log_path):
         return float(m.group(1))
 
     # pytest vllm_benchmark format: "decode_tps=21.5"
-    # Use average of all requests' decode_tps
     tps_vals = re.findall(r"decode_tps=([\d.]+)", text)
     if tps_vals:
         return sum(float(v) for v in tps_vals) / len(tps_vals)
@@ -55,6 +72,7 @@ def parse_log_name(name):
             seq_len=128,
             batch=batch,
             on_device=True,
+            harness="vllm-bench",
             label=name,
         )
 
@@ -86,6 +104,7 @@ def parse_log_name(name):
         seq_len=seq_len,
         batch=batch,
         on_device=on_device,
+        harness="chat.py",
         label=name,
     )
 
@@ -124,7 +143,7 @@ def main():
         if meta is None:
             continue
 
-        key = (meta["model"], meta["sampling"], meta["seq_len"], meta["batch"], meta["on_device"])
+        key = (meta["model"], meta["sampling"], meta["seq_len"], meta["batch"], meta["on_device"], meta["harness"])
         if key in seen:
             continue
         seen.add(key)
@@ -141,8 +160,10 @@ def main():
 
     # Sort: model → sampling → seq_len → batch
     model_order = {"OPT-125M": 0, "Llama-3.2-1B": 1, "Llama-3.2-3B": 2, "Llama-3.1-8B": 3}
+    # Sort: harness first, then model → sampling → seq_len → batch
     rows.sort(
         key=lambda r: (
+            r["harness"],
             model_order.get(r["model"], 99),
             r["sampling"],
             r["on_device"],
@@ -152,8 +173,8 @@ def main():
     )
 
     # Print table
-    col_widths = [14, 12, 8, 6, 9, 11, 10, 10]
-    headers = ["Model", "Sampling", "SeqLen", "Batch", "OnDevice", "WithoutFix", "WithFix", "Change"]
+    col_widths = [14, 12, 8, 6, 9, 11, 10, 10, 12]
+    headers = ["Model", "Sampling", "SeqLen", "Batch", "OnDevice", "WithoutFix", "WithFix", "Change", "Harness"]
 
     sep = "+" + "+".join("-" * (w + 2) for w in col_widths) + "+"
     header_row = "|" + "|".join(
@@ -168,10 +189,15 @@ def main():
     print(sep)
 
     prev_model = None
+    prev_harness = None
     for r in rows:
-        if r["model"] != prev_model and prev_model is not None:
+        if r["harness"] != prev_harness and prev_harness is not None:
+            print(sep)
+            print(sep)
+        elif r["model"] != prev_model and prev_model is not None:
             print(sep)
         prev_model = r["model"]
+        prev_harness = r["harness"]
 
         no_fix_s = f"{r['no_fix']:.2f}" if r["no_fix"] is not None else "N/A"
         fix_s = f"{r['fix']:.2f}" if r["fix"] is not None else "N/A"
@@ -185,7 +211,7 @@ def main():
         on_dev_s = "Yes" if r["on_device"] else "CPU"
         vals = [
             r["model"], r["sampling"], str(r["seq_len"]), str(r["batch"]),
-            on_dev_s, no_fix_s, fix_s, pct_s,
+            on_dev_s, no_fix_s, fix_s, pct_s, r["harness"],
         ]
         print("|" + "|".join(f" {v:<{w}} " for v, w in zip(vals, col_widths)) + "|")
 
