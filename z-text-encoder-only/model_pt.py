@@ -213,7 +213,19 @@ def get_input():
         MODEL_ID, subfolder="tokenizer", trust_remote_code=True
     )
 
-    prompt = "A cat sitting on a windowsill looking outside"
+    prompt = (
+        "A highly detailed photograph of a fluffy orange tabby cat sitting on a "
+        "rustic wooden windowsill, gazing out through rain-streaked glass at a "
+        "lush green garden filled with blooming roses and lavender bushes. Soft "
+        "morning light filters through sheer white curtains, casting warm golden "
+        "highlights on the cat's fur. The scene is peaceful and contemplative, "
+        "with dewdrops visible on the window pane and a small ceramic vase of "
+        "wildflowers placed beside the cat. The background shows rolling hills "
+        "under a partly cloudy sky with dramatic crepuscular rays breaking through "
+        "the clouds. Shot with a shallow depth of field on a vintage film camera, "
+        "giving the image a nostalgic, dreamlike quality with subtle film grain "
+        "and slightly desaturated earth tones."
+    )
     tokens = tokenizer(
         prompt,
         padding="max_length",
