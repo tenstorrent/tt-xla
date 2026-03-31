@@ -19,7 +19,7 @@ This guide covers best practices and techniques for optimizing the performance o
 
 1. **[Optimization Levels](#1-optimization-levels)** - Compiler optimization levels (0, 1, 2) to balance compile and runtime performance
 2. **[Device Warmup](#2-device-warmup)** - Eliminate first-run overhead by performing warmup iterations
-3. **[Data Formats](#3-data-formats)** - Use bfloat16 and bfloat8_b for faster computation and reduced memory usage
+3. **[Data Formats](#3-data-formats)** - Use bfloat16 and bfloat8_b for faster computation and reduced memory usage, including manual mixed precision via per-tensor weight dtype overrides
 4. **[Runtime Trace](#4-runtime-trace)** - Reduce host-device communication overhead by recording and replaying command sequences
 5. **[Batch Size Tuning](#5-batch-size-tuning)** - Find the optimal batch size to maximize throughput for your model
 
@@ -124,14 +124,14 @@ bfloat16 (Brain Floating Point 16-bit) provides:
 
 ### bfloat8_b
 
-Enable bfp8 weight conversion using compile options. The model **MUST** be cast to bfloat16 before compilation.
+Enable bfp_bf8 weight conversion using compile options. The model **MUST** be cast to bfloat16 before compilation.
 ```python
 torch_xla.set_custom_compile_options({
-    "experimental_weight_dtype": "bfp8",  # Cast matmul weights to bfloat8_b
+    "experimental_weight_dtype": "bfp_bf8",  # Cast matmul weights to bfloat8_b
 })
 ```
 
-bfloat8_b (Block Float 8-bit) weight conversion casts matmul weights to bfp8 format, providing faster computation and reduced memory usage.
+bfloat8_b (Block Float 8-bit) weight conversion casts matmul weights to bfp_bf8 format, providing faster computation and reduced memory usage.
 
 #### Notes
 
@@ -140,6 +140,26 @@ bfloat8_b (Block Float 8-bit) weight conversion casts matmul weights to bfp8 for
 - **Automatic conversion:** Weights are automatically converted during compilation
 - **Not always beneficial:** Profile your specific model to verify improvement
 
+### Per-Tensor Weight Dtype Overrides (Manual Mixed Precision)
+
+When uniform weight conversion causes accuracy degradation in specific layers, you can override dtypes on a per-tensor basis. This lets you keep sensitive layers at higher precision (e.g. `bf16`) while converting the rest to a lower format (e.g. `bfp_bf8` or `bfp_bf4`).
+
+Pass a dict mapping parameter names to target dtypes to `apply_weight_dtype_overrides()`:
+
+```python
+from tt_torch import apply_weight_dtype_overrides
+
+# Override specific weights by name (glob patterns supported).
+apply_weight_dtype_overrides(model, {
+    "fc2.weight": "bfp_bf8",
+})
+```
+
+Call this **after** creating the model and **before** `torch.compile`. See `examples/pytorch/mnist_performant.py` for a complete working example.
+
+> **Note:** Currently only matmul/linear layer weight overrides are supported. Convolution weights on lower data types are not yet supported through the compiler.
+
+For more advanced usage including JSON configs, the `tt-gen-weight-template` CLI, and implementation details, see [Mixed Precision](./mixed_precision.md).
 ---
 
 ## 4. Runtime Trace

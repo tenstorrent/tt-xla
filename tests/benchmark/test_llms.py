@@ -25,7 +25,7 @@ DEFAULT_LOOP_COUNT = 1
 DEFAULT_INPUT_SEQUENCE_LENGTH = 128
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
-DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp8"
+DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 DEFAULT_REQUIRED_PCC = 0.95
 
@@ -70,7 +70,7 @@ def test_llm(
         input_sequence_length: Input sequence length
         data_format: Data format
         task: Task type
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Enable permute matmul fusion optimization
         read_logits_fn: Function to extract logits from model output
         required_pcc: Required PCC threshold
