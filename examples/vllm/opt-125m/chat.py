@@ -40,8 +40,10 @@ BENCHMARK_PROMPTS = [
 ]
 
 
-def create_engine(cpu_sampling=False, fast=False, skip_precompile=False):
-    max_len = MAX_MODEL_LEN_FAST if fast else MAX_MODEL_LEN
+def create_engine(
+    cpu_sampling=False, fast=False, skip_precompile=False, max_model_len_override=None
+):
+    max_len = max_model_len_override or (MAX_MODEL_LEN_FAST if fast else MAX_MODEL_LEN)
     additional_config = {
         "enable_const_eval": False,
         "min_context_len": 32,
@@ -225,6 +227,12 @@ def main():
         help="Use smaller max_model_len (256) for faster compilation",
     )
     parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=None,
+        help="Override max_model_len (overrides --fast)",
+    )
+    parser.add_argument(
         "--skip-warmup",
         action="store_true",
         help="Skip the warmup generation step",
@@ -241,6 +249,7 @@ def main():
         cpu_sampling=args.cpu_sampling,
         fast=args.fast,
         skip_precompile=args.skip_precompile,
+        max_model_len_override=args.max_model_len,
     )
     if not args.skip_warmup:
         warmup(llm, args.temperature)

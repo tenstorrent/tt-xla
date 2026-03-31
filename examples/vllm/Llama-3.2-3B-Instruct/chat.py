@@ -28,6 +28,7 @@ import vllm
 
 MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 MAX_MODEL_LEN = 2048
+MAX_MODEL_LEN_FAST = 128  # Smaller context → faster compilation
 GPU_MEMORY_UTILIZATION = 0.05
 
 BENCHMARK_PROMPTS = [
@@ -42,7 +43,7 @@ BENCHMARK_PROMPTS = [
 ]
 
 
-def create_engine(cpu_sampling=False):
+def create_engine(cpu_sampling=False, fast=False):
     additional_config = {
         "enable_const_eval": False,
         "min_context_len": 32,
@@ -50,12 +51,13 @@ def create_engine(cpu_sampling=False):
     if cpu_sampling:
         additional_config["cpu_sampling"] = True
 
+    max_len = MAX_MODEL_LEN_FAST if fast else MAX_MODEL_LEN
     sampling_label = "CPU" if cpu_sampling else "device"
-    print(f"Loading {MODEL} (sampling: {sampling_label}) ...")
+    print(f"Loading {MODEL} (sampling: {sampling_label}, max_model_len={max_len}) ...")
     llm = vllm.LLM(
         model=MODEL,
-        max_model_len=MAX_MODEL_LEN,
-        max_num_batched_tokens=MAX_MODEL_LEN,
+        max_model_len=max_len,
+        max_num_batched_tokens=max_len,
         max_num_seqs=1,
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         disable_log_stats=True,
@@ -200,9 +202,14 @@ def main():
         default=1,
         help="Number of benchmark prompts (max 8)",
     )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help=f"Use smaller max_model_len ({MAX_MODEL_LEN_FAST}) for faster compilation",
+    )
     args = parser.parse_args()
 
-    llm = create_engine(cpu_sampling=args.cpu_sampling)
+    llm = create_engine(cpu_sampling=args.cpu_sampling, fast=args.fast)
     warmup(llm, args.temperature)
 
     if args.benchmark:
