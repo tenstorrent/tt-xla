@@ -462,11 +462,10 @@ class A2aSparseMLP(nn.Module):
                 is_input_a_sparse=False,
                 is_input_b_sparse=True,
             )
-            gate_up_out = gate_up_out.squeeze(2)  # [dim_a, dim_b, E_local, M, inter*2]
-            gate_up_out = gate_up_out.permute(
-                0, 1, 3, 2, 4
-            )  # [dim_a, dim_b, M, E_local, inter*2]
-            gate_up_out = gate_up_out + gate_up_bias
+            # Keep [dim_a, dim_b, E, M, inter*2] layout — avoids two
+            # permutes and one contiguous copy between gate_up and down matmuls.
+            gate_up_out = gate_up_out.squeeze(2)  # [dim_a, dim_b, E, M, inter*2]
+            gate_up_out = gate_up_out + gate_up_bias.unsqueeze(-2)
 
             # Activation
             gate_out = gate_up_out[..., ::2]
@@ -479,11 +478,10 @@ class A2aSparseMLP(nn.Module):
                 glu = gate_out * torch.sigmoid(gate_out * self.alpha)
                 activated = (up_out + 1) * glu
 
-            # Down sparse_matmul (sparsity already expanded to E)
-            activated_reshaped = (
-                activated.permute(0, 1, 3, 2, 4)
-                .contiguous()
-                .view(dim_a * dim_b, E, M, self.intermediate_size)
+            # Down sparse_matmul — activated is already [dim_a, dim_b, E, M, inter]
+            # so flattening the leading dims is a simple reshape (no copy).
+            activated_reshaped = activated.view(
+                dim_a * dim_b, E, M, self.intermediate_size
             )
             sparsity_down = sparsity.view(1, 1, dim_a * dim_b, E)
             down_out = torch.ops.tt.sparse_matmul(
@@ -497,17 +495,16 @@ class A2aSparseMLP(nn.Module):
 
             # Reshape for combine: [E, BD, S, H]
             down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-            down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
-            down_out = down_out + down_bias
+            down_out = down_out + down_bias.unsqueeze(-2)
             if split_seq:
-                down_out = down_out.permute(3, 0, 1, 2, 4).contiguous()
+                down_out = down_out.permute(2, 0, 1, 3, 4).contiguous()
                 down_out = down_out.view(E, BD, seq_len, hidden_size)
             elif dim_b == 1:
                 down_out = down_out.squeeze(1)
-                down_out = down_out.permute(2, 0, 1, 3).contiguous()
+                down_out = down_out.permute(1, 0, 2, 3).contiguous()
                 down_out = down_out.view(E, BD, hidden_size).unsqueeze(1)
             else:
-                down_out = down_out.permute(3, 0, 2, 1, 4).contiguous()
+                down_out = down_out.permute(2, 0, 3, 1, 4).contiguous()
                 down_out = down_out.view(E, BD, seq_len, hidden_size)
 
         else:
@@ -578,9 +575,10 @@ class A2aSparseMLP(nn.Module):
                 is_input_a_sparse=False,
                 is_input_b_sparse=True,
             )
-            gate_up_out = gate_up_out.squeeze(2)
-            gate_up_out = gate_up_out.permute(0, 1, 3, 2, 4)
-            gate_up_out = gate_up_out + gate_up_bias
+            # Keep [dim_a, dim_b, E, M, inter*2] layout — avoids two
+            # permutes and one contiguous copy between gate_up and down matmuls.
+            gate_up_out = gate_up_out.squeeze(2)  # [dim_a, dim_b, E, M, inter*2]
+            gate_up_out = gate_up_out + gate_up_bias.unsqueeze(-2)
 
             gate_out = gate_up_out[..., ::2]
             up_out = gate_up_out[..., 1::2]
@@ -592,10 +590,9 @@ class A2aSparseMLP(nn.Module):
                 glu = gate_out * torch.sigmoid(gate_out * self.alpha)
                 activated = (up_out + 1) * glu
 
-            activated_reshaped = (
-                activated.permute(0, 1, 3, 2, 4)
-                .contiguous()
-                .view(dim_a * dim_b, E, M, self.intermediate_size)
+            # activated is already [dim_a, dim_b, E, M, inter] — flatten leading dims.
+            activated_reshaped = activated.view(
+                dim_a * dim_b, E, M, self.intermediate_size
             )
             sparsity_down = sparsity.view(1, 1, dim_a * dim_b, E)
             down_out = torch.ops.tt.sparse_matmul(
@@ -608,17 +605,16 @@ class A2aSparseMLP(nn.Module):
             )
 
             down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-            down_out = down_out.permute(0, 1, 3, 2, 4)
-            down_out = down_out + down_bias
+            down_out = down_out + down_bias.unsqueeze(-2)
             if split_seq:
-                down_out = down_out.permute(3, 0, 1, 2, 4).contiguous()
+                down_out = down_out.permute(2, 0, 1, 3, 4).contiguous()
                 down_out = down_out.view(E, BD, seq_len, hidden_size)
             elif dim_b == 1:
                 down_out = down_out.squeeze(1)
-                down_out = down_out.permute(2, 0, 1, 3).contiguous()
+                down_out = down_out.permute(1, 0, 2, 3).contiguous()
                 down_out = down_out.view(E, BD, hidden_size).unsqueeze(1)
             else:
-                down_out = down_out.permute(3, 0, 2, 1, 4).contiguous()
+                down_out = down_out.permute(2, 0, 3, 1, 4).contiguous()
                 down_out = down_out.view(E, BD, seq_len, hidden_size)
 
         # Combine: gather expert outputs back along cluster_axis

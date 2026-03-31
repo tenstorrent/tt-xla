@@ -22,6 +22,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenize
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.sparse_mlp import enable_sparse_mlp
 from utils import (
     build_xla_export_name,
     compute_pcc,
@@ -171,7 +172,7 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
 
 def check_transformers_version():
     """
-    Check that transformers version is <= 4.57.1.
+    Check that transformers version is = 4.57.1.
     Raises RuntimeError if version is incompatible.
     """
     import packaging.version
@@ -179,10 +180,10 @@ def check_transformers_version():
     current_version = packaging.version.parse(transformers.__version__)
     max_version = packaging.version.parse("4.57.1")
 
-    if current_version > max_version:
+    if current_version != max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version <= 4.57.1"
+            f"Please use version 4.57.1"
         )
 
 
@@ -210,6 +211,7 @@ def benchmark_llm_torch_xla(
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
+    inject_custom_moe: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -321,7 +323,7 @@ def benchmark_llm_torch_xla(
     # Limit maximum generation count to fit within preallocated static cache
     if max_output_tokens is None:
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
-
+    # max_output_tokens = 2
     # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
     if not accuracy_testing:
         cpu_logits, _ = generate_and_benchmark(
@@ -353,6 +355,8 @@ def benchmark_llm_torch_xla(
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
+        if inject_custom_moe:
+            enable_sparse_mlp(model, mesh.mesh_shape, cluster_axis=0)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
