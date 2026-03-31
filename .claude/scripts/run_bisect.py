@@ -88,6 +88,23 @@ def main() -> None:
         .strip()
     )
 
+    # Ensure the dedicated bisect clone exists (git operations happen there, not here)
+    bisect_repo = repo_root.parent / "tt-xla_bisect"
+    if not bisect_repo.exists():
+        remote_url = (
+            subprocess.check_output(["git", "remote", "get-url", "origin"], cwd=repo_root)
+            .decode()
+            .strip()
+        )
+        print(f"Bisect repo not found — cloning into {bisect_repo} ...")
+        subprocess.run(
+            ["git", "clone", remote_url, str(bisect_repo)],
+            check=True,
+        )
+        print(f"Cloned. NOTE: set up venv in {bisect_repo} before bisecting needs it.\n")
+    else:
+        print(f"Bisect repo:  {bisect_repo}  (exists)")
+
     # Resolve report path
     report_path = Path(report_arg)
     if not report_path.is_absolute():
