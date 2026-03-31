@@ -105,23 +105,23 @@ class ModelArgs:
     max_seq_len: int = 4096 * 4
     dtype: Literal["bf16", "fp8"] = "bf16"
     scale_fmt: Optional[str] = None
-    vocab_size: int = 102400
-    dim: int = 2048
-    inter_dim: int = 10944
-    moe_inter_dim: int = 1408
-    n_layers: int = 27
+    vocab_size: int = 129280
+    dim: int = 7168
+    inter_dim: int = 18432
+    moe_inter_dim: int = 2048
+    n_layers: int = 61
     n_dense_layers: int = 1
-    n_heads: int = 16
+    n_heads: int = 128
     # moe
-    n_routed_experts: int = 64
-    n_shared_experts: int = 2
-    n_activated_experts: int = 6
-    n_expert_groups: int = 1
-    n_limited_groups: int = 1
-    score_func: Literal["softmax", "sigmoid"] = "softmax"
-    route_scale: float = 1.0
+    n_routed_experts: int = 256
+    n_shared_experts: int = 1
+    n_activated_experts: int = 8
+    n_expert_groups: int = 8
+    n_limited_groups: int = 4
+    score_func: Literal["softmax", "sigmoid"] = "sigmoid"
+    route_scale: float = 2.5
     # mla
-    q_lora_rank: int = 0
+    q_lora_rank: int = 1536
     kv_lora_rank: int = 512
     qk_nope_head_dim: int = 128
     qk_rope_head_dim: int = 64
