@@ -336,7 +336,6 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
-  TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -357,6 +356,7 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
       ZoneScopedN("CopyToHostThread");
       const std::lock_guard<std::mutex> lock(s_copy_to_host_internal_mutex);
 
+      TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
       m_pjrt_tensor->move_to_host();
 
       TT_FATAL(logicalTensorSize() <= host_buffer_size,
