@@ -14,19 +14,22 @@ from utils import Category
     category=Category.OP_TEST,
     shlo_op_name="stablehlo.get_dimension_size",
 )
-@pytest.mark.xfail(reason="Dynamic dimensions not supported")
+@pytest.mark.xfail(reason="Dynamic dimensions not supported: result_index=0")
 def test_get_dimension_size():
+    x_cpu = torch.randn(32, 64)
+
+    # CPU reference: dimension 0 size is 32.
+    expected = x_cpu + x_cpu.size(0)
+
+    # TT device execution.
     device = torch_xla.device()
-    x = torch.randn(32, 64).to(device)
+    x = x_cpu.to(device)
 
     # Mark dimension 0 as dynamic to produce get_dimension_size in the HLO.
     torch_xla._XLAC._xla_mark_dynamic(x, 0)
 
-    def get_dim_size(x: torch.Tensor) -> torch.Tensor:
-        dim_size = torch_xla._XLAC._get_xla_tensor_dimension_size(x, 0)
-        return x + dim_size
+    dim_size = torch_xla._XLAC._get_xla_tensor_dimension_size(x, 0)
+    result = x + dim_size
 
-    result = get_dim_size(x)
-
-    # Force compilation and execution on TT device.
-    result.cpu()
+    # Force compilation and execution on TT device, then compare.
+    assert torch.allclose(result.cpu(), expected)
