@@ -76,6 +76,8 @@
 #include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
+#include <iostream>
+using namespace std;
 
 namespace tt::pjrt::module_builder {
 
@@ -304,6 +306,11 @@ ModuleBuilder::buildModule(
   }
 
   std::vector<int64_t> result_presharded = collectResultPresharded(mlir_module);
+  std::cerr << "result_presharded: ";
+  for (int64_t val : result_presharded) {
+    std::cerr << val << " ";
+  }
+  std::cerr << std::endl;
 
   const std::optional<tt::runtime::Device> &parent_mesh =
       client_instance->parentMesh();
