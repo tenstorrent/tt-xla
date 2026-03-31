@@ -378,11 +378,11 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 }
 
 void BufferInstance::markAsDataReady() {
-  TT_FATAL(!m_data_ready, "Data is already ready");
-
   std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
 
+  TT_FATAL(!m_data_ready, "Data is already ready");
   m_data_ready = true;
+
   if (m_data_ready_event) {
     EventInstance::markAsReadyAndCallback(m_data_ready_event,
                                           tt_pjrt_status::kSuccess);
@@ -414,12 +414,8 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
 }
 
 tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
-  if (m_data_ready_event) {
-    LOG_F(ERROR, "Buffer marked as data ready multiple times");
-    return tt_pjrt_status::kInternal;
-  }
-
   std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
+  TT_FATAL(!m_data_ready_event, "Buffer marked as data ready multiple times");
 
   std::unique_ptr<EventInstance> data_ready_event =
       EventInstance::createInstance();
