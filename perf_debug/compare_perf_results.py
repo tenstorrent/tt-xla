@@ -36,23 +36,35 @@ def tail_lines(path, n=500):
         return "\n".join(text.splitlines()[-n:])
 
 
-def parse_tok_s(log_path):
-    """Extract tok/s from last 500 lines of a log file."""
+def parse_metrics(log_path):
+    """Extract (tok_s, total_time_s) from last 500 lines of a log file."""
     if not os.path.exists(log_path):
-        return None
+        return None, None
     text = tail_lines(log_path, 500)
+
+    tok_s = None
+    total_time = None
 
     # chat.py benchmark format
     m = re.search(r"Overall tok/s:\s+([\d.]+)", text)
     if m:
-        return float(m.group(1))
+        tok_s = float(m.group(1))
+    m = re.search(r"Total time:\s+([\d.]+)s", text)
+    if m:
+        total_time = float(m.group(1))
 
-    # pytest vllm_benchmark format: "decode_tps=21.5"
+    if tok_s is not None:
+        return tok_s, total_time
+
+    # pytest vllm_benchmark format: "decode_tps=21.5", "decode_time=5.202s"
     tps_vals = re.findall(r"decode_tps=([\d.]+)", text)
     if tps_vals:
-        return sum(float(v) for v in tps_vals) / len(tps_vals)
+        tok_s = sum(float(v) for v in tps_vals) / len(tps_vals)
+    time_vals = re.findall(r"decode_time=([\d.]+)s", text)
+    if time_vals:
+        total_time = sum(float(v) for v in time_vals)
 
-    return None
+    return tok_s, total_time
 
 
 def parse_log_name(name):
@@ -148,15 +160,15 @@ def main():
             continue
         seen.add(key)
 
-        no_fix_val = parse_tok_s(os.path.join(no_fix_dir, name + ".log"))
-        fix_val = parse_tok_s(os.path.join(fix_dir, name + ".log"))
+        no_fix_val, no_fix_time = parse_metrics(os.path.join(no_fix_dir, name + ".log"))
+        fix_val, _ = parse_metrics(os.path.join(fix_dir, name + ".log"))
 
         if no_fix_val is not None and fix_val is not None and no_fix_val > 0:
             pct = (fix_val - no_fix_val) / no_fix_val * 100
         else:
             pct = None
 
-        rows.append({**meta, "no_fix": no_fix_val, "fix": fix_val, "pct": pct})
+        rows.append({**meta, "no_fix": no_fix_val, "fix": fix_val, "pct": pct, "time": no_fix_time})
 
     # Sort: model → sampling → seq_len → batch
     model_order = {"OPT-125M": 0, "Llama-3.2-1B": 1, "Llama-3.2-3B": 2, "Llama-3.1-8B": 3}
@@ -173,8 +185,8 @@ def main():
     )
 
     # Print table
-    col_widths = [14, 12, 8, 6, 9, 11, 10, 10, 12]
-    headers = ["Model", "Sampling", "SeqLen", "Batch", "OnDevice", "WithoutFix", "WithFix", "Change", "Harness"]
+    col_widths = [14, 12, 8, 6, 9, 11, 10, 10, 9, 12]
+    headers = ["Model", "Sampling", "SeqLen", "Batch", "OnDevice", "WithoutFix", "WithFix", "Change", "Time(s)", "Harness"]
 
     sep = "+" + "+".join("-" * (w + 2) for w in col_widths) + "+"
     header_row = "|" + "|".join(
@@ -209,9 +221,10 @@ def main():
             pct_s = "N/A"
 
         on_dev_s = "Yes" if r["on_device"] else "CPU"
+        time_s = f"{r['time']:.0f}s" if r["time"] is not None else "N/A"
         vals = [
             r["model"], r["sampling"], str(r["seq_len"]), str(r["batch"]),
-            on_dev_s, no_fix_s, fix_s, pct_s, r["harness"],
+            on_dev_s, no_fix_s, fix_s, pct_s, time_s, r["harness"],
         ]
         print("|" + "|".join(f" {v:<{w}} " for v, w in zip(vals, col_widths)) + "|")
 
