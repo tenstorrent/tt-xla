@@ -64,21 +64,21 @@ class OpTester(BaseTester):
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-        # cpu_workload = workload
-        # if self._framework == Framework.JAX:
-        #     compile_jax_workload_for_cpu(cpu_workload)
-        # else:
-        #     compile_torch_workload_for_cpu(cpu_workload)
-        # cpu_res = self._device_runner.run_on_cpu(cpu_workload)
+        cpu_workload = workload
+        if self._framework == Framework.JAX:
+            compile_jax_workload_for_cpu(cpu_workload)
+        else:
+            compile_torch_workload_for_cpu(cpu_workload)
+        cpu_res = self._device_runner.run_on_cpu(cpu_workload)
 
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
-        # if self._custom_comparator is not None:
-        #     self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
-        # else:
-        #     self._evaluator.evaluate(tt_res, cpu_res)
+        if self._custom_comparator is not None:
+            self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
+        else:
+            self._evaluator.evaluate(tt_res, cpu_res)
 
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)

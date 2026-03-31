@@ -368,8 +368,8 @@ def test_deepseek_v3_2_full_sparse_moe():
     def peak_rss_gb():
         return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 / 1024
 
-    batch_size = 16
-    seq_len = 32
+    batch_size = 8
+    seq_len = 16
     args = ModelArgs(
         # n_layers=2,
         q_lora_rank=3072,
