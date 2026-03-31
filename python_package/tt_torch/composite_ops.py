@@ -7,6 +7,7 @@ from typing import List, Optional, Union
 import torch
 from torch import Tensor
 from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
+from ttxla_tools.logging import logger
 
 """
 From XLA documentation: '(Composite operation) Encapsulates an operation made up (composed) of
@@ -244,6 +245,12 @@ def composite_scaled_dot_product_attention(
     attr = {"is_causal": is_causal}
     if scale is not None:
         attr["scale"] = scale
+
+    if dropout_p > 0:
+        logger.warning(
+            "Dropout is not supported for composite scaled_dot_product_attention, setting dropout_p to 0"
+        )
+        dropout_p = 0
 
     builder = StableHLOCompositeBuilder(
         name="tenstorrent.scaled_dot_product_attention", attr=attr
