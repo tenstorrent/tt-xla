@@ -134,10 +134,6 @@ bool BufferInstance::isDataDeleted() {
 }
 
 void BufferInstance::deleteData() {
-  if (m_data_deleted) {
-    return;
-  }
-
   std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
   if (m_data_deleted) {
     return;
