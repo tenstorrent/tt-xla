@@ -62,14 +62,6 @@ Inspect the outputs — understand what "correct" looks like before touching TT.
 
 Go through the model and flag every op that is not XLA-traceable:
 
-| Op pattern | Issue | Action |
-|---|---|---|
-| `tensor[:, indices] = values` | Dynamic scatter — not traceable | Replace with one-hot + matmul, or keep on CPU |
-| `MaxPool3d` with bfloat16 | No tt-mlir support | Replace with stride-2 `Conv3d` |
-| `ConvTranspose3d` (lhs_dilation) | Broken in tt-mlir | Replace with `F.interpolate` + `Conv3d(1×1×1)` |
-| Dynamic input shapes | Shardy requires static shapes | Fix all shapes to be fully static |
-| Custom CUDA ops (spconv, DCN, NMS) | No XLA equivalent | Keep on CPU; only bring the neural net to TT |
-| `if tensor.item() > threshold` | Data-dependent control flow | Restructure or keep on CPU |
 
 Split the model at the boundary of what TT can run:
 - **CPU side:** preprocessing, dynamic ops, NMS / postprocessing
