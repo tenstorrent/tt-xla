@@ -11,8 +11,9 @@ name: Multi-host Test - Dual T3K (call)
 #   4. Runs pytest inside the controller container
 #
 # Environment variables for distributed execution (TT_DISTRIBUTED_*) are set
-# automatically by the configure_topology pytest fixture in the test's conftest,
-# using the "dual_t3k" topology from tests/torch/multi_host/conftest.py.
+# by directly invoking tests/torch/multi_host/topology.py before pytest runs.
+# This avoids relying on conftest.py fixtures, which are only loaded when tests
+# live under tests/torch/multi_host/.
 
 on:
   workflow_call:
@@ -196,13 +197,13 @@ jobs:
           export TTXLA_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_TYPES=Fabric,Always
-          export TT_RUNTIME_USING_DUALT3K=1
+          # export TT_RUNTIME_USING_DUALT3K=1
 
-          pytest -svv \
-            tests/torch/multi_host/experimental/test_multihost_basic.py \
-            -k "dual_t3k" \
-            --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
-            2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
+          eval $(python -m tests.torch.multi_host.topology \
+            --topology dual_t3k \
+            --script-dir tests/torch/multi_host/experimental)
+
+          pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
         '
 
     - name: Upload Test Log
