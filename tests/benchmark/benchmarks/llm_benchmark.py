@@ -6,7 +6,7 @@
 import os
 import socket
 import sys
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 import torch
@@ -91,8 +91,7 @@ def construct_inputs(
         input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
 
     Returns:
-        Dictionary containing input_ids, past_key_values, cache_position,
-        and use_cache
+        Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
     if input_prompt_tokens is not None:
         if input_prompt_tokens.ndim != 1:
@@ -214,7 +213,7 @@ def benchmark_llm_torch_xla(
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
-    input_sharding_fn=None,
+    input_sharding_fn: Optional[Callable] = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -242,6 +241,8 @@ def benchmark_llm_torch_xla(
         accuracy_testing: Whether to perform token accuracy testing
         model_name_for_accuracy: Model name for .refpt file lookup (required if accuracy_testing=True)
         hf_model_name_for_accuracy: Full HuggingFace model name for on-demand .refpt generation
+        input_sharding_fn: Optional ``(mesh, input_args) -> None`` to mark activation shardings
+            (e.g. batch-parallel ``input_ids``). When set, KV cache tensors are batch-sharded too.
 
     Returns:
         Benchmark result containing token generation performance metrics and model information
@@ -355,6 +356,8 @@ def benchmark_llm_torch_xla(
 
     # Shard model if shard spec function is provided
     mesh = None
+    # Decode replaces input_ids each step; remark activations every forward when using SPMD input sharding.
+    prepare_step_inputs_fn = None
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
@@ -362,16 +365,22 @@ def benchmark_llm_torch_xla(
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        cache_batch_spec = (None, "model", None, None)
+        if input_sharding_fn is not None:
+            input_sharding_fn(mesh, input_args) # redundant with prepare_step_inputs_fn for each step
+            prepare_step_inputs_fn = lambda ia, _mesh=mesh, _fn=input_sharding_fn: _fn(
+                _mesh, ia
+            )
+
+        # KV cache: TP on heads (model); align batch with activation sharding when using input_sharding_fn.
+        kv_batch_spec = "batch" if input_sharding_fn is not None else None
+        kv_spec = (kv_batch_spec, "model", None, None)
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, cache_batch_spec)
-            xs.mark_sharding(layer.values, mesh, cache_batch_spec)
+            xs.mark_sharding(layer.keys, mesh, kv_spec)
+            xs.mark_sharding(layer.values, mesh, kv_spec)
 
         # Apply sharding constraint on lm_head output to all_gather logits
         if hasattr(model, "lm_head") and model.lm_head is not None:
-            hook = sharding_constraint_hook(
-                model.lm_head, mesh, (None, None, None)
-            )
+            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
             model.lm_head.register_forward_hook(hook)
 
     # Set XLA compilation options
@@ -382,9 +391,6 @@ def benchmark_llm_torch_xla(
         batch_size=batch_size,
         input_sequence_length=input_sequence_length,
     )
-    if input_sharding_fn is not None:
-        # Avoid cache/artifact collisions between replicated and DP-marked runs.
-        export_model_name = f"{export_model_name}_dp_input_shard"
     options = {
         "optimization_level": optimization_level,
         "enable_trace": trace_enabled,
@@ -400,6 +406,10 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
+    ground_truth_for_benchmark = (
+        token_accuracy.reference_tokens if accuracy_testing else None
+    )
+
     # Apply per-tensor weight dtype overrides from model's weight_dtype_configs JSON.
     weight_dtype_config = model_loader.get_weight_dtype_config_path()
     if weight_dtype_config:
@@ -408,19 +418,10 @@ def benchmark_llm_torch_xla(
             f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
         )
     # PERFORMANCE BENCHMARK
-    # No logits returned to avoid OOM. DP uses mark_sharding on activations inside decode.
+    # No logits returned to avoid OOM. SPMD input sharding uses prepare_step_inputs_fn.
     perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
-
-    if is_multichip:
-        for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, cache_batch_spec)
-            xs.mark_sharding(layer.values, mesh, cache_batch_spec)
-
-    ground_truth_for_benchmark = (
-        token_accuracy.reference_tokens if accuracy_testing else None
-    )
 
     # Warmup run
     print("Warming up...")
@@ -432,51 +433,11 @@ def benchmark_llm_torch_xla(
         warmup_tokens,
         verbose=False,
         collect_logits=False,
-        mesh=mesh,
-        input_sharding_fn=input_sharding_fn,
+        prepare_step_inputs_fn=prepare_step_inputs_fn,
         ground_truth_tokens=ground_truth_for_benchmark,
     )
 
     tracy.signpost("warmup_complete")
-
-    # When input_sharding_fn is active the warmup's compiled decode graph
-    # carries GSPMD-inferred batch sharding that is bound to the warmup
-    # cache tensor.  A fresh cache needs a fresh compilation so GSPMD can
-    # re-infer batch sharding.  We absorb the compilation cost here with a
-    # short second warmup, then create the final benchmark cache below.
-    if is_multichip and input_sharding_fn is not None:
-        torch._dynamo.reset()
-        compile_warmup_wrapper = LLMSamplingWrapper(
-            model, read_logits_fn, return_logits=False
-        )
-        compile_warmup_wrapper.eval()
-        compiled_compile_warmup = torch.compile(
-            compile_warmup_wrapper, backend="tt"
-        )
-
-        compile_warmup_args = construct_inputs(
-            tokenizer,
-            model.config,
-            batch_size,
-            max_cache_len,
-            input_prompt=custom_input_prompt,
-            input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-        )
-        compile_warmup_args = transfer_to_device(compile_warmup_args, device)
-        for layer in compile_warmup_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, cache_batch_spec)
-            xs.mark_sharding(layer.values, mesh, cache_batch_spec)
-        _, _ = generate_and_benchmark(
-            compiled_compile_warmup,
-            compile_warmup_args,
-            device,
-            min(2, max_output_tokens),
-            verbose=False,
-            collect_logits=False,
-            mesh=mesh,
-            input_sharding_fn=input_sharding_fn,
-            ground_truth_tokens=ground_truth_for_benchmark,
-        )
 
     # Reconstruct inputs for the perf benchmark run.
     input_args = construct_inputs(
@@ -484,16 +445,16 @@ def benchmark_llm_torch_xla(
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=(None if input_sharding_fn is not None else input_args["past_key_values"]),
+        past_key_values=input_args["past_key_values"],
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
     input_args = transfer_to_device(input_args, device)
 
-    if is_multichip and input_sharding_fn is not None:
+    if is_multichip:
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, cache_batch_spec)
-            xs.mark_sharding(layer.values, mesh, cache_batch_spec)
+            xs.mark_sharding(layer.keys, mesh, kv_spec)
+            xs.mark_sharding(layer.values, mesh, kv_spec)
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
@@ -506,8 +467,7 @@ def benchmark_llm_torch_xla(
         tokenizer=tokenizer,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
-        mesh=mesh,
-        input_sharding_fn=input_sharding_fn,
+        prepare_step_inputs_fn=prepare_step_inputs_fn,
     )
 
     # ACCURACY BENCHMARK
@@ -530,6 +490,11 @@ def benchmark_llm_torch_xla(
     )
     input_args = transfer_to_device(input_args, device)
 
+    if is_multichip:
+        for layer in input_args["past_key_values"].layers:
+            xs.mark_sharding(layer.keys, mesh, kv_spec)
+            xs.mark_sharding(layer.values, mesh, kv_spec)
+
     print(
         f"\nStarting accuracy benchmark "
         f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
@@ -542,8 +507,7 @@ def benchmark_llm_torch_xla(
         verbose=False,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=True,
-        mesh=mesh,
-        input_sharding_fn=input_sharding_fn,
+        prepare_step_inputs_fn=prepare_step_inputs_fn,
     )
 
     # Post-processing: derive predicted tokens for accuracy testing

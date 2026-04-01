@@ -151,8 +151,7 @@ def generate_and_benchmark(
     ground_truth_tokens: Optional[torch.Tensor] = None,
     collect_logits: bool = True,
     tokenizer=None,
-    mesh=None,
-    input_sharding_fn: Optional[Callable] = None,
+    prepare_step_inputs_fn: Optional[Callable[[dict], None]] = None,
 ) -> tuple[list[torch.Tensor], list[int]]:
     """On-device decode loop for benchmarks and accuracy testing.
 
@@ -170,9 +169,9 @@ def generate_and_benchmark(
             False: Model must return (next_token_ids, next_cache_position) only
                   (for performance benchmarking without OOM risk).
         tokenizer: Optional tokenizer for decoding generated token IDs to text.
-        mesh: Optional XLA SPMD mesh for multi-device runs.
-        input_sharding_fn: If set with mesh, called as fn(mesh, input_args) after
-            each step updates input_ids (decode-only DP input sharding).
+        prepare_step_inputs_fn: If set, called as ``prepare_step_inputs_fn(input_args)``
+            at the start of each decode step, immediately before ``model(**input_args)``.
+            Use to refresh per-step inputs (e.g. SPMD ``mark_sharding`` on new ``input_ids``).
 
     Returns:
         (output_logits, iteration_times)
@@ -209,6 +208,9 @@ def generate_and_benchmark(
             tracy.signpost("prefill_start" if step == 0 else f"decode_{step}_start")
             start = time.perf_counter_ns()
 
+            if prepare_step_inputs_fn is not None:
+                prepare_step_inputs_fn(input_args)
+
             output = model(**input_args)
 
             if collect_logits:
@@ -221,9 +223,6 @@ def generate_and_benchmark(
                 input_args["input_ids"] = gt_cpu[step].to(device)
             else:
                 input_args["input_ids"] = next_token_ids
-
-            if mesh is not None and input_sharding_fn is not None:
-                input_sharding_fn(mesh, input_args)
 
             input_args["cache_position"] = next_cache_position
 

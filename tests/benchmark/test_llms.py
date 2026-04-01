@@ -1224,23 +1224,19 @@ def _gpt_oss_galaxy_shard_spec_fn(model_loader, model):
     shard_specs[model.model.embed_tokens.weight] = (None, batch_axis)
     shard_specs[model.model.norm.weight] = (batch_axis,)
     # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
-    shard_specs[model.lm_head.weight] = ("model", batch_axis)
+    shard_specs[model.lm_head.weight] = (None, None)
 
     for layer in model.model.layers:
         shard_specs[layer.self_attn.q_proj.weight] = ("model", batch_axis)
-        shard_specs[layer.self_attn.q_proj.bias] = ("model",)
         shard_specs[layer.self_attn.k_proj.weight] = ("model", batch_axis)
-        shard_specs[layer.self_attn.k_proj.bias] = ("model",)
         shard_specs[layer.self_attn.v_proj.weight] = ("model", batch_axis)
-        shard_specs[layer.self_attn.v_proj.bias] = ("model",)
         shard_specs[layer.self_attn.o_proj.weight] = (batch_axis, "model")
-        shard_specs[layer.self_attn.o_proj.bias] = (batch_axis,)
         shard_specs[layer.self_attn.sinks] = ("model",)
         shard_specs[layer.mlp.router.weight] = (None, batch_axis)
-        shard_specs[layer.mlp.experts.gate_up_proj] = (None, batch_axis, "model")
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (None, "model")
-        shard_specs[layer.mlp.experts.down_proj] = (None, "model", batch_axis)
-        shard_specs[layer.mlp.experts.down_proj_bias] = (None, batch_axis)
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
         shard_specs[layer.input_layernorm.weight] = (batch_axis,)
         shard_specs[layer.post_attention_layernorm.weight] = (batch_axis,)
 
