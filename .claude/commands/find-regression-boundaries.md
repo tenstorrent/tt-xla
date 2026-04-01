@@ -138,7 +138,12 @@ All logs are already downloaded and extracted. Do NOT download any logs — use 
 
 ## Log cache location
 
-<REPO_ROOT>/bisection/logs/run_{run_id}/ contains .txt files with the logs for each run.
+<REPO_ROOT>/bisection/logs/run_{run_id}/ contains log files for each run. Depending on how the run was downloaded, logs may be structured as:
+- Flat files: `job_{id}.txt` (downloaded by `/collect-failures`)
+- Flat files with prefix: `{n}_{job_name}.txt` (old ZIP-based downloads)
+- Subdirectories: `{job_name}/1_job.txt` (downloaded by `run_regression_batches.py`)
+
+Always use recursive grep (`grep -rln`) when searching — it handles all three layouts.
 
 ## Search procedure
 
@@ -156,10 +161,10 @@ For each run (starting at index 0, going to older runs):
    ```bash
    grep -rln "<test_id>" <REPO_ROOT>/bisection/logs/run_<run_id>/
    ```
-   In the fallback case, check the `Machine name:` header of each candidate file to confirm it matches the expected machine type before using it. If no file for this machine type is found, treat the run as **NOT_FOUND** for this (test_id, machine_type) pair.
+   In the fallback case, check the `Machine name:` header of each candidate file to confirm it matches the expected machine type before using it. If no file for this machine type is found, treat the run as **NO_LOGS** (see step 3).
 
 2. Classify the result:
-   - Line contains `PASSED` → **PASSED**
+   - Line contains `PASSED` → **PASSED** — **⚠ IMMEDIATE STOP. Do not read another line. Do not check another run. Return your result right now with last_good = this run.**
    - Line contains `FAILED` or `ERROR` or `CRASHED with signal 6` → **FAILED** — extract the raw error using the procedure in **Error extraction** below
    - Line contains `CRASHED with signal 9` → **NOT_RUN** (job was externally killed — the test was in-flight when the job was cancelled; no reliable pass/fail conclusion can be drawn) — skip this run, continue to older
    - Line found but no PASSED/FAILED/ERROR/CRASHED suffix → **NOT_RUN** (job timed out mid-run before this test executed) — skip this run, continue to older
@@ -188,9 +193,15 @@ sed -n "${N},$((N+500))p" <log_file> | grep "TT_FATAL" | head -3
 ```
 The `TT_FATAL` line contains the actual error (e.g. `Out of Memory: Not enough space to allocate...`). Use that as `raw_error` instead of `Error code: 13`.
 
-3. If no line found at all — distinguish two cases:
+3. If no line found at all — distinguish three cases:
 
-   **3a. Check if the test was collected but the job was killed before it ran:**
+   **3a. Check whether any log files for this machine type were downloaded for the run:**
+   ```bash
+   ls <REPO_ROOT>/bisection/logs/run_<run_id>/ | grep -i "<machine_type>"
+   ```
+   - If **no files exist** for this machine type → **NO_LOGS** — the test ran on a job that was never downloaded. **Skip this run, continue to older.** Do NOT classify as NOT_FOUND. (This is common when only failing jobs' logs are cached.)
+
+   **3b. Log files for this machine type exist — check if the test was collected but the job was killed before it ran:**
    The pytest log prints all collected test IDs at the very start of the job (with no status suffix). If a job is killed mid-run, tests that were collected but not yet executed will appear in the collection output but have no result line.
 
    Search for the full test_id anywhere in the log (collection line has no trailing status):
@@ -198,7 +209,7 @@ The `TT_FATAL` line contains the actual error (e.g. `Out of Memory: Not enough s
    grep -rn "<test_id>" <REPO_ROOT>/bisection/logs/run_<run_id>/
    ```
    - If a line is found with no PASSED/FAILED/ERROR/CRASHED suffix → **NOT_RUN** — skip this run, continue to older
-   - If no line found at all → **NOT_FOUND** — stop here
+   - If no line found at all in any log for this run (logs ARE present but test is absent) → **NOT_FOUND** — **skip this run, continue to older.** The test was not in the CI matrix for this run (e.g. newly added test, matrix variation).
 
 4. If FAILED: compare the raw error to the `known_error`.
 
@@ -215,7 +226,9 @@ The `TT_FATAL` line contains the actual error (e.g. `Out of Memory: Not enough s
    **Mixed** (one is PCC, other is not):
    - Always record as **DIFFERENT_ERROR**, stop immediately
 
-**IMPORTANT: As soon as you record PASSED, DIFFERENT_ERROR, or NOT_FOUND, you MUST stop. Do not process any further runs.**
+**⛔ HARD STOP RULE: The moment you classify a run as PASSED or DIFFERENT_ERROR — stop immediately. Do NOT add any more entries to `runs_checked`. Do NOT examine any more runs. Return your JSON result at once.**
+
+Statuses that cause you to **skip** (continue to the next older run, do not stop): NOT_RUN, NO_LOGS, NOT_FOUND.
 
 ## Stop conditions
 
@@ -225,10 +238,11 @@ These are hard stops — the moment any of these is hit, record it and return th
 |-----------|---------------|-----------|-----------|
 | Current run is PASSED | **true** | oldest FAILED run in the walk | this run (PASSED) |
 | Current run is DIFFERENT_ERROR | **true** | oldest FAILED run in the walk | this run (DIFFERENT_ERROR) |
-| Current run is NOT_FOUND | **true** | oldest FAILED run in the walk | NOT_FOUND |
-| Reached 10 runs back with only FAILED/NOT_RUN | **false** | — | regression predates available history |
+| Reached 10 runs back with only FAILED/NOT_RUN/NO_LOGS/NOT_FOUND | **false** | — | regression predates available history |
 
 **"oldest FAILED run in the walk"** — this is always at minimum the starting run (index 0), since the starting run is always FAILED (it is the source run where the failure was observed). Even if the very first run checked (index 1) is PASSED or DIFFERENT_ERROR, the boundary is still valid: first_bad = starting run, last_good = run at index 1.
+
+**`runs_checked` must stop at the stop condition.** The last entry should be the run that triggered the stop — do not include any runs examined after it.
 
 ## Output
 
@@ -265,6 +279,12 @@ If no boundary found (ran out of history):
   "boundary_found": false,
   "reason": "Reached 10 run limit with no boundary",
   "known_error": "<original error>",
+  "first_bad_run_id": <run_id of the earliest run where test failed>,
+  "first_bad_run_date": "<date of first_bad run>",
+  "first_bad_sha": "<sha of first_bad run>",
+  "last_good_run_id": null,
+  "last_good_run_date": null,
+  "last_good_sha": null,
   "runs_checked": [...]
 }
 ```
