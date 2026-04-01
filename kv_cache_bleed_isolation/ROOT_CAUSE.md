@@ -44,7 +44,24 @@ additional_config={'min_context_len': 64}  # or 128, or omit for default
 - Each core reads its own `cur_pos_tensor[cur_batch]` independently
 - No obvious shared state between adjacent batch items in the kernel code
 
-## Leading hypothesis: NOC write conflict in paged_update_cache
+## Confirmed: bug is in paged_scaled_dot_product_attention_decode (decode attention)
+
+**Prefill cache is verified correct.** Comparison of cache BEFORE and AFTER the
+first decode step shows:
+- PREFILL: positions 14-31 are uniform padding (all [3.75, 2.94, -0.04, -1.42])
+- DECODE: position 14 overwritten with decode token (correct), 15-31 unchanged
+- The cache data is identical between passing and failing runs
+
+**The bug is in the decode attention kernel**, which produces different outputs for
+the SAME cache data depending on batch slot assignment. This rules out
+paged_fill_cache and paged_update_cache as the source.
+
+## Leading hypothesis: NOC write conflict in paged_update_cache (DISPROVED)
+
+Originally hypothesized NOC write conflicts in paged_update_cache. Disproved
+by showing prefill cache is correct and identical between pass/fail.
+
+## Current hypothesis: SDPA decode kernel batch-index-dependent behavior
 
 The `paged_update_cache` kernel uses **height-sharded** input tensors. Each user's
 update data is on a separate core. Each core:
