@@ -4,6 +4,7 @@
 - [Getting Started](./getting_started.md)
     - [Breaking Into the Source With a Debugger](getting_started_debugging.md)
 - [Improving Model Performance](./performance.md)
+    - [Mixed Precision](./mixed_precision.md)
 - [Test Infra](./test_infra.md)
 - [Fusing and Composite Ops](./fusing_and_composite_ops.md)
 - [Model Auto-Discovery Tests](./model_auto_discovery_tests.md)

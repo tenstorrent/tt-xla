@@ -66,7 +66,7 @@ class TTConfig:
     # Optimization level for tt-mlir compilation.
     optimization_level: int = 0
 
-    # Target dtype for weight conversion (e.g. "bfp8", "bfp4"). Empty disables.
+    # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
     # Perform token sampling on CPU instead of compiling a sampling graph for device

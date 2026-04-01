@@ -135,7 +135,7 @@ def test_embed_qwen3_reduced_dims():
             "Qwen/Qwen3-Embedding-8B",
             "baseline/qwen3_embedding_8B_baseline.pt",
             64,
-            "bfp8",
+            "bfp_bf8",
         ),
     ],
 )
