@@ -9,6 +9,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
+from infra.testers.compiler_config import CompilerConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.models.glm4_moe.configuration_glm4_moe import Glm4MoeConfig
 from transformers.models.glm4_moe.modeling_glm4_moe import (
@@ -38,7 +39,7 @@ def test_glm4_moe_layer_sparse_moe():
     batch_size = 64
     seq_len = 1
 
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
 
     hidden_states = torch.randn(
@@ -76,23 +77,29 @@ def test_glm4_moe_layer_sparse_moe():
         mlp_wrapper = layer.mlp
         mlp = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
         shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
-        # shard_specs[mlp.experts.gate_proj] = (
-        #     ("_axis_0", "_axis_1"), None, None,
-        # )
-        # shard_specs[mlp.experts.up_proj] = (
-        #     ("_axis_0", "_axis_1"), None, None,
-        # )
-        shard_specs[mlp.experts.gate_up_proj] = (
-            ("_axis_0", "_axis_1"), None, None,
+        shard_specs[mlp.experts.gate_proj] = (
+            ("_axis_0", "_axis_1"),
+            None,
+            None,
         )
-       
+        shard_specs[mlp.experts.up_proj] = (
+            ("_axis_0", "_axis_1"),
+            None,
+            None,
+        )
+        # shard_specs[mlp.experts.gate_up_proj] = (
+        #     ("_axis_0", "_axis_1"), None, None,
+        # )
+
         shard_specs[mlp.experts.down_proj] = (
-            ("_axis_0", "_axis_1"), None, None,
+            ("_axis_0", "_axis_1"),
+            None,
+            None,
         )
-        shard_specs[mlp.experts.gate_up_proj_bias] = (("_axis_0", "_axis_1"), None)
-        # shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
-        # shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
-        shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
+        # shard_specs[mlp.experts.gate_up_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
+        # shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
 
         # # Shared experts
         # shared = getattr(mlp_wrapper, "shared_experts", None)
@@ -118,6 +125,7 @@ def test_glm4_moe_layer_sparse_moe():
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
+        compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
     )
 
 
@@ -130,14 +138,14 @@ def test_glm4_moe_full_sparse_moe():
 
     config = Glm4MoeConfig.from_pretrained("zai-org/GLM-4.7")
     # first_k_dense_replace=3, so need at least 4 layers for MoE
-    config.num_hidden_layers = 4
+    # config.num_hidden_layers = 4
     config.use_cache = False
     config._attn_implementation = "eager"
 
     model = Glm4MoeModel(config)
     model = model.to(torch.bfloat16)
 
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=config)
     model.eval()
 
@@ -145,6 +153,10 @@ def test_glm4_moe_full_sparse_moe():
     seq_len = 1
     input_ids = torch.randint(0, config.vocab_size, (batch_size, seq_len))
     position_ids = torch.arange(seq_len).unsqueeze(0)
+
+    # Pre-compute 4D causal mask on CPU to avoid on-device mask computation
+    # which triggers a ttnn.repeat on ui8 (unsupported dtype).
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
 
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
@@ -155,6 +167,9 @@ def test_glm4_moe_full_sparse_moe():
 
         # input_ids: [batch, seq]
         shard_specs[args[0]] = ("_axis_1", None)
+
+        # attention_mask: [batch, 1, seq, seq]
+        shard_specs[args[1]] = ("_axis_1", None, None, None)
 
         # Embedding
         shard_specs[model.embed_tokens.weight] = (None, "_axis_0")
@@ -178,17 +193,23 @@ def test_glm4_moe_full_sparse_moe():
                 mlp = mlp_wrapper.mlp
                 shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
                 shard_specs[mlp.experts.gate_proj] = (
-                    ("_axis_0", "_axis_1"), None, None,
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
                 )
                 shard_specs[mlp.experts.up_proj] = (
-                    ("_axis_0", "_axis_1"), None, None,
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
                 )
                 shard_specs[mlp.experts.down_proj] = (
-                    ("_axis_0", "_axis_1"), None, None,
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
                 )
                 shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
                 shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
-                shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
+                # shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
 
                 # Shared experts
                 shared = getattr(mlp_wrapper, "shared_experts", None)
@@ -213,9 +234,7 @@ def test_glm4_moe_full_sparse_moe():
 
             # Norms
             shard_specs[decoder_layer.input_layernorm.weight] = ("_axis_0",)
-            shard_specs[decoder_layer.post_attention_layernorm.weight] = (
-                "_axis_0",
-            )
+            shard_specs[decoder_layer.post_attention_layernorm.weight] = ("_axis_0",)
 
         # Final norm
         shard_specs[model.norm.weight] = ("_axis_0",)
@@ -228,9 +247,10 @@ def test_glm4_moe_full_sparse_moe():
 
     run_graph_test(
         model,
-        [input_ids],
+        [input_ids, attention_mask],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
+        compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
     )
