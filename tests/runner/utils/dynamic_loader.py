@@ -232,8 +232,13 @@ class DynamicLoader:
         mod = importlib.util.module_from_spec(spec)
         mod.__package__ = package_name
 
-        # Add the module to sys.modules to support relative imports
+        # Register under the dash-prefixed key to avoid conflicts with any installed
+        # tt_forge_models package, and also under the spec's canonical name so that
+        # Python's inspect.getfile() can resolve classes defined in this module
+        # (inspect looks up object.__module__ in sys.modules; if missing it raises
+        # TypeError: "is a built-in class").
         sys.modules[module_path] = mod
+        sys.modules[spec.name] = mod
         spec.loader.exec_module(mod)
 
         return mod.ModelLoader
