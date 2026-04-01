@@ -43,8 +43,7 @@ env:
 jobs:
   run-multihost-tests:
     runs-on:
-      - multi-host-t3000
-      - in-service
+      - multi-host-bh-lb-2x
 
     name: "test multihost-dualt3k-basic"
 
@@ -184,7 +183,29 @@ jobs:
           uv pip install "$WHEEL_PATH"
           echo "Wheel installation complete"
         '
+    - name: Download bigmesh config files
+      shell: bash
+      run: |
+        docker exec ubuntu-host-mapped bash -c '
+          RANK_BINDINGS_PATH="/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tests/tt_metal/distributed/config/bh_lbx2_1x16_rank_bindings.yaml"
+          MESH_DESC_PATH="/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/tt-metal/tt_metal/fabric/mesh_graph_descriptors/bh_lbx2_1x16_mesh_graph_descriptor.textproto"
 
+          mkdir -p "$(dirname "$RANK_BINDINGS_PATH")"
+          mkdir -p "$(dirname "$MESH_DESC_PATH")"
+
+          echo "Downloading rank bindings config..."
+          curl -fsSL \
+            "https://raw.githubusercontent.com/tenstorrent/tt-metal/6326161779d67444288222247d63b43d79a182e7/tests/tt_metal/distributed/config/bh_lbx2_1x16_rank_bindings.yaml" \
+            -o "$RANK_BINDINGS_PATH"
+
+          echo "Downloading mesh graph descriptor..."
+          curl -fsSL \
+            "https://raw.githubusercontent.com/tenstorrent/tt-metal/6326161779d67444288222247d63b43d79a182e7/tt_metal/fabric/mesh_graph_descriptors/bh_lbx2_1x16_mesh_graph_descriptor.textproto" \
+            -o "$MESH_DESC_PATH"
+
+          echo "Downloaded files:"
+          ls -la "$RANK_BINDINGS_PATH" "$MESH_DESC_PATH"
+        '
     - name: Run tests
       timeout-minutes: 60
       shell: bash
@@ -196,11 +217,10 @@ jobs:
           export TTXLA_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_TYPES=Fabric,Always
-          export TT_RUNTIME_USING_DUALT3K=1
 
           pytest -svv \
             tests/torch/multi_host/experimental/test_multihost_basic.py \
-            -k "dual_t3k" \
+            -k "dual_bh_lb" \
             --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
             2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
         '
