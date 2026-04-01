@@ -1,0 +1,1087 @@
+{
+  "0": {
+    "name": "decoder.conv_out.bias",
+    "shape": [
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "1": {
+    "name": "decoder.conv_out.weight",
+    "shape": [
+      3,
+      128,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "2": {
+    "name": "decoder.conv_norm_out.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "3": {
+    "name": "decoder.conv_norm_out.weight",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "4": {
+    "name": "decoder.up_blocks.3.resnets.2.conv2.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "5": {
+    "name": "decoder.up_blocks.3.resnets.2.conv2.weight",
+    "shape": [
+      128,
+      128,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "6": {
+    "name": "decoder.up_blocks.3.resnets.2.norm2.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "7": {
+    "name": "decoder.up_blocks.3.resnets.2.norm2.weight",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "8": {
+    "name": "decoder.up_blocks.3.resnets.2.conv1.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "9": {
+    "name": "decoder.up_blocks.3.resnets.2.conv1.weight",
+    "shape": [
+      128,
+      128,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "10": {
+    "name": "decoder.up_blocks.3.resnets.2.norm1.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "11": {
+    "name": "decoder.up_blocks.3.resnets.2.norm1.weight",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "12": {
+    "name": "decoder.up_blocks.3.resnets.1.conv2.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "13": {
+    "name": "decoder.up_blocks.3.resnets.1.conv2.weight",
+    "shape": [
+      128,
+      128,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "14": {
+    "name": "decoder.up_blocks.3.resnets.1.norm2.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "15": {
+    "name": "decoder.up_blocks.3.resnets.1.norm2.weight",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "16": {
+    "name": "decoder.up_blocks.3.resnets.1.conv1.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "17": {
+    "name": "decoder.up_blocks.3.resnets.1.conv1.weight",
+    "shape": [
+      128,
+      128,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "18": {
+    "name": "decoder.up_blocks.3.resnets.1.norm1.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "19": {
+    "name": "decoder.up_blocks.3.resnets.1.norm1.weight",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "20": {
+    "name": "decoder.up_blocks.3.resnets.0.conv2.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "21": {
+    "name": "decoder.up_blocks.3.resnets.0.conv2.weight",
+    "shape": [
+      128,
+      128,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "22": {
+    "name": "decoder.up_blocks.3.resnets.0.norm2.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "23": {
+    "name": "decoder.up_blocks.3.resnets.0.norm2.weight",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "24": {
+    "name": "decoder.up_blocks.3.resnets.0.conv1.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "25": {
+    "name": "decoder.up_blocks.3.resnets.0.conv1.weight",
+    "shape": [
+      128,
+      256,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "26": {
+    "name": "decoder.up_blocks.3.resnets.0.norm1.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "27": {
+    "name": "decoder.up_blocks.3.resnets.0.norm1.weight",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "28": {
+    "name": "decoder.up_blocks.2.upsamplers.0.conv.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "29": {
+    "name": "decoder.up_blocks.2.upsamplers.0.conv.weight",
+    "shape": [
+      256,
+      256,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "30": {
+    "name": "decoder.up_blocks.2.resnets.2.conv2.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "31": {
+    "name": "decoder.up_blocks.2.resnets.2.conv2.weight",
+    "shape": [
+      256,
+      256,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "32": {
+    "name": "decoder.up_blocks.2.resnets.2.norm2.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "33": {
+    "name": "decoder.up_blocks.2.resnets.2.norm2.weight",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "34": {
+    "name": "decoder.up_blocks.2.resnets.2.conv1.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "35": {
+    "name": "decoder.up_blocks.2.resnets.2.conv1.weight",
+    "shape": [
+      256,
+      256,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "36": {
+    "name": "decoder.up_blocks.2.resnets.2.norm1.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "37": {
+    "name": "decoder.up_blocks.2.resnets.2.norm1.weight",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "38": {
+    "name": "decoder.up_blocks.2.resnets.1.conv2.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "39": {
+    "name": "decoder.up_blocks.2.resnets.1.conv2.weight",
+    "shape": [
+      256,
+      256,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "40": {
+    "name": "decoder.up_blocks.2.resnets.1.norm2.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "41": {
+    "name": "decoder.up_blocks.2.resnets.1.norm2.weight",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "42": {
+    "name": "decoder.up_blocks.2.resnets.1.conv1.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "43": {
+    "name": "decoder.up_blocks.2.resnets.1.conv1.weight",
+    "shape": [
+      256,
+      256,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "44": {
+    "name": "decoder.up_blocks.2.resnets.1.norm1.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "45": {
+    "name": "decoder.up_blocks.2.resnets.1.norm1.weight",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "46": {
+    "name": "decoder.up_blocks.2.resnets.0.conv2.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "47": {
+    "name": "decoder.up_blocks.2.resnets.0.conv2.weight",
+    "shape": [
+      256,
+      256,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "48": {
+    "name": "decoder.up_blocks.2.resnets.0.norm2.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "49": {
+    "name": "decoder.up_blocks.2.resnets.0.norm2.weight",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "50": {
+    "name": "decoder.up_blocks.2.resnets.0.conv1.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "51": {
+    "name": "decoder.up_blocks.2.resnets.0.conv1.weight",
+    "shape": [
+      256,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "52": {
+    "name": "decoder.up_blocks.2.resnets.0.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "53": {
+    "name": "decoder.up_blocks.2.resnets.0.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "54": {
+    "name": "decoder.up_blocks.1.upsamplers.0.conv.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "55": {
+    "name": "decoder.up_blocks.1.upsamplers.0.conv.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "56": {
+    "name": "decoder.up_blocks.1.resnets.2.conv2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "57": {
+    "name": "decoder.up_blocks.1.resnets.2.conv2.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "58": {
+    "name": "decoder.up_blocks.1.resnets.2.norm2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "59": {
+    "name": "decoder.up_blocks.1.resnets.2.norm2.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "60": {
+    "name": "decoder.up_blocks.1.resnets.2.conv1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "61": {
+    "name": "decoder.up_blocks.1.resnets.2.conv1.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "62": {
+    "name": "decoder.up_blocks.1.resnets.2.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "63": {
+    "name": "decoder.up_blocks.1.resnets.2.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "64": {
+    "name": "decoder.up_blocks.1.resnets.1.conv2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "65": {
+    "name": "decoder.up_blocks.1.resnets.1.conv2.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "66": {
+    "name": "decoder.up_blocks.1.resnets.1.norm2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "67": {
+    "name": "decoder.up_blocks.1.resnets.1.norm2.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "68": {
+    "name": "decoder.up_blocks.1.resnets.1.conv1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "69": {
+    "name": "decoder.up_blocks.1.resnets.1.conv1.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "70": {
+    "name": "decoder.up_blocks.1.resnets.1.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "71": {
+    "name": "decoder.up_blocks.1.resnets.1.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "72": {
+    "name": "decoder.up_blocks.1.resnets.0.conv2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "73": {
+    "name": "decoder.up_blocks.1.resnets.0.conv2.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "74": {
+    "name": "decoder.up_blocks.1.resnets.0.norm2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "75": {
+    "name": "decoder.up_blocks.1.resnets.0.norm2.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "76": {
+    "name": "decoder.up_blocks.1.resnets.0.conv1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "77": {
+    "name": "decoder.up_blocks.1.resnets.0.conv1.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "78": {
+    "name": "decoder.up_blocks.1.resnets.0.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "79": {
+    "name": "decoder.up_blocks.1.resnets.0.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "80": {
+    "name": "decoder.up_blocks.0.upsamplers.0.conv.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "81": {
+    "name": "decoder.up_blocks.0.upsamplers.0.conv.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "82": {
+    "name": "decoder.up_blocks.0.resnets.2.conv2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "83": {
+    "name": "decoder.up_blocks.0.resnets.2.conv2.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "84": {
+    "name": "decoder.up_blocks.0.resnets.2.norm2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "85": {
+    "name": "decoder.up_blocks.0.resnets.2.norm2.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "86": {
+    "name": "decoder.up_blocks.0.resnets.2.conv1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "87": {
+    "name": "decoder.up_blocks.0.resnets.2.conv1.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "88": {
+    "name": "decoder.up_blocks.0.resnets.2.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "89": {
+    "name": "decoder.up_blocks.0.resnets.2.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "90": {
+    "name": "decoder.up_blocks.0.resnets.1.conv2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "91": {
+    "name": "decoder.up_blocks.0.resnets.1.conv2.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "92": {
+    "name": "decoder.up_blocks.0.resnets.1.norm2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "93": {
+    "name": "decoder.up_blocks.0.resnets.1.norm2.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "94": {
+    "name": "decoder.up_blocks.0.resnets.1.conv1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "95": {
+    "name": "decoder.up_blocks.0.resnets.1.conv1.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "96": {
+    "name": "decoder.up_blocks.0.resnets.1.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "97": {
+    "name": "decoder.up_blocks.0.resnets.1.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "98": {
+    "name": "decoder.up_blocks.0.resnets.0.conv2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "99": {
+    "name": "decoder.up_blocks.0.resnets.0.conv2.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "100": {
+    "name": "decoder.up_blocks.0.resnets.0.norm2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "101": {
+    "name": "decoder.up_blocks.0.resnets.0.norm2.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "102": {
+    "name": "decoder.up_blocks.0.resnets.0.conv1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "103": {
+    "name": "decoder.up_blocks.0.resnets.0.conv1.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "104": {
+    "name": "decoder.up_blocks.0.resnets.0.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "105": {
+    "name": "decoder.up_blocks.0.resnets.0.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "106": {
+    "name": "decoder.mid_block.resnets.1.conv2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "107": {
+    "name": "decoder.mid_block.resnets.1.conv2.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "108": {
+    "name": "decoder.mid_block.resnets.1.norm2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "109": {
+    "name": "decoder.mid_block.resnets.1.norm2.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "110": {
+    "name": "decoder.mid_block.resnets.1.conv1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "111": {
+    "name": "decoder.mid_block.resnets.1.conv1.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "112": {
+    "name": "decoder.mid_block.resnets.1.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "113": {
+    "name": "decoder.mid_block.resnets.1.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "114": {
+    "name": "decoder.mid_block.resnets.0.conv2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "115": {
+    "name": "decoder.mid_block.resnets.0.conv2.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "116": {
+    "name": "decoder.mid_block.resnets.0.norm2.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "117": {
+    "name": "decoder.mid_block.resnets.0.norm2.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "118": {
+    "name": "decoder.mid_block.resnets.0.conv1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "119": {
+    "name": "decoder.mid_block.resnets.0.conv1.weight",
+    "shape": [
+      512,
+      512,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "120": {
+    "name": "decoder.mid_block.resnets.0.norm1.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "121": {
+    "name": "decoder.mid_block.resnets.0.norm1.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "122": {
+    "name": "decoder.conv_in.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "123": {
+    "name": "decoder.conv_in.weight",
+    "shape": [
+      512,
+      16,
+      3,
+      3
+    ],
+    "dtype": "bf16"
+  },
+  "124": {
+    "name": "args_0",
+    "shape": [
+      1,
+      16,
+      160,
+      90
+    ],
+    "dtype": "bf16"
+  },
+  "125": {
+    "name": "decoder.mid_block.attentions.0.to_out.0.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "126": {
+    "name": "decoder.mid_block.attentions.0.to_out.0.weight",
+    "shape": [
+      512,
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "127": {
+    "name": "decoder.mid_block.attentions.0.to_v.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "128": {
+    "name": "decoder.mid_block.attentions.0.to_v.weight",
+    "shape": [
+      512,
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "129": {
+    "name": "decoder.mid_block.attentions.0.group_norm.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "130": {
+    "name": "decoder.mid_block.attentions.0.group_norm.weight",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "131": {
+    "name": "decoder.mid_block.attentions.0.to_k.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "132": {
+    "name": "decoder.mid_block.attentions.0.to_k.weight",
+    "shape": [
+      512,
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "133": {
+    "name": "decoder.mid_block.attentions.0.to_q.bias",
+    "shape": [
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "134": {
+    "name": "decoder.mid_block.attentions.0.to_q.weight",
+    "shape": [
+      512,
+      512
+    ],
+    "dtype": "bf16"
+  },
+  "135": {
+    "name": "decoder.up_blocks.2.resnets.0.conv_shortcut.bias",
+    "shape": [
+      256
+    ],
+    "dtype": "bf16"
+  },
+  "136": {
+    "name": "decoder.up_blocks.2.resnets.0.conv_shortcut.weight",
+    "shape": [
+      256,
+      512,
+      1,
+      1
+    ],
+    "dtype": "bf16"
+  },
+  "137": {
+    "name": "decoder.up_blocks.3.resnets.0.conv_shortcut.bias",
+    "shape": [
+      128
+    ],
+    "dtype": "bf16"
+  },
+  "138": {
+    "name": "decoder.up_blocks.3.resnets.0.conv_shortcut.weight",
+    "shape": [
+      128,
+      256,
+      1,
+      1
+    ],
+    "dtype": "bf16"
+  }
+}
