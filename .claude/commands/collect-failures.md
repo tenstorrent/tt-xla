@@ -84,6 +84,8 @@ Partition into four active buckets based on `status` and `conclusion`:
 
 Jobs with `conclusion == "success"`, `conclusion == "neutral"` and `conclusion == "skipped"` are ignored entirely.
 
+A fifth bucket, **other_failed_jobs**, is populated during Phase 4: any failed/cancelled job that yields zero pytest test IDs after log parsing (i.e. an infrastructure, setup, or non-pytest failure) is moved here instead of being silently dropped.
+
 Print a summary after categorization:
 ```
 Job breakdown:
@@ -226,6 +228,26 @@ This format works for all test types:
 
 Deduplicate by **(test_id, machine_name)** pair — not by test_id alone. If the same test fails on two different machines, include a separate entry for each machine. If the same (test_id, machine_name) pair appears in multiple log files, keep only one — prefer the entry with the most informative error message.
 
+After processing each job: if **zero** test IDs were found (no `FAILED` or `CRASHED` lines), do **not** silently drop the job. Instead, add it to **other_failed_jobs** with a brief error context extracted from the log:
+
+```bash
+# Grab first non-empty error-looking line from the log as a summary
+grep -m 3 -i "error\|fatal\|exception\|failed\|traceback" "<log_file>" | head -3
+```
+
+Record:
+```json
+{
+  "job_id": <job_id>,
+  "job_name": "<job_name>",
+  "job_url": "<job_url>",
+  "job_conclusion": "failure|cancelled",
+  "machine_type": "<machine_type>",
+  "machine_name": "<machine_name>",
+  "error_summary": "<first meaningful error line from the log, or 'log not available'>"
+}
+```
+
 #### Step 2 — Extract the real error message for each failed test
 
 The pytest log has two distinct sections:
@@ -273,11 +295,19 @@ grep -c "test_all_models_torch\[" "<log_file>"
 ```
 Note: This counts ALL occurrences. To isolate only the collection section (before tests start running), look for the block between `collected` and the first `PASSED`/`FAILED`/`RUNNING` line. Use the total count from the collection header line if present (e.g. `collected 47 items`), otherwise count the `test_all_models_torch[` lines in the collection block.
 
-**2. Last two tests that were running** — look for test execution lines in the running section. These appear as lines with `RUNNING` or as pytest's live output showing the test node ID being executed:
+**2. Last test(s) that were running** — look only for test *execution* lines, not collection lines. Execution lines appear **after** pytest has started running (after the `collected N items` line) and are either:
+- Timestamped lines containing `RUNNING tests/`
+- Timestamped lines containing the full test node ID (e.g. `tests/runner/test_models.py::test_llms_torch[...]`)
+
+To avoid picking up collection-phase lines (which list the same test IDs but without timestamps or `RUNNING` markers), only consider lines that have a leading timestamp (ISO format like `2026-04-01T...`) and contain a test node ID:
+
 ```bash
-grep -n "RUNNING\|tests/runner/test_models\.py::test_all_models_torch\[" "<log_file>" | tail -3
+grep -n "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T.*tests/.*::" "<log_file>" | grep -v "PASSED\|FAILED\|SKIPPED\|XFAIL\|CRASHED\|ERROR" | tail -3
 ```
-The last match is the last test that was executing. The second-to-last is the test before it. Extract only the test_id (the part inside `[...]`).
+
+The last match is `last_test_executing`. The second-to-last is `test_before_last`.
+
+**Important:** If only one such line is found (only one test started executing before the timeout), set `test_before_last` to `null` — do **not** fall back to collection-phase lines.
 
 ---
 
@@ -323,11 +353,22 @@ Save to `$REPO_ROOT/bisection/run_<run_id>_failures.json`:
       "job_name": "test forge models nightly / test n300",
       "job_url": "https://github.com/tenstorrent/tt-xla/actions/runs/.../jobs/..."
     }
+  ],
+  "other_failed_jobs": [
+    {
+      "job_id": 12345683,
+      "job_name": "setup / install dependencies",
+      "job_url": "https://github.com/tenstorrent/tt-xla/actions/runs/.../jobs/...",
+      "job_conclusion": "failure",
+      "machine_type": "n150",
+      "machine_name": "forge-n150-7",
+      "error_summary": "error: Failed to download pytorch from pytorch.org: HTTP 503"
+    }
   ]
 }
 ```
 
-Note: `failed_tests` contains tests from both **failed** and **cancelled** jobs. Each entry has `job_conclusion` to indicate which it came from. The same `test_id` may appear more than once if it failed on different machines — each (test_id, machine_name) pair gets its own entry.
+Note: `failed_tests` contains tests from both **failed** and **cancelled** jobs. Each entry has `job_conclusion` to indicate which it came from. The same `test_id` may appear more than once if it failed on different machines — each (test_id, machine_name) pair gets its own entry. `other_failed_jobs` contains failed/cancelled jobs that yielded zero pytest test IDs (infra/setup/non-pytest failures). `timed_out_jobs` entries use `test_before_last: null` when only one test was found executing.
 
 Before saving, sort `failed_tests`:
 1. Primary sort: `test_id` alphabetically (A→Z)
@@ -354,6 +395,11 @@ Timed Out Jobs (<N>):
       Tests collected:     47
       Last test executing: densenet/pytorch-169-single_device-inference
       Test before last:    resnet/pytorch-50-single_device-inference
+  ...
+
+Other Failed Jobs (<N>)  [infra/setup/non-pytest failures — no test IDs found]:
+  - <job_name>  <job_url>  [<machine_type> / <machine_name>  (<job_conclusion>)]
+      Error: <error_summary>
   ...
 
 Not Finished Jobs (<N>)  [still running — re-run /collect-failures later to capture results]:
