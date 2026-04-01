@@ -200,7 +200,7 @@ jobs:
           # export TT_RUNTIME_USING_DUALT3K=1
 
           eval $(python -m tests.torch.multi_host.topology \
-            --topology dual_t3k \
+            --topology dual_bh_lb \
             --script-dir tests/torch/multi_host/experimental)
 
           pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
