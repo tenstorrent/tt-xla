@@ -31,7 +31,9 @@ DRAM = ttnn.MemoryConfig(
     ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
 )
 COMPUTE_CONFIG = ttnn.WormholeComputeKernelConfig(
-    math_fidelity=ttnn.MathFidelity.HiFi4, fp32_dest_acc_en=True
+    math_fidelity=ttnn.MathFidelity.HiFi2,
+    fp32_dest_acc_en=True,
+    packer_l1_acc=True,
 )
 COMPUTE_CONFIG_NORM = ttnn.WormholeComputeKernelConfig(
     math_fidelity=ttnn.MathFidelity.HiFi4,
@@ -108,27 +110,27 @@ class FeedForward(LightweightModule):
         Returns:
             [seq, 3840] in BFLOAT16
         """
-        # silu(x @ w1.T) -- fused activation
+        # silu(x @ w1.T) -- fused activation, BF8 output to save bandwidth
         silu_out = ttnn.matmul(
             x, self.w1,
             transpose_a=False, transpose_b=True,
-            memory_config=DRAM, dtype=ttnn.DataType.BFLOAT16,
+            memory_config=DRAM, dtype=ttnn.DataType.BFLOAT8_B,
             program_config=None, activation="silu",
             compute_kernel_config=COMPUTE_CONFIG,
         )
-        # x @ w3.T
+        # x @ w3.T, BF8 output
         gate_out = ttnn.matmul(
             x, self.w3,
             transpose_a=False, transpose_b=True,
-            memory_config=DRAM, dtype=ttnn.DataType.BFLOAT16,
+            memory_config=DRAM, dtype=ttnn.DataType.BFLOAT8_B,
             program_config=None, activation=None,
             compute_kernel_config=COMPUTE_CONFIG,
         )
         # element-wise gate
-        gated = ttnn.multiply(silu_out, gate_out, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
+        gated = ttnn.multiply(silu_out, gate_out, dtype=ttnn.DataType.BFLOAT8_B, memory_config=DRAM)
         ttnn.deallocate(gate_out, False)
         ttnn.deallocate(silu_out, False)
-        # down projection
+        # down projection — output stays BF16 since it feeds into rms_norm
         out = ttnn.matmul(
             gated, self.w2,
             transpose_a=False, transpose_b=True,
@@ -173,6 +175,7 @@ class Attention(LightweightModule):
         self.to_q = to_q
         self.to_k = to_k
         self.to_v = to_v
+        self.to_v = to_v
         self.to_out = to_out
         self.norm_q_weight = norm_q_weight
         self.norm_k_weight = norm_k_weight
@@ -181,13 +184,13 @@ class Attention(LightweightModule):
         """Apply real-valued RoPE to a normed Q or K tensor.
 
         Args:
-            x_normed: [1, seq, 30, 128] after QK-norm, in FLOAT32
-            rope_cos: [1, seq, 1, 64, 1] FLOAT32
-            rope_sin: [1, seq, 1, 64, 1] FLOAT32
+            x_normed: [1, seq, 30, 128] after QK-norm, in BFLOAT16
+            rope_cos: [1, seq, 1, 64, 1] BFLOAT16
+            rope_sin: [1, seq, 1, 64, 1] BFLOAT16
             seq: sequence length (used for reshape dimensions)
 
         Returns:
-            [1, seq, 30, 128] with RoPE applied, in FLOAT32
+            [1, seq, 30, 128] with RoPE applied, in BFLOAT16
         """
         # Split into real/imag pairs: [1, seq, 30, 64, 2]
         x_ri = ttnn.reshape(x_normed, [1, seq, N_HEADS, HEAD_DIM // 2, 2], memory_config=DRAM)
@@ -205,18 +208,18 @@ class Attention(LightweightModule):
         ttnn.deallocate(x_ri, False)
 
         # out_real = real * cos - imag * sin
-        rc = ttnn.multiply(x_real, rope_cos, dtype=ttnn.DataType.FLOAT32, memory_config=DRAM)
-        is_ = ttnn.multiply(x_imag, rope_sin, dtype=ttnn.DataType.FLOAT32, memory_config=DRAM)
-        out_real = ttnn.subtract(rc, is_, dtype=ttnn.DataType.FLOAT32, memory_config=DRAM)
+        rc = ttnn.multiply(x_real, rope_cos, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
+        is_ = ttnn.multiply(x_imag, rope_sin, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
+        out_real = ttnn.subtract(rc, is_, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
         ttnn.deallocate(is_, False)
         ttnn.deallocate(rc, False)
 
         # out_imag = real * sin + imag * cos
-        rs = ttnn.multiply(x_real, rope_sin, dtype=ttnn.DataType.FLOAT32, memory_config=DRAM)
+        rs = ttnn.multiply(x_real, rope_sin, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
         ttnn.deallocate(x_real, False)
-        ic = ttnn.multiply(x_imag, rope_cos, dtype=ttnn.DataType.FLOAT32, memory_config=DRAM)
+        ic = ttnn.multiply(x_imag, rope_cos, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
         ttnn.deallocate(x_imag, False)
-        out_imag = ttnn.add(rs, ic, dtype=ttnn.DataType.FLOAT32, memory_config=DRAM)
+        out_imag = ttnn.add(rs, ic, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
         ttnn.deallocate(ic, False)
         ttnn.deallocate(rs, False)
 
@@ -258,10 +261,8 @@ class Attention(LightweightModule):
             residual_input_tensor=None, memory_config=DRAM,
             program_config=None, compute_kernel_config=COMPUTE_CONFIG_NORM,
         )
-        # Cast to FLOAT32 for RoPE math
-        q = ttnn.typecast(q, ttnn.DataType.FLOAT32, memory_config=DRAM)
 
-        # Q RoPE
+        # Q RoPE (in BFLOAT16 — avoids F32 round-trip)
         q = self._apply_rope(q, rope_cos, rope_sin, seq)
 
         # Permute to heads-first: [1, 30, seq, 128]
@@ -283,9 +284,8 @@ class Attention(LightweightModule):
             residual_input_tensor=None, memory_config=DRAM,
             program_config=None, compute_kernel_config=COMPUTE_CONFIG_NORM,
         )
-        k = ttnn.typecast(k, ttnn.DataType.FLOAT32, memory_config=DRAM)
 
-        # K RoPE
+        # K RoPE (in BFLOAT16 — avoids F32 round-trip)
         k = self._apply_rope(k, rope_cos, rope_sin, seq)
 
         # Permute to heads-first
@@ -299,14 +299,14 @@ class Attention(LightweightModule):
             program_config=None, activation=None,
             compute_kernel_config=COMPUTE_CONFIG,
         )
-        v = ttnn.typecast(v, ttnn.DataType.FLOAT32, memory_config=DRAM)
-        v = ttnn.reshape(v, [1, seq, N_HEADS, HEAD_DIM], memory_config=DRAM)
-        v = ttnn.permute(v, [0, 2, 1, 3], memory_config=DRAM, pad_value=0.0)
+        # Fused reshape+permute: [seq, 3840] -> [1, 30, seq, 128] via nlp_create_qkv_heads
+        v = ttnn.reshape(v, [1, 1, seq, DIM], memory_config=DRAM)
+        v, _, _ = ttnn.experimental.nlp_create_qkv_heads(
+            v, num_heads=N_HEADS, num_kv_heads=0,
+            transpose_k_heads=False, memory_config=DRAM,
+        )
 
-        # --- Typecast Q, K, V to BFLOAT16 for SDPA ---
-        v = ttnn.typecast(v, ttnn.DataType.BFLOAT16, memory_config=DRAM)
-        q = ttnn.typecast(q, ttnn.DataType.BFLOAT16, memory_config=DRAM)
-        k = ttnn.typecast(k, ttnn.DataType.BFLOAT16, memory_config=DRAM)
+        # Q, K, V are all BFLOAT16 — no typecast needed
 
         # --- SDPA ---
         attn_out = ttnn.transformer.scaled_dot_product_attention(
@@ -316,6 +316,7 @@ class Attention(LightweightModule):
             scale=SDPA_SCALE,
             sliding_window_size=None,
             memory_config=DRAM,
+            compute_kernel_config=COMPUTE_CONFIG,
         )
         ttnn.deallocate(k, False)
         ttnn.deallocate(q, False)
@@ -472,11 +473,10 @@ class TransformerBlock(LightweightModule):
                 program_config=None, compute_kernel_config=COMPUTE_CONFIG_NORM,
             )
             ttnn.deallocate(attn_out, False)
-            gated_attn = ttnn.multiply(attn_gate, attn_normed, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
+            # Fused: x = x + attn_normed * attn_gate (addcmul)
+            x = ttnn.addcmul(x, attn_normed, attn_gate)
             ttnn.deallocate(attn_normed, False)
             ttnn.deallocate(attn_gate, False)
-            x = ttnn.add(x, gated_attn, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
-            ttnn.deallocate(gated_attn, False)
 
             # --- FFN path ---
             # Flatten for FFN: [1, seq, dim] -> [seq, dim]
@@ -506,11 +506,10 @@ class TransformerBlock(LightweightModule):
                 program_config=None, compute_kernel_config=COMPUTE_CONFIG_NORM,
             )
             ttnn.deallocate(ffn_out_3d, False)
-            gated_ffn = ttnn.multiply(ffn_gate, ffn_normed2, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
+            # Fused: x = x + ffn_normed2 * ffn_gate (addcmul)
+            x = ttnn.addcmul(x, ffn_normed2, ffn_gate)
             ttnn.deallocate(ffn_normed2, False)
             ttnn.deallocate(ffn_gate, False)
-            x = ttnn.add(x, gated_ffn, dtype=ttnn.DataType.BFLOAT16, memory_config=DRAM)
-            ttnn.deallocate(gated_ffn, False)
 
         else:
             # --- No modulation (context_refiner) ---
@@ -856,13 +855,15 @@ class ZImageTransformerTTNN(LightweightModule):
         self.cap_attn_mask = self.ce.get("cap_attn_mask")
         self.unified_attn_mask = self.ce.get("unified_attn_mask")
 
-        # RoPE embeddings (precomputed)
-        self.image_rope_sin = self.ce.get("image_rope_sin")
-        self.image_rope_cos = self.ce.get("image_rope_cos")
-        self.cap_rope_sin = self.ce.get("cap_rope_sin")
-        self.cap_rope_cos = self.ce.get("cap_rope_cos")
-        self.unified_rope_sin = self.ce.get("unified_rope_sin")
-        self.unified_rope_cos = self.ce.get("unified_rope_cos")
+        # RoPE embeddings (precomputed, converted to BFLOAT16 to avoid F32 round-trip)
+        def _rope_to_bf16(t):
+            return ttnn.typecast(t, ttnn.DataType.BFLOAT16, memory_config=DRAM) if t is not None else None
+        self.image_rope_sin = _rope_to_bf16(self.ce.get("image_rope_sin"))
+        self.image_rope_cos = _rope_to_bf16(self.ce.get("image_rope_cos"))
+        self.cap_rope_sin = _rope_to_bf16(self.ce.get("cap_rope_sin"))
+        self.cap_rope_cos = _rope_to_bf16(self.ce.get("cap_rope_cos"))
+        self.unified_rope_sin = _rope_to_bf16(self.ce.get("unified_rope_sin"))
+        self.unified_rope_cos = _rope_to_bf16(self.ce.get("unified_rope_cos"))
 
         # Scalar one for adaLN (1 + scale)
         self.scalar_one = self.ce["scalar_one"]

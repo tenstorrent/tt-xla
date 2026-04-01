@@ -69,18 +69,18 @@ def _build_param_config():
     for prefix, count, has_adaln in block_specs:
         for i in range(count):
             p = f"{prefix}.{i}"
-            # Attention params — on device for matmul with transpose_b=True
+            # Attention params — on device for matmul with transpose_b=True (BF8 weights)
             for suffix in ("to_q", "to_k", "to_v", "to_out"):
-                cfg[f"{p}.attention.{suffix}.weight"] = ("TILE", "BFLOAT16", True)
-            # QK-norm params — on device for rms_norm
+                cfg[f"{p}.attention.{suffix}.weight"] = ("TILE", "BFLOAT8_B", True)
+            # QK-norm params — on device for rms_norm (must stay BF16)
             for suffix in ("norm_q", "norm_k"):
                 cfg[f"{p}.attention.{suffix}.weight"] = ("TILE", "BFLOAT16", True)
-            # Block norms — on device for rms_norm
+            # Block norms — on device for rms_norm (must stay BF16)
             for suffix in ("attention_norm1", "attention_norm2", "ffn_norm1", "ffn_norm2"):
                 cfg[f"{p}.{suffix}.weight"] = ("TILE", "BFLOAT16", True)
-            # FFN params — on device for matmul with transpose_b=True
+            # FFN params — on device for matmul with transpose_b=True (BF8 weights)
             for suffix in ("w1", "w2", "w3"):
-                cfg[f"{p}.feed_forward.{suffix}.weight"] = ("TILE", "BFLOAT16", True)
+                cfg[f"{p}.feed_forward.{suffix}.weight"] = ("TILE", "BFLOAT8_B", True)
             # adaLN modulation — on host for consteval (transpose + cast)
             if has_adaln:
                 cfg[f"{p}.adaLN_modulation.0.weight"] = ("ROW_MAJOR", "BFLOAT16", False)
@@ -107,6 +107,8 @@ def load_params_from_pytorch(state_dict, device):
     """
     dtype_map = {
         "BFLOAT16": ttnn.DataType.BFLOAT16,
+        "BFLOAT8_B": ttnn.DataType.BFLOAT8_B,
+        "BFLOAT4_B": ttnn.DataType.BFLOAT4_B,
         "FLOAT32": ttnn.DataType.FLOAT32,
         "INT32": ttnn.DataType.INT32,
     }
