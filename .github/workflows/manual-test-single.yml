@@ -66,12 +66,16 @@ on:
           description: 'Optional branch, tag, or SHA override for third_party/tt_forge_models'
           required: false
           type: string
+      vulcan_dispatch_id:
+          description: 'Optional unique Vulcan dispatch identifier for workflow correlation'
+          required: false
+          type: string
 
 permissions:
   packages: write
   checks: write
 
-run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} )'
+run-name: 'Test ( Dispatch: ${{ inputs.vulcan_dispatch_id || '' }} - Dir: ${{ inputs.dir }} - Case: ${{ inputs.specific_test_case || inputs.model_name || '' }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} )'
 
 jobs:
   build-image:
