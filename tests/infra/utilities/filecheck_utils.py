@@ -53,8 +53,10 @@ def run_filecheck(
         stem = filepath.stem
         # Check if this IR file corresponds to the current test
         if stem.startswith(sanitized_test_id):
-            ir_type = stem.split("_")[-1]
-            ir_files_map[ir_type] = filepath
+            suffix = stem[len(sanitized_test_id) :]
+            if suffix and suffix[0] == "_" and "_" not in suffix[1:]:
+                ir_type = suffix[1:]
+                ir_files_map[ir_type] = filepath
 
     if not ir_files_map:
         print(f"No IR files found for test '{sanitized_test_id}' in {irs_filepath}")
