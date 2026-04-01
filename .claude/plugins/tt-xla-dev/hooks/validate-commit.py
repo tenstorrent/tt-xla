@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """
-tt-xla commit message validator.
+tt-xla commit message validator + PR description printer.
 Fires on every PostToolUse Bash event. Only acts on git commit calls.
-Outputs a JSON systemMessage if the commit message violates tt-xla conventions.
+- On violations: outputs a JSON systemMessage with the issues.
+- On success: outputs a JSON systemMessage with a draft PR description.
 """
 
 import json
 import re
+import subprocess
 import sys
 
 KNOWN_PREFIXES = {
@@ -23,11 +28,19 @@ KNOWN_PREFIXES = {
     "[tools]",
 }
 
-WRONG_PREFIXES = re.compile(r"^(feat|fix|chore|docs|style|refactor|test|perf|ci|build)(\(.+\))?:", re.IGNORECASE)
+WRONG_PREFIXES = re.compile(
+    r"^(feat|fix|chore|docs|style|refactor|test|perf|ci|build)(\(.+\))?:", re.IGNORECASE
+)
 
-PAST_TENSE = re.compile(r"^(Added|Fixed|Updated|Removed|Enabled|Disabled|Changed|Implemented|Improved|Moved|Renamed|Refactored)\s", re.IGNORECASE)
+PAST_TENSE = re.compile(
+    r"^(Added|Fixed|Updated|Removed|Enabled|Disabled|Changed|Implemented|Improved|Moved|Renamed|Refactored)\s",
+    re.IGNORECASE,
+)
 
-GERUND = re.compile(r"^(Adding|Fixing|Updating|Removing|Enabling|Disabling|Changing|Implementing|Improving)\s", re.IGNORECASE)
+GERUND = re.compile(
+    r"^(Adding|Fixing|Updating|Removing|Enabling|Disabling|Changing|Implementing|Improving)\s",
+    re.IGNORECASE,
+)
 
 
 def extract_commit_message(command: str) -> str | None:
@@ -78,7 +91,7 @@ def validate(title: str) -> list[str]:
     # Check past tense
     body = title.lstrip("[")
     if "]" in body:
-        body = body[body.index("]") + 1:].lstrip()
+        body = body[body.index("]") + 1 :].lstrip()
     if PAST_TENSE.match(body):
         violations.append(
             "title uses past tense — use imperative form (e.g. 'Add' not 'Added')"
@@ -97,6 +110,60 @@ def validate(title: str) -> list[str]:
     return violations
 
 
+def git(*args) -> str:
+    """Run a git command and return stdout, or empty string on error."""
+    try:
+        return (
+            subprocess.check_output(["git"] + list(args), stderr=subprocess.DEVNULL)
+            .decode()
+            .strip()
+        )
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def build_pr_description(commit_title: str) -> str:
+    """Build a draft PR description from current branch state."""
+    branch = git("branch", "--show-current")
+    log = git("log", "main..HEAD", "--format=%s")
+    diff_stat = git("diff", "main...HEAD", "--stat")
+
+    # Infer ticket placeholder — real issue URL filled in by user
+    ticket = "<!-- Link to GitHub Issue -->"
+
+    # Problem description: infer from commit title
+    # Strip [Area] prefix for readability
+    problem_title = re.sub(r"^\[.+?\]\s*", "", commit_title)
+
+    pr_description = f"""### Ticket
+{ticket}
+
+### Problem description
+{problem_title}
+
+### What's changed
+{log if log else commit_title}
+
+```
+{diff_stat if diff_stat else "No diff against main yet"}
+```
+
+### Checklist
+- [ ] New/Existing tests provide coverage for changes"""
+
+    lines = [
+        f"Commit successful on branch: {branch}" if branch else "Commit successful.",
+        "",
+        "Draft PR description:",
+        "─" * 60,
+        pr_description,
+        "─" * 60,
+        "",
+        "Run /tt-xla-dev:create-pr to open a PR with full body, reviewers, and labels.",
+    ]
+    return "\n".join(lines)
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -113,9 +180,14 @@ def main():
     if "git commit" not in command:
         sys.exit(0)
 
+    # Only act on successful commits
+    tool_response = payload.get("tool_response", {})
+    exit_code = tool_response.get("exit_code", 0)
+    if exit_code != 0:
+        sys.exit(0)
+
     msg = extract_commit_message(command)
     if not msg:
-        # Can't extract message (heredoc etc.) — skip silently
         sys.exit(0)
 
     title = msg.strip().split("\n")[0]
@@ -131,6 +203,10 @@ def main():
                 f"See .claude/commit-template.md for the full reference."
             )
         }
+        print(json.dumps(output))
+    else:
+        # Commit is clean — print draft PR description
+        output = {"systemMessage": build_pr_description(title)}
         print(json.dumps(output))
 
     sys.exit(0)

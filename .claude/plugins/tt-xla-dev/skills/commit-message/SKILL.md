@@ -95,7 +95,7 @@ Remind the user if any new file is missing this header.
 ## Anti-patterns to Avoid
 
 - `feat: add something` — wrong convention
-- `fix(pjrt): something` — wrong convention  
+- `fix(pjrt): something` — wrong convention
 - `Added support for X` — past tense, wrong
 - `Adding support for X` — gerund, wrong
 - `Update stuff` — too vague
