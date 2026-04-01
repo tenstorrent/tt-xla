@@ -43,7 +43,7 @@ env:
 jobs:
   run-multihost-tests:
     runs-on:
-      - multi-host-t3000
+      - multi-host-galaxy
       - in-service
 
     name: "test multihost-dualt3k-basic"
@@ -196,11 +196,11 @@ jobs:
           export TTXLA_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_TYPES=Fabric,Always
-          export TT_RUNTIME_USING_DUALT3K=1
+          # export TT_RUNTIME_USING_DUALT3K=1
 
           pytest -svv \
             tests/torch/multi_host/experimental/test_multihost_basic.py \
-            -k "dual_t3k" \
+            -k "dual_galaxy" \
             --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
             2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
         '

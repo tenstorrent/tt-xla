@@ -80,13 +80,13 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
     "quad_galaxy": MultihostConfiguration(
         rank_binding="quad_galaxy",
         controller_host_name="g05glx01",
-        hosts_list="g05glx01,g05glx02,g05glx03,g05glx04",
+        hosts_file="/etc/mpirun/hostfile",
         tt_distributed_tcp_iface="cnx1",
     ),
     "dual_galaxy": MultihostConfiguration(
         rank_binding="dual_galaxy",
-        controller_host_name="g14glx03",
-        hosts_list="g14glx03,g14glx04",
+        controller_host_name="g02glx01",
+        hosts_file="/etc/mpirun/hostfile",
         tt_distributed_tcp_iface="cnx1",
     ),
     "dual_bh_quietbox": MultihostConfiguration(
