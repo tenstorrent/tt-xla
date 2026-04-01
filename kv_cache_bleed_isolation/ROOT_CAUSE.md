@@ -44,14 +44,31 @@ additional_config={'min_context_len': 64}  # or 128, or omit for default
 - Each core reads its own `cur_pos_tensor[cur_batch]` independently
 - No obvious shared state between adjacent batch items in the kernel code
 
+## Leading hypothesis: NOC write conflict in paged_update_cache
+
+The `paged_update_cache` kernel uses **height-sharded** input tensors. Each user's
+update data is on a separate core. Each core:
+1. Reads its user's new KV data from L1 (local shard)
+2. Reads the page_table entry to find the physical block in DRAM
+3. Writes the KV data to the physical block in DRAM via NOC
+
+Adjacent batch items (users) are on adjacent cores. Adjacent cores share NOC
+paths. If two adjacent cores write to nearby DRAM addresses (adjacent physical
+blocks) simultaneously, a NOC write conflict could corrupt one of the writes.
+
+This would explain:
+- Why adjacent slots cause the bug (adjacent cores, shared NOC)
+- Why non-adjacent slots don't (different NOC paths)
+- Why the cache data appears correct at the time of reading (the corruption
+  happens during the write, not the read)
+- Why `min_context_len=32` triggers it (single-block updates concentrate
+  writes into a small DRAM region)
+
 ## Remaining unknowns
 
-- The `paged_update_cache` kernel (tt-metal experimental) might have an adjacent-batch bug
-- The `paged_fill_cache` kernel might write to wrong positions for adjacent batch items
-- There might be a race condition in the NOC (network-on-chip) reads/writes between cores
-  processing adjacent batches on the same physical cores (if the core grid wraps around)
-- The compiled graph might have a batch-dimension-dependent bug in how it prepares inputs
-  for the paged ops
+- Whether the NOC actually has this write arbitration issue
+- Whether `paged_fill_cache` (prefill) has the same adjacency sensitivity
+- Whether the corruption is in the update (decode) or the fill (prefill)
 
 ## Next steps
 
