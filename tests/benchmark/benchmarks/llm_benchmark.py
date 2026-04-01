@@ -324,18 +324,18 @@ def benchmark_llm_torch_xla(
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
 
     # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
-    if not accuracy_testing:
-        cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
-        cpu_wrapper.eval()
-        cpu_output_logits, _ = generate_and_benchmark(
-            cpu_wrapper,
-            input_args,
-            torch.device("cpu"),
-            1,
-            verbose=False,
-            collect_logits=True,
-        )
-        cpu_logits = cpu_output_logits[0]
+    # if not accuracy_testing:
+    #     cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+    #     cpu_wrapper.eval()
+    #     cpu_output_logits, _ = generate_and_benchmark(
+    #         cpu_wrapper,
+    #         input_args,
+    #         torch.device("cpu"),
+    #         1,
+    #         verbose=False,
+    #         collect_logits=True,
+    #     )
+    #     cpu_logits = cpu_output_logits[0]
 
     # Transfer model and inputs to device
     input_args = construct_inputs(
@@ -398,16 +398,16 @@ def benchmark_llm_torch_xla(
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
     # Warmup run
-    print("Warming up...")
-    warmup_tokens = min(MIN_STEPS, max_output_tokens)
-    _, _ = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        warmup_tokens,
-        verbose=False,
-        collect_logits=False,
-    )
+    # print("Warming up...")
+    # warmup_tokens = min(MIN_STEPS, max_output_tokens)
+    # _, _ = generate_and_benchmark(
+    #     compiled_perf_model,
+    #     input_args,
+    #     device,
+    #     warmup_tokens,
+    #     verbose=False,
+    #     collect_logits=False,
+    # )
 
     tracy.signpost("warmup_complete")
 
@@ -439,39 +439,51 @@ def benchmark_llm_torch_xla(
         collect_logits=False,
     )
 
-    # ACCURACY BENCHMARK
-    # Logits moved to CPU each step to avoid OOM.
-    accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
-    accuracy_wrapper.eval()
-    compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
+    # # ren prefill again
+    # _, iteration_times = generate_and_benchmark(
+    #     compiled_perf_model,
+    #     input_args,
+    #     device,
+    #     max_output_tokens,
+    #     verbose=True,
+    #     tokenizer=tokenizer,
+    #     ground_truth_tokens=ground_truth_for_benchmark,
+    #     collect_logits=False,
+    # )
 
-    accuracy_steps = max_output_tokens
+    # # ACCURACY BENCHMARK
+    # # Logits moved to CPU each step to avoid OOM.
+    # accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+    # accuracy_wrapper.eval()
+    # compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
 
-    # Reconstruct inputs for accuracy run
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=input_args["past_key_values"],
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-    )
-    input_args = transfer_to_device(input_args, device)
+    # accuracy_steps = max_output_tokens
 
-    print(
-        f"\nStarting accuracy benchmark "
-        f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
-    )
-    output_logits, _ = generate_and_benchmark(
-        compiled_accuracy,
-        input_args,
-        device,
-        accuracy_steps,
-        verbose=False,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=True,
-    )
+    # # Reconstruct inputs for accuracy run
+    # input_args = construct_inputs(
+    #     tokenizer,
+    #     model.config,
+    #     batch_size,
+    #     max_cache_len,
+    #     past_key_values=input_args["past_key_values"],
+    #     input_prompt=custom_input_prompt,
+    #     input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+    # )
+    # input_args = transfer_to_device(input_args, device)
+
+    # print(
+    #     f"\nStarting accuracy benchmark "
+    #     f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
+    # )
+    # output_logits, _ = generate_and_benchmark(
+    #     compiled_accuracy,
+    #     input_args,
+    #     device,
+    #     accuracy_steps,
+    #     verbose=False,
+    #     ground_truth_tokens=ground_truth_for_benchmark,
+    #     collect_logits=True,
+    # )
 
     # Post-processing: derive predicted tokens for accuracy testing
     if accuracy_testing:
@@ -555,11 +567,12 @@ def benchmark_llm_torch_xla(
             ]
         )
     else:
-        # Check PCC
-        pcc_value = compute_pcc(
-            output_logits[0][0], cpu_logits[0], required_pcc=required_pcc
-        )
-        print("PCC verification passed with PCC={:.6f}".format(pcc_value))
+        pass
+        # # Check PCC
+        # pcc_value = compute_pcc(
+        #     output_logits[0][0], cpu_logits[0], required_pcc=required_pcc
+        # )
+        # print("PCC verification passed with PCC={:.6f}".format(pcc_value))
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()

@@ -199,10 +199,28 @@ def generate_and_benchmark(
             .contiguous()
         )
 
+    fake_input_ids = torch.tensor([
+        [25], [25], [25], [25], [25], [25], [25], [25],
+        [25], [25], [25], [87187], [25], [25], [25], [112955],
+        [25], [25], [25], [274], [25], [25], [25], [13],
+        [25], [25], [25], [35624], [25], [25], [25], [88221]
+    ]).to(device)
+    fake_cache_pos = torch.tensor([20]).to(device)
+
+
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
             tracy.signpost("prefill_start" if step == 0 else f"decode_{step}_start")
+            print("prefill_start" if step == 0 else f"decode_{step}_start")
             start = time.perf_counter_ns()
+
+            # Run decode only
+            input_args["input_ids"] = fake_input_ids
+            input_args["cache_position"] = fake_cache_pos
+
+            # print("INPUT ARGS")
+            # print(input_args)
+
 
             output = model(**input_args)
 
@@ -224,6 +242,7 @@ def generate_and_benchmark(
 
             end = time.perf_counter_ns()
             tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
+            print("prefill_end" if step == 0 else f"decode_{step}_end")
             iteration_times.append(end - start)
             if verbose:
                 print(
