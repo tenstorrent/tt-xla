@@ -81,13 +81,24 @@ def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
 
 def _get_used_output_indices(node: torch.fx.Node) -> frozenset:
     """Return frozenset of output indices consumed by live getitem users of node."""
+    # For example: when running torch.topk(x, k=5) the following Torch FX IR gets generated:
+    # %topk = call_function[target=torch.topk](x, k=5)
+    # %getitem_0 = call_function[target=operator.getitem](%topk, 0) // Values result
+    # %getitem_1 = call_function[target=operator.getitem](%topk, 1) // Indices result
+
+    # Where:
+    # - %topk is the node provided as input
+    # - [%getitem_0, %getitem_1] is the node.users list
+    # - (%topk, 0) is an example of user.args:
+    #     - user.args[0] = %topk = source node
+    #     - user.args[1] = 0 = output index of the result of the node
     used = set()
     for user in node.users:
         if (
             user.op == "call_function"
             and user.target is operator.getitem
             and isinstance(user.args[1], int)
-            and len(user.users) > 0
+            and len(user.users) > 0  # Ensure that the result is actually being used
         ):
             used.add(user.args[1])
     return frozenset(used)
