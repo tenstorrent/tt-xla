@@ -1354,7 +1354,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     inputs_embeds=inputs_embeds,
                 )
 
-            # DEBUG: Dump full cache block at first decode step
+            # DEBUG: Dump cache at prefill and decode transitions
             if os.environ.get("DEBUG_KV_DUMP"):
                 is_decode_step = all(
                     scheduler_output.num_scheduled_tokens.get(
@@ -1363,37 +1363,64 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     == 1
                     for i in range(num_reqs)
                 )
-                prev_num_reqs = getattr(self, "_debug_prev_num_reqs", 0)
-                if num_reqs < prev_num_reqs:
-                    self._debug_kv_dumped_this_batch = False
+                is_prefill_step = any(
+                    scheduler_output.num_scheduled_tokens.get(
+                        self.input_batch.req_ids[i], 0
+                    )
+                    > 1
+                    for i in range(num_reqs)
+                )
+                prev_nr = getattr(self, "_debug_prev_num_reqs", 0)
+                if num_reqs < prev_nr:
+                    self._debug_kv_dumped = False
+                    self._debug_prefill_dumped = False
                 self._debug_prev_num_reqs = num_reqs
-                dumped = getattr(self, "_debug_kv_dumped_this_batch", False)
-                if is_decode_step and not dumped and num_reqs >= 7:
-                    self._debug_kv_dumped_this_batch = True
-                    import json
 
+                def _dump_cache(tag):
                     cache = self.kv_caches[0].cpu()
                     pt = attn_metadata[list(attn_metadata.keys())[0]].page_table.cpu()
                     cp = attn_metadata[
                         list(attn_metadata.keys())[0]
                     ].cache_position.cpu()
                     print(
-                        f"\nDEBUG_KV: decode num_reqs={num_reqs} cache_positions={cp[:num_reqs].tolist()}",
+                        f"\nDEBUG_KV_{tag}: num_reqs={num_reqs} cache_pos={cp[:num_reqs].tolist()}",
                         flush=True,
                     )
                     for slot in range(min(num_reqs, 8)):
                         toks = self.input_batch.token_ids_cpu_tensor[slot, :5].tolist()
                         seq_len = cp[slot].item()
                         phys = pt[slot, 0].item()
-                        # L2 norm of each position in the cache block (head 0)
-                        norms = []
-                        for pos in range(self.block_size):
-                            n = cache[0, phys, 0, pos, :].float().norm().item()
-                            norms.append(f"{n:.2f}")
+                        norms = [
+                            f"{cache[0, phys, 0, p, :].float().norm().item():.2f}"
+                            for p in range(self.block_size)
+                        ]
+                        raw14 = [
+                            cache[0, phys, 0, p, :4].tolist()
+                            for p in range(14, min(18, self.block_size))
+                        ]
                         print(
-                            f"  Slot {slot} (seq={seq_len} blk={phys} toks={toks}): k_norms={norms}",
+                            f"  S{slot}(seq={seq_len} blk={phys} t={toks}): norms={norms}",
                             flush=True,
                         )
+                        print(
+                            f"    raw[14:18]={[[f'{v:.4f}' for v in r] for r in raw14]}",
+                            flush=True,
+                        )
+
+                if (
+                    is_prefill_step
+                    and not getattr(self, "_debug_prefill_dumped", False)
+                    and num_reqs >= 7
+                ):
+                    self._debug_prefill_dumped = True
+                    _dump_cache("PREFILL")
+                if (
+                    is_decode_step
+                    and not getattr(self, "_debug_kv_dumped", False)
+                    and num_reqs >= 7
+                ):
+                    self._debug_kv_dumped = True
+                    _dump_cache("DECODE")
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need

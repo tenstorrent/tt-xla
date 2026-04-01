@@ -42,9 +42,22 @@ PROMPTS = [
     "Describe how coral reefs form in tropical oceans. Always use the word coral.",
 ]
 KEYWORDS = [
-    "penguin", "volcano", "origami", "submarine", "dinosaur", "chocolate",
-    "castle", "galaxy", "dolphin", "earthquake", "cricket", "lightning",
-    "pyramid", "telescope", "glacier", "coral",
+    "penguin",
+    "volcano",
+    "origami",
+    "submarine",
+    "dinosaur",
+    "chocolate",
+    "castle",
+    "galaxy",
+    "dolphin",
+    "earthquake",
+    "cricket",
+    "lightning",
+    "pyramid",
+    "telescope",
+    "glacier",
+    "coral",
 ]
 
 BATCH_SIZE = len(PROMPTS)
@@ -65,12 +78,18 @@ def patch_model_runner():
             num_reqs = self.input_batch.num_reqs
             if num_reqs > 1:  # Only capture batched decode
                 bt = self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs].clone()
-                seq_lens = self.input_batch.seq_lens_cpu[:num_reqs].clone() if hasattr(self.input_batch, 'seq_lens_cpu') else None
-                captured_block_tables.append({
-                    'block_table': bt,
-                    'num_reqs': num_reqs,
-                    'seq_lens': seq_lens,
-                })
+                seq_lens = (
+                    self.input_batch.seq_lens_cpu[:num_reqs].clone()
+                    if hasattr(self.input_batch, "seq_lens_cpu")
+                    else None
+                )
+                captured_block_tables.append(
+                    {
+                        "block_table": bt,
+                        "num_reqs": num_reqs,
+                        "seq_lens": seq_lens,
+                    }
+                )
         except Exception as e:
             pass  # Don't crash on instrumentation failures
 
@@ -137,18 +156,22 @@ def main():
         if bleeds:
             fails += 1
             for src, vic, kw in bleeds:
-                print(f"  BLEED: '{kw}' (slot {src}/{KEYWORDS[src]}) found in slot {vic}/{KEYWORDS[vic]}")
+                print(
+                    f"  BLEED: '{kw}' (slot {src}/{KEYWORDS[src]}) found in slot {vic}/{KEYWORDS[vic]}"
+                )
                 print(f"    Response: {responses[vic][:150]}...")
 
             # Dump captured block tables
             print(f"\n  Captured {len(captured_block_tables)} block table snapshots:")
             for idx, bt_info in enumerate(captured_block_tables[-3:]):  # Last 3
-                print(f"\n  === Block table snapshot {idx} (num_reqs={bt_info['num_reqs']}) ===")
-                bt = bt_info['block_table']
+                print(
+                    f"\n  === Block table snapshot {idx} (num_reqs={bt_info['num_reqs']}) ==="
+                )
+                bt = bt_info["block_table"]
                 for row in range(min(bt.shape[0], BATCH_SIZE)):
                     blocks = bt[row].tolist()
                     print(f"    Slot {row:2d}: {blocks}")
-                if bt_info['seq_lens'] is not None:
+                if bt_info["seq_lens"] is not None:
                     print(f"    Seq lens: {bt_info['seq_lens'].tolist()}")
 
             print(f"\n[{ts}] Run {run}/{num_runs} ({dt:.1f}s) FAIL\n")

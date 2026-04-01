@@ -41,11 +41,15 @@ def test_paged_update_cache_isolation(
     results = {"cpu": [], "device": []}
 
     for mode in ["cpu", "device"]:
-        cache = torch.zeros(total_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16)
+        cache = torch.zeros(
+            total_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+        )
 
         for step in range(num_steps):
             # Each user writes a unique value: user_id * 0.1 + step * 0.001
-            fill_value = torch.zeros(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
+            fill_value = torch.zeros(
+                1, num_users, num_heads, head_dim, dtype=torch.bfloat16
+            )
             for user in range(num_users):
                 fill_value[0, user, :, :] = (user + 1) * 0.1 + step * 0.001
 
@@ -57,6 +61,7 @@ def test_paged_update_cache_isolation(
                     cache, fill_value, update_indices, page_table
                 )
             else:
+
                 @torch.compile(backend="tt")
                 def update_cache_tt(c, fv, ui, pt):
                     return torch.ops.tt.paged_update_cache(c, fv, ui, pt)
@@ -72,7 +77,9 @@ def test_paged_update_cache_isolation(
     if dev_cache.device.type != "cpu":
         dev_cache = dev_cache.cpu()
 
-    print(f"Config: {num_users} users, {num_heads} heads, block_size={block_size}, {num_steps} steps")
+    print(
+        f"Config: {num_users} users, {num_heads} heads, block_size={block_size}, {num_steps} steps"
+    )
     print()
 
     # Check per-slot isolation
@@ -87,14 +94,18 @@ def test_paged_update_cache_isolation(
             max_diff = (cpu_block.float() - dev_block.float()).abs().max().item()
 
             if max_diff > 0.01:
-                print(f"  MISMATCH: Slot {user} block {phys_block}: max_diff={max_diff:.6f}")
+                print(
+                    f"  MISMATCH: Slot {user} block {phys_block}: max_diff={max_diff:.6f}"
+                )
                 # Check which other slot's values appear in this block
                 for other_user in range(num_users):
                     if other_user == user:
                         continue
                     expected_val = (other_user + 1) * 0.1
                     if (dev_block.float() - expected_val).abs().min().item() < 0.01:
-                        print(f"    Contains values from slot {other_user} (expected ~{expected_val:.1f})")
+                        print(
+                            f"    Contains values from slot {other_user} (expected ~{expected_val:.1f})"
+                        )
                         bleed_found = True
 
     # Also check for cross-slot contamination directly
@@ -105,9 +116,13 @@ def test_paged_update_cache_isolation(
         for step in range(min(3, num_steps)):
             dev_val = dev_cache[phys_block, 0, step, 0].item()  # First head, first dim
             expected = (user + 1) * 0.1 + step * 0.001
-            match = "OK" if abs(dev_val - expected) < 0.01 else f"WRONG (got {dev_val:.4f})"
+            match = (
+                "OK" if abs(dev_val - expected) < 0.01 else f"WRONG (got {dev_val:.4f})"
+            )
             if user < 6 or "WRONG" in match:  # Only print first 6 + any errors
-                print(f"  Slot {user:2d} step {step}: expected={expected:.4f} got={dev_val:.4f} {match}")
+                print(
+                    f"  Slot {user:2d} step {step}: expected={expected:.4f} got={dev_val:.4f} {match}"
+                )
 
     # Overall comparison
     total_diff = (cpu_cache.float() - dev_cache.float()).abs().max().item()

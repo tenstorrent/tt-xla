@@ -42,7 +42,9 @@ def check_bleed(responses):
     for i, response in enumerate(responses):
         for j, kw in enumerate(KEYWORDS):
             if i != j and kw.lower() in response.lower():
-                print(f"  BLEED: '{kw}' (slot {j}/{KEYWORDS[j]}) found in slot {i}/{KEYWORDS[i]}")
+                print(
+                    f"  BLEED: '{kw}' (slot {j}/{KEYWORDS[j]}) found in slot {i}/{KEYWORDS[i]}"
+                )
                 print(f"    Response: {response[:150]}...")
                 bleed_found = True
     return bleed_found
@@ -101,7 +103,9 @@ def main():
             print(f"[{ts}] Run {run}/{args.num_runs} ({dt:.1f}s) FAIL\n")
         else:
             passes += 1
-            print(f"[{ts}] Run {run}/{args.num_runs} ({dt:.1f}s) PASS  [{passes}P/{fails}F]")
+            print(
+                f"[{ts}] Run {run}/{args.num_runs} ({dt:.1f}s) PASS  [{passes}P/{fails}F]"
+            )
 
     elapsed = time.perf_counter() - start
     print()

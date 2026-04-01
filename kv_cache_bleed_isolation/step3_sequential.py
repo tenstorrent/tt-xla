@@ -211,7 +211,9 @@ def main():
         print(f"Failure rate: {fails / args.num_runs * 100:.0f}%")
         print("Temporal contamination confirmed — cache cleanup bug between requests")
     else:
-        print("No temporal contamination — bug is specific to concurrent batch isolation")
+        print(
+            "No temporal contamination — bug is specific to concurrent batch isolation"
+        )
     print("============================================")
 
 

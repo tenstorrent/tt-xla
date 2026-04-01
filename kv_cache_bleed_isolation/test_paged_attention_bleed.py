@@ -47,8 +47,12 @@ def create_test_inputs(
     total_blocks = blocks_per_seq * num_users
 
     # KV caches: fill each user's blocks with a distinct pattern
-    k_cache = torch.zeros(total_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16)
-    v_cache = torch.zeros(total_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16)
+    k_cache = torch.zeros(
+        total_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+    )
+    v_cache = torch.zeros(
+        total_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+    )
 
     # Page table: user i gets physical blocks [i*blocks_per_seq, ..., (i+1)*blocks_per_seq-1]
     page_table = torch.zeros(num_users, blocks_per_seq, dtype=torch.int32)
@@ -68,7 +72,9 @@ def create_test_inputs(
     query = torch.ones(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
 
     # Cache position: all users at the same sequence position
-    cache_position = torch.full((num_users,), min(seq_len, blocks_per_seq * block_size) - 1, dtype=torch.int32)
+    cache_position = torch.full(
+        (num_users,), min(seq_len, blocks_per_seq * block_size) - 1, dtype=torch.int32
+    )
 
     return query, k_cache, v_cache, page_table, cache_position
 
@@ -100,6 +106,7 @@ def check_output_isolation(outputs, num_users, tolerance=0.05):
 
 def run_paged_attention_on_device(query, k_cache, v_cache, page_table, cache_position):
     """Run paged_scaled_dot_product_attention_decode on TT device."""
+
     @torch.compile(backend="tt")
     def attention_fn(q, k, v, pt, cp):
         return torch.ops.tt.paged_scaled_dot_product_attention_decode(
@@ -133,7 +140,9 @@ def run_test(num_users=16, num_runs=20):
         if bleeds:
             fails += 1
             for src, vic, fp_src, fp_vic in bleeds:
-                print(f"  BLEED: slot {src} (fp={fp_src:.4f}) ≈ slot {vic} (fp={fp_vic:.4f})")
+                print(
+                    f"  BLEED: slot {src} (fp={fp_src:.4f}) ≈ slot {vic} (fp={fp_vic:.4f})"
+                )
             print(f"  Fingerprints: {[f'{f:.4f}' for f in fingerprints]}")
             print(f"  Run {run}/{num_runs}: FAIL\n")
         else:
@@ -150,6 +159,7 @@ def run_test(num_users=16, num_runs=20):
 
 
 # ---- Pytest test ----
+
 
 def test_paged_attention_no_bleed():
     """Non-vLLM paged attention bleed test.
@@ -172,11 +182,13 @@ def test_paged_attention_no_bleed():
         )
         fingerprints, bleeds = check_output_isolation(output, num_users)
         for src, vic, fp_src, fp_vic in bleeds:
-            all_bleeds.append(f"Run {run+1}: slot {src} (fp={fp_src:.4f}) ≈ slot {vic} (fp={fp_vic:.4f})")
+            all_bleeds.append(
+                f"Run {run+1}: slot {src} (fp={fp_src:.4f}) ≈ slot {vic} (fp={fp_vic:.4f})"
+            )
 
-    assert len(all_bleeds) == 0, (
-        f"Paged attention output bleed detected:\n" + "\n".join(all_bleeds[:10])
-    )
+    assert (
+        len(all_bleeds) == 0
+    ), f"Paged attention output bleed detected:\n" + "\n".join(all_bleeds[:10])
 
 
 if __name__ == "__main__":

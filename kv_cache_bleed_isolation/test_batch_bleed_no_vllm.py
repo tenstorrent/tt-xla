@@ -50,9 +50,22 @@ PROMPTS = [
     "Describe how coral reefs form in tropical oceans. Always use the word coral.",
 ]
 KEYWORDS = [
-    "penguin", "volcano", "origami", "submarine", "dinosaur", "chocolate",
-    "castle", "galaxy", "dolphin", "earthquake", "cricket", "lightning",
-    "pyramid", "telescope", "glacier", "coral",
+    "penguin",
+    "volcano",
+    "origami",
+    "submarine",
+    "dinosaur",
+    "chocolate",
+    "castle",
+    "galaxy",
+    "dolphin",
+    "earthquake",
+    "cricket",
+    "lightning",
+    "pyramid",
+    "telescope",
+    "glacier",
+    "coral",
 ]
 
 
@@ -74,8 +87,11 @@ def main():
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--max-new-tokens", type=int, default=32)
     parser.add_argument("--max-cache-len", type=int, default=128)
-    parser.add_argument("--shuffle", action="store_true",
-                        help="Shuffle prompt order each run for varied cache patterns")
+    parser.add_argument(
+        "--shuffle",
+        action="store_true",
+        help="Shuffle prompt order each run for varied cache patterns",
+    )
     args = parser.parse_args()
 
     batch_size = min(args.batch_size, len(PROMPTS))
@@ -107,20 +123,29 @@ def main():
     print("Warmup (compiling prefill graph)...")
     warmup_prompts = PROMPTS[:batch_size]
     warmup_inputs = tokenizer(
-        warmup_prompts, return_tensors="pt", padding=True,
-        truncation=True, max_length=64,
+        warmup_prompts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=64,
     )
     prompt_len = warmup_inputs.input_ids.shape[1]
 
     num_kv_heads = model.config.num_key_value_heads
     head_dim = model.config.hidden_size // model.config.num_attention_heads
     cache = StaticCache(
-        config=model.config, max_batch_size=batch_size,
-        max_cache_len=args.max_cache_len, device="cpu", dtype=torch.bfloat16,
+        config=model.config,
+        max_batch_size=batch_size,
+        max_cache_len=args.max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
     )
     cache.early_initialization(
-        batch_size=batch_size, num_heads=num_kv_heads,
-        head_dim=head_dim, dtype=torch.bfloat16, device="cpu",
+        batch_size=batch_size,
+        num_heads=num_kv_heads,
+        head_dim=head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
     )
     for layer in cache.layers:
         layer.keys = layer.keys.to(device)
@@ -142,7 +167,9 @@ def main():
         output = compiled_model(**warmup_args)
         logits = output.logits.to("cpu")
         next_ids = logits[:, -1].argmax(dim=-1)
-        print(f"  Warmup prefill done. First tokens: {[tokenizer.decode(t) for t in next_ids[:3]]}")
+        print(
+            f"  Warmup prefill done. First tokens: {[tokenizer.decode(t) for t in next_ids[:3]]}"
+        )
 
         # One decode step to compile decode graph
         warmup_args["input_ids"] = next_ids.unsqueeze(-1).to(device)
@@ -169,8 +196,11 @@ def main():
 
         # Tokenize
         inputs = tokenizer(
-            run_prompts, return_tensors="pt", padding=True,
-            truncation=True, max_length=64,
+            run_prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=64,
         )
         prompt_len = inputs.input_ids.shape[1]
 
@@ -208,7 +238,9 @@ def main():
 
                 input_args["input_ids"] = next_ids.unsqueeze(-1).to(device)
                 host_pos = input_args["cache_position"].to("cpu")
-                input_args["cache_position"] = torch.tensor([host_pos[-1:] + 1]).to(device)
+                input_args["cache_position"] = torch.tensor([host_pos[-1:] + 1]).to(
+                    device
+                )
 
         dt = time.perf_counter() - t0
         responses = [tokenizer.decode(t, skip_special_tokens=True) for t in all_tokens]
@@ -219,7 +251,9 @@ def main():
         if bleeds:
             fails += 1
             for src, vic, kw in bleeds:
-                print(f"  BLEED: '{kw}' (slot {src}/{run_keywords[src]}) found in slot {vic}/{run_keywords[vic]}")
+                print(
+                    f"  BLEED: '{kw}' (slot {src}/{run_keywords[src]}) found in slot {vic}/{run_keywords[vic]}"
+                )
                 print(f"    Response: {responses[vic][:150]}...")
             print(f"[{ts}] Run {run}/{args.num_runs} ({dt:.1f}s) FAIL\n")
         else:
@@ -228,7 +262,9 @@ def main():
             if run <= 2 or run == args.num_runs:
                 for i in range(min(2, batch_size)):
                     print(f"  Slot {i} ({run_keywords[i]}): {responses[i][:80]}...")
-            print(f"[{ts}] Run {run}/{args.num_runs} ({dt:.1f}s) PASS  [{passes}P/{fails}F]")
+            print(
+                f"[{ts}] Run {run}/{args.num_runs} ({dt:.1f}s) PASS  [{passes}P/{fails}F]"
+            )
 
     elapsed = time.perf_counter() - start
     print()

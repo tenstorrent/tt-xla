@@ -323,9 +323,7 @@ def main():
 
     for run in range(1, args.num_runs + 1):
         print(f"=== Run {run}/{args.num_runs} ===")
-        all_responses = run_batch_test(
-            llm, tokenizer, args.num_turns, args.batch_size
-        )
+        all_responses = run_batch_test(llm, tokenizer, args.num_turns, args.batch_size)
         bleed = check_bleed(all_responses, args.batch_size)
         if bleed:
             fails += 1
