@@ -1,6 +1,8 @@
-# Shard Spec Quick-Start Guide
+# Multi-Chip Quick-Start Guide
 
-Minimal steps to add `get_mesh_config` and `load_shard_spec` to an existing ModelLoader.
+Minimal steps to add multi-chip support to an existing ModelLoader.
+Covers both PyTorch (`get_mesh_config` / `load_shard_spec`) and
+JAX (`get_input_activations_partition_spec` / `load_parameters_partition_spec`).
 
 ## Step 1: Inspect Your Model
 
@@ -148,3 +150,96 @@ if shard_specs:
 
 Both methods are completely optional — if not implemented, the base class returns
 `(None, ())` and `None` respectively, and the model runs on a single device.
+
+---
+
+# JAX / EasyDeL Multi-Chip Quick-Start
+
+## Step 1: Verify EasyDeL Config Exists
+
+```python
+from easydel.modules.<arch> import <Arch>Config
+config = <Arch>Config()
+rules = config.get_partition_rules()
+print(rules)
+```
+
+If `get_partition_rules()` exists, you can use the standard pattern.
+If not, use the trivial replicated rules: `((r".*", PartitionSpec()),)`.
+
+## Step 2: Add Imports to Your Loader
+
+```python
+import flax.nnx as nnx
+from jax.sharding import PartitionSpec
+import numpy as np
+from ....config import Parallelism
+```
+
+## Step 3: Add get_input_activations_partition_spec
+
+```python
+def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"):
+    if (
+        parallelism.name == Parallelism.TENSOR_PARALLEL.name
+        or np.prod(list(mesh.shape.values())) == 1
+    ):
+        return (PartitionSpec(),)
+    return (PartitionSpec(axis_name),)
+```
+
+For encoder-decoder models (multiple inputs), return a tuple with one spec per input.
+
+## Step 4: Add load_parameters_partition_spec
+
+```python
+def load_parameters_partition_spec(
+    self, model_for_multichip, parallelism, axis_name="X",
+    cpu_mesh=None, input_activations_partition_specs=None,
+    inputs=None, dtype_override=None,
+):
+    state = nnx.split(model_for_multichip)[1]
+
+    if (
+        parallelism.name == Parallelism.DATA_PARALLEL.name
+        or parallelism.name == Parallelism.SINGLE_DEVICE.name
+    ):
+        partition_rules = ((r".*", PartitionSpec()),)
+    else:
+        from easydel.modules.<arch> import <Arch>Config
+        arch_config = <Arch>Config()
+        partition_rules = arch_config.get_partition_rules()
+
+    from infra.utilities import make_easydel_parameters_partition_specs
+    return make_easydel_parameters_partition_specs(
+        model_state=state, partition_rules=partition_rules, axis_name=axis_name
+    )
+```
+
+## Step 5: Update load_inputs for Mesh-Aware Batch Size
+
+Ensure `load_inputs` accepts `mesh=None` and adjusts batch size:
+
+```python
+def load_inputs(self, dtype_override=None, mesh=None):
+    if mesh is not None:
+        num_devices = np.prod(list(mesh.shape.values())) if mesh.shape else 1
+        batch_size = 8
+        if batch_size % num_devices != 0:
+            batch_size = num_devices * (batch_size // num_devices + 1)
+    else:
+        batch_size = 8
+
+    # ... tokenize and repeat to batch_size ...
+```
+
+## How the Test Runner Uses These (JAX)
+
+The test infrastructure calls these methods to distribute the model:
+
+1. Creates a mesh from available devices
+2. Calls `get_input_activations_partition_spec(mesh, parallelism)` for input sharding
+3. Calls `load_parameters_partition_spec(model, parallelism)` for parameter sharding
+4. Applies partition specs and runs inference
+
+Both methods are completely optional — if not implemented, the model runs on a single device.

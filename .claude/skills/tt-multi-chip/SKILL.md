@@ -1,26 +1,45 @@
 ---
 name: tt-multi-chip
-description: Add multi-chip tensor parallelism support to tt-forge-models loaders using get_mesh_config and load_shard_spec. Covers mesh topology, weight sharding strategies, and validation.
+description: Add multi-chip tensor parallelism support to tt-forge-models loaders. Covers PyTorch (get_mesh_config / load_shard_spec) and JAX (get_input_activations_partition_spec / load_parameters_partition_spec) approaches, mesh topology, sharding, and validation.
 argument-hint: <model-name-or-loader-path>
 ---
 
 # Multi-Chip Model Support — tt-forge-models
 
-Guides the implementation of `get_mesh_config()` and `load_shard_spec()` in model loaders to enable tensor parallelism across multiple Tenstorrent devices. These two methods are all that a model loader needs to support multi-chip execution.
+Guides the implementation of multi-chip partitioning in model loaders to enable tensor and
+data parallelism across multiple Tenstorrent devices.
+
+Two framework-specific APIs exist:
+
+| Framework | Methods to implement |
+|-----------|---------------------|
+| **PyTorch** | `get_mesh_config()` + `load_shard_spec()` |
+| **JAX / EasyDeL** | `get_input_activations_partition_spec()` + `load_parameters_partition_spec()` |
 
 ## External Resources
 
 - [tt-forge-models base.py](third_party/tt_forge_models/base.py) — Default stubs
-- [PyTorch XLA SPMD](https://pytorch.org/xla/release/2.5/index.html#pytorch-xla-spmd) — Underlying sharding API
+- [PyTorch XLA SPMD](https://pytorch.org/xla/release/2.5/index.html#pytorch-xla-spmd) — Underlying sharding API (PyTorch path)
+- [JAX sharding](https://jax.readthedocs.io/en/latest/jax.sharding.html) — JAX `PartitionSpec` / `Mesh` API
 
 ## Overview
 
-Multi-chip support in tt-forge-models follows a two-step pattern:
+Multi-chip splits model weights and/or activations across devices so large models fit in memory
+and run in parallel.
 
+**PyTorch path** (two methods):
 1. **`get_mesh_config(num_devices)`** — Define how devices are arranged in a 2D mesh
 2. **`load_shard_spec(model)`** — Define how each weight tensor is partitioned across that mesh
 
-The test runner calls these methods, constructs a PyTorch XLA mesh device, and applies sharding via `xs.mark_sharding(tensor, mesh, shard_spec)`.
+The test runner constructs a PyTorch XLA mesh device and applies sharding via
+`xs.mark_sharding(tensor, mesh, shard_spec)`.
+
+**JAX path** (two methods):
+1. **`get_input_activations_partition_spec(mesh, parallelism, axis_name)`** — Define how inputs are partitioned
+2. **`load_parameters_partition_spec(model, parallelism, axis_name, ...)`** — Define how model parameters are partitioned
+
+The test runner constructs a JAX mesh and applies the partition specs when distributing the
+model and inputs across devices.
 
 ## Prerequisites
 
@@ -261,6 +280,235 @@ Different HuggingFace model architectures use different attribute names. Here's 
 | Gemma | `model.model.layers` | `mlp.up_proj` | `mlp.down_proj` | `mlp.gate_proj` | `self_attn.{q,k,v,o}_proj` |
 | Pixtral (vision) | `model.model.vision_tower.transformer.layers` | `feed_forward.up_proj` | `feed_forward.down_proj` | `feed_forward.gate_proj` | `attention.{q,k,v,o}_proj` |
 
+---
+
+# JAX / EasyDeL Multi-Chip Support
+
+JAX models use a different API from PyTorch. Instead of `get_mesh_config` / `load_shard_spec`,
+JAX loaders implement `get_input_activations_partition_spec` and
+`load_parameters_partition_spec`. These work with `jax.sharding.PartitionSpec` and EasyDeL's
+partition rule system.
+
+## Prerequisites (JAX)
+
+1. The model loader already works on single device using EasyDeL
+2. `from easydel.modules.<arch> import <Arch>Config` exposes `.get_partition_rules()`
+3. You know the parallelism mode: `Parallelism.DATA_PARALLEL`, `Parallelism.TENSOR_PARALLEL`, or `Parallelism.SINGLE_DEVICE`
+
+## Step J1: Implement `get_input_activations_partition_spec`
+
+### API Signature
+
+```python
+def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"):
+    """Returns partition specs for input activations.
+
+    Args:
+        mesh: JAX device mesh.
+        parallelism: Parallelism enum (DATA_PARALLEL, TENSOR_PARALLEL, SINGLE_DEVICE).
+        axis_name: Name of the mesh axis used for sharding (default "X").
+
+    Returns:
+        Tuple of PartitionSpec — one per input tensor.
+    """
+```
+
+### Standard Pattern
+
+Nearly all JAX loaders follow the same logic:
+
+```python
+from jax.sharding import PartitionSpec
+import numpy as np
+
+def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"):
+    if (
+        parallelism.name == Parallelism.TENSOR_PARALLEL.name
+        or np.prod(list(mesh.shape.values())) == 1
+    ):
+        return (PartitionSpec(),)
+    return (PartitionSpec(axis_name),)
+```
+
+- **Tensor parallel or single device**: inputs are replicated (no sharding) → `PartitionSpec()`
+- **Data parallel**: inputs are sharded along the batch dimension → `PartitionSpec(axis_name)`
+
+**Encoder-decoder models** (e.g., Whisper) return multiple specs — one per input:
+```python
+def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"):
+    if parallelism.name == Parallelism.TENSOR_PARALLEL.name or ...:
+        return (PartitionSpec(), PartitionSpec())
+    return (PartitionSpec(axis_name), PartitionSpec(axis_name))
+```
+
+## Step J2: Implement `load_parameters_partition_spec`
+
+### API Signature
+
+```python
+def load_parameters_partition_spec(
+    self,
+    model_for_multichip,
+    parallelism,
+    axis_name="X",
+    cpu_mesh=None,
+    input_activations_partition_specs=None,
+    inputs=None,
+    dtype_override=None,
+):
+    """Returns partition specs for all model parameters.
+
+    Args:
+        model_for_multichip: The loaded EasyDeL model.
+        parallelism: Parallelism enum.
+        axis_name: Name of the mesh axis for sharding.
+        cpu_mesh: Optional CPU mesh (used for Flax Linen models).
+        input_activations_partition_specs: Specs from get_input_activations_partition_spec.
+        inputs: Sample inputs (used for Flax Linen parameter initialization).
+        dtype_override: Optional dtype override.
+
+    Returns:
+        Parameter partition specs (format depends on backend).
+    """
+```
+
+### Standard EasyDeL Pattern
+
+This is the most common pattern (used by Llama, Qwen, Phi, Falcon, Mistral, Mamba, GPT-2, GPT-J):
+
+```python
+import flax.nnx as nnx
+from jax.sharding import PartitionSpec
+
+def load_parameters_partition_spec(
+    self, model_for_multichip, parallelism, axis_name="X",
+    cpu_mesh=None, input_activations_partition_specs=None,
+    inputs=None, dtype_override=None,
+):
+    state = nnx.split(model_for_multichip)[1]
+
+    if (
+        parallelism.name == Parallelism.DATA_PARALLEL.name
+        or parallelism.name == Parallelism.SINGLE_DEVICE.name
+    ):
+        partition_rules = ((r".*", PartitionSpec()),)
+    else:
+        from easydel.modules.<arch> import <Arch>Config
+        arch_config = <Arch>Config()
+        partition_rules = arch_config.get_partition_rules()
+
+    from infra.utilities import make_easydel_parameters_partition_specs
+    return make_easydel_parameters_partition_specs(
+        model_state=state, partition_rules=partition_rules, axis_name=axis_name
+    )
+```
+
+### Key pieces:
+
+1. **`nnx.split(model)[1]`** — Extracts the model state (parameters) from the Flax NNX model
+2. **Data parallel / single device** — All parameters are replicated: `((r".*", PartitionSpec()),)`
+3. **Tensor parallel** — Use the architecture-specific partition rules from EasyDeL's config class
+4. **`make_easydel_parameters_partition_specs`** — Infrastructure utility that applies regex-based partition rules to the model state tree
+
+### EasyDeL Config → Partition Rules Mapping
+
+Each EasyDeL model architecture has a config class with `get_partition_rules()`:
+
+| Model | Config Import | Config Class |
+|-------|--------------|-------------|
+| Llama | `easydel.modules.llama` | `LlamaConfig` |
+| Qwen 2.5 | `easydel.modules.qwen2` | `Qwen2Config` |
+| Qwen 3 | `easydel.modules.qwen3` | `Qwen3Config` |
+| Phi 1/1.5/2 | `easydel.modules.phi` | `PhiConfig` |
+| Phi 3 | `easydel.modules.phi3` | `Phi3Config` |
+| Falcon | `easydel.modules.falcon` | `FalconConfig` |
+| Mistral | `easydel.modules.mistral` | `MistralConfig` |
+| Mamba | `easydel.modules.mamba` | `MambaConfig` |
+| Mamba2 | `easydel.modules.mamba2` | `Mamba2Config` |
+| GPT-2 | `easydel.modules.gpt2` | `GPT2Config` |
+| GPT-J | `easydel.modules.gpt_j` | `GPTJConfig` |
+| StableLM | `easydel.modules.stablelm` | `StableLmConfig` |
+| Whisper | `easydel.modules.whisper` | `WhisperConfig` |
+
+### Flax Linen Pattern (Non-EasyDeL)
+
+For models using Flax Linen directly (MNIST, AlexNet, custom architectures), use
+the infrastructure utilities for parameter initialization and partitioning:
+
+```python
+def load_parameters_partition_spec(
+    self, model_for_multichip, parallelism, axis_name="X",
+    cpu_mesh=None, input_activations_partition_specs=None,
+    inputs=None, dtype_override=None,
+):
+    from infra.utilities import (
+        make_flax_linen_parameters_partition_specs_on_cpu,
+        initialize_flax_linen_parameters_on_cpu,
+    )
+    init_params = initialize_flax_linen_parameters_on_cpu(
+        model=model_for_multichip, cpu_mesh=cpu_mesh, inputs=inputs
+    )
+    return make_flax_linen_parameters_partition_specs_on_cpu(
+        params=init_params, partition_rules=((r".*", PartitionSpec()),)
+    )
+```
+
+## Step J3: Validate JAX Multi-Chip
+
+### Test Config Registration
+
+Register in the JAX-specific test config files:
+
+```yaml
+# tests/runner/test_config/jax/test_config_inference_tensor_parallel.yaml
+test_config:
+  <model_name>/jax-<VariantValue>-tensor_parallel-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: IN_PROGRESS
+    reason: "Initial multi-chip bringup"
+```
+
+```yaml
+# tests/runner/test_config/jax/test_config_inference_data_parallel.yaml
+test_config:
+  <model_name>/jax-<VariantValue>-data_parallel-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: IN_PROGRESS
+    reason: "Initial multi-chip bringup"
+```
+
+### Run Multi-Chip Tests
+
+```bash
+pytest -svv "tests/runner/test_models.py::test_all_models_jax[<model_name>/jax-<VariantValue>-tensor_parallel-inference]"
+pytest -svv "tests/runner/test_models.py::test_all_models_jax[<model_name>/jax-<VariantValue>-data_parallel-inference]"
+```
+
+### Common JAX Multi-Chip Errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `PartitionSpec axis name not found in mesh` | `axis_name` doesn't match the mesh axis | Ensure mesh axis names match what's passed to partition specs |
+| `make_easydel_parameters_partition_specs failed` | Partition rules regex doesn't match parameter names | Print `state` tree to verify parameter name patterns |
+| `Batch size not divisible by device count` | `load_inputs` doesn't handle `mesh` parameter | Add mesh-aware batch size calculation in `load_inputs` |
+| `nnx.split returned unexpected structure` | Model wasn't loaded via EasyDeL properly | Verify `AutoEasyDeLModelForCausalLM.from_pretrained` succeeded |
+
+## JAX vs PyTorch Multi-Chip Comparison
+
+| Aspect | PyTorch | JAX / EasyDeL |
+|--------|---------|---------------|
+| Device mesh | `xs.Mesh` from PyTorch XLA | `jax.sharding.Mesh` |
+| Methods to implement | `get_mesh_config` + `load_shard_spec` | `get_input_activations_partition_spec` + `load_parameters_partition_spec` |
+| Sharding granularity | Per-tensor `{param: tuple}` mapping | Regex-based partition rules applied to full state tree |
+| Parallelism control | Implicit via mesh shape | Explicit `Parallelism` enum argument |
+| Model state extraction | Direct `model.named_parameters()` | `nnx.split(model)[1]` for Flax NNX |
+| Config source | `model.config` from HuggingFace | `easydel.modules.<arch>.<Arch>Config` |
+| Infrastructure utility | `xs.mark_sharding()` | `make_easydel_parameters_partition_specs()` |
+
+---
+
 ## Reference Implementations
 
-See `references/mesh_config_patterns.md` for complete `get_mesh_config` and `load_shard_spec` examples extracted from production loaders (Llama, Qwen, Mistral).
+See `references/mesh_config_patterns.md` for complete PyTorch `get_mesh_config` and `load_shard_spec` examples extracted from production loaders (Llama, Qwen, Mistral).
+
+See `references/jax_partition_patterns.md` for complete JAX `get_input_activations_partition_spec` and `load_parameters_partition_spec` examples from production EasyDeL loaders.
