@@ -79,8 +79,10 @@ class DynamicLoader:
             Tuple of (mesh_shape, mesh_names) if loader implements get_mesh_config,
             (None, None) otherwise
         """
-        if hasattr(self.loader, "get_mesh_config"):
-            return self.loader.get_mesh_config(num_devices)
+        # if hasattr(self.loader, "get_mesh_config"):
+        #     return self.loader.get_mesh_config(num_devices)
+        
+        return (1, 16), ("model", "batch")
         return None, None
 
     def has_mesh_support(self) -> bool:
