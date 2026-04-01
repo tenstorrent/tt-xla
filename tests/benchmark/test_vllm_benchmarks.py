@@ -46,6 +46,15 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         VLLMBenchmarkConfig(
             model="meta-llama/Llama-3.2-3B",
+            batch_size=1,
+            max_model_len=128,
+            gpu_memory_utilization=0.05,
+        ),
+        id="llama-3.2-3b-gpu-mem-0.05",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.2-3B",
             batch_size=32,
             max_model_len=128,
             gpu_memory_utilization=0.037,
@@ -74,7 +83,7 @@ SINGLE_DEVICE_CONFIGS = [
             model="meta-llama/Llama-3.1-8B-Instruct",
             batch_size=32,
             max_model_len=128,
-            gpu_memory_utilization=0.037,
+            gpu_memory_utilization=0.05,
         ),
         id="llama-3.1-8b-batch32",
     ),
