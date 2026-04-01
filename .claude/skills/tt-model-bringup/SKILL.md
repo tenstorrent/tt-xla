@@ -21,8 +21,9 @@ It is organized in two phases:
 ## Prerequisites
 
 1. `third_party/tt_forge_models/` is checked out (git submodule of tt-xla)
-2. Python env has `torch`, `transformers` (for HF models)
-3. Know the model's HuggingFace ID or have the custom source code + weights
+2. For PyTorch models: Python env has `torch`, `transformers`
+3. For JAX models: Python env has `jax`, `flax`, `easydel`, `transformers`
+4. Know the model's HuggingFace ID or have the custom source code + weights
 
 ---
 
@@ -42,10 +43,10 @@ Before writing any code, collect this information:
 
 | Field | How to decide |
 |-------|---------------|
-| `ModelSource` | Where does the model come from? `HUGGING_FACE`, `TORCHVISION`, `TIMM`, `CUSTOM`, `TORCH_HUB`, `GITHUB`, `OSMR` |
+| `ModelSource` | Where does the model come from? `HUGGING_FACE`, `EASYDEL`, `TORCHVISION`, `TIMM`, `CUSTOM`, `TORCH_HUB`, `GITHUB`, `OSMR` |
 | `ModelTask` | What does the model do? `NLP_CAUSAL_LM`, `NLP_QA`, `CV_IMAGE_CLS`, `CV_OBJECT_DET`, `MM_CAUSAL_LM`, etc. (see `config.py` for all 40+ enums) |
 | `ModelGroup` | Why are we adding it? `RED` = customer ask, `PRIORITY` = strategic coverage, `GENERALITY` = breadth, `VULCAN` = auto-generated |
-| `Framework` | Implementation framework: `TORCH`, `JAX`, `ONNX`, `PADDLE` |
+| `Framework` | Implementation framework: `TORCH`, `JAX`, `ONNX`, `PADDLE`. Use `JAX` for EasyDeL-based models |
 
 **Variant planning:**
 - How many sizes/versions? (e.g., `base`/`large`, `7B`/`70B`)
@@ -53,16 +54,17 @@ Before writing any code, collect this information:
 
 ## A2. Choose Directory Layout
 
-Two patterns exist in `third_party/tt_forge_models/`:
+The layout depends on the framework (`pytorch/` vs `jax/`) and whether the model supports
+a single task or multiple tasks.
 
-**Pattern A** — one task per model (most models):
+**Pattern A** — one task, single framework (simplest):
 ```
 <model_name>/
-├── __init__.py          # re-exports from pytorch/
-└── pytorch/
+├── __init__.py          # re-exports from pytorch/ or jax/
+└── pytorch/             # or jax/
     ├── __init__.py      # exports ModelLoader, ModelVariant
     ├── loader.py        # the ForgeModel subclass
-    └── src/             # optional custom nn.Module code
+    └── src/             # optional custom module code
 ```
 
 **Pattern B** — multiple tasks per model (e.g., BERT does QA + masked LM + classification):
@@ -71,13 +73,30 @@ Two patterns exist in `third_party/tt_forge_models/`:
 ├── __init__.py
 └── <task_name>/         # causal_lm, question_answering, image_cls, ...
     ├── __init__.py
-    └── pytorch/
+    └── pytorch/         # or jax/
         ├── __init__.py
         ├── loader.py
         └── src/
 ```
 
-Import depth changes between patterns — Pattern A uses `from ...base` (3 dots), Pattern B uses `from ....base` (4 dots).
+**Pattern C** — same model with both PyTorch and JAX loaders:
+```
+<model_name>/
+├── __init__.py
+└── <task_name>/
+    ├── __init__.py
+    ├── pytorch/
+    │   ├── __init__.py
+    │   └── loader.py
+    └── jax/
+        ├── __init__.py
+        └── loader.py
+```
+
+Import depth changes between patterns — Pattern A uses `from ...base` (3 dots), Pattern B/C uses `from ....base` (4 dots).
+
+For JAX models, the `jax/` subdirectory replaces `pytorch/`. Many models (Llama, Qwen, Phi,
+Falcon, Mistral, Mamba, GPT-2, GPT-J, Whisper) have both PyTorch and JAX loaders side by side.
 
 ## A3. Scaffold the ModelLoader
 
@@ -87,16 +106,17 @@ Every loader must satisfy the `ForgeModel` contract from `base.py`. The required
 2. **`_VARIANTS` dict** — map each variant to a `ModelConfig` (or `LLMModelConfig` for text models)
 3. **`DEFAULT_VARIANT`** — class-level attribute pointing to one variant enum member
 4. **`_get_model_info(cls, variant)`** — classmethod returning a `ModelInfo` frozen dataclass
-5. **`load_model(self, *, dtype_override=None, **kwargs)`** — instantiate and return the `nn.Module` in eval mode
+5. **`load_model(self, *, dtype_override=None, **kwargs)`** — instantiate and return the model
 6. **`load_inputs(self, dtype_override=None)`** — return sample inputs matching the model's forward signature
 
 See `references/loader_templates.md` for ready-to-use templates covering:
-- HuggingFace Causal LM (Template 1)
-- HuggingFace task-specific models like QA/classification (Template 2)
+- HuggingFace Causal LM — PyTorch (Template 1)
+- HuggingFace task-specific models like QA/classification — PyTorch (Template 2)
 - Custom PyTorch vision models with local weights (Template 3)
 - TorchVision / TIMM models (Template 4)
+- EasyDeL JAX Causal LM (Template 5)
 
-### Key conventions to follow
+### Key conventions — PyTorch loaders
 
 **`load_model` must use keyword-only `dtype_override`:**
 ```python
@@ -111,6 +131,73 @@ def load_model(self, *, dtype_override=None, **kwargs):
 **`dtype_override` semantics:**
 - `None` → model uses its native dtype (typically float32)
 - `torch.bfloat16` → for HF models, pass `torch_dtype=torch.bfloat16` to `from_pretrained`; for custom models, call `model.to(torch.bfloat16)`
+
+### Key conventions — JAX / EasyDeL loaders
+
+JAX loaders follow the same `ForgeModel` contract but differ in framework-specific details:
+
+**Model loading uses EasyDeL instead of HuggingFace Transformers:**
+```python
+from easydel import AutoEasyDeLModelForCausalLM
+
+def load_model(self, *, dtype_override=None, **kwargs):
+    model_kwargs = {}
+    if dtype_override is not None:
+        model_kwargs["dtype"] = dtype_override
+    model_kwargs |= kwargs
+    partition_rules = ((r".*", PartitionSpec()),)
+    model = AutoEasyDeLModelForCausalLM.from_pretrained(
+        self._model_name, partition_rules=partition_rules, **model_kwargs
+    )
+    return model
+```
+
+**`_get_model_info` must specify `ModelSource.EASYDEL` and `Framework.JAX`:**
+```python
+return ModelInfo(
+    model="MyModel",
+    variant=variant,
+    group=ModelGroup.GENERALITY,
+    task=ModelTask.NLP_CAUSAL_LM,
+    source=ModelSource.EASYDEL,
+    framework=Framework.JAX,
+)
+```
+
+**Input tensors use `jax.numpy` instead of `torch`:**
+```python
+import jax.numpy as jnp
+
+def load_inputs(self, dtype_override=None, mesh=None):
+    inputs = self._tokenizer(self.sample_text, return_tensors="jax")
+    input_ids = jnp.repeat(inputs.input_ids, batch_size, axis=0)
+    return {"input_ids": input_ids}
+```
+
+**Batch size must be divisible by device count when `mesh` is provided:**
+```python
+if mesh is not None:
+    num_devices = np.prod(list(mesh.shape.values())) if mesh.shape else 1
+    batch_size = 8
+    if batch_size % num_devices != 0:
+        batch_size = num_devices * (batch_size // num_devices + 1)
+```
+
+**Config objects come from `easydel.modules.<arch>`:**
+```python
+from easydel.modules.llama import LlamaConfig       # not transformers.LlamaConfig
+from easydel.modules.qwen3 import Qwen3Config
+from easydel.modules.falcon import FalconConfig
+```
+
+**For dtype casting, use the JAX-specific utility:**
+```python
+from ....tools.jax_utils import cast_hf_model_to_type
+if dtype_override is not None:
+    model = cast_hf_model_to_type(model, dtype_override)
+```
+
+### Common conventions for both frameworks
 
 **Cache expensive resources lazily** (tokenizers, configs):
 ```python
@@ -127,18 +214,21 @@ def _load_tokenizer(self, dtype_override=None):
     return self.tokenizer
 ```
 
-### Optional methods worth implementing
+### Optional methods
 
-| Method | When to implement |
-|--------|-------------------|
-| `decode_output()` | Text models that produce token IDs; detection models with NMS |
-| `unpack_forward_output()` | Training support — extract a differentiable tensor from complex output objects |
-| `load_config()` | When `get_mesh_config` or other code needs `model.config` before `load_model` |
-| `get_mesh_config()` | Multi-chip tensor parallelism (see `tt-multi-chip` skill) |
-| `load_shard_spec()` | Weight sharding for tensor parallelism (see `tt-multi-chip` skill) |
+| Method | Framework | When to implement |
+|--------|-----------|-------------------|
+| `decode_output()` | Both | Text models producing token IDs; detection models with NMS |
+| `unpack_forward_output()` | Both | Training support — extract a differentiable tensor from complex output objects |
+| `load_config()` | Both | When multi-chip or other code needs `model.config` before `load_model` |
+| `get_mesh_config()` | PyTorch | Multi-chip tensor parallelism for PyTorch (see `tt-multi-chip` skill) |
+| `load_shard_spec()` | PyTorch | Weight sharding for PyTorch tensor parallelism (see `tt-multi-chip` skill) |
+| `get_input_activations_partition_spec()` | JAX | Input partitioning for JAX multi-chip (see `tt-multi-chip` skill) |
+| `load_parameters_partition_spec()` | JAX | Parameter sharding for JAX multi-chip (see `tt-multi-chip` skill) |
 
 ## A4. Wire Up `__init__.py` Exports
 
+For PyTorch loaders:
 ```python
 # <model_name>/pytorch/__init__.py
 from .loader import ModelLoader, ModelVariant
@@ -147,15 +237,24 @@ from .loader import ModelLoader, ModelVariant
 from .pytorch import ModelLoader
 ```
 
-Pattern B adds one more level:
+For JAX loaders:
+```python
+# <model_name>/jax/__init__.py
+from .loader import ModelLoader, ModelVariant
+
+# <model_name>/__init__.py  (or <model_name>/<task>/__init__.py)
+from .jax import ModelLoader
+```
+
+Pattern B/C adds one more level:
 ```python
 # <model_name>/<task>/__init__.py
-from .pytorch import ModelLoader
+from .pytorch import ModelLoader   # or .jax
 ```
 
 ## A5. Sanity-Check on CPU
 
-Verify the loader works before involving any hardware:
+### PyTorch models
 
 ```python
 import torch
@@ -165,16 +264,34 @@ loader = ModelLoader()
 model = loader.load_model()
 inputs = loader.load_inputs()
 
-# Forward pass with default dtype
 with torch.no_grad():
     out = model(**inputs) if isinstance(inputs, dict) else model(inputs)
 print(f"Output type: {type(out)}, Model info: {loader.get_model_info()}")
 
-# Forward pass with bfloat16 (mirrors TT hardware dtype)
 model_bf = loader.load_model(dtype_override=torch.bfloat16)
 inputs_bf = loader.load_inputs(dtype_override=torch.bfloat16)
 with torch.no_grad():
     out_bf = model_bf(**inputs_bf) if isinstance(inputs_bf, dict) else model_bf(inputs_bf)
+print("bfloat16 forward pass succeeded")
+```
+
+### JAX / EasyDeL models
+
+```python
+import jax
+from third_party.tt_forge_models.<model_name>.jax import ModelLoader
+
+loader = ModelLoader()
+model = loader.load_model()
+inputs = loader.load_inputs()
+
+out = model(**inputs)
+print(f"Output type: {type(out)}, Model info: {loader.get_model_info()}")
+
+import jax.numpy as jnp
+model_bf = loader.load_model(dtype_override=jnp.bfloat16)
+inputs_bf = loader.load_inputs(dtype_override=jnp.bfloat16)
+out_bf = model_bf(**inputs_bf)
 print("bfloat16 forward pass succeeded")
 ```
 
@@ -200,6 +317,8 @@ trace through XLA / StableHLO / tt-mlir. The model code in `src/model.py` (if cu
 
 The test runner discovers models from YAML config files. Add an entry to the appropriate file:
 
+**PyTorch models:**
+
 | Model type | Config file |
 |-----------|-------------|
 | Standard single-device | `tests/runner/test_config/torch/test_config_inference_single_device.yaml` |
@@ -208,10 +327,28 @@ The test runner discovers models from YAML config files. Add an entry to the app
 | LLM single-device | `tests/runner/test_config/torch_llm/test_config_inference_single_device.yaml` |
 | LLM tensor-parallel | `tests/runner/test_config/torch_llm/test_config_inference_tensor_parallel.yaml` |
 
-Entry format:
+**JAX models:**
+
+| Model type | Config file |
+|-----------|-------------|
+| Single-device | `tests/runner/test_config/jax/test_config_inference_single_device.yaml` |
+| Tensor-parallel | `tests/runner/test_config/jax/test_config_inference_tensor_parallel.yaml` |
+| Data-parallel | `tests/runner/test_config/jax/test_config_inference_data_parallel.yaml` |
+| Training | `tests/runner/test_config/jax/test_config_training_single_device.yaml` |
+
+Entry format (PyTorch):
 ```yaml
 test_config:
   <model_name>/pytorch-<VariantValue>-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: IN_PROGRESS
+    reason: "Initial bringup — awaiting first PCC pass"
+```
+
+Entry format (JAX):
+```yaml
+test_config:
+  <model_name>/jax-<VariantValue>-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: IN_PROGRESS
     reason: "Initial bringup — awaiting first PCC pass"
@@ -233,13 +370,19 @@ The test ID format is `<loader_path>-<variant_value>-<parallelism>-<run_mode>`.
 
 ## B3. Run the Test
 
+PyTorch models:
 ```bash
 pytest -svv "tests/runner/test_models.py::test_all_models_torch[<model_name>/pytorch-<VariantValue>-single_device-inference]"
 ```
 
+JAX models:
+```bash
+pytest -svv "tests/runner/test_models.py::test_all_models_jax[<model_name>/jax-<VariantValue>-single_device-inference]"
+```
+
 The test runner:
 1. Instantiates `ModelLoader(variant=variant)`
-2. Calls `load_model(dtype_override=torch.bfloat16)` and `load_inputs(dtype_override=torch.bfloat16)`
+2. Calls `load_model(dtype_override=...)` and `load_inputs(dtype_override=...)`
 3. Runs the model on CPU to get reference output
 4. Compiles and runs through XLA on the TT device
 5. Computes PCC (Pearson Correlation Coefficient) between CPU and TT outputs
@@ -292,16 +435,22 @@ class ForgeModel(ABC):
     DEFAULT_VARIANT = None
 
     def __init__(self, variant=None):            # validates + caches _variant_config
-    def load_model(self, **kwargs): ...          # abstract — return nn.Module in eval()
+    def load_model(self, **kwargs): ...          # abstract — return model
     def load_inputs(self, **kwargs): ...         # abstract — return sample inputs
     def _get_model_info(cls, variant) -> ModelInfo: ...  # abstract classmethod
 
-    # Optional
+    # Optional — shared
     def decode_output(cls, **kwargs): ...
-    def get_mesh_config(self, num_devices): ...  # → (mesh_shape, mesh_names)
-    def load_shard_spec(self, model): ...        # → {tensor: shard_tuple} or None
     def load_config(self, **kwargs): ...
     def unpack_forward_output(self, fwd_output): ...
+
+    # Optional — PyTorch multi-chip
+    def get_mesh_config(self, num_devices): ...  # → (mesh_shape, mesh_names)
+    def load_shard_spec(self, model): ...        # → {tensor: shard_tuple} or None
+
+    # Optional — JAX multi-chip
+    def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"): ...
+    def load_parameters_partition_spec(self, model, parallelism, axis_name, ...): ...
 ```
 
 Config dataclasses:
@@ -311,28 +460,58 @@ LLMModelConfig(pretrained_model_name, max_length, attention_mechanism, sliding_w
 ModelInfo(model, variant, group, task, source, framework)  # frozen
 ```
 
+EasyDeL entry points (JAX):
+```python
+from easydel import AutoEasyDeLModelForCausalLM          # causal LMs
+from easydel import AutoEasyDeLModelForSpeechSeq2Seq     # audio/speech models
+from easydel.modules.<arch> import <Arch>Config           # per-model config + partition rules
+from infra.utilities import make_easydel_parameters_partition_specs  # partition spec builder
+```
+
 ## File Locations
 
 | Item | Path |
 |------|------|
 | ForgeModel base class | `third_party/tt_forge_models/base.py` |
 | Config enums & dataclasses | `third_party/tt_forge_models/config.py` |
-| Model loader (Pattern A) | `third_party/tt_forge_models/<model>/pytorch/loader.py` |
-| Model source (custom) | `third_party/tt_forge_models/<model>/pytorch/src/model.py` |
-| Single-device test config | `tests/runner/test_config/torch/test_config_inference_single_device.yaml` |
-| Tensor-parallel test config | `tests/runner/test_config/torch/test_config_inference_tensor_parallel.yaml` |
-| LLM test configs | `tests/runner/test_config/torch_llm/test_config_inference_*.yaml` |
+| PyTorch loader (Pattern A) | `third_party/tt_forge_models/<model>/pytorch/loader.py` |
+| JAX loader (Pattern A) | `third_party/tt_forge_models/<model>/jax/loader.py` |
+| PyTorch loader (Pattern B) | `third_party/tt_forge_models/<model>/<task>/pytorch/loader.py` |
+| JAX loader (Pattern B) | `third_party/tt_forge_models/<model>/<task>/jax/loader.py` |
+| JAX utilities | `third_party/tt_forge_models/tools/jax_utils.py` |
+| PyTorch single-device config | `tests/runner/test_config/torch/test_config_inference_single_device.yaml` |
+| PyTorch tensor-parallel config | `tests/runner/test_config/torch/test_config_inference_tensor_parallel.yaml` |
+| PyTorch LLM configs | `tests/runner/test_config/torch_llm/test_config_inference_*.yaml` |
+| JAX single-device config | `tests/runner/test_config/jax/test_config_inference_single_device.yaml` |
+| JAX tensor-parallel config | `tests/runner/test_config/jax/test_config_inference_tensor_parallel.yaml` |
+| JAX data-parallel config | `tests/runner/test_config/jax/test_config_inference_data_parallel.yaml` |
+| JAX training config | `tests/runner/test_config/jax/test_config_training_single_device.yaml` |
 | Test entry point | `tests/runner/test_models.py` |
 
 ## Pre-Submit Checklist
 
+**All models:**
 - [ ] `ModelLoader` extends `ForgeModel` with correct `_VARIANTS`, `DEFAULT_VARIANT`, `ModelVariant`
 - [ ] `_get_model_info` returns `ModelInfo` with appropriate `ModelGroup`, `ModelTask`, `ModelSource`, `Framework`
-- [ ] `load_model` uses `*, dtype_override=None, **kwargs` signature and calls `model.eval()`
+- [ ] `load_model` uses `*, dtype_override=None, **kwargs` signature
 - [ ] `load_inputs` returns tensors matching the model's actual forward signature
 - [ ] `__init__.py` files re-export `ModelLoader` and `ModelVariant`
 - [ ] SPDX copyright header on all new `.py` files
-- [ ] CPU forward pass succeeds in both float32 and bfloat16
+- [ ] CPU forward pass succeeds in both default dtype and bfloat16
 - [ ] YAML test config entry added with initial `KNOWN_FAILURE_XFAIL` status
+
+**PyTorch-specific:**
+- [ ] `load_model` calls `model.eval()` before returning
+- [ ] `ModelSource` is `HUGGING_FACE`, `TORCHVISION`, `TIMM`, or `CUSTOM`; `Framework` is `TORCH`
+- [ ] Multi-chip: `get_mesh_config()` and `load_shard_spec()` implemented if needed
+
+**JAX-specific:**
+- [ ] Model loaded via `AutoEasyDeLModelForCausalLM.from_pretrained` (or appropriate AutoModel)
+- [ ] `ModelSource` is `EASYDEL`; `Framework` is `JAX`
+- [ ] `load_inputs` returns JAX arrays (`jnp`), uses `return_tensors="jax"` for tokenizer
+- [ ] `load_inputs` handles `mesh` parameter for batch size divisibility
+- [ ] Multi-chip: `get_input_activations_partition_spec()` and `load_parameters_partition_spec()` implemented if needed
+
+**Final validation:**
 - [ ] TT device PCC meets threshold (0.99 default, or documented `required_pcc`)
 - [ ] Status promoted to `EXPECTED_PASSING` after stable validation
