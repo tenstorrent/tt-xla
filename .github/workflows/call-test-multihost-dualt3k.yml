@@ -199,8 +199,12 @@ jobs:
           export TT_METAL_LOGGER_TYPES=Fabric,Always
           # export TT_RUNTIME_USING_DUALT3K=1
 
+          echo "--- topology env export (before eval) ---"
+          python -m tests.torch.multi_host.topology \
+            --topology dual_t3k \
+            --script-dir tests/torch/multi_host/experimental
           eval $(python -m tests.torch.multi_host.topology \
-            --topology dual_bh_lb \
+            --topology dual_t3k \
             --script-dir tests/torch/multi_host/experimental)
 
           pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
