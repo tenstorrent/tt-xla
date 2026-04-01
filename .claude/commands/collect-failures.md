@@ -76,19 +76,21 @@ gh api "repos/$GITHUB_REPO/actions/runs/<run_id>/jobs?per_page=100" \
 
 If there are more than 100 jobs, fetch additional pages until `.jobs` is empty.
 
-Partition into three active buckets based on `conclusion`:
+Partition into four active buckets based on `status` and `conclusion`:
 - **failed** — `conclusion == "failure"` → full log parsing (individual tests + error messages)
 - **cancelled** — `conclusion == "cancelled"` → full log parsing (individual tests + error messages); these are jobs killed with SIGKILL (signal 9)
 - **timed_out** — `conclusion == "timed_out"` → limited log parsing (see Phase 5)
+- **not_finished** — `status == "in_progress"` and `conclusion == null` (job is still running) → no log parsing; record as-is
 
 Jobs with `conclusion == "success"`, `conclusion == "neutral"` and `conclusion == "skipped"` are ignored entirely.
 
 Print a summary after categorization:
 ```
 Job breakdown:
-  failed:    <N>
-  cancelled: <N>
-  timed_out: <N>
+  failed:       <N>
+  cancelled:    <N>
+  timed_out:    <N>
+  not_finished: <N>
 ```
 
 ---
@@ -204,9 +206,23 @@ If "Last test: <test_id>" appears, use that as `last_test_executing`. Otherwise 
 - `PASSED`, `XFAIL`, `SKIPPED`
 
 ```bash
-grep -n "FAILED tests/.*test_all_models_torch\|FAILED tests/.*test_all_models_jax" "<log_file>"
+grep -n "FAILED tests/" "<log_file>"
 grep -n "CRASHED with signal" "<log_file>"
 ```
+
+**Extract the full pytest test ID** from each `FAILED` line. The line looks like:
+```
+2024-01-01T00:00:00.000Z FAILED tests/runner/test_models.py::test_all_models_torch[yolov9/pytorch-S-single_device-inference] - tests/runner/...
+```
+Extract the portion starting at `tests/` and ending at the closing `]` (inclusive). This is the `test_id`:
+```
+tests/runner/test_models.py::test_all_models_torch[yolov9/pytorch-S-single_device-inference]
+```
+
+This format works for all test types:
+- `tests/runner/test_models.py::test_all_models_torch[yolov9/pytorch-S-single_device-inference]`
+- `tests/jax/single_chip/ops/test_slice.py::test_slice[3-97-1]`
+- `tests/torch/graphs/test_attention.py::test_gemma_attention[2_27B_IT-1024-single_device]`
 
 Deduplicate by **(test_id, machine_name)** pair — not by test_id alone. If the same test fails on two different machines, include a separate entry for each machine. If the same (test_id, machine_name) pair appears in multiple log files, keep only one — prefer the entry with the most informative error message.
 
@@ -216,19 +232,24 @@ The pytest log has two distinct sections:
 
 **A) Failure detail block** (earlier in the log) — contains the actual `AssertionError`:
 ```
-_______ test_all_models_torch[<test_id>] _______
+_______ test_all_models_torch[yolov9/pytorch-S-single_device-inference] _______
 ... traceback ...
 E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9487. Required: pcc=0.98.
 ```
 
 **B) Short test summary** (at the end) — only contains the call chain, NOT the error:
 ```
-FAILED tests/runner/test_models.py::test_all_models_torch[<test_id>] - tests/runner/test_models.py:294: in test_all_models_torch
+FAILED tests/runner/test_models.py::test_all_models_torch[yolov9/...] - tests/runner/test_models.py:294: in test_all_models_torch
 ```
 
-**Always extract the error from section A**, not section B:
+**Always extract the error from section A**, not section B.
+
+To match the `_ ` separator (GHA logs have only 1 underscore before the test name), use only the portion of `test_id` **after** `::` (the function name and params, without the file path prefix). Derive it as `func_and_params = test_id.split("::")[-1]`, e.g.:
+- `tests/runner/test_models.py::test_all_models_torch[yolov9/...]` → `test_all_models_torch[yolov9/...]`
+- `tests/jax/single_chip/ops/test_slice.py::test_slice[3-97-1]` → `test_slice[3-97-1]`
+
 ```bash
-grep -A 30 "____.*test_all_models_torch\[<test_id>\].*____\|____.*test_all_models_jax\[<test_id>\].*____" <log_file> | grep "^[^Z]*E   "
+grep -F -A 100 "_ <func_and_params>" <log_file> | grep "Z E   "
 ```
 
 Strip the leading timestamp and `E   ` prefix. If no `E   AssertionError` line is found, fall back to the `FAILED` summary line.
@@ -274,7 +295,7 @@ Save to `$REPO_ROOT/bisection/run_<run_id>_failures.json`:
   "github_repo": "<github_repo>",
   "failed_tests": [
     {
-      "test_id": "yolov9/pytorch-S-single_device-inference",
+      "test_id": "tests/runner/test_models.py::test_all_models_torch[yolov9/pytorch-S-single_device-inference]",
       "status": "FAILED",
       "raw_error": "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9487420481169414. Required: pcc=0.98.",
       "machine_type": "n150",
@@ -294,6 +315,13 @@ Save to `$REPO_ROOT/bisection/run_<run_id>_failures.json`:
       "tests_collected": 47,
       "last_test_executing": "densenet/pytorch-169-single_device-inference",
       "test_before_last": "resnet/pytorch-50-single_device-inference"
+    }
+  ],
+  "not_finished_jobs": [
+    {
+      "job_id": 12345682,
+      "job_name": "test forge models nightly / test n300",
+      "job_url": "https://github.com/tenstorrent/tt-xla/actions/runs/.../jobs/..."
     }
   ]
 }
@@ -326,6 +354,10 @@ Timed Out Jobs (<N>):
       Tests collected:     47
       Last test executing: densenet/pytorch-169-single_device-inference
       Test before last:    resnet/pytorch-50-single_device-inference
+  ...
+
+Not Finished Jobs (<N>)  [still running — re-run /collect-failures later to capture results]:
+  - <job_name>  <job_url>
   ...
 
 Saved to: bisection/run_<run_id>_failures.json
