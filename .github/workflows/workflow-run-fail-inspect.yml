@@ -368,7 +368,7 @@ jobs:
         run: |
           rm -rf .bisect-run
           mkdir -p .bisect-run
-          cp .github/scripts/* .bisect-run/
+          cp -r .github/scripts/* .bisect-run/
           source venv/activate >/dev/null
           found=false
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
