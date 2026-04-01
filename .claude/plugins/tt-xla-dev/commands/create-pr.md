@@ -1,12 +1,12 @@
 ---
-allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git branch:*), Bash(git push:*), Bash(git status:*), Bash(gh pr:*), Bash(gh label:*), Bash(gh api:*), Read, Grep
-description: Create a tt-xla PR with proper title, body template, CODEOWNERS-derived reviewers, and labels
+allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git branch:*), Bash(git push:*), Bash(git status:*), Bash(gh pr:*), Bash(gh issue:*), Bash(gh label:*), Bash(gh api:*), Read, Grep
+description: Create a tt-xla GitHub issue + PR with proper title, body template, CODEOWNERS-derived reviewers, and labels
 argument-hint: "[area-prefix] (optional: e.g. 'vLLM', 'CI', 'pjrt' — auto-detected if omitted)"
 ---
 
 ## tt-xla PR Creation
 
-You are creating a GitHub pull request for the tt-xla repository. Work through each step carefully.
+You are creating a GitHub issue and pull request for the tt-xla repository. Work through each step carefully.
 
 ### Step 1 — Pre-flight Checks
 
@@ -30,7 +30,47 @@ If there are no commits ahead of main, stop — nothing to PR.
 
 ---
 
-### Step 2 — Detect Area and Generate PR Title
+### Step 2 — Create GitHub Issue
+
+Before creating the PR, create a GitHub issue to document the problem and provide a ticket link.
+
+Ask the user: "Do you have an existing GitHub issue to link? (enter number or URL, or press Enter to create one now)"
+
+**If creating a new issue:**
+
+Build the issue body from the commit log and diff:
+```bash
+git log main..HEAD --format='%s%n%b' | head -40
+git diff main...HEAD --stat
+```
+
+Create the issue:
+```bash
+gh issue create \
+  --title "<same title as the PR, without the [Area] prefix if it reads naturally>" \
+  --body "$(cat <<'EOF'
+## Problem
+<!-- Why is this change needed? What is broken or missing? -->
+<summarize from commit messages and diff>
+
+## Proposed Solution
+<!-- What approach does this PR take? -->
+<summarize from diff>
+
+## Files Changed
+<git diff --stat output>
+EOF
+)" \
+  --repo tenstorrent/tt-xla
+```
+
+Save the returned issue URL/number — it will be linked in the PR body as the Ticket.
+
+**If the user provides an existing issue number:** use it directly (format: `https://github.com/tenstorrent/tt-xla/issues/<N>`).
+
+---
+
+### Step 3 — Detect Area and Generate PR Title
 
 Read the changed paths:
 ```bash
@@ -66,13 +106,13 @@ Generate a PR title following the convention from `.claude/commit-template.md`:
 
 ---
 
-### Step 3 — Generate PR Body
+### Step 4 — Generate PR Body
 
 Read the PR body template from `.claude/pr-body-template.md`.
 
 Auto-fill the sections:
 
-**Ticket:** Leave as placeholder `<!-- ... -->` unless the user mentioned an issue number.
+**Ticket:** Use the issue URL from Step 2 (e.g. `https://github.com/tenstorrent/tt-xla/issues/4047`).
 
 **Problem description:** Summarize *why* this change is needed, inferred from commit messages and diff.
 
@@ -93,7 +133,7 @@ git diff main...HEAD --stat
 
 ---
 
-### Step 4 — Determine Reviewers from CODEOWNERS
+### Step 5 — Determine Reviewers from CODEOWNERS
 
 Read CODEOWNERS:
 ```bash
@@ -109,7 +149,7 @@ Build the `--reviewer` list (max 15 reviewers for GitHub).
 
 ---
 
-### Step 5 — Determine Labels
+### Step 6 — Determine Labels
 
 Map the detected area prefix to a GitHub label:
 
@@ -136,7 +176,7 @@ gh label create <label> --color "0075ca" --description "<description>"
 
 ---
 
-### Step 6 — Push and Create PR
+### Step 7 — Push and Create PR
 
 If the branch has not been pushed yet:
 ```bash
@@ -158,7 +198,7 @@ EOF
 
 ---
 
-### Step 7 — Post-Creation
+### Step 8 — Post-Creation
 
 After the PR is created:
 1. Print the PR URL.
