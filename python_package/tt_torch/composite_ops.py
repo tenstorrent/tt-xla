@@ -329,6 +329,48 @@ def replace_group_norm_module(
     gm.graph.erase_node(node)
 
 
+################# composite constraint checks #################
+
+
+def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
+    """
+    Check that SDPA inputs are bfloat16, the only dtype our composite supports.
+    If not, skip the composite and use the native implementation.
+    """
+    # Check all positional args and tensor kwargs (e.g. attn_mask)
+    tensor_args = list(node.args) + [
+        v for v in node.kwargs.values() if isinstance(v, torch.fx.Node)
+    ]
+    for arg in tensor_args:
+        if hasattr(arg, "meta"):
+            val = arg.meta.get("example_value", None)
+            if val is not None and val.dtype != torch.bfloat16:
+                logger.debug(
+                    "composite scaled_dot_product_attention only supports bfloat16 inputs, "
+                    "skipping composite and using native implementation."
+                )
+                return False
+
+    return True
+
+
+def can_apply_composite(node: torch.fx.Node) -> bool:
+    """
+    Check whether a composite replacement should be applied for the given node.
+    Returns True if the replacement is valid, False if it should be skipped.
+    """
+    return constraints.get(node.target, lambda _: True)(node)
+
+
+"""
+Dictionary holding constraints for composite replacements.
+Maps torch API calls to constraint functions.
+"""
+constraints = {
+    torch.nn.functional.scaled_dot_product_attention: _check_sdpa_constraints,
+}
+
+
 """
 Dictionary holding replacement composite functions for torch functions and modules.
 Maps torch API calls and module types to composite implementations.
