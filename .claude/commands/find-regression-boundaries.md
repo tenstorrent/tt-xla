@@ -66,16 +66,22 @@ Starting regression boundary search (max 10 runs back per test)...
 
 ### Phase 2 — Fetch the list of preceding runs
 
-Fetch up to 15 completed runs of this workflow, ordered newest first (we need 10 runs before the starting run, plus the starting run itself):
+First, fetch the starting run's metadata (this works even if the run is still in_progress):
+```bash
+gh api "repos/<github_repo>/actions/runs/<run_id>" \
+  --jq '{id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}'
+```
+
+Save `starting_run_created_at` from this response. The starting run may still be in_progress (`conclusion == null`) — that is fine.
+
+Then fetch up to 10 completed runs of this workflow that are older than or equal to the starting run's `created_at`, ordered newest first:
 
 ```bash
-gh api "repos/<github_repo>/actions/workflows/<workflow_id>/runs?per_page=15&status=completed" \
+gh api "repos/<github_repo>/actions/workflows/<workflow_id>/runs?per_page=15&status=completed&created=<=%3C%3D<starting_run_created_at>" \
   --jq '.workflow_runs[] | {id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}'
 ```
 
-Discard runs with conclusion `cancelled` or `skipped`.
-
-Find the position of `run_id` (the starting run) in this list. The runs **before it** (older) are the runs to walk back through — take up to 10 of them.
+Discard runs with conclusion `skipped` only. Do **not** discard cancelled runs — a run with conclusion `cancelled` often means only a few jobs within it were cancelled while others completed normally; those completed jobs contain valid test data. Also discard the starting run itself if it appears in this list (it may appear if it just completed). Take up to 10 of the remaining runs — these are the runs to walk back through.
 
 Save the ordered list of run IDs to walk: `[run_id, prev_run_1, prev_run_2, ..., prev_run_10]` (newest to oldest).
 
@@ -119,7 +125,7 @@ Find the boundary: the two consecutive runs of the same workflow where the test 
 
 ## Test to investigate
 
-test_id: <test_id>
+test_id: <test_id>   ← full pytest path, e.g. tests/runner/test_models.py::test_all_models_torch[yolov9/pytorch-S-single_device-inference]
 machine_type: <machine_type>
 machine_name: <machine_name>
 known_error (raw, from the starting run): <raw_error>
@@ -140,7 +146,7 @@ For each run (starting at index 0, going to older runs):
 
 1. Search the cached logs for the test_id **on the correct machine type**.
 
-   **Always search for the exact `test_id` string — never attempt partial matches, fuzzy matching, or substitutions.** If the exact string is not present in the logs, the test does not exist in that run. Do not try to find renamed or similar variants; that is not your job and will produce incorrect boundaries.
+   `test_id` is the full pytest path (e.g. `tests/runner/test_models.py::test_all_models_torch[yolov9/...]`). **Always search for the exact `test_id` string — never attempt partial matches, fuzzy matching, or substitutions.** If the exact string is not present in the logs, the test does not exist in that run. Do not try to find renamed or similar variants; that is not your job and will produce incorrect boundaries.
 
    Log file names encode the machine type in their job name (e.g. `...test n150...`, `...test n300...`). First narrow to log files for the correct machine type:
    ```bash
@@ -154,22 +160,28 @@ For each run (starting at index 0, going to older runs):
 
 2. Classify the result:
    - Line contains `PASSED` → **PASSED**
-   - Line contains `FAILED` or `ERROR` → **FAILED** — extract the raw error using the procedure in **Error extraction** below
-   - Line found but no PASSED/FAILED/ERROR suffix → **NOT_RUN** (job timed out mid-run before this test executed) — skip this run, continue to older
+   - Line contains `FAILED` or `ERROR` or `CRASHED with signal 6` → **FAILED** — extract the raw error using the procedure in **Error extraction** below
+   - Line contains `CRASHED with signal 9` → **NOT_RUN** (job was externally killed — the test was in-flight when the job was cancelled; no reliable pass/fail conclusion can be drawn) — skip this run, continue to older
+   - Line found but no PASSED/FAILED/ERROR/CRASHED suffix → **NOT_RUN** (job timed out mid-run before this test executed) — skip this run, continue to older
    - No line at all → do **step 3** before deciding
 
 ## Error extraction
 
-Find the failure detail block (`___ test_name ___` section) and extract the `E   ` line:
+Find the failure detail block (`___ test_name ___` section) and extract the `E   ` line.
+
+In GHA logs the pytest separator has only 1 underscore before the test name (`_ func_and_params __`). Derive `func_and_params` from `test_id` by taking the part after `::`, e.g.:
+- `tests/runner/test_models.py::test_all_models_torch[yolov9/...]` → `test_all_models_torch[yolov9/...]`
+- `tests/jax/single_chip/ops/test_slice.py::test_slice[3-97-1]` → `test_slice[3-97-1]`
+
 ```bash
-grep -A 30 "____.*<test_id>.*____" <log_file> | grep "^[^Z]*E   " | head -3
+grep -F -A 100 "_ <func_and_params>" <log_file> | grep "Z E   " | head -3
 ```
 
 **Special case — `XlaRuntimeError: INTERNAL: Error code: 13`:**
 This is an opaque wrapper. The real error is a `TT_FATAL` message printed to the test output just before the failure. Get the line number of the test's running log entry and search forward for `TT_FATAL`:
 ```bash
-# Find the line where the test started running
-grep -n "Running.*<test_id>" <log_file>  # get line number N
+# Find the line where the test started running (use func_and_params = part after "::")
+grep -n "Running.*<func_and_params>" <log_file>  # get line number N
 
 # Search forward from there for TT_FATAL
 sed -n "${N},$((N+500))p" <log_file> | grep "TT_FATAL" | head -3
@@ -181,11 +193,11 @@ The `TT_FATAL` line contains the actual error (e.g. `Out of Memory: Not enough s
    **3a. Check if the test was collected but the job was killed before it ran:**
    The pytest log prints all collected test IDs at the very start of the job (with no status suffix). If a job is killed mid-run, tests that were collected but not yet executed will appear in the collection output but have no result line.
 
-   Search for the test_id anywhere in the log (collection line has no trailing status). Use both torch and jax test function names:
+   Search for the full test_id anywhere in the log (collection line has no trailing status):
    ```bash
-   grep -rn "test_all_models_torch\[<test_id>\]\|test_all_models_jax\[<test_id>\]" <REPO_ROOT>/bisection/logs/run_<run_id>/
+   grep -rn "<test_id>" <REPO_ROOT>/bisection/logs/run_<run_id>/
    ```
-   - If a line is found with no PASSED/FAILED/ERROR suffix → **NOT_RUN** — skip this run, continue to older
+   - If a line is found with no PASSED/FAILED/ERROR/CRASHED suffix → **NOT_RUN** — skip this run, continue to older
    - If no line found at all → **NOT_FOUND** — stop here
 
 4. If FAILED: compare the raw error to the `known_error`.
@@ -287,7 +299,7 @@ Save to that path:
   "boundaries_not_found": <count>,
   "results": [
     {
-      "test_id": "densenet/pytorch-169-single_device-inference",
+      "test_id": "tests/runner/test_models.py::test_all_models_torch[densenet/pytorch-169-single_device-inference]",
       "machine_type": "n150",
       "machine_name": "forge-n150-12",
       "boundary_found": true,
@@ -317,12 +329,12 @@ Use the Write tool to save this file.
 Regression boundaries for: <workflow_name>  run <run_id>  (<run_date>)
 <N> tests investigated
 
-Test                                                      | Machine  | First bad run   | Last good run  | Last good status
-----------------------------------------------------------|----------|-----------------|----------------|------------------
-densenet/pytorch-169-single_device-inference              | n150     | 2026-03-21 (#23375485557) | 2026-03-07 (#22795337660) | PASSED
-densenet/pytorch-169-single_device-inference              | n300     | 2026-03-14 (#23084026025) | 2026-03-07 (#22795337660) | DIFFERENT_ERROR
-yoloworld/pytorch-Xlarge_640-single_device-inference      | n150     | 2026-03-14 (#23084026025) | 2026-03-07 (#22795337660) | DIFFERENT_ERROR
-mobilenetv3/pytorch-small-single_device-inference         | n150     | (boundary not found — reached limit)
+Test                                                                                                     | Machine  | First bad run   | Last good run  | Last good status
+---------------------------------------------------------------------------------------------------------|----------|-----------------|----------------|------------------
+tests/runner/test_models.py::test_all_models_torch[densenet/pytorch-169-single_device-inference]         | n150     | 2026-03-21 (#23375485557) | 2026-03-07 (#22795337660) | PASSED
+tests/runner/test_models.py::test_all_models_torch[densenet/pytorch-169-single_device-inference]         | n300     | 2026-03-14 (#23084026025) | 2026-03-07 (#22795337660) | DIFFERENT_ERROR
+tests/jax/single_chip/ops/test_slice.py::test_slice[3-97-1]                                             | n150     | 2026-03-14 (#23084026025) | 2026-03-07 (#22795337660) | DIFFERENT_ERROR
+tests/runner/test_models.py::test_all_models_torch[mobilenetv3/pytorch-small-single_device-inference]    | n150     | (boundary not found — reached limit)
 ...
 
 Saved to: bisection/regression_report_<stem>.json
