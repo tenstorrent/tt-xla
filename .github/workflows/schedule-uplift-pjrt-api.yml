@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout tt-xla
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
             repository: 'tenstorrent/tt-xla'
 
@@ -27,7 +27,7 @@ jobs:
           git clone --depth 1 https://github.com/openxla/xla.git ${{ runner.temp }}/xla
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -124,8 +124,9 @@ jobs:
 
             - [ ] Review the changes in `pjrt_c_api.h` and ensure backward compatibility with the tt-xla implementation.
             - [ ] Review the changes in `stubs.inc` and discuss with the team whether a new feature should be flagged as useful for implementation.
-            - [ ] Manually run the `.github/workflows/schedule-nightly.yml` workflow to schedule an extended test set run.
-            - [x] Run PJRT unit tests (scheduled automatically upon PR creation).
+            - [ ] Move the new signatures in `stubs.inc` to the most appropriate group in the same file.
+            - [ ] Run PJRT unit tests (scheduled automatically upon PR creation).
+            - [ ] Run the `model-test-extended.json` test matrix against this branch (needs to be run manually).
           draft: false
           delete-branch: true
           token: ${{ secrets.GH_TOKEN }}

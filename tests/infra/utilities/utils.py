@@ -169,7 +169,7 @@ def create_jax_inference_tester(
         dtype = jnp.bfloat16
         if compiler_config is None:
             compiler_config = CompilerConfig()
-        compiler_config.experimental_enable_weight_bfp8_conversion = True
+        compiler_config.experimental_weight_dtype = "bfp8"
 
     return model_tester_class(
         variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
@@ -194,7 +194,7 @@ def create_torch_inference_tester(
         dtype = torch.bfloat16
         if compiler_config is None:
             compiler_config = CompilerConfig()
-        compiler_config.experimental_enable_weight_bfp8_conversion = True
+        compiler_config.experimental_weight_dtype = "bfp8"
 
     return model_tester_class(
         variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
@@ -218,12 +218,6 @@ def compile_jax_workload_for_tt_device(
         static_argnames=workload.static_argnames,
         compiler_options=compiler_options or {},
     )
-
-
-def compile_torch_workload_for_cpu(workload: Workload) -> None:
-    """Compile Torch workload for CPU using inductor backend."""
-    to_compile = workload.model if workload.model is not None else workload.executable
-    workload.compiled_executable = torch.compile(to_compile, backend="inductor")
 
 
 def compile_torch_workload_for_tt_device(

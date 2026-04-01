@@ -14,7 +14,7 @@ from infra.evaluators import TorchComparisonEvaluator
 from torch_xla.distributed.spmd import Mesh
 from utils import Category
 
-from tests.infra.evaluators.evaluation_config import ComparisonConfig
+from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.gemma.pytorch.loader import (
     ModelLoader as GemmaModelLoader,
@@ -41,24 +41,28 @@ class Linear(torch.nn.Module):
 @pytest.mark.parametrize("in_features", [32, 64])
 @pytest.mark.parametrize("out_features", [32, 64])
 @pytest.mark.parametrize("bias", [False, True])
-@pytest.mark.parametrize("experimental_enable_weight_bfp8_conversion", [False, True])
+@pytest.mark.parametrize("experimental_weight_dtype", ["", "bfp8", "bfp4"])
 def test_linear(
     batch_size,
     in_features,
     out_features,
     bias,
-    experimental_enable_weight_bfp8_conversion,
+    experimental_weight_dtype,
 ):
     dtype = torch.bfloat16
     linear = Linear(in_features, out_features, bias=bias, dtype=dtype)
     compiler_config = CompilerConfig(
-        experimental_enable_weight_bfp8_conversion=experimental_enable_weight_bfp8_conversion
+        experimental_weight_dtype=experimental_weight_dtype
     )
+    comparison_config = ComparisonConfig()
+    if experimental_weight_dtype == "bfp4":
+        comparison_config.pcc = PccConfig(required_pcc=0.98)
 
     run_op_test_with_random_inputs(
         linear,
         [(batch_size, in_features)],
         dtype=dtype,
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         compiler_config=compiler_config,
     )

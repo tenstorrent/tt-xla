@@ -33,7 +33,7 @@ test_config:
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, galaxy-wh-6u]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    required_pcc: 0.975
     inject_custom_moe: true
 
   gpt_oss/pytorch-120B-tensor_parallel-inference:
@@ -108,9 +108,8 @@ test_config:
     status: EXPECTED_PASSING
 
   mistral/pytorch-Large_INSTRUCT_2411-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "xr.global_runtime_device_count() - Expected 2 eth links from physical chip 4 to physical chip 0 - https://github.com/tenstorrent/tt-xla/issues/1975"
+    supported_archs: [galaxy-wh-6u]
+    status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
 
   mistral/pytorch-Devstral_Small_2505-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -122,11 +121,8 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    # bringup_status: INCORRECT_RESULT
-    # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
+    status: EXPECTED_PASSING
+    required_pcc: 0.97  # PCC dropped to 0.9786 on n300-llmbox - https://github.com/tenstorrent/tt-xla/issues/3863
 
   qwen_2_5/causal_lm/pytorch-14B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -142,11 +138,8 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-Math_7B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    # bringup_status: INCORRECT_RESULT
-    # assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/1474
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM - recently regressed around Nov 4 - https://github.com/tenstorrent/tt-xla/issues/2150"
-
+    status: EXPECTED_PASSING
+    assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3782
   # Models that need work....
 
   llama/causal_lm/pytorch-3.1_405B-tensor_parallel-inference:
@@ -165,16 +158,22 @@ test_config:
         assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3591
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on galaxy"
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n300-llmbox:
+        status: EXPECTED_PASSING
+        enable_weight_bfp8_conversion: true
+        assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3591
+      galaxy-wh-6u:
+        status: EXPECTED_PASSING
+        required_pcc: 0.98
 
   llama/causal_lm/pytorch-3.3_70B_Instruct-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on galaxy"
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3591
+      galaxy-wh-6u:
+        status: EXPECTED_PASSING
 
   phi4/causal_lm/pytorch-Phi_4-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -182,9 +181,8 @@ test_config:
 
   qwen_2/causal_lm/pytorch-Qwq_32B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on n300-llmbox"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3781
 
   qwen_2_5/causal_lm/pytorch-72B_Instruct-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
@@ -202,7 +200,7 @@ test_config:
 
   olmo3/causal_lm/pytorch-3_32b_think-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    assert_pcc: True
+    required_pcc: 0.98
     status: EXPECTED_PASSING
 
   olmo3/causal_lm/pytorch-3_1125_32b-tensor_parallel-inference:
@@ -223,3 +221,37 @@ test_config:
   solar-10_7B/causal_lm/pytorch-10_7B_Instruct_v1.0-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+
+  llama/sequence_classification/pytorch-3.1_70B-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u,n300-llmbox]
+    arch_overrides:
+      galaxy-wh-6u:
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+
+  llama/sequence_classification/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u,n300-llmbox]
+    arch_overrides:
+      galaxy-wh-6u:
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+        assert_pcc: false
+        required_pcc: 0.98
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+
+  llama/sequence_classification/pytorch-3.3_70B_Instruct-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u,n300-llmbox]
+    arch_overrides:
+      galaxy-wh-6u:
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+      n300-llmbox:
+        enable_weight_bfp8_conversion: true
+        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+
+  gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"

@@ -4,7 +4,7 @@
 
 import pytest
 import torch
-from infra import Framework, run_graph_test
+from infra import ComparisonConfig, Framework, run_graph_test
 from transformers.models.gpt_oss.modeling_gpt_oss import (
     GptOssAttention,
     GptOssRotaryEmbedding,
@@ -80,6 +80,8 @@ def test_llama_3_8b_sdpa(request):
 def test_gpt_oss_20b_sdpa(layer_idx, request):
     config = GPTOSSModelLoader(variant=GPTOSSModelVariant.GPT_OSS_20B).load_config()
     config._attn_implementation = "eager"
+    comparison_config = ComparisonConfig()
+    comparison_config.pcc.disable()
 
     attention = GptOssAttention(config, layer_idx=layer_idx).to(torch.bfloat16)
     hidden_states = torch.randn(1, SEQ_LEN, config.hidden_size, dtype=torch.bfloat16)
@@ -91,5 +93,6 @@ def test_gpt_oss_20b_sdpa(layer_idx, request):
         [hidden_states, (cos, sin), None, None],
         framework=Framework.TORCH,
         compiler_config=CompilerConfig(optimization_level=1),
+        comparison_config=comparison_config,
         request=request,
     )

@@ -66,8 +66,6 @@ def mnist_performant():
             "optimization_level": 2,
             # Enable runtime trace.
             "enable_trace": "true",
-            # Cast weights and ops to bfloat8_b.
-            "enable_bfp8_conversion": "true",
         }
     )
 

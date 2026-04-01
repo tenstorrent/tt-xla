@@ -4,11 +4,11 @@
 
 #include "utils/data_type_utils.h"
 
-// c++ standard library includes
-#include <stdexcept>
-
 // llvm mlir includes
 #include "mlir/IR/BuiltinTypes.h"
+
+// tt-xla includes
+#include "utils/assert.h"
 
 namespace tt::pjrt::data_type_utils {
 
@@ -83,7 +83,7 @@ convertRuntimeToPJRTDataType(tt::target::DataType runtime_data_type) {
   case tt::target::DataType::BFloat16:
     return PJRT_Buffer_Type_BF16;
   default:
-    throw std::runtime_error("Unsupported runtime data type");
+    TT_THROW("Unsupported runtime data type");
   }
 }
 
@@ -116,10 +116,15 @@ convertPJRTToRuntimeDataType(PJRT_Buffer_Type pjrt_data_type) {
     return tt::target::DataType::UInt64;
   case PJRT_Buffer_Type_PRED:
     return tt::target::DataType::Bool;
+  // Complex types have no runtime equivalent. They are stored as float tensors
+  // with a trailing dimension of 2 (interleaved real/imag pairs).
+  case PJRT_Buffer_Type_C64:
+    return tt::target::DataType::Float32;
+  case PJRT_Buffer_Type_C128:
+    return tt::target::DataType::Float64;
   default:
-    throw std::runtime_error(std::string("PJRT data type: ") +
-                             getPJRTBufferTypeString(pjrt_data_type) +
-                             " does not have runtime data type equivalent");
+    TT_THROW("PJRT data type: {} does not have runtime data type equivalent",
+             getPJRTBufferTypeString(pjrt_data_type));
   }
 }
 
@@ -128,6 +133,20 @@ PJRT_Buffer_Type convertMLIRToPJRTDataType(mlir::Type type) {
   if (mlir::RankedTensorType tensorType =
           mlir::dyn_cast<mlir::RankedTensorType>(type)) {
     return convertMLIRToPJRTDataType(tensorType.getElementType());
+  }
+
+  if (mlir::ComplexType complexType =
+          mlir::dyn_cast_or_null<mlir::ComplexType>(type)) {
+    mlir::Type elementType = complexType.getElementType();
+    if (mlir::FloatType floatType =
+            mlir::dyn_cast<mlir::FloatType>(elementType)) {
+      if (floatType.isF32()) {
+        return PJRT_Buffer_Type_C64;
+      } else if (floatType.isF64()) {
+        return PJRT_Buffer_Type_C128;
+      }
+    }
+    TT_THROW("Unsupported complex element type");
   }
 
   if (mlir::FloatType floatType =
@@ -141,7 +160,7 @@ PJRT_Buffer_Type convertMLIRToPJRTDataType(mlir::Type type) {
     } else if (floatType.isBF16()) {
       return PJRT_Buffer_Type_BF16;
     } else {
-      throw std::runtime_error("Unsupported float type");
+      TT_THROW("Unsupported float type");
     }
   } else if (mlir::IntegerType intType =
                  mlir::dyn_cast<mlir::IntegerType>(type)) {
@@ -157,7 +176,7 @@ PJRT_Buffer_Type convertMLIRToPJRTDataType(mlir::Type type) {
       } else if (intType.getWidth() == 1 && intType.isSignless()) {
         return PJRT_Buffer_Type_PRED; // 1 bit integer is a bool in mlir
       } else {
-        throw std::runtime_error("Unsupported signed integer type");
+        TT_THROW("Unsupported signed integer type");
       }
     } else {
       if (intType.getWidth() == 64) {
@@ -171,12 +190,16 @@ PJRT_Buffer_Type convertMLIRToPJRTDataType(mlir::Type type) {
       } else if (intType.getWidth() == 1) {
         return PJRT_Buffer_Type_PRED; // 1 bit integer is a bool in mlir
       } else {
-        throw std::runtime_error("Unsupported unsigned integer type");
+        TT_THROW("Unsupported unsigned integer type");
       }
     }
   }
 
-  throw std::runtime_error("Unsupported data type");
+  TT_THROW("Unsupported data type");
+}
+
+bool isComplexPJRTType(PJRT_Buffer_Type type) {
+  return type == PJRT_Buffer_Type_C64 || type == PJRT_Buffer_Type_C128;
 }
 
 } // namespace tt::pjrt::data_type_utils

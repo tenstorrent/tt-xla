@@ -19,6 +19,9 @@
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 
+// tt-xla includes
+#include "utils/assert.h"
+
 namespace tt::pjrt {
 
 class BufferInstance;
@@ -158,8 +161,9 @@ public:
   void reset(std::shared_ptr<PjrtTensor> tensor = nullptr,
              BufferInstance *shard = nullptr) noexcept {
 
-    assert(!!tensor == !!shard && "Both must be nullptr or have a value.");
-    assert(!tensor || tensor->has_shard(shard));
+    TT_FATAL(!!tensor == !!shard, "Both must be nullptr or have a value.");
+    TT_FATAL(!tensor || tensor->has_shard(shard),
+             "Tensor does not have the given shard");
 
     if (m_shard != nullptr)
       get()->remove_shard(m_shard);
@@ -177,22 +181,22 @@ public:
   }
 
   const PjrtTensor *operator->() const noexcept {
-    assert(m_tensor && "Accessing non-existing PJRT tensor");
+    TT_FATAL(m_tensor, "Accessing non-existing PJRT tensor");
     return m_tensor.operator->();
   }
 
   PjrtTensor *operator->() noexcept {
-    assert(m_tensor && "Accessing non-existing PJRT tensor");
+    TT_FATAL(m_tensor, "Accessing non-existing PJRT tensor");
     return m_tensor.operator->();
   }
 
   const PjrtTensor &operator*() const noexcept {
-    assert(m_tensor && "Accessing non-existing PJRT tensor");
+    TT_FATAL(m_tensor, "Accessing non-existing PJRT tensor");
     return *m_tensor;
   };
 
   PjrtTensor &operator*() noexcept {
-    assert(m_tensor && "Accessing non-existing PJRT tensor");
+    TT_FATAL(m_tensor, "Accessing non-existing PJRT tensor");
     return *m_tensor;
   };
 

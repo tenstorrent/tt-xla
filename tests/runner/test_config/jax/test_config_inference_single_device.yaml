@@ -174,7 +174,7 @@ test_config:
 
   gpt_j/causal_lm/jax-6B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
-    reason: "Not enough RAM memory to load the model."
+    reason: "Value mlir::sdy::(anonymous namespace)::CollectiveInserter::insert(): Assertion failed. https://github.com/tenstorrent/tt-xla/issues/3393"
     markers: [large]
     bringup_status: FAILED_RUNTIME
 
@@ -230,6 +230,11 @@ test_config:
 
   mamba/causal_lm/jax-mamba-1.4b-hf-single_device-inference:
     status: EXPECTED_PASSING
+
+  mamba2/causal_lm/jax-Codestral-7B-v0.1-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    markers: [large]
+    reason: "failed to legalize operation 'stablehlo.reduce_window' - https://github.com/tenstorrent/tt-xla/issues/3493"
 
   marian_mt/text_classification/jax-Opus_Mt_En_De-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -357,9 +362,11 @@ test_config:
 
   qwen_2_5/causal_lm/jax-0.5B-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [large]
 
   qwen_2_5/causal_lm/jax-0.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [large]
 
   qwen_2_5/causal_lm/jax-1.5B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -391,6 +398,7 @@ test_config:
 
   qwen_2_5_coder/causal_lm/jax-0.5B-single_device-inference:
     status: EXPECTED_PASSING
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-1.5B-single_device-inference:
     status: EXPECTED_PASSING

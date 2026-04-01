@@ -18,13 +18,9 @@ CompileOptions CompileOptions::parse(
   options.optimization_level =
       internal::parseIntOption(compile_options, "optimization_level")
           .value_or(options.optimization_level);
-  options.enable_bfp8_conversion =
-      internal::parseBoolOption(compile_options, "enable_bfp8_conversion")
-          .value_or(options.enable_bfp8_conversion);
-  options.experimental_enable_weight_bfp8_conversion =
-      internal::parseBoolOption(compile_options,
-                                "experimental_enable_weight_bfp8_conversion")
-          .value_or(options.experimental_enable_weight_bfp8_conversion);
+  options.experimental_weight_dtype =
+      internal::parseStringOption(compile_options, "experimental_weight_dtype")
+          .value_or(options.experimental_weight_dtype);
   options.math_fidelity =
       internal::parseStringOption(compile_options, "math_fidelity");
 
@@ -47,10 +43,10 @@ CompileOptions CompileOptions::parse(
                                                                       : true);
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
-          .value_or(true);
+          .value_or(options.enable_const_eval);
   options.enable_const_eval_on_cpu =
       internal::parseBoolOption(compile_options, "enable_const_eval_on_cpu")
-          .value_or(false);
+          .value_or(options.enable_const_eval_on_cpu);
   options.experimental_enable_permute_matmul_fusion =
       internal::parseBoolOption(compile_options,
                                 "experimental_enable_permute_matmul_fusion")
@@ -59,6 +55,13 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options,
                                 "codegen_try_recover_structure")
           .value_or(options.codegen_try_recover_structure);
+  options.codegen_split_files =
+      internal::parseBoolOption(compile_options, "codegen_split_files")
+          .value_or(options.codegen_split_files);
+  options.experimental_enable_dram_space_saving_optimization =
+      internal::parseBoolOption(
+          compile_options, "experimental-enable-dram-space-saving-optimization")
+          .value_or(options.experimental_enable_dram_space_saving_optimization);
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);

@@ -2,30 +2,61 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Decode utilities for LLM benchmarking, accuracy testing, and reference generation.
+"""Decode utilities for on-device LLM benchmarking and accuracy testing.
 
-This module centralizes the core decode loop into generate_and_benchmark(),
-which returns only raw logits and timing data. All post-processing (topk
-extraction, predicted token collection, text decoding) is done by callers.
-
-Used by:
-- benchmarks/llm_benchmark.py (device benchmarks + accuracy testing)
-- llm_utils/reference_generator.py (on-demand CPU reference .refpt generation)
-
-Sharing the decode loop prevents drift between codepaths (argmax dtype, cache
-semantics, teacher-forcing logic) which can cause accuracy mismatches.
+Provides LLMSamplingWrapper (keeps token selection on device) and
+generate_and_benchmark() (the timed decode loop).
 """
 
 from __future__ import annotations
 
 import os
 import time
-from typing import Callable, Optional
+from typing import Optional
 
 import torch
+import tracy
 from transformers.cache_utils import StaticCache
 
-ReadLogitsFn = Callable[[object], torch.Tensor]
+
+class LLMSamplingWrapper(torch.nn.Module):
+    """Wraps an LLM to perform sampling (token selection, cache positionupdate) on device.
+
+    By keeping token selection and cache_position increment inside the compiled
+    graph, intermediate tensors stay on device between decode steps, eliminating
+    costly device-to-host round-trips for input_ids and cache_position.
+
+    Args:
+        model: The LLM to wrap.
+        read_logits_fn: Function to extract logits from model output.
+        return_logits: If True, forward() returns (next_token_ids, next_cache_position, logits).
+            If False, returns (next_token_ids, next_cache_position) only.
+    """
+
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        read_logits_fn,
+        return_logits: bool = True,
+    ):
+        super().__init__()
+        self.model = model
+        self.read_logits_fn = read_logits_fn
+        self.return_logits = return_logits
+
+    def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
+        output = self.model(
+            input_ids=input_ids,
+            past_key_values=past_key_values,
+            cache_position=cache_position,
+            use_cache=use_cache,
+        )
+        logits = self.read_logits_fn(output)
+        next_token_ids = logits[:, -1].argmax(dim=-1, keepdim=True)
+        next_cache_position = cache_position[-1:] + 1
+        if self.return_logits:
+            return next_token_ids, next_cache_position, logits
+        return next_token_ids, next_cache_position
 
 
 def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> None:
@@ -116,37 +147,31 @@ def generate_and_benchmark(
     input_args: dict,
     device: torch.device,
     max_tokens_to_generate: int,
-    read_logits_fn: Optional[ReadLogitsFn] = None,
-    tokenizer: Optional[object] = None,
     verbose: bool = True,
     ground_truth_tokens: Optional[torch.Tensor] = None,
+    collect_logits: bool = True,
+    tokenizer=None,
 ) -> tuple[list[torch.Tensor], list[int]]:
-    """Unified decode loop for benchmarks, accuracy testing, and reference generation.
-
-    Returns raw logits and timing data only. All post-processing (topk
-    extraction, predicted token collection, text decoding) is the caller's
-    responsibility.
-
-    Supports two modes:
-    - Autoregressive (ground_truth_tokens=None): feeds model predictions back.
-      Used for device benchmarks and CPU PCC baseline.
-    - Teacher forcing (ground_truth_tokens provided): feeds ground truth tokens.
-      Used for device accuracy testing and reference generation.
+    """On-device decode loop for benchmarks and accuracy testing.
 
     Args:
-        model: Model instance (eval mode, no dropout)
+        model: LLMSamplingWrapper instance (eval mode, no dropout)
         input_args: Dict with input_ids, past_key_values, cache_position, use_cache
-        device: Target device (CPU or TT)
+        device: Target device
         max_tokens_to_generate: Number of decode steps to run
-        read_logits_fn: Function to extract logits from model output
-        tokenizer: Tokenizer for text decoding (autoregressive mode)
-        verbose: Print per-iteration timing and decoded tokens
+        verbose: Print per-iteration timing
         ground_truth_tokens: 1D tensor of ground truth token IDs for teacher forcing.
                            None = autoregressive mode.
+        collect_logits: Whether to collect logits.
+            True: Model must return (next_token_ids, next_cache_position, logits)
+                  and logits are moved to CPU each step (for PCC/accuracy).
+            False: Model must return (next_token_ids, next_cache_position) only
+                  (for performance benchmarking without OOM risk).
+        tokenizer: Optional tokenizer for decoding generated token IDs to text.
 
     Returns:
         (output_logits, iteration_times)
-        - output_logits: List of logit tensors per step
+        - output_logits: List of logit tensors per step (empty if collect_logits=False)
         - iteration_times: List of iteration times in nanoseconds
     """
 
@@ -159,45 +184,46 @@ def generate_and_benchmark(
 
     batch_size = input_args["input_ids"].shape[0]
 
-    output_tokens: list[list[str]] = []
     output_logits: list[torch.Tensor] = []
     iteration_times: list[int] = []
+    generated_text: str = ""
+
+    # Prepare teacher forcing tokens on CPU; transfer per-step to avoid
+    # device-side indexing that can segfault on the TT backend.
+    gt_cpu = None
+    if ground_truth_tokens is not None:
+        gt_cpu = (
+            ground_truth_tokens[:max_tokens_to_generate]
+            .view(-1, 1, 1)
+            .expand(-1, batch_size, 1)
+            .contiguous()
+        )
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
+            tracy.signpost("prefill_start" if step == 0 else f"decode_{step}_start")
             start = time.perf_counter_ns()
 
             output = model(**input_args)
-            logits = read_logits_fn(output).to("cpu")
-            output_logits.append(logits)
 
-            # Greedy decoding: argmax on last position (no sampling/temperature/top_p)
-            next_token_ids = logits[:, -1].argmax(dim=-1)
-
-            # Autoregressive path
-            if ground_truth_tokens is None:
-                output_text = [
-                    tokenizer.decode(token_id) for token_id in next_token_ids
-                ]
-                output_tokens.append(output_text)
-
-            # Next token: ground truth (teacher forcing) or predicted (autoregressive)
-            if ground_truth_tokens is not None:
-                next_tok_host = ground_truth_tokens[step : step + 1].view(
-                    1, 1
-                )  # CPU [1,1]
-                input_args["input_ids"] = (
-                    next_tok_host.expand(batch_size, 1).contiguous().to(device)
-                )
+            if collect_logits:
+                next_token_ids, next_cache_position, logits = output
+                output_logits.append(logits.to("cpu"))
             else:
-                input_args["input_ids"] = next_token_ids.unsqueeze(-1).to(device)
+                next_token_ids, next_cache_position = output
 
-            # Advance cache_position: take last position, add 1.
-            # reshape(-1)[-1:] normalizes from [prefill_len] to [1] on step 0.
-            host_cache_pos = input_args["cache_position"].to("cpu").reshape(-1)[-1:]
-            input_args["cache_position"] = (host_cache_pos + 1).to(device)
+            if ground_truth_tokens is not None:
+                input_args["input_ids"] = gt_cpu[step].to(device)
+            else:
+                input_args["input_ids"] = next_token_ids
+
+            input_args["cache_position"] = next_cache_position
+
+            if tokenizer:
+                generated_text += tokenizer.decode(next_token_ids[0].to("cpu"))
 
             end = time.perf_counter_ns()
+            tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
             iteration_times.append(end - start)
             if verbose:
                 print(
@@ -205,8 +231,8 @@ def generate_and_benchmark(
                     f"took {iteration_times[-1] / 1e6:.04} ms"
                 )
 
-    if verbose:
-        print("Output tokens:", output_tokens)
+    if tokenizer and verbose:
+        print(f"Generated text: {generated_text}")
 
     return output_logits, iteration_times
 

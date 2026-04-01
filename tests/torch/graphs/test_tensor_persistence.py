@@ -523,18 +523,17 @@ def test_concurrent_buffer_instance_transfer():
 
     result = run_model_on_device(program_a, [input_a_cpu])
 
-    # Create multiple threads that all print the same result concurrently
-    def print_result(thread_id):
-        print(f"Thread {thread_id}: {result}")
-        # time.sleep(0.1)  # Small delay to increase chance of concurrent access
-        print(f"Thread {thread_id}: Shape = {result.shape}")
+    # Create multiple threads that all copies result object
+    def copy_to_host():
+        for _ in range(1024):
+            result.cpu()
 
     threads = []
     num_threads = 10
 
     # Start multiple threads
-    for i in range(num_threads):
-        thread = threading.Thread(target=print_result, args=(i,))
+    for _ in range(num_threads):
+        thread = threading.Thread(target=copy_to_host)
         threads.append(thread)
         thread.start()
 
@@ -566,14 +565,16 @@ def test_concurrent_multi_buffer_instance_transfer():
 
     res_a, res_b = run_model_on_device(program_ab, [input_a_cpu, input_b_cpu])
 
-    def print_result(thread_id, _result):
-        print(f"Result from thread_id {thread_id} = {_result}")
+    # Create multiple threads that all copies result object
+    def copy_to_host(_result):
+        for _ in range(1024):
+            _result.cpu()
 
     threads = []
     num_threads = 10
-    for i in range(num_threads):
-        thread_a = threading.Thread(target=print_result, args=(i, res_a))
-        thread_b = threading.Thread(target=print_result, args=(i, res_b))
+    for _ in range(num_threads):
+        thread_a = threading.Thread(target=copy_to_host, args=(res_a,))
+        thread_b = threading.Thread(target=copy_to_host, args=(res_b,))
 
         threads.append(thread_a)
         threads.append(thread_b)

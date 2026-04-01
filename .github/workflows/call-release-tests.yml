@@ -21,39 +21,6 @@ jobs:
       ref: main
       project-filter: tt-xla
 
-  perf-benchmark-n150:
-    uses: ./.github/workflows/manual-benchmark.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ inputs.release_docker_image }}
-      runs-on-filter: n150
-      sh-runner: false
-      skip-device-perf: false
-      use_docker_wheel: true
-      perf_regression_check: true
-
-  perf-benchmark-llmbox:
-    uses: ./.github/workflows/manual-benchmark.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ inputs.release_docker_image }}
-      runs-on-filter: n300-llmbox
-      sh-runner: false
-      skip-device-perf: false
-      use_docker_wheel: true
-      perf_regression_check: true
-
-  perf-benchmark-galaxy:
-    uses: ./.github/workflows/manual-benchmark.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ inputs.release_docker_image }}
-      runs-on-filter: galaxy-wh-6u
-      sh-runner: false
-      skip-device-perf: false
-      use_docker_wheel: true
-      perf_regression_check: true
-
   demo-tests:
     uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
     secrets: inherit
@@ -66,9 +33,6 @@ jobs:
     if: always()
     needs:
       - basic-tests
-      - perf-benchmark-n150
-      - perf-benchmark-llmbox
-      - perf-benchmark-galaxy
       - demo-tests
     runs-on: ubuntu-latest
     outputs:

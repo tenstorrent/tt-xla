@@ -80,7 +80,7 @@ def _run_model_test_impl(
     variant, ModelLoader = test_entry.variant_info
 
     # Ensure per-model requirements are installed, and roll back after the test
-    with RequirementsManager.for_loader(loader_path):
+    with RequirementsManager.for_loader(loader_path, framework=str(framework)):
 
         # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
@@ -96,7 +96,7 @@ def _run_model_test_impl(
             compiler_config = CompilerConfig()
         weights_dtype = None
         if test_metadata.enable_weight_bfp8_conversion:
-            compiler_config.experimental_enable_weight_bfp8_conversion = True
+            compiler_config.experimental_weight_dtype = "bfp8"
             weights_dtype = "bfp8"
 
         if ir_dump_path:

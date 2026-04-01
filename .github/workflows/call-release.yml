@@ -19,6 +19,16 @@ on:
         description: 'Is release a nightly'
         type: boolean
         required: true
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
+      should_overwrite_release:
+        description: 'Should we overwrite an existing pypi wheel'
+        type: boolean
+        required: false
+        default: false
     outputs:
       release_tag:
         description: 'Release tag'
@@ -43,6 +53,7 @@ jobs:
       wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
       is_nightly_release: ${{ inputs.is_nightly_release }}
+      should_overwrite_release: ${{ inputs.should_overwrite_release }}
 
   build-release-docker:
     uses: ./.github/workflows/call-build-release-docker.yml
@@ -53,6 +64,7 @@ jobs:
       wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
       wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
       wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
 
   release-tests:
     uses: ./.github/workflows/call-release-tests.yml
@@ -70,6 +82,7 @@ jobs:
     with:
       release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
       docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
 
   summary:
     needs: [ publish-release-wheel, build-release-docker, publish-release ]

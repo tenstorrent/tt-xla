@@ -31,7 +31,7 @@ jobs:
       test-matrix-hash: ${{ steps.generate-test-matrix.outputs.test-matrix-hash }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Create temp file if string test_suite
         shell: bash
@@ -49,7 +49,7 @@ jobs:
           fi
           echo "test-suite-file=$TEST_SUITE_FILE" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
       - name: Generate test matrix
         id: generate-test-matrix
         shell: bash

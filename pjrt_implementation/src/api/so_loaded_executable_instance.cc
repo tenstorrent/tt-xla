@@ -63,10 +63,6 @@ SOLoadedExecutableInstance::getSharedExecutableImage() const {
 }
 
 void SOLoadedExecutableInstance::releaseResources() {
-  if (m_deleted) {
-    return;
-  }
-
   std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
   if (m_deleted) {
     return;

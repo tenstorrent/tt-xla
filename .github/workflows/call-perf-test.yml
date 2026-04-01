@@ -11,16 +11,19 @@ on:
         description: "Docker image to use"
         required: true
         type: string
-      artifact_run_id:
-        description: "Run ID to download wheel artifact from"
+      artifact_release_run_id:
+        description: 'Run ID of the artifacts (release)'
         required: false
         type: string
-        default: ''
-      wheel_artifact_name:
-        description: "Name of the wheel artifact"
+      artifact_suffix:
+        description: 'Suffix for the artifact name'
         required: false
         type: string
-        default: ''
+      wheel_build:
+        description: 'Build to use for testing, e.g. release, manylinux'
+        required: false
+        type: string
+        default: release
       use_docker_wheel:
         description: "Use wheel from docker instead of building a new one"
         required: false
@@ -83,15 +86,16 @@ jobs:
           echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
         fi
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
+        sparse-checkout-cone-mode: false
         sparse-checkout: |
-          .github
-          tests/benchmark
-          third_party
+          .github/
+          tests/benchmark/
+          third_party/
           pytest.ini
           python_package/requirements.txt
-          venv
+          venv/
           third_party/CMakeLists.txt
 
     - name: Initialize submodules
@@ -133,36 +137,38 @@ jobs:
       shell: bash
       run: |
         echo "=== Downloading wheel ==="
-        gh run download ${{ inputs.artifact_run_id }} \
+        gh run download ${{ inputs.artifact_release_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
-          --name ${{ inputs.wheel_artifact_name }}
+          --name xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}
+
+        if [[ "${{ matrix.build.vllm }}" == "true" ]]; then
+          echo "=== Downloading vllm-tt wheel ==="
+          gh run download ${{ inputs.artifact_release_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name vllm-tt-whl-release${{ inputs.artifact_suffix }}
+        fi
 
         echo "=== Installing wheel ==="
+        source venv/activate
         pip install wheels/*.whl
 
     - name: Install system dependencies
       shell: bash
       run: |
         apt-get update -y -qq
-        apt-get install -y -qq --no-install-recommends ${{ matrix.build.libreq || 'libgl1-mesa-glx libglib2.0-0' }}
+        apt-get install -y -qq --no-install-recommends ${{ matrix.build.libreq }}
 
     - name: Install Python dependencies
       shell: bash
       run: |
+        source venv/activate
         pip install ${{ matrix.build.pyreq }}
         pip install torchvision==0.24.0+cpu --index-url https://download.pytorch.org/whl/cpu
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
-
-    # A temmporary step because triage isn't preinstalled in tt-xla-slim image
-    # When perf tests migrate to running in the tt-xla-base image, this can be removed
-    - name: Set up tt-triage
-      continue-on-error: true
-      shell: bash
-      run: |
-        .github/scripts/install-tt-triage.sh
 
     - name: Run benchmark
       id: run-benchmark
@@ -175,6 +181,7 @@ jobs:
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
+        source venv/activate
         pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build['accuracy-testing'] && '--accuracy-testing' || '' }} ${{ matrix.build['batch-size'] && format('--batch-size {0}', matrix.build['batch-size']) || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report
@@ -203,7 +210,7 @@ jobs:
 
     - name: Upload StableHLO MLIR
       id: upload-stablehlo-mlir
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: (success() || failure()) && !matrix.build.skip-stablehlo-dump
       with:
         name: ${{ steps.dump-stablehlo.outputs.artifact_name }}
@@ -235,7 +242,7 @@ jobs:
 
     - name: Upload TTIR MLIR
       id: upload-ttir-mlir
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: (success() || failure()) && !matrix.build.skip-ttir-dump
       with:
         name: ${{ steps.dump-ttir.outputs.artifact_name }}
@@ -267,7 +274,7 @@ jobs:
 
     - name: Upload TTNN MLIR
       id: upload-ttnn-mlir
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: (success() || failure()) && !matrix.build.skip-ttnn-dump
       with:
         name: ${{ steps.dump-ttnn.outputs.artifact_name }}
@@ -279,6 +286,7 @@ jobs:
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
       shell: bash
       run: |
+        source venv/activate
         mlir_sha=$(python .github/scripts/get_description_field_from_wheel.py "pjrt-plugin-tt" "tt-mlir-commit")
         echo "Found tt-mlir-commit: $mlir_sha"
 
@@ -344,7 +352,11 @@ jobs:
         cp ./modules/*.ttnn flatbuffers/ 2>/dev/null
 
         echo "Run ttrt perf"
-        ttrt perf flatbuffers --ignore-version
+        if [[ "${{ matrix.build.runs-on }}" == "galaxy-wh-6u" ]]; then
+          ttrt perf flatbuffers --ignore-version --fabric-config fabric_1d_ring
+        else
+          ttrt perf flatbuffers --ignore-version
+        fi
 
         echo "Write device perf to report"
         python3 ./tests/benchmark/scripts/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }}
@@ -362,7 +374,7 @@ jobs:
 
     - name: Upload Device Perf
       id: upload-device-perf
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
       with:
         name: device-perf-${{ steps.strings.outputs.job_id }}
@@ -393,7 +405,7 @@ jobs:
         fi
 
     - name: Upload Perf Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
         name: perf-reports-${{ steps.strings.outputs.job_id }}

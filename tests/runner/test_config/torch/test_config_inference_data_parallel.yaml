@@ -65,9 +65,7 @@ test_config:
 
   albert/token_classification/pytorch-Xlarge_v1-data_parallel-inference:
     supported_archs: [n300]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9775277376174927. Required: pcc=0.98. - https://github.com/tenstorrent/tt-xla/issues/1844"
 
   mnist/image_classification/pytorch-Cnn_Dropout-data_parallel-inference:
     supported_archs: [n300]
@@ -91,9 +89,7 @@ test_config:
 
   albert/masked_lm/pytorch-Base_v2-data_parallel-inference:
     supported_archs: [n300]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.978430986404419. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   yolov6/pytorch-L-data_parallel-inference:
     supported_archs: [n300]
@@ -113,9 +109,7 @@ test_config:
 
   squeezebert/pytorch-Mnli-data_parallel-inference:
     supported_archs: [n300]
-    status: KNOWN_FAILURE_XFAIL  # Affected by change in torch=xla wheel - issue is: https://github.com/tenstorrent/tt-xla/issues/1750
-    reason: "error: 'stablehlo.reshape' op requires compatible element types for all operands and results  - https://github.com/tenstorrent/tt-xla/issues/1750"
-    bringup_status: FAILED_FE_COMPILATION
+    status: EXPECTED_PASSING
 
   swin/image_classification/pytorch-v2_T-data_parallel-inference:
     supported_archs: [n300]
@@ -189,9 +183,7 @@ test_config:
 
   albert/token_classification/pytorch-Xxlarge_v1-data_parallel-inference:
     supported_archs: [n300]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "PCC comparison failed. Calculated: pcc=0.9593995213508606. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/1789"
 
   vgg/pytorch-13-data_parallel-inference:
     supported_archs: [n300]
@@ -277,7 +269,6 @@ test_config:
   albert/masked_lm/pytorch-Xxlarge_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
 
   vgg/pytorch-16-data_parallel-inference:
     supported_archs: [n300]
@@ -656,9 +647,7 @@ test_config:
 
   albert/token_classification/pytorch-Xlarge_v2-data_parallel-inference:
     supported_archs: [n300]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8890893459320068. Required: pcc=0.99."
 
   regnet/pytorch-Y_080-data_parallel-inference:
     supported_archs: [n300]
@@ -1085,7 +1074,6 @@ test_config:
 
   mamba/pytorch-370M_HF-data_parallel-inference:
     supported_archs: [n300]
-    assert_pcc: false # -0.0327 WH / 0.3821 BH as of Nov 5 2025 right after an uplift which contained newer LLVM https://github.com/tenstorrent/tt-xla/issues/2000
     status: EXPECTED_PASSING
 
   codegen/pytorch-350M_Mono-data_parallel-inference:
@@ -1134,7 +1122,6 @@ test_config:
   mamba/pytorch-790M_HF-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-    assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
   mobilenetv3/pytorch-Large_100-data_parallel-inference:
     supported_archs: [n300]

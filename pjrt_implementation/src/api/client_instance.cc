@@ -32,6 +32,7 @@
 #include "api/memory_instance.h"
 #include "api/module_builder/module_builder.h"
 #include "api/tensor_pool.h"
+#include "utils/assert.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -43,6 +44,8 @@ static std::string getRankBindingPath(const std::string &metal_home) {
        "tests/tt_metal/distributed/config/2x4_multiprocess_rank_bindings.yaml"},
       {"dual_bh_quietbox",
        "tests/scale_out/4x_bh_quietbox/rank_bindings/2x4.yaml"},
+      {"dual_t3k", "tests/tt_metal/distributed/config/"
+                   "dual_t3k_1x16_experimental_bigmesh_rank_bindings.yaml"},
       {"dual_galaxy",
        "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
       {"quad_galaxy",
@@ -95,17 +98,26 @@ static tt_pjrt_status launchDistributedRuntime() {
   // Hostname of the controller node
   const char *controller_host_name =
       std::getenv("TT_DISTRIBUTED_CONTROLLER_HOST_NAME");
-  // Comma separated list of hostnames
+  // Comma separated list of hostnames — mutually exclusive with
+  // TT_DISTRIBUTED_HOSTS_FILE
   const char *hosts_list = std::getenv("TT_DISTRIBUTED_HOSTS_LIST");
+  // Path to an MPI hostfile — mutually exclusive with TT_DISTRIBUTED_HOSTS_LIST
+  const char *hosts_file = std::getenv("TT_DISTRIBUTED_HOSTS_FILE");
   // Path to the shell script used by MPI to execute commands on remote hosts
   // eg. tests/torch/multi_host/experimental/remote_docker.sh
   const char *plm_rsh_agent = std::getenv("TT_DISTRIBUTED_PLM_RSH_AGENT");
   // Network interface name for MPI (eg. cnx1, enp10s0f1np1)
-  const char *btl_tcp_if_include =
-      std::getenv("TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE");
+  const char *tt_distributed_tcp_iface =
+      std::getenv("TT_DISTRIBUTED_TCP_IFACE");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
+    return tt_pjrt_status::kInternal;
+  }
+
+  if (hosts_list && hosts_file) {
+    LOG_F(ERROR, "TT_DISTRIBUTED_HOSTS_LIST and TT_DISTRIBUTED_HOSTS_FILE are "
+                 "mutually exclusive; set only one");
     return tt_pjrt_status::kInternal;
   }
 
@@ -116,9 +128,9 @@ static tt_pjrt_status launchDistributedRuntime() {
         WARNING,
         "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
   }
-  if (!hosts_list) {
-    DLOG_F(WARNING,
-           "TT_DISTRIBUTED_HOSTS_LIST environment variable is not set");
+  if (!hosts_list && !hosts_file) {
+    DLOG_F(WARNING, "Neither TT_DISTRIBUTED_HOSTS_LIST nor "
+                    "TT_DISTRIBUTED_HOSTS_FILE environment variable is set");
   }
 
   tt::runtime::setMetalHome(metal_home);
@@ -133,9 +145,6 @@ static tt_pjrt_status launchDistributedRuntime() {
   }
 
   std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
-  if (btl_tcp_if_include) {
-    mca_options["btl_tcp_if_include"] = btl_tcp_if_include;
-  }
   if (plm_rsh_agent) {
     mca_options["plm_rsh_agent"] = plm_rsh_agent;
   }
@@ -158,6 +167,11 @@ static tt_pjrt_status launchDistributedRuntime() {
           .withAllowRunAsRoot(true)
           .withMcaOptions(mca_options);
 
+  if (tt_distributed_tcp_iface) {
+    distributed_options.multiProcessArgs->withTcpInterface(
+        tt_distributed_tcp_iface);
+  }
+
   if (controller_host_name) {
     distributed_options.multiProcessArgs->withControllerHostname(
         controller_host_name);
@@ -165,6 +179,8 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   if (!hosts_list_vec.empty()) {
     distributed_options.multiProcessArgs->withHosts(hosts_list_vec);
+  } else if (hosts_file) {
+    distributed_options.multiProcessArgs->withHostsFilePath(hosts_file);
   }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
@@ -311,7 +327,24 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 
 tt_pjrt_status ClientInstance::populateDevices() {
 
-  m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+  // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
+  // or else querying system desc will fail in metal init due to fabric init
+  // bugs
+  if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
+  }
+
+  const char *system_desc_override = std::getenv("TT_COMPILE_ONLY_SYSTEM_DESC");
+  if (system_desc_override != nullptr) {
+    LOG_F(INFO, "Loading system descriptor from path: %s",
+          system_desc_override);
+    m_system_descriptor =
+        tt::runtime::SystemDesc::loadFromPath(system_desc_override);
+    m_compile_only = true;
+  } else {
+    m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+  }
 
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
   if (std::filesystem::exists(m_cached_system_descriptor_path) == false) {
@@ -321,7 +354,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  size_t devices_count = tt::runtime::getNumAvailableDevices();
+  size_t devices_count = m_system_descriptor->chip_desc_indices()->size();
   m_devices.reserve(devices_count);
   m_devices_raw.reserve(devices_count);
   m_addressable_devices_raw.reserve(devices_count);
@@ -352,8 +385,11 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  m_parent_mesh =
-      getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+  // Mesh device requires physical hardware; skip in compile-only mode.
+  if (!m_compile_only) {
+    m_parent_mesh =
+        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+  }
 
   return tt_pjrt_status::kSuccess;
 }
@@ -435,6 +471,14 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
   // Distributed uses FABRIC_1D for now.
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
+
+    // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
+    if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
+        std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+      return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_2D,
+                                           {}};
+    }
+
     uint32_t num_devices = 1;
     for (auto dim : mesh_shape) {
       num_devices *= dim;
@@ -617,7 +661,7 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
 
   ClientInstance *client_instance =
       GlobalClientInstanceSingleton::getClientInstance();
-  assert(client_instance != nullptr);
+  TT_FATAL(client_instance != nullptr, "Client instance is null");
   args->client = reinterpret_cast<PJRT_Client *>(client_instance);
 
   return nullptr;
@@ -630,7 +674,8 @@ PJRT_Error *onClientDestroy(PJRT_Client_Destroy_Args *args) {
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
   ClientInstance *global_client_instance =
       GlobalClientInstanceSingleton::getClientInstance();
-  assert(client_instance == global_client_instance);
+  TT_FATAL(client_instance == global_client_instance,
+           "Client instance doesn't match global client instance");
   GlobalClientInstanceSingleton::destroyClient();
   return nullptr;
 }
