@@ -196,7 +196,7 @@ jobs:
           export TTXLA_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_TYPES=Fabric,Always
-          # export TT_RUNTIME_USING_DUALT3K=1
+          export TT_RUNTIME_USING_DUALT3K=1
 
           pytest -svv \
             tests/torch/multi_host/experimental/test_multihost_basic.py \
