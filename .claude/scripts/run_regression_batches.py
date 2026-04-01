@@ -63,7 +63,12 @@ def gh_api(endpoint: str, jq: str | None = None, retries: int = 3, retry_delay: 
 
 
 def fetch_run_list(github_repo: str, workflow_id: int, starting_run_id: int) -> list[dict]:
-    """Return up to 10 completed runs ordered newest->oldest, starting before starting_run_id."""
+    """Return up to 10 completed runs ordered newest->oldest that precede starting_run_id.
+
+    The starting run itself is excluded from the returned list — it may still be
+    in_progress (not yet in the completed runs API), and we only need the runs
+    to walk *back* through.
+    """
     meta_raw = gh_api(
         f"repos/{github_repo}/actions/runs/{starting_run_id}",
         jq='{id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}'
@@ -90,7 +95,10 @@ def fetch_run_list(github_repo: str, workflow_id: int, starting_run_id: int) -> 
         if not page_runs:
             break
         for r in page_runs:
-            if r.get("conclusion") in ("cancelled", "skipped"):
+            if r["id"] == starting_run_id:
+                # Skip the starting run itself (it may appear here if it completed)
+                continue
+            if r.get("conclusion") in ("skipped",):
                 continue
             collected.append(r)
             if len(collected) >= 10:
