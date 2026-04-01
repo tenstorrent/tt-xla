@@ -46,7 +46,7 @@ def create_device_mesh(mesh_shape) -> Mesh:
 
 
 @pytest.mark.parametrize(
-    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"]
+    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k", "dual_bh_lb"]
 )
 def test_simple_distributed_addition(topology, configure_topology, mesh_shape):
     """
@@ -90,7 +90,7 @@ def test_simple_distributed_addition(topology, configure_topology, mesh_shape):
 
 
 @pytest.mark.parametrize(
-    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"]
+    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k", "dual_bh_lb"]
 )
 def test_matmul_contracting_dim_sharded(topology, configure_topology, mesh_shape):
     """
@@ -141,7 +141,7 @@ def test_matmul_contracting_dim_sharded(topology, configure_topology, mesh_shape
 
 
 @pytest.mark.parametrize(
-    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k"]
+    "topology", ["dual_bh_quietbox", "quad_galaxy", "dual_galaxy", "dual_t3k", "dual_bh_lb"]
 )
 def test_matmul_batch_sharded(topology, configure_topology, mesh_shape):
     """
