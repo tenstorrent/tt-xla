@@ -128,3 +128,28 @@ Use `@pytest.mark.record_test_properties()` to tag tests with:
 ### Python Requirements
 - jax==0.7.1, jaxlib==0.7.1, torch==2.7.0
 - torch-xla (custom build from Tenstorrent PyPI)
+
+## Claude Code Developer Tools
+
+A `tt-xla-dev` plugin provides automated commit/PR workflows. Install it at `~/.claude/plugins/tt-xla-dev/`.
+
+### Slash Commands
+
+| Command | Purpose |
+|---|---|
+| `/tt-xla-dev:local-review` | Review staged changes before creating a PR (lint, diff analysis, test gaps, checklist) |
+| `/tt-xla-dev:ci-review [PR#]` | Fetch and summarize GitHub CI status for a PR |
+| `/tt-xla-dev:create-pr [area]` | Create a PR with proper title, body, reviewers, and labels |
+
+### Commit Message Convention
+
+The `commit-message` skill auto-activates whenever Claude writes a commit. Format:
+
+```
+[Area] Short imperative description
+```
+
+Valid area prefixes: `[vLLM plugin]`, `[vLLM]`, `[CI]`, `[Test Infra]`, `[pjrt]`, `[FX fusing]`, `[test]`, `[build]`, `[tools]`
+
+Full reference: `.claude/commit-template.md`
+PR body template: `.claude/pr-body-template.md`
