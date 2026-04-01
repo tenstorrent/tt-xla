@@ -17,6 +17,7 @@ import torch_xla.runtime as xr
 import tracy
 import transformers
 from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
+from llm_utils.decode_utils import LLMSamplingWrapper
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
@@ -324,17 +325,17 @@ def benchmark_llm_torch_xla(
 
     # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
     if not accuracy_testing:
-        cpu_logits, _ = generate_and_benchmark(
-            model,
+        cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+        cpu_wrapper.eval()
+        cpu_output_logits, _ = generate_and_benchmark(
+            cpu_wrapper,
             input_args,
             torch.device("cpu"),
             1,
-            read_logits_fn=read_logits_fn,
-            tokenizer=tokenizer,
             verbose=False,
+            collect_logits=True,
         )
-        # Only one output makes sense to compare.
-        cpu_logits = cpu_logits[0]
+        cpu_logits = cpu_output_logits[0]
 
     # Transfer model and inputs to device
     input_args = construct_inputs(
@@ -390,25 +391,27 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
-    # Compile model
-    compiled_model = torch.compile(model, backend="tt")
+    # PERFORMANCE BENCHMARK
+    # No logits returned to avoid OOM.
+    perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
+    perf_wrapper.eval()
+    compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
     # Warmup run
     print("Warming up...")
     warmup_tokens = min(MIN_STEPS, max_output_tokens)
     _, _ = generate_and_benchmark(
-        compiled_model,
+        compiled_perf_model,
         input_args,
         device,
         warmup_tokens,
-        read_logits_fn=read_logits_fn,
-        tokenizer=tokenizer,
         verbose=False,
+        collect_logits=False,
     )
 
     tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the actual benchmark run
+    # Reconstruct inputs for the perf benchmark run
     input_args = construct_inputs(
         tokenizer,
         model.config,
@@ -420,20 +423,54 @@ def benchmark_llm_torch_xla(
     )
     input_args = transfer_to_device(input_args, device)
 
-    # Run benchmark once
-    print(f"\nStarting benchmark...")
+    # Run perf benchmark
+    print(f"\nStarting performance benchmark...")
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
-    output_logits, iteration_times = generate_and_benchmark(
-        compiled_model,
+    _, iteration_times = generate_and_benchmark(
+        compiled_perf_model,
         input_args,
         device,
         max_output_tokens,
-        read_logits_fn=read_logits_fn,
-        tokenizer=tokenizer,
         verbose=True,
+        tokenizer=tokenizer,
         ground_truth_tokens=ground_truth_for_benchmark,
+        collect_logits=False,
+    )
+
+    # ACCURACY BENCHMARK
+    # Logits moved to CPU each step to avoid OOM.
+    accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+    accuracy_wrapper.eval()
+    compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
+
+    accuracy_steps = max_output_tokens
+
+    # Reconstruct inputs for accuracy run
+    input_args = construct_inputs(
+        tokenizer,
+        model.config,
+        batch_size,
+        max_cache_len,
+        past_key_values=input_args["past_key_values"],
+        input_prompt=custom_input_prompt,
+        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+    )
+    input_args = transfer_to_device(input_args, device)
+
+    print(
+        f"\nStarting accuracy benchmark "
+        f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
+    )
+    output_logits, _ = generate_and_benchmark(
+        compiled_accuracy,
+        input_args,
+        device,
+        accuracy_steps,
+        verbose=False,
+        ground_truth_tokens=ground_truth_for_benchmark,
+        collect_logits=True,
     )
 
     # Post-processing: derive predicted tokens for accuracy testing

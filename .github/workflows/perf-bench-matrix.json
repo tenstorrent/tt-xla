@@ -427,6 +427,120 @@
         "accuracy-testing": true
       },
       {
+        "name": "falcon3_7b_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "falcon3_10b_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_falcon3_10b_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "llama_3_1_8b_instruct_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_instruct_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true,
+        "batch-size": 16
+      },
+      {
+        "name": "ministral_8b_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_ministral_8b_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "mistral_nemo_instruct_2407_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_mistral_nemo_instruct_2407_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "mistral_small_24b_instruct_2501_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_mistral_small_24b_instruct_2501_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "qwen_2_5_14b_instruct_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_14b_instruct_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "qwen_2_5_coder_32b_instruct_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "qwen_3_8b_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "qwen_3_14b_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_14b_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "qwen_3_32b_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_32b_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "llama_3_1_70b_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true,
+        "batch-size": 16
+      },
+      {
+        "name": "gpt_oss_20b_tp_accuracy",
+        "pyreq": "datasets loguru pytest requests accelerate torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp",
+        "runs-on": "n300-llmbox",
+        "accuracy-testing": true
+      },
+      {
+        "name": "llama_3_1_70b_tp_galaxy_accuracy",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy",
+        "runs-on": "galaxy-wh-6u",
+        "accuracy-testing": true
+      },
+      {
+        "name": "gpt_oss_20b_tp_galaxy_accuracy",
+        "pyreq": "datasets loguru pytest requests accelerate torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_galaxy_batch_size_64",
+        "runs-on": "galaxy-wh-6u",
+        "accuracy-testing": true
+      },
+      {
+        "name": "gpt_oss_120b_tp_galaxy_accuracy",
+        "pyreq": "datasets loguru pytest requests accelerate torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_galaxy_batch_size_64",
+        "runs-on": "galaxy-wh-6u",
+        "accuracy-testing": true
+      },
+      {
         "name": "vllm_llama_3_2_3b",
         "pyreq": "loguru pytest torch==2.9.1 transformers==4.57.6 vllm==0.16.0",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",

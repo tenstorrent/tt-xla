@@ -2259,7 +2259,7 @@ test_config:
 
   yolop/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
-
+    required_pcc: 0.98
 
   owl_vit/pytorch-Base_Patch32-single_device-inference:
     required_pcc: 0.98  # PCC dropped to 0.9837 on n150 0.9836 on p150 - https://github.com/tenstorrent/tt-xla/issues/3182
@@ -2284,6 +2284,7 @@ test_config:
   deformable_detr/pytorch-Deformable_Detr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 18686672896 B DRAM buffer across 12 banks, where each bank needs to store 1557225472 B, but bank size is only 1073741792 B"
+    markers: [large]
 
   deformable_detr/pytorch-Single_Scale-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2660,3 +2661,12 @@ test_config:
   gemma3/causal_lm/pytorch-1B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3860 - AssertionError: PCC comparison failed. Calculated: pcc=0.955831792289353. Required: pcc=0.99
+
+  gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007 "
+
+  gemma3/multimodal/pytorch-google/gemma-3-12b-it-single_device-inference:
+    supported_archs: ["p150"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
