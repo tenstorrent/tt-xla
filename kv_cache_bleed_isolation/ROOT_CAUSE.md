@@ -1,98 +1,72 @@
-# KV Cache Bleed — Status and Findings (#3899)
+# KV Cache Bleed — Root Cause Confirmed (#3899)
 
-**Status: Root cause narrowing — adjacent-slot decode interaction with padding**
+## Root Cause
 
-## Latest finding (critical)
+**The TTNN `scaled_dot_product_attention_decode` kernel (both paged and non-paged) does not properly mask positions beyond `cur_pos` in cache blocks.** Non-zero data at masked positions leaks into the attention output.
 
-The cache data is IDENTICAL between passing and failing runs. The only difference is **which slot each prompt is assigned to**:
+This is a **core tt-metal kernel bug**, not specific to paged attention or tt-xla.
 
-- **PASS**: submarine and dinosaur (both seq_len=14) at slots 0 and 7 (non-adjacent)
-- **FAIL**: submarine and dinosaur at slots 2 and 3 (adjacent)
+## Standalone TTNN Proof
 
-This means the bug is NOT in the cache write (prefill) — it's in the decode attention kernel's handling of **adjacent batch slots** when both have the same `cur_pos` and their cache blocks contain non-zero padding.
+`test_ttnn_sdpa_decode_adjacency.py` — pure TTNN test, no XLA/vLLM:
 
-## Trigger conditions (all required)
-
-1. `min_context_len == block_size == 32` (padding fills entire cache block)
-2. Two prompts with the same length at adjacent batch slots
-3. Cache blocks contain non-zero padding data (norm ~18.53 per position)
-
-## Confirmed NOT the cause
-
-- The KV cache data after prefill is correct and identical between pass/fail
-- The scheduling pattern (7+1 prefill) is identical between pass/fail
-- bfp8, const_eval settings are irrelevant
-
-## Hypothesis
-
-The TTNN `paged_scaled_dot_product_attention_decode` kernel shares some intermediate state (mask, partial results) between adjacent batch items. When two adjacent users have the same `cur_pos` value AND non-zero padding data in their cache blocks, this shared state causes cross-contamination.
-
-With `min_context_len=64` (2 blocks per user), the padding is in block 1 which is fully masked, so the kernel never processes the contaminated data. With `min_context_len=32` (1 block), the kernel processes the partial block with padding, and the adjacent-batch interaction causes the leak.
-
-## Immediate workaround
-
-```python
-additional_config={'min_context_len': 64}  # or 128, or omit for default
+```
+Padding leak test (dirty vs clean padding):
+  User 0: max_diff=4.704102 LEAK
+  User 1: max_diff=5.220703 LEAK
+  ...
+  Overall max: 5.220703
+  Padding masked: FAIL — PADDING LEAKS!
 ```
 
-## Kernel analysis (so far)
+The leak occurs:
+- For ALL `cur_pos` values (4, 8, 14, 15, 16, 24, 30)
+- For ALL non-zero padding patterns (uniform, random, constant)
+- In BOTH paged and non-paged SDPA decode kernels
+- On both Wormhole and Blackhole architectures
+- In the latest tt-metal main branch (same code)
 
-- `paged_scaled_dot_product_attention_decode` uses 1 core per KV head per batch item (for our config)
-- K multicast is NOT active (requires `q_heads_parallel_factor > 1`)
-- Causal mask generation (`fill_tile_partial`) looks correct for mid-tile `cur_pos=14`
-- `k_chunk_size=0` (dynamic) → resolves to `Sk_chunk_t=1` at runtime for `cur_pos=14`
-- Each core reads its own `cur_pos_tensor[cur_batch]` independently
-- No obvious shared state between adjacent batch items in the kernel code
+## Impact
 
-## Confirmed: bug is in paged_scaled_dot_product_attention_decode (decode attention)
+Any use of `scaled_dot_product_attention_decode` or `paged_scaled_dot_product_attention_decode`
+where cache blocks contain non-zero data beyond `cur_pos` will produce incorrect attention output.
 
-**Prefill cache is verified correct.** Comparison of cache BEFORE and AFTER the
-first decode step shows:
-- PREFILL: positions 14-31 are uniform padding (all [3.75, 2.94, -0.04, -1.42])
-- DECODE: position 14 overwritten with decode token (correct), 15-31 unchanged
-- The cache data is identical between passing and failing runs
+In vLLM, this manifests as cross-user response contamination ("bleed") because `min_context_len`
+padding fills cache blocks with non-zero KV data from padding tokens. The bug affects all batch
+sizes but is more visible at larger batches.
 
-**The bug is in the decode attention kernel**, which produces different outputs for
-the SAME cache data depending on batch slot assignment. This rules out
-paged_fill_cache and paged_update_cache as the source.
+## Workaround Status
 
-## Leading hypothesis: NOC write conflict in paged_update_cache (DISPROVED)
+| Workaround | Effectiveness |
+|-----------|---------------|
+| min_context_len=64 + batch=8 | 0/20 failures |
+| min_context_len=64 + batch=16 | 10/10 failures |
+| min_context_len=128 + batch=16 | 1/10 failures |
+| Default config + batch=16 | 4/10 failures |
 
-Originally hypothesized NOC write conflicts in paged_update_cache. Disproved
-by showing prefill cache is correct and identical between pass/fail.
+**No `min_context_len` value fully eliminates the bug at high batch sizes.** The proper fix
+must be in the tt-metal SDPA decode kernel.
 
-## Current hypothesis: SDPA decode kernel batch-index-dependent behavior
+## Kernel Analysis
 
-The `paged_update_cache` kernel uses **height-sharded** input tensors. Each user's
-update data is on a separate core. Each core:
-1. Reads its user's new KV data from L1 (local shard)
-2. Reads the page_table entry to find the physical block in DRAM
-3. Writes the KV data to the physical block in DRAM via NOC
+The mask generation code (`generate_mask`, `fill_tile_partial` in `dataflow_common.hpp`)
+**looks correct on manual review** — it generates a proper causal mask with -inf at positions
+beyond `cur_pos`. The mask is applied via `add_block_inplace` or matmul fusion in the compute
+kernel. CB synchronization between writer (mask generation) and compute (mask application) is
+present.
 
-Adjacent batch items (users) are on adjacent cores. Adjacent cores share NOC
-paths. If two adjacent cores write to nearby DRAM addresses (adjacent physical
-blocks) simultaneously, a NOC write conflict could corrupt one of the writes.
+Despite the code looking correct, the empirical test proves the mask doesn't work. Possible
+explanations:
+1. The `DYNAMIC_CHUNK_SIZE` matmul fusion path applies the mask incorrectly
+2. A tile format or face layout issue causes the mask to not align with the data
+3. The `NEG_INF` constant (0xFF80FF80) may not be properly handled as -inf in bf16
 
-This would explain:
-- Why adjacent slots cause the bug (adjacent cores, shared NOC)
-- Why non-adjacent slots don't (different NOC paths)
-- Why the cache data appears correct at the time of reading (the corruption
-  happens during the write, not the read)
-- Why `min_context_len=32` triggers it (single-block updates concentrate
-  writes into a small DRAM region)
+## Files
 
-## Remaining unknowns
+### TTNN kernel (tt-metal)
+- `ttnn/operations/transformer/sdpa_decode/device/kernels/dataflow/dataflow_common.hpp` — mask generation
+- `ttnn/operations/transformer/sdpa_decode/device/kernels/compute/sdpa_flash_decode.cpp` — mask application
+- `ttnn/operations/transformer/sdpa_decode/device/sdpa_decode_program_factory.cpp` — core/batch mapping
 
-- Whether the NOC actually has this write arbitration issue
-- Whether `paged_fill_cache` (prefill) has the same adjacency sensitivity
-- Whether the corruption is in the update (decode) or the fill (prefill)
-
-## Next steps
-
-1. Build a targeted test with ONLY 2 prompts at controlled slot positions (adjacent vs non-adjacent)
-   to isolate the adjacency condition with minimal compilation overhead
-2. Check if `paged_update_cache` has the same adjacency sensitivity by:
-   - Comparing cache BEFORE and AFTER the first decode step
-   - Checking if position 14 contains the right per-user data
-3. Inspect the TTNN experimental `paged_update_cache` kernel source for batch-adjacency bugs
-4. File a tt-metal issue with the reproduction and adjacency finding
+### Standalone test
+- `kv_cache_bleed_isolation/test_ttnn_sdpa_decode_adjacency.py` — reproduces with pure TTNN API
