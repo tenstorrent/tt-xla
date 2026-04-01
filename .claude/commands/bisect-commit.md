@@ -1,10 +1,5 @@
 # Bisect a test failure between two tt-xla commits
 
-> **NOTE:** Direct bisection via this skill is no longer the preferred approach.
-> Use `.claude/scripts/run_bisect.py` to dispatch bisect jobs to CI (`workflow-bisect.yml`),
-> which runs them in parallel with proper hardware isolation, Docker environment, and mlir
-> uplift detection. Only use this skill for manual/debugging purposes.
-
 Given a test ID, a known-bad commit, a known-good commit, and an error message, find the exact commit that introduced a failure by:
 1. Running the test on the bad commit to reproduce the error
 2. Running the test on the good commit to verify expected behaviour
@@ -12,23 +7,14 @@ Given a test ID, a known-bad commit, a known-good commit, and an error message, 
 
 Each test run follows a fixed sequence: restart chip → source venv → checkout commit → update submodules → download and install CI wheel → run test. Full output of every run is saved as `<commit_hash>.log` inside the test's log directory.
 
-## Preferred approach: CI-based bisect
-
-For bisecting a regression report, use:
-```
-python .claude/scripts/run_bisect.py bisection/regression_report_<run_id>.json n150 n300
-```
-This dispatches all qualifying tests to the `workflow-bisect.yml` GitHub Actions workflow,
-which runs all jobs in parallel on actual hardware with the correct Docker environment.
-
-## Manual usage (debugging only)
+## Usage
 
 ```
 /bisect-commit test_id="<id>" first_bad_sha="<sha>" last_good_sha="<sha>" known_error="<error>" [expected_good_outcome="<outcome>"] [log_dir="<path>"]
 ```
 
 **Arguments** (from `$ARGUMENTS`):
-- `test_id` — full pytest test ID, e.g. `tests/runner/test_models.py::test_all_models_torch[inception/pytorch-v4_OSMR-data_parallel-inference]`
+- `test_id` — pytest test ID, e.g. `inception/pytorch-v4_OSMR-data_parallel-inference`
 - `first_bad_sha` — the known-bad commit SHA (full or short)
 - `last_good_sha` — the known-good commit SHA (full or short)
 - `known_error` — the error message observed on the bad commit (used as reference for bisect)
@@ -37,7 +23,7 @@ which runs all jobs in parallel on actual hardware with the correct Docker envir
 
 **Examples:**
 ```
-/bisect-commit test_id="tests/runner/test_models.py::test_all_models_torch[inception/pytorch-v4_OSMR-data_parallel-inference]" first_bad_sha="afe4486f" last_good_sha="1e5781dc" known_error="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.97." log_dir="bisection/bisect/inception_pytorch-v4_OSMR-data_parallel-inference_n150"
+/bisect-commit test_id="inception/pytorch-v4_OSMR-data_parallel-inference" first_bad_sha="afe4486f" last_good_sha="1e5781dc" known_error="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.97." log_dir="bisection/bisect/inception_pytorch-v4_OSMR-data_parallel-inference_n150"
 ```
 
 ---
@@ -187,7 +173,7 @@ uv pip install "$WHEEL" --quiet
 LOG="$LOG_DIR/<SHORT>.log"
 echo "=== Running test: $TEST_ID ==="
 cd "$BISECT_REPO"
-pytest "$TEST_ID" \
+pytest "tests/runner/test_models.py::test_all_models_torch[$TEST_ID]" \
   --no-header -rN \
   --timeout=300 \
   2>&1 | tee "$LOG"
@@ -334,7 +320,7 @@ uv pip install "$WHEEL" --quiet
 # ---- Step 7: Run test from BISECT_REPO ----
 echo "=== Running test: $TEST_ID ===" | tee -a "$SUMMARY"
 cd "$BISECT_REPO"
-pytest "$TEST_ID" \
+pytest "tests/runner/test_models.py::test_all_models_torch[$TEST_ID]" \
   --no-header -rN \
   --timeout=300 \
   2>&1 | tee "$LOG"
