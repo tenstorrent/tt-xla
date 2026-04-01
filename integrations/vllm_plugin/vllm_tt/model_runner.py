@@ -1032,7 +1032,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if num_reqs > 1 and os.environ.get("DEBUG_BLOCK_TABLE"):
             all_blocks = {}  # physical_block -> list of (slot, logical_idx)
             for slot in range(num_reqs):
-                n_blocks = (seq_lens[slot].item() + self.block_size - 1) // self.block_size
+                n_blocks = (
+                    seq_lens[slot].item() + self.block_size - 1
+                ) // self.block_size
                 for b in range(n_blocks):
                     phys = page_table[slot, b].item()
                     if phys not in all_blocks:
@@ -1044,14 +1046,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 for phys, slots in overlaps.items():
                     print(f"  Physical block {phys} used by: {slots}", flush=True)
             # Always log block table for first few decode steps
-            if not hasattr(self, '_debug_bt_count'):
+            if not hasattr(self, "_debug_bt_count"):
                 self._debug_bt_count = 0
             self._debug_bt_count += 1
             if self._debug_bt_count <= 3:
-                print(f"DEBUG_BT step={self._debug_bt_count} num_reqs={num_reqs} seq_lens={seq_lens[:num_reqs].tolist()}", flush=True)
+                print(
+                    f"DEBUG_BT step={self._debug_bt_count} num_reqs={num_reqs} seq_lens={seq_lens[:num_reqs].tolist()}",
+                    flush=True,
+                )
                 for slot in range(num_reqs):
-                    n_blocks = (seq_lens[slot].item() + self.block_size - 1) // self.block_size
-                    print(f"  Slot {slot}: blocks={page_table[slot, :n_blocks].tolist()}", flush=True)
+                    n_blocks = (
+                        seq_lens[slot].item() + self.block_size - 1
+                    ) // self.block_size
+                    print(
+                        f"  Slot {slot}: blocks={page_table[slot, :n_blocks].tolist()}",
+                        flush=True,
+                    )
 
         cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
@@ -1344,6 +1354,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     inputs_embeds=inputs_embeds,
                 )
 
+            # DEBUG: Dump full cache block at first decode step
+            if os.environ.get("DEBUG_KV_DUMP"):
+                is_decode_step = all(
+                    scheduler_output.num_scheduled_tokens.get(
+                        self.input_batch.req_ids[i], 0
+                    )
+                    == 1
+                    for i in range(num_reqs)
+                )
+                prev_num_reqs = getattr(self, "_debug_prev_num_reqs", 0)
+                if num_reqs < prev_num_reqs:
+                    self._debug_kv_dumped_this_batch = False
+                self._debug_prev_num_reqs = num_reqs
+                dumped = getattr(self, "_debug_kv_dumped_this_batch", False)
+                if is_decode_step and not dumped and num_reqs >= 7:
+                    self._debug_kv_dumped_this_batch = True
+                    import json
+
+                    cache = self.kv_caches[0].cpu()
+                    pt = attn_metadata[list(attn_metadata.keys())[0]].page_table.cpu()
+                    cp = attn_metadata[
+                        list(attn_metadata.keys())[0]
+                    ].cache_position.cpu()
+                    print(
+                        f"\nDEBUG_KV: decode num_reqs={num_reqs} cache_positions={cp[:num_reqs].tolist()}",
+                        flush=True,
+                    )
+                    for slot in range(min(num_reqs, 8)):
+                        toks = self.input_batch.token_ids_cpu_tensor[slot, :5].tolist()
+                        seq_len = cp[slot].item()
+                        phys = pt[slot, 0].item()
+                        # L2 norm of each position in the cache block (head 0)
+                        norms = []
+                        for pos in range(self.block_size):
+                            n = cache[0, phys, 0, pos, :].float().norm().item()
+                            norms.append(f"{n:.2f}")
+                        print(
+                            f"  Slot {slot} (seq={seq_len} blk={phys} toks={toks}): k_norms={norms}",
+                            flush=True,
+                        )
+
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
@@ -1360,8 +1411,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
-            if not hasattr(self, '_logged_sampling_device'):
-                logger.warning("Sampling on %s (cpu_sampling=%s)", sampling_device, self.tt_config.cpu_sampling)
+            if not hasattr(self, "_logged_sampling_device"):
+                logger.warning(
+                    "Sampling on %s (cpu_sampling=%s)",
+                    sampling_device,
+                    self.tt_config.cpu_sampling,
+                )
                 self._logged_sampling_device = True
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -1385,7 +1440,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits, tpu_sampling_metadata
                 )
             else:
-                if not hasattr(self, '_logged_device_sampling'):
+                if not hasattr(self, "_logged_device_sampling"):
                     logger.warning("Using DEVICE sampling path")
                     self._logged_device_sampling = True
                 selected_token_ids = self.sample_from_logits(
@@ -1911,7 +1966,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if not self.tt_config.cpu_sampling:
                 self._precompile_sample_from_logits()
             else:
-                logger.warning("cpu_sampling=True: skipping device sampling precompilation")
+                logger.warning(
+                    "cpu_sampling=True: skipping device sampling precompilation"
+                )
             self._precompile_gather_logprobs()
 
     def profile_run(
@@ -2195,7 +2252,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             penalty_factor = torch.where(logits > 0, torch.reciprocal(rep_pen), rep_pen)
             logits = torch.where(rep_mask, logits * penalty_factor, logits)
             freq_pen = sampling_metadata.frequency_penalties.cpu().unsqueeze(1)
-            logits -= freq_pen * sampling_metadata.output_token_counts.cpu().to(logits.dtype)
+            logits -= freq_pen * sampling_metadata.output_token_counts.cpu().to(
+                logits.dtype
+            )
             pres_pen = sampling_metadata.presence_penalties.cpu().unsqueeze(1)
             logits -= pres_pen * occurred_output.to(logits.dtype)
 
@@ -2216,7 +2275,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 k = int(top_k[i].item())
                 if k > 0 and k < logits.size(1):
                     topk_vals, _ = torch.topk(logits[i], k)
-                    logits[i][logits[i] < topk_vals[-1]] = float('-inf')
+                    logits[i][logits[i] < topk_vals[-1]] = float("-inf")
 
         # Apply top-p
         if sampling_metadata.top_p is not None:
@@ -2224,10 +2283,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for i in range(logits.size(0)):
                 p = float(top_p[i].item())
                 if p < 1.0:
-                    sorted_logits, sorted_indices = torch.sort(logits[i], descending=True)
-                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                    sorted_logits, sorted_indices = torch.sort(
+                        logits[i], descending=True
+                    )
+                    cumulative_probs = torch.cumsum(
+                        torch.softmax(sorted_logits, dim=-1), dim=-1
+                    )
                     mask = cumulative_probs - torch.softmax(sorted_logits, dim=-1) >= p
-                    sorted_logits[mask] = float('-inf')
+                    sorted_logits[mask] = float("-inf")
                     logits[i] = sorted_logits.scatter(0, sorted_indices, sorted_logits)
 
         # Sample from distribution
