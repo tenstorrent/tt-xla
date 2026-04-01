@@ -1435,6 +1435,41 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
+
+            # DEBUG: Dump top token per user at first decode step
+            if os.environ.get("DEBUG_LOGITS"):
+                is_decode = all(
+                    scheduler_output.num_scheduled_tokens.get(
+                        self.input_batch.req_ids[i], 0
+                    )
+                    == 1
+                    for i in range(num_reqs)
+                )
+                prev_nr_logits = getattr(self, "_debug_prev_nr_logits", 0)
+                if num_reqs < prev_nr_logits:
+                    self._debug_logits_dumped = False
+                self._debug_prev_nr_logits = num_reqs
+                if (
+                    is_decode
+                    and not getattr(self, "_debug_logits_dumped", False)
+                    and num_reqs >= 7
+                ):
+                    self._debug_logits_dumped = True
+                    logits_cpu = logits.cpu().float()
+                    from transformers import AutoTokenizer
+
+                    tok = AutoTokenizer.from_pretrained(
+                        self.vllm_config.model_config.model
+                    )
+                    print(f"\nDEBUG_LOGITS: first decode, {num_reqs} users", flush=True)
+                    for i in range(min(num_reqs, 16)):
+                        top5 = logits_cpu[i].topk(5)
+                        tokens = [tok.decode([t.item()]) for t in top5.indices]
+                        toks_in = self.input_batch.token_ids_cpu_tensor[i, :5].tolist()
+                        print(
+                            f"  User {i} (input={toks_in}): top5={list(zip(tokens, [f'{v:.2f}' for v in top5.values.tolist()]))}",
+                            flush=True,
+                        )
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
