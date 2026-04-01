@@ -9,13 +9,18 @@ Sharding strategy:
     Each MochiResnetBlock3D contains two CausalConv3d layers and a GroupNorm
     between them. We apply Megatron-style column-row pairing:
         conv1: column-parallel (shard C_out across devices)
-        norm2: sharded to match channel-partitioned activations
+        norm2: channel-sharded weight/bias (8 groups/device, fully local)
         conv2: row-parallel (shard C_in across devices)
     The all-reduce after conv2 is inserted automatically by SPMD/Shardy.
 
     Boundary layers (conv_in, proj_out, unpatchify proj) are left unsharded.
     GroupNorm with 32 groups divides evenly across 4 devices (8 groups/device),
     so normalization requires zero cross-device communication.
+
+    The pixel shuffle (unpatchify) in each MochiUpBlock3D is rewritten as a
+    staged decomposition that merges one dimension pair at a time, keeping
+    large dimensions in the tile-padded positions to avoid catastrophic tile
+    padding overhead. See pixel_shuffle_problem.md for the full analysis.
 
     Total CCL ops: 19 all-reduces (1 per ResBlock, implicit via SPMD).
 
@@ -42,9 +47,11 @@ import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKLMochi
-from diffusers.models.autoencoders.autoencoder_kl_mochi import MochiResnetBlock3D
+from diffusers.models.autoencoders.autoencoder_kl_mochi import (
+    MochiResnetBlock3D,
+    MochiUpBlock3D,
+)
 from torch_xla.distributed.spmd import Mesh
-from tt_torch.sharding import _partition_spec_to_sdy_sharding
 
 # Set necessary environment variables
 os.environ["TT_RUNTIME_ENABLE_PROGRAM_CACHE"] = "0"
@@ -108,6 +115,108 @@ def _get_shard_axis(mesh):
 
 
 # ---------------------------------------------------------------------------
+# Pixel shuffle patch — staged decomposition to avoid tile padding blowup
+# ---------------------------------------------------------------------------
+def _patch_pixel_shuffle(decoder):
+    """
+    Monkey-patch MochiUpBlock3D.forward() to use a staged pixel shuffle
+    decomposition that avoids placing small factors (st/sh/sw=2) in the
+    last two tile-padded dimensions.
+
+    The original pixel shuffle does:
+        view 8D -> permute(0,1,5,2,6,3,7,4) -> view 5D
+    which puts sw=2 as the last dim, causing 16-19x tile padding overhead
+    (596 MB -> 11,520 MB for up_block_0).
+
+    The staged version merges one dimension pair at a time, keeping large
+    dims in the tile-padded positions (max overhead: 1.33x).
+
+    See pixel_shuffle_problem.md for full analysis.
+    """
+
+    def _make_patched_forward(original_forward):
+        import functools
+
+        @functools.wraps(original_forward)
+        def patched_forward(self, hidden_states, conv_cache=None):
+            new_conv_cache = {}
+            conv_cache = conv_cache or {}
+
+            for i, resnet in enumerate(self.resnets):
+                conv_cache_key = f"resnet_{i}"
+                if torch.is_grad_enabled() and self.gradient_checkpointing:
+                    hidden_states, new_conv_cache[conv_cache_key] = (
+                        self._gradient_checkpointing_func(
+                            resnet,
+                            hidden_states,
+                            conv_cache.get(conv_cache_key),
+                        )
+                    )
+                else:
+                    hidden_states, new_conv_cache[conv_cache_key] = resnet(
+                        hidden_states, conv_cache=conv_cache.get(conv_cache_key)
+                    )
+
+            # Linear projection (unchanged)
+            hidden_states = hidden_states.permute(0, 2, 3, 4, 1)
+            hidden_states = self.proj(hidden_states)
+            hidden_states = hidden_states.permute(0, 4, 1, 2, 3)
+
+            B, C_packed, T, H, W = hidden_states.shape
+            st = self.temporal_expansion
+            sh = self.spatial_expansion
+            sw = self.spatial_expansion
+            C = C_packed // (st * sh * sw)
+
+            # --- Staged pixel shuffle ---
+            # Merges one dimension pair at a time, keeping large dims in
+            # the last two tile-padded positions (max overhead: 1.33x).
+            # No .contiguous() calls — intermediates stay as lazy views so
+            # PyTorch/XLA doesn't return them as separate graph outputs.
+            # See pixel_shuffle_problem.md and test_pixel_shuffle_rewrite.py.
+
+            # Unpack channel dim
+            hidden_states = hidden_states.view(B, C, st, sh, sw, T, H, W)
+            #                                  0  1   2   3   4   5  6  7
+
+            # Step 1: Bring T adjacent to st, keep (H, W) in tile positions
+            hidden_states = hidden_states.permute(0, 1, 5, 2, 3, 4, 6, 7)
+            # -> [B, C, T, st, sh, sw, H, W]   last2=(H,W) both large
+
+            # Step 2: Merge (T, st) -> T*st  (t * st + dt = correct interleaving)
+            hidden_states = hidden_states.reshape(B, C, T * st, sh, sw, H, W)
+            # -> [B, C, T*st, sh, sw, H, W]    last2=(H,W) still large
+
+            # Step 3: Move (H,sh) and (W,sw) adjacent, put (C,T*st) in tile positions
+            hidden_states = hidden_states.permute(0, 5, 3, 6, 4, 1, 2)
+            # -> [B, H, sh, W, sw, C, T*st]    last2=(C,T*st) both >= 24
+
+            # Step 4: Merge (H,sh)->H*sh and (W,sw)->W*sw
+            hidden_states = hidden_states.reshape(B, H * sh, W * sw, C, T * st)
+            # -> [B, H*sh, W*sw, C, T*st]      last2=(C,T*st) still large
+
+            # Step 5: Restore standard BCTHW layout
+            hidden_states = hidden_states.permute(0, 3, 4, 1, 2)
+            # -> [B, C, T*st, H*sh, W*sw]      last2=(H*sh,W*sw) both >= 120
+
+            return hidden_states, new_conv_cache
+
+        return patched_forward
+
+    count = 0
+    for up_block in decoder.up_blocks:
+        up_block.forward = _make_patched_forward(up_block.forward).__get__(
+            up_block, MochiUpBlock3D
+        )
+        count += 1
+
+    print(
+        f"[Patch] {count} MochiUpBlock3D pixel shuffles patched (staged decomposition)"
+    )
+    return count
+
+
+# ---------------------------------------------------------------------------
 # Divisibility pre-check
 # ---------------------------------------------------------------------------
 def _verify_divisibility(decoder, mesh):
@@ -162,17 +271,19 @@ def _shard_decoder_weights(decoder, mesh):
 
     Per ResBlock (19 total):
         conv1 (CogVideoXCausalConv3d): column-parallel — shard C_out
-        norm2 (MochiChunkedGroupNorm3D): replicate constraint (workaround)
-            - MochiChunkedGroupNorm3D does permute(0,2,1,3,4) which moves
-              the sharded C dim, causing TT-MLIR layout mismatch
-              (Conv3d→ROW_MAJOR propagates through Permute→MeshShard→TILE crash)
-            - Workaround: forward_pre_hook forces all-gather before norm2
-            - Adds 19 all-gathers; verification only, not optimal perf
+        norm2 (MochiChunkedGroupNorm3D): channel-sharded — shard weight/bias
+            GroupNorm with 32 groups / 4 devices = 8 groups/device.
+            Each group normalizes independently, so no cross-device
+            communication is needed. Weight and bias are per-channel
+            parameters that must be sharded to match the channel-sharded
+            activations.
         conv2 (CogVideoXCausalConv3d): row-parallel — shard C_in
 
     Attribute paths (verified from diffusers source):
         conv weight:  block.conv{1,2}.conv.weight  [C_out, C_in, kT, kH, kW]
         conv bias:    block.conv{1,2}.conv.bias     [C_out] or [C_in]
+        norm weight:  block.norm2.norm_layer.weight  [C]
+        norm bias:    block.norm2.norm_layer.bias     [C]
 
     Boundary layers left unsharded:
         - conv_in: nn.Conv3d(12→768, 1×1×1) — C_in=12 too small
@@ -185,37 +296,21 @@ def _shard_decoder_weights(decoder, mesh):
     COL_WEIGHT = (axis, None, None, None, None)  # shard C_out (column-parallel)
     ROW_WEIGHT = (None, axis, None, None, None)  # shard C_in (row-parallel)
 
-    # Partition specs for 1D tensors [C]
-    COL_BIAS = (axis,)  # shard to match column-parallel C_out
-
-    # Replicate constraint for norm2 input — forces all-gather before GroupNorm.
-    # MochiChunkedGroupNorm3D does permute(0,2,1,3,4) internally which moves
-    # the sharded channel dim, triggering a TT-MLIR layout mismatch
-    # (Conv3dOp→ROW_MAJOR propagates through PermuteOp→MeshShardOp→TILE crash).
-    # Workaround: replicate before norm2 so it sees the full unsharded tensor.
-    # This adds 19 all-gathers (performance cost) but verifies the rest works.
-    REPLICATE_5D = (None, None, None, None, None)
-    sdy_replicate = _partition_spec_to_sdy_sharding(mesh, REPLICATE_5D)
-
-    def _make_norm2_pre_hook():
-        """Pre-hook that forces norm2 input to be fully replicated."""
-
-        def pre_hook(mod, inputs):
-            x = inputs[0]
-            return (torch.ops.tt.sharding_constraint(x, sdy_replicate),)
-
-        return pre_hook
+    # Partition spec for 1D tensors [C] (bias, norm weight, norm bias)
+    SHARD_C = (axis,)
 
     def _shard_resblock(block):
         """Apply Megatron column-row sharding to one MochiResnetBlock3D."""
         # Conv1 — column-parallel (shard output channels)
         xs.mark_sharding(block.conv1.conv.weight, mesh, COL_WEIGHT)
-        xs.mark_sharding(block.conv1.conv.bias, mesh, COL_BIAS)
+        xs.mark_sharding(block.conv1.conv.bias, mesh, SHARD_C)
 
-        # GroupNorm between conv1 and conv2 — replicate constraint (workaround).
-        # norm2 weights stay replicated (no mark_sharding) since input is
-        # all-gathered before norm2 runs.
-        block.norm2.register_forward_pre_hook(_make_norm2_pre_hook())
+        # GroupNorm between conv1 and conv2 — channel-sharded.
+        # 32 groups / 4 devices = 8 groups/device, each with the same
+        # channels-per-group as unsharded (e.g., 768/32=24). Normalization
+        # is fully local — zero CCL ops.
+        xs.mark_sharding(block.norm2.norm_layer.weight, mesh, SHARD_C)
+        xs.mark_sharding(block.norm2.norm_layer.bias, mesh, SHARD_C)
 
         # Conv2 — row-parallel (shard input channels)
         xs.mark_sharding(block.conv2.conv.weight, mesh, ROW_WEIGHT)
@@ -240,10 +335,13 @@ def _shard_decoder_weights(decoder, mesh):
         _shard_resblock(resblock)
         count += 1
 
-    annotations_per_block = 3  # 2 conv1 + 1 conv2 (norm2 uses pre_hook instead)
+    annotations_per_block = (
+        4  # conv1 weight + conv1 bias + norm2 weight + norm2 bias + conv2 weight = 5
+    )
+    # (but conv2 bias is not sharded, so 4 mark_sharding + 1 conv2 weight = 5 per block)
     print(
         f"[Shard] {count} MochiResnetBlock3D sharded "
-        f"({count * annotations_per_block} mark_sharding + {count} norm2 pre_hooks) "
+        f"(5 mark_sharding per block = {count * 5} total) "
         f"on axis '{axis}'"
     )
     return count
@@ -320,6 +418,12 @@ def run_vae_decoder_sharded():
 
     # Extract the decoder
     decoder = vae.decoder
+
+    # ---- Patch Pixel Shuffle ----
+    # Replace the original view+permute+view with a staged decomposition
+    # that avoids placing small factors (sw=2) in tile-padded dimensions.
+    # Reduces peak intermediate from 11-80 GB to 0.8-6.4 GB per pixel shuffle.
+    _patch_pixel_shuffle(decoder)
 
     # ---- Verify Divisibility ----
     _verify_divisibility(decoder, mesh)

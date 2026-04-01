@@ -195,40 +195,194 @@ A tensor that should be 596 MB occupies **11.25 GB** of DRAM on a single 32 GB d
 
 The tt-swiss memory report (`/root/.ttmem/reports/decoder-sharded/`) confirms this
 analysis. The report tracks per-operation DRAM allocation across 8 DRAM banks on a
-single Blackhole device (32 GB total).
+single Blackhole device (32 GB total, 4,075 MB per bank).
 
-### Memory trajectory around the first pixel shuffle (up_block_0)
+### 4.1 The full pixel shuffle pipeline: op-by-op
 
-| Op Index | Operation | Shape | Alloc/Bank | Total Alloc |
-|----------|-----------|-------|------------|-------------|
-| 1292 | Linear projection | 50880x6144 | 482 MB | 3,858 MB |
-| 1295 | Permute (5D->5D) | 1x6144x8x60x106 | 636 MB | 5,090 MB |
-| 1297 | Reshape (5D->8D) | 1x512x3x2x2x8x60x106 | 732 MB | 5,858 MB |
-| **1298** | **Permute (8D->8D)** | **1x512x8x3x60x2x106x2** | **732 MB** | **5,858 MB** |
-| **1299** | **Reshape (8D->5D)** | **1x512x24x120x212** | **2,172 MB** | **17,378 MB** |
-| 1308 | (tensors settled) | ... | 2,251 MB | 18,010 MB |
+The pixel shuffle for up_block_0 spans ops 1285-1320. Below is **every operation**,
+showing both physical DRAM allocation (what the allocator reserves) and logical tensor
+memory (padded vs unpadded). This lets us pinpoint exactly which op causes the explosion.
 
-The 11,520 MB allocation materializes at op 1299 (the reshape that consumes the 8D
-tensor). After the pixel shuffle completes, live tensor data is only ~98 MB, but the
-allocator has consumed 18,010 MB -- **~14 GB of permanent fragmentation** from the
-spike.
+#### Phase 1: Preparation (ops 1285-1291)
 
-### What the report covers
+The ResBlock output feeds into a channel-last permute and linear projection:
+
+| Op | Type | Source | Output Shape | Padded (MB) | Alloc/Bank | Delta/Bank | Live Tensors |
+|----|------|--------|-------------|-------------|------------|------------|--------------|
+| 1285 | ttnn.add | aten\_\_add | 1x768x8x60x106 | 96 | 474.0 | +0.0 | 2 |
+| 1286 | ttnn.to\_layout | layout convert | 1x768x8x60x106 | 96 | 461.3 | -12.8 | 2 |
+| 1287 | ttnn.permute | aten\_\_permute | 1x8x60x106x768 | 90 | 473.3 | +12.0 | 2 |
+| 1288 | ttnn.to\_layout | layout convert | 1x8x60x106x768 | 90 | 471.8 | -1.5 | 3 |
+| 1289 | ttnn.reshape | reshape for matmul | 50880x768 | 75 | 483.0 | +11.3 | 3 |
+| 1290 | ttnn.to\_layout | weight prep | 6144x768 | 9 | 481.1 | -1.9 | 4 |
+| 1291 | ttnn.to\_layout | bias prep | 6144 | 0.4 | 482.2 | +1.1 | 5 |
+
+Nothing unusual here. Memory fluctuates modestly as tensors are reshaped and prepared
+for the linear projection. Overhead is minimal (all dims are large enough for
+reasonable tile alignment).
+
+#### Phase 2: Linear projection (op 1292)
+
+| Op | Type | Source | Output Shape | Padded (MB) | Alloc/Bank | Delta/Bank | Unpadded Total | Padded Total |
+|----|------|--------|-------------|-------------|------------|------------|----------------|--------------|
+| **1292** | **ttnn.linear** | **aten\_\_add** | **50880x6144** | **596** | **482.2** | **+0.05** | **1,267 MB** | **1,536 MB** |
+
+The linear projection expands channels from 768 to 6144 (= 512 * 3 * 2 * 2). The
+output is 596 MB with **zero tiling overhead** -- both dimensions (50880, 6144) are
+large and tile-aligned. Memory barely changes because old intermediates are freed.
+
+**Overhead ratio: 1,536 / 1,267 = 1.21x (21%) -- perfectly normal.**
+
+#### Phase 3: Reshape to channels-first 5D (ops 1293-1296)
+
+| Op | Type | Source | Output Shape | Padded (MB) | Alloc/Bank | Delta/Bank | Unpadded Total | Padded Total | Overhead |
+|----|------|--------|-------------|-------------|------------|------------|----------------|--------------|----------|
+| 1293 | ttnn.reshape | aten\_\_add | 1x8x60x106x6144 | 720 | 546.3 | +64.0 | 1,267 | 1,536 | 1.21x |
+| 1294 | ttnn.to\_layout | layout convert | 1x8x60x106x6144 | 720 | 546.3 | +0.0 | 1,267 | 1,536 | 1.21x |
+| 1295 | ttnn.permute | aten\_\_permute | 1x6144x8x60x106 | 768 | 636.3 | +90.0 | 1,267 | 1,632 | 1.29x |
+| 1296 | ttnn.to\_layout | layout convert | 1x6144x8x60x106 | 768 | 636.3 | +0.0 | 1,267 | 1,632 | 1.29x |
+
+Reshaping from 2D matmul output back to 5D, then permuting to channels-first layout
+`[1, 6144, 8, 60, 106]`. The 5D tensor is 768 MB padded (vs 596 MB logical = 1.29x
+overhead from 60->64 and 106->128 padding). **Still reasonable.**
+
+#### Phase 4: THE EXPLOSION -- reshape to 8D + permute (ops 1297-1299)
+
+| Op | Type | Source | Output Shape | Padded Output (MB) | Alloc/Bank | Delta/Bank | Unpadded Total | Padded Total | **Overhead** |
+|----|------|--------|-------------|---------------------|------------|------------|----------------|--------------|----------|
+| 1297 | ttnn.reshape | aten\_\_view | 1x512x3x2x2x8x60x106 | 768 | 732.3 | +96.0 | 1,863 | **2,352** | **1.26x** |
+| **1298** | **ttnn.permute** | **aten\_\_permute** | **1x512x8x3x60x2x106x2** | **11,520** | **732.3** | **+0.0** | **1,863** | **13,104** | **7.03x** |
+| **1299** | **ttnn.reshape** | **aten\_\_view** | **1x512x24x120x212** | **672** | **2,172.3** | **+1,440.0** | **2,460** | **13,776** | **5.60x** |
+
+**This is the critical sequence. Let's walk through each op:**
+
+**Op 1297** -- `reshape [1,6144,8,60,106] -> [1,512,3,2,2,8,60,106]`:
+Factoring 6144 = 512 * 3 * 2 * 2 into separate dimensions. This is a **metadata-only**
+reshape -- same physical data, same tiling. Last two dims are still (60, 106) which
+tile to (64, 128). Padded output is 768 MB. Overhead is only 1.26x. **Nothing wrong
+here.**
+
+**Op 1298** -- `permute [1,512,3,2,2,8,60,106] -> [1,512,8,3,60,2,106,2]`:
+This is the interleaving permute. It moves the last dim from 106 (large) to 2 (tiny).
+The padded output is **11,520 MB** -- a 19.32x blowup from the 596 MB of logical data.
+
+> **Critical detail**: At op 1298, `alloc/bank` does NOT change (stays at 732.3 MB).
+> The permute is initially represented as a **lazy view** -- the runtime has not yet
+> allocated the padded physical memory. But the aggregate `padded_total` jumps from
+> 2,352 to 13,104 MB (+10,752 MB), showing the future allocation requirement.
+
+**Op 1299** -- `reshape [1,512,8,3,60,2,106,2] -> [1,512,24,120,212]`:
+This reshape consumes the 8D tensor and produces a well-shaped 5D output (672 MB).
+**This is where the 8D tensor is physically materialized.** The allocator must allocate
+the full 11,520 MB to read the permuted data and write the 5D output:
+
+```
+alloc/bank: 732.3 -> 2,172.3 MB  (+1,440.0 MB/bank)
+Total:    5,858   -> 17,378  MB  (+11,520 MB across 8 banks)
+                                   ^^^^^^^ exactly the padded 8D tensor size
+```
+
+#### Phase 5: Aftermath -- memory never recovers (ops 1300-1320)
+
+| Op | Type | Source | Output Shape | Alloc/Bank | Unpadded Total | Padded Total | Overhead |
+|----|------|--------|-------------|------------|----------------|--------------|----------|
+| 1300 | ttcore.load\_cached | const eval | 1x1x1x1 | 2,251.0 | 2,460 | 2,256 | 0.92x |
+| 1301 | ttnn.full | -- | -- | 2,251.0 | -- | -- | -- |
+| 1302 | ttnn.reshape | aten\_\_sub\_tm1 | 1x1x1x1 | 2,251.0 | 671 | **2,256** | **3.36x** |
+| ... | (GroupNorm weight/bias prep) | ... | ... | ~2,251 | -- | -- | -- |
+| 1316 | ttnn.to\_layout | layout convert | 1x512x24x120x212 | 2,251.1 | 1,440 | 1,440 | 1.00x |
+| 1317 | ttnn.permute | aten\_\_permute | 1x24x512x120x212 | 2,335.1 | 1,440 | 1,536 | 1.07x |
+| 1318 | ttnn.reshape | aten\_\_view | 24x512x120x212 | 2,335.1 | 1,440 | 1,536 | 1.07x |
+| 1319 | ttnn.slice\_static | xla\_\_select | 8x512x120x212 | 2,335.1 | -- | -- | -- |
+| 1320 | ttnn.typecast | xla\_\_cast | 8x512x120x212 | 2,363.1 | -- | -- | -- |
+
+**Key observation at op 1302**: The padded total drops from 13,776 to 2,256 MB --
+the 8D tensor is logically dead. **But `alloc/bank` stays at 2,251 MB.** The physical
+DRAM is never reclaimed. The free-list allocator has the memory marked as free, but
+surviving small allocations (constants loaded at op 1300) split the freed region into
+non-contiguous fragments.
+
+```
+Memory state after pixel shuffle settles (op ~1308):
+  ┌────────────────────────────────────────────────────────────┐
+  │                    DRAM Bank (4,075 MB)                     │
+  ├──────────┬──────────────────────────┬──────────┬───────────┤
+  │ weights  │   freed (fragmented)     │ const    │   free    │
+  │ ~453 MB  │ hole from 11,520 MB      │ ~79 MB   │ 1,824 MB  │
+  │          │ alloc (never compacted)  │          │           │
+  ├──────────┴──────────────────────────┴──────────┴───────────┤
+  │ alloc/bank = 2,251 MB                free/bank = 1,824 MB  │
+  │ But live tensor data ≈ 98 MB         Contiguous ≈ 1,824 MB │
+  └────────────────────────────────────────────────────────────┘
+```
+
+The 11,520 MB allocation pushed the high-water mark up. Even though the memory was
+freed, a small constant allocated at op 1300 sits at a higher address, preventing the
+allocator from compacting the free space back down to the pre-pixel-shuffle level.
+
+### 4.2 The full memory trajectory visualization
+
+```
+alloc/bank (MB)
+  │
+  │                                                           Peak: 3,372
+  │                                                          ╱
+3000├──────────────────────────────────────────────────────── ╱ ──
+  │                                                     ╱  ╱
+  │                                          up_block_1 ╱  ╱
+2500├──────────────────────────────────────── ╱ ────────╱──╱───
+  │                              ╱         ╱        ╱
+  │                        ╱   ╱ conv3d  ╱ conv3d ╱
+2000├────────────────── ╱──╱───╱─────────╱───────╱─────────
+  │              ╱   ╱  ╱
+  │        ╱╱╱╱╱  ╱  ╱  ╱  up_block_1 ResBlocks
+  │     ╱╱╱╱    ╱  ╱  ╱
+  │  ╱╱╱       ╱  ╱  ╱                                 ◄── OOM at op 1812
+1500├────────╱──╱──╱──────────────────────────────────────
+  │       ╱  ╱  ╱
+  │      ╱  ╱  ╱
+  │     ╱  ╱  ╱
+1000├───╱──╱──╱───────────────────────────────────────────
+  │  ╱  ╱  ╱
+  │ ╱  ╱  ╱
+  │╱  ╱  ╱
+ 500├─╱──╱────────────────────────────────────────────────
+  │╱╱                ▲
+  │▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓█
+  │   block_in +     █ PIXEL SHUFFLE
+  │   up_block_0     █ +1,440 MB/bank
+  │   9 ResBlocks    █ in ONE op
+  0├─────────────────────────────────────────────────────→ op index
+   0   200  400  600  800 1000 1200 1400 1600 1800
+                               ▲1298              ▲1812
+                          pixel shuffle         report ends
+```
+
+The memory trajectory has two distinct phases:
+1. **Ops 0-1297** (block\_in + up\_block\_0 ResBlocks): Slow, steady growth from 0 to
+   732 MB/bank. Each ResBlock pair adds ~47 MB/bank of permanent weight storage.
+2. **Op 1298-1299** (pixel shuffle): **Instantaneous cliff** from 732 to 2,172 MB/bank
+   (+1,440 MB/bank = +11,520 MB). This single operation consumes more DRAM than all
+   preceding 1,297 operations combined.
+3. **Ops 1300-1812** (up\_block\_1 ResBlocks): Continued growth from 2,172 to 3,372
+   MB/bank until OOM.
+
+### 4.3 What the report covers (and doesn't)
 
 The report contains **1,813 operations** covering only **59% of the decoder**:
 
 | Stage | ResBlocks | Status |
 |-------|-----------|--------|
-| conv_in + block_in | 3/3 | Complete |
-| up_block_0 (6 ResBlocks + pixel shuffle) | 6/6 + shuffle | Complete |
-| up_block_1 (4 ResBlocks + pixel shuffle) | **2/4** | **Partial -- truncated** |
-| up_block_2 (3 ResBlocks + pixel shuffle) | 0/3 | Missing |
-| block_out | 0/3 | Missing |
+| conv\_in + block\_in | 3/3 | Complete |
+| up\_block\_0 (6 ResBlocks + pixel shuffle) | 6/6 + shuffle | Complete |
+| up\_block\_1 (4 ResBlocks + pixel shuffle) | **2/4** | **Partial -- truncated** |
+| up\_block\_2 (3 ResBlocks + pixel shuffle) | 0/3 | Missing |
+| block\_out | 0/3 | Missing |
 
-The report **truncates mid-way through up_block_1** (op 1812, during reflect-padding
+The report **truncates mid-way through up\_block\_1** (op 1812, during reflect-padding
 for the 3rd ResBlock). The model hits OOM before ever reaching the second pixel shuffle.
 
-### Peak memory at truncation
+### 4.4 Peak memory at truncation
 
 ```
 Peak: op 1762 (ttnn.sum in GroupNorm)
@@ -239,6 +393,24 @@ Peak: op 1762 (ttnn.sum in GroupNorm)
 Of the 26,979 MB allocated, ~14,000 MB is fragmentation from the pixel shuffle.
 Only ~13,000 MB is actual live data.
 ```
+
+### 4.5 Where exactly is the problem?
+
+To summarize the per-op analysis:
+
+| Op | What Happens | Padded Output | Is It a Problem? |
+|----|-------------|---------------|------------------|
+| 1292 | Linear 768->6144 | 596 MB | **NO** -- zero overhead, both dims tile-aligned |
+| 1293 | Reshape to 5D (channels-last) | 720 MB | **NO** -- 1.21x overhead, last dim = 6144 |
+| 1295 | Permute to channels-first | 768 MB | **NO** -- 1.29x overhead, last dim = 106 |
+| 1297 | Reshape 5D->8D (factor channels) | 768 MB | **NO** -- same physical layout, last dim = 106 |
+| **1298** | **Permute 8D (interleave)** | **11,520 MB** | **YES -- last dim becomes 2, 19.32x overhead** |
+| 1299 | Reshape 8D->5D (merge spatial) | 672 MB | The output is fine (1.13x), but it **materializes op 1298's allocation** |
+
+**The problem is isolated to exactly one operation: the 8D permute at op 1298.** Every
+other op in the pixel shuffle pipeline has reasonable tiling overhead (<1.3x). The
+permute is the sole cause because it moves `sw=2` into the last dimension position
+where tile padding inflates it 16x.
 
 ---
 
@@ -288,223 +460,125 @@ memory multiplier on the largest tensors in the model.
 
 ---
 
-## 6. Options for Fixing It
+## 6. Solutions
 
-### Option A: Rewrite the Pixel Shuffle Permute Order (Model-Level, Immediate)
+### Solution 1: Staged Pixel Shuffle Decomposition (Model-Level Patch)
 
-**Approach**: Change the permutation so the last dimension is always the spatial width
-(W, which is large: 106/212/424) rather than the expansion factor (sw=2).
+**Status: Implemented and verified. Produces bit-identical output.**
 
-The current permutation:
+Instead of merging all 3 dimension pairs in a single reshape (which requires the
+catastrophic 8D permute), merge **one pair at a time**, using intermediate permutes
+to keep large dimensions in the tile-padded positions at every step.
+
+#### The rewrite
+
 ```python
-# Current: puts sw=2 as last dim
-x = x.view(B, C, st, sh, sw, T, H, W)          # [B,C,st,sh,sw,T,H,W]
-x = x.permute(0, 1, 5, 2, 6, 3, 7, 4)          # [B,C,T,st,H,sh,W,sw]
-#                  last dim = sw = 2 ─────────────────────────────────┘
+# ORIGINAL: 1 permute + 1 reshape (last dim = sw = 2, causes 16-19x overhead)
+x = x.view(B, C, st, sh, sw, T, H, W)              # [B, C, st, sh, sw, T, H, W]
+x = x.permute(0, 1, 5, 2, 6, 3, 7, 4)              # [B, C, T, st, H, sh, W, sw]
 x = x.view(B, C, T*st, H*sh, W*sw)
+
+# STAGED: 3 permutes + 2 reshapes (last 2 dims always large, max 1.33x overhead)
+x = x.view(B, C, st, sh, sw, T, H, W)              # [B, C, st, sh, sw, T, H, W]
+x = x.permute(0, 1, 5, 2, 3, 4, 6, 7)              # [B, C, T, st, sh, sw, H, W]     last2=(H,W)
+x = x.reshape(B, C, T*st, sh, sw, H, W)             # merge (T,st)->T*st               last2=(H,W)
+x = x.permute(0, 5, 3, 6, 4, 1, 2)                  # [B, H, sh, W, sw, C, T*st]      last2=(C,T*st)
+x = x.reshape(B, H*sh, W*sw, C, T*st)               # merge (H,sh) and (W,sw)          last2=(C,T*st)
+x = x.permute(0, 3, 4, 1, 2)                        # [B, C, T*st, H*sh, W*sw]         last2=(H*sh,W*sw)
 ```
 
-A possible rewrite:
-```python
-# Option A1: two-step permute, keep W in last position
-x = x.view(B, C, st, sh, sw, T, H, W)          # [B,C,st,sh,sw,T,H,W]
-x = x.permute(0, 1, 5, 2, 6, 3, 4, 7)          # [B,C,T,st,H,sh,sw,W]
-#                  last dim = W >= 106 ───────────────────────────────┘
-x = x.reshape(B, C, T*st, H*sh, sw*W)           # merge sw*W (not W*sw)
-```
+#### Why it works
 
-Note: `sw*W` and `W*sw` produce the same dimension size, but the element ordering
-differs. This would produce a different (incorrect) output because the interleaving
-pattern changes. **The output pixels would be in the wrong order.**
+Each merge handles one or two pairs while the other large dims occupy the tile
+positions:
 
-To get the correct output, we'd need to perform an additional permute or use a
-different decomposition of the pixel shuffle that doesn't put small factors last.
+| Step | Shape | Last 2 dims | Tile overhead |
+|------|-------|-------------|---------------|
+| view 8D | `[B,C,st,sh,sw,T,H,W]` | (H, W) = (60, 106) | 1.29x |
+| permute 1 | `[B,C,T,st,sh,sw,H,W]` | (H, W) = (60, 106) | 1.29x |
+| reshape 1 | `[B,C,T*st,sh,sw,H,W]` | (H, W) = (60, 106) | 1.29x |
+| permute 2 | `[B,H,sh,W,sw,C,T*st]` | (C, T*st) = (512, 24) | 1.33x |
+| reshape 2 | `[B,H*sh,W*sw,C,T*st]` | (C, T*st) = (512, 24) | 1.33x |
+| permute 3 | `[B,C,T*st,H*sh,W*sw]` | (H*sh, W*sw) = (120, 212) | 1.13x |
 
-```python
-# Option A2: do height/width expansion separately
-# Step 1: temporal expansion (no small trailing dims if W >= 32)
-x = x.view(B, C * sh * sw, st, T, H, W)
-x = x.permute(0, 1, 3, 2, 4, 5)                # [B,C*sh*sw,T,st,H,W]
-x = x.reshape(B, C * sh * sw, T * st, H, W)
+The small factors (st=3, sh=2, sw=2) are **never** in the last 2 positions.
 
-# Step 2: spatial expansion
-x = x.view(B, C, sh, sw, T * st, H, W)
-x = x.permute(0, 1, 4, 5, 2, 6, 3)             # [B,C,T*st,H,sh,W,sw]
-#                          last dim = sw = 2 ──────────────────────────┘  STILL 2!
-```
+#### Peak intermediate memory comparison
 
-This still leaves sw=2 as the last dim. The fundamental problem: any permutation that
-interleaves a factor of 2 into spatial dims will, at some point, need it as a trailing
-dimension (unless the reshape can absorb it differently).
+| Block | Original (single permute) | Staged (max intermediate) | Reduction |
+|-------|--------------------------|---------------------------|-----------|
+| up_block_0 | **11,520 MB** (19.3x) | **795 MB** (1.33x) | **14.5x** |
+| up_block_1 | **40,320 MB** (16.9x) | **3,180 MB** (1.33x) | **12.7x** |
+| up_block_2 | **80,640 MB** (16.9x) | **6,360 MB** (1.33x) | **12.7x** |
 
-```python
-# Option A3: use repeat_interleave (no 8D tensor at all)
-# Linear projects C -> C_out (no expansion factors in channels)
-x = self.proj(x)     # [B, C_out, T, H, W] -- standard projection
-# Then expand spatially using repeat_interleave
-x = x.repeat_interleave(st, dim=2)              # T -> T*st
-x = x.repeat_interleave(sh, dim=3)              # H -> H*sh
-x = x.repeat_interleave(sw, dim=4)              # W -> W*sw
-```
+All fit comfortably in 32 GB per device.
 
-**However**, `repeat_interleave` actually **duplicates** data rather than rearranging
-it. Pixel shuffle rearranges unique channel values into spatial positions, while
-`repeat_interleave` would copy the same spatial value multiple times. These produce
-different results -- this is NOT a valid replacement unless the linear projection is
-also changed to output `C_out` channels instead of `C_out * st * sh * sw`.
+#### Verification
 
-**Verdict**: A pure model-level permute rewrite is **difficult** because the 8D
-interleaving is mathematically required to correctly scatter channel values into
-spatiotemporal positions. Any decomposition that produces the correct output will at
-some point have a small trailing dimension. The most promising model-level approach
-would be to restructure the linear projection to avoid needing the 8D intermediate
-entirely (e.g., separate linear projections per spatial factor), but this changes the
-model architecture.
+Bit-identical output verified at full Mochi shapes in bf16 -- see
+`test_pixel_shuffle_rewrite.py` for the equivalence test and tile padding analysis.
 
-**Difficulty**: High -- requires careful mathematical equivalence verification.
-**Impact**: Eliminates the problem entirely if a valid decomposition is found.
+**Trade-off**: 3 permutes + 2 reshapes instead of 1 + 1. More ops, but the memory
+savings (14x fewer MB) far outweigh the extra permute overhead.
 
 ---
 
-### Option B: Force ROW_MAJOR Layout for Tile-Hostile Intermediates (Compiler Fix)
+### Solution 2: ROW_MAJOR Layout for Tile-Hostile Permutes (Compiler Fix)
 
-**Approach**: Modify the `TTNNLayout` pass to detect when tiling would cause excessive
-overhead and keep those tensors in ROW_MAJOR (untiled) layout.
+**Status: Proposed for tt-mlir. See GitHub issue.**
 
-**Where**: `lib/Dialect/TTNN/Transforms/TTNNLayout.cpp`, function `shouldTilizeResult()`
+Instead of patching the model, fix this at the compiler level so all models benefit.
+Keep the permute and its subsequent reshape in ROW_MAJOR (untiled) layout, and only
+convert to TILE on the well-shaped 5D output.
 
-The pass already has precedent -- Conv3d results are forced to ROW_MAJOR:
-```cpp
-// Lines 288-291: Conv3d outputs are not tilized
-if (isa<Conv3dOp>(op)) {
-    return false;  // ROW_MAJOR
-}
+#### The layout cascade
+
+```
+reshape [1,6144,8,60,106] -> [1,512,3,2,2,8,60,106]     TILE      768 MB   (1.29x)
+permute -> [1,512,8,3,60,2,106,2]                        ROW_MAJOR 596 MB   (no padding)
+reshape -> [1,512,24,120,212]                             ROW_MAJOR 596 MB   (no padding)
+to_layout(ROW_MAJOR -> TILE)                              TILE      672 MB   (1.13x)
 ```
 
-Add a similar rule for tensors with extreme tile overhead:
-```cpp
-// Proposed: skip tilization when padding overhead exceeds threshold
-auto shape = resultType.getShape();
-int rank = shape.size();
-if (rank >= 2) {
-    int64_t lastDim = shape[rank - 1];
-    int64_t padded = alignUp(lastDim, TILE_WIDTH);
-    // If padding would waste >50% of the last dimension, stay ROW_MAJOR
-    if (padded > 2 * lastDim) {
-        return false;
-    }
-}
-```
+#### Required changes in `TTNNLayout.cpp`
 
-For the pixel shuffle intermediate (`lastDim=2`, `padded=32`): `32 > 2*2 = 4` -- true,
-stays ROW_MAJOR. The tensor remains at 596 MB instead of 11,520 MB.
+Three coordinated modifications:
 
-For a normal tensor (`lastDim=212`, `padded=224`): `224 > 2*212 = 424` -- false,
-gets tilized as usual.
+1. **`shouldTilizeResult` for PermuteOp**: Return false when tile padding would cause
+   excessive overhead (e.g., when the last dim < 16, so padding to 32 wastes >50%).
+   Precedent: Conv3d already returns false here (line 288-291).
 
-**Difficulty**: Low-medium -- small, localized compiler change with clear precedent.
-**Impact**: Fixes all three pixel shuffles. The 8D intermediate exists but at logical
-size (~596 MB, ~2.33 GB, ~4.66 GB) rather than 16x inflated.
-**Risk**: Downstream ops may expect tiled input. The reshape that follows the permute
-should handle ROW_MAJOR input, but needs verification. A `to_layout` (ROW_MAJOR->TILE)
-conversion would be needed before the next tiled op.
+2. **`shouldTilizeResult` for ReshapeOp**: Fix to read the actual input type
+   (`reshapeOp.getInput().getType()`) instead of the result type
+   (`reshapeOp.getType()`). This appears to be a bug -- the variable is even named
+   `inputType` but reads the result type.
 
----
+3. **Operand forcing for ReshapeOp**: The operand loop unconditionally forces all
+   inputs to TILE. For ReshapeOp, it should respect the result layout decision, so a
+   ROW_MAJOR reshape doesn't get `to_layout(ROW_MAJOR -> TILE)` inserted before it.
 
-### Option C: Fuse Reshape-Permute-Reshape in the Compiler (Compiler Pass)
+Both `ttnn.permute` and `ttnn.reshape` have verified ROW_MAJOR code paths in tt-metal.
 
-**Approach**: Add a pattern that recognizes the pixel shuffle sequence
-(reshape 5D->8D, permute, reshape 8D->5D) and replaces it with a single fused op that
-writes directly to the 5D output without materializing the 8D intermediate.
+#### Memory savings
 
-**Where**: `lib/Dialect/TTIR/IR/TTIRTMFusionPatterns.cpp`
-
-The existing `PermuteReshapePermuteFusionPattern` fuses `Permute->Reshape->Permute`.
-A new `ReshapePermuteReshapeFusionPattern` would fuse `Reshape->Permute->Reshape` when
-it matches the depth-to-space-time pattern.
-
-The fused operation would:
-1. Read from the 5D input tensor (post-linear-projection)
-2. Compute the output coordinates using the interleaving formula
-3. Write to the 5D output tensor
-4. Never allocate the 8D intermediate
-
-**Difficulty**: Medium-high -- requires implementing the fusion pattern matching and a
-custom TTNN lowering for the fused op.
-**Impact**: Eliminates the 8D intermediate entirely. Optimal solution long-term.
-**Risk**: The fused op needs an efficient implementation in tt-metal/TTNN.
-
----
-
-### Option D: Shard the Pixel Shuffle Path (Model-Level)
-
-**Approach**: Extend the sharding annotations to include the unpatchify linear
-projection and pixel shuffle, so the intermediates are channel-sharded across 4 devices
-rather than replicated.
-
-Currently in `decoder_sharded.py`:
-```python
-# up_block.proj (unpatchify linear) is left unsharded
-```
-
-If we shard the linear projection output along the channel dimension, the 8D
-intermediate would also be channel-sharded, reducing per-device memory by 4x:
-
-| Pixel Shuffle | Tiled (replicated) | Tiled (4-way sharded) |
-|---------------|-------------------|-----------------------|
-| up_block_0 | 11.25 GB | 2.81 GB |
-| up_block_1 | 39.4 GB | 9.85 GB |
-| up_block_2 | 78.7 GB | 19.7 GB |
-
-**Difficulty**: Medium -- requires sharding annotations for the linear projection and
-verification that the permute/reshape work correctly with sharded channel dim.
-**Impact**: Reduces per-device pressure by 4x, but up_block_2 at 19.7 GB is still
-very tight. Does NOT fix the fundamental 16x waste.
-**Risk**: The reshape and permute ops may not preserve sharding correctly through the
-8D intermediate. SPMD/Shardy support for 8D tensors needs verification.
-
----
-
-### Option E: Insert Memory Compaction After Pixel Shuffle (Runtime)
-
-**Approach**: Insert `ttnn.reallocate()` (which calls `ttnn::move()`) after the pixel
-shuffle tensor is freed to compact surviving allocations and recover fragmented memory.
-
-**Where**: Could be inserted by a compiler pass in `TTNNMemoryManagement.cpp` or as a
-post-processing step.
-
-**Difficulty**: Low.
-**Impact**: Only recovers fragmentation from up_block_0's pixel shuffle. Does NOT help
-with up_block_1 and up_block_2 which are simply too large to fit even without
-fragmentation. This is a complementary optimization, not a standalone fix.
+| Pixel Shuffle | Current (TILE) | With ROW_MAJOR chain | Fits in 32 GB? |
+|---------------|----------------|----------------------|----------------|
+| up_block_0 | 11,520 MB | 672 MB | Yes |
+| up_block_1 | 40,240 MB | 2,688 MB | Yes |
+| up_block_2 | 80,480 MB | 4,928 MB | Yes |
 
 ---
 
 ### Recommended Strategy
 
-The options are not mutually exclusive. The recommended approach combines them:
-
-| Priority | Option | Why |
-|----------|--------|-----|
-| **1st** | **B (ROW_MAJOR threshold)** | Lowest effort, fixes all three pixel shuffles, clear precedent in the codebase. This alone makes the decoder runnable. |
-| **2nd** | **D (Shard pixel shuffle)** | Further reduces per-device memory. Combined with B, up_block_2 goes from 4.66 GB/device (replicated, ROW_MAJOR) to 1.17 GB/device. |
-| **3rd** | **E (Memory compaction)** | Recovers fragmentation from any remaining large transient allocations. |
-| **Long-term** | **C (Fuse ops)** | Eliminates the 8D intermediate entirely for optimal performance. |
-
-With Option B alone, the pixel shuffle intermediates would be:
-
-| Pixel Shuffle | Tiled (current) | ROW_MAJOR | Savings |
-|---------------|-----------------|-----------|---------|
-| up_block_0 | 11.25 GB | 596 MB | **18.9x** |
-| up_block_1 | 39.4 GB | 2.33 GB | **16.9x** |
-| up_block_2 | 78.7 GB | 4.66 GB | **16.9x** |
-
-All three fit comfortably in a single 32 GB device, leaving ample room for weights
-(~700 MB replicated) and activations.
+| Priority | Solution | Scope |
+|----------|----------|-------|
+| **Now** | **Solution 1 (staged decomposition)** | Unblocks Mochi decoder immediately via model-level monkey-patch. No compiler changes. |
+| **Next** | **Solution 2 (ROW_MAJOR in tt-mlir)** | Fixes the general problem for any model with tile-hostile permute shapes. Filed as GitHub issue. |
 
 ---
 
-## Appendix: Detailed Tile Padding Calculations
+## Appendix: Tile Padding Calculations
 
 ### Tile padding rule
 
@@ -512,57 +586,28 @@ All three fit comfortably in a single 32 GB device, leaving ample room for weigh
 getTilePaddedShape(shape):
     shape[-2] = ceil(shape[-2] / 32) * 32    # TILE_HEIGHT = 32
     shape[-1] = ceil(shape[-1] / 32) * 32    # TILE_WIDTH  = 32
-    # All other dimensions unchanged
 ```
 
 Source: `tt-mlir/lib/Dialect/TTNN/Utils/Utils.cpp:213-225`
 
-### All pixel shuffle intermediates
+### Original pixel shuffle intermediates (the problem)
 
-**up_block_0 post-permute**: `[1, 512, 8, 3, 60, 2, 106, 2]`
-```
-dim[-2]: 106 -> ceil(106/32)*32 = 128    (1.21x)
-dim[-1]:   2 -> ceil(2/32)*32   =  32    (16.0x)
+| Block | Post-permute shape | Last 2 dims | Padded to | Logical | Padded | Overhead |
+|-------|-------------------|-------------|-----------|---------|--------|----------|
+| up_block_0 | `[1,512,8,3,60,2,106,2]` | (106, 2) | (128, 32) | 596 MB | 11,520 MB | 19.32x |
+| up_block_1 | `[1,256,24,2,120,2,212,2]` | (212, 2) | (224, 32) | 2,330 MB | 40,240 MB | 16.91x |
+| up_block_2 | `[1,128,48,1,240,2,424,2]` | (424, 2) | (448, 32) | 4,660 MB | 80,480 MB | 16.91x |
 
-Logical:  1*512*8*3*60*2*106*2      = 312,606,720 elements =    596 MB (bf16)
-Padded:   1*512*8*3*60*2*128*32     = 6,039,797,760 elements = 11,520 MB (bf16)
-Overhead: 19.32x
-```
+### Staged decomposition worst step (the fix)
 
-**up_block_1 post-permute**: `[1, 256, 24, 2, 120, 2, 212, 2]`
-```
-dim[-2]: 212 -> ceil(212/32)*32 = 224    (1.06x)
-dim[-1]:   2 -> ceil(2/32)*32   =  32    (16.0x)
+| Block | Worst intermediate shape | Last 2 dims | Padded to | Logical | Padded | Overhead |
+|-------|-------------------------|-------------|-----------|---------|--------|----------|
+| up_block_0 | `[1,60,2,106,2,512,24]` | (512, 24) | (512, 32) | 596 MB | 795 MB | 1.33x |
+| up_block_1 | `[1,120,2,212,2,256,48]` | (256, 48) | (256, 64) | 2,330 MB | 3,180 MB | 1.33x |
+| up_block_2 | `[1,240,2,424,2,128,48]` | (128, 48) | (128, 64) | 4,660 MB | 6,360 MB | 1.33x |
 
-Logical:  1*256*24*2*120*2*212*2    = 1,250,426,880 elements =  2,330 MB (bf16)
-Padded:   1*256*24*2*120*2*224*32   = 21,139,292,160 elements = 40,240 MB (bf16)
-Overhead: 16.91x
-```
-
-**up_block_2 post-permute**: `[1, 128, 48, 1, 240, 2, 424, 2]`
-```
-dim[-2]: 424 -> ceil(424/32)*32 = 448    (1.06x)
-dim[-1]:   2 -> ceil(2/32)*32   =  32    (16.0x)
-
-Logical:  1*128*48*1*240*2*424*2    = 2,500,853,760 elements =  4,660 MB (bf16)
-Padded:   1*128*48*1*240*2*448*32   = 42,278,584,320 elements = 80,480 MB (bf16)
-Overhead: 16.91x
-```
-
-### Comparison: normal 5D tensor (post-pixel-shuffle output)
-
-**up_block_0 output**: `[1, 512, 24, 120, 212]`
-```
-dim[-2]: 120 -> 128    (1.07x)
-dim[-1]: 212 -> 224    (1.06x)
-
-Logical:  312,606,720 elements  =  596 MB
-Padded:   352,321,536 elements  =  672 MB
-Overhead: 1.13x  (13% -- perfectly acceptable)
-```
-
-### Verification against tt-swiss report
+### Verification
 
 The tt-swiss memory report for op 1298 reports a padded output of **11,520 MB**.
 Our calculation: `6,039,797,760 elements * 2 bytes / (1024*1024) = 11,520.0 MB`.
-**Exact match.** The analysis is confirmed.
+**Exact match.**
