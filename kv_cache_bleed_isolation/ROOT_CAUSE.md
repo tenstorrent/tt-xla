@@ -35,8 +35,30 @@ With `min_context_len=64` (2 blocks per user), the padding is in block 1 which i
 additional_config={'min_context_len': 64}  # or 128, or omit for default
 ```
 
+## Kernel analysis (so far)
+
+- `paged_scaled_dot_product_attention_decode` uses 1 core per KV head per batch item (for our config)
+- K multicast is NOT active (requires `q_heads_parallel_factor > 1`)
+- Causal mask generation (`fill_tile_partial`) looks correct for mid-tile `cur_pos=14`
+- `k_chunk_size=0` (dynamic) → resolves to `Sk_chunk_t=1` at runtime for `cur_pos=14`
+- Each core reads its own `cur_pos_tensor[cur_batch]` independently
+- No obvious shared state between adjacent batch items in the kernel code
+
+## Remaining unknowns
+
+- The `paged_update_cache` kernel (tt-metal experimental) might have an adjacent-batch bug
+- The `paged_fill_cache` kernel might write to wrong positions for adjacent batch items
+- There might be a race condition in the NOC (network-on-chip) reads/writes between cores
+  processing adjacent batches on the same physical cores (if the core grid wraps around)
+- The compiled graph might have a batch-dimension-dependent bug in how it prepares inputs
+  for the paged ops
+
 ## Next steps
 
-1. Check if the TTNN kernel uses multi-core processing where adjacent batches share cores
-2. Inspect the `num_cores_per_head` and batch-to-core mapping in the SDPA decode program factory
-3. Build a targeted test: 2 users with same seq_len at adjacent vs non-adjacent slots
+1. Build a targeted test with ONLY 2 prompts at controlled slot positions (adjacent vs non-adjacent)
+   to isolate the adjacency condition with minimal compilation overhead
+2. Check if `paged_update_cache` has the same adjacency sensitivity by:
+   - Comparing cache BEFORE and AFTER the first decode step
+   - Checking if position 14 contains the right per-user data
+3. Inspect the TTNN experimental `paged_update_cache` kernel source for batch-adjacency bugs
+4. File a tt-metal issue with the reproduction and adjacency finding
