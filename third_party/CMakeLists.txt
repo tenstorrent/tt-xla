@@ -6,7 +6,7 @@ option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" 
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     # set(TT_MLIR_VERSION "a53ca15ef0d7e17ca7ecbac52698302539bfaa71")
-    set(TT_MLIR_VERSION "hshah/composite-ordering-check")
+    set(TT_MLIR_VERSION "hshah/gather-issue-3726")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
