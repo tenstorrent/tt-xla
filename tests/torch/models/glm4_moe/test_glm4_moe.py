@@ -11,6 +11,7 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from infra.testers.compiler_config import CompilerConfig
 from torch_xla.distributed.spmd import Mesh
+from transformers.cache_utils import StaticCache
 from transformers.models.glm4_moe.configuration_glm4_moe import Glm4MoeConfig
 from transformers.models.glm4_moe.modeling_glm4_moe import (
     Glm4MoeDecoderLayer,
@@ -138,8 +139,8 @@ def test_glm4_moe_full_sparse_moe():
 
     config = Glm4MoeConfig.from_pretrained("zai-org/GLM-4.7")
     # first_k_dense_replace=3, so need at least 4 layers for MoE
-    # config.num_hidden_layers = 4
-    config.use_cache = False
+    config.use_cache = True
+    config.num_hidden_layers = 4
     config._attn_implementation = "eager"
 
     model = Glm4MoeModel(config)
@@ -149,14 +150,31 @@ def test_glm4_moe_full_sparse_moe():
     enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=config)
     model.eval()
 
+    max_cache_len = 1024
     batch_size = 64
     seq_len = 1
     input_ids = torch.randint(0, config.vocab_size, (batch_size, seq_len))
     position_ids = torch.arange(seq_len).unsqueeze(0)
+    cache_position = torch.arange(seq_len)
 
-    # Pre-compute 4D causal mask on CPU to avoid on-device mask computation
+    # Use StaticCache + cache_position to avoid on-device causal mask computation
     # which triggers a ttnn.repeat on ui8 (unsupported dtype).
-    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    num_key_value_heads = config.num_key_value_heads
+    head_dim = config.head_dim
+    static_cache = StaticCache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=num_key_value_heads,
+        head_dim=head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
 
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
@@ -168,8 +186,11 @@ def test_glm4_moe_full_sparse_moe():
         # input_ids: [batch, seq]
         shard_specs[args[0]] = ("_axis_1", None)
 
-        # attention_mask: [batch, 1, seq, seq]
-        shard_specs[args[1]] = ("_axis_1", None, None, None)
+        # KV cache shard specs per layer
+        # StaticCache stores tensors in .layers[i].keys / .layers[i].values
+        for layer in args[3].layers:
+            shard_specs[layer.keys] = ("_axis_1", None, None, None)
+            shard_specs[layer.values] = ("_axis_1", None, None, None)
 
         # Embedding
         shard_specs[model.embed_tokens.weight] = (None, "_axis_0")
@@ -247,7 +268,14 @@ def test_glm4_moe_full_sparse_moe():
 
     run_graph_test(
         model,
-        [input_ids, attention_mask],
+        [
+            input_ids,
+            None,
+            position_ids,
+            static_cache,
+            None,
+            cache_position,
+        ],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
