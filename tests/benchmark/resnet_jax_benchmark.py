@@ -109,7 +109,7 @@ def benchmark_resnet_jax(
         optimization_level: tt-mlir optimization level for compilation
         program_cache_enabled: Whether to enable program cache
         trace_enabled: Whether to enable tracing
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         required_pcc: Minimum PCC threshold for output validation
 
     Returns:

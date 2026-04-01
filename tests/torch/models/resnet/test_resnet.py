@@ -76,11 +76,11 @@ def training_tester() -> ResnetTester:
     "format,optimization_level",
     [
         pytest.param(
-            "bfp8",
+            "bfp_bf8",
             1,
         ),
         pytest.param(
-            "bfp8",
+            "bfp_bf8",
             0,
         ),
         pytest.param(

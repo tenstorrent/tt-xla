@@ -18,11 +18,13 @@ import tracy
 import transformers
 from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
 from llm_utils.decode_utils import LLMSamplingWrapper
+from loguru import logger
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from utils import (
     build_xla_export_name,
     compute_pcc,
@@ -230,7 +232,7 @@ def benchmark_llm_torch_xla(
         task: Task type
         data_format: Data precision format
         input_sequence_length: Length of input sequence for generation context
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         read_logits_fn: Callback function to extract logits from model output
@@ -391,6 +393,13 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
+    # Apply per-tensor weight dtype overrides from model's weight_dtype_configs JSON.
+    weight_dtype_config = model_loader.get_weight_dtype_config_path()
+    if weight_dtype_config:
+        applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+        logger.info(
+            f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+        )
     # PERFORMANCE BENCHMARK
     # No logits returned to avoid OOM.
     perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
