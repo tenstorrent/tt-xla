@@ -219,7 +219,12 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -301,7 +306,12 @@ def test_llama_attention_decode(variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
@@ -494,7 +504,12 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     run_graph_test(
         sdpa,
@@ -593,7 +608,12 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -626,7 +646,12 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -734,7 +759,12 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
@@ -943,7 +973,12 @@ def test_qwen3_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     dropout = 0.0
     scaling = attention.scaling
@@ -1215,7 +1250,12 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -1302,7 +1342,12 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -1397,7 +1442,12 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
@@ -1546,7 +1596,12 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     dropout = 0.0
     scaling = attention.scaling
@@ -1646,7 +1701,12 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -1682,7 +1742,12 @@ def test_gemma_attention_prefill_push(seq_len, variant, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -1791,7 +1856,12 @@ def test_gemma_attention_decode(variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
@@ -1919,7 +1989,12 @@ def test_gemma_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     run_graph_test(
         sdpa,
@@ -1965,7 +2040,12 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -2017,7 +2097,12 @@ def test_mistral_attention_prefill_push(seq_len, variant, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -2072,7 +2157,12 @@ def test_mistral_attention_decode(variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
@@ -2180,7 +2270,12 @@ def test_mistral_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     dropout = 0.0
     scaling = attention.scaling
@@ -2381,7 +2476,12 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
 
     cos_sin = torch.rand(batch_size, seq_len, 32, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -2444,7 +2544,12 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
 
     cos_sin = torch.rand(batch_size, seq_len, 32, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
@@ -2501,7 +2606,12 @@ def test_glm_attention_prefill(seq_len, variant, variant_config):
     )
     cos_sin = torch.rand(batch_size, seq_len, rope_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -2558,7 +2668,12 @@ def test_glm_attention_decode(variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, rope_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     max_cache_len = 16
     static_cache: StaticCache = StaticCache(
@@ -2685,7 +2800,12 @@ def test_glm_attention(seq_len, variant, variant_config, arch):
     value_states = torch.randn(
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     run_graph_test(
         sdpa,
