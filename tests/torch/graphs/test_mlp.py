@@ -14,6 +14,7 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
+from transformers.models.gpt_oss.modeling_gpt_oss import GptOssMLP
 from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
@@ -491,15 +492,13 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         )
     xr.set_device_type("TT")
 
-    loader = GPTOSSModelLoader(variant=variant, num_layers=1)
-    model = loader.load_model()
+    loader = GPTOSSModelLoader(variant=variant)
     config = loader.load_config()
-    inputs = loader.load_inputs()
 
-    batch_size = inputs["input_ids"].shape[0]  # 1
-    seq_len = inputs["input_ids"].shape[1]  # 128 with padding
+    batch_size = 1
+    seq_len = 128
 
-    mlp = model.model.layers[0].mlp
+    mlp = GptOssMLP(config).to(torch.bfloat16).eval()
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
