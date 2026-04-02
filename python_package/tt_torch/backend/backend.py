@@ -19,6 +19,114 @@ from torch.fx.passes.tools_common import legalize_graph
 from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
 
+
+def _patch_dynamo_bridge():
+    """Patch partition_fx_graph_for_cpu_fallback to fix fused_0.xla_args bug.
+
+    The bug: InputCollector stops at the 'output' node in the partitioned graph,
+    so fused submodules whose call_module node appears after the 'output' node
+    (or when InputCollector raises before reaching them) never have xla_args set.
+
+    The fix: after InputCollector.run(), walk the partitioned graph and for any
+    fused submodule missing xla_args, reconstruct the args from the placeholder
+    values so extract_internal can proceed.
+    """
+    import torch_xla._dynamo.dynamo_bridge as db
+    import torch as _torch
+
+    _orig = db.partition_fx_graph_for_cpu_fallback
+
+    def _patched(xla_model, xla_args, all_xla_args, all_xla_args_tensor_only):
+        # Run the original implementation
+        try:
+            return _orig(xla_model, xla_args, all_xla_args, all_xla_args_tensor_only)
+        except AttributeError as e:
+            if "xla_args" not in str(e):
+                raise
+            # Fall through to recovery logic below
+
+        # Recovery: the original implementation failed because InputCollector
+        # did not set xla_args on some fused submodule. Re-run it but manually
+        # set xla_args for any fused submodule that was missed.
+        cloned_args = [
+            _torch.clone(a) if isinstance(a, _torch.Tensor) else a
+            for a in all_xla_args
+        ]
+
+        collector = db.UnsupportedNodesCollector(xla_model)
+        collector.run(*xla_args)
+        unsupported_nodes = collector.get_unsupported_nodes()
+
+        db._clear_pending_irs_on_args(all_xla_args_tensor_only, cloned_args)
+        import torch_xla as _txla
+        _txla._XLAC._clear_pending_irs(str(_txla.device()))
+
+        import operator
+        class _XlaSupport(_torch.fx.passes.operator_support.OperatorSupport):
+            def is_node_supported(self, submodules, node):
+                return node.op in ["call_function", "call_module", "call_method"] and (
+                    node not in unsupported_nodes or node.target == operator.getitem
+                )
+
+        from torch.fx.passes.infra.partitioner import CapabilityBasedPartitioner
+        partitioner = CapabilityBasedPartitioner(
+            xla_model, _XlaSupport(), allows_single_node_partition=True
+        )
+        partitions = partitioner.propose_partitions()
+
+        from torch_xla._dynamo.dynamo_bridge import topo_sort
+        for p in partitions:
+            p.nodes = topo_sort(p.nodes)
+
+        partitioned_graph = partitioner.fuse_partitions(partitions)
+
+        # Build a placeholder→value map so we can populate xla_args manually
+        ph_vals = {}
+        for i, node in enumerate(
+            n for n in partitioned_graph.graph.nodes if n.op == "placeholder"
+        ):
+            ph_vals[node] = xla_args[i] if i < len(xla_args) else None
+
+        # Run InputCollector; ignore exceptions (it may fail on in-place ops)
+        try:
+            db.InputCollector(partitioned_graph).run(*xla_args)
+        except Exception:
+            pass
+
+        # For any fused module still missing xla_args, populate from ph_vals
+        for node in partitioned_graph.graph.nodes:
+            if node.op == "call_module" and "fused_" in node.name:
+                submod = getattr(partitioned_graph, node.name, None)
+                if submod is not None and not hasattr(submod, "xla_args"):
+                    submod.xla_args = tuple(
+                        ph_vals.get(a, a) if isinstance(a, _torch.fx.Node) else a
+                        for a in node.args
+                    )
+
+        db._clear_pending_irs_on_args(all_xla_args_tensor_only, cloned_args)
+
+        # Compile each fused submodule
+        for node in list(partitioned_graph.graph.nodes):
+            if node.op == "call_module" and "fused_" in node.name:
+                fused_module = getattr(partitioned_graph, node.name)
+                partitioned_graph.delete_submodule(node.target)
+                with partitioned_graph.graph.inserting_after(node):
+                    new_node = partitioned_graph.graph.call_function(
+                        db.extract_internal(fused_module), node.args, None
+                    )
+                    node.replace_all_uses_with(new_node)
+                partitioned_graph.graph.erase_node(node)
+
+        partitioned_graph.recompile()
+        return partitioned_graph
+
+    db.partition_fx_graph_for_cpu_fallback = _patched
+    _patch_dynamo_bridge._applied = True
+
+
+_patch_dynamo_bridge._applied = False
+_patch_dynamo_bridge()
+
 from .decompositions import populate_decompositions
 from .metadata_propagation import (
     MetadataDispatchMode,

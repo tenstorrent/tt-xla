@@ -22,14 +22,16 @@ def mark_argument_attributes(
     if tensor.device.type == "cpu":
         return tensor.clone()
 
-    assert isinstance(
-        argument_type, str
-    ), f"argument_type must be a string, received {type(argument_type)}"
+    assert isinstance(argument_type, str), (
+        f"argument_type must be a string, received {type(argument_type)}"
+    )
     assert argument_type in [
         "input",
         "parameter",
         "constant",
-    ], f"argument_type must be one of 'input', 'parameter', or 'constant', received {argument_type}"
+    ], (
+        f"argument_type must be one of 'input', 'parameter', or 'constant', received {argument_type}"
+    )
 
     frontend_attributes = {"ttcore.argument_type": argument_type}
     if name is not None:
@@ -152,9 +154,9 @@ def weight_dtype_override(tensor: torch.Tensor, dtype_str: str) -> torch.Tensor:
     if tensor.device.type == "cpu":
         return tensor.clone()
 
-    assert isinstance(
-        dtype_str, str
-    ), f"dtype_str must be a string, received {type(dtype_str)}"
+    assert isinstance(dtype_str, str), (
+        f"dtype_str must be a string, received {type(dtype_str)}"
+    )
     assert dtype_str in [
         "bfp_bf4",
         "bfp_bf8",
@@ -215,51 +217,51 @@ def scaled_dot_product_attention(
     scale: float = None,
 ) -> torch.Tensor:
 
-    assert (
-        len(query.shape) == 4
-    ), "query must be a 4D tensor: [B, num_heads, query_seq_len, head_size]."
-    assert (
-        len(key.shape) == 4
-    ), "key must be a 4D tensor: [B, num_kv_heads, kv_seq_len, head_size]."
-    assert (
-        len(value.shape) == 4
-    ), "value must be a 4D tensor: [B, num_kv_heads, kv_seq_len, head_size]."
+    assert len(query.shape) == 4, (
+        "query must be a 4D tensor: [B, num_heads, query_seq_len, head_size]."
+    )
+    assert len(key.shape) == 4, (
+        "key must be a 4D tensor: [B, num_kv_heads, kv_seq_len, head_size]."
+    )
+    assert len(value.shape) == 4, (
+        "value must be a 4D tensor: [B, num_kv_heads, kv_seq_len, head_size]."
+    )
 
     assert key.shape == value.shape, "key and value must have the same shape."
-    assert (
-        key.shape[-1] == query.shape[-1]
-    ), "key and query must have the same head size."
+    assert key.shape[-1] == query.shape[-1], (
+        "key and query must have the same head size."
+    )
 
-    assert (
-        query.shape[1] % key.shape[1] == 0
-    ), "num_heads must be divisible by num_kv_heads."
+    assert query.shape[1] % key.shape[1] == 0, (
+        "num_heads must be divisible by num_kv_heads."
+    )
 
     # The CPU implementation of this op will funtion correctly if this invariant is not satisfied.
     # However, this custom op is intended to exactly replicate the behavior of the ttnn op, so we will enforce this invariant.
-    assert (
-        query.shape[2] % 32 == 0
-    ), f"query sequence length must be divisible by 32 but got {query.shape[2]}."
+    assert query.shape[2] % 32 == 0, (
+        f"query sequence length must be divisible by 32 but got {query.shape[2]}."
+    )
 
     # assert query.shape[0] == 1, "query must have dim 0 equal to 1."
-    assert (
-        query.shape[0] == key.shape[0]
-    ), "query and key must have the same batch size."
+    assert query.shape[0] == key.shape[0], (
+        "query and key must have the same batch size."
+    )
 
-    assert (
-        query.device == key.device == value.device
-    ), "query, key, and value must be on the same device."
+    assert query.device == key.device == value.device, (
+        "query, key, and value must be on the same device."
+    )
     if attn_mask is not None:
-        assert (
-            attn_mask.device == query.device
-        ), "attn_mask must be on the same device as query, key, and value."
+        assert attn_mask.device == query.device, (
+            "attn_mask must be on the same device as query, key, and value."
+        )
 
-        assert (
-            is_causal == False
-        ), "is_causal attribute can't be True if attn_mask is available."
+        assert is_causal == False, (
+            "is_causal attribute can't be True if attn_mask is available."
+        )
 
-        assert (
-            query.shape[0] == attn_mask.shape[0]
-        ), "Attention mask batch size must match query batch size."
+        assert query.shape[0] == attn_mask.shape[0], (
+            "Attention mask batch size must match query batch size."
+        )
 
     if query.device.type == "xla":
         inputs = [query, key, value]
@@ -321,36 +323,35 @@ def scaled_dot_product_attention_decode(
     scale: float = None,
 ) -> torch.Tensor:
 
-    assert (
-        len(query.shape) == 4
-    ), "query must be a 4D tensor: [1, B, num_heads, head_size]."
-    assert (
-        len(key.shape) == 4
-    ), "key must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
-    assert (
-        len(value.shape) == 4
-    ), "value must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+    assert len(query.shape) == 4, (
+        "query must be a 4D tensor: [1, B, num_heads, head_size]."
+    )
+    assert len(key.shape) == 4, (
+        "key must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+    )
+    assert len(value.shape) == 4, (
+        "value must be a 4D tensor: [B, num_kv_heads, seq_len, head_size]."
+    )
     assert len(cur_pos_tensor.shape) == 1, "cur_pos_tensor must be a 1D tensor: [B]."
 
     assert key.shape == value.shape, "key and value must have the same shape."
-    assert (
-        key.shape[-1] == query.shape[-1]
-    ), "key and query must have the same head size."
+    assert key.shape[-1] == query.shape[-1], (
+        "key and query must have the same head size."
+    )
 
-    assert (
-        query.shape[2] % key.shape[1] == 0
-    ), f"num_heads must be divisible by num_kv_heads. Query shape: {query.shape}, key shape: {key.shape}."
+    assert query.shape[2] % key.shape[1] == 0, (
+        f"num_heads must be divisible by num_kv_heads. Query shape: {query.shape}, key shape: {key.shape}."
+    )
 
     assert query.shape[0] == 1, "query must have dim 0 equal to 1."
-    assert (
-        query.shape[1] == key.shape[0]
-    ), "query and key must have the same batch size."
+    assert query.shape[1] == key.shape[0], (
+        "query and key must have the same batch size."
+    )
 
     if is_causal:
         assert attn_mask is None, "attn_mask must be None when is_causal is True."
 
     if query.device.type == "xla":
-
         inputs = [query, key, value, cur_pos_tensor]
         if attn_mask is not None:
             inputs.append(attn_mask)
@@ -429,18 +430,18 @@ def update_cache(
     cache_position: torch.Tensor,
     batch_offset: int = None,
 ) -> torch.Tensor:
-    assert (
-        len(cache.shape) == 4
-    ), "cache must be a 4D tensor: [B, num_heads, max_seq_len, head_size]."
-    assert (
-        len(fill_value.shape) == 4
-    ), "fill_value must be a 4D tensor: [B, num_heads, 1, head_size]."
-    assert (
-        fill_value.shape[-2] == 1
-    ), "fill_value must have dim -2 equal to 1 as the cache cannot be updated with more than one token at a time."
-    assert (
-        batch_offset is not None or cache.shape[0] == 1
-    ), "batch_offset must be provided if the batch size is not 1."
+    assert len(cache.shape) == 4, (
+        "cache must be a 4D tensor: [B, num_heads, max_seq_len, head_size]."
+    )
+    assert len(fill_value.shape) == 4, (
+        "fill_value must be a 4D tensor: [B, num_heads, 1, head_size]."
+    )
+    assert fill_value.shape[-2] == 1, (
+        "fill_value must have dim -2 equal to 1 as the cache cannot be updated with more than one token at a time."
+    )
+    assert batch_offset is not None or cache.shape[0] == 1, (
+        "batch_offset must be provided if the batch size is not 1."
+    )
     assert cache_position.shape == (1,), "cache_position must be a 1D tensor."
 
     if batch_offset is None:
@@ -479,18 +480,18 @@ def update_cache_fake(
 def fill_cache(
     cache: torch.Tensor, fill_value: torch.Tensor, batch_offset: int = None
 ) -> torch.Tensor:
-    assert (
-        len(cache.shape) == 4
-    ), "cache must be a 4D tensor: [B, num_heads, max_seq_len, head_size]."
-    assert (
-        len(fill_value.shape) == 4
-    ), "fill_value must be a 4D tensor: [B, num_heads, seq_len, head_size]."
-    assert (
-        fill_value.shape[-2] <= cache.shape[-2]
-    ), f"fill_value must have dim -2 less than or equal to cache.shape[-2] as the cache cannot be filled with more tokens than the cache can hold. Recieved fill_value.shape = {fill_value.shape}, cache.shape = {cache.shape}."
-    assert (
-        batch_offset is not None or cache.shape[0] == 1
-    ), "batch_offset must be provided if the batch size is not 1."
+    assert len(cache.shape) == 4, (
+        "cache must be a 4D tensor: [B, num_heads, max_seq_len, head_size]."
+    )
+    assert len(fill_value.shape) == 4, (
+        "fill_value must be a 4D tensor: [B, num_heads, seq_len, head_size]."
+    )
+    assert fill_value.shape[-2] <= cache.shape[-2], (
+        f"fill_value must have dim -2 less than or equal to cache.shape[-2] as the cache cannot be filled with more tokens than the cache can hold. Recieved fill_value.shape = {fill_value.shape}, cache.shape = {cache.shape}."
+    )
+    assert batch_offset is not None or cache.shape[0] == 1, (
+        "batch_offset must be provided if the batch size is not 1."
+    )
 
     if batch_offset is None:
         batch_offset = 0
@@ -501,7 +502,6 @@ def fill_cache(
         cache[:, :, : fill_value.shape[-2], :] = fill_value
         return cache
     else:
-
         return stablehlo_custom_call.stablehlo_custom_call(
             [cache, fill_value],
             "tt.fill_cache",
@@ -759,6 +759,251 @@ def paged_fill_cache_fake(
 
 
 @torch.library.custom_op(
+    "tt::flash_mla_prefill", mutates_args=[], device_types=["xla", "cpu"]
+)
+def flash_mla_prefill(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    attn_mask: Optional[torch.Tensor] = None,
+    is_causal: bool = True,
+    scale: Optional[float] = None,
+) -> torch.Tensor:
+    """
+    Flash Multi-Latent Attention prefill operation.
+
+    Computes attention for the full prefill sequence using MLA (Multi-Latent Attention),
+    where the value head dimension (head_dim_v / kv_lora_rank) can differ from the
+    key/query head dimension.
+
+    Args:
+        query: Query tensor [b, nqh, s, dh]
+        key: Key tensor [b, nkv, s, dh]; in absorbed MLA the latent KV cache
+        head_dim_v: Value head dimension (kv_lora_rank in MLA terminology)
+        attn_mask: Optional attention mask [b, 1, s, s]; mutually exclusive with is_causal
+        is_causal: Whether to apply causal masking (default: True)
+        scale: Scaling factor for attention scores; defaults to 1/sqrt(dh)
+
+    Returns:
+        Output tensor [b, nqh, s, head_dim_v]
+    """
+    assert len(query.shape) == 4, (
+        "query must be a 4D tensor: [b, nqh, s, dh]."
+    )
+    assert len(key.shape) == 4, (
+        "key must be a 4D tensor: [b, nkv, s, dh]."
+    )
+    assert query.shape[0] == key.shape[0], (
+        "query and key must have the same batch size."
+    )
+    assert query.shape[2] % 32 == 0, (
+        f"query sequence length must be divisible by 32 but got {query.shape[2]}."
+    )
+    if attn_mask is not None:
+        assert not is_causal, (
+            "is_causal must be False when attn_mask is provided."
+        )
+
+    b, nqh, s, dh = query.shape
+    output_shape = [b, nqh, s, head_dim_v]
+
+    if query.device.type == "xla":
+        inputs = [query, key]
+        if attn_mask is not None:
+            inputs.append(attn_mask)
+
+        frontend_attributes = {
+            "head_dim_v": str(head_dim_v),
+            "is_causal": str(is_causal),
+            "has_attn_mask": str(attn_mask is not None),
+        }
+        if scale is not None:
+            frontend_attributes["scale"] = str(scale)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.flash_mla_prefill",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+    elif query.device.type == "cpu":
+        # CPU fallback: use the first head_dim_v columns of K as an approximation for V.
+        # This produces the correct output shape for tracing/testing; numerical accuracy
+        # requires the actual MLA projection weights available only on-device.
+        v = key[..., :head_dim_v]
+        return torch.nn.functional.scaled_dot_product_attention(
+            query,
+            key,
+            v,
+            attn_mask=attn_mask,
+            is_causal=is_causal,
+            scale=scale,
+            enable_gqa=True,
+        )
+    else:
+        raise ValueError(f"Unsupported device type: {query.device.type}")
+
+
+@flash_mla_prefill.register_fake
+def flash_mla_prefill_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    attn_mask: Optional[torch.Tensor] = None,
+    is_causal: bool = True,
+    scale: Optional[float] = None,
+) -> torch.Tensor:
+    b, nqh, s, _ = query.shape
+    return torch.zeros(b, nqh, s, head_dim_v, dtype=query.dtype, device=query.device)
+
+
+@torch.library.custom_op(
+    "tt::paged_flash_multi_latent_attention_decode",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def paged_flash_multi_latent_attention_decode(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    page_table: torch.Tensor,
+    is_causal: bool = True,
+    attn_mask: Optional[torch.Tensor] = None,
+    cur_pos_tensor: Optional[torch.Tensor] = None,
+    attention_sink: Optional[torch.Tensor] = None,
+    scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
+) -> torch.Tensor:
+    """
+    Paged Flash Multi-Latent Attention decode operation.
+
+    Computes single-token attention for the decode phase using MLA, where the
+    KV cache stores the compressed latent representation and the value head
+    dimension (head_dim_v / kv_lora_rank) may differ from the key head dimension.
+
+    Args:
+        query: Query tensor [1, b, nh, dh]
+        key: Paged key cache [max_blocks, nkv, block_size, dh]
+        head_dim_v: Value head dimension (kv_lora_rank in MLA terminology)
+        page_table: Page table mapping virtual to physical blocks [b, num_pages], int32
+        is_causal: Whether to apply causal masking (default: True)
+        attn_mask: Optional attention mask; mutually exclusive with is_causal
+        cur_pos_tensor: Current sequence position per batch entry [b], int32
+        attention_sink: Optional attention sink [1, nh, 1, 1]
+        scale: Scaling factor for attention scores; defaults to 1/sqrt(dh)
+        sliding_window_size: Optional sliding window size for attention
+
+    Returns:
+        Output tensor [1, b, nh, head_dim_v]
+    """
+    assert len(query.shape) == 4, (
+        "query must be a 4D tensor: [1, b, nh, dh]."
+    )
+    assert len(key.shape) == 4, (
+        "key must be a 4D tensor: [max_blocks, nkv, block_size, dh]."
+    )
+    assert query.shape[0] == 1, "query must have dim 0 equal to 1."
+    assert len(page_table.shape) == 2, "page_table must be a 2D tensor: [b, num_pages]."
+
+    if is_causal:
+        assert attn_mask is None, "attn_mask must be None when is_causal is True."
+        assert cur_pos_tensor is not None, (
+            "cur_pos_tensor must be provided when is_causal is True."
+        )
+
+    _, b, nh, dh = query.shape
+    output_shape = [1, b, nh, head_dim_v]
+
+    device = query.device
+    if device.type == "xla":
+        attrs = {
+            "head_dim_v": str(head_dim_v),
+            "is_causal": str(is_causal),
+            "has_attn_mask": str(attn_mask is not None),
+            "has_cur_pos_tensor": str(cur_pos_tensor is not None),
+            "has_attention_sink": str(attention_sink is not None),
+            "has_sliding_window": str(sliding_window_size is not None),
+        }
+        if scale is not None:
+            attrs["scale"] = str(scale)
+        if sliding_window_size is not None:
+            attrs["sliding_window_size"] = str(sliding_window_size)
+
+        inputs = [query, key, page_table]
+        if attn_mask is not None:
+            inputs.append(attn_mask)
+        if cur_pos_tensor is not None:
+            inputs.append(cur_pos_tensor)
+        if attention_sink is not None:
+            inputs.append(attention_sink)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.paged_flash_multi_latent_attention_decode",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes=attrs,
+        )
+    elif device.type == "cpu":
+        # CPU fallback: reconstruct dense K/V from paged cache and run standard attention.
+        # Uses the first head_dim_v columns of K as an approximation for V (same rationale
+        # as flash_mla_prefill CPU fallback).
+        num_blocks_per_user = page_table.shape[1]
+        block_size = key.shape[-2]
+        num_kv_heads = key.shape[-3]
+        max_seq_len = num_blocks_per_user * block_size
+
+        new_key = torch.zeros(b, num_kv_heads, max_seq_len, dh, dtype=query.dtype)
+        causal_mask = torch.zeros(b, max_seq_len, dtype=query.dtype)
+
+        for i in range(b):
+            block_indices = page_table[i]
+            user_key_blocks = key[block_indices]  # [num_pages, nkv, block_s, dh]
+            user_key = user_key_blocks.transpose(0, 1).reshape(
+                num_kv_heads, max_seq_len, dh
+            )
+            new_key[i] = user_key
+            if cur_pos_tensor is not None:
+                causal_mask[i, cur_pos_tensor[i] + 1 :] = float("-inf")
+
+        new_value = new_key[..., :head_dim_v]  # [b, nkv, max_seq_len, head_dim_v]
+        query_2d = query.reshape(b, nh, 1, dh)
+        attn_mask_cpu = (
+            causal_mask.reshape(b, 1, 1, max_seq_len) if is_causal else attn_mask
+        )
+        out = torch.nn.functional.scaled_dot_product_attention(
+            query_2d,
+            new_key,
+            new_value,
+            attn_mask=attn_mask_cpu,
+            is_causal=False,
+            scale=scale,
+            enable_gqa=True,
+        )
+        return out.reshape(1, b, nh, head_dim_v)
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@paged_flash_multi_latent_attention_decode.register_fake
+def paged_flash_multi_latent_attention_decode_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    page_table: torch.Tensor,
+    is_causal: bool = True,
+    attn_mask: Optional[torch.Tensor] = None,
+    cur_pos_tensor: Optional[torch.Tensor] = None,
+    attention_sink: Optional[torch.Tensor] = None,
+    scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
+) -> torch.Tensor:
+    _, b, nh, _ = query.shape
+    return torch.zeros(1, b, nh, head_dim_v, dtype=query.dtype, device=query.device)
+
+
+@torch.library.custom_op(
     "tt::paged_scaled_dot_product_attention_decode",
     mutates_args=[],
     device_types=["xla", "cpu"],
@@ -769,7 +1014,7 @@ def paged_scaled_dot_product_attention_decode(
     value: torch.Tensor,
     page_table: torch.Tensor,
     is_causal: bool = False,
-    attn_mask: torch.Tensor = None,
+    attn_mask: Optional[torch.Tensor] = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
@@ -778,9 +1023,9 @@ def paged_scaled_dot_product_attention_decode(
 
     if is_causal:
         assert attn_mask is None, "attention_mask must be None when is_causal is True."
-        assert (
-            cur_pos_tensor is not None
-        ), "cur_pos_tensor must be provided when is_causal is True."
+        assert cur_pos_tensor is not None, (
+            "cur_pos_tensor must be provided when is_causal is True."
+        )
     if attn_mask is not None:
         assert not is_causal, "attention_mask must be None when is_causal is True."
 

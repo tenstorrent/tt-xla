@@ -21,6 +21,7 @@ from vllm.v1.attention.backend import (
     AttentionImpl,
     AttentionLayer,
     AttentionType,
+    MLAAttentionImpl,
 )
 
 from .logger import tt_init_logger
@@ -557,6 +558,239 @@ class TTAttentionBackendImpl(AttentionImpl):
         else:
             total_tokens = inputs.users * inputs.query_num_tokens
             return output.reshape(total_tokens, hidden_size)
+
+
+class TTMLAAttentionBackend(AttentionBackend):
+    """
+    Attention backend for MLA (Multi-Latent Attention) models such as DeepSeek V3/R1.
+
+    In MLA the KV cache stores the concatenated compressed latent and RoPE key:
+        [num_blocks, num_kv_heads=1, block_size, kv_lora_rank + qk_rope_head_dim]
+
+    The V projection (W_UV) is applied post-attention by the outer MLAAttention layer
+    via _v_up_proj, so the kernel only needs to return kv_lora_rank-dimensional outputs.
+    """
+
+    @staticmethod
+    def get_name() -> str:
+        return "CUSTOM_MLA"
+
+    @staticmethod
+    def get_impl_cls() -> type["TTMLAAttentionBackendImpl"]:
+        return TTMLAAttentionBackendImpl
+
+    @staticmethod
+    def get_builder_cls():
+        return TTAttentionMetadataBuilder
+
+    @staticmethod
+    def get_kv_cache_shape(
+        num_blocks: int,
+        block_size: int,
+        num_kv_heads: int,
+        head_size: int,
+        cache_dtype_str: str = "auto",
+    ) -> tuple[int, ...]:
+        # MLA uses a single K-only cache; num_kv_heads is always 1 and
+        # head_size = kv_lora_rank + qk_rope_head_dim.
+        return (num_blocks, num_kv_heads, block_size, head_size)
+
+    @staticmethod
+    def swap_blocks(
+        src_kv_cache: torch.Tensor,
+        dst_kv_cache: torch.Tensor,
+        src_to_dst: torch.Tensor,
+    ) -> None:
+        raise RuntimeError("swap_blocks is not used for the TT MLA backend.")
+
+    @staticmethod
+    def get_min_page_size(vllm_config: VllmConfig) -> int:
+        return TTAttentionBackend.get_min_page_size(vllm_config)
+
+    @staticmethod
+    def get_max_num_seqs(model_len: int, page_size: int) -> int:
+        return TTAttentionBackend.get_max_num_seqs(model_len, page_size)
+
+    @staticmethod
+    def get_page_size(vllm_config: VllmConfig) -> int:
+        return TTAttentionBackend.get_page_size(vllm_config)
+
+
+class TTMLAAttentionBackendImpl(MLAAttentionImpl):
+    """
+    Inner attention implementation for MLA (Multi-Latent Attention) models.
+
+    Plugged in as ``self.impl`` inside vLLM's ``MLAAttention`` layer.  The outer
+    layer handles KV-cache writes (concat_and_cache_mla), W_UK query absorption,
+    and the post-attention W_UV up-projection (_v_up_proj).  This class only
+    needs to implement the two attention kernels:
+
+    * ``forward_mha`` – prefill, calls ``torch.ops.tt.flash_mla_prefill``
+    * ``forward_mqa`` – decode,  calls ``torch.ops.tt.paged_flash_multi_latent_attention_decode``
+
+    Tensor conventions (matching the outer MLAAttention.forward_impl):
+      forward_mha inputs:
+        q             : [T, num_heads, qk_head_dim]
+        kv_c_normed   : [T, kv_lora_rank]
+        k_pe          : [T, 1, qk_rope_head_dim]
+        output        : [T, num_heads * v_head_dim]  (written in-place)
+
+      forward_mqa inputs:
+        q             : (q_nope_absorbed [B,N,kv_lora_rank], q_pe [B,N,qk_rope_head_dim])
+                        or combined [B, N, kv_lora_rank+qk_rope_head_dim]
+        kv_cache      : [num_blocks, 1, block_size, kv_lora_rank+qk_rope_head_dim]
+        returns       : ([B, N, kv_lora_rank], lse_or_None)
+                        (_v_up_proj in the outer layer projects to v_head_dim)
+    """
+
+    # Required attributes checked by the outer MLAAttention layer.
+    supports_quant_query_input: bool = False
+    dcp_world_size: int = 1
+
+    def __init__(
+        self,
+        num_heads: int,
+        head_size: int,
+        scale: float,
+        num_kv_heads: int,
+        alibi_slopes: Optional[list[float]],
+        sliding_window: Optional[int],
+        kv_cache_dtype: str,
+        logits_soft_cap: Optional[float],
+        attn_type: str,
+        kv_sharing_target_layer_name: Optional[str],
+        # MLA-specific arguments (forwarded verbatim from MLAAttention.__init__)
+        q_lora_rank: Optional[int],
+        kv_lora_rank: int,
+        qk_nope_head_dim: int,
+        qk_rope_head_dim: int,
+        qk_head_dim: int,
+        v_head_dim: int,
+        kv_b_proj,
+        indexer=None,
+        q_pad_num_heads: Optional[int] = None,
+    ) -> None:
+        self.num_heads = num_heads
+        self.head_size = head_size          # = kv_lora_rank + qk_rope_head_dim
+        self.scale = float(scale)
+        self.num_kv_heads = num_kv_heads
+        self.sliding_window = sliding_window
+        self.q_lora_rank = q_lora_rank
+        self.kv_lora_rank = kv_lora_rank
+        self.qk_nope_head_dim = qk_nope_head_dim
+        self.qk_rope_head_dim = qk_rope_head_dim
+        self.qk_head_dim = qk_head_dim
+        self.v_head_dim = v_head_dim
+        self.kv_b_proj = kv_b_proj
+        self.indexer = indexer
+        self.q_pad_num_heads = q_pad_num_heads
+
+    def forward_mha(
+        self,
+        q: torch.Tensor,
+        kv_c_normed: torch.Tensor,
+        k_pe: torch.Tensor,
+        kv_c_and_k_pe_cache: torch.Tensor,
+        attn_metadata,
+        k_scale: torch.Tensor,
+        output: torch.Tensor,
+    ) -> None:
+        """Prefill attention via flash_mla_prefill.
+
+        Builds the combined latent key K = cat(kv_c_normed, k_pe) and pads
+        variable-length sequences to a fixed batch before calling the kernel.
+        The kernel outputs [batch, num_heads, padded_sl, kv_lora_rank]; the V
+        up-projection is then applied to obtain the final v_head_dim output.
+        """
+        T = q.shape[0]                   # total prefill tokens
+        device, dtype = q.device, q.dtype
+
+        # Build K: [T, 1, kv_lora_rank + qk_rope_head_dim]
+        k_c = kv_c_normed.unsqueeze(1)   # [T, 1, kv_lora_rank]
+        k_p = k_pe if k_pe.dim() == 3 else k_pe.unsqueeze(1)  # [T, 1, qk_rope_head_dim]
+        k = torch.cat([k_c, k_p], dim=-1)  # [T, 1, head_size]
+
+        # Convert variable-length token stream → batched tensors using query_start_loc
+        qsl = attn_metadata.prefill.query_start_loc  # [batch+1]
+        batch_size = qsl.shape[0] - 1
+
+        seq_lens = (qsl[1:] - qsl[:-1]).tolist()
+        max_sl = max(seq_lens)
+        padded_sl = ((max_sl + 31) // 32) * 32   # flash_mla_prefill needs multiple of 32
+
+        q_b = q.new_zeros(batch_size, self.num_heads, padded_sl, self.qk_head_dim)
+        k_b = q.new_zeros(batch_size, 1, padded_sl, self.head_size)
+
+        for i in range(batch_size):
+            s, e = int(qsl[i]), int(qsl[i + 1])
+            sl = e - s
+            q_b[i, :, :sl, :] = q[s:e].transpose(0, 1)    # [N, sl, qk_head_dim]
+            k_b[i, :, :sl, :] = k[s:e].transpose(0, 1)    # [1, sl, head_size]
+
+        # flash_mla_prefill: output [batch, num_heads, padded_sl, kv_lora_rank]
+        attn_latent = torch.ops.tt.flash_mla_prefill(
+            q_b, k_b, self.kv_lora_rank, is_causal=True
+        )
+
+        # Apply kv_b_proj to project latent → (k_nope, v) and extract V
+        # kv_b_proj: [*, kv_lora_rank] → [*, num_heads * (qk_nope_head_dim + v_head_dim)]
+        out_view = output.view(T, self.num_heads, self.v_head_dim)
+        for i in range(batch_size):
+            s, e = int(qsl[i]), int(qsl[i + 1])
+            sl = e - s
+            # attn_latent[i]: [num_heads, padded_sl, kv_lora_rank]
+            # Reshape to [sl, kv_lora_rank] for projection (average heads is wrong;
+            # project each head's weighted latent separately via kv_b_proj)
+            latent_i = attn_latent[i, :, :sl, :].transpose(0, 1)  # [sl, N, kv_lora_rank]
+            # Project each token's per-head latent through the shared kv_b_proj.
+            # kv_b_proj expects [*, kv_lora_rank] input.
+            latent_flat = latent_i.reshape(sl, self.num_heads, self.kv_lora_rank)
+            proj = self.kv_b_proj(
+                latent_flat.reshape(sl * self.num_heads, self.kv_lora_rank)
+            )[0].view(sl, self.num_heads, self.qk_nope_head_dim + self.v_head_dim)
+            _, v = proj.split([self.qk_nope_head_dim, self.v_head_dim], dim=-1)
+            out_view[s:e] = v
+
+    def forward_mqa(
+        self,
+        q: torch.Tensor | tuple[torch.Tensor, torch.Tensor],
+        kv_c_and_k_pe_cache: torch.Tensor,
+        attn_metadata,
+        layer,
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        """Decode attention via paged_flash_multi_latent_attention_decode.
+
+        The outer MLAAttention.forward_impl passes q as a tuple
+        (q_nope_absorbed, q_pe) after the W_UK absorption step.  We
+        concatenate them to build the full absorbed query.
+
+        Returns (attn_out, None) where attn_out has shape [B, N, kv_lora_rank].
+        The caller (_v_up_proj in MLAAttention.forward_impl) applies W_UV.
+        """
+        if isinstance(q, tuple):
+            q_nope, q_pe = q   # [B, N, kv_lora_rank], [B, N, qk_rope_head_dim]
+            q = torch.cat([q_nope, q_pe], dim=-1)  # [B, N, head_size]
+
+        B, N, dh = q.shape
+        q_for_op = q.unsqueeze(0)  # [1, B, N, dh]
+
+        decode_meta = attn_metadata.decode
+        page_table = decode_meta.block_table   # [B, max_blocks], int32
+        seq_lens = decode_meta.seq_lens        # [B]
+        cur_pos = (seq_lens - 1).to(torch.int32)
+
+        # paged_flash_multi_latent_attention_decode:
+        # output [1, B, N, kv_lora_rank]
+        out = torch.ops.tt.paged_flash_multi_latent_attention_decode(
+            q_for_op,
+            kv_c_and_k_pe_cache,
+            self.kv_lora_rank,
+            page_table,
+            is_causal=True,
+            cur_pos_tensor=cur_pos,
+            sliding_window_size=self.sliding_window,
+        )
+        return out.squeeze(0), None  # [B, N, kv_lora_rank]
 
 
 def write_to_kv_cache(

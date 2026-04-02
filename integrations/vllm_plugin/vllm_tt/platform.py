@@ -123,6 +123,10 @@ class TTPlatform(Platform):
         if selected_backend != AttentionBackendEnum.CUSTOM:
             logger.info("Cannot use %s backend on TT devices.", selected_backend)
 
+        if attn_selector_config.use_mla:
+            logger.info("Using TT MLA Attention layer.")
+            return "vllm_tt.attention.TTMLAAttentionBackend"
+
         logger.info("Using TT Attention layer.")
         return AttentionBackendEnum.CUSTOM.get_path()
 

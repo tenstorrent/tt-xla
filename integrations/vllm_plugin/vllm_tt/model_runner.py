@@ -1541,6 +1541,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        # Disable self-compilation on @support_torch_compile-decorated submodules.
+        # The TT model runner compiles the outer model, which handles all submodules.
+        # Without this, inner models attempt their own torch.compile during the outer
+        # dynamo trace, causing "Attempt to trace forbidden callable mark_dynamic".
+        for module in self.model.modules():
+            if hasattr(module, "do_not_compile"):
+                module.do_not_compile = True
+
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
