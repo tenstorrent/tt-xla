@@ -20,7 +20,7 @@ from utils import (
 
 xr.set_device_type("TT")
 
-DEFAULT_NUM_INFERENCE_STEPS = 30
+DEFAULT_NUM_INFERENCE_STEPS = 20
 DEFAULT_CFG_SCALE = 7.5
 DEFAULT_PROMPT = "a photo of an astronaut riding a horse on mars"
 DEFAULT_NEGATIVE_PROMPT = ""
