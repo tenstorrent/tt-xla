@@ -178,7 +178,7 @@ class DynamicTorchModelTester(TorchModelTester):
         mesh_info = self._workload.mesh.shape()
         mesh_shape = tuple(mesh_info.values())
         mesh_names = tuple(mesh_info.keys())
-        enable_sparse_mlp(model, mesh=mesh_shape)
+        enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=1)
         shard_spec_fn = self._workload.shard_spec_fn
         if shard_spec_fn:
 
