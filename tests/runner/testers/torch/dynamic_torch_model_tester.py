@@ -68,6 +68,21 @@ class DynamicTorchModelTester(TorchModelTester):
         if test_metadata and getattr(test_metadata, "inject_custom_moe", False):
             self._inject_custom_moe(self._model)
 
+    # def _initialize_model(self):
+    #     """Initialize model and auto-apply per-variant weight dtype overrides."""
+    #     super()._initialize_model()
+    #     loader = self.dynamic_loader.loader
+    #     if hasattr(loader, "get_weight_dtype_config_path"):
+    #         config_path = loader.get_weight_dtype_config_path()
+    #         if config_path:
+    #             from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+    #             applied = apply_weight_dtype_overrides(self._model, config_path)
+    #             if applied:
+    #                 logger.info(
+    #                     f"Applied {len(applied)} weight dtype overrides from {config_path}"
+    #                 )
+
     # --- TorchModelTester interface implementations ---
 
     def _get_model(self):

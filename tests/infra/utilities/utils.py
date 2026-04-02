@@ -165,11 +165,11 @@ def create_jax_inference_tester(
         dtype = jnp.float32
     elif format == "bfloat16":
         dtype = jnp.bfloat16
-    elif format == "bfp8":
+    elif format == "bfp_bf8":
         dtype = jnp.bfloat16
         if compiler_config is None:
             compiler_config = CompilerConfig()
-        compiler_config.experimental_weight_dtype = "bfp8"
+        compiler_config.experimental_weight_dtype = "bfp_bf8"
 
     return model_tester_class(
         variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
@@ -190,11 +190,11 @@ def create_torch_inference_tester(
         dtype = None
     elif format == "bfloat16":
         dtype = torch.bfloat16
-    elif format == "bfp8":
+    elif format == "bfp_bf8":
         dtype = torch.bfloat16
         if compiler_config is None:
             compiler_config = CompilerConfig()
-        compiler_config.experimental_weight_dtype = "bfp8"
+        compiler_config.experimental_weight_dtype = "bfp_bf8"
 
     return model_tester_class(
         variant_or_args, compiler_config=compiler_config, dtype_override=dtype, **kwargs
