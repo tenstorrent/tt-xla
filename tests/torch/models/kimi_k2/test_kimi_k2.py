@@ -16,6 +16,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import DynamicCache
 
 from tests.utils import failed_ttmlir_compilation
+from third_party.tt_forge_models.kimi.kimi_k2.pytorch.loader import ModelLoader
 
 from .configuration_deepseek import DeepseekV3Config
 from .modeling_deepseek import (
@@ -27,29 +28,15 @@ from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Att
 from .utils import MLACache
 
 
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "'ttir.concat' op Output tensor dimension 0 does not match the sum of input tensor dimensions: 1 vs. 32. "
-    )
-)
 def test_kimi_k2_single_layer():
     xr.set_device_type("TT")
 
-    # Load full Kimi K2 config from JSON file
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
-
-    # Override for single layer testing
-    config.num_hidden_layers = 1
-    config.use_cache = False
-
-    model = DeepseekV3ForCausalLM(config)
+    loader = ModelLoader(num_layers=1, no_tokenizer=True)
+    model = loader.load_model(dtype_override=torch.bfloat16)
 
     batch_size = 64
     seq_len = 32
-    tokens = torch.randint(0, config.vocab_size, (batch_size, seq_len))
-    model = model.to(torch.bfloat16)
-    model = model.eval()
+    tokens = loader.load_inputs(batch_size=batch_size, seq_len=seq_len)
 
     compiled_model = torch.compile(model, backend="tt")
 
@@ -59,7 +46,79 @@ def test_kimi_k2_single_layer():
 
     with torch.no_grad():
         output = compiled_model(tokens)
-        output.to("cpu")
+        output.logits.to("cpu")
+
+
+@pytest.mark.xfail(
+    reason=failed_ttmlir_compilation(
+        "'ttir.concat' op Output tensor dimension 0 does not match the sum of input tensor dimensions: 1 vs. 32. "
+    )
+)
+def test_kimi_k2_rotary_emb_gather_all_rows():
+    """Reproduces the TT compiler gather-all-rows bug via DeepseekV3Attention without a KV cache.
+
+    The bug lives in GatherToSliceRepeatConcatConversionPattern in tt-mlir's
+    TTIRToTTIRDecomposition pass.  That pattern only fires when startIndices is a
+    ttir::ConstantOp.  In the full model, position_ids are generated internally via
+    torch.arange which XLA folds into a stablehlo.constant → ttir::ConstantOp.
+
+    When the pattern sees indices [0, 1, ..., N-1] (all rows, no padding):
+      starts = 1, ends = 1  →  after decrement: starts = 0, ends = 0
+      slicesToConcat = [op.getInput()]  (shape (N, D))
+      ConcatOp(output_type=op.getType()=(1, N, D), inputs=[(N, D)], dim=0)
+      → verifier error: output dim 0 = 1 but inputs sum to N
+
+    The workaround in tt_forge_models uses rope_seq_len = q_len + 1 so that
+    position_ids only index N rows from an (N+1)-row cos table.  With N < N+1 the
+    slice is a proper subset and the all-rows pattern is avoided.
+
+    The fix in tt-mlir is to return failure() when starts == 0 && ends == 0 (no
+    padding found), letting GatherToEmbeddingConversionPattern handle it instead.
+    """
+    xr.set_device_type("TT")
+
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    config = DeepseekV3Config.from_json_file(config_path)
+    config.num_hidden_layers = 1
+
+    batch_size = 64
+    seq_len = 32
+
+    # Attention without a KV cache: kv_seq_len == q_len, triggering gather-all-rows.
+    attention = DeepseekV3Attention(config, layer_idx=0)
+    attention = attention.to(torch.bfloat16).eval()
+
+    # Wrap the attention so that position_ids are generated *inside* the module via
+    # torch.arange.  XLA folds arange(0, seq_len) into a stablehlo.constant which
+    # becomes ttir::ConstantOp, enabling GatherToSliceRepeatConcatConversionPattern
+    # to match and expose the output-shape bug.  Passing position_ids as an external
+    # input leaves them as non-constant placeholders and the pattern never fires.
+    class AttentionWithInternalPositionIds(torch.nn.Module):
+        def __init__(self, attn):
+            super().__init__()
+            self.attn = attn
+
+        def forward(self, hidden_states, attention_mask):
+            seq = hidden_states.shape[1]
+            position_ids = torch.arange(seq, dtype=torch.long, device=hidden_states.device).unsqueeze(0)
+            return self.attn(hidden_states, attention_mask, position_ids)
+
+    wrapped = AttentionWithInternalPositionIds(attention).eval()
+
+    hidden_states = torch.randn(batch_size, seq_len, config.hidden_size, dtype=torch.bfloat16)
+    # Without a KV cache, kv_seq_len == q_len == seq_len, so the attention mask is square.
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    compiled = torch.compile(wrapped, backend="tt")
+
+    device = torch_xla.device()
+    hidden_states = hidden_states.to(device)
+    attention_mask = attention_mask.to(device)
+    compiled = compiled.to(device)
+
+    with torch.no_grad():
+        output = compiled(hidden_states, attention_mask)
+        output[0].to("cpu")
 
 
 @pytest.mark.nightly
