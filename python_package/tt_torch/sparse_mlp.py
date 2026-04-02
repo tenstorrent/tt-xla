@@ -289,6 +289,21 @@ class A2aSparseMLP(nn.Module):
         self.alpha = getattr(self.experts, "alpha", 1.702)
         self.limit = getattr(self.experts, "limit", 7.0)
 
+        # De-interleave gate_up_proj: [g0, u0, g1, u1, ...] -> [g0, g1, ..., u0, u1, ...]
+        # so the forward pass can use cheap contiguous splits instead of stride-2 slicing.
+        with torch.no_grad():
+            orig_w = self.experts.gate_up_proj.data
+            gate_w = orig_w[..., ::2].contiguous()
+            up_w = orig_w[..., 1::2].contiguous()
+            self.experts.gate_up_proj = nn.Parameter(torch.cat([gate_w, up_w], dim=-1))
+
+            orig_b = self.experts.gate_up_proj_bias.data
+            gate_b = orig_b[..., ::2].contiguous()
+            up_b = orig_b[..., 1::2].contiguous()
+            self.experts.gate_up_proj_bias = nn.Parameter(
+                torch.cat([gate_b, up_b], dim=-1)
+            )
+
         # Expert-to-device mapping [1, 1, E, D] where D = num_devices (total)
         # Maps each expert to its owning device. When cluster_axis=0, the dispatch
         # kernel derives the target row from the device_id in the mapping.
@@ -378,11 +393,9 @@ class A2aSparseMLP(nn.Module):
             )  # [dim_a, dim_b, M, E, inter*2]
             gate_up_out = gate_up_out + gate_up_bias
 
-            # Activation
-            # We can un-interleave these experts in init and save the overhead of strided slicing on device.
-            # Issue : https://github.com/tenstorrent/tt-xla/issues/3668
-            gate_out = gate_up_out[..., ::2]
-            up_out = gate_up_out[..., 1::2]
+            # Activation (weights de-interleaved in __init__)
+            gate_out = gate_up_out[..., : self.intermediate_size]
+            up_out = gate_up_out[..., self.intermediate_size :]
             if self.activation_type == ACTIVATION_DEEPSEEK:
                 activated = F.silu(gate_out) * up_out
             else:
@@ -467,9 +480,9 @@ class A2aSparseMLP(nn.Module):
             gate_up_out = gate_up_out.squeeze(2)  # [dim_a, dim_b, E, M, inter*2]
             gate_up_out = gate_up_out + gate_up_bias.unsqueeze(-2)
 
-            # Activation
-            gate_out = gate_up_out[..., ::2]
-            up_out = gate_up_out[..., 1::2]
+            # Activation (weights de-interleaved in __init__)
+            gate_out = gate_up_out[..., : self.intermediate_size]
+            up_out = gate_up_out[..., self.intermediate_size :]
             if self.activation_type == ACTIVATION_DEEPSEEK:
                 activated = F.silu(gate_out) * up_out
             else:
@@ -580,8 +593,8 @@ class A2aSparseMLP(nn.Module):
             gate_up_out = gate_up_out.squeeze(2)  # [dim_a, dim_b, E, M, inter*2]
             gate_up_out = gate_up_out + gate_up_bias.unsqueeze(-2)
 
-            gate_out = gate_up_out[..., ::2]
-            up_out = gate_up_out[..., 1::2]
+            gate_out = gate_up_out[..., : self.intermediate_size]
+            up_out = gate_up_out[..., self.intermediate_size :]
             if self.activation_type == ACTIVATION_DEEPSEEK:
                 activated = F.silu(gate_out) * up_out
             else:

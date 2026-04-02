@@ -99,25 +99,42 @@ def construct_inputs(
         if input_prompt_tokens.shape[0] > max_cache_len:
             input_prompt_tokens = input_prompt_tokens[:max_cache_len]
 
-        input_ids = input_prompt_tokens.unsqueeze(0).expand(batch_size, -1).contiguous()
+        base_ids = input_prompt_tokens.unsqueeze(0).expand(batch_size, -1).contiguous()
+        if batch_size > 1:
+            vocab_size = max(int(input_prompt_tokens.max()) + 1, 1000)
+            gen = torch.Generator().manual_seed(42)
+            noise = torch.randint(
+                0, vocab_size, base_ids.shape, generator=gen, dtype=base_ids.dtype
+            )
+            mask = torch.zeros(batch_size, 1, dtype=torch.bool)
+            mask[0] = True
+            input_ids = torch.where(mask.expand_as(base_ids), base_ids, noise)
+        else:
+            input_ids = base_ids
         inputs = {"input_ids": input_ids}
     else:
         if input_prompt is None:
             input_prompt = DEFAULT_INPUT_PROMPT
-        input_prompt = [input_prompt] * batch_size
 
-        # TODO: Only works on same length inputs for now
-        prompt_len = len(input_prompt[0])
-        assert all(
-            len(prompt) == prompt_len for prompt in input_prompt
-        ), "All input prompts must have the same length"
-
-        inputs = tokenizer(
-            input_prompt,
+        base_inputs = tokenizer(
+            [input_prompt],
             return_tensors="pt",
             max_length=max_cache_len,
             truncation=True,
         )
+        base_ids = base_inputs["input_ids"]
+        if batch_size > 1:
+            base_ids = base_ids.expand(batch_size, -1).contiguous()
+            vocab_size = tokenizer.vocab_size or max(int(base_ids.max()) + 1, 1000)
+            gen = torch.Generator().manual_seed(42)
+            noise = torch.randint(
+                0, vocab_size, base_ids.shape, generator=gen, dtype=base_ids.dtype
+            )
+            mask = torch.zeros(batch_size, 1, dtype=torch.bool)
+            mask[0] = True
+            base_ids = torch.where(mask.expand_as(base_ids), base_ids, noise)
+        inputs = {k: v for k, v in base_inputs.items() if k != "input_ids"}
+        inputs["input_ids"] = base_ids
 
     if past_key_values is None:
         # Static cache should be initialized on CPU and separately transferred to device
@@ -348,25 +365,36 @@ def benchmark_llm_torch_xla(
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
     input_args = transfer_to_device(input_args, device)
+
+    # Replace MLP modules with A2aSparseMLP BEFORE model.to(device) so that
+    # de-interleaved parameters become proper device data (not computed tensors
+    # from XLA ops on the original replicated weights).
+    if is_multichip and inject_custom_moe:
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape, _ = mesh_config_fn(model_loader, num_devices)
+        if mesh_shape[0] == 1:
+            cluster_axis = 1
+        else:
+            cluster_axis = 0
+        enable_sparse_mlp(model, mesh_shape, cluster_axis=cluster_axis)
+
     model = model.to(device, dtype=torch.bfloat16)
 
     # Shard model if shard spec function is provided
     mesh = None
     if is_multichip:
-        shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
-        if inject_custom_moe:
-            enable_sparse_mlp(model, mesh.mesh_shape, cluster_axis=0)
+        shard_specs = shard_spec_fn(model_loader, model)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        # Also shard KV cache tensors created in input_args
         for layer in input_args["past_key_values"].layers:
             xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
             xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
-        # Apply sharding constraint on lm_head output to all_gather logits
+        # All-gather lm_head output inside the compiled graph so CPU gets full
+        # logits without a separate gather step.
         if hasattr(model, "lm_head") and model.lm_head is not None:
             hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
             model.lm_head.register_forward_hook(hook)
@@ -423,6 +451,8 @@ def benchmark_llm_torch_xla(
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
     input_args = transfer_to_device(input_args, device)
+    # if is_multichip:
+    #     xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
 
     # Run benchmark once
     print(f"\nStarting benchmark...")

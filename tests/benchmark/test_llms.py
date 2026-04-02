@@ -1116,7 +1116,7 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
         shard_specs[layer.mlp.experts.down_proj_bias] = (("model"), None)
     return shard_specs
 
-def test_gpt_oss_20b_tp_no_moe(output_file, num_layers, request, max_output_tokens):
+def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1134,15 +1134,16 @@ def test_gpt_oss_20b_tp_no_moe(output_file, num_layers, request, max_output_toke
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
     )
 
+
 def _gpt_oss_20b_mesh_moe_config_fn(model_loader, num_devices):
     return (2, 4), ("batch", "model")
 
 
 def _gpt_oss_20b_shard_moe_spec_fn(model_loader, model):
     shard_specs = {}
-    shard_specs[model.model.embed_tokens.weight] = (None, None)
-    shard_specs[model.model.norm.weight] = (None,)
-    # shard_specs[model.lm_head.weight] = ("model", None)
+    shard_specs[model.model.embed_tokens.weight] = (None, "model")
+    shard_specs[model.model.norm.weight] = ("model",)
+    shard_specs[model.lm_head.weight] = (None, "model")
     for layer in model.model.layers:
         shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
         shard_specs[layer.self_attn.q_proj.bias] = ("model",)
@@ -1152,13 +1153,19 @@ def _gpt_oss_20b_shard_moe_spec_fn(model_loader, model):
         shard_specs[layer.self_attn.v_proj.bias] = ("model",)
         shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
         shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.mlp.router.weight] = (None, "model")
+        # shard_specs[layer.mlp.router.bias] = (("model"),)
         shard_specs[layer.mlp.experts.gate_up_proj] = (("batch", "model"), None, None)
         shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("batch", "model"), None)
         shard_specs[layer.mlp.experts.down_proj] = (("batch", "model"), None, None)
         shard_specs[layer.mlp.experts.down_proj_bias] = (("batch", "model"), None)
+        shard_specs[layer.input_layernorm.weight] = ("model",)
+        shard_specs[layer.post_attention_layernorm.weight] = ("model",)
+
     return shard_specs
 
-def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
+
+def test_gpt_oss_20b_tp_moe(output_file, num_layers, request, max_output_tokens):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1174,7 +1181,7 @@ def test_gpt_oss_20b_tp(output_file, num_layers, request, max_output_tokens):
         max_output_tokens=max_output_tokens,
         mesh_config_fn=_gpt_oss_20b_mesh_moe_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_moe_spec_fn,
-        optimization_level=0,  # https://github.com/tenstorrent/tt-mlir/issues/6949
+        optimization_level=0, # turned off because it has no gain for sparse moe case yet
         inject_custom_moe=True,  # Enable custom MoE logic for GPT-OSS sparse MoE variant
     )
 
