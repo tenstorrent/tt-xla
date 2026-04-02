@@ -1,9 +1,9 @@
-name: On nightly (LB Blackhole)
+name: On weekly Experimental
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 8 * * 6'
 
 permissions:
   packages: write
@@ -13,8 +13,6 @@ jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
-    with:
-      dockbuild: all
 
   build-ttxla:
     uses: ./.github/workflows/call-build.yml
@@ -23,19 +21,17 @@ jobs:
     needs: build-image
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: release,manylinux
 
   test_forge_models_lb_blackhole:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     with:
-      test_suite: model-test-lb-blackhole-nightly.json
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      test_suite: model-test-lb-blackhole-weekly.json
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      wheel_build: manylinux
+      include_passed: true
 
   fail-notify:
     if: always()
@@ -69,12 +65,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Bad bad LB Blackhole nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "Bad bad Experimental weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "channel": "C08GYB57C8M",
               "unfurl_links": false, "unfurl_media": false
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_FAIL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEEKLY_FAIL }}
 
       - name: Send Success Notification
         if: ${{ needs.fail-notify.outputs.failed == 'false' && needs.fail-notify.outputs.is-main == 'true' }}
@@ -82,9 +78,9 @@ jobs:
         with:
           payload: |
             {
-              "text": "Good LB Blackhole nightly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
+              "text": "Good Experimental weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
               "channel": "C08GYB57C8M",
               "unfurl_links": false, "unfurl_media": false
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_SUCCESS }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEEKLY_SUCCESS }}
