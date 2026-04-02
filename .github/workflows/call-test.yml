@@ -76,6 +76,7 @@ jobs:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
       options: --device /dev/tenstorrent
       volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
         - /etc/udev/rules.d:/etc/udev/rules.d
@@ -209,6 +210,74 @@ jobs:
             mv alchemist_artifact/tools third_party/tt-mlir/src/tt-mlir/build/
           fi
         fi
+
+    - name: Start multihost controller container
+      if: ${{ matrix.build.multihost }}
+      shell: bash
+      run: |
+        # maybe mergable - if we use mpirun directly from this container.
+        DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+        echo "Launching multihost controller container with image: $DOCKER_IMAGE"
+        docker run --pull=never --rm -d \
+          --name ubuntu-host-mapped \
+          --privileged --pid=host --network=host \
+          --device /dev/tenstorrent \
+          -v /dev/hugepages:/dev/hugepages \
+          -v /dev/hugepages-1G:/dev/hugepages-1G \
+          -v /etc/udev/rules.d:/etc/udev/rules.d \
+          -v /lib/modules:/lib/modules \
+          -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+          -v /mnt/dockercache:/mnt/dockercache \
+          -v /etc/mpirun:/etc/mpirun:ro \
+          -v /etc/mpirun/id_rsa_multihost_ssh_agent_sock:/ssh-agent \
+          -e SSH_AUTH_SOCK=/ssh-agent \
+          -v ${{ github.workspace }}:/workspace \
+          -w /workspace \
+          "$DOCKER_IMAGE" sleep infinity
+        echo "Controller container started"
+
+    - name: Start multihost worker containers via mpirun
+      if: ${{ matrix.build.multihost }}
+      shell: bash
+      run: |
+        DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+
+        # Make remote_docker.sh executable
+        docker exec ubuntu-host-mapped chmod +x \
+          /workspace/tests/torch/multi_host/experimental/remote_docker.sh
+
+        # Launch containers on all hosts idempotently (controller already running, will skip)
+        docker exec \
+          -e DOCKER_IMAGE="$DOCKER_IMAGE" \
+          -e WORKSPACE_PATH="${{ github.workspace }}" \
+          ubuntu-host-mapped bash -c '
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
+            --tag-output \
+            bash -c "
+              CONTAINER_NAME=ubuntu-host-mapped
+              if docker ps --filter name=\$CONTAINER_NAME --format \"{{.Names}}\" | grep -q \$CONTAINER_NAME; then
+                echo \"\$(hostname): Container already running, skipping\"
+              else
+                docker run --pull=always --rm -d \
+                  --name \$CONTAINER_NAME --privileged --pid=host --network=host \
+                  --device /dev/tenstorrent \
+                  -v /dev/hugepages:/dev/hugepages \
+                  -v /dev/hugepages-1G:/dev/hugepages-1G \
+                  -v /etc/udev/rules.d:/etc/udev/rules.d \
+                  -v /lib/modules:/lib/modules \
+                  -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+                  -v /mnt/dockercache:/mnt/dockercache \
+                  -v /etc/mpirun:/etc/mpirun:ro \
+                  -v $WORKSPACE_PATH:/workspace \
+                  -w /workspace \
+                  $DOCKER_IMAGE sleep infinity
+                echo \"\$(hostname): Container started\"
+              fi
+            "
+        '
+        echo "All multihost containers ready"
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
@@ -344,7 +413,26 @@ jobs:
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
+    - name: Prepare vLLM test dependencies
+      if: ${{ matrix.build.name == 'run_vllm_n150_tests' || matrix.build.name == 'run_vllm_n300_tests' || matrix.build.name == 'run_vllm_llmbox_tests' }}
+      shell: bash
+      run: |
+        source venv/activate
+        uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
+        uv pip freeze
+
+    - name: Generate pytest command
+      shell: bash
+      run: |
+        FULL_PYTEST_CMD="python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+          --junitxml=${{ steps.strings.outputs.test_report_path }} \
+          --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+          --perf-id=${{ steps.fetch-job-id.outputs.job_id }}"
+        echo "FULL_PYTEST_CMD=$FULL_PYTEST_CMD" >> $GITHUB_ENV
+        echo "Will execute: $FULL_PYTEST_CMD"
+
     - name: Run tests
+      if: ${{ !matrix.build.multihost }}
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
         HF_HOME: /mnt/dockercache/huggingface
@@ -355,24 +443,56 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
-          uv pip freeze
-        fi
-        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
-               --junitxml=${{ steps.strings.outputs.test_report_path }} \
-               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
-               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
-               2>&1 | tee pytest.log
+        ${{ env.FULL_PYTEST_CMD }} 2>&1 | tee pytest.log
 
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          uv pip uninstall vllm transformers
-          uv pip install -r $(pwd)/venv/requirements-dev.txt
-        fi
+    - name: Run tests (multihost)
+      if: ${{ matrix.build.multihost }}
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
+      shell: bash
+      run: |
+        docker exec \
+          -e HF_HOME=/mnt/dockercache/huggingface \
+          -e TORCH_HOME=/mnt/dockercache/torchhub \
+          -e GITHUB_TOKEN=${{ secrets.GH_TOKEN }} \
+          -e HF_TOKEN=${{ secrets.HF_TOKEN }} \
+          -e ENABLE_BRINGUP_STAGE_LOGGING=1 \
+          -e FULL_PYTEST_CMD="${{ env.FULL_PYTEST_CMD }}" \
+          ubuntu-host-mapped bash -c '
+            cd /workspace
+            source venv/activate
+
+            export TTXLA_LOGGER_LEVEL=DEBUG
+            export TT_METAL_LOGGER_LEVEL=DEBUG
+            export TT_METAL_LOGGER_TYPES=Fabric,Always
+
+            # Dual T3K distributed env vars
+            export TT_RUNTIME_ENABLE_DISTRIBUTED=1
+            export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
+            export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
+            export TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
+            export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
+
+            # Resolve distributed worker binary path
+            WORKER_PATH=""
+            if [ -n "$TT_PJRT_PLUGIN_DIR" ]; then
+              CANDIDATE="$TT_PJRT_PLUGIN_DIR/bin/ttmlir/runtime/distributed/worker"
+              [ -f "$CANDIDATE" ] && WORKER_PATH="$CANDIDATE"
+            fi
+            if [ -z "$WORKER_PATH" ] && [ -n "$TT_MLIR_HOME" ]; then
+              WORKER_PATH="$TT_MLIR_HOME/build/runtime/bin/distributed/worker"
+            fi
+            export TT_DISTRIBUTED_WORKER_PATH="$WORKER_PATH"
+
+            $FULL_PYTEST_CMD 2>&1 | tee pytest.log
+          '
+
+    - name: Teardown vLLM test dependencies
+      if: ${{ matrix.build.name == 'run_vllm_n150_tests' || matrix.build.name == 'run_vllm_n300_tests' || matrix.build.name == 'run_vllm_llmbox_tests' }}
+      shell: bash
+      run: |
+        source venv/activate
+        uv pip uninstall vllm transformers
+        uv pip install -r $(pwd)/venv/requirements-dev.txt
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
@@ -406,6 +526,37 @@ jobs:
         path: ${{ steps.strings.outputs.perf_report_dir }}
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
+
+    - name: Cleanup multihost worker containers
+      if: ${{ always() && matrix.build.multihost }}
+      shell: bash
+      run: |
+        docker exec ubuntu-host-mapped bash -c '
+          mpirun --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
+            --tag-output \
+            bash -c "docker stop ubuntu-host-mapped || true; docker rm ubuntu-host-mapped || true"
+        ' || true
+
+    - name: Fix multihost workspace permissions
+      if: ${{ always() && matrix.build.multihost }}
+      shell: bash
+      run: |
+        DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+        docker run --rm \
+          -v "${{ github.workspace }}:/workspace" \
+          "$DOCKER_IMAGE" \
+          chown -R "$(id -u):$(id -g)" /workspace || true
+        echo "Workspace ownership restored"
+
+    - name: Teardown multihost controller container
+      if: ${{ always() && matrix.build.multihost }}
+      shell: bash
+      run: |
+        docker stop ubuntu-host-mapped || true
+        docker rm ubuntu-host-mapped || true
+        echo "Controller container removed"
 
 
   test-summary:
