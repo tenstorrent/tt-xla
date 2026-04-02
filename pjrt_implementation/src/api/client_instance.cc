@@ -523,12 +523,11 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
 
-  // Clear tensor pool before closing the mesh. Tensors on the old mesh cannot
-  // be moved to host (copy_to_host only supports single device mesh) and their
-  // device memory will be freed when the mesh closes. Clearing the pool
-  // prevents dangling references in prepareInputTensor when buffers are reused
-  // as inputs to subsequent graphs.
-  // TensorPool::clear();
+  // Move tensors to host before closing the mesh. Tensors on the old mesh
+  // have device references that become dangling when the mesh is closed and
+  // reopened. Moving them to host ensures they can be re-placed on the new
+  // mesh during subsequent graph execution.
+  TensorPool::move_tensors_to_host();
 
   // NOTE: Due to some issues hit when testing, instead of using the reshape
   // mesh API, we are closing and re-opening the device with the wanted mesh

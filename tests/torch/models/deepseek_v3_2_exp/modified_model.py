@@ -1239,34 +1239,18 @@ class Transformer(nn.Module):
 
         self.register_buffer("freqs_cis", freqs_cis, persistent=False)
 
-    def forward(
-        self,
-        tokens: torch.Tensor,
-        start_pos: int = 0,
-        freqs_cis: Optional[torch.Tensor] = None,
-        mask: Optional[torch.Tensor] = None,
-    ):
-        """
-        Forward pass for the Transformer model.
-
-        Args:
-            tokens (torch.Tensor): Input tensor of token IDs with shape (batch_size, seq_len).
-            start_pos (int, optional): Starting position in the sequence for rotary embeddings. Defaults to 0.
-            freqs_cis (Optional[torch.Tensor]): Pre-computed rotary embedding frequencies. If None, computed from self.freqs_cis.
-            mask (Optional[torch.Tensor]): Pre-computed attention mask. If None, computed from seq_len.
-
-        Returns:
-            torch.Tensor: Logits tensor of shape (batch_size, vocab_size).
-        """
+    def forward(self, tokens: torch.Tensor, start_pos: int = 0):
         seqlen = tokens.size(1)
-        if freqs_cis is None:
-            freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
-        if mask is None and seqlen > 1:
-            mask = torch.full(
+        freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
+        mask = (
+            torch.full(
                 (seqlen, seqlen),
                 float("-inf"),
                 device=tokens.device,
             ).triu_(1)
+            if seqlen > 1
+            else None
+        )
         h, residual = self.embed(tokens), None
         for layer in self.layers:
             h, residual = layer(h, residual, start_pos, freqs_cis, mask)

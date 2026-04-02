@@ -487,12 +487,6 @@ def test_deepseek_v3_2_full_sparse_moe():
     model.eval()
 
     tokens = torch.randint(0, args.vocab_size, (batch_size, seq_len))
-    # Pre-compute freqs_cis and mask outside forward() to avoid an unsharded
-    # graph segment that compiles before the device mesh is opened with the
-    # correct shape.  Without this, the first compiled segment has a trivial
-    # [1,1] shardy mesh that falls back to a wrong [1,N] layout and segfaults.
-    freqs_cis = model.freqs_cis[:seq_len]
-    mask = torch.full((seq_len, seq_len), float("-inf"), dtype=torch.bfloat16).triu_(1)
 
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
@@ -592,7 +586,7 @@ def test_deepseek_v3_2_full_sparse_moe():
 
     run_graph_test(
         model,
-        [tokens, 0, freqs_cis, mask],
+        [tokens],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
