@@ -637,7 +637,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 output_token_ids=[],
                 lora_request=new_req_data.lora_request,
             )
-
             if sampling_params and sampling_params.prompt_logprobs is not None:
                 self.num_prompt_logprobs[req_id] = (
                     self.input_batch.vocab_size
@@ -1042,18 +1041,34 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
+        # With prefix caching, some blocks are already filled. Use the
+        # minimum num_computed_tokens across the batch to determine how many
+        # leading page_table blocks to skip during paged_fill_cache. Using
+        # min is safe: all requests in a prefill batch share the same prefix
+        # (the scheduler groups by prefix), so min == max in practice.
+        prefill_block_offset = 0
+        if num_reqs > 0:
+            min_computed = int(
+                np.min(self.input_batch.num_computed_tokens_cpu[:num_reqs])
+            )
+            prefill_block_offset = min_computed // self.block_size
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            prefill_block_offset=prefill_block_offset,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
         # partial request, we do so for simplicity. We will ignore the sampled
         # token from the partial request.
-        # Indices at which we sample (positions of last token in the sequence).
-        logits_indices = self.query_start_loc_cpu[1 : self.max_num_reqs + 1] - 1
+        # Per-user last-token index within each padded slot.
+        logits_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32)
+        logits_indices[: len(num_scheduled_tokens_per_req)] = (
+            torch.from_numpy(num_scheduled_tokens_per_req).to(torch.int32) - 1
+        )
         logits_indices = logits_indices.to(self.device)
 
         if self.lora_config is not None:

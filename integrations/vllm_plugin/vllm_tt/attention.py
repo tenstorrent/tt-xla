@@ -173,6 +173,9 @@ class TTMetadata:
     attn_mask: torch.Tensor
     page_table: torch.Tensor
     is_causal: bool
+    # Block offset for prefix caching: skip this many blocks in page_table
+    # when filling the cache during prefill (prefix blocks are already filled).
+    prefill_block_offset: int
 
     def __init__(
         self,
@@ -180,11 +183,13 @@ class TTMetadata:
         attn_mask: torch.Tensor | None = None,
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
+        prefill_block_offset: int = 0,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
         self.page_table = page_table
         self.is_causal = is_causal
+        self.prefill_block_offset = prefill_block_offset
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -470,11 +475,20 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
+            # With prefix caching, some blocks are already filled from the
+            # cached prefix. Offset the page_table to skip those blocks so
+            # paged_fill_cache only writes to the new (non-prefix) blocks.
+            fill_page_table = attn_metadata.page_table
+            if attn_metadata.prefill_block_offset > 0:
+                fill_page_table = attn_metadata.page_table[
+                    :, attn_metadata.prefill_block_offset :
+                ]
+
             for batch_idx in range(inputs.users):
                 k_cache = torch.ops.tt.paged_fill_cache(
                     k_cache,
                     key_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.page_table,
+                    fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=k_cache.device
                     ),
@@ -482,7 +496,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 v_cache = torch.ops.tt.paged_fill_cache(
                     v_cache,
                     value_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.page_table,
+                    fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=v_cache.device
                     ),
