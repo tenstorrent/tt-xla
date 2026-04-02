@@ -1,7 +1,7 @@
 name: On PR
 
 on:
-  pull_request: # TODO Disabled while testing workflows
+  pull_request:
     branches: [ "main" ]
 
 permissions:
