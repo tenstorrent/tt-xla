@@ -136,32 +136,34 @@ if __name__ == "__main__":
         sys.exit(3)
 
     matrix = []
-    upload_list = []
+    # upload_list = []
     # Create output directories and write test files
     for machine, tests in nft.items():
-        machine_dir = os.path.join(dir_out, machine)
-        os.makedirs(machine_dir, exist_ok=True)
+        # machine_dir = os.path.join(dir_out, machine)
+        # os.makedirs(machine_dir, exist_ok=True)
 
-        tests_file = os.path.join(machine_dir, ".tests_to_run")
-        with open(tests_file, "w") as f:
-            for test in tests:
-                f.write(f"{test}\n")
+        # tests_file = os.path.join(machine_dir, ".tests_to_run")
+        # with open(tests_file, "w") as f:
+        #     for test in tests:
+        #         f.write(f"{test}\n")
 
-        upload_list.append({"name": f"{machine}-test-to-run", "path": tests_file})
+        # upload_list.append({"name": f"{machine}-test-to-run", "path": tests_file})
         for i in range(num_runs):
-            matrix.append(
-                {
-                    "runs-on": machine,
-                    "fromc": fromc,
-                    "toc": toc,
-                    "shared-runners": machine.startswith("tt-"),
-                    "run_no": i,
-                }
-            )
+            for test in tests:
+                matrix.append(
+                    {
+                        "runs-on": machine,
+                        "fromc": fromc,
+                        "toc": toc,
+                        "shared-runners": machine.startswith("tt-"),
+                        "test": test,
+                        "run_no": i,
+                    }
+                )
 
     # Write upload_list to .upload_list.json file
-    with open(".upload_list.json", "w") as f:
-        json.dump(upload_list, f, indent=2)
+    # with open(".upload_list.json", "w") as f:
+    #     json.dump(upload_list, f, indent=2)
 
     # Write matrix to .matrix.json file
     with open(".matrix.json", "w") as f:

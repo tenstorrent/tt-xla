@@ -316,7 +316,7 @@ jobs:
     name: "test ${{ matrix.build.runs-on }} (sha ${{ matrix.build.fromc }} - ${{ matrix.build.toc }})"
 
     container:
-      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image) }}
+      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image-base || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image-base) }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
@@ -341,10 +341,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Download test to run
-        uses: actions/download-artifact@v6
-        with:
-          name: ${{ matrix.build.runs-on }}-test-to-run
+      # - name: Download test to run
+      #   uses: actions/download-artifact@v6
+      #   with:
+      #     name: ${{ matrix.build.runs-on }}-test-to-run
 
       - name: Set caching env variables
         shell: bash
@@ -381,7 +381,7 @@ jobs:
             if .bisect-run/download_wheel.sh; then
               # Run tests
               echo "Running tests"
-              if python .bisect-run/run_tests.py -v 2>&1; then
+              if pytest "${{ matrix.build.test }}" -v 2>&1; then
                 echo "Tests passed"
                 out=$(git bisect good || true)
               else
