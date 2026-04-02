@@ -332,6 +332,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
+        TTXLA_LOGGER_LEVEL: DEBUG
       shell: bash
       run: |
         source venv/activate
