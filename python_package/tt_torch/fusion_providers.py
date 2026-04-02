@@ -185,8 +185,9 @@ class RMSNormFusionProvider(FusionProvider):
         # across multiple cores on column axis (for now it works on row axis only).
         # Check https://github.com/tenstorrent/tt-metal/issues/36094 for more details.
 
-        # From testing, this was the last multiple of 32 that worked.
-        UPPER_BOUND = 3968
+        # From testing, 3968 was the last multiple of 32 that worked.
+        # tt-metal #36094 is now resolved, bumping to 8192 to cover common LLM hidden dims.
+        UPPER_BOUND = 8192
 
         for pn, gn in match.nodes_map.items():
             if pn.target != "weight":
