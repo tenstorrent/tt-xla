@@ -33,14 +33,16 @@ def _run_sdxl_benchmark(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running SDXL pipeline benchmark: {model_info_name}")
-    print(f"""Configuration:
+    print(
+        f"""Configuration:
     resolution={resolution}
     num_inference_steps={num_inference_steps}
     optimization_level={optimization_level}
     loop_count={loop_count}
     data_format={data_format}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """)
+    """
+    )
 
     results = benchmark_sdxl_pipeline(
         model_info_name=model_info_name,
