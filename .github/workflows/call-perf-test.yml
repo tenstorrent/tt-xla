@@ -33,7 +33,7 @@ on:
         description: "Skip device performance measurement"
         required: false
         type: boolean
-        default: false
+        default: true
       perf_regression_check:
         description: "Enable perf metrics regression testing"
         required: false
