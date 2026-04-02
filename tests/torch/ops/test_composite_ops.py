@@ -15,6 +15,7 @@ from infra.evaluators import TorchComparisonEvaluator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
 from tt_torch.composite_ops import (
+    composite_distributed_rms_norm,
     composite_gelu,
     composite_group_norm,
     composite_layer_norm,
@@ -178,6 +179,56 @@ def test_composite_rms_norm(use_weight, batch_size, seq_len, hidden_size):
             comparison_config=ComparisonConfig(),
             framework=Framework.TORCH,
             torch_options=options,
+        )
+
+
+@pytest.mark.dual_chip
+@pytest.mark.parametrize("use_weight", [True, False])
+def test_composite_distributed_rms_norm(use_weight):
+
+    class DistributedRMSNormModel(torch.nn.Module):
+        def __init__(self, normalized_shape, cluster_axis):
+            super().__init__()
+            self.normalized_shape = normalized_shape
+            self.cluster_axis = cluster_axis
+
+        def forward(self, x, weight):
+            return composite_distributed_rms_norm(
+                x, (self.normalized_shape,), weight, cluster_axis=self.cluster_axis
+            )
+
+    options = {"tt_enable_composite_ops": False}
+
+    # One of the cases that's currently supported: 1x1x32x128.
+    hidden_size = 128
+    input_tensor = torch.randn(1, 1, 32, hidden_size)
+    weight = torch.randn(hidden_size) if use_weight else None
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    # cluster_axis=1 corresponds to the "model" mesh axis where hidden dimension is sharded.
+    model = DistributedRMSNormModel(hidden_size, cluster_axis=1)
+
+    # Shard the hidden dimension across the "model" axis.
+    def get_shard_spec(model, args, kwargs):
+        specs = {args[0]: (None, None, None, "model")}
+        if args[1] is not None:
+            specs[args[1]] = ("model",)
+        return specs
+
+    # Disable in-place buffers for inductor compilation
+    # so that we can compare the results with the golden model.
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            model,
+            [input_tensor, weight],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+            mesh=mesh,
+            shard_spec_fn=get_shard_spec,
         )
 
 
