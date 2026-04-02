@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+import pytest
+import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.distributed.spmd as xs
+import torch_xla.runtime as xr
+from infra.utilities.torch_multichip_utils import enable_spmd
+from torch_xla.distributed.spmd import Mesh
+
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelLoader as GptOssModelLoader,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+    ModelVariant as GptOssModelVariant,
+)
+from third_party.tt_forge_models.gpt_oss.pytorch.overrides import (
+    build_deinterleaved_shard_specs,
+    override_gpt_oss_modules,
+)
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_gpt_oss_moe_multichip_backward():
+
+    model_loader = GptOssModelLoader(GptOssModelVariant.GPT_OSS_20B)
+    model = model_loader.load_model()
+
+    override_gpt_oss_modules(model)
+
+    enable_spmd()
+    xr.set_device_type("TT")
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices)
+    device_ids = list(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    device = torch_xla.device()
+
+    model = model.to(device)
+    model.train()
+
+    # Use highest numerical precision for stable fine-tuning convergence.
+    torch_xla.set_custom_compile_options(
+        {"fp32_dest_acc_en": True, "math_fidelity": "hifi4"}
+    )
+
+    model.compile(
+        backend="tt",
+        options={"tt_legacy_compile": True, "tt_enable_torch_fx_fusion_pass": False},
+    )
+
+    shard_specs = build_deinterleaved_shard_specs(model)
+    for tensor, shard_spec in shard_specs.items():
+        xs.mark_sharding(tensor, mesh, shard_spec)
+
+    inputs = model_loader.load_inputs()
+    input_ids = inputs["input_ids"].to(device)
+    attention_mask = inputs["attention_mask"].to(device)
+
+    outputs = model(
+        input_ids=input_ids, attention_mask=attention_mask, labels=input_ids
+    )
+
+    loss = outputs.loss.mean()
+
+    loss.backward()
+
+    loss_value = loss.item()
+    assert loss_value > 0, f"Loss should be positive, got {loss_value}."
+
+    # Verify gradients exist.
+    assert (
+        model.model.layers[0].self_attn.q_proj.weight.grad is not None
+    ), "Gradients not computed."
