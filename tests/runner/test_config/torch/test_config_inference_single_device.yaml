@@ -2655,6 +2655,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "stablehlo.scatter failed to legalize to TTIR - https://github.com/tenstorrent/tt-xla/issues/4044"
+
   gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Dynamic shapes from get_placeholder_mask cause ValueError in _xla_warm_up_cache - https://github.com/tenstorrent/tt-xla/issues/3854"
