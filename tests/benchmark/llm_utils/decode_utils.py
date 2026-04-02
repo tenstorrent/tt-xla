@@ -79,7 +79,7 @@ class LLMSamplingWrapper(torch.nn.Module):
         next_token_ids = _fast_argmax(logits[:, -1])
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
-            return next_token_ids, next_cache_position, logits
+            return next_token_ids, next_cache_position, logits[:, -1:]
         return next_token_ids, next_cache_position
 
 
