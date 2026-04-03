@@ -186,7 +186,7 @@ def generate_and_benchmark(
 
     output_logits: list[torch.Tensor] = []
     iteration_times: list[int] = []
-    generated_text: str = ""
+    generated_texts: list[str] = [""] * batch_size
 
     # Prepare teacher forcing tokens on CPU; transfer per-step to avoid
     # device-side indexing that can segfault on the TT backend.
@@ -201,7 +201,7 @@ def generate_and_benchmark(
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
-            tracy.signpost("prefill_start" if step == 0 else f"decode_{step}_start")
+            tracy.signpost(f"decode_{step}_start")
             start = time.perf_counter_ns()
 
             output = model(**input_args)
@@ -220,10 +220,12 @@ def generate_and_benchmark(
             input_args["cache_position"] = next_cache_position
 
             if tokenizer:
-                generated_text += tokenizer.decode(next_token_ids[0].to("cpu"))
+                cpu_tokens = next_token_ids.to("cpu")
+                for b in range(batch_size):
+                    generated_texts[b] += tokenizer.decode(cpu_tokens[b])
 
             end = time.perf_counter_ns()
-            tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
+            tracy.signpost(f"decode_{step}_end")
             iteration_times.append(end - start)
             if verbose:
                 print(
@@ -232,7 +234,8 @@ def generate_and_benchmark(
                 )
 
     if tokenizer and verbose:
-        print(f"Generated text: {generated_text}")
+        for b in range(batch_size):
+            print(f"User {b}: {generated_texts[b]}")
 
     return output_logits, iteration_times
 
