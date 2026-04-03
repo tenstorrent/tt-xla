@@ -52,9 +52,7 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/4004"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.

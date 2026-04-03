@@ -2388,9 +2388,7 @@ test_config:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Currently hanging - https://github.com/tenstorrent/tt-xla/issues/3852"
+    status: EXPECTED_PASSING
     markers: [large]
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
