@@ -107,4 +107,5 @@ jobs:
       test_suite_custom: ${{ needs.generate-test-config.outputs.test-config }}
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      max_timeout_minutes: 120
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
