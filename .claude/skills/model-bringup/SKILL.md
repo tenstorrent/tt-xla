@@ -14,22 +14,16 @@ Never stop at first successful run — inspect output quality and iterate until 
 
 ## Architecture overview (read this first)
 
-Model bringup spans three layers:
+Model bringup spans two layers:
 
 ```
-1. Toyota-fresh/  (prototype / reference implementation)
-   ↓ once working, wrap it
-2. third_party/tt_forge_models/<model>/pytorch/loader.py  (production interface)
+1. third_party/tt_forge_models/<model>/pytorch/loader.py  (production interface)
    ↓ loader auto-discovered by test runner
-3. tests/runner/test_config/torch/*.yaml  (CI gate)
+2. tests/runner/test_config/torch/*.yaml  (CI gate)
    + scripts/verify_model_cpu_vs_tt.py  (manual verification)
 ```
 
-**For simple models** (standard HuggingFace, TorchVision, TIMM): skip Toyota-fresh, go straight to tt-forge-models loader.
-
-**For complex models** (upstream repo with CUDA deps, custom C++ ops, non-standard weight naming): prototype in `Toyota-fresh/<model>/`, then wrap in loader.
-
-**For JAX models**: no Toyota-fresh layer. JAX tests live in `tests/jax/single_chip/models/<model>/`. See [Part B](#part-b-jax-model-bringup).
+**For JAX models**: JAX tests live in `tests/jax/single_chip/models/<model>/`. See [Part B](#part-b-jax-model-bringup).
 
 ---
 
@@ -84,20 +78,12 @@ except ImportError:
 
 If the model already has a real upstream CPU path (common for PointPillars, many BERT variants), verify the fallback works end-to-end.
 
-**Patch files:** When you have a proven set of patches for a model, save them as `Toyota-fresh/<model>/model/patches/cpu-inference.patch`. Apply with `git apply` from the upstream repo root. This makes patches reproducible and shareable.
+**Patch files:** When you have a proven set of patches for a model, save them alongside the loader. Apply with `git apply` from the upstream repo root.
 
-Apply a patch:
 ```bash
 cd third_party/<upstream_repo>
-git apply ../../Toyota-fresh/<model>/model/patches/cpu-inference.patch
-# Mark as applied to avoid re-applying:
-touch .cpu_inference_patched
-```
-
-Write the patch generation:
-```bash
-cd third_party/<upstream_repo>
-git diff > ../../Toyota-fresh/<model>/model/patches/cpu-inference.patch
+git diff > ../../third_party/tt_forge_models/<model>/pytorch/patches/cpu-inference.patch
+git apply ../../third_party/tt_forge_models/<model>/pytorch/patches/cpu-inference.patch
 ```
 
 ### Step A3 — Run on CPU and establish ground truth
@@ -197,52 +183,7 @@ print([t.shape for t in flatten_outputs(output)])  # must be fixed
 - LLM: tokenizer on CPU → transformer on TT → decode on CPU
 - Segmentation: preprocess on CPU → UNet/ViT on TT → postprocess on CPU
 
-### Step A6 — Create the Toyota-fresh reference implementation (complex models only)
-
-For models with upstream CUDA deps or non-trivial weight loading, build a standalone working reference first.
-
-Structure:
-```
-Toyota-fresh/<model>/
-  model/
-    utils.py          ← submodule init, weight loading, remapping, pre/postprocessing
-    patches/
-      cpu-inference.patch
-  test/
-    test_<model>.py   ← pytest tests (CPU-only and CPU vs TT)
-  third_party/
-    <upstream_repo>/  ← git submodule (linked from repo root third_party/)
-```
-
-The test file should have at minimum:
-1. A fast test on synthetic inputs (no dataset needed): verifies shapes and value ranges
-2. A full-pipeline test on real data: verifies end-to-end correctness
-
-```python
-# Example synthetic test
-def test_model_rpn_head():
-    model = load_model_with_weights()
-    bev = torch.randn(1, 64, 512, 512, dtype=torch.bfloat16)
-    with torch.no_grad():
-        outputs = model(bev)
-    # Check shapes
-    assert outputs[0]["hm"].shape == (1, 1, 128, 128)
-    # Check value ranges
-    hm = outputs[0]["hm"].float()
-    assert hm.min() < 0 and hm.max() < 0  # pre-sigmoid, should be mostly negative
-
-def test_model_full_pipeline():
-    model, nusc = load_model_with_weights(), load_nuscenes()
-    sample = nusc.sample[0]
-    inputs = preprocess_sample(nusc, sample)
-    outputs = model(inputs["bev"])
-    detections = decode_and_postprocess(outputs)
-    assert len(detections) > 0
-    # Visualize
-    plot_bev_detections(inputs["points"], detections, save_path="bev_output.png")
-```
-
-### Step A7 — Create the tt-forge-models loader
+### Step A6 — Create the tt-forge-models loader
 
 Model lives in `third_party/tt_forge_models/<model_name>/pytorch/`:
 
@@ -307,15 +248,15 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        # For Toyota-fresh models:
-        from toyota_fresh_utils import load_model_with_weights
-        dtype = dtype_override if dtype_override is not None else torch.bfloat16
-        return load_model_with_weights(dtype=dtype)
-
         # For HuggingFace models:
-        # model = AutoModel.from_pretrained(self._variant_config.pretrained_model_name)
-        # if dtype_override is not None:
-        #     model = model.to(dtype_override)
+        model = AutoModel.from_pretrained(self._variant_config.pretrained_model_name)
+        if dtype_override is not None:
+            model = model.to(dtype_override)
+        model.eval()
+        return model
+
+        # For custom src/model.py:
+        # model = MyModelClass(**cfg)
         # model.eval()
         # return model
 
@@ -702,7 +643,6 @@ Use `@pytest.mark.xfail` only for Python-level failures (exceptions), not hard p
 
 Common dataset locations (check in order):
 ```
-/proj_sw/user_dev/ctr-lelanchelian/tt-xla/Toyota-fresh/bevfusion/tests/.nuscenes_mini/
 ~/.cache/nuscenes/
 /data/nuscenes/
 ```
@@ -879,7 +819,6 @@ If shapes match but values don't, consider whether the outputs include derived t
 | CPU vs TT verify script | `scripts/verify_model_cpu_vs_tt.py` |
 | JAX tests | `tests/jax/single_chip/models/<model>/test_<model>.py` |
 | Saved ground truth tensors | `tests/torch/graphs/<model_name>_*.pt` |
-| Toyota-fresh reference | `Toyota-fresh/<model>/` |
 | Run PyTorch model test | `pytest tests/runner/test_models.py -k <model_name>` |
 | Run JAX model test | `pytest tests/jax/single_chip/models/<model>/` |
 | Validate test config | `python tests/runner/validate_test_config.py` |
