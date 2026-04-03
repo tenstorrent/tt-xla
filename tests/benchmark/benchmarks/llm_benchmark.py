@@ -178,18 +178,30 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
 
 def check_transformers_version():
     """
+<<<<<<< sai_arthi_raguram/gemma4
     Check that transformers version is = 5.5.0.
+=======
+    Check that transformers version is = 5.2.0.
+>>>>>>> main
     Raises RuntimeError if version is incompatible.
     """
     import packaging.version
 
     current_version = packaging.version.parse(transformers.__version__)
+<<<<<<< sai_arthi_raguram/gemma4
     max_version = packaging.version.parse("5.5.0")
+=======
+    max_version = packaging.version.parse("5.2.0")
+>>>>>>> main
 
     if current_version != max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
+<<<<<<< sai_arthi_raguram/gemma4
             f"Please use version 5.5.0"
+=======
+            f"Please use version 5.2.0"
+>>>>>>> main
         )
 
 
