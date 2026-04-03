@@ -66,7 +66,7 @@ test_config:
     required_pcc: 0.97  # PCC drop when changing input
     status: EXPECTED_PASSING
 
-  bloom/pytorch-single_device-inference:
+  bloom/pytorch-1b1-single_device-inference:
     status: EXPECTED_PASSING
 
   xglm/pytorch-564M-single_device-inference:
@@ -1490,7 +1490,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: Out of Memory: Not enough space to allocate 2902982656 B DRAM buffer across 12 banks"
 
-  mistral/pixtral/pytorch-single_device-inference:
+  mistral/pixtral/pytorch-12B_2409-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
     required_pcc: 0.985
