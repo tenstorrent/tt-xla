@@ -10,7 +10,8 @@ from conftest import check_host_memory
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("model_name", ["meta-llama/Llama-3.2-3B"])
-def test_tensor_parallel_generation_n300(model_name: str):
+@pytest.mark.parametrize("use_2d_mesh", [True, False])
+def test_tensor_parallel_generation_n300(model_name: str, use_2d_mesh: bool):
     prompts = [
         "I like taking walks in the",
     ]
@@ -25,6 +26,7 @@ def test_tensor_parallel_generation_n300(model_name: str):
             "enable_const_eval": False,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
+            "use_2d_mesh": use_2d_mesh,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -42,10 +44,12 @@ def test_tensor_parallel_generation_n300(model_name: str):
         pytest.param("Qwen/Qwen3-0.6B", False, ""),
     ],
 )
+@pytest.mark.parametrize("use_2d_mesh", [True, False])
 def test_tensor_parallel_generation_llmbox_small(
     model_name: str,
     enable_const_eval: bool,
     experimental_weight_dtype: str,
+    use_2d_mesh: bool,
 ):
     prompts = [
         "I like taking walks in the",
@@ -62,6 +66,7 @@ def test_tensor_parallel_generation_llmbox_small(
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
+            "use_2d_mesh": use_2d_mesh,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -76,17 +81,18 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
-    ["model_name", "enable_const_eval", "experimental_weight_dtype"],
+    ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
     [
-        pytest.param("Qwen/Qwen3-32B", False, ""),
-        pytest.param("Qwen/Qwen2.5-32B", False, ""),
-        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8"),
+        pytest.param("Qwen/Qwen3-32B", False, "", "True"),
+        pytest.param("Qwen/Qwen2.5-32B", False, "", "False"),
+        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", "True"),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
     model_name: str,
     enable_const_eval: bool,
     experimental_weight_dtype: str,
+    use_2d_mesh: bool,
 ):
     prompts = [
         "I like taking walks in the",
@@ -103,6 +109,7 @@ def test_tensor_parallel_generation_llmbox_large(
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
+            "use_2d_mesh": use_2d_mesh,
         },
     }
     llm = vllm.LLM(**llm_args)
