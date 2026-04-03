@@ -2045,6 +2045,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.gather' that was explicitly marked illegal' - https://github.com/tenstorrent/tt-xla/issues/1884"
 
+  pointpillars/pytorch-pointpillars_bev-single_device-inference:
+    status: EXPECTED_PASSING
+
   sam/pytorch-Vit_Base-single_device-inference:
     status: EXPECTED_PASSING
 
