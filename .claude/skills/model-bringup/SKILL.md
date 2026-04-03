@@ -631,6 +631,32 @@ source venv/activate
 pytest -svv tests/jax/single_chip/models/<model_name>/test_<model_name>.py
 ```
 
+**Marking failures:** Import from `tests/utils.py`:
+```python
+from utils import BringupStatus, Category, failed_ttmlir_compilation, failed_runtime
+```
+
+Use `@pytest.mark.skip` (not `@pytest.mark.xfail`) for tt-mlir assertion crashes — hard aborts (`SIGABRT`) cannot be caught by pytest's xfail mechanism:
+```python
+@pytest.mark.nightly
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_info=MODEL_INFO,
+    parallelism=Parallelism.SINGLE_DEVICE,
+    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+)
+@pytest.mark.skip(
+    reason=failed_ttmlir_compilation(
+        "StableHLOLegalizeCompositePass assertion on uniform_to_rand — "
+        "https://github.com/tenstorrent/tt-xla/issues/XXXX"
+    )
+)
+def test_<model>_inference(inference_tester):
+    inference_tester.test()
+```
+
+Use `@pytest.mark.xfail` only for Python-level failures (exceptions), not hard process crashes.
+
 ### Step B6 — Common JAX bringup pitfalls
 
 | Problem | Cause | Fix |
