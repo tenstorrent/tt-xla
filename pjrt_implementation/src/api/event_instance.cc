@@ -11,8 +11,7 @@
 #include "api/event_instance.h"
 
 // c++ standard library includes
-#include <exception>
-#include <stdexcept>
+#include <thread>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
@@ -23,6 +22,26 @@
 #include "utils/logging.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+// Run event callbacks asynchronously so completion threads never call into
+// Python while they may still hold runtime/device locks.
+void dispatchCallbacksAsync(std::vector<OnReadyCallback> callbacks,
+                            tt_pjrt_status status) {
+  if (callbacks.empty()) {
+    return;
+  }
+
+  std::thread([callbacks = std::move(callbacks), status]() mutable {
+    for (OnReadyCallback &callback : callbacks) {
+      callback.callback_function(*ErrorInstance::makeError(status).release(),
+                                 callback.user_arg);
+    }
+  }).detach();
+}
+
+} // namespace
 
 std::unique_ptr<EventInstance> EventInstance::createInstance() {
   struct make_unique_enabler : public EventInstance {};
@@ -88,38 +107,23 @@ void EventInstance::await() {
 
 void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
                             void *user_arg) {
-  // PJRT docs don't specify on which thread should the callbacks be executed.
-  // Relevant comments from the XLA implementation:
-  // - "Callback may be called on an internal system thread or the calling
-  //   thread."
-  // - "If the value is available or becomes available, this invokes the waiter
-  //   immediately. Otherwise, adds the waiter to the waiter list and calls it
-  //   when the value becomes available."
-  // - "By default the waiter callback is executed on the caller thread if async
-  //   value is already available, or on a thread that sets async value
-  //   available (emplacing a value or setting an error), which can accidentally
-  //   lead to executing a very expensive computations on a low-latency thread."
-  //
-  // For now, to keep things simple, we will execute the callbacks on the same
-  // thread which is marking the event as ready. Or in this thread, if the
-  // event is already ready.
-  //
-  // TODO: In the future we might consider having one dedicated thread per
-  // client for executing all event callbacks. However, executing all callbacks
-  // on a single thread could lead to congestion if callbacks are slow or
-  // numerous, so a smarter solution (e.g. a thread pool) might be needed.
+  // PJRT allows callbacks on an internal thread or the calling thread. We run
+  // them asynchronously so completion threads never invoke Python while holding
+  // runtime/device locks.
 
+  tt_pjrt_status status_for_callback = tt_pjrt_status::kUnknown;
   {
     std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
     if (!m_ready) {
       m_on_ready_callbacks.push_back({callback_function, user_arg});
       return;
     }
+    status_for_callback = m_status;
   }
 
-  // The event is already ready, so execute the callback immediately on the
-  // calling thread.
-  callback_function(getErrorFromStatus(), user_arg);
+  dispatchCallbacksAsync(
+      std::vector<OnReadyCallback>{{callback_function, user_arg}},
+      status_for_callback);
 }
 
 void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
@@ -132,14 +136,9 @@ void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
   std::vector<OnReadyCallback> callbacks_to_execute =
       std::move(event_instance->m_on_ready_callbacks);
 
-  // Release the lock before executing callbacks.
   ready_lock.unlock();
 
-  // Execute callbacks without holding lock (event may be destroyed in callback)
-  for (OnReadyCallback &callback : callbacks_to_execute) {
-    callback.callback_function(*ErrorInstance::makeError(status).release(),
-                               callback.user_arg);
-  }
+  dispatchCallbacksAsync(std::move(callbacks_to_execute), status);
 }
 
 namespace internal {

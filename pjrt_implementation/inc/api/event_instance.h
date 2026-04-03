@@ -69,23 +69,24 @@ public:
   // Waits until the event is ready, blocking the calling thread.
   void await();
 
-  // Invokes the callback immediately on the calling thread if the event is
-  // ready, otherwise adds it to the list so it can be executed once the event
-  // is marked as ready.
+  // If the event is not ready yet, registers the callback for when it becomes
+  // ready. If already ready, the callback is dispatched asynchronously and
+  // never runs on the caller/completion thread.
   void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
 
   // See comment below for `m_indestructible`.
   void setIndestructible() { m_indestructible = true; }
   bool isIndestructible() const { return m_indestructible; }
 
-  // Marks the given event as ready with the given status and executes all
-  // registered callbacks (on the same thread).
+  // Marks the given event as ready with the given status and dispatches all
+  // registered callbacks asynchronously.
   //
   // NOTE: This is a static method that takes the event instance as an argument
   // because in some cases the callback functions destroy the event instance.
   // So, to avoid any subtle bugs (or UB), we first mark the event as ready,
-  // move all callback functions from the event instance, and then execute the
-  // callbacks so that the event instance can be safely destroyed.
+  // move all callback functions from the event instance, then enqueue
+  // callbacks so that the event instance can be safely destroyed before they
+  // run.
   static void markAsReadyAndCallback(EventInstance *event_instance,
                                      tt_pjrt_status status);
 
