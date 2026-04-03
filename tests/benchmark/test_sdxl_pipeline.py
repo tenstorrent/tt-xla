@@ -17,7 +17,6 @@ def assert_no_perf_regression(measurements, device_type, resolution):
         print(f"[perf-regression-check] No baseline for {key}; skipping.")
         return
 
-    threshold_pct = SDXLConstants.PERF_REGRESSION_MARGIN_PERCENT * 100
     failures = []
     for measurement in measurements:
         name = measurement.get("measurement_name", "")
