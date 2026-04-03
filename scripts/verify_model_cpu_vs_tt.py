@@ -19,8 +19,8 @@ Usage:
     # Verbose (print tensor stats per output)
     python scripts/verify_model_cpu_vs_tt.py --verbose
 
-PCC >= 0.99  → PASS
-PCC < 0.99   → FAIL
+PCC >= 0.99  -> PASS
+PCC < 0.99   -> FAIL
 """
 
 import argparse
@@ -32,12 +32,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 import torch_xla.core.xla_model as xm
 
-# ── add tt_forge_models to path ───────────────────────────────────────────────
+# -- add tt_forge_models to path -----------------------------------------------
 sys.path.insert(0, ".")
 sys.path.insert(0, "third_party")
 
 
-# ── PCC & comparison helpers ──────────────────────────────────────────────────
+# -- PCC & comparison helpers --------------------------------------------------
 
 def compute_pcc(x: torch.Tensor, y: torch.Tensor) -> float:
     """Pearson Correlation Coefficient between two tensors (flattened)."""
@@ -144,23 +144,34 @@ def compare_outputs(
     return passed, min_pcc, max_abs
 
 
-# ── model registry ────────────────────────────────────────────────────────────
+# -- model registry ------------------------------------------------------------
 
 @dataclass
 class ModelSpec:
     key: str
     module_path: str
-    variant: Optional[str] = None   # None → default variant
+    variant: Optional[str] = None   # None -> default variant
 
 
 MODEL_REGISTRY: Dict[str, List[ModelSpec]] = {
+    "yolov8": [
+        ModelSpec("yolov8/YOLOv8s_640",
+                  "tt_forge_models.yolov8.pytorch.loader",
+                  "YOLOv8s_640"),
+        ModelSpec("yolov8/YOLOv8l_1280",
+                  "tt_forge_models.yolov8.pytorch.loader",
+                  "YOLOv8l_1280"),
+    ],
     "isaac_sim": [
-        ModelSpec("isaac_sim/Anymal_Locomotion",
+        ModelSpec("isaac_sim/AnymalC_Flat",
                   "tt_forge_models.isaac_sim.pytorch.loader",
-                  "Anymal_Locomotion"),
-        ModelSpec("isaac_sim/Franka_Manipulation",
+                  "AnymalC_Flat"),
+        ModelSpec("isaac_sim/AnymalC_Rough",
                   "tt_forge_models.isaac_sim.pytorch.loader",
-                  "Franka_Manipulation"),
+                  "AnymalC_Rough"),
+        ModelSpec("isaac_sim/H1_Velocity",
+                  "tt_forge_models.isaac_sim.pytorch.loader",
+                  "H1_Velocity"),
     ],
     "nerf": [
         ModelSpec("nerf/NeRF_Vanilla",
@@ -179,9 +190,9 @@ MODEL_REGISTRY: Dict[str, List[ModelSpec]] = {
                   "HiVT_128"),
     ],
     "unet_3d": [
-        ModelSpec("unet_3d/UNet3D_Base",
+        ModelSpec("unet_3d/UNet3D_Small",
                   "tt_forge_models.unet_3d.pytorch.loader",
-                  "UNet3D_Base"),
+                  "UNet3D_Small"),
         ModelSpec("unet_3d/UNet3D_Large",
                   "tt_forge_models.unet_3d.pytorch.loader",
                   "UNet3D_Large"),
@@ -199,6 +210,11 @@ MODEL_REGISTRY: Dict[str, List[ModelSpec]] = {
                   "tt_forge_models.centerpoint.pytorch.loader",
                   "CenterPoint_Pillar"),
     ],
+    "centerpoint_original": [
+        ModelSpec("centerpoint_original/CenterPoint_Original",
+                  "tt_forge_models.centerpoint_original.pytorch.loader",
+                  "CenterPoint_Original"),
+    ],
     "llava_next": [
         ModelSpec("llava_next/LLaVA_NeXT_Vision_Encoder",
                   "tt_forge_models.llava_next.pytorch.loader",
@@ -207,7 +223,7 @@ MODEL_REGISTRY: Dict[str, List[ModelSpec]] = {
 }
 
 
-# ── inference helpers ─────────────────────────────────────────────────────────
+# -- inference helpers ---------------------------------------------------------
 
 def load_loader(spec: ModelSpec):
     """Dynamically import and instantiate the ModelLoader for a spec."""
@@ -281,7 +297,7 @@ def run_tt_inference(model: torch.nn.Module, inputs: Any, tt_device) -> Any:
     return to_cpu(output)
 
 
-# ── main verification logic ───────────────────────────────────────────────────
+# -- main verification logic ---------------------------------------------------
 
 def verify_spec(
     spec: ModelSpec,
@@ -294,7 +310,7 @@ def verify_spec(
     print(f"  Model : {spec.key}")
     print(f"{'='*70}")
 
-    # ── Load model & inputs ───────────────────────────────────────────────────
+    # -- Load model & inputs ---------------------------------------------------
     try:
         loader = load_loader(spec)
         model = loader.load_model()
@@ -304,7 +320,7 @@ def verify_spec(
         print(f"  [LOAD ERROR] {e}")
         return False
 
-    # ── CPU (golden) inference ────────────────────────────────────────────────
+    # -- CPU (golden) inference ------------------------------------------------
     # Cast model+inputs to bfloat16 to match TT device dtype for a fair comparison.
     # TT device always runs in bfloat16; comparing float32 vs bfloat16 inflates errors.
     model_bf16 = model.to(torch.bfloat16)
@@ -321,7 +337,7 @@ def verify_spec(
         print(f"\n  [CPU ERROR] {e}")
         return False
 
-    # ── TT-device inference ───────────────────────────────────────────────────
+    # -- TT-device inference ---------------------------------------------------
     print("  Running TT-device inference ...", end=" ", flush=True)
     try:
         t0 = time.perf_counter()
@@ -332,7 +348,7 @@ def verify_spec(
         print(f"\n  [TT ERROR] {e}")
         return False
 
-    # ── Output comparison ─────────────────────────────────────────────────────
+    # -- Output comparison -----------------------------------------------------
     print("  Comparing outputs:")
     passed, min_pcc, max_abs_err = compare_outputs(
         cpu_output, tt_output, pcc_threshold=pcc_threshold, verbose=verbose
@@ -397,7 +413,7 @@ def main():
         )
         results[spec.key] = passed
 
-    # ── Summary ───────────────────────────────────────────────────────────────
+    # -- Summary ---------------------------------------------------------------
     print(f"\n{'='*70}")
     print("  SUMMARY")
     print(f"{'='*70}")

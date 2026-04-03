@@ -744,6 +744,12 @@ test_config:
   # yolov8/pytorch-yolov8x-single_device-inference:
   #   status: EXPECTED_PASSING
 
+  yolov8/pytorch-YOLOv8s_640-single_device-inference:
+    status: EXPECTED_PASSING
+
+  yolov8/pytorch-YOLOv8l_1280-single_device-inference:
+    status: EXPECTED_PASSING
+
   albert/token_classification/pytorch-Base_v2-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -2399,13 +2405,24 @@ test_config:
 
   unet_3d/pytorch-UNet3D_Small-single_device-inference:
     status: EXPECTED_PASSING
-    bringup_status: IN_PROGRESS
 
   unet_3d/pytorch-UNet3D_Large-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "OOM - model too large for single chip DRAM"
     markers: [large]
+
+  isaac_sim/pytorch-AnymalC_Flat-single_device-inference:
+    status: EXPECTED_PASSING
+
+  isaac_sim/pytorch-AnymalC_Rough-single_device-inference:
+    status: EXPECTED_PASSING
+
+  isaac_sim/pytorch-H1_Velocity-single_device-inference:
+    status: EXPECTED_PASSING
+
+  centerpoint/pytorch-CenterPoint_Pillar-single_device-inference:
+    status: EXPECTED_PASSING
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
     supported_archs: ["p150"]
@@ -2683,3 +2700,4 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
