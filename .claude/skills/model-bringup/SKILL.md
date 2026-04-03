@@ -308,6 +308,41 @@ Key rule: **each variant must have a model class whose `forward()` signature exa
 nuscenes-devkit>=1.0.0
 ```
 
+### Step A7 — Test the loader on CPU
+
+Before touching the test config or TT, verify the loader works end-to-end on CPU:
+
+```bash
+source venv/activate
+python - <<'EOF'
+import sys, torch
+sys.path.insert(0, '.')
+from third_party.tt_forge_models.<model>.pytorch.loader import ModelLoader, ModelVariant
+
+loader = ModelLoader()   # or ModelLoader(ModelVariant.SOME_VARIANT)
+model = loader.load_model()
+inputs = loader.load_inputs()
+print("Input shapes:", [x.shape for x in inputs])
+with torch.no_grad():
+    out = model(*inputs)
+# Print output shapes
+if isinstance(out, dict):
+    print("Output keys:", list(out.keys()))
+    for k, v in out.items():
+        print(f"  {k}: {v.shape}")
+elif isinstance(out, (list, tuple)):
+    for i, t in enumerate(out):
+        print(f"  [{i}]: {t.shape}")
+else:
+    print("Output shape:", out.shape)
+print("CPU loader test: PASSED")
+EOF
+```
+
+This catches: import errors, missing `__init__.py`, shape mismatches in `load_inputs()`, wrong model class.
+
+**Do not proceed to A8 until this passes.**
+
 ### Step A8 — Add to test config YAML
 
 Edit `tests/runner/test_config/torch/test_config_inference_single_device.yaml`.
@@ -414,6 +449,30 @@ Once PCC ≥ 0.99:
 ```
 
 Remove `bringup_status` and `reason` if set. Keep `required_pcc` if you lowered it (with a comment explaining why).
+
+### Step A14 — Commit and push
+
+`tt_forge_models` is a git submodule. Changes inside it must be committed there first, then the submodule pointer updated in `tt-xla`.
+
+```bash
+# 1. Commit inside the submodule
+cd third_party/tt_forge_models
+git add <model>/
+git commit -m "Add <ModelName> PyTorch loader"
+cd ../..
+
+# 2. Commit the tt-xla side (submodule pointer + test config + skill + verify script)
+git add third_party/tt_forge_models
+git add tests/runner/test_config/torch/test_config_inference_single_device.yaml
+git add scripts/verify_model_cpu_vs_tt.py
+git commit -m "<ModelName> bringup: EXPECTED_PASSING; PCC=X.XX"
+
+# 3. Push and raise PR
+git push -u origin <branch>
+GH_TOKEN=$(grep GH_TOKEN ~/.gh_credentials | cut -d= -f2) gh pr create --title "..." --body "..."
+```
+
+The PR body should include: model name, PCC achieved, hardware test result, and any compiler workarounds applied.
 
 ---
 
