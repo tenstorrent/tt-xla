@@ -64,6 +64,10 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+    # Use static dense experts forward to avoid graph breaks from data-dependent
+    # loops in the original experts and _grouped_mm CPU crashes.
+    if hasattr(model.config, "_experts_implementation"):
+        model.config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -174,18 +178,18 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
 
 def check_transformers_version():
     """
-    Check that transformers version is <= 4.57.1.
+    Check that transformers version is = 5.2.0.
     Raises RuntimeError if version is incompatible.
     """
     import packaging.version
 
     current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("4.57.1")
+    max_version = packaging.version.parse("5.2.0")
 
-    if current_version > max_version:
+    if current_version != max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version <= 4.57.1"
+            f"Please use version 5.2.0"
         )
 
 
