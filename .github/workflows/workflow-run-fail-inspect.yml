@@ -209,7 +209,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           repo="${{ github.repository }}"
-          wf_name="${{github.workflow}}"
+          wf_name="schedule-nightly.yml"
 
           curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
 
