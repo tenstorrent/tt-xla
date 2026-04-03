@@ -80,7 +80,7 @@ def _run_model_test_impl(
     variant, ModelLoader = test_entry.variant_info
 
     # Ensure per-model requirements are installed, and roll back after the test
-    with RequirementsManager.for_loader(loader_path):
+    with RequirementsManager.for_loader(loader_path, framework=str(framework)):
 
         # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
