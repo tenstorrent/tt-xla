@@ -20,17 +20,33 @@ from utils import (
 
 xr.set_device_type("TT")
 
-DEFAULT_NUM_INFERENCE_STEPS = 20
-DEFAULT_CFG_SCALE = 7.5
-DEFAULT_PROMPT = "a photo of an astronaut riding a horse on mars"
-DEFAULT_NEGATIVE_PROMPT = ""
-DEFAULT_SEED = 42
 
-MODULE_EXPORT_PATH = "modules"
+class SDXLConstants:
+    NUM_INFERENCE_STEPS = 20
+    CFG_SCALE = 7.5
+    PROMPT = "a photo of an astronaut riding a horse on mars"
+    NEGATIVE_PROMPT = ""
+    SEED = 42
+    MODULE_EXPORT_PATH = "modules"
+    OPTIMIZATION_LEVEL = 1
+    LOOP_COUNT = 3
+    DATA_FORMAT = "bfloat16"
+    PERF_REGRESSION_MARGIN_PERCENT = 0.1 # margin for hardware variability
+    CHECKED_METRICS = frozenset({"avg_denoise_latency_s", "per_step_denoise_latency_s"})
+    PERF_THRESHOLDS = {
+        
+        ("p100", 512): {
+            "avg_denoise_latency_s": 5.722*(1+PERF_REGRESSION_MARGIN_PERCENT),
+            "per_step_denoise_latency_s": 0.2861 *(1+PERF_REGRESSION_MARGIN_PERCENT)
+        },
+        ("p150", 1024): {
+            "avg_denoise_latency_s": 19.522*(1+PERF_REGRESSION_MARGIN_PERCENT),
+            "per_step_denoise_latency_s": 0.9761*(1+PERF_REGRESSION_MARGIN_PERCENT)
+        },
+    }
 
 
-def _load_pipeline_models(model_id, variant):
-    """Load all SDXL pipeline components."""
+def load_pipeline_models(model_id, variant):
     vae = AutoencoderKL.from_pretrained(
         model_id,
         subfolder="vae",
@@ -78,7 +94,7 @@ def _load_pipeline_models(model_id, variant):
     return unet, vae, text_encoder, text_encoder_2, tokenizer, tokenizer_2, scheduler
 
 
-def _encode_prompt(
+def encode_prompt(
     prompt,
     negative_prompt,
     tokenizer,
@@ -87,7 +103,6 @@ def _encode_prompt(
     text_encoder_2,
     device,
 ):
-    """Run CLIP text encoding and return hidden states + pooled embeds."""
     encoder_hidden_states = []
     pooled_text_embeds = None
 
@@ -125,7 +140,7 @@ def _encode_prompt(
     return encoder_hidden_states, pooled_text_embeds
 
 
-def _run_denoising_loop(
+def run_denoising_loop(
     unet,
     scheduler,
     latents,
@@ -135,7 +150,6 @@ def _run_denoising_loop(
     num_inference_steps,
     cfg_scale,
 ):
-    """Run the UNet denoising loop, returning denoised latents."""
     tt_cast = lambda x: (
         x.to(dtype=torch.bfloat16).to(device=xm.xla_device())
         if x.device == torch.device("cpu")
@@ -176,8 +190,7 @@ def _run_denoising_loop(
     return latents
 
 
-def _run_vae_decode(vae, latents, scaling_factor):
-    """Decode latents to pixel space using the VAE."""
+def run_vae_decode(vae, latents, scaling_factor):
     latents = latents / scaling_factor
     latents = latents.to(dtype=torch.float32)
     images = vae.decode(latents).sample
@@ -193,38 +206,11 @@ def benchmark_sdxl_pipeline(
     loop_count,
     data_format,
     ttnn_perf_metrics_output_file,
-    cfg_scale=DEFAULT_CFG_SCALE,
-    prompt=DEFAULT_PROMPT,
-    negative_prompt=DEFAULT_NEGATIVE_PROMPT,
-    seed=DEFAULT_SEED,
+    cfg_scale=SDXLConstants.CFG_SCALE,
+    prompt=SDXLConstants.PROMPT,
+    negative_prompt=SDXLConstants.NEGATIVE_PROMPT,
+    seed=SDXLConstants.SEED,
 ):
-    """
-    Benchmark the full SDXL text-to-image pipeline end-to-end.
-
-    Measures latency for each pipeline stage:
-      1. Text encoding (CLIP 1 + CLIP 2)
-      2. UNet denoising loop (N diffusion steps)
-      3. VAE decode
-      4. Total e2e latency
-
-    Args:
-        model_info_name: Model name for identification and reporting.
-        display_name: Display name for export artifacts.
-        optimization_level: tt-mlir optimization level.
-        resolution: Image resolution (512 or 1024).
-        num_inference_steps: Number of diffusion denoising steps.
-        loop_count: Number of full pipeline runs to benchmark.
-        data_format: String data format for reporting (e.g. "bfloat16").
-        ttnn_perf_metrics_output_file: Path for TTNN perf metrics output.
-        cfg_scale: Classifier-free guidance scale.
-        prompt: Text prompt for image generation.
-        negative_prompt: Negative prompt.
-        seed: Random seed for reproducibility.
-
-    Returns:
-        Benchmark result dictionary with per-stage and e2e latency measurements.
-    """
-    # Determine model variant
     if resolution == 1024:
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         hf_variant = "fp16"
@@ -235,16 +221,14 @@ def benchmark_sdxl_pipeline(
     latents_h = resolution // 8
     latents_w = resolution // 8
 
-    # Load all models
     print("Loading SDXL pipeline models...")
     unet, vae, text_encoder, text_encoder_2, tokenizer, tokenizer_2, scheduler = (
-        _load_pipeline_models(model_id, hf_variant)
+        load_pipeline_models(model_id, hf_variant)
     )
 
-    # Set XLA compile options and compile UNet for TT
     options = {
         "optimization_level": optimization_level,
-        "export_path": MODULE_EXPORT_PATH,
+        "export_path": SDXLConstants.MODULE_EXPORT_PATH,
         "export_model_name": display_name or model_info_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
@@ -254,13 +238,12 @@ def benchmark_sdxl_pipeline(
     unet.compile(backend="tt")
     unet = unet.to(xm.xla_device())
 
-    # Warmup run
     print("Starting warmup...")
     generator = torch.Generator(device="cpu")
     generator.manual_seed(seed)
 
     with torch.no_grad():
-        warmup_encoder_hidden_states, warmup_pooled = _encode_prompt(
+        warmup_encoder_hidden_states, warmup_pooled = encode_prompt(
             prompt,
             negative_prompt,
             tokenizer,
@@ -279,7 +262,7 @@ def benchmark_sdxl_pipeline(
             [*orig_shape, *crop_top_left, *target_shape], dtype=torch.float16
         ).repeat(2, 1)
 
-        _run_denoising_loop(
+        run_denoising_loop(
             unet,
             scheduler,
             warmup_latents,
@@ -291,7 +274,6 @@ def benchmark_sdxl_pipeline(
         )
     print("Warmup completed.")
 
-    # Benchmark loop
     print(f"Starting benchmark ({loop_count} iterations)...")
     text_encode_times = []
     denoise_times = []
@@ -305,9 +287,8 @@ def benchmark_sdxl_pipeline(
 
             e2e_start = time.perf_counter_ns()
 
-            # Stage 1: Text encoding
             text_start = time.perf_counter_ns()
-            encoder_hidden_states, pooled_text_embeds = _encode_prompt(
+            encoder_hidden_states, pooled_text_embeds = encode_prompt(
                 prompt,
                 negative_prompt,
                 tokenizer,
@@ -319,7 +300,6 @@ def benchmark_sdxl_pipeline(
             text_end = time.perf_counter_ns()
             text_encode_times.append((text_end - text_start) / 1e9)
 
-            # Prepare latents
             latents = torch.randn(
                 (1, 4, latents_h, latents_w),
                 generator=generator,
@@ -327,9 +307,8 @@ def benchmark_sdxl_pipeline(
             )
             latents = latents * scheduler.init_noise_sigma
 
-            # Stage 2: UNet denoising
             denoise_start = time.perf_counter_ns()
-            latents = _run_denoising_loop(
+            latents = run_denoising_loop(
                 unet,
                 scheduler,
                 latents,
@@ -342,9 +321,8 @@ def benchmark_sdxl_pipeline(
             denoise_end = time.perf_counter_ns()
             denoise_times.append((denoise_end - denoise_start) / 1e9)
 
-            # Stage 3: VAE decode
             vae_start = time.perf_counter_ns()
-            images = _run_vae_decode(vae, latents, vae.config.scaling_factor)
+            images = run_vae_decode(vae, latents, vae.config.scaling_factor)
             vae_end = time.perf_counter_ns()
             vae_decode_times.append((vae_end - vae_start) / 1e9)
 
@@ -360,7 +338,6 @@ def benchmark_sdxl_pipeline(
 
     print("Benchmark completed.")
 
-    # Compute averages
     avg_text_encode = sum(text_encode_times) / loop_count
     avg_denoise = sum(denoise_times) / loop_count
     avg_vae_decode = sum(vae_decode_times) / loop_count
@@ -388,38 +365,14 @@ def benchmark_sdxl_pipeline(
         input_size=input_size,
     )
 
-    # Build custom measurements for per-stage latency
     custom_measurements = [
-        {
-            "measurement_name": "avg_e2e_latency_s",
-            "value": avg_e2e,
-            "step_name": model_info_name,
-        },
-        {
-            "measurement_name": "avg_text_encode_latency_s",
-            "value": avg_text_encode,
-            "step_name": model_info_name,
-        },
-        {
-            "measurement_name": "avg_denoise_latency_s",
-            "value": avg_denoise,
-            "step_name": model_info_name,
-        },
-        {
-            "measurement_name": "avg_vae_decode_latency_s",
-            "value": avg_vae_decode,
-            "step_name": model_info_name,
-        },
-        {
-            "measurement_name": "num_inference_steps",
-            "value": num_inference_steps,
-            "step_name": model_info_name,
-        },
-        {
-            "measurement_name": "samples_per_sec",
-            "value": loop_count / total_time,
-            "step_name": model_info_name,
-        },
+        {"measurement_name": "avg_e2e_latency_s", "value": avg_e2e, "step_name": model_info_name},
+        {"measurement_name": "avg_text_encode_latency_s", "value": avg_text_encode, "step_name": model_info_name},
+        {"measurement_name": "avg_denoise_latency_s", "value": avg_denoise, "step_name": model_info_name},
+        {"measurement_name": "avg_vae_decode_latency_s", "value": avg_vae_decode, "step_name": model_info_name},
+        {"measurement_name": "num_inference_steps", "value": num_inference_steps, "step_name": model_info_name},
+        {"measurement_name": "samples_per_sec", "value": loop_count / total_time, "step_name": model_info_name},
+        {"measurement_name": "per_step_denoise_latency_s", "value": avg_denoise / num_inference_steps, "step_name": model_info_name},
     ]
 
     result = create_benchmark_result(
