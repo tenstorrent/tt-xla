@@ -54,7 +54,9 @@ def run_sdxl_benchmark(
     perf_regression_check=False,
 ):
     model_info_name = f"sdxl_pipeline_{resolution}x{resolution}"
-    resolved_display_name = resolve_display_name(request=request, fallback=model_info_name)
+    resolved_display_name = resolve_display_name(
+        request=request, fallback=model_info_name
+    )
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running SDXL pipeline benchmark: {model_info_name}")

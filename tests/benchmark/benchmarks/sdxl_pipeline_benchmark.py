@@ -31,17 +31,16 @@ class SDXLConstants:
     OPTIMIZATION_LEVEL = 1
     LOOP_COUNT = 3
     DATA_FORMAT = "bfloat16"
-    PERF_REGRESSION_MARGIN_PERCENT = 0.1 # margin for hardware variability
+    PERF_REGRESSION_MARGIN_PERCENT = 0.1  # margin for hardware variability
     CHECKED_METRICS = frozenset({"avg_denoise_latency_s", "per_step_denoise_latency_s"})
     PERF_THRESHOLDS = {
-        
         ("p100", 512): {
-            "avg_denoise_latency_s": 5.722*(1+PERF_REGRESSION_MARGIN_PERCENT),
-            "per_step_denoise_latency_s": 0.2861 *(1+PERF_REGRESSION_MARGIN_PERCENT)
+            "avg_denoise_latency_s": 5.722 * (1 + PERF_REGRESSION_MARGIN_PERCENT),
+            "per_step_denoise_latency_s": 0.2861 * (1 + PERF_REGRESSION_MARGIN_PERCENT),
         },
         ("p150", 1024): {
-            "avg_denoise_latency_s": 19.522*(1+PERF_REGRESSION_MARGIN_PERCENT),
-            "per_step_denoise_latency_s": 0.9761*(1+PERF_REGRESSION_MARGIN_PERCENT)
+            "avg_denoise_latency_s": 19.522 * (1 + PERF_REGRESSION_MARGIN_PERCENT),
+            "per_step_denoise_latency_s": 0.9761 * (1 + PERF_REGRESSION_MARGIN_PERCENT),
         },
     }
 
@@ -366,13 +365,41 @@ def benchmark_sdxl_pipeline(
     )
 
     custom_measurements = [
-        {"measurement_name": "avg_e2e_latency_s", "value": avg_e2e, "step_name": model_info_name},
-        {"measurement_name": "avg_text_encode_latency_s", "value": avg_text_encode, "step_name": model_info_name},
-        {"measurement_name": "avg_denoise_latency_s", "value": avg_denoise, "step_name": model_info_name},
-        {"measurement_name": "avg_vae_decode_latency_s", "value": avg_vae_decode, "step_name": model_info_name},
-        {"measurement_name": "num_inference_steps", "value": num_inference_steps, "step_name": model_info_name},
-        {"measurement_name": "samples_per_sec", "value": loop_count / total_time, "step_name": model_info_name},
-        {"measurement_name": "per_step_denoise_latency_s", "value": avg_denoise / num_inference_steps, "step_name": model_info_name},
+        {
+            "measurement_name": "avg_e2e_latency_s",
+            "value": avg_e2e,
+            "step_name": model_info_name,
+        },
+        {
+            "measurement_name": "avg_text_encode_latency_s",
+            "value": avg_text_encode,
+            "step_name": model_info_name,
+        },
+        {
+            "measurement_name": "avg_denoise_latency_s",
+            "value": avg_denoise,
+            "step_name": model_info_name,
+        },
+        {
+            "measurement_name": "avg_vae_decode_latency_s",
+            "value": avg_vae_decode,
+            "step_name": model_info_name,
+        },
+        {
+            "measurement_name": "num_inference_steps",
+            "value": num_inference_steps,
+            "step_name": model_info_name,
+        },
+        {
+            "measurement_name": "samples_per_sec",
+            "value": loop_count / total_time,
+            "step_name": model_info_name,
+        },
+        {
+            "measurement_name": "per_step_denoise_latency_s",
+            "value": avg_denoise / num_inference_steps,
+            "step_name": model_info_name,
+        },
     ]
 
     result = create_benchmark_result(
