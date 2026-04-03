@@ -6,6 +6,7 @@ Calculate test timeout based on collected tests and their durations.
 
 If any tests are missing from the durations file, use a default timeout of 4 hours (240 minutes).
 If all tests are found, use the estimated duration multiplied by 3 for safety margin.
+The final timeout can honor an optional maximum timeout cap.
 """
 
 import argparse
@@ -41,6 +42,12 @@ def main():
     parser.add_argument(
         "--default-timeout", type=int, default=240, help="Default timeout in minutes"
     )
+    parser.add_argument(
+        "--max-timeout",
+        type=int,
+        default=0,
+        help="Maximum timeout in minutes (0 disables max cap)",
+    )
 
     args = parser.parse_args()
 
@@ -67,6 +74,9 @@ def main():
             f"Total duration: {total_duration_seconds:.1f} seconds ({total_duration_seconds/60:.1f} minutes)"
         )
         print(f"Timeout with 3x safety margin: {timeout_minutes} minutes")
+
+    if args.max_timeout > 0:
+        timeout_minutes = min(timeout_minutes, args.max_timeout)
 
     print(timeout_minutes)
 
