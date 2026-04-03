@@ -38,7 +38,7 @@ class SDXLConstants:
             "avg_denoise_latency_s": 5.722 * (1 + PERF_REGRESSION_MARGIN_PERCENT),
             "per_step_denoise_latency_s": 0.2861 * (1 + PERF_REGRESSION_MARGIN_PERCENT),
         },
-        ("p150", 1024): {
+        ("p100", 1024): {
             "avg_denoise_latency_s": 19.522 * (1 + PERF_REGRESSION_MARGIN_PERCENT),
             "per_step_denoise_latency_s": 0.9761 * (1 + PERF_REGRESSION_MARGIN_PERCENT),
         },
