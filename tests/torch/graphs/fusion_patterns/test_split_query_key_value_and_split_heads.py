@@ -8,6 +8,8 @@ from einops import rearrange
 from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
+from tests.infra.testers.compiler_config import CompilerConfig
+
 
 @pytest.mark.extended
 @pytest.mark.nightly
@@ -47,6 +49,7 @@ def test_split_query_key_value_and_split_heads_mha_matmul(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -95,6 +98,7 @@ def test_split_query_key_value_and_split_heads_mha_matmul_with_bias(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -153,6 +157,7 @@ def test_split_query_key_value_and_split_heads_mha_linear(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -195,6 +200,7 @@ def test_split_query_key_value_and_split_heads_mha_transposed_key(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -237,5 +243,6 @@ def test_split_query_key_value_and_split_heads_gqa_matmul(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
