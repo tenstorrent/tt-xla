@@ -767,14 +767,10 @@ test_config:
     reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.7923736013936152. Required: pcc=0.99."
 
   pi_0/pytorch-pi0_base-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError:PCC comparison failed. Calculated: pcc=0.9835311599617622. Required: pcc=0.99."
 
   opt/qa/pytorch-1.3b-single_device-inference:
     assert_pcc: false
