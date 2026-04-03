@@ -18,7 +18,7 @@ jobs:
     runs-on: tt-ubuntu-2204-large-stable
     name: "Build tt-xla (debug)"
     container:
-      image: ${{ inputs.docker_image }}
+      image: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker_image }}
 
     steps:
       - name: Mark repo as safe for git
@@ -28,7 +28,7 @@ jobs:
             git config --global --add safe.directory /__w/tt-xla/tt-xla
             git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'
@@ -80,14 +80,14 @@ jobs:
 
       - name: Upload test log
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-log-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
           path: ${{ steps.strings.outputs.build-output-dir }}/ctest.log
 
       - name: Upload test report
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
             name: test-reports-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
             path: ${{ steps.strings.outputs.build-output-dir }}/${{ steps.strings.outputs.test-report-name }}
@@ -107,10 +107,10 @@ jobs:
         if: success() || failure()
         shell: bash
         run: |
-            lcov --directory ${{ steps.strings.outputs.build-output-dir }} --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh
-            lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info
+            lcov --directory ${{ steps.strings.outputs.build-output-dir }} --capture --output-file coverage.info --gcov-tool ${{ steps.strings.outputs.work-dir }}/.github/scripts/gcov_for_clang.sh --ignore-errors inconsistent,corrupt
+            lcov --extract coverage.info '**/tt-xla/pjrt_implementation/src/*' --output-file coverage.info --ignore-errors inconsistent,corrupt
             sed -i 's|SF:${{ steps.strings.outputs.work-dir }}/pjrt_implementation/src/|SF:src/|' coverage.info
-            lcov --list coverage.info
+            lcov --list coverage.info --ignore-errors inconsistent,corrupt
 
       - name: Upload coverage report to Codecov
         if: success() || failure()

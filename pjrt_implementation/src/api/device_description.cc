@@ -13,6 +13,9 @@
 // c++ standard library includes
 #include <sstream>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-xla includes
 #include "utils/logging.h"
 
@@ -60,6 +63,7 @@ void DeviceDescription::bindApi(PJRT_Api *api) {
 namespace internal {
 
 PJRT_Error *onDeviceDescriptionId(PJRT_DeviceDescription_Id_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Id");
 
   args->id = DeviceDescription::unwrap(args->device_description)->getDeviceId();
@@ -69,6 +73,7 @@ PJRT_Error *onDeviceDescriptionId(PJRT_DeviceDescription_Id_Args *args) {
 
 PJRT_Error *onDeviceDescriptionProcessIndex(
     PJRT_DeviceDescription_ProcessIndex_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ProcessIndex");
 
   args->process_index =
@@ -79,6 +84,7 @@ PJRT_Error *onDeviceDescriptionProcessIndex(
 
 PJRT_Error *
 onDeviceDescriptionAttributes(PJRT_DeviceDescription_Attributes_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Attributes");
 
   const auto &attributes =
@@ -91,6 +97,7 @@ onDeviceDescriptionAttributes(PJRT_DeviceDescription_Attributes_Args *args) {
 }
 
 PJRT_Error *onDeviceDescriptionKind(PJRT_DeviceDescription_Kind_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_Kind");
 
   const std::string &device_kind =
@@ -104,6 +111,7 @@ PJRT_Error *onDeviceDescriptionKind(PJRT_DeviceDescription_Kind_Args *args) {
 
 PJRT_Error *
 onDeviceDescriptionDebugString(PJRT_DeviceDescription_DebugString_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_DebugString");
 
   const std::string &debug_str =
@@ -117,6 +125,7 @@ onDeviceDescriptionDebugString(PJRT_DeviceDescription_DebugString_Args *args) {
 
 PJRT_Error *
 onDeviceDescriptionToString(PJRT_DeviceDescription_ToString_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceDescription::PJRT_DeviceDescription_ToString");
 
   const std::string &description_str =

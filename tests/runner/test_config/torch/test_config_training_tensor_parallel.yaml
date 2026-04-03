@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+
+test_config:
+  falcon/pytorch-3_7B_Base-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Fatal Python error: Aborted: https://github.com/tenstorrent/tt-xla/issues/3627"
+
+  falcon/pytorch-7B_Instruct-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT-MLIR compilation - 'ttir.layer_norm' op input and output must have the same shape"
+
+  gemma/pytorch-1.1_7B_IT-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
+
+  gemma/pytorch-2_9B_IT-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
+
+  gpt_oss/pytorch-20B-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT_FATAL: Number of rows in gradient tensor must be equal to number of indices in index tensor (embedding_backward)"
+
+  llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Fatal Python error: Aborted ever since test was added: https://github.com/tenstorrent/tt-xla/issues/3627"
+
+  llama/causal_lm/pytorch-3.0_8B_Instruct-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
+
+  qwen_3/causal_lm/pytorch-0_6B-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
+
+  qwen_3/causal_lm/pytorch-1_7B-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
+
+  mistral/pytorch-Ministral_8B_Instruct-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
+
+  mistral/pytorch-Nemo_INSTRUCT_2407-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "TT-MLIR compilation - 'sdy.sharding_constraint' op unknown axis name: mesh_idx_1"
+
+  qwen_2_5/causal_lm/pytorch-7B_Instruct-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Buffer must be allocated on device! - https://github.com/tenstorrent/tt-xla/issues/3627"
+    # reason: "PCC mismatch"
+
+  qwen_2_5/causal_lm/pytorch-Math_7B-tensor_parallel-training:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    # reason: "PCC NaN"

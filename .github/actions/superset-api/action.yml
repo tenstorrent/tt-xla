@@ -1,0 +1,57 @@
+name: 'Superset API Call'
+description: 'Call the Superset API and return the JSON response'
+inputs:
+  query:
+    description: 'API path to query (added after base URL)'
+    required: true
+  query_params:
+    description: 'Query parameters as a JSON string'
+    required: true
+  output_file:
+    description: 'If set, write the JSON response to this file path instead of a step output'
+    required: false
+    default: ''
+  max_attempts:
+    description: 'Maximum number of polling attempts when waiting for data (only applies when output_file is set)'
+    required: false
+    default: '1'
+  retry_interval_seconds:
+    description: 'Seconds to wait between polling attempts'
+    required: false
+    default: '0'
+outputs:
+  response:
+    description: 'JSON response from the API'
+    value: ${{ steps.api-call.outputs.response }}
+
+runs:
+  using: 'composite'
+  steps:
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.x'
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v6
+      with:
+        role-to-assume: arn:aws:iam::533267429815:role/github-actions-api-gateway-role
+        aws-region: us-east-2
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install boto3 requests
+
+    - name: Call Superset API
+      id: api-call
+      shell: bash
+      env:
+        API_QUERY: ${{ inputs.query }}
+        API_QUERY_PARAMS: ${{ inputs.query_params }}
+        API_OUTPUT_FILE: ${{ inputs.output_file }}
+        API_MAX_ATTEMPTS: ${{ inputs.max_attempts }}
+        API_RETRY_INTERVAL: ${{ inputs.retry_interval_seconds }}
+      run: |
+        response=$(python3 $GITHUB_ACTION_PATH/call_api.py)
+        [ -n "$API_OUTPUT_FILE" ] || echo "response=$response" >> $GITHUB_OUTPUT

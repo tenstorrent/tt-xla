@@ -396,12 +396,15 @@ def memory_usage_tracker(request):
         avg_mem = total_mem / count
         by_test = max_mem - start_mem
 
+        proc_rss = process.memory_info().rss / (1024 * 1024)  # MB
+
         with newline_logger():
             logger.info(f"Test memory usage:")
         logger.info(f"    By test: {by_test:.2f} MB")
         logger.info(f"    Minimum: {min_mem:.2f} MB")
         logger.info(f"    Maximum: {max_mem:.2f} MB")
         logger.info(f"    Average: {avg_mem:.2f} MB")
+        logger.info(f"    RSS:     {proc_rss:.2f} MB")
     else:
         yield
 
@@ -413,7 +416,10 @@ def memory_usage_tracker(request):
     if request.config.getoption("--log-memory"):
         vm = psutil.virtual_memory()
         after_gc = (vm.total - vm.available) / (1024 * 1024)  # MB
-        logger.info(f"Memory usage after garbage collection: {after_gc:.2f} MB")
+        after_gc_rss = process.memory_info().rss / (1024 * 1024)  # MB
+        logger.info(
+            f"Memory usage after gc: {after_gc:.2f} MB (RSS: {after_gc_rss:.2f} MB)"
+        )
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -471,6 +477,30 @@ def cleanup_cache_fixture():
     cleanup_cache()
 
 
+def _release_dynamo_bridge_tensors():
+    """Workaround for torch_xla leak: after torch._dynamo.reset(), GraphInputMatcher
+    objects and their parent caches survive, holding all model-weight XLA tensors
+    (~26 GB for 8B TP). We find these by type and clear their parent dicts.
+    """
+    from torch_xla._dynamo.dynamo_bridge import GraphInputMatcher
+
+    for obj in gc.get_objects():
+        try:
+            if isinstance(obj, torch.fx.GraphModule):
+                if getattr(obj, "xla_args", None) is not None:
+                    obj.xla_args = None
+
+            if isinstance(obj, GraphInputMatcher):
+                for ref in gc.get_referrers(obj):
+                    if isinstance(ref, tuple):
+                        for d in gc.get_referrers(ref):
+                            if isinstance(d, dict):
+                                d.clear()
+        except ReferenceError:
+            # Skip objects that have been garbage collected
+            continue
+
+
 # TODO(@LPanosTT): We do not need to reset the seed and dynamo state for jax test. Yet this will
 # do so blindly around all tests: https://github.com/tenstorrent/tt-xla/issues/1265.
 @pytest.fixture(autouse=True)
@@ -478,6 +508,7 @@ def run_around_tests():
     torch.manual_seed(0)
     yield
     torch._dynamo.reset()
+    _release_dynamo_bridge_tensors()
 
 
 @pytest.fixture()

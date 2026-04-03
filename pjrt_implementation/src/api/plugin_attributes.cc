@@ -4,6 +4,9 @@
 
 #include "api/plugin_attributes.h"
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-xla includes
 #include "utils/logging.h"
 
@@ -57,12 +60,14 @@ void PluginAttributes::bindApi(PJRT_Api *api) {
 namespace internal {
 
 PJRT_Error *onPluginInitialize(PJRT_Plugin_Initialize_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "PluginAttributes::PJRT_Plugin_Initialize");
 
   return nullptr;
 }
 
 PJRT_Error *onPluginAttributes(PJRT_Plugin_Attributes_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "PluginAttributes::PJRT_Plugin_Attributes");
 
   const std::vector<PJRT_NamedValue> &attrs = PluginAttributes::getAttributes();

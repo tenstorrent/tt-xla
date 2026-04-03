@@ -36,10 +36,10 @@ enable_testing()
 set(TTPJRT_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 set(TTMLIR_TOOLCHAIN_DIR $ENV{TTMLIR_TOOLCHAIN_DIR})
 
-set(CMAKE_C_COMPILER clang-17)
-set(CMAKE_CXX_COMPILER clang++-17)
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
@@ -47,6 +47,9 @@ option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" ON)
 option(TTMLIR_ENABLE_BINDINGS_PYTHON "Enable Python bindings in tt-mlir" OFF)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)
 option(TTXLA_ENABLE_PJRT_TESTS "Enable PJRT tests" OFF)
+option(TTXLA_ENABLE_EWHEEL_INSTALL "Enable editable wheel install" ON)
+option(TTXLA_ENABLE_TOOLS "Enable building tools" ON)
+option(TT_USE_SYSTEM_SFPI "Use system SFPI" ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(TTXLA_ENABLE_PJRT_TESTS ON)
 endif()
@@ -57,6 +60,8 @@ set_property(CACHE TTMLIR_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWith
 if(TTXLA_ENABLE_EXPLORER)
     set(TTMLIR_ENABLE_BINDINGS_PYTHON ON)
 endif()
+
+option(TTXLA_TRACY_ZONES "Enable PJRT tracy zones" OFF)
 
 # ----- coverage_config -----
 
@@ -88,6 +93,13 @@ link_directories(${TTMLIR_TOOLCHAIN_DIR}//lib)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     add_definitions(-DLOGURU_DEBUG_LOGGING=1)
 endif()
+
+# Set up library directories for third-party dependencies
+include(GNUInstallDirs)
+set(TTMLIR_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install")
+set(TTMLIR_LIB_DIR "${TTMLIR_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+set(LOGURU_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install")
+set(LOGURU_LIB_DIR "${LOGURU_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
 
 add_subdirectory(pjrt_implementation/src)
 add_subdirectory(third_party)

@@ -1,0 +1,78 @@
+name: Performance benchmark experimental
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  actions: write
+  packages: write
+  checks: write
+  contents: write
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  build-ttxla:
+    uses: ./.github/workflows/call-build.yml
+    name: "Build tt-xla"
+    secrets: inherit
+    needs: build-image
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  run-p150-perf-benchmarks:
+    needs: [build-image, build-ttxla]
+    secrets: inherit
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    with:
+      adv_filter: '[ {"runs-on": "p150", "accuracy-testing": false} ]'
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+
+  run-n150-accuracy-benchmarks:
+    needs: [build-image, build-ttxla]
+    secrets: inherit
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    with:
+      adv_filter: '[ {"runs-on": "n150", "accuracy-testing": true} ]'
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      sh-runner: true
+
+  run-llmbox-accuracy-benchmarks:
+    needs: [build-image, build-ttxla]
+    secrets: inherit
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    with:
+      adv_filter: '[ {"runs-on": "n300-llmbox", "accuracy-testing": true} ]'
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+
+  run-galaxy-accuracy-benchmarks:
+    needs: [build-image, build-ttxla]
+    secrets: inherit
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    with:
+      adv_filter: '[ {"runs-on": "galaxy-wh-6u", "accuracy-testing": true} ]'
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+
+  fail-notify:
+    needs:
+      - run-p150-perf-benchmarks
+      - run-n150-accuracy-benchmarks
+      - run-llmbox-accuracy-benchmarks
+      - run-galaxy-accuracy-benchmarks
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if the needed jobs succeeded or failed
+        id: check
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}

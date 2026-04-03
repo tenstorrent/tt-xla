@@ -38,9 +38,19 @@ add_library(TTPJRTApi
     "tensor_pool.cc"
 )
 
-target_include_directories(TTPJRTApi PUBLIC
+target_include_directories(TTPJRTApi
+PRIVATE
+    # Includes used in .cpp files.
+
+    # Used for tracy zones in PJRT.
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/third_party/tracy/public
+PUBLIC
+    # Includes used in public headers.
+    ${PROJECT_SOURCE_DIR}/pjrt_implementation/inc
     ${TTMLIR_TOOLCHAIN_DIR}/src/shardy
     ${TTMLIR_TOOLCHAIN_DIR}/src/stablehlo
+    ${TTMLIR_TOOLCHAIN_DIR}/include
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/include
 )
 
 target_link_libraries(TTPJRTApi
@@ -54,8 +64,16 @@ PUBLIC
     TTPJRTUtils
 )
 
+# Enable Tracy profiling if requested
+if(TTXLA_TRACY_ZONES)
+    # Define TRACY_ENABLE to enable Tracy zones in the code - this is used in `tracy` headers.
+    target_compile_definitions(TTPJRTApi PUBLIC TRACY_ENABLE)
+    target_link_libraries(TTPJRTApi PUBLIC tracy)
+    message(STATUS "PJRT tracy zones enabled")
+endif()
+
 target_link_directories(TTPJRTApi PUBLIC
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/lib
+    ${TTMLIR_LIB_DIR}
 )
 
 set_target_properties(TTPJRTApi PROPERTIES

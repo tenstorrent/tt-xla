@@ -176,11 +176,21 @@ private:
       const mlir::OwningOpRef<mlir::ModuleOp> &module,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
 
+  // Collects result presharding status for the StableHLO pipeline.
+  // Returns a vector of int64_t (1 = presharded, 0 = unsharded) per result.
+  // torch_xla always expects all results to be presharded; JAX only expects
+  // lists for results that carry a sharding annotation.
+  static std::vector<int64_t>
+  collectResultPresharded(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
   // Runs compiler StableHLO pipeline on the MLIR module.
-  tt_pjrt_status
-  runCompilerStableHLOPipeline(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
-                               const std::optional<std::string> &export_path,
-                               const std::string &model_name = "");
+  tt_pjrt_status runCompilerStableHLOPipeline(
+      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      const std::vector<int64_t> &result_presharded,
+      const std::optional<std::string> &export_path,
+      const std::string &model_name = "",
+      const std::optional<std::vector<uint32_t>> &current_mesh_shape =
+          std::nullopt);
 
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status

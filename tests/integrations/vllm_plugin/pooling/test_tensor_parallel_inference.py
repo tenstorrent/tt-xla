@@ -13,9 +13,6 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
-@pytest.mark.skip(
-    reason="vLLM TP test leave the device in bad state after successful execution; causing subsequent tests to fail. https://github.com/tenstorrent/tt-xla/issues/3266"
-)
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
@@ -25,9 +22,11 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
         ),
     ],
 )
+@pytest.mark.parametrize("use_2d_mesh", [True, False])
 def test_tensor_parallel_n300(
     model_name: str,
     baseline_path: str,
+    use_2d_mesh: bool,
 ):
     """
     Test tensor parallel inference with vLLM for embedding models on N300.
@@ -39,15 +38,13 @@ def test_tensor_parallel_n300(
         max_model_len=64,
         enable_tensor_parallel=True,
         max_num_batched_tokens=128,
+        use_2d_mesh=use_2d_mesh,
     )
 
 
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
-@pytest.mark.skip(
-    reason="vLLM TP test leave the device in bad state after successful execution; causing subsequent tests to fail. https://github.com/tenstorrent/tt-xla/issues/3266"
-)
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [

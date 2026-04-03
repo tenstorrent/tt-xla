@@ -8,11 +8,14 @@ permissions:
   id-token: write
   packages: write
   checks: write
+  contents: write
 
 jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      dockbuild: "all"
 
   build-ttxla:
     uses: ./.github/workflows/call-build.yml
@@ -21,6 +24,8 @@ jobs:
     needs: build-image
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: 'release,manylinux'
 
   build-release-docker:
     uses: ./.github/workflows/call-build-release-docker.yml
@@ -28,8 +33,8 @@ jobs:
     secrets: inherit
     with:
       wheel_release_artifact_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+      wheel_release_artifact_name: xla-whl-manylinux${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_release_vllm_tt_artifact_name: vllm-tt-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   release-tests:
     uses: ./.github/workflows/call-release-tests.yml

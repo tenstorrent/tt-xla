@@ -11,11 +11,11 @@ include(FetchContent)
 
 if(TTXLA_ENABLE_PJRT_TESTS)
     # TODO(acicovic): Investigate why this is needed here and in /third_party/.
-    if(CMAKE_C_COMPILER MATCHES "clang-17")
-        set(CMAKE_C_COMPILER "/usr/bin/clang-17" CACHE STRING "" FORCE)
+    if(CMAKE_C_COMPILER MATCHES "clang")
+        set(CMAKE_C_COMPILER "/usr/bin/clang-20" CACHE STRING "" FORCE)
     endif()
-    if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+-17")
-        set(CMAKE_CXX_COMPILER "/usr/bin/clang++-17" CACHE STRING "" FORCE)
+    if(CMAKE_CXX_COMPILER MATCHES "clang\\+\\+")
+        set(CMAKE_CXX_COMPILER "/usr/bin/clang++-20" CACHE STRING "" FORCE)
     endif()
 
     # DEVNOTE: googletest is a CMake project with well-exposed targets and a

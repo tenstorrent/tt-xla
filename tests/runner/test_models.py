@@ -30,7 +30,6 @@ from tests.runner.test_utils import (
     RunPhase,
     create_benchmark_result,
     find_dumped_ir_files,
-    fix_venv_isolation,
     get_input_shape_info,
     get_xla_device_arch,
     record_model_test_properties,
@@ -77,14 +76,11 @@ def _run_model_test_impl(
     This function contains the shared logic for both JAX and Torch tests.
     It's extracted to avoid duplication between test_all_models_jax/torch.
     """
-    # Fix venv isolation issue: ensure venv packages take precedence over system packages
-    fix_venv_isolation()
-
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
 
     # Ensure per-model requirements are installed, and roll back after the test
-    with RequirementsManager.for_loader(loader_path):
+    with RequirementsManager.for_loader(loader_path, framework=str(framework)):
 
         # Get the model loader and model info from desired model, variant.
         loader = ModelLoader(variant=variant)
@@ -96,11 +92,16 @@ def _run_model_test_impl(
         if request.config.getoption("--dump-irs", default=False):
             ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
 
-        if compiler_config is None and ir_dump_path:
-            compiler_config = CompilerConfig(
-                export_path=ir_dump_path,
-                export_model_name=model_info.name,
-            )
+        if compiler_config is None:
+            compiler_config = CompilerConfig()
+        weights_dtype = None
+        if test_metadata.enable_weight_bfp8_conversion:
+            compiler_config.experimental_weight_dtype = "bfp_bf8"
+            weights_dtype = "bfp_bf8"
+
+        if ir_dump_path:
+            compiler_config.export_path = ir_dump_path
+            compiler_config.export_model_name = model_info.name
 
         succeeded = False
         comparison_result = None
@@ -169,10 +170,15 @@ def _run_model_test_impl(
                 Evaluator._assert_on_results(comparison_result)
 
         except Exception as e:
-            captured = captured_output_fixture.readouterr()
+            try:
+                captured = captured_output_fixture.readouterr()
+                stdout, stderr = captured.out, captured.err
+            except ValueError:
+                # Handle case where file descriptors are already closed
+                stdout, stderr = None, None
             # Record runtime failure info so it can be reflected in report properties
             update_test_metadata_for_exception(
-                test_metadata, e, stdout=captured.out, stderr=captured.err
+                test_metadata, e, stdout=stdout, stderr=stderr
             )
             raise
         finally:
@@ -195,6 +201,7 @@ def _run_model_test_impl(
                 comparison_results=list(comparison_result) if comparison_result else [],
                 comparison_config=comparison_config,
                 model_size=model_size,
+                weights_dtype=weights_dtype,
             )
 
             # prints perf benchmark results to console
@@ -205,7 +212,7 @@ def _run_model_test_impl(
                 batch_size, input_sequence_length, input_size = (
                     get_input_shape_info(getattr(tester, "_input_activations", None))
                     if tester
-                    else (1, -1)
+                    else (1, -1, (-1,))
                 )
                 create_benchmark_result(
                     full_model_name=model_info.name,
@@ -611,7 +618,7 @@ def test_placeholder_models(model_name, record_property, request):
 
     model_info = DummyModelInfo(model_name_lc)
     test_metadata = ModelTestConfig(data=model_test_config_data, arch=None)
-
+    weights_dtype = None
     record_model_test_properties(
         record_property,
         request,
@@ -619,4 +626,5 @@ def test_placeholder_models(model_name, record_property, request):
         test_metadata=test_metadata,
         run_mode=RunMode.INFERENCE,
         parallelism=Parallelism.SINGLE_DEVICE,
+        weights_dtype=weights_dtype,
     )

@@ -11,18 +11,15 @@ on:
         description: 'Run ID of the artifacts (release)'
         required: true
         type: string
-      wheel_release_artifact_name:
-        description: 'Name of the wheel artifact (release)'
-        required: true
-        type: string
-      wheel_release_vllm_tt_artifact_name:
-        description: 'Name of the wheel artifact (release vllm-tt)'
+      artifact_suffix:
+        description: 'Suffix for the artifact name'
         required: false
         type: string
-      alchemist_artifact_name:
-        description: 'Name of the alchemist library artifact'
+      wheel_build:
+        description: 'Build to use for testing, e.g. release, manylinux'
         required: false
         type: string
+        default: release
       test_suite:
         description: 'Test suite preset options or custom'
         required: true
@@ -41,6 +38,8 @@ env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_XLA_CI: 1
+  TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
+  TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE: "/opt/tt-triage-venv/bin/python -vvv /opt/tt-triage/tools/tt-triage.py 1>&2"
 
 jobs:
   generate-matrix-test:
@@ -93,21 +92,22 @@ jobs:
           echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
         fi
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
+        sparse-checkout-cone-mode: false
         sparse-checkout: |
-          .github/scripts
+          .github/scripts/
           .gitmodules
           .test_durations
-          pjrt_implementation
-          third_party/pjrt_c_api
+          pjrt_implementation/
+          third_party/pjrt_c_api/
           pytest.ini
           python_package/requirements.txt
           integrations/vllm_plugin/requirements-vllm-plugin.txt
-          tests
-          venv
-          examples
+          tests/
+          venv/
+          examples/
 
     - name: Fetch job id
       id: fetch-job-id
@@ -125,9 +125,16 @@ jobs:
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
         echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
-        echo "wheel_artifact_name=${{ inputs.wheel_release_artifact_name }}" >> "$GITHUB_OUTPUT"
-        echo "wheel_release_vllm_tt_artifact_name=${{ inputs.wheel_release_vllm_tt_artifact_name }}" >> "$GITHUB_OUTPUT"
-        echo "alchemist_artifact_name=${{ inputs.alchemist_artifact_name }}" >> "$GITHUB_OUTPUT"
+        # Override wheel_build to release if matrix.build.require is 'release' or 'alchemist'
+        if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" ]]; then
+          echo "wheel_build=release" >> "$GITHUB_OUTPUT"
+        else
+          echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
+        fi
+        echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
+        echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        echo "wheel_release_vllm_tt_artifact_name=vllm-tt-whl-release${{inputs.artifact_suffix}}" >> "$GITHUB_OUTPUT"
+        echo "alchemist_artifact_name=alchemist-lib-release${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
         echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
 
         # Precompute forge models detection as a reusable output
@@ -163,6 +170,7 @@ jobs:
         uv pip install wheels/*.whl
 
     - name: Download and setup alchemist library
+      if: ${{ matrix.build.require == 'alchemist' }}
       shell: bash
       run: |
         if [[ -n "${{ steps.strings.outputs.alchemist_artifact_name }}" ]]; then
@@ -287,9 +295,8 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_torch --validate-test-config
-        python -m pytest -vv ./tests/runner/test_models.py::test_all_models_jax --validate-test-config
-        python -m pytest -vv ./tests/runner/test_models.py::test_llms_torch --validate-test-config
+        uv pip install pyyaml
+        python3 tests/runner/validate_test_config.py
 
     - name: Collect Tests
       id: collect-tests
@@ -357,14 +364,14 @@ jobs:
         TEST_MARK: ${{ matrix.build.test-mark }}
 
     - name: Upload Test Log
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
         name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: pytest.log
 
     - name: Upload Test Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
         name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
@@ -372,7 +379,7 @@ jobs:
 
     # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
     - name: Upload Benchmark Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
         name: perf-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
@@ -386,7 +393,7 @@ jobs:
     needs: [ generate-matrix-test, run-tests ]
     if: success() || failure()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Process test summary
         continue-on-error: true
         shell: bash

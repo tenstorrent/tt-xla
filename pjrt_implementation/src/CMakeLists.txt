@@ -7,11 +7,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # https://llvm.org/LICENSE.txt
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(api)
 add_subdirectory(utils)
-
-include(ExternalProject)
 
 # ----- TTPJRTBindings -----
 # Static lib that implements api bindings logic.
@@ -38,6 +35,11 @@ target_link_libraries(TTPJRTTTDylib PUBLIC
     coverage_config
 )
 
+target_link_directories(TTPJRTTTDylib PRIVATE
+    ${TTMLIR_LIB_DIR}
+    ${LOGURU_LIB_DIR}
+)
+
 target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
 
 # Setting RPATH to a path involving $ORIGIN (resolved location of the pjrt_plugin_tt.so
@@ -45,8 +47,8 @@ target_link_options(TTPJRTTTDylib PRIVATE "-Wl,--no-undefined")
 set_target_properties(TTPJRTTTDylib PROPERTIES
     PREFIX "" # Disable "lib" prefix.
     LIBRARY_OUTPUT_NAME pjrt_plugin_tt
-    BUILD_RPATH "$ORIGIN:$ORIGIN/lib"
-    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib"
+    BUILD_RPATH "$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64:${TTMLIR_LIB_DIR}"
+    INSTALL_RPATH "$ORIGIN:$ORIGIN/lib:$ORIGIN/lib64"
 )
 
 install(TARGETS TTPJRTTTDylib DESTINATION ${CMAKE_INSTALL_PREFIX})

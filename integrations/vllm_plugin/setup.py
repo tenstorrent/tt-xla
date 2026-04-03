@@ -12,7 +12,7 @@ class BdistWheel(bdist_wheel):
 
     - Marks the wheel as non-pure (`root_is_pure = False`) to ensure proper installation
       of native binaries.
-    - Overrides the tag to be Python 3.11-specific (`cp311-cp311`) while preserving
+    - Overrides the tag to be Python 3.12-specific (`cp312-cp312`) while preserving
       platform specificity.
     """
 
@@ -27,14 +27,19 @@ class BdistWheel(bdist_wheel):
     def finalize_options(self):
         if self.code_coverage is None:
             self.code_coverage = False
-
-        bdist_wheel.finalize_options(self)
+        # Match vllm's platform specificity
         self.root_is_pure = False
+        bdist_wheel.finalize_options(self)
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
-        # Force specific Python 3.11 ABI format for the wheel
-        python, abi = "cp311", "cp311"
+        # Force specific Python 3.12 ABI format for the wheel
+        python, abi = "cp312", "cp312"
+        # Ensure we don't use 'any' platform tag for non-pure wheels
+        if plat == "any":
+            import sysconfig
+
+            plat = sysconfig.get_platform().replace("-", "_").replace(".", "_")
         return python, abi, plat
 
 
@@ -46,10 +51,10 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "vllm@git+https://github.com/tenstorrent/vllm.git@forge/v0.10.1.1_patched",
-        "transformers==4.55.0",
+        "vllm==0.16.0",
+        "transformers==4.57.6",
     ],
-    python_requires=">=3.11, <3.12",
+    python_requires=">=3.12, <3.13",
     license="Apache-2.0",
     entry_points={"vllm.platform_plugins": ["tt = vllm_tt:register"]},
 )

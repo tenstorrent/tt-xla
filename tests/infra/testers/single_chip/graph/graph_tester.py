@@ -31,12 +31,14 @@ class GraphTester(OpTester):
         framework: Framework = Framework.JAX,
         compiler_config: CompilerConfig = None,
         torch_options: dict = None,
+        custom_comparator: Optional[Callable] = None,
     ) -> None:
         super().__init__(
             comparison_config=comparison_config,
             framework=framework,
             compiler_config=compiler_config,
             torch_options=torch_options,
+            custom_comparator=custom_comparator,
         )
 
 
@@ -47,14 +49,22 @@ def run_graph_test(
     framework: Framework = Framework.JAX,
     mesh: Optional[Mesh] = None,
     shard_spec_fn: Optional[Callable] = None,
+    compiler_config: CompilerConfig = None,
     torch_options: dict = None,
     request=None,
+    custom_comparator: Optional[Callable] = None,
 ) -> None:
     """
     Tests `graph` with `inputs` by running it on TT device and CPU and comparing the
     results based on `comparison_config`.
     """
-    tester = GraphTester(comparison_config, framework, torch_options=torch_options)
+    tester = GraphTester(
+        comparison_config,
+        framework,
+        compiler_config=compiler_config,
+        torch_options=torch_options,
+        custom_comparator=custom_comparator,
+    )
     if framework == Framework.TORCH:
         workload = TorchWorkload(
             model=graph, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn
@@ -70,12 +80,20 @@ def run_graph_test_with_random_inputs(
     comparison_config: ComparisonConfig = ComparisonConfig(),
     framework: Framework = Framework.JAX,
     dtype: str | DTypeLike | torch.dtype = "float32",
+    compiler_config: CompilerConfig = None,
     torch_options: dict = None,
     request=None,
+    custom_comparator: Optional[Callable] = None,
 ) -> None:
     """
     Tests `graph` with random inputs by running it on TT device and CPU and comparing
     the results based on `comparison_config`.
     """
-    tester = GraphTester(comparison_config, framework, torch_options=torch_options)
+    tester = GraphTester(
+        comparison_config,
+        framework,
+        compiler_config=compiler_config,
+        torch_options=torch_options,
+        custom_comparator=custom_comparator,
+    )
     tester.test_with_random_inputs(graph, input_shapes, dtype=dtype, request=request)

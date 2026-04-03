@@ -35,7 +35,6 @@ def test_embed_qwen3_reduced_dims():
     ]
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-0.6B",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": 64,
         "disable_sliding_window": True,
@@ -63,83 +62,80 @@ def test_embed_qwen3_reduced_dims():
         "model_name",
         "baseline_path",
         "max_model_len",
-        "experimental_enable_weight_bfp8_conversion",
+        "experimental_weight_dtype",
     ],
     [
         pytest.param(
             "emrecan/bert-base-turkish-cased-mean-nli-stsb-tr",
             "baseline/bert_base_turkish_cased_mean_nli_stsb_tr_baseline.pt",
             75,
-            False,
+            "",
         ),
         pytest.param(
             "sentence-transformers/all-MiniLM-L6-v2",
             "baseline/all_MiniLM_L6_v2_baseline.pt",
             75,
-            False,
+            "",
         ),
         pytest.param(
             "sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
             "baseline/multi_qa_MiniLM_L6_cos_v1_baseline.pt",
             75,
-            False,
+            "",
         ),
         pytest.param(
             "BAAI/bge-m3",
             "baseline/bge_m3_baseline.pt",
             64,
-            False,
+            "",
         ),
         pytest.param(
             "BAAI/bge-base-en",
             "baseline/bge_base_en_baseline.pt",
             64,
-            False,
+            "",
         ),
         pytest.param(
             "BAAI/bge-large-en",
             "baseline/bge_large_en_baseline.pt",
             64,
-            False,
+            "",
         ),
         pytest.param(
             "BAAI/bge-small-en",
             "baseline/bge_small_en_baseline.pt",
             64,
-            False,
+            "",
         ),
         pytest.param(
             "intfloat/e5-base-v2",
             "baseline/e5_base_v2_baseline.pt",
             64,
-            False,
+            "",
         ),
         pytest.param(
             "intfloat/e5-large-v2",
             "baseline/e5_large_v2_baseline.pt",
             64,
-            False,
+            "",
         ),
         pytest.param(
             "intfloat/e5-small-v2",
             "baseline/e5_small_v2_baseline.pt",
             64,
-            False,
+            "",
         ),
         pytest.param(
             "Qwen/Qwen3-Embedding-4B",
             "baseline/qwen3_embedding_4B_baseline.pt",
             64,
-            False,
+            "",
         ),
         pytest.param(
             "Qwen/Qwen3-Embedding-8B",
             "baseline/qwen3_embedding_8B_baseline.pt",
             64,
-            True,
-            marks=pytest.mark.xfail(
-                reason="Static CBs exceed L1 size - https://github.com/tenstorrent/tt-xla/issues/2935"
-            ),
+            "bfp_bf8",
         ),
     ],
 )
@@ -147,13 +143,13 @@ def test_embedding_nightly(
     model_name: str,
     baseline_path,
     max_model_len: int,
-    experimental_enable_weight_bfp8_conversion: bool,
+    experimental_weight_dtype: str,
 ):
     run_pooling_test(
         model_name,
         baseline_path,
         max_model_len,
-        experimental_enable_weight_bfp8_conversion,
+        experimental_weight_dtype,
     )
 
 
@@ -227,7 +223,6 @@ def test_embed_qwen3_perf():
         i *= 2
     llm_args = {
         "model": "Qwen/Qwen3-Embedding-4B",
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": max_seq_len,
         "disable_sliding_window": True,

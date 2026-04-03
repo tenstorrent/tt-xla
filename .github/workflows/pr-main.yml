@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   checks: write
   pull-requests: write
@@ -22,42 +22,27 @@ jobs:
     secrets: inherit
 
   inspect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      skip-build-and-test: ${{ steps.inspect.outputs.skip-build-and-test }}
-      run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
-      run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
-      only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
-      run-uplift-model-tests: ${{ steps.inspect.outputs.run-uplift-model-tests }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/inspect-changes
-        id: inspect
+    uses: ./.github/workflows/call-inspect-changes.yml
+    secrets: inherit
 
   build-image:
     needs: [ inspect-changes ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      dockbuild: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'all' || 'ci' }}
 
-  build-ttxla-release:
+  build-ttxla:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-build.yml
-    name: "Build tt-xla release"
+    name: "Build tt-xla"
     secrets: inherit
     needs: [ inspect-changes, build-image ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-
-  build-ttxla-explorer:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
-    uses: ./.github/workflows/call-build.yml
-    name: "Build tt-xla with explorer"
-    secrets: inherit
-    needs: [ inspect-changes, build-image ]
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      build_type: explorer
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'release,explorer,manylinux' || 'release,explorer' }}
 
   build-ttxla-debug:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -69,83 +54,68 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   test:
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    needs: [ inspect-changes, build-image, build-ttxla ]
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
       test_suite: basic-test.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_release_vllm_tt_artifact_name }}
-      alchemist_artifact_name: ${{ needs.build-ttxla-release.outputs.alchemist_artifact_name }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
-  perf-benchmark-n150:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
+  perf-benchmark:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true' && github.event_name == 'pull_request' && (contains(needs.inspect-changes.outputs.detected-uplifts, 'tt-mlir') || contains(needs.inspect-changes.outputs.detected-uplifts, 'transformers'))
+    needs: [ inspect-changes, build-image, build-ttxla ]
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
     secrets: inherit
     with:
-      project: tt-xla
-      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      run_id_source: tt-xla
-      ref: main
-      perf_regression_check: true
-      test-filter: resnet,llama_3_1_8b_instruct,qwen_3_4b_embedding
-      runs-on-filter: n150
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      adv_filter: '[
+        { "accuracy-testing": false },
+        { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
+        { "runs-on": "n300-llmbox", "filter": ["llama_3_1_70b_tp", "gpt_oss_20b_tp"] },
+        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp_galaxy"] } ]'
       sh-runner: false
-
-  perf-benchmark-llmbox:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true'  && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'uplift-mlir')
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
-    uses: tenstorrent/tt-forge/.github/workflows/perf-benchmark.yml@main
-    secrets: inherit
-    with:
-      project: tt-xla
-      run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      run_id_source: tt-xla
-      ref: main
-      perf_regression_check: true
-      test-filter: test_llama_3_1_70b_tp
-      runs-on-filter: llmbox
-      sh-runner: false
+      skip-device-perf: true
+      perf_regression_check: false
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    needs: [ inspect-changes, build-image, build-ttxla ]
     with:
       test_suite: model-test-push.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
-  test_models_on_uplift:
-    if: needs.inspect-changes.outputs.run-uplift-model-tests == 'true'
+  test-uplift-extended:
+    if: needs.inspect-changes.outputs.detected-uplifts != ''
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    needs: [ inspect-changes, build-image, build-ttxla ]
     with:
-      test_suite: model-test-extended.json
+      test_suite: ${{ needs.inspect-changes.outputs.uplift-additional-test-suites }}
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      artifact_release_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   test-tools:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     uses: ./.github/workflows/call-test-tools.yml
     secrets: inherit
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    needs: [ inspect-changes, build-image, build-ttxla ]
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
-      wheel_artifact_name: ${{ needs.build-ttxla-release.outputs.wheel_artifact_name }}
-      artifacts_run_id: ${{ needs.build-ttxla-release.outputs.artifacts_run_id }}
-
+      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifacts_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
   build-docs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
-    needs: [ inspect-changes, build-image, build-ttxla-release ]
+    needs: [ inspect-changes, build-image, build-ttxla ]
     uses: ./.github/workflows/call-check-docs-build.yml
     secrets: inherit
     with:
@@ -156,20 +126,18 @@ jobs:
     needs:
       - pre-commit
       - build-image
-      - build-ttxla-release
-      - build-ttxla-explorer
+      - build-ttxla
       - build-ttxla-debug
       - test
       - test_forge_models_push
-      - test_models_on_uplift
+      - test-uplift-extended
       - test-tools
-      - perf-benchmark-n150
-      - perf-benchmark-llmbox
+      - perf-benchmark
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla-release, build-ttxla-explorer, build-ttxla-debug, test, test_forge_models_push, build-docs, test_models_on_uplift, test-tools, perf-benchmark-n150, perf-benchmark-llmbox
+        allowed-skips: build-image, build-ttxla, build-ttxla-debug, test, test_forge_models_push, test-uplift-extended, test-tools, perf-benchmark, build-docs
         jobs: ${{ toJSON(needs) }}

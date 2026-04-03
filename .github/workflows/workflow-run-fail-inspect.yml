@@ -51,156 +51,156 @@ jobs:
             fi
           fi
 
-      - name: Inspect Machine Failures
-        id: inspect-failures
-        shell: bash
-        env:
-            GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          repo="${{ github.repository }}"
-          test_job_names=("test ")
-          test_step_names=("Collect Tests")
+      # - name: Inspect Machine Failures
+      #   id: inspect-failures
+      #   shell: bash
+      #   env:
+      #       GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      #   run: |
+      #     repo="${{ github.repository }}"
+      #     test_job_names=("test ")
+      #     test_step_names=("Collect Tests")
 
-          curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
-          curr_wf_attempt="${{ github.event.workflow_run.run_attempt || inputs.workflow_run_attempt }}"
-          rm -f report.txt
+      #     curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
+      #     curr_wf_attempt="${{ github.event.workflow_run.run_attempt || inputs.workflow_run_attempt }}"
+      #     rm -f report.txt
 
-          found_annotations=0
-          if ! gh run view -R "$repo" $curr_wf_id --attempt $curr_wf_attempt >_workflow_run_details.txt; then
-            echo "ERROR: Failed to fetch workflow run details."
-          else
-            echo "Workflow run details fetched successfully."
-            # Parse workflow run details for job annotations
-            if [ -f "_workflow_run_details.txt" ]; then
-              echo "Parsing workflow run details for annotations..."
+      #     found_annotations=0
+      #     if ! gh run view -R "$repo" $curr_wf_id --attempt $curr_wf_attempt >_workflow_run_details.txt; then
+      #       echo "ERROR: Failed to fetch workflow run details."
+      #     else
+      #       echo "Workflow run details fetched successfully."
+      #       # Parse workflow run details for job annotations
+      #       if [ -f "_workflow_run_details.txt" ]; then
+      #         echo "Parsing workflow run details for annotations..."
 
-              # Find the ANNOTATIONS section
-              annotations_line=$(grep -n "^ANNOTATIONS$" _workflow_run_details.txt | cut -d: -f1)
-              if [ -n "$annotations_line" ]; then
-                echo "Found ANNOTATIONS section at line $annotations_line"
-                # Start reading from line after ANNOTATIONS
-                annotations_content=""
-                # Read lines from annotations_line+1 until empty line
-                while IFS= read -r line; do
-                  if [ -z "$line" ]; then
-                    if [ -z "$annotations_content" ]; then
-                      break
-                    else
-                      # Check if first line begins with 'X'
-                      first_line=$(echo "$annotations_content" | head -n 1)
-                      if [[ "$first_line" == X* ]]; then
-                        last_line=$(echo "$annotations_content" | tail -n 2 | head -n 1)
-                        job=$(echo "$last_line" | rev | cut -d':' -f2- | rev)
-                        error=$(echo "$last_line" | rev | cut -d':' -f1 | rev)
-                        if [[ "$error" =~ \.github#([0-9]+) ]] && [ "${BASH_REMATCH[1]}" -lt 10 ]; then
-                          echo "Github error no ${BASH_REMATCH[1]}"
-                          echo "<details><summary>Failure (code ${BASH_REMATCH[1]}) detected in job: $job</summary>$annotations_content</details>" >>report.txt
-                          found_annotations=1
-                        else
-                          echo "Annotation with error found: $first_line"
-                          echo "Job: $job"
-                          echo "Error: $error"
-                        fi
-                      fi
-                    fi
-                    annotations_content=""
-                    continue
-                  fi
-                  annotations_content+="$line"$'\n'
-                done < <(tail -n +$((annotations_line + 1)) _workflow_run_details.txt)
+      #         # Find the ANNOTATIONS section
+      #         annotations_line=$(grep -n "^ANNOTATIONS$" _workflow_run_details.txt | cut -d: -f1)
+      #         if [ -n "$annotations_line" ]; then
+      #           echo "Found ANNOTATIONS section at line $annotations_line"
+      #           # Start reading from line after ANNOTATIONS
+      #           annotations_content=""
+      #           # Read lines from annotations_line+1 until empty line
+      #           while IFS= read -r line; do
+      #             if [ -z "$line" ]; then
+      #               if [ -z "$annotations_content" ]; then
+      #                 break
+      #               else
+      #                 # Check if first line begins with 'X'
+      #                 first_line=$(echo "$annotations_content" | head -n 1)
+      #                 if [[ "$first_line" == X* ]]; then
+      #                   last_line=$(echo "$annotations_content" | tail -n 2 | head -n 1)
+      #                   job=$(echo "$last_line" | rev | cut -d':' -f2- | rev)
+      #                   error=$(echo "$last_line" | rev | cut -d':' -f1 | rev)
+      #                   if [[ "$error" =~ \.github#([0-9]+) ]] && [ "${BASH_REMATCH[1]}" -lt 10 ]; then
+      #                     echo "Github error no ${BASH_REMATCH[1]}"
+      #                     echo "<details><summary>Failure (code ${BASH_REMATCH[1]}) detected in job: $job</summary>$annotations_content</details>" >>report.txt
+      #                     found_annotations=1
+      #                   else
+      #                     echo "Annotation with error found: $first_line"
+      #                     echo "Job: $job"
+      #                     echo "Error: $error"
+      #                   fi
+      #                 fi
+      #               fi
+      #               annotations_content=""
+      #               continue
+      #             fi
+      #             annotations_content+="$line"$'\n'
+      #           done < <(tail -n +$((annotations_line + 1)) _workflow_run_details.txt)
 
-              fi
-            fi
-          fi
+      #         fi
+      #       fi
+      #     fi
 
-          # no need to proceed if we found annotations
-          if [ "$found_annotations" -ne 0 ]; then
-            if ! gh run view -R "$repo" $curr_wf_id --attempt $curr_wf_attempt --json jobs >workflow_jobs.json; then
-              echo "ERROR: Failed to fetch workflow jobs."
-              exit 1
-            fi
+      #     # no need to proceed if we found annotations
+      #     if [ "$found_annotations" -ne 0 ]; then
+      #       if ! gh run view -R "$repo" $curr_wf_id --attempt $curr_wf_attempt --json jobs >workflow_jobs.json; then
+      #         echo "ERROR: Failed to fetch workflow jobs."
+      #         exit 1
+      #       fi
 
-            if ! jq empty workflow_jobs.json >/dev/null 2>&1; then
-              echo "ERROR: workflow_jobs.json is not valid JSON:"
-              jq . workflow_jobs.json
-              exit 1
-            fi
-            # Iterate through jobs using index
-            job_count=$(jq '.jobs | length' workflow_jobs.json)
-            for ((i=0; i<job_count; i++)); do
-              job_name=$(jq -r ".jobs[$i].name" workflow_jobs.json)
-              job_conclusion=$(jq -r ".jobs[$i].conclusion" workflow_jobs.json)
-              if [[ "$job_conclusion" == "success" ]]; then
-                continue
-              fi
+      #       if ! jq empty workflow_jobs.json >/dev/null 2>&1; then
+      #         echo "ERROR: workflow_jobs.json is not valid JSON:"
+      #         jq . workflow_jobs.json
+      #         exit 1
+      #       fi
+      #       # Iterate through jobs using index
+      #       job_count=$(jq '.jobs | length' workflow_jobs.json)
+      #       for ((i=0; i<job_count; i++)); do
+      #         job_name=$(jq -r ".jobs[$i].name" workflow_jobs.json)
+      #         job_conclusion=$(jq -r ".jobs[$i].conclusion" workflow_jobs.json)
+      #         if [[ "$job_conclusion" == "success" ]]; then
+      #           continue
+      #         fi
 
-              is_job_test=0
-              for test_job_name in "${test_job_names[@]}"; do
-                if [[ "$job_name" == *"$test_job_name"* ]]; then
-                  is_job_test=1
-                  break
-                fi
-              done
-              if [[ "$is_job_test" -eq 1 ]]; then
-                echo "Job $i: $job_name"
-                steps_count=$(jq ".jobs[$i].steps | length" workflow_jobs.json)
-                for ((j=0; j<steps_count; j++)); do
-                  step_name=$(jq -r ".jobs[$i].steps[$j].name" workflow_jobs.json)
-                  step_conclusion=$(jq -r ".jobs[$i].steps[$j].conclusion" workflow_jobs.json)
-                  for test_step_name in "${test_step_names[@]}"; do
-                    if [[ "$step_name" == *"$test_step_name"* ]]; then
-                      break 2
-                    fi
-                  done
-                  if [[ "$step_conclusion" == "failure" ]]; then
-                    job_id=$(jq -r ".jobs[$i].databaseId" workflow_jobs.json)
-                  fi
-                done
-              fi
-            done
-          fi
+      #         is_job_test=0
+      #         for test_job_name in "${test_job_names[@]}"; do
+      #           if [[ "$job_name" == *"$test_job_name"* ]]; then
+      #             is_job_test=1
+      #             break
+      #           fi
+      #         done
+      #         if [[ "$is_job_test" -eq 1 ]]; then
+      #           echo "Job $i: $job_name"
+      #           steps_count=$(jq ".jobs[$i].steps | length" workflow_jobs.json)
+      #           for ((j=0; j<steps_count; j++)); do
+      #             step_name=$(jq -r ".jobs[$i].steps[$j].name" workflow_jobs.json)
+      #             step_conclusion=$(jq -r ".jobs[$i].steps[$j].conclusion" workflow_jobs.json)
+      #             for test_step_name in "${test_step_names[@]}"; do
+      #               if [[ "$step_name" == *"$test_step_name"* ]]; then
+      #                 break 2
+      #               fi
+      #             done
+      #             if [[ "$step_conclusion" == "failure" ]]; then
+      #               job_id=$(jq -r ".jobs[$i].databaseId" workflow_jobs.json)
+      #             fi
+      #           done
+      #         fi
+      #       done
+      #     fi
 
-          if [ ! -s report.txt ]; then
-            echo "No failed tests to report."
-            echo "send_msg=" >>$GITHUB_OUTPUT
-            exit 0
-          else
-            if [[ "$curr_wf_attempt" -eq 1 ]]; then
-                if [ "${{ github.event_name == 'workflow_run' }}" ]; then
-                gh run rerun $curr_wf_id -R "$repo" --failed
-                msg_retry_text=":rocket: Retrying failed jobs!"
-                echo "> Retry of failed job issued!" >> report.txt
-              fi
-            else
-              echo "> No retries of failed job left ($curr_wf_attempt attempt)!" >> report.txt
-              msg_retry_text="No retries left, already $curr_wf_attempt attempts."
-            fi
-            echo "Report: $(cat report.txt)"
-            echo "## Machine failures inspection report for [Nightly](<https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt>)" >> $GITHUB_STEP_SUMMARY
-            cat report.txt >> $GITHUB_STEP_SUMMARY
-            echo "send_msg={\"text\": \"Nightly failure caused by machine failures. $msg_retry_text\", \"job_link\": \"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
-          fi
+      #     if [ ! -s report.txt ]; then
+      #       echo "No failed tests to report."
+      #       echo "send_msg=" >>$GITHUB_OUTPUT
+      #       exit 0
+      #     else
+      #       if [[ "$curr_wf_attempt" -eq 1 ]]; then
+      #           if [ "${{ github.event_name == 'workflow_run' }}" ]; then
+      #           gh run rerun $curr_wf_id -R "$repo" --failed
+      #           msg_retry_text=":rocket: Retrying failed jobs!"
+      #           echo "> Retry of failed job issued!" >> report.txt
+      #         fi
+      #       else
+      #         echo "> No retries of failed job left ($curr_wf_attempt attempt)!" >> report.txt
+      #         msg_retry_text="No retries left, already $curr_wf_attempt attempts."
+      #       fi
+      #       echo "Report: $(cat report.txt)"
+      #       echo "## Machine failures inspection report for [Nightly](<https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt>)" >> $GITHUB_STEP_SUMMARY
+      #       cat report.txt >> $GITHUB_STEP_SUMMARY
+      #       echo "send_msg={\"text\": \"Nightly failure caused by machine failures. $msg_retry_text\", \"job_link\": \"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
+      #     fi
 
-      - uses: slackapi/slack-github-action@v1.26.0
-        if: ${{ steps.inspect-failures.outputs.send_msg && github.event_name == 'workflow_run' }}
-        with:
-          payload: ${{ steps.inspect-failures.outputs.send_msg }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
+      # - uses: slackapi/slack-github-action@v1.26.0
+      #   if: ${{ steps.inspect-failures.outputs.send_msg && github.event_name == 'workflow_run' }}
+      #   with:
+      #     payload: ${{ steps.inspect-failures.outputs.send_msg }}
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
 
-      - name: Machine failure detected
-        if: ${{ steps.inspect-failures.outputs.send_msg }}
-        shell: bash
-        run: |
-            echo "Machine failure detected. Exiting."
-            exit 1
+      # - name: Machine failure detected
+      #   if: ${{ steps.inspect-failures.outputs.send_msg }}
+      #   shell: bash
+      #   run: |
+      #       echo "Machine failure detected. Exiting."
+      #       exit 1
 
       - uses: actions/checkout@v6
 
       - name: Setup python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Find failed tests
         id: success-failed
@@ -336,13 +336,13 @@ jobs:
           git config --global --add safe.directory /__w/tt-xla/tt-xla
           git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Download test to run
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: ${{ matrix.build.runs-on }}-test-to-run
 
@@ -356,11 +356,11 @@ jobs:
             echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
           fi
 
-      - name: ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          create-symlink: true
-          key: "release-build"
+      # - name: ccache
+      #   uses: hendrikmuhs/ccache-action@v1.2
+      #   with:
+      #     create-symlink: true
+      #     key: "release-build"
 
       - name: Bisect
         shell: bash
@@ -368,7 +368,7 @@ jobs:
         run: |
           rm -rf .bisect-run
           mkdir -p .bisect-run
-          cp .github/scripts/* .bisect-run/
+          cp -r .github/scripts/* .bisect-run/
           source venv/activate >/dev/null
           found=false
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
@@ -425,87 +425,87 @@ jobs:
           git bisect reset
 
           # detect uplift commits
-          if [[ "$title" == "Uplift third_party/tt-mlir"* ]]; then
-            echo "Uplift commit detected!"
-            # Extract changes from the uplift commit
-            git show $bad_commit -- third_party/CMakeLists.txt > patch.txt
+          # if [[ "$title" == "Uplift third_party/tt-mlir"* ]]; then
+          #   echo "Uplift commit detected!"
+          #   # Extract changes from the uplift commit
+          #   git show $bad_commit -- third_party/CMakeLists.txt > patch.txt
 
-            if [ -s patch.txt ]; then
-              from=$(grep '^-.*set(TT_MLIR_VERSION' patch.txt | sed 's/^-.*set(TT_MLIR_VERSION "\([^"]*\)".*/\1/')
-              to=$(grep '^+.*set(TT_MLIR_VERSION' patch.txt | sed 's/^+.*set(TT_MLIR_VERSION "\([^"]*\)".*/\1/')
+          #   if [ -s patch.txt ]; then
+          #     from=$(grep '^-.*set(TT_MLIR_VERSION' patch.txt | sed 's/^-.*set(TT_MLIR_VERSION "\([^"]*\)".*/\1/')
+          #     to=$(grep '^+.*set(TT_MLIR_VERSION' patch.txt | sed 's/^+.*set(TT_MLIR_VERSION "\([^"]*\)".*/\1/')
 
-              if [ -n "$from" ] && [ -n "$to" ]; then
-                # try bisecting between from and to in tt-mlir
-                echo "tt-mlir bisect: from $from to $to (uplift)"
+          #     if [ -n "$from" ] && [ -n "$to" ]; then
+          #       # try bisecting between from and to in tt-mlir
+          #       echo "tt-mlir bisect: from $from to $to (uplift)"
 
-                git checkout $bad_commit
-                git submodule update --init --recursive
-                TT_XLA_SOURCE=$(pwd)
-                TT_MLIR_PATH=$TT_XLA_SOURCE/.bisect-run/tt-mlir
-                git clone https://github.com/tenstorrent/tt-mlir.git $TT_MLIR_PATH --quiet
-                cd $TT_MLIR_PATH
-                git fetch --quiet
-                git bisect start $to $from
-                while true; do
-                  mlir_commit=$(git rev-parse HEAD)
-                  echo "New iteration of tt-mlir bisect at $mlir_commit"
-                  out=""
+          #       git checkout $bad_commit
+          #       git submodule update --init --recursive
+          #       TT_XLA_SOURCE=$(pwd)
+          #       TT_MLIR_PATH=$TT_XLA_SOURCE/.bisect-run/tt-mlir
+          #       git clone https://github.com/tenstorrent/tt-mlir.git $TT_MLIR_PATH --quiet
+          #       cd $TT_MLIR_PATH
+          #       git fetch --quiet
+          #       git bisect start $to $from
+          #       while true; do
+          #         mlir_commit=$(git rev-parse HEAD)
+          #         echo "New iteration of tt-mlir bisect at $mlir_commit"
+          #         out=""
 
-                  # update tt-mlir version in tt-xla
-                  cd $TT_XLA_SOURCE
-                  sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${mlir_commit}\")/" third_party/CMakeLists.txt
+          #         # update tt-mlir version in tt-xla
+          #         cd $TT_XLA_SOURCE
+          #         sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${mlir_commit}\")/" third_party/CMakeLists.txt
 
-                  echo "Building tt-xla with tt-mlir at $mlir_commit..."
-                  if .bisect-run/build.sh; then
-                    # Run tests
-                    echo "Running tests"
-                    if python .bisect-run/run_tests.py -v 2>&1; then
-                      echo "Tests passed"
-                      cd $TT_MLIR_PATH
-                      out=$(git bisect good || true)
-                    else
-                      echo "Tests failed"
-                      cd $TT_MLIR_PATH
-                      out=$(git bisect bad || true)
-                    fi
-                  else
-                    echo "Build failed, skipping..."
-                    cd $TT_MLIR_PATH
-                    out=$(git bisect skip || true)
-                  fi
+          #         echo "Building tt-xla with tt-mlir at $mlir_commit..."
+          #         if .bisect-run/build.sh; then
+          #           # Run tests
+          #           echo "Running tests"
+          #           if python .bisect-run/run_tests.py -v 2>&1; then
+          #             echo "Tests passed"
+          #             cd $TT_MLIR_PATH
+          #             out=$(git bisect good || true)
+          #           else
+          #             echo "Tests failed"
+          #             cd $TT_MLIR_PATH
+          #             out=$(git bisect bad || true)
+          #           fi
+          #         else
+          #           echo "Build failed, skipping..."
+          #           cd $TT_MLIR_PATH
+          #           out=$(git bisect skip || true)
+          #         fi
 
-                  # Check if bisect is complete
-                  echo "$out"
-                  first_line="$(printf '%s\n' "$out" | head -n1)"
-                  case "$first_line" in
-                    *"is the first bad commit"*)
-                      echo "FOUND IT: $first_line"
-                      # Get the bad commit info
-                      repo="tt-mlir"
-                      bad_commit=$(echo "$first_line" | grep -oP '[0-9a-f]{40}' | head -n1)
-                      title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
-                      git bisect reset
-                      found=true
-                      break
-                      ;;
-                    *"There are only 'skip'ped commits left to test."*)
-                      echo "Bisect inconclusive: only skipped commits left."
-                      echo "Last bisect output: $first_line"
-                      break
-                      ;;
-                    "")
-                      echo "git bisect produced no output; stopping to avoid an infinite loop."
-                      echo "Last bisect output: $first_line"
-                      break
-                      ;;
-                  esac
-                done
+          #         # Check if bisect is complete
+          #         echo "$out"
+          #         first_line="$(printf '%s\n' "$out" | head -n1)"
+          #         case "$first_line" in
+          #           *"is the first bad commit"*)
+          #             echo "FOUND IT: $first_line"
+          #             # Get the bad commit info
+          #             repo="tt-mlir"
+          #             bad_commit=$(echo "$first_line" | grep -oP '[0-9a-f]{40}' | head -n1)
+          #             title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
+          #             git bisect reset
+          #             found=true
+          #             break
+          #             ;;
+          #           *"There are only 'skip'ped commits left to test."*)
+          #             echo "Bisect inconclusive: only skipped commits left."
+          #             echo "Last bisect output: $first_line"
+          #             break
+          #             ;;
+          #           "")
+          #             echo "git bisect produced no output; stopping to avoid an infinite loop."
+          #             echo "Last bisect output: $first_line"
+          #             break
+          #             ;;
+          #         esac
+          #       done
 
-                cd $TT_XLA_SOURCE
-                rm -rf $TT_MLIR_PATH
-              fi
-            fi
-          fi
+          #       cd $TT_XLA_SOURCE
+          #       rm -rf $TT_MLIR_PATH
+          #     fi
+          #   fi
+          # fi
 
           if [ -n "$bad_commit" ]; then
             echo "${repo}_${bad_commit}" > .bisect-run/bisect-result.txt
@@ -527,7 +527,7 @@ jobs:
           fi
 
       - name: Upload bisect result
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: ${{ steps.bisect.outputs.found == 'true' }}
         with:
           name: bisect-result-${{ matrix.build.run_no }}-${{ matrix.build.runs-on }}

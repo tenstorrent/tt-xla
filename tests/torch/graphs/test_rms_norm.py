@@ -19,12 +19,12 @@ MODEL_LOADER_MAP = {
 
 AVAILABLE_VARIANT_MAP = {
     "llama": [
-        "llama_3_8b",
-        "llama_3_1_8b",
-        "llama_3_2_1b",
-        "llama_3_2_3b",
-        "huggyllama_7b",
-        "TinyLlama_v1.1",
+        "3.0_8B",
+        "3.1_8B",
+        "3.2_1B",
+        "3.2_3B",
+        "Huggyllama_7B",
+        "Tinyllama_v1.1",
     ],
 }
 
@@ -48,6 +48,7 @@ def get_available_variants(model_name):
 """Llama rms norm test"""
 
 
+@pytest.mark.extended
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.parametrize("seq_len", [1024])
@@ -56,7 +57,10 @@ def get_available_variants(model_name):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_rms_norm(seq_len, variant, variant_config):
+@pytest.mark.filecheck(
+    ["rms_norm.ttnn.mlir"]
+)  # Despite this fusion being a TTIR fusion, and having a unit test that already observes this fusion in TTIR, here we only observe the rms_norm op in TTNN.
+def test_llama_rms_norm(seq_len, variant, variant_config, request):
     xr.set_device_type("TT")
 
     loader = LlamaModelLoader(variant=variant)
@@ -75,4 +79,5 @@ def test_llama_rms_norm(seq_len, variant, variant_config):
         [hidden_states],
         framework=Framework.TORCH,
         comparison_config=comparison_config,
+        request=request,
     )

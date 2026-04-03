@@ -7,11 +7,23 @@ Command-line tool to install dependencies for the tt-forge package.
 """
 
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import urllib.request
 from pathlib import Path
+
+
+def get_fedora_package_manager():
+    if shutil.which("dnf"):
+        return ["dnf", "install", "-y", "--allowerasing"]
+    elif shutil.which("yum"):
+        return ["yum", "install", "-y"]
+    elif shutil.which("zypper"):
+        return ["zypper", "install", "-y", "--oldpackage", "--allow-downgrade"]
+    else:
+        return None
 
 
 def main():
@@ -26,6 +38,8 @@ def main():
         if match:
             return match.group(1).strip()
         return None
+
+    sudo_available = bool(shutil.which("sudo"))
 
     try:
         # Find the package installation directory
@@ -66,6 +80,7 @@ def main():
     # Detect Linux distribution type
     sfpi_dist = "debian"
     sfpi_pkg = "deb"
+    pkgm = ["apt-get", "install", "-y", "--allow-downgrades"]
     try:
         with open("/etc/os-release", "r") as f:
             os_release = f.read().lower()
@@ -77,6 +92,14 @@ def main():
                 or "mandriva" in os_release
             ):
                 print("Detected rpm linux distribution")
+                pkgm = get_fedora_package_manager()
+                if pkgm is None:
+                    print(
+                        "Error: No supported package manager found for Fedora/RHEL/CentOS/SUSE/Mandriva.",
+                        file=sys.stderr,
+                    )
+                    return 1
+
                 sfpi_dist = "fedora"
                 sfpi_pkg = "rpm"
             elif "debian" in os_release or "ubuntu" in os_release:
@@ -109,20 +132,15 @@ def main():
         print("Installing SFPI package...")
         sys.stdout.flush()
         sys.stderr.flush()
-        if sfpi_dist == "debian":
-            result = subprocess.run(
-                ["sudo", "dpkg", "-i", str(temp_pkg_path)],
-                check=True,
-                capture_output=False,
-                text=True,
-            )
-        elif sfpi_dist == "fedora":
-            subprocess.run(
-                ["sudo", "rpm", "-i", str(temp_pkg_path)],
-                check=True,
-                capture_output=False,
-                text=True,
-            )
+        cmd = [*pkgm, str(temp_pkg_path)]
+        if sudo_available:
+            cmd.insert(0, "sudo")
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=False,
+            text=True,
+        )
         print("SFPI package installed successfully!")
 
     except urllib.error.URLError as e:
@@ -130,7 +148,6 @@ def main():
         return 1
     except subprocess.CalledProcessError as e:
         print(f"Error installing package: {e}", file=sys.stderr)
-        print("You may need to run: sudo apt-get install -f", file=sys.stderr)
         return 1
     finally:
         # Clean up temporary file

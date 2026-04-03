@@ -10,6 +10,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
+from sys import stderr, stdout
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_py import build_py
@@ -63,7 +64,6 @@ class SetupConfig:
             .strip()
         )
 
-        # NOTE this is how tt-forge-fe does it.
         return "0.1." + date + "+dev." + short_hash
 
     @property
@@ -200,7 +200,7 @@ class BdistWheel(bdist_wheel):
 
     - Marks the wheel as non-pure (`root_is_pure = False`) to ensure proper installation
       of native binaries.
-    - Overrides the tag to be Python 3.11-specific (`cp311-cp311`) while preserving
+    - Overrides the tag to be Python 3.12-specific (`cp312-cp312`) while preserving
       platform specificity.
     """
 
@@ -238,8 +238,16 @@ class BdistWheel(bdist_wheel):
 
     def get_tag(self):
         python, abi, plat = bdist_wheel.get_tag(self)
-        # Force specific Python 3.11 ABI format for the wheel
-        python, abi = "cp311", "cp311"
+        # Force specific Python 3.12 ABI format for the wheel
+        python, abi = "cp312", "cp312"
+        # Ensure platform-specific tag for x86_64 architecture
+        # This prevents 'any' platform and enables auditwheel to properly repair
+        import platform
+
+        if plat == "any" or not plat:
+            machine = platform.machine().lower()
+            if machine in ("x86_64", "amd64"):
+                plat = "linux_x86_64"
         return python, abi, plat
 
 
@@ -258,6 +266,9 @@ class CMakeBuildPy(build_py):
     .yaml, .so, .a, etc.) are going to be included in the final package. This cannot be
     done solely using `package_data` parameter of `setup` which expects python modules.
     """
+
+    def in_ci(self) -> bool:
+        return os.environ.get("IN_CIBW_ENV") == "ON"
 
     def run(self):
         if hasattr(self, "editable_mode") and self.editable_mode:
@@ -298,25 +309,117 @@ class CMakeBuildPy(build_py):
             "Ninja",
             "-B",
             "build",
+            "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
+            "-DTTXLA_ENABLE_TOOLS=" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
+            "-DTT_USE_SYSTEM_SFPI=ON",
         ]
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
 
-        print(f"CMake arguments: {cmake_args}")
+        cmake_cmd = ["cmake"]
+        # Run source env/activate if in ci, otherwise onus is on dev
+        if self.in_ci():
+            cmake_cmd = [
+                "source",
+                "venv/activate",
+                "&&",
+                "cmake",
+            ]
+
+        print(f"CMake arguments: {[*cmake_cmd, *cmake_args]}")
 
         # Set environment variables to create a more portable build.
         os.environ["TRACY_NO_ISA_EXTENSIONS"] = "1"
         os.environ["TRACY_NO_INVARIANT_CHECK"] = "1"
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
-        subprocess.check_call(["cmake", *cmake_args], cwd=REPO_DIR)
-        subprocess.check_call(["cmake", *build_command], cwd=REPO_DIR, env=os.environ)
-        subprocess.check_call(["cmake", *install_command], cwd=REPO_DIR)
+        print("Setting up CMake project...")
+        print("::endgroup::")
+        print("::group::CMake build setup")
+        stdout.flush()
+        stderr.flush()
+        subprocess.run(
+            " ".join([*cmake_cmd, *cmake_args]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+            env=os.environ,
+        )
+        print("::endgroup::")
+        print("::group::CMake build")
+        stdout.flush()
+        subprocess.run(
+            " ".join([*cmake_cmd, *build_command]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+            env=os.environ,
+        )
+        print("::endgroup::")
+        print("::group::CMake install")
+        stdout.flush()
+        subprocess.run(
+            " ".join([*cmake_cmd, *install_command]),
+            check=True,
+            shell=True,
+            capture_output=False,
+            cwd=REPO_DIR,
+            env=os.environ,
+        )
+        print("::endgroup::")
 
+        if self.in_ci():
+            print("::group::CCache stats")
+            stdout.flush()
+            subprocess.run("ccache -s", shell=True, cwd=REPO_DIR, capture_output=False)
+            print("::endgroup::")
+
+        print("::group::Add missing libs")
+        self._add_missing_libs(install_dir)
+        print("::endgroup::")
+        print("::group::Pruning install tree")
         self._prune_install_tree(install_dir)
+        print("::endgroup::")
+        print("::group::Packing the wheel")
+
+    def _add_missing_libs(self, install_dir: Path) -> None:
+        """
+        Add any missing shared library dependencies to the install directory.
+        """
+        libs = ["libatomic.so.1"]
+
+        # Determine the correct lib directory
+        lib_dir = (
+            install_dir / "lib"
+            if (install_dir / "lib").exists()
+            else install_dir / "lib64"
+        )
+        ld_search_path = ["/lib", "/usr/lib", "/lib64", "/usr/lib64"]
+        ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
+        if ld_library_path:
+            ld_search_path.extend(ld_library_path.split(":"))
+
+        for lib in libs:
+            # Try to find the library in ld_search_path
+            lib_path = None
+            for path in ld_search_path:
+                candidate = Path(path) / lib
+                if candidate.exists():
+                    lib_path = candidate
+                    break
+
+            if lib_path:
+                print(f"Copying {lib} from {lib_path} to {lib_dir}")
+                shutil.copy2(lib_path, lib_dir / lib)
+            else:
+                print(
+                    f"Warning: {lib} not found in standard library paths or LD_LIBRARY_PATH"
+                )
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
@@ -326,6 +429,17 @@ class CMakeBuildPy(build_py):
         _remove_broken_symlinks(install_dir)
         _remove_static_archives(install_dir)
 
+        # remove cmake and pkgconfig files
+        _remove_bloat_dir(install_dir / "lib" / "cmake")
+        _remove_bloat_dir(install_dir / "lib" / "pkgconfig")
+        _remove_bloat_dir(install_dir / "lib64" / "cmake")
+        _remove_bloat_dir(install_dir / "lib64" / "pkgconfig")
+        _remove_bloat_dir(install_dir / "include")
+        # Remove bin when building manylinux wheel. This, however, removes multi-host feature.
+        # issue: https://github.com/tenstorrent/tt-xla/issues/3531
+        if self.in_ci():
+            _remove_bloat_dir(install_dir / "bin")
+            _remove_bloat_dir(install_dir / "tt-metal" / "tests")
         if config.build_type == "release":
             _strip_shared_objects(install_dir)
 
@@ -343,12 +457,18 @@ class CMakeBuildPy(build_py):
                 print(f"{script_file} already copied.")
 
 
+def _remove_bloat_dir(dir_path: Path) -> None:
+    if dir_path.exists() and dir_path.is_dir():
+        print(f"Removing bloat directory: {dir_path}")
+        shutil.rmtree(dir_path)
+
+
 def _remove_static_archives(root: Path) -> None:
     for archive in root.rglob("*.a"):
         if archive.is_symlink() or not archive.is_file():
             continue
         rel = archive.relative_to(root)
-        if rel.parts and rel.parts[0] == "lib":
+        if rel.parts and rel.parts[0] in ("lib", "lib64"):
             print(f"Removing static archive: {rel}")
             archive.unlink()
 
@@ -432,14 +552,9 @@ setup(
         "console_scripts": [
             "tt-forge-install = ttxla_tools.install_sfpi:main",
             "tracy = tracy.__main__:main",
+            "tt-gen-weight-template = tt_torch.weight_dtype:main",
         ],
     },
-    ext_modules=[
-        Extension(
-            name="pjrt_plugin_tt.native",
-            sources=[],
-        )
-    ],
     include_package_data=True,
     install_requires=config.requirements,
     license="Apache-2.0",
@@ -447,7 +562,7 @@ setup(
     long_description=config.long_description,
     name="pjrt-plugin-tt",
     packages=find_packages(),
-    python_requires=">=3.11, <3.12",
+    python_requires=">=3.12, <3.13",
     url="https://github.com/tenstorrent/tt-xla",
     version=config.version,
     # Needs to reference embedded shared libraries (i.e. .so file), so not zip safe.

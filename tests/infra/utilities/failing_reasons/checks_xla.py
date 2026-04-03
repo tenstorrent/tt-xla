@@ -112,7 +112,9 @@ class ComponentChecker(Enum):
                         M.last_line(
                             M.contains("infra/runners/torch_device_runner.py:")
                         ),
-                        M.last_line(M.contains("infra/comparators/comparator.py:")),
+                        M.last_line(M.contains("infra/evaluators/evaluator.py:")),
+                        # match anywhere in longrepr to avoid relying solely on last line
+                        M.contains("infra/evaluators/evaluator.py:"),
                         M.last_line(
                             M.contains(
                                 "infra/testers/single_chip/model/torch_model_tester.py"
@@ -214,6 +216,52 @@ class FailingReasons(Enum):
                     M.contains("Cannot use chat template functions"),
                     M.contains("tokenizer.chat_template is not set"),
                     M.contains("no template argument was passed"),
+                ],
+            ),
+        ],
+    )
+
+    # Missing attribute 'xla_args' on fused ops or related objects
+    MISSING_XLA_ARGS_ATTRIBUTE = FailingReason(
+        description="AttributeError: object has no attribute 'xla_args'",
+        checks=[
+            ExceptionCheck(
+                class_name="AttributeError",
+                message=[
+                    M.contains("no attribute 'xla_args'"),
+                ],
+            ),
+        ],
+    )
+
+    UNBOUND_LOCAL_ERROR = FailingReason(
+        description="UnboundLocalError: cannot access local variable",
+        checks=[
+            # E   UnboundLocalError: cannot access local variable '<name>' where it is not associated with a value
+            ExceptionCheck(
+                class_name="UnboundLocalError",
+                message=[
+                    M.contains("cannot access local variable"),
+                    M.contains("not associated with a value"),
+                ],
+            ),
+        ],
+    )
+
+    # Torch split_with_sizes shape mismatch on dimension
+    SPLIT_WITH_SIZES_MISMATCH = FailingReason(
+        description="RuntimeError: split_with_sizes expects split_sizes to sum exactly to <size>",
+        checks=[
+            ExceptionCheck(
+                class_name="RuntimeError",
+                message=[
+                    M.contains(
+                        "split_with_sizes expects split_sizes to sum exactly to"
+                    ),
+                    M.contains("but got split_sizes="),
+                ],
+                error_log=[
+                    M.last_line(M.contains("torch/_tensor.py:")),
                 ],
             ),
         ],
@@ -374,7 +422,10 @@ class FailingReasons(Enum):
                 class_name="AssertionError",
                 component=ComponentChecker.XLA.value,
                 message=[
-                    M.starts_with("Comparison result 0 failed"),
+                    M.any(
+                        M.starts_with("Comparison result 0 failed"),
+                        M.starts_with("Evaluation result 0 failed"),
+                    ),
                     M.contains("PCC comparison failed"),
                     M.contains("Calculated: pcc="),
                     M.neg(M.contains("Calculated: pcc=nan (invalid value)")),
@@ -383,7 +434,9 @@ class FailingReasons(Enum):
                     ),  # Some test doesn't have pcc but compares allclose as well
                 ],
                 error_log=[
-                    M.last_line(M.contains("infra/comparators/comparator.py:")),
+                    M.any(
+                        M.last_line(M.contains("infra/evaluators/evaluator.py:")),
+                    ),
                 ],
             ),
         ],
@@ -470,13 +523,71 @@ class FailingReasons(Enum):
                 class_name="ValueError",
                 component=ComponentChecker.XLA.value,
                 message=[
-                    M.equals("Error code: 13"),
+                    M.contains("Error code: 13"),
                 ],
                 error_log=[
-                    M.contains(
-                        ">           torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)"
+                    M.any(
+                        M.contains(
+                            ">           torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)"
+                        ),
+                        M.contains("_xla_sync_multi("),
+                        M.contains("torch_xla._XLAC._xla_sync_multi"),
                     ),
-                    M.last_line(M.contains("tt_torch/backend/backend.py:")),
+                    # Allow either backend callsite or torch_xla surface frame to be last
+                    M.any(
+                        M.last_line(M.contains("tt_torch/backend/backend.py:")),
+                        M.last_line(M.contains("torch_xla/torch_xla.py:")),
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    ERROR_CODE_13_XLA_WARM_UP_CACHE = FailingReason(
+        description="Error code 13 in xla_warm_up_cache call",
+        checks=[
+            # torch_xla/_dynamo/dynamo_bridge.py:483: in extract_graph_helper
+            #     torch_xla._XLAC._xla_warm_up_cache(args_and_out_tensor_only, [])
+            # E   ValueError: Error code: 13
+            ExceptionCheck(
+                class_name="ValueError",
+                message=[
+                    M.contains("Error code: 13"),
+                ],
+                error_log=[
+                    M.any(
+                        M.contains("_xla_warm_up_cache("),
+                        M.contains("torch_xla._XLAC._xla_warm_up_cache"),
+                    ),
+                    M.contains("torch_xla/_dynamo/dynamo_bridge.py"),
+                ],
+            ),
+        ],
+    )
+
+    ERROR_CODE_13_XLA_STEP_MARKER = FailingReason(
+        description="Error code 13 in xla_step_marker call",
+        checks=[
+            # venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:826: in extract_compiled_graph_helper
+            #     torch_xla.sync(reset_scope=False)
+            # venv/lib/python3.12/site-packages/torch_xla/torch_xla.py:87: in sync
+            #     torch_xla._XLAC._xla_step_marker(
+            # E   ValueError: Error code: 13
+            ExceptionCheck(
+                class_name="ValueError",
+                message=[
+                    M.contains("Error code: 13"),
+                ],
+                error_log=[
+                    M.any(
+                        M.contains("_xla_step_marker("),
+                        M.contains("torch_xla._XLAC._xla_step_marker"),
+                    ),
+                    M.contains("torch_xla/torch_xla.py"),
+                    M.any(
+                        M.contains("torch_xla.sync("),
+                        M.contains("torch_xla/torch_xla.py:"),
+                    ),
                 ],
             ),
         ],

@@ -11,10 +11,13 @@
 #include "api/memory_instance.h"
 
 // c++ standard library includes
-#include <cassert>
 #include <cstring>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-xla includes
+#include "utils/assert.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -63,9 +66,10 @@ DeviceInstance *MemoryInstance::getDevice() {
     return nullptr;
   }
 
-  assert(m_addressable_by_devices.size() == 1 &&
-         "MemoryInstance::getDevice: Device memory should have exactly one "
-         "device.");
+  TT_FATAL(m_addressable_by_devices.size() == 1,
+           "MemoryInstance::getDevice: Device memory should have exactly one "
+           "device: m_addressable_by_devices.size()={}",
+           m_addressable_by_devices.size());
 
   return m_addressable_by_devices[0];
 }
@@ -73,6 +77,7 @@ DeviceInstance *MemoryInstance::getDevice() {
 namespace internal {
 
 PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Id");
 
   args->id = MemoryInstance::unwrap(args->memory)->getId();
@@ -81,6 +86,7 @@ PJRT_Error *onMemoryId(PJRT_Memory_Id_Args *args) {
 }
 
 PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind");
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
@@ -91,6 +97,7 @@ PJRT_Error *onMemoryKind(PJRT_Memory_Kind_Args *args) {
 }
 
 PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_Kind_Id");
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
@@ -100,6 +107,7 @@ PJRT_Error *onMemoryKindId(PJRT_Memory_Kind_Id_Args *args) {
 }
 
 PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_DebugString");
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
@@ -110,6 +118,7 @@ PJRT_Error *onMemoryDebugString(PJRT_Memory_DebugString_Args *args) {
 }
 
 PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_ToString");
 
   MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
@@ -121,6 +130,7 @@ PJRT_Error *onMemoryToString(PJRT_Memory_ToString_Args *args) {
 
 PJRT_Error *
 onMemoryAddressableByDevices(PJRT_Memory_AddressableByDevices_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "MemoryInstance::PJRT_Memory_AddressableByDevices");
 
   const MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);

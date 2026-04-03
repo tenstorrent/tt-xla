@@ -21,6 +21,9 @@
 #include <unordered_set>
 #include <vector>
 
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
+
 // tt-xla includes
 #include "api/device_instance.h"
 #include "api/loaded_executable_instance.h"
@@ -103,6 +106,14 @@ public:
     return m_addressable_memories_raw;
   }
 
+  // Returns true if the client was initialized in compile-only mode ()
+  //
+  // Compile-only mode is activated by setting TT_COMPILE_ONLY_SYSTEM_DESC to a
+  // path of a .ttsys file. The system descriptor is loaded from disk instead of
+  // querying  hardware, allowing compilation targeting a different system.
+  // The mesh device is never opened and execution is not supported.
+  bool isCompileOnly() const { return m_compile_only; }
+
   // Returns the mesh device of the provided shape. If there is already opened
   // mesh device within this client instance and its shape matches the provided
   // shape, it is returned. Otherwise, we close any previously opened mesh
@@ -112,6 +123,16 @@ public:
   // adding support for parallel execution.
   tt::runtime::Device
   getOrCreateMeshDevice(const std::vector<uint32_t> &target_mesh_shape);
+
+  // Returns the fabric config computed for the current mesh device.
+  const std::optional<tt::runtime::MeshFabricConfig> &getFabricConfig() const {
+    return m_fabric_config;
+  }
+
+  // Computes the fabric config for the given mesh shape using the stored system
+  // descriptor. In distributed mode, falls back to FABRIC_1D.
+  tt::runtime::MeshFabricConfig
+  computeFabricConfig(const std::vector<uint32_t> &meshShape);
 
   // Returns parent mesh.
   std::optional<tt::runtime::Device> &parentMesh() { return m_parent_mesh; };
@@ -194,8 +215,14 @@ private:
   // TTIR to TTNN backend pipeline.
   std::string m_cached_system_descriptor_path;
 
+  // True when TT_COMPILE_ONLY_SYSTEM_DESC was set
+  bool m_compile_only = false;
+
   // Currently in-use mesh device.
   std::optional<tt::runtime::Device> m_parent_mesh;
+
+  // Fabric config computed for the current mesh device.
+  std::optional<tt::runtime::MeshFabricConfig> m_fabric_config;
 
   // Optimizer submesh device (created from m_parent_mesh for optimizer passes).
   std::optional<tt::runtime::Device> m_optimizer_submesh;

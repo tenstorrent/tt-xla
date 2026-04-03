@@ -17,6 +17,9 @@
 #include <utility>
 #include <vector>
 
+// tracy includes
+#include "tracy/Tracy.hpp"
+
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
@@ -24,6 +27,7 @@
 // tt-xla includes
 #include "api/buffer_instance.h"
 #include "api/tensor_pool.h"
+#include "utils/assert.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -108,11 +112,14 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
 // Additional note: for checking whether shard is nullptr, see comment in
 // remove_shard().
 void PjrtTensor::move_to_host() noexcept {
-
+  ZoneScoped;
   std::vector<tt::runtime::Tensor> tensors =
       tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
 
-  assert(tensors.size() == m_shards.size() || tensors.size() == 1);
+  TT_FATAL(tensors.size() == m_shards.size() || tensors.size() == 1,
+           "Unexpected number of tensors after move to host: "
+           "tensors.size()={}, m_shards.size()={}",
+           tensors.size(), m_shards.size());
   m_runtime_tensor = std::move(tensors[0]);
 
   for (std::size_t i = 1; i < m_shards.size(); ++i) {
@@ -144,7 +151,7 @@ bool PjrtTensor::have_same_tensor(const std::vector<BufferInstance *> &shards) {
 PjrtTensor &
 PjrtTensor::from_shards(const std::vector<BufferInstance *> &shards) {
 
-  assert(have_same_tensor(shards));
+  TT_FATAL(have_same_tensor(shards), "All shards must share the same tensor");
   return *shards.front()->getPjrtTensor();
 }
 
@@ -163,7 +170,8 @@ uint64_t PjrtTensor::next_uid() {
 void PjrtTensor::remove_shard(const BufferInstance *shard) noexcept {
 
   auto it = std::find(m_shards.begin(), m_shards.end(), shard);
-  assert(it != m_shards.end() && *it != nullptr);
+  TT_FATAL(it != m_shards.end() && *it != nullptr,
+           "Shard not found or already removed");
   *it = nullptr;
 }
 

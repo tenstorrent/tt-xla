@@ -4,6 +4,7 @@
 
 import pytest
 from infra import Framework, RunMode
+from infra.evaluators import ComparisonConfig, PccConfig
 from pytest import MonkeyPatch
 from utils import (
     BringupStatus,
@@ -12,7 +13,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -42,7 +42,11 @@ def create_inference_tester(format: str, optimization_level: int) -> ResnetTeste
         optimization_level=optimization_level,
     )
     return create_torch_inference_tester(
-        ResnetTester, VARIANT_NAME, format, compiler_config=compiler_config
+        ResnetTester,
+        VARIANT_NAME,
+        format,
+        compiler_config=compiler_config,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
     )
 
 
@@ -76,23 +80,12 @@ def training_tester() -> ResnetTester:
     "format,optimization_level",
     [
         pytest.param(
-            "bfp8",
+            "bfp_bf8",
             1,
-            marks=pytest.mark.xfail(
-                reason="bfp8 with optimization_level_1 has hudge data mismatch. Tracking issue: https://github.com/tenstorrent/tt-xla/issues/1673"
-            ),
         ),
         pytest.param(
-            "bfp8",
+            "bfp_bf8",
             0,
-            marks=[
-                pytest.mark.skip(
-                    reason="Never finishes execution. Tracking issue: https://github.com/tenstorrent/tt-xla/issues/3163"
-                ),
-                pytest.mark.record_test_properties(
-                    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
-                ),
-            ],
         ),
         pytest.param(
             "bfloat16",

@@ -14,6 +14,7 @@ import torch.nn.functional as F
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
+from tt_torch import apply_weight_dtype_overrides
 
 
 class MNISTCNNDropoutModel(torch.nn.Module):
@@ -59,6 +60,10 @@ def mnist_performant():
     # Convert weights and ops to bfloat16.
     model = model.to(dtype=torch.bfloat16)
 
+    # Lower the last linear layer weight to bfp_bf8 for faster computation.
+    # Only matmul/linear weights are supported; conv weights are unaffected.
+    apply_weight_dtype_overrides(model, {"fc2.weight": "bfp_bf8"})
+
     # Set relevant compiler options.
     torch_xla.set_custom_compile_options(
         {
@@ -66,8 +71,6 @@ def mnist_performant():
             "optimization_level": 2,
             # Enable runtime trace.
             "enable_trace": "true",
-            # Cast weights and ops to bfloat8_b.
-            "enable_bfp8_conversion": "true",
         }
     )
 

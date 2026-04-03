@@ -5,8 +5,8 @@
 
 #include "api/flatbuffer_loaded_executable_instance.h"
 
-// c++ standard library includes
-#include <cassert>
+// tracy includes
+#include "tracy/Tracy.hpp"
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -20,6 +20,7 @@
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/tensor.h"
+#include "utils/assert.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -57,6 +58,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,
     tt::runtime::Device runtime_device, size_t num_devices,
     std::uint32_t program_index, size_t arg_index) {
+  ZoneScoped;
 
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
@@ -85,6 +87,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
     PJRT_Buffer **const *output_lists,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
+  ZoneScoped;
   size_t n_prog_output_tensors = output_tensors.size();
 
   // Iterate over the available tensors and devices, filling in the PJRT Buffer
@@ -146,12 +149,16 @@ FlatbufferLoadedExecutableInstance::getOutputShape(size_t output_index) {
   }
   llvm::SmallVector<int64_t> output_sharding_shard_shape =
       outputSharding.getShardShape();
-  assert(output_sharding_shard_shape.size() == outputShape.size() &&
-         "Output sharding shape doesn't match the output shape");
+  TT_FATAL(output_sharding_shard_shape.size() == outputShape.size(),
+           "Output sharding shape doesn't match the output shape: "
+           "output_sharding_shard_shape.size()={}, outputShape.size()={}",
+           output_sharding_shard_shape.size(), outputShape.size());
 
   for (size_t i = 0; i < outputShape.size(); ++i) {
-    assert(outputShape[i] % output_sharding_shard_shape[i] == 0 &&
-           "Output shape is not divisible by the sharding shape");
+    TT_FATAL(outputShape[i] % output_sharding_shard_shape[i] == 0,
+             "Output shape is not divisible by the sharding shape: "
+             "dim={}, outputShape[dim]={}, output_sharding_shard_shape[dim]={}",
+             i, outputShape[i], output_sharding_shard_shape[i]);
     outputShape[i] /= output_sharding_shard_shape[i];
   }
 
@@ -165,10 +172,6 @@ FlatbufferLoadedExecutableInstance::getSharedExecutableImage() const {
 }
 
 void FlatbufferLoadedExecutableInstance::releaseResources() {
-  if (m_deleted) {
-    return;
-  }
-
   std::lock_guard<std::mutex> deleted_lock(m_deleted_mutex);
   if (m_deleted) {
     return;
@@ -185,6 +188,7 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
 // TODO(mrakita): Make this method work in asynchronous fashion.
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
+  ZoneScoped;
   DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
   LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
 
@@ -254,7 +258,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
       std::unique_ptr<EventInstance> device_complete_event =
           EventInstance::createInstance();
-      device_complete_event->markAsReady(tt_pjrt_status::kSuccess);
+      EventInstance::markAsReadyAndCallback(device_complete_event.get(),
+                                            tt_pjrt_status::kSuccess);
 
       // Releasing the ownership to the PJRT API caller since the caller is
       // responsible for calling `PJRT_Event_Destroy` on the event.

@@ -5,9 +5,6 @@
 
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 
-// c++ standard library includes
-#include <cassert>
-
 // llvm includes
 #include "llvm/ADT/StringRef.h"
 
@@ -27,6 +24,7 @@
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
+#include "utils/assert.h"
 #include "utils/logging.h"
 #include "utils/status.h"
 
@@ -34,6 +32,9 @@ namespace tt::pjrt::module_builder::frontend_passes {
 
 const std::string c_name_attr_name = "ttir.name";
 const std::string c_mark_argument_function_name = "tt.mark_argument";
+const std::string c_weight_dtype_override_function_name =
+    "tt.weight_dtype_override";
+const std::string c_weight_dtype_attr_name = "ttcore.weight_dtype";
 
 tt_pjrt_status
 annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
@@ -168,6 +169,24 @@ bool isTTMarkFunction(const std::string &function_name) {
   return function_name.rfind(c_tt_mark_function_prefix, 0) == 0;
 }
 
+// Traces a value to its root block arguments by walking the use-def chain.
+mlir::SmallVector<mlir::BlockArgument> getBlockArguments(mlir::Value value) {
+  mlir::SmallVector<mlir::BlockArgument> blockArgs;
+  auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(value);
+  if (blockArg) {
+    blockArgs.push_back(blockArg);
+  } else {
+    auto definingOp = value.getDefiningOp();
+    TT_FATAL(definingOp, "This value does not have a defining operation, nor "
+                         "is it a block argument.");
+    for (mlir::Value operand : definingOp->getOperands()) {
+      blockArgs.append(getBlockArguments(operand));
+    }
+  }
+
+  return blockArgs;
+}
+
 // This pattern is used to populate function argument attributes. It looks for
 // calls to `tt.mark_argument` and populates the argument attributes using the
 // attributes of the `tt.mark_argument` call. It then erases the
@@ -191,13 +210,10 @@ struct PopulateArgumentAttrsFromTTMark final
       return mlir::failure();
     }
 
-    assert(
-        op.getNumOperands() == 1 &&
-        std::string("Expected one operand to " + c_mark_argument_function_name)
-            .c_str());
-    assert(op.getNumResults() == 1 && std::string("Expected one result to " +
-                                                  c_mark_argument_function_name)
-                                          .c_str());
+    TT_FATAL(op.getNumOperands() == 1, "Expected one operand to {}, got {}",
+             c_mark_argument_function_name, op.getNumOperands());
+    TT_FATAL(op.getNumResults() == 1, "Expected one result to {}, got {}",
+             c_mark_argument_function_name, op.getNumResults());
 
     // Torch XLA allows us to populate a frontend_attributes dictionary to
     // custom call ops. This dictionary is used to populate the argument type
@@ -255,7 +271,7 @@ struct PopulateArgumentAttrsFromTTMark final
 
       // Assert that the input is a block argument to a function
       auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
-      assert(funcOp && "Expected function as parent of block argument");
+      TT_FATAL(funcOp, "Expected function as parent of block argument");
 
       // Set argument type for this argument
       funcOp.setArgAttr(argIndex, mlir::tt::ttcore::ArgumentTypeAttr::name,
@@ -271,25 +287,71 @@ struct PopulateArgumentAttrsFromTTMark final
 
     return mlir::success();
   }
+};
 
-private:
-  // Traces a value to its root block arguments.
-  mlir::SmallVector<mlir::BlockArgument>
-  getBlockArguments(mlir::Value value) const {
-    mlir::SmallVector<mlir::BlockArgument> blockArgs;
-    auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(value);
-    if (blockArg) {
-      blockArgs.push_back(blockArg);
-    } else {
-      auto definingOp = value.getDefiningOp();
-      assert(definingOp && "This value does not have a defining operation, nor "
-                           "is it a block argument.");
-      for (mlir::Value operand : definingOp->getOperands()) {
-        blockArgs.append(getBlockArguments(operand));
-      }
+// This pattern extracts per-tensor weight dtype annotations from
+// `tt.weight_dtype_override` custom calls and sets them as function argument
+// attributes. The custom call is then replaced with its input value.
+struct PopulateWeightDtypeFromCustomCall final
+    : mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp> {
+  using mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp>::OpRewritePattern;
+
+  PopulateWeightDtypeFromCustomCall(mlir::MLIRContext *context)
+      : mlir::OpRewritePattern<mlir::stablehlo::CustomCallOp>(context) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::stablehlo::CustomCallOp op,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    if (op.getCallTargetName() != c_weight_dtype_override_function_name) {
+      return mlir::failure();
     }
 
-    return blockArgs;
+    TT_FATAL(op.getNumOperands() == 1,
+             "Expected one operand to tt.weight_dtype_override");
+    TT_FATAL(op.getNumResults() == 1,
+             "Expected one result from tt.weight_dtype_override");
+
+    // Extract frontend_attributes from the custom call.
+    mlir::DictionaryAttr frontendAttrs;
+    if (mlir::Attribute frontendAttrs_ =
+            op->getDiscardableAttr("mhlo.frontend_attributes")) {
+      frontendAttrs = mlir::cast<mlir::DictionaryAttr>(frontendAttrs_);
+    } else {
+      return mlir::failure();
+    }
+
+    // Extract the weight dtype string attribute.
+    auto weightDtypeAttr = frontendAttrs.get(c_weight_dtype_attr_name);
+    if (!weightDtypeAttr) {
+      return mlir::failure();
+    }
+
+    mlir::StringAttr weightDtypeStrAttr =
+        mlir::dyn_cast<mlir::StringAttr>(weightDtypeAttr);
+    if (!weightDtypeStrAttr) {
+      return mlir::failure();
+    }
+
+    // Trace the input to its root block arguments and set the weight dtype
+    // attribute on each.
+    mlir::Value input = op.getOperand(0);
+    mlir::SmallVector<mlir::BlockArgument> blockArgs = getBlockArguments(input);
+
+    for (auto blockArg : blockArgs) {
+      auto *parentOp = blockArg.getOwner()->getParentOp();
+      auto argIndex = blockArg.getArgNumber();
+
+      auto funcOp = mlir::dyn_cast<mlir::func::FuncOp>(parentOp);
+      TT_FATAL(funcOp, "Expected function as parent of block argument");
+
+      funcOp.setArgAttr(argIndex, c_weight_dtype_attr_name, weightDtypeStrAttr);
+    }
+
+    // Remove the custom call op and replace it with the input value.
+    rewriter.replaceOp(op, input);
+
+    return mlir::success();
   }
 };
 
@@ -298,6 +360,7 @@ tt_pjrt_status annotateArgumentAttributesFromCustomCall(
   mlir::MLIRContext *context = mlir_module->getContext();
   mlir::RewritePatternSet patterns(context);
   patterns.add<internal::PopulateArgumentAttrsFromTTMark>(context);
+  patterns.add<internal::PopulateWeightDtypeFromCustomCall>(context);
 
   if (failed(mlir::applyPatternsGreedily(mlir_module.get(),
                                          std::move(patterns)))) {

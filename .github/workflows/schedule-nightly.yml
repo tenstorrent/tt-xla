@@ -15,6 +15,8 @@ jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
+    with:
+      dockbuild: all
 
   build-ttxla:
     uses: ./.github/workflows/call-build.yml
@@ -23,6 +25,8 @@ jobs:
     needs: build-image
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: release,manylinux
 
   nightly_tests:
     uses: ./.github/workflows/call-test.yml
@@ -32,9 +36,8 @@ jobs:
       test_suite: basic-test-nightly.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
-      alchemist_artifact_name: ${{ needs.build-ttxla.outputs.alchemist_artifact_name }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
 
   test_full_model:
     uses: ./.github/workflows/call-test.yml
@@ -46,7 +49,8 @@ jobs:
       test_suite: model-test-full.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
 
   # This is a single test job that runs all passing tt-forge-models tests.
   test_forge_models_passing:
@@ -57,9 +61,10 @@ jobs:
     if: success() || failure()
     with:
       test_suite: model-test-passing.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
 
   # This is a single test job that runs all xfailing, skipped or placeholder tt-forge-models tests.
   test_forge_models_xfail:
@@ -70,9 +75,24 @@ jobs:
     if: success() || failure()
     with:
       test_suite: model-test-xfail.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
+
+  perf-benchmark:
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    needs: [ build-image, build-ttxla ]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      sh-runner: false
+      skip-device-perf: true
+      perf_regression_check: true
+      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
 
   release:
     uses: ./.github/workflows/call-release.yml
@@ -80,13 +100,14 @@ jobs:
     secrets: inherit
     with:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
+      wheel_release_artifact_name: xla-whl-manylinux${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_release_vllm_tt_artifact_name: vllm-tt-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
       is_nightly_release: true
 
   release-forge:
     uses: ./.github/workflows/call-forge-release.yml
     needs: [ release ]
+    if: ${{ always() && needs.release.outputs.release_ready == 'true' }}
     secrets: inherit
     with:
       release_tag: ${{ needs.release.outputs.release_tag }}
@@ -100,6 +121,7 @@ jobs:
       - test_forge_models_xfail
       - build-image
       - build-ttxla
+      - perf-benchmark
     runs-on: Ubuntu-latest
     outputs:
       is-main: ${{ steps.branch-check.outputs.IS_MAIN }}

@@ -2,14 +2,15 @@
 
 # Getting Started
 - [Getting Started](./getting_started.md)
-    - [Getting Started with Docker](./getting_started_docker.md)
-    - [Getting Started with Building from Source](getting_started_build_from_source.md)
     - [Breaking Into the Source With a Debugger](getting_started_debugging.md)
 - [Improving Model Performance](./performance.md)
+    - [Mixed Precision](./mixed_precision.md)
 - [Test Infra](./test_infra.md)
+- [Fusing and Composite Ops](./fusing_and_composite_ops.md)
 - [Model Auto-Discovery Tests](./model_auto_discovery_tests.md)
 - [Code Generation](./getting_started_codegen.md)
     - [Tutorial: Generate Python Code from Your Model](./emitpy_tutorial.md)
     - [Troubleshooting](./troubleshooting_codegen.md)
+- [Building PyTorch XLA from Source](./torch_xla_build.md)
 - [Tools](./tools.md)
     - [Explorer](./tt_explorer.md)

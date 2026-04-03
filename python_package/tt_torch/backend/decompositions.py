@@ -277,33 +277,6 @@ def dot(input: torch.Tensor, tensor: torch.Tensor):
         return NotImplemented
 
 
-def repeat(self, repeats):
-    # This is a specific decomposition to handle the case where we are repeating the leading dimension only.
-    # i.e. (128, 2880) -> (4096, 2880) when repeats is (32, 1)
-    # Instead of repeat, we can use unsqueeze + expand + flatten.
-    # This prevents "stablehlo.concatenate" and uses "stablehlo.broadcast_in_dim" instead.
-
-    # Check if we are repeating the leading dimension only
-    if (
-        len(repeats) == self.dim()
-        and repeats[0] > 1
-        and all(r == 1 for r in repeats[1:])
-    ):
-
-        # Create the broadcast path:
-        # (128, 2880) -> unsqueeze(0) -> (1, 128, 2880)
-        # (1, 128, 2880) -> expand(32, 128, 2880) -> (32, 128, 2880)
-        # (32, 128, 2880) -> flatten(0, 1) -> (4096, 2880)
-
-        expand_shape = [repeats[0]] + [-1] * self.dim()
-
-        return self.unsqueeze(0).expand(expand_shape).flatten(0, 1)
-
-    # This decomposition is targeting gpt-oss's MOE implementation.
-    # It might not be necessary for other models, so the decomposition is not generalistic.
-    return NotImplemented
-
-
 def boolean_bitwise_and(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
     if input.dtype == torch.bool and other.dtype == torch.bool:
         return torch.logical_and(input, other)
@@ -340,6 +313,27 @@ def copy_default(
     # Expand to dst's shape (handles scalar -> tensor broadcast)
     # Then clone to ensure contiguous memory
     return src_converted.expand(dst.shape).clone()
+
+
+def masked_scatter(
+    data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
+) -> torch.Tensor:
+    # Custom decomposition for masked_scatter
+    # Decomposes masked_scatter into basic operations: broadcast, reshape, cumsum, clamp, gather, where
+    mask, data = torch.broadcast_tensors(mask, data)
+
+    mask_f = mask.reshape(-1)
+    data_flat = data.reshape(-1)
+    source_flat = source.reshape(-1)
+
+    mask_i = mask_f.long()
+    source_idx = torch.cumsum(mask_i, 0) - 1
+    source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
+
+    gathered = source_flat[source_idx]
+    result_flat = torch.where(mask_f, gathered, data_flat)
+
+    return result_flat.view_as(data)
 
 
 # TODO: DO we ever need this?
@@ -401,9 +395,9 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
-        aten.repeat.default: repeat,
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
+        aten.masked_scatter.default: masked_scatter,
     }
 
 

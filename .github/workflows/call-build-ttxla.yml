@@ -1,0 +1,131 @@
+name: Build tt-xla
+
+# Implements actual build of release or explorer wheels.
+
+on:
+  workflow_call:
+    inputs:
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      docker_image:
+        description: 'Docker image to use for the build'
+        required: true
+        type: string
+      build_type:
+        description: 'Build type: release, explorer'
+        default: release
+        type: string
+        required: false
+      force_rebuild:
+        description: 'Force rebuild even if artifact exists'
+        type: boolean
+        required: false
+      artifact_suffix:
+        description: 'Suffix for artifact name to distinguish different builds, e.g. commit SHA'
+        type: string
+        required: false
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
+
+jobs:
+  build-ttxla:
+    timeout-minutes: 120
+    runs-on: tt-ubuntu-2204-large-stable
+    name: "Build tt-xla (${{ inputs.build_type }})"
+    container:
+      image: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker_image }}
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+            echo "Current user: $(whoami)"
+            ls -ld $(pwd)
+            git config --global --add safe.directory /__w/tt-xla/tt-xla
+            git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v6
+        with:
+            submodules: recursive
+            repository: 'tenstorrent/tt-xla'
+            ref: ${{ inputs.xla_sha_override }}
+
+
+      - name: Override tt-mlir SHA mlir_override is set
+        if: ${{ inputs.mlir_override }}
+        shell: bash
+        run: |
+            # Update the CMakeLists.txt file with the new SHA
+            sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${{ inputs.mlir_override }}\")/" third_party/CMakeLists.txt
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+            echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+            echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+            echo "build-name=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+            create-symlink: true
+            key: "${{ steps.strings.outputs.build-name }}-build"
+
+      - name: Build the wheel
+        shell: bash
+        run: |
+            source venv/activate
+            cd ${{ steps.strings.outputs.work-dir }}/python_package
+            python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
+
+      - name: Validate build type of wheel build
+        shell: bash
+        run: |
+            source venv/activate
+            #Inspect the wheel build type on wheel file without installing the wheel
+            uv pip install wheel-inspect
+            wheel_summary=$(wheel2json ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl | jq -r '.dist_info.metadata.summary')
+            match=$(echo "$wheel_summary" | grep -oP "build-type=${{ inputs.build_type }}" || true)
+            echo "Wheel summary: $wheel_summary"
+            if [ -z "$match" ]; then
+                echo "Wheel summary does not match build type: ${{ inputs.build_type }}"
+                exit 1
+            fi
+
+      - name: Upload the wheel
+        id: upload-wheel
+        uses: actions/upload-artifact@v6
+        with:
+            name: xla-whl-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
+            path: ${{ steps.strings.outputs.work-dir }}/python_package/dist/pjrt_plugin_tt*.whl
+
+      - name: Upload alchemist library and templates
+        if: inputs.build_type == 'release'
+        id: upload-alchemist
+        uses: actions/upload-artifact@v6
+        with:
+            name: alchemist-lib-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
+            path: |
+              ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/lib/libtt-alchemist-lib.so
+              ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/tools/tt-alchemist/templates
+
+      - name: Build vllm plugin wheel
+        if: inputs.build_type == 'release'
+        shell: bash
+        run: |
+            source venv/activate
+            cd ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin
+            python setup.py bdist_wheel $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '--code-coverage'; fi)
+
+      - name: Upload the vllm plugin wheel
+        if: inputs.build_type == 'release'
+        id: upload-vllm-tt-wheel
+        uses: actions/upload-artifact@v6
+        with:
+            name: vllm-tt-whl-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
+            path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl

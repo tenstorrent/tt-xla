@@ -22,11 +22,12 @@ on:
           - 'model-test-experimental.json'
           - 'model-test-training-xfail-weekly.json'
           - 'model-test-extended.json'
-          - 'mlir-uplift-qualification.json'
+          - 'full-mlir-uplift-qualification.json'
           - 'model-test-passing-weekly.json'
           - 'model-test-weekly.json'
           - 'vllm-model-tests.json'
           - 'vllm-model-tests-nightly.json'
+          - 'fusion-tests.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
@@ -36,6 +37,16 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      manylinux_build:
+        description: 'Build and use manylinux wheel'
+        required: false
+        type: boolean
+        default: false
+      run_multihost_dualt3k:
+        description: 'Run multi-host dual T3K basic tests'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   packages: write
@@ -49,6 +60,7 @@ jobs:
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
+      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
   build-ttxla:
     needs: build-image
@@ -56,18 +68,29 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
       mlir_override: ${{ inputs.mlir_override }}
+      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
 
   test:
-    if: success() && !cancelled() && inputs.preset != 'tt_forge_models'
+    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
-    needs: [ build-image, build-ttxla]
+    needs: [ build-image, build-ttxla ]
     secrets: inherit
     with:
       test_suite: ${{ inputs.test_suite }}
       test_suite_custom: ${{ inputs.test_suite_custom }}
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+
+  test-multihost-dualt3k:
+    if: always() && !cancelled() && !failure() && inputs.run_multihost_dualt3k
+    uses: ./.github/workflows/call-test-multihost-dualt3k.yml
+    needs: [ build-image, build-ttxla ]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      wheel_release_artifact_name: ${{ needs.build-ttxla.outputs.wheel_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ needs.build-ttxla.outputs.wheel_release_vllm_tt_artifact_name }}
-      alchemist_artifact_name: ${{ needs.build-ttxla.outputs.alchemist_artifact_name }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}

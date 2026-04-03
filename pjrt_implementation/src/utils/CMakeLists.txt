@@ -16,25 +16,33 @@ add_library(TTPJRTUtils
     "logging.cc"
 )
 
-target_include_directories(TTPJRTUtils PUBLIC
+target_include_directories(TTPJRTUtils
+PRIVATE
+    # Includes used in .cpp files.
     ${PROJECT_SOURCE_DIR}/pjrt_implementation/inc
-    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include/
-    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/include
-    ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
     ${TTMLIR_TOOLCHAIN_DIR}/include
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/include
+PUBLIC
+    # Includes used in public headers.
+    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include
+    ${PROJECT_SOURCE_DIR}/third_party/pjrt_c_api
 )
 
 add_dependencies(TTPJRTUtils
     tt-mlir
+    loguru
 )
 
 target_link_libraries(TTPJRTUtils PUBLIC
     coverage_config
+)
+
+target_link_libraries(TTPJRTUtils PRIVATE
     loguru
 )
 
 target_link_directories(TTPJRTUtils PUBLIC
-    ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/lib/
+    ${LOGURU_LIB_DIR}
 )
 
 set_target_properties(TTPJRTUtils PROPERTIES

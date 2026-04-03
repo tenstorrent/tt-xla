@@ -32,6 +32,19 @@ from third_party.tt_forge_models.config import Parallelism
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
+class ResolvedFailingReason:
+    def __init__(self, name: str, description: str, component=None, summary=None):
+        self.name = name
+        self.summary = summary
+
+        class Value:
+            def __init__(self, description, component):
+                self.description = description
+                self.component_checker_description = component
+
+        self.value = Value(description, component)
+
+
 # Optional hint that selects a non-default execution/input-loading phase.
 # Today this is only used to distinguish LLM prefill vs decode; in the future it may
 # be extended to other model families (e.g., vision) if they need phase-specific inputs.
@@ -42,37 +55,6 @@ class RunPhase(Enum):
 
     def __str__(self) -> str:
         return self.value
-
-
-def fix_venv_isolation():
-    """
-    Fix venv isolation issue: ensure venv packages take precedence over system packages.
-
-    This function adjusts the Python path to prioritize virtual environment packages
-    over system packages, preventing package conflicts and ensuring proper isolation
-    during test execution.
-    """
-    venv_site = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        "..",
-        "venv",
-        "lib",
-        "python3.11",
-        "site-packages",
-    )
-    if os.path.exists(venv_site) and venv_site not in sys.path:
-        sys.path.insert(0, os.path.abspath(venv_site))
-
-    # Remove system packages from path to ensure proper isolation
-    sys.path = [
-        p
-        for p in sys.path
-        if "/usr/local/lib/python3.11/dist-packages" not in p
-        or p == "/usr/local/lib/python3.11/dist-packages"
-    ]
-    # Re-add at the end as fallback
-    if "/usr/local/lib/python3.11/dist-packages" not in sys.path:
-        sys.path.append("/usr/local/lib/python3.11/dist-packages")
 
 
 def find_dumped_ir_files(artifacts_dir: str) -> List[str]:
@@ -155,6 +137,14 @@ class ModelTestConfig:
         self.filechecks = self._normalize_markers(
             self._resolve("filechecks", default=[])
         )
+
+        # Compiler config: enable experimental BFP8 weight conversion
+        self.enable_weight_bfp8_conversion = self._resolve(
+            "enable_weight_bfp8_conversion", default=False
+        )
+
+        # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
+        self.inject_custom_moe = self._resolve("inject_custom_moe", default=False)
 
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
@@ -284,7 +274,22 @@ def update_test_metadata_for_exception(
     runtime_reason = detailed_error if detailed_error else message
 
     setattr(test_metadata, "runtime_reason", runtime_reason)
-    setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+
+    if (
+        exception_reason.failing_reasons is not None
+        and exception_reason.failing_reasons.name != "UNCLASSIFIED"
+    ):
+        setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+    else:
+        failing_reason_obj = ResolvedFailingReason(
+            name=type(exc).__name__,
+            description=runtime_reason,
+            component=None,
+            summary=exception_reason.summary,
+        )
+
+        setattr(test_metadata, "failing_reason", failing_reason_obj)
+
     setattr(test_metadata, "failing_reason_summary", exception_reason.summary)
 
 
@@ -519,6 +524,7 @@ def record_model_test_properties(
     comparison_results: list = None,
     comparison_config=None,
     model_size: int = None,
+    weights_dtype: str = None,
 ):
     """
     Record standard runtime properties for model tests and optionally control flow.
@@ -621,6 +627,7 @@ def record_model_test_properties(
         "arch": arch,
         "seq_len": getattr(test_metadata, "seq_len", None),
         "batch_size": getattr(test_metadata, "batch_size", None),
+        "weights_dtype": weights_dtype if weights_dtype is not None else "bfloat16",
     }
 
     # Add model size (in billions of parameters) to tags if available

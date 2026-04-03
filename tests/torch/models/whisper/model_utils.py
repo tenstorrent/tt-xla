@@ -15,7 +15,7 @@ class WhisperWrapper(torch.nn.Module):
         self.variant = variant.value.split("/")[-1]
 
     def forward(self, *inputs):
-        if self.variant == "whisper-large-v3-turbo":
+        if self.variant == "Large_v3_Turbo":
             input_features, attention_mask, decoder_input_ids = inputs
             dec_out = self.model(
                 input_features=input_features,
@@ -24,7 +24,7 @@ class WhisperWrapper(torch.nn.Module):
             )
             return dec_out.logits
 
-        elif self.variant == "whisper-large-v3":
+        elif self.variant == "Large_v3":
             input_features, decoder_input_ids = inputs
             output = self.model(
                 input_features=input_features, decoder_input_ids=decoder_input_ids

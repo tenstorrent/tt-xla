@@ -12,7 +12,7 @@ def run_pooling_test(
     model_name: str,
     baseline_path,
     max_model_len: int,
-    experimental_enable_weight_bfp8_conversion: bool = False,
+    experimental_weight_dtype: str = "",
     enable_tensor_parallel: bool = False,
     enable_data_parallel: bool = False,
     min_context_len: int = 128,
@@ -21,6 +21,7 @@ def run_pooling_test(
     max_num_reqs: int = 2,
     max_num_batched_tokens: int = 128,
     optimization_level: int = 0,
+    use_2d_mesh: bool = False,
 ):
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
@@ -33,20 +34,20 @@ def run_pooling_test(
     ]
     llm_args = {
         "model": model_name,
-        "task": "embed",
         "dtype": "bfloat16",
         "max_model_len": max_model_len,
         "disable_sliding_window": True,
         "max_num_batched_tokens": max_num_batched_tokens,
         "max_num_seqs": max_num_reqs,
         "additional_config": {
-            "experimental_enable_weight_bfp8_conversion": experimental_enable_weight_bfp8_conversion,
+            "experimental_weight_dtype": experimental_weight_dtype,
             "enable_tensor_parallel": enable_tensor_parallel,
             "enable_data_parallel": enable_data_parallel,
             "min_context_len": min_context_len,
             "enable_const_eval": enable_const_eval,
             "batch_size": batch_size,
             "optimization_level": optimization_level,
+            "use_2d_mesh": use_2d_mesh,
         },
     }
     model = vllm.LLM(**llm_args)

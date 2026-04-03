@@ -6,7 +6,6 @@
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 
 // c++ standard library includes
-#include <cassert>
 #include <cstdint>
 #include <optional>
 
@@ -34,6 +33,7 @@
 #include "stablehlo/dialect/StablehloOps.h"
 
 // tt-xla includes
+#include "utils/assert.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt::module_builder::frontend_passes {
@@ -155,7 +155,10 @@ getOrderedAxisRefs(TensorShardingAttr sdySharding, MeshAttr mesh) {
 // https://github.com/openxla/xla/blob/9ae3d6dab2c10c8195c8d9862f475904c7cdca91/xla/hlo/ir/tile_assignment.cc#L58
 void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
                           mlir::SmallVector<int64_t> &transposePerm) {
-  assert(reshapeDims.size() == transposePerm.size());
+  TT_FATAL(reshapeDims.size() == transposePerm.size(),
+           "Reshape dims and transpose perm must have the same size: "
+           "reshapeDims.size()={}, transposePerm.size()={}",
+           reshapeDims.size(), transposePerm.size());
   if (reshapeDims.size() < 1) {
     return;
   }
@@ -182,7 +185,10 @@ void canonicalizeIotaDims(mlir::SmallVector<int64_t> &reshapeDims,
         if (new_perm_dim >= 0) {
           transposePerm[new_idx] = new_perm_dim;
           ++new_idx;
-          assert(new_idx <= new_ndims);
+          TT_FATAL(new_idx <= new_ndims,
+                   "New index exceeds new number of dimensions: "
+                   "new_idx={}, new_ndims={}",
+                   new_idx, new_ndims);
         }
       }
       transposePerm.truncate(new_ndims);
@@ -339,7 +345,7 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
 
       // Create zero attribute - getZeroAttr should handle all types
       auto zeroAttr = builder.getZeroAttr(elementType);
-      assert(zeroAttr && "Failed to create zero attribute for element type");
+      TT_FATAL(zeroAttr, "Failed to create zero attribute for element type");
 
       // Create dense attribute for tensor using splat
       auto denseAttr = mlir::DenseElementsAttr::get(tensorType, zeroAttr);
@@ -349,7 +355,7 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
           funcOp.getLoc(), denseAttr);
       returnValues.push_back(constantOp.getResult());
     } else {
-      assert(false && "Found non-tensor type in return type of mainFuncOp");
+      TT_THROW("Found non-tensor type in return type of mainFuncOp");
     }
   }
 
@@ -359,9 +365,9 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
 
 } // namespace internal
 
-tt_pjrt_status cleanForXlaIngestion(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module_with_sdy_annotations) {
-  mlir::ModuleOp module = mlir_module_with_sdy_annotations.get();
+tt_pjrt_status
+cleanForXlaIngestion(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
+  mlir::ModuleOp module = mlir_module.get();
 
   std::vector<mlir::sdy::ManualComputationOp> manualComputationOps;
   module.walk([&](mlir::sdy::ManualComputationOp op) {
@@ -373,52 +379,58 @@ tt_pjrt_status cleanForXlaIngestion(
   });
 
   // Strip all location information (loc attributes) from the module
-  mlir::PassManager pm(mlir_module_with_sdy_annotations.get()->getName());
+  mlir::PassManager pm(mlir_module.get()->getName());
   pm.addPass(mlir::createStripDebugInfoPass());
-  if (mlir::failed(pm.run(mlir_module_with_sdy_annotations.get()))) {
+  if (mlir::failed(pm.run(mlir_module.get()))) {
     return tt_pjrt_status::kInternal;
   }
 
-  // Extract mesh name to size map from sdy.mesh op, asserting that there is
-  // exactly one sdy.mesh op in the module.
+  // Collect sdy.mesh ops once.
   llvm::SmallVector<mlir::sdy::MeshOp> meshOps;
   module.walk([&](mlir::sdy::MeshOp op) { meshOps.push_back(op); });
-  assert(meshOps.size() == 1 && "Expected exactly one sdy.mesh op in module");
-  auto meshOp = meshOps.front();
 
-  // Extract out sharding from manual computation ops
-  assert(manualComputationOps.size() == 1 &&
-         "Expected exactly one ManualComputationOp in module");
-  auto manualComputationOp = manualComputationOps.front();
-  auto outShardingResult = internal::extractSdyManualComputationOutSharding(
-      manualComputationOp, meshOp.getMeshAttr());
+  // Extract out shardings and simplify the main funcop only when manual
+  // computation ops are present (shardy path). When they are not present
+  // (non-shardy path), we still need to strip sdy.mesh ops and TT dialect
+  // attributes so XLA can parse the cleaned module.
+  if (manualComputationOps.size() == 1) {
+    TT_FATAL(meshOps.size() == 1,
+             "Expected exactly one sdy.mesh op in module: meshOps.size()={}",
+             meshOps.size());
+    auto meshOp = meshOps.front();
 
-  // Inject out sharding result into module as a moduleOp attr,
-  // mhlo.spmd_output_shardings format list into tuple type opSharding
-  std::string outShardingTupleString = "{";
-  llvm::raw_string_ostream os(outShardingTupleString);
-  llvm::interleave(outShardingResult, os, ",");
-  outShardingTupleString += "}";
+    auto manualComputationOp = manualComputationOps.front();
+    auto outShardingResult = internal::extractSdyManualComputationOutSharding(
+        manualComputationOp, meshOp.getMeshAttr());
 
-  module->setAttr(
-      "mhlo.spmd_output_sharding",
-      mlir::StringAttr::get(module.getContext(), outShardingTupleString));
+    // Inject out sharding result into module as a moduleOp attr,
+    // mhlo.spmd_output_shardings format list into tuple type opSharding
+    std::string outShardingTupleString = "{";
+    llvm::raw_string_ostream os(outShardingTupleString);
+    llvm::interleave(outShardingResult, os, ",");
+    outShardingTupleString += "}";
 
-  // Remove sdy.mesh operations
-  std::vector<mlir::sdy::MeshOp> meshOpsToErase;
-  module.walk([&](mlir::sdy::MeshOp meshOpToErase) {
-    meshOpsToErase.push_back(meshOpToErase);
-  });
-  for (auto meshOpToErase : meshOpsToErase) {
-    meshOpToErase.erase();
+    module->setAttr(
+        "mhlo.spmd_output_sharding",
+        mlir::StringAttr::get(module.getContext(), outShardingTupleString));
+
+    // Remove the sdy.manual_computation op by simplifying the main funcop
+    module.walk([&](mlir::func::FuncOp funcOp) {
+      if (funcOp.getSymName() == "main") {
+        internal::simplifyMainFuncOp(funcOp);
+      }
+    });
+  } else if (manualComputationOps.size() > 1) {
+    LOG_F(ERROR,
+          "Expected at most one ManualComputationOp in module, found: %zu",
+          manualComputationOps.size());
+    return tt_pjrt_status::kInternal;
   }
 
-  // Remove the sdy.manual_computation op by simplifying the main funcop
-  module.walk([&](mlir::func::FuncOp funcOp) {
-    if (funcOp.getSymName() == "main") {
-      internal::simplifyMainFuncOp(funcOp);
-    }
-  });
+  // Remove sdy.mesh operations
+  for (auto meshOp : meshOps) {
+    meshOp.erase();
+  }
 
   return tt_pjrt_status::kSuccess;
 }

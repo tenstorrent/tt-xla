@@ -44,11 +44,12 @@ jobs:
           git config --global --add safe.directory /__w/tt-xla/tt-xla
           git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
+          sparse-checkout-cone-mode: false
           sparse-checkout: |
-            examples/pytorch
+            examples/pytorch/
 
       - name: Set reusable strings
         id: strings
@@ -60,7 +61,7 @@ jobs:
           echo "tracy-artifacts-dir=$(pwd)/.tracy_artifacts" >> "$GITHUB_OUTPUT"
 
       - name: Download wheel artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: ${{ inputs.wheel_artifact_name }}
           path: wheels
@@ -74,7 +75,7 @@ jobs:
           ls -la wheels
 
           echo "=== Creating clean Python environment ==="
-          python3.11 -m venv tracy_test_env
+          python3.12 -m venv tracy_test_env
           source tracy_test_env/bin/activate
 
           echo "=== Installing wheel ==="
@@ -88,22 +89,22 @@ jobs:
 
           echo "=== Testing ttnn package ==="
           python << 'EOF'
+          import torch
           import ttnn
           print('✓ ttnn imported successfully')
 
-          # Test core modules
-          assert hasattr(ttnn, 'CONFIG'), 'CONFIG not found'
-          print('✓ CONFIG found')
+          # Open device and run a real tensor addition
+          with ttnn.manage_device(device_id=0) as device:
+              a = torch.rand((32, 32), dtype=torch.bfloat16)
+              b = torch.rand((32, 32), dtype=torch.bfloat16)
 
-          import ttnn.operations
-          print('✓ Operations module accessible')
+              tt_a = ttnn.from_torch(a, dtype=ttnn.bfloat16, layout=ttnn.TILE_LAYOUT, device=device)
+              tt_b = ttnn.from_torch(b, dtype=ttnn.bfloat16, layout=ttnn.TILE_LAYOUT, device=device)
 
-          import ttnn.device
-          print('✓ Device module accessible')
+              tt_c = ttnn.add(tt_a, tt_b)
+              result = ttnn.to_torch(tt_c)
 
-          # Test C++ extension
-          import ttnn._ttnn
-          print('✓ C++ extension loaded')
+              print(f'a + b =\n{result}')
 
           # Test tracy-ttnn integration
           import tracy
@@ -119,7 +120,7 @@ jobs:
           tracy --sync-host-device -r -p -v examples/pytorch/mnist.py
 
       - name: Upload tracy artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: tracy-artifacts-${{ github.run_id }}

@@ -98,14 +98,9 @@ public:
   // Returns the unique identifier for this buffer instance.
   uint64_t getUID() const { return m_uid; }
 
-  // Returns the size of the tensor in the data type that the host expects.
-  // This is since some PJRT_Buffer_Type's do not have a supported equivalent in
-  // runtime/ttnn. And so, the true data type of the runtime tensor may be
-  // different than what the host expects, and will be casted to the hosts
-  // expected data type when copying to host, possibly leading to a different
-  // size. This function will calculate the converted runtime tensor size to be
-  // tensor_volume * expected_host_data_type_element_size
-  size_t tensorSize();
+  // Returns the logical (untiled) size of the tensor in bytes, computed from
+  // the buffer's dimensions and data type.
+  size_t logicalTensorSize() const;
 
   // Returns a string representation of the buffer's shape in the format
   // [d1,d2,d3,...].
@@ -184,7 +179,8 @@ private:
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,
-                                                   size_t num_dims);
+                                                   size_t num_dims,
+                                                   PJRT_Buffer_Type data_type);
 
   // Calculates required tensor strides.
   static std::vector<std::uint32_t>
@@ -196,15 +192,6 @@ private:
   static uint64_t nextUID() {
     static std::atomic<uint64_t> uid{0};
     return uid.fetch_add(1, std::memory_order_relaxed);
-  }
-
-  // Waits on a current copy to host thread to finish.
-  void joinCopyThread() {
-    const std::lock_guard<std::mutex> copy_lock(m_copy_to_host_thread_mutex);
-    if (m_copy_to_host_thread) {
-      m_copy_to_host_thread->join();
-      m_copy_to_host_thread.reset();
-    }
   }
 
   // Unique identifier for this buffer instance.
@@ -252,7 +239,7 @@ private:
   std::mutex m_data_deleted_mutex;
 
   // Thread for copying data to host.
-  std::unique_ptr<std::thread> m_copy_to_host_thread;
+  std::thread m_copy_to_host_thread;
 
   // Mutex guarding thread spawning for copying data to host.
   // Prevents multiple threads from concurrently copying into the same
