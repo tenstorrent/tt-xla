@@ -12,6 +12,7 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
+from transformers import AutoModelForCausalLM
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
 from transformers.models.llama.modeling_llama import LlamaMLP
@@ -492,13 +493,15 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant, num_layers=1)
-    model = loader.load_model()
     config = loader.load_config()
-    inputs = loader.load_inputs()
 
-    batch_size = inputs["input_ids"].shape[0]  # 1
-    seq_len = inputs["input_ids"].shape[1]  # 128 with padding
+    batch_size = 1
+    seq_len = 128
 
+    model = AutoModelForCausalLM.from_config(
+        config, trust_remote_code=True, torch_dtype=torch.bfloat16
+    )
+    model.eval()
     mlp = model.model.layers[0].mlp
 
     hidden_states = torch.randn(
