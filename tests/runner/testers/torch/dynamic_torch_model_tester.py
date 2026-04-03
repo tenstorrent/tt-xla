@@ -68,20 +68,42 @@ class DynamicTorchModelTester(TorchModelTester):
         if test_metadata and getattr(test_metadata, "inject_custom_moe", False):
             self._inject_custom_moe(self._model)
 
-    # def _initialize_model(self):
-    #     """Initialize model and auto-apply per-variant weight dtype overrides."""
-    #     super()._initialize_model()
-    #     loader = self.dynamic_loader.loader
-    #     if hasattr(loader, "get_weight_dtype_config_path"):
-    #         config_path = loader.get_weight_dtype_config_path()
-    #         if config_path:
-    #             from tt_torch.weight_dtype import apply_weight_dtype_overrides
+    def _compile_for_tt_device(self, workload, options=None):
+        """Apply per-variant weight dtype overrides before compiling for TT device."""
+        self._apply_weight_dtype_overrides()
+        super()._compile_for_tt_device(workload, options)
+        self._remove_weight_dtype_overrides()
 
-    #             applied = apply_weight_dtype_overrides(self._model, config_path)
-    #             if applied:
-    #                 logger.info(
-    #                     f"Applied {len(applied)} weight dtype overrides from {config_path}"
-    #                 )
+    def _apply_weight_dtype_overrides(self):
+        """Auto-apply per-variant weight dtype overrides if available."""
+        loader = self.dynamic_loader.loader
+        if not hasattr(loader, "get_weight_dtype_config_path"):
+            return
+        try:
+            config_path = loader.get_weight_dtype_config_path()
+        except TypeError:
+            return
+        if config_path:
+            from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+            applied = apply_weight_dtype_overrides(self._model, config_path)
+            if applied:
+                logger.info(
+                    f"Applied {len(applied)} weight dtype overrides from {config_path}"
+                )
+
+    def _remove_weight_dtype_overrides(self):
+        """Remove weight dtype parametrizations after compilation.
+
+        Parametrizations only need to be present during tracing/compilation to
+        inject stablehlo custom_call metadata. Removing them afterwards prevents
+        conflicts with tie_weights() during subsequent device placement.
+        """
+        from tt_torch.weight_dtype import remove_weight_dtype_overrides
+
+        removed = remove_weight_dtype_overrides(self._model)
+        if removed:
+            logger.info(f"Removed {removed} weight dtype overrides after compilation")
 
     # --- TorchModelTester interface implementations ---
 
