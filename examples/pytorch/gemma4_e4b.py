@@ -22,7 +22,7 @@ xr.set_device_type("TT")
 
 def _load_model_and_tokenizer():
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME, torch_dtype=torch.bfloat16
+        MODEL_NAME, dtype=torch.bfloat16
     ).eval()
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     if tokenizer.pad_token is None:
@@ -46,7 +46,7 @@ def _prepare_inputs(tokenizer):
 
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.model_test
+@pytest.mark.push
 def test_gemma4_prefill_no_cache():
     """Prefill pass without KV cache."""
     device = torch_xla.device()
@@ -57,7 +57,7 @@ def test_gemma4_prefill_no_cache():
     input_ids = inputs["input_ids"].to(device)
     attention_mask = inputs["attention_mask"].to(device)
 
-    torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp_bf8"})
+    torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp8"})
     compiled_model = torch.compile(model, backend="tt")
 
     with torch.no_grad():
@@ -75,7 +75,7 @@ def test_gemma4_prefill_no_cache():
 
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.model_test
+@pytest.mark.push
 def test_gemma4_prefill_with_cache():
     """Prefill pass using StaticCache."""
     device = torch_xla.device()
@@ -85,10 +85,14 @@ def test_gemma4_prefill_with_cache():
     seq_len = inputs["input_ids"].shape[1]
     static_cache = StaticCache(
         config=model.config,
-        max_batch_size=BATCH_SIZE,
         max_cache_len=MAX_LENGTH,
-        device="cpu",
+    )
+    static_cache.early_initialization(
+        batch_size=BATCH_SIZE,
+        num_heads=model.config.text_config.num_key_value_heads,
+        head_dim=model.config.text_config.head_dim,
         dtype=torch.bfloat16,
+        device=torch.device("cpu"),
     )
     cache_position = torch.arange(0, seq_len)
 
@@ -100,7 +104,7 @@ def test_gemma4_prefill_with_cache():
     input_ids = inputs["input_ids"].to(device)
     cache_position = cache_position.to(device)
 
-    torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp_bf8"})
+    torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp8"})
     compiled_model = torch.compile(model, backend="tt")
 
     with torch.no_grad():
@@ -119,7 +123,7 @@ def test_gemma4_prefill_with_cache():
 
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.model_test
+@pytest.mark.push
 def test_gemma4_decode():
     """Single decode step: prefill followed by one autoregressive decode step."""
     device = torch_xla.device()
@@ -130,10 +134,14 @@ def test_gemma4_decode():
     # max_cache_len must accommodate both prefill tokens and at least one decode token
     static_cache = StaticCache(
         config=model.config,
-        max_batch_size=BATCH_SIZE,
         max_cache_len=seq_len + 1,
-        device="cpu",
+    )
+    static_cache.early_initialization(
+        batch_size=BATCH_SIZE,
+        num_heads=model.config.text_config.num_key_value_heads,
+        head_dim=model.config.text_config.head_dim,
         dtype=torch.bfloat16,
+        device=torch.device("cpu"),
     )
 
     for layer in static_cache.layers:
@@ -144,7 +152,7 @@ def test_gemma4_decode():
     input_ids = inputs["input_ids"].to(device)
     cache_position = torch.arange(0, seq_len).to(device)
 
-    torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp_bf8"})
+    torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp8"})
     compiled_model = torch.compile(model, backend="tt")
 
     # Prefill step
