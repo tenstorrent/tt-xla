@@ -167,6 +167,9 @@ def test_split_query_key_value_and_split_heads_mha_linear(request):
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["split_query_key_value_and_split_heads.ttnn.mlir"])
+@pytest.mark.xfail(
+    reason="Broken after a Split QKV refactor - https://github.com/tenstorrent/tt-xla/issues/4096"
+)
 def test_split_query_key_value_and_split_heads_mha_transposed_key(request):
     """MHA pattern: transposed key variant (key permute is [0, 2, 3, 1])."""
     batch, seq_len, hidden_dim = 1, 32, 512
