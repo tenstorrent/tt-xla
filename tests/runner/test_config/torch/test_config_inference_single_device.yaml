@@ -436,6 +436,26 @@ test_config:
   segformer/pytorch-Mit_B5-single_device-inference:
     status: EXPECTED_PASSING
 
+  shufflenetv2/pytorch-x0_5-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "conv2d_DRAM: buffer size must be divisible by new page size"
+
+  shufflenetv2/pytorch-x1_0-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "conv2d_DRAM: buffer size must be divisible by new page size"
+
+  shufflenetv2/pytorch-x1_5-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "conv2d_DRAM: buffer size must be divisible by new page size"
+
+  shufflenetv2/pytorch-x2_0-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "conv2d_DRAM: buffer size must be divisible by new page size"
+
   squeezebert/pytorch-Mnli-single_device-inference:
     status: EXPECTED_PASSING
 

@@ -220,6 +220,20 @@ MODEL_REGISTRY: Dict[str, List[ModelSpec]] = {
                   "tt_forge_models.llava_next.pytorch.loader",
                   "LLaVA_NeXT_Vision_Encoder"),
     ],
+    "shufflenetv2": [
+        ModelSpec("shufflenetv2/x0_5",
+                  "tt_forge_models.shufflenetv2.pytorch.loader",
+                  "x0_5"),
+        ModelSpec("shufflenetv2/x1_0",
+                  "tt_forge_models.shufflenetv2.pytorch.loader",
+                  "x1_0"),
+        ModelSpec("shufflenetv2/x1_5",
+                  "tt_forge_models.shufflenetv2.pytorch.loader",
+                  "x1_5"),
+        ModelSpec("shufflenetv2/x2_0",
+                  "tt_forge_models.shufflenetv2.pytorch.loader",
+                  "x2_0"),
+    ],
 }
 
 
