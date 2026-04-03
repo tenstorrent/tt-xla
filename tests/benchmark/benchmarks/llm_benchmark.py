@@ -273,9 +273,7 @@ def benchmark_llm_torch_xla(
         )
 
     if decode_only and accuracy_testing:
-        raise ValueError(
-            "--decode-only cannot be combined with --accuracy-testing"
-        )
+        raise ValueError("--decode-only cannot be combined with --accuracy-testing")
 
     if task != "text-generation":
         raise ValueError(
