@@ -217,6 +217,7 @@ def benchmark_llm_torch_xla(
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
+    decode_only: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -269,6 +270,11 @@ def benchmark_llm_torch_xla(
         raise ValueError(
             f"Input sequence length must be a positive integer for llm benchmark. Got: {input_sequence_length}. "
             "Please use -isl <length> (e.g., -isl 128)"
+        )
+
+    if decode_only and accuracy_testing:
+        raise ValueError(
+            "--decode-only cannot be combined with --accuracy-testing"
         )
 
     if task != "text-generation":
@@ -329,7 +335,7 @@ def benchmark_llm_torch_xla(
     if max_output_tokens is None:
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
+    # Run CPU prefill (used as PCC baseline, or as decode-only prefill)
     if not accuracy_testing:
         cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
         cpu_wrapper.eval()
@@ -409,19 +415,20 @@ def benchmark_llm_torch_xla(
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
-    # Warmup run
-    print("Warming up...")
-    warmup_tokens = min(MIN_STEPS, max_output_tokens)
-    _, _ = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        warmup_tokens,
-        verbose=False,
-        collect_logits=False,
-    )
+    # Warmup run (skip in decode-only mode)
+    if not decode_only:
+        print("Warming up...")
+        warmup_tokens = min(MIN_STEPS, max_output_tokens)
+        _, _ = generate_and_benchmark(
+            compiled_perf_model,
+            input_args,
+            device,
+            warmup_tokens,
+            verbose=False,
+            collect_logits=False,
+        )
 
-    tracy.signpost("warmup_complete")
+        tracy.signpost("warmup_complete")
 
     # Reconstruct inputs for the perf benchmark run
     input_args = construct_inputs(
@@ -489,7 +496,7 @@ def benchmark_llm_torch_xla(
     if accuracy_testing:
         predicted_tokens = [logits.argmax(dim=-1)[0].item() for logits in output_logits]
 
-    ttft_ns = iteration_times[0]
+    ttft_ns = iteration_times[0] if not decode_only else 0.0
     ttft_ms = ttft_ns / 1e6
 
     decode_iteration_times = iteration_times[1:]
@@ -564,6 +571,8 @@ def benchmark_llm_torch_xla(
                 },
             ]
         )
+    elif decode_only:
+        print("PCC verification skipped in decode-only mode")
     else:
         # Check PCC
         pcc_value = compute_pcc(
