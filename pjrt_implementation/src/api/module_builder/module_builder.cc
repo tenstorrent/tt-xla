@@ -1072,6 +1072,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
+  options.enableGreedyOptimizer = true;
 
   // Use the `options.devicePtr` to pass the device pointer to the optimizer in
   // order to avoid closing and reopening the device afterwards.
