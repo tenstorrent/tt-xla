@@ -335,6 +335,31 @@ class ModelLoader(ForgeModel):
 - Return a tuple, even for single inputs: `return (tensor,)`
 - Default to `torch.bfloat16` for float inputs
 
+**Multi-modal / multi-input models (e.g. camera+LiDAR fusion):**
+
+When a model has variants with different modalities (camera-only vs camera+LiDAR), `load_model()` and `load_inputs()` must branch on `self._variant`:
+
+```python
+def load_model(self, *, dtype_override=None, **kwargs):
+    if self._variant == ModelVariant.CAMERA_ONLY:
+        model = CameraOnlyModel(...)
+    else:
+        model = CameraLiDARFusionModel(...)
+    model.eval()
+    if dtype_override is not None:
+        model = model.to(dtype_override)
+    return model
+
+def load_inputs(self, dtype_override=None, batch_size=1):
+    imgs = torch.randn(batch_size, N_cam, 3, H, W, dtype=dtype)
+    if self._variant == ModelVariant.CAMERA_ONLY:
+        return (imgs,)           # 1-input tuple
+    voxel_bev = torch.randn(batch_size, C, Hbev, Wbev, dtype=dtype)
+    return imgs, voxel_bev       # 2-input tuple
+```
+
+Key rule: **each variant must have a model class whose `forward()` signature exactly matches the inputs returned by `load_inputs()` for that variant.** If Camera_Only loads the full Camera+LiDAR model, the variant is misleading and test IDs will be incorrect.
+
 **Per-model dependencies:** If the model needs packages not in the tt-xla venv, add a `requirements.txt` next to `loader.py`. The test runner auto-installs it before running tests.
 
 ```

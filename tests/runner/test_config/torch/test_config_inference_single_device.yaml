@@ -1920,6 +1920,12 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
+  bevfusion/pytorch-BEVFusion_Camera_Lidar-single_device-inference:
+    status: EXPECTED_PASSING
+
+  bevfusion/pytorch-BEVFusion_Camera_Only-single_device-inference:
+    status: EXPECTED_PASSING
+
   bevformer/pytorch-Tiny-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
