@@ -28,6 +28,8 @@ on:
           - 'vllm-model-tests.json'
           - 'vllm-model-tests-nightly.json'
           - 'fusion-tests.json'
+          - 'model-test-lb-blackhole-nightly.json'
+          - 'model-test-lb-blackhole-weekly.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
