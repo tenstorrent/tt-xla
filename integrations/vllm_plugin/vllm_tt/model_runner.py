@@ -1026,8 +1026,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position[1:] = -1
             page_table[1:, :] = 0
 
+        # With prefix caching, some blocks are already filled. Roll the
+        # page_table so prefix blocks move to the end and paged_fill_cache
+        # writes to non-prefix blocks first. The roll is done HERE (outside
+        # the compiled graph) so the tensor shape stays constant and doesn't
+        # trigger torch.compile recompilation.
+        # Using min is safe: all requests in a prefill batch share the same
+        # prefix (the scheduler groups by prefix), so min == max in practice.
+        prefill_block_offset = 0
+        if num_reqs > 0:
+            min_computed = int(
+                np.min(self.input_batch.num_computed_tokens_cpu[:num_reqs])
+            )
+            prefill_block_offset = min_computed // self.block_size
+        fill_page_table = torch.roll(page_table, shifts=-prefill_block_offset, dims=1)
+
         cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
+        fill_page_table = fill_page_table.to(self.device)
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1040,24 +1056,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        # With prefix caching, some blocks are already filled. Use the
-        # minimum num_computed_tokens across the batch to determine how many
-        # leading page_table blocks to skip during paged_fill_cache. Using
-        # min is safe: all requests in a prefill batch share the same prefix
-        # (the scheduler groups by prefix), so min == max in practice.
-        prefill_block_offset = 0
-        if num_reqs > 0:
-            min_computed = int(
-                np.min(self.input_batch.num_computed_tokens_cpu[:num_reqs])
-            )
-            prefill_block_offset = min_computed // self.block_size
-
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
-            prefill_block_offset=prefill_block_offset,
+            fill_page_table=fill_page_table,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
