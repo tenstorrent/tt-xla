@@ -7,8 +7,44 @@ import json
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 
-from find_all_failed_tests import find_failed_test_case
+
+def find_test_cases(xml_file):
+    """
+    Extract failed test case names from a JUnit XML report.
+
+    Args:
+        xml_file (str): Path to the XML file.
+
+    Returns:
+        array: A list of failed test case names.
+    """
+    try:
+        tree = ET.parse(xml_file)
+        root = tree.getroot()
+        failed_test_cases = []
+        success_test_cases = []
+
+        for testsuite in root.findall("testsuite"):
+            # Iterate over all <testcase> elements within the current <testsuite>
+            for testcase in testsuite.findall("testcase"):
+                try:
+                    path = testcase.get("classname").replace(".", "/")
+                    name = testcase.get("name")
+                    if (testcase.find("failure") is not None) or (
+                        testcase.find("error") is not None
+                    ):
+                        failed_test_cases.append(f"{path}.py::{name}")
+                    else:
+                        success_test_cases.append(f"{path}.py::{name}")
+                except:
+                    print(f"Error encountered in {xml_file} for test case '{name}'")
+
+    except ET.ParseError as e:
+        print(f"Error parsing XML file {xml_file}: {e}")
+
+    return failed_test_cases, success_test_cases
 
 
 def find_xml_files(dir):
@@ -23,6 +59,7 @@ def find_xml_files(dir):
     """
     # Find directories matching the regex pattern and extract the matched group
     failed_tests = {}
+    success_tests = {}
     pattern = r"test-reports-[^-]+-[^-]+-(.+)-[^-]*-[^-]+"
 
     for root, dirs, _ in os.walk(dir):
@@ -34,19 +71,24 @@ def find_xml_files(dir):
                 # Check if directory contains XML files
                 xml_files = glob.glob(os.path.join(dir_path, "*.xml"))
                 if xml_files:
-                    # print(f"Found directory for machine: {machine_name} at {dir_path}")
                     machine_failed_tests = []
+                    machine_success_tests = []
                     for xml_file in xml_files:
-                        file_failed_tests = find_failed_test_case(xml_file)
+                        file_failed_tests, file_success_tests = find_test_cases(
+                            xml_file
+                        )
                         machine_failed_tests.extend(file_failed_tests)
+                        machine_success_tests.extend(file_success_tests)
 
                     if machine_failed_tests:
-                        # print(f"  Found {len(machine_failed_tests)} failed tests for machine {machine_name}")
                         if machine_name not in failed_tests:
                             failed_tests[machine_name] = []
                         failed_tests[machine_name].extend(machine_failed_tests)
-
-    return failed_tests
+                    if machine_success_tests:
+                        if machine_name not in success_tests:
+                            success_tests[machine_name] = []
+                        success_tests[machine_name].extend(machine_success_tests)
+    return failed_tests, success_tests
 
 
 def print_failed_tests_by_machine(failed_tests):
@@ -73,10 +115,10 @@ def find_new_failed_tests(dir_a, dir_b, filter):
         List containing tests that are in dir_a and not in dir_b by machine.
     """
     print(f"------ Finding failed tests in {dir_a}")
-    failed_a = find_xml_files(dir_a)
+    failed_a, _ = find_xml_files(dir_a)
     print_failed_tests_by_machine(failed_a)
     print(f"------ Finding failed tests in {dir_b}")
-    failed_b = find_xml_files(dir_b)
+    failed_b, succeed_b = find_xml_files(dir_b)
     print_failed_tests_by_machine(failed_b)
 
     # Apply test filter if provided
@@ -96,6 +138,18 @@ def find_new_failed_tests(dir_a, dir_b, filter):
         else:
             new_failed_tests[machine] = [t for t in tests if t not in failed_b[machine]]
 
+    indetermined_tests = {}
+    for machine, tests in failed_a.items():
+        if machine not in failed_b and machine not in succeed_b:
+            indetermined_tests[machine] = tests
+        else:
+            indetermined_tests[machine] = [
+                t
+                for t in tests
+                if t not in failed_b.get(machine, [])
+                and t not in succeed_b.get(machine, [])
+            ]
+
     # Remove machines with empty test arrays
     new_failed_tests = {
         machine: tests for machine, tests in new_failed_tests.items() if tests
@@ -109,7 +163,7 @@ def find_new_failed_tests(dir_a, dir_b, filter):
     }
 
     print(f"New failed tests: {new_failed_tests}")
-    return new_failed_tests
+    return new_failed_tests, indetermined_tests
 
 
 if __name__ == "__main__":
@@ -130,38 +184,28 @@ if __name__ == "__main__":
         print("WARNING: num_runs must be at least 1")
         num_runs = 1
 
-    nft = find_new_failed_tests(dir_a, dir_b, test_filter)
+    nft, indetermined_tests = find_new_failed_tests(dir_a, dir_b, test_filter)
     if not nft:
         print("No new failed tests found.")
         sys.exit(3)
 
     matrix = []
-    upload_list = []
-    # Create output directories and write test files
+    # Create output matrix
     for machine, tests in nft.items():
-        machine_dir = os.path.join(dir_out, machine)
-        os.makedirs(machine_dir, exist_ok=True)
-
-        tests_file = os.path.join(machine_dir, ".tests_to_run")
-        with open(tests_file, "w") as f:
-            for test in tests:
-                f.write(f"{test}\n")
-
-        upload_list.append({"name": f"{machine}-test-to-run", "path": tests_file})
         for i in range(num_runs):
-            matrix.append(
-                {
-                    "runs-on": machine,
-                    "fromc": fromc,
-                    "toc": toc,
-                    "shared-runners": machine.startswith("tt-"),
-                    "run_no": i,
-                }
-            )
-
-    # Write upload_list to .upload_list.json file
-    with open(".upload_list.json", "w") as f:
-        json.dump(upload_list, f, indent=2)
+            for test in tests:
+                indeterminate = test in indetermined_tests.get(machine, [])
+                matrix.append(
+                    {
+                        "runs-on": machine,
+                        "fromc": fromc,
+                        "toc": toc,
+                        "shared-runners": machine.startswith("tt-"),
+                        "test": test,
+                        "indeterminate": indeterminate,
+                        "run_no": i,
+                    }
+                )
 
     # Write matrix to .matrix.json file
     with open(".matrix.json", "w") as f:
