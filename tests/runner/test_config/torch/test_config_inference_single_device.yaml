@@ -8,6 +8,9 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  convmixer/pytorch-convmixer-256-8-single_device-inference:
+    status: EXPECTED_PASSING
+
   dino/pytorch-dino_vits16-single_device-inference:
     status: EXPECTED_PASSING
 
