@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import contextlib
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
@@ -185,8 +186,16 @@ class TTPlatform(Platform):
             cache_config.block_size = cast(BlockSize, 32)
         compilation_config = vllm_config.compilation_config
 
-        # TT only supports DYNAMO_TRACE_ONCE compilation level
-        if compilation_config.mode != CompilationMode.DYNAMO_TRACE_ONCE:
+        # TT only supports DYNAMO_TRACE_ONCE compilation level.
+        # Models with dynamic shapes (e.g. SmolLM3 NoPE layers producing SymInt)
+        # need compilation skipped entirely via TT_SKIP_MODEL_COMPILE=1.
+        if os.environ.get("TT_SKIP_MODEL_COMPILE", "0") == "1":
+            logger.info(
+                "[TT] TT_SKIP_MODEL_COMPILE=1 — disabling compilation "
+                "(required for models with dynamic shapes like SmolLM3 NoPE)."
+            )
+            compilation_config.mode = CompilationMode.NO_COMPILATION
+        elif compilation_config.mode != CompilationMode.DYNAMO_TRACE_ONCE:
             logger.info(
                 "[TT] Forcing DYNAMO_TRACE_ONCE compilation level, and "
                 "disabling cudagraph."

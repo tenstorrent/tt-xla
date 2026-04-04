@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import torch
 import torch_xla.core.xla_builder as xb
+import torch_xla.core.xla_model as xm
 import torch_xla.experimental.custom_kernel  # noqa: F401
 
 # Required to register custom ops.
@@ -470,6 +471,10 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
+            # Break XLA graph before paged_fill_cache to ensure the cache tensor
+            # has a single user per sub-graph (required by TTIR→TTNN
+            # PagedFillCacheOpConversionPattern which enforces users.size()==1).
+            xm.mark_step()
             for batch_idx in range(inputs.users):
                 k_cache = torch.ops.tt.paged_fill_cache(
                     k_cache,
@@ -487,6 +492,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                         [batch_idx], dtype=torch.int32, device=v_cache.device
                     ),
                 )
+            xm.mark_step()
 
         # Update the KV cache
         new_kv_cache = torch.stack([k_cache, v_cache], dim=0)

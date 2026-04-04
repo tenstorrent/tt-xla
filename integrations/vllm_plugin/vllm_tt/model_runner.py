@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -204,6 +205,15 @@ def generate_attn_mask(
 # The dummy_run should be comprehensive, ensuring all potential input shapes and
 # branch predictions are included as subgraph inputs to facilitate
 # pre-compilation.
+
+
+def _tt_compile_or_noop(**kwargs):
+    """Conditional torch.compile: returns identity when TT_SKIP_MODEL_COMPILE=1."""
+    if os.environ.get("TT_SKIP_MODEL_COMPILE", "0") == "1":
+        return lambda fn: fn
+    return torch.compile(**kwargs)
+
+
 class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def __init__(
         self,
@@ -1544,7 +1554,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
-        self.model.compile(backend="tt", dynamic=False)
+        # Skip model.compile for models with dynamic shapes (e.g. SmolLM3 NoPE
+        # layers produce SymInt that torch.export cannot handle).
+        _skip = os.environ.get("TT_SKIP_MODEL_COMPILE", "0") == "1"
+        if not _skip:
+            try:
+                _arch = getattr(
+                    self.model_config.hf_config, "architectures", [None]
+                )[0] or ""
+            except Exception:
+                _arch = ""
+            if "SmolLM3" in _arch:
+                _skip = True
+                logger.info(
+                    "[TT] Auto-detected SmolLM3 — skipping model.compile() "
+                    "(NoPE layers produce SymInt in torch.export)"
+                )
+        if _skip:
+            logger.info("[TT] Skipping model.compile()")
+        else:
+            self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
 
@@ -2102,7 +2131,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             compiled_model.compiled = False
             TorchCompileWithNoGuardsWrapper.__init__(compiled_model)
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @_tt_compile_or_noop(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
@@ -2110,12 +2139,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @_tt_compile_or_noop(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
         return logits
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @_tt_compile_or_noop(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
@@ -2150,7 +2179,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         return out_tokens
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @_tt_compile_or_noop(backend="tt", fullgraph=True, dynamic=False)
     def gather_logprobs(
         self, logits: torch.Tensor, sampled_tokens: torch.Tensor
     ) -> LogprobsTensors:
@@ -2293,7 +2322,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return result
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    @_tt_compile_or_noop(backend="tt", fullgraph=True, dynamic=False)
     def structured_decode(
         self,
         require_struct_decoding: torch.Tensor,
@@ -2452,7 +2481,7 @@ def _make_src_and_dst_indices(
     return src_indices, dst_indices
 
 
-@torch.compile(backend="tt")
+@_tt_compile_or_noop(backend="tt")
 def _insert_blocks_to_tpu(
     cpu_cache: torch.Tensor,
     tpu_cache: torch.Tensor,
@@ -2463,7 +2492,7 @@ def _insert_blocks_to_tpu(
     tpu_cache[tpu_block_indices] = cpu_cache[cpu_block_indices].to(tpu_cache.device)
 
 
-@torch.compile(backend="tt")
+@_tt_compile_or_noop(backend="tt")
 def _swap_out_tpu_blocks(
     tpu_cache: torch.Tensor,
     cpu_cache: torch.Tensor,
