@@ -197,6 +197,7 @@ def bge_m3_encode():
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
+@pytest.mark.skip(reason="Transformers 5.x not supported by FlagEmbedding version yet.")
 def test_bge_m3_custom_encode():
     """Run BGE-M3 encode on TT device and validate PCC outputs are finite and bounded."""
     try:

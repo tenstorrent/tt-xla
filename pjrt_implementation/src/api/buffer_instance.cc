@@ -134,10 +134,6 @@ bool BufferInstance::isDataDeleted() {
 }
 
 void BufferInstance::deleteData() {
-  if (m_data_deleted) {
-    return;
-  }
-
   std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
   if (m_data_deleted) {
     return;
@@ -280,14 +276,9 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
 std::vector<std::uint32_t>
 BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
                                PJRT_Buffer_Type data_type) {
-  if (num_dims == 0) {
-    // Our compiler and runtime don't support scalars so we convert them to 1D
-    // tensors.
-    if (data_type_utils::isComplexPJRTType(data_type)) {
-      // Throw error if complex tensor num_dims == 0.
-      TT_THROW("Complex tensor with num_dims == 0 is not supported.");
-    }
-    return {1};
+  if (data_type_utils::isComplexPJRTType(data_type) && num_dims == 0) {
+    // Throw error if complex tensor num_dims == 0.
+    TT_THROW("Complex tensor with num_dims == 0 is not supported.");
   }
 
   std::vector<std::uint32_t> shape;
@@ -307,11 +298,6 @@ BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
 std::vector<std::uint32_t> BufferInstance::calculateStrides(
     size_t num_dims, const std::int64_t *byte_strides, size_t num_byte_strides,
     std::uint32_t element_size) {
-  if (num_dims == 0) {
-    // Our compiler and runtime don't support scalars so we convert them to 1D
-    // tensors.
-    return {1};
-  }
 
   TT_FATAL(num_byte_strides == 0 || num_byte_strides == num_dims,
            "num_byte_strides must be 0 or equal to num_dims: "
@@ -382,11 +368,11 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 }
 
 void BufferInstance::markAsDataReady() {
-  TT_FATAL(!m_data_ready, "Data is already ready");
-
   std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
 
+  TT_FATAL(!m_data_ready, "Data is already ready");
   m_data_ready = true;
+
   if (m_data_ready_event) {
     EventInstance::markAsReadyAndCallback(m_data_ready_event,
                                           tt_pjrt_status::kSuccess);
@@ -418,12 +404,8 @@ tt_pjrt_status BufferInstance::copyToDeviceMemory(DeviceInstance *dst_device,
 }
 
 tt_pjrt_status BufferInstance::createDataReadyEvent(EventInstance **out_event) {
-  if (m_data_ready_event) {
-    LOG_F(ERROR, "Buffer marked as data ready multiple times");
-    return tt_pjrt_status::kInternal;
-  }
-
   std::lock_guard<std::mutex> ready_lock(m_data_ready_mutex);
+  TT_FATAL(!m_data_ready_event, "Buffer marked as data ready multiple times");
 
   std::unique_ptr<EventInstance> data_ready_event =
       EventInstance::createInstance();

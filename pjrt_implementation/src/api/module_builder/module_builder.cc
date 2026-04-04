@@ -994,14 +994,14 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.optimizationLevel = compile_options.optimization_level;
   // Map user-facing dtype names to WeightDtype enum values.
-  if (compile_options.experimental_weight_dtype == "bfp8") {
+  if (compile_options.experimental_weight_dtype == "bfp_bf8") {
     options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat8;
-  } else if (compile_options.experimental_weight_dtype == "bfp4") {
+  } else if (compile_options.experimental_weight_dtype == "bfp_bf4") {
     options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat4;
   } else if (!compile_options.experimental_weight_dtype.empty()) {
     LOG_F(ERROR,
-          "Unknown experimental_weight_dtype: '%s'. Valid values: 'bfp8', "
-          "'bfp4'.",
+          "Unknown experimental_weight_dtype: '%s'. Valid values: 'bfp_bf8', "
+          "'bfp_bf4'.",
           compile_options.experimental_weight_dtype.c_str());
     return tt_pjrt_status::kUnimplemented;
   }

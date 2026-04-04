@@ -100,12 +100,14 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false
     reason: "Severe PCC comparison failed: pcc=-0.054 < 0.99 required"
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-1.5B_Instruct-tensor_parallel-inference:
     supported_archs: ["n300"]
     status: EXPECTED_PASSING
     assert_pcc: false
     reason: "Severe PCC comparison failed: pcc=-0.025 < 0.99 required"
+    markers: [large]
 
   qwen_2_5_coder/causal_lm/jax-3B-tensor_parallel-inference:
     supported_archs: ["n300"]
@@ -189,6 +191,11 @@ test_config:
     reason: "'stablehlo.gather' op slice size out of bounds - https://github.com/tenstorrent/tt-mlir/issues/6653"
     bringup_status: FAILED_TTMLIR_COMPILATION
 
+  gpt_j/causal_lm/jax-6B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Value mlir::sdy::(anonymous namespace)::CollectiveInserter::insert(): Assertion failed. https://github.com/tenstorrent/tt-xla/issues/3393"
+
   llama/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
@@ -215,6 +222,11 @@ test_config:
     reason: "error: expects input feature dimension (1536) to be a multiple of feature_group_count. Got feature_group_count = 3072. - https://github.com/tenstorrent/tt-xla/issues/3429"
 
   mamba/causal_lm/jax-mamba-1.4b-hf-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: expects input feature dimension (1536) to be a multiple of feature_group_count. Got feature_group_count = 3072. - https://github.com/tenstorrent/tt-xla/issues/3429"
+
+  mamba2/causal_lm/jax-Codestral-7B-v0.1-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: KNOWN_FAILURE_XFAIL
     reason: "error: expects input feature dimension (1536) to be a multiple of feature_group_count. Got feature_group_count = 3072. - https://github.com/tenstorrent/tt-xla/issues/3429"

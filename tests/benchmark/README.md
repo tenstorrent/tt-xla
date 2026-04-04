@@ -45,6 +45,10 @@ tests/benchmark/
 ├── llm_utils/               # LLM-specific utilities
 ```
 
+## Mixed Precision
+
+See [MIXED_PRECISION.md](../../docs/src/mixed_precision.md) for detailed instructions on per-tensor weight dtype overrides and manual mixed precision.
+
 ## Profiling
 
 See [PROFILING.md](PROFILING.md) for detailed instructions on device and host profiling with Tracy.

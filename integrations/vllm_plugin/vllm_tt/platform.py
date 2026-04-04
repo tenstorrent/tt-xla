@@ -66,7 +66,7 @@ class TTConfig:
     # Optimization level for tt-mlir compilation.
     optimization_level: int = 0
 
-    # Target dtype for weight conversion (e.g. "bfp8", "bfp4"). Empty disables.
+    # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
     # Perform token sampling on CPU instead of compiling a sampling graph for device
@@ -79,6 +79,9 @@ class TTConfig:
     # the vllm_config before the model is loaded. We also store the original and
     # target number of layers to filter the weights accordingly during loading.
     num_hidden_layers: int = 0
+
+    # Flag to enable 2D mesh for tensor parallel execution.
+    use_2d_mesh: bool = True
 
     def get_pjrt_compile_config(self) -> dict:
         return {

@@ -32,6 +32,11 @@ test_config:
     status: EXPECTED_PASSING
     markers: [large]
 
+  gpt_j/causal_lm/jax-6B-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Value mlir::sdy::(anonymous namespace)::CollectiveInserter::insert(): Assertion failed. https://github.com/tenstorrent/tt-xla/issues/3393"
+
   llama/causal_lm/jax-1B_Tiny-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
@@ -51,6 +56,11 @@ test_config:
   mamba/causal_lm/jax-mamba-1.4b-hf-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
+
+  mamba2/causal_lm/jax-Codestral-7B-v0.1-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "stablehlo.dynamic_slice' op failed to infer returned types - https://github.com/tenstorrent/tt-xla/issues/3495"
 
   phi1/causal_lm/jax-Phi_1-data_parallel-inference:
     supported_archs: ["n300-llmbox"]

@@ -20,6 +20,7 @@ from pathlib import Path
 import torch
 import transformers
 from llm_utils.decode_utils import (
+    LLMSamplingWrapper,
     extract_topk,
     generate_and_benchmark,
     init_static_cache,
@@ -109,17 +110,20 @@ def generate_reference_outputs(total_length, output_file, model_name):
     ground_truth_tokens = tokens_1d[split_point:]  # [decode_len]
     decode_len = len(ground_truth_tokens)
 
-    logger.info(
-        f"Generating reference topk with shared decode logic (split_point={split_point})"
+    logger.info(f"Generating reference topk on CPU (split_point={split_point})")
+
+    cpu_wrapper = LLMSamplingWrapper(
+        model, lambda output: output.logits, return_logits=True
     )
+    cpu_wrapper.eval()
     output_logits, _ = generate_and_benchmark(
-        model=model,
-        input_args=input_args,
-        device=device,
-        max_tokens_to_generate=decode_len,
-        read_logits_fn=lambda output: output.logits,
+        cpu_wrapper,
+        input_args,
+        torch.device("cpu"),
+        decode_len,
+        verbose=False,
         ground_truth_tokens=ground_truth_tokens,
-        verbose=True,
+        collect_logits=True,
     )
 
     # Post-processing: extract top-k predictions from raw logits

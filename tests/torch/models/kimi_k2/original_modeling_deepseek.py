@@ -46,10 +46,7 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutputWithPast,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.pytorch_utils import (
-    ALL_LAYERNORM_LAYERS,
-    is_torch_greater_or_equal_than_1_13,
-)
+from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.utils import (
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
@@ -58,22 +55,12 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
-from transformers.utils.import_utils import is_torch_fx_available
 
 from .configuration_deepseek import DeepseekV3Config
 
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
-
-
-# This makes `_prepare_4d_causal_attention_mask` a leaf function in the FX graph.
-# It means that the function will not be traced through and simply appear as a node in the graph.
-if is_torch_fx_available():
-    if not is_torch_greater_or_equal_than_1_13:
-        import torch.fx
-
-    _prepare_4d_causal_attention_mask = torch.fx.wrap(_prepare_4d_causal_attention_mask)
 
 
 logger = logging.get_logger(__name__)
@@ -701,20 +688,24 @@ class DeepseekV3Attention(nn.Module):
         self.softmax_scale = self.q_head_dim ** (-0.5)
         if self.config.rope_scaling is not None:
             mscale_all_dim = self.config.rope_scaling.get("mscale_all_dim", 0)
-            scaling_factor = self.config.rope_scaling["factor"]
-            if mscale_all_dim:
+            scaling_factor = self.config.rope_scaling.get("factor")
+            if mscale_all_dim and scaling_factor:
                 mscale = yarn_get_mscale(scaling_factor, mscale_all_dim)
                 self.softmax_scale = self.softmax_scale * mscale * mscale
 
     def _init_rope(self):
-        if self.config.rope_scaling is None:
+        scaling_type = None
+        if self.config.rope_scaling is not None:
+            scaling_type = self.config.rope_scaling.get(
+                "rope_type"
+            ) or self.config.rope_scaling.get("type")
+        if scaling_type is None or scaling_type == "default":
             self.rotary_emb = DeepseekV3RotaryEmbedding(
                 self.qk_rope_head_dim,
                 max_position_embeddings=self.max_position_embeddings,
                 base=self.rope_theta,
             )
         else:
-            scaling_type = self.config.rope_scaling["type"]
             scaling_factor = self.config.rope_scaling["factor"]
             if scaling_type == "linear":
                 self.rotary_emb = DeepseekV3LinearScalingRotaryEmbedding(
@@ -1435,8 +1426,12 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
         if use_cache:
             use_legacy_cache = not isinstance(past_key_values, Cache)
             if use_legacy_cache:
-                past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-            past_key_values_length = past_key_value.get_seq_length()
+                new_cache = DynamicCache()
+                if past_key_values is not None:
+                    for layer_idx, (k, v) in enumerate(past_key_values):
+                        new_cache.update(k, v, layer_idx)
+                past_key_values = new_cache
+            past_key_values_length = past_key_values.get_seq_length()
 
         if position_ids is None:
             device = input_ids.device if input_ids is not None else inputs_embeds.device
@@ -1504,11 +1499,12 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
 
         next_cache = None
         if use_cache:
-            next_cache = (
-                next_decoder_cache.to_legacy_cache()
-                if use_legacy_cache
-                else next_decoder_cache
-            )
+            if use_legacy_cache:
+                next_cache = tuple(
+                    (layer.keys, layer.values) for layer in next_decoder_cache.layers
+                )
+            else:
+                next_cache = next_decoder_cache
         if not return_dict:
             return tuple(
                 v

@@ -109,7 +109,7 @@ test_config:
 
   mistral/pytorch-Large_INSTRUCT_2411-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
-    status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+    status: EXPECTED_PASSING
 
   mistral/pytorch-Devstral_Small_2505-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -216,7 +216,7 @@ test_config:
   mistral/pytorch-mistral_small_3.2_24b_instruct_2506-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
-    reason: "KeyError: c_lifted_tensor_1 - https://github.com/tenstorrent/tt-xla/issues/3221"
+    reason: "Device count mismatch: 2 vs 1: https://github.com/tenstorrent/tt-xla/issues/4078"
 
   solar-10_7B/causal_lm/pytorch-10_7B_Instruct_v1.0-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -226,27 +226,32 @@ test_config:
     supported_archs: [galaxy-wh-6u,n300-llmbox]
     arch_overrides:
       galaxy-wh-6u:
-        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+        status: EXPECTED_PASSING
       n300-llmbox:
         enable_weight_bfp8_conversion: true
-        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+        status: EXPECTED_PASSING
 
   llama/sequence_classification/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u,n300-llmbox]
     arch_overrides:
       galaxy-wh-6u:
-        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+        status: EXPECTED_PASSING
         assert_pcc: false
         required_pcc: 0.98
       n300-llmbox:
         enable_weight_bfp8_conversion: true
-        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+        status: EXPECTED_PASSING
 
   llama/sequence_classification/pytorch-3.3_70B_Instruct-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u,n300-llmbox]
     arch_overrides:
       galaxy-wh-6u:
-        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+        status: EXPECTED_PASSING
       n300-llmbox:
         enable_weight_bfp8_conversion: true
-        status: NOT_SUPPORTED_SKIP # Skipped due to uplift of tt-forge-models
+        status: EXPECTED_PASSING
+
+  gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"

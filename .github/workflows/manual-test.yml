@@ -22,7 +22,7 @@ on:
           - 'model-test-experimental.json'
           - 'model-test-training-xfail-weekly.json'
           - 'model-test-extended.json'
-          - 'mlir-uplift-qualification.json'
+          - 'full-mlir-uplift-qualification.json'
           - 'model-test-passing-weekly.json'
           - 'model-test-weekly.json'
           - 'vllm-model-tests.json'
@@ -39,6 +39,11 @@ on:
         type: string
       manylinux_build:
         description: 'Build and use manylinux wheel'
+        required: false
+        type: boolean
+        default: false
+      run_multihost_dualt3k:
+        description: 'Run multi-host dual T3K basic tests'
         required: false
         type: boolean
         default: false
@@ -79,3 +84,13 @@ jobs:
       artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+
+  test-multihost-dualt3k:
+    if: always() && !cancelled() && !failure() && inputs.run_multihost_dualt3k
+    uses: ./.github/workflows/call-test-multihost-dualt3k.yml
+    needs: [ build-image, build-ttxla ]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
