@@ -79,6 +79,46 @@ def composite_rms_norm(
     return output
 
 
+def composite_distributed_rms_norm(
+    input: Tensor, normalized_shape, weight=None, eps=None, cluster_axis=0
+) -> Tensor:
+    """
+    Creates composite distributed RMS norm operation for torch xla using
+    StableHLOCompositeBuilder. This produces a tenstorrent.distributed_rms_norm
+    composite in StableHLO, which needs to be handled by the TT-MLIR compiler.
+
+    Unlike regular rms_norm, the distributed variant only all-gathers the
+    normalization stats across the specified cluster_axis, not the data itself.
+    Each device normalizes its local shard using the global stats.
+
+    Args:
+        input: Input tensor
+        normalized_shape: Shape over which to normalize (tuple of ints)
+        weight: Optional learnable weight parameter
+        eps: Epsilon for numerical stability
+        cluster_axis: Mesh dimension to all-gather statistics across
+
+    Returns a tensor.
+    """
+    attr = {"normalized_shape": normalized_shape, "cluster_axis": cluster_axis}
+    if eps is not None:
+        attr["epsilon"] = eps
+
+    builder = StableHLOCompositeBuilder(
+        name="tenstorrent.distributed_rms_norm", attr=attr
+    )
+
+    if weight is not None:
+        input, weight = builder.mark_inputs(input, weight)
+    else:
+        input = builder.mark_inputs(input)
+
+    output = torch.nn.functional.rms_norm(input, normalized_shape, weight, eps)
+    output = builder.mark_outputs(output)
+
+    return output
+
+
 def composite_layer_norm(
     input: Tensor,
     normalized_shape: Union[int, List[int], torch.Size],
