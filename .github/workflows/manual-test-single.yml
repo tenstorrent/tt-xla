@@ -54,12 +54,16 @@ on:
           description: 'Git SHA of commit in tenstorrent/tt-mlir'
           required: false
           type: string
+      xla_commit:
+          description: 'tt-xla commit SHA or branch to checkout, build and test (leave empty to use the branch this workflow runs on)'
+          required: false
+          type: string
 
 permissions:
   packages: write
   checks: write
 
-run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} )'
+run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} - XLA commit: ${{ inputs.xla_commit}} )'
 
 jobs:
   build-image:
@@ -67,6 +71,7 @@ jobs:
     secrets: inherit
     with:
       mlir_override: ${{ inputs.mlir_override }}
+      xla_sha_override: ${{ inputs.xla_commit || github.sha }}
 
   build-ttxla:
     needs: build-image
@@ -75,6 +80,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
+      xla_sha_override: ${{ inputs.xla_commit || github.sha }}
 
   generate-test-config:
     needs: build-ttxla
