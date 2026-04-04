@@ -7,7 +7,8 @@ JAX (`get_input_activations_partition_spec` / `load_parameters_partition_spec`).
 ## Step 1: Inspect Your Model
 
 ```python
-from third_party.tt_forge_models.<model>.pytorch import ModelLoader
+# Use the real dotted path, e.g. third_party.tt_forge_models.llama.causal_lm.pytorch
+from third_party.tt_forge_models.<path.to.pytorch.package> import ModelLoader
 
 loader = ModelLoader()
 model = loader.load_model()
@@ -62,6 +63,8 @@ def get_mesh_config(self, num_devices: int):
 ```
 
 ## Step 4: Add load_shard_spec
+
+`base.py` defines `load_shard_spec(self, model)`. Many production loaders add **`strategy`** and **`batch_axis`** (FSDP vs Megatron; `"batch"` vs `"data"` for the non-model axis). Match the reference architecture you copy from.
 
 ### Standard Transformer (Llama-like architecture)
 
