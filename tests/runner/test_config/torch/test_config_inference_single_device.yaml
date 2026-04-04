@@ -8,6 +8,9 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  convnext/image_classification/pytorch-convnext-tiny-224-single_device-inference:
+    status: EXPECTED_PASSING
+
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
     arch_overrides:
       n150:
