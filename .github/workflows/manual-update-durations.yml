@@ -8,8 +8,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  packages: write
-  checks: write
+  actions: read
+  contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
   update_test_durations:
@@ -23,7 +25,7 @@ jobs:
       - name: Process test durations from latest workflows
         id: get-test-durations
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           repo="tenstorrent/tt-xla"
 
@@ -92,13 +94,13 @@ jobs:
           body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
           labels: tooling
           delete-branch: true
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ github.token }}
 
       - name: Enable Pull Request Automerge
         if: ${{ steps.create-pr.outputs.pull-request-number }}
         run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Generate Summary
         run: |
