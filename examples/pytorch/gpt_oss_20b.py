@@ -4,7 +4,7 @@
 
 import argparse
 import os
-from typing import Any, List, Optional
+from typing import List
 
 import numpy as np
 import torch
@@ -24,6 +24,11 @@ from transformers import (
 from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.transformers_overrides import (
+    override_cache_sliding_window_layers,
+    override_gpt_oss_sliding_window_causal_mask,
+)
 
 DEFAULT_PROMPTS = ["Explain quantum mechanics."]
 
@@ -146,6 +151,8 @@ def setup_model_and_tokenizer(
         trust_remote_code=True,
         attn_implementation="eager",
     )
+    # Override the gpt_oss model to use the TT-friendly sliding window causal mask
+    override_gpt_oss_sliding_window_causal_mask()
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -198,8 +205,7 @@ def construct_inputs(
         return_attention_mask=True,
     )
 
-    # Disable sliding window cache to avoid torch.compile recompilations.
-    cache_config = disable_sliding_window_attention(model_config)
+    cache_config = model_config
 
     # Static cache should be initialized on CPU and separately transferred to device
     # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
@@ -219,6 +225,10 @@ def construct_inputs(
         dtype=torch.bfloat16,
         device="cpu",
     )
+
+    sliding_window = getattr(cache_config, "sliding_window", max_cache_len)
+    # Override the cache sliding window layers to use the torch.compile/TT-friendly version
+    override_cache_sliding_window_layers(static_cache, max_cache_len, sliding_window)
 
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
@@ -253,37 +263,6 @@ def construct_inputs(
     print("=" * 50)
 
     return input_args, formatted_prompts
-
-
-def disable_sliding_window_attention(
-    config: PretrainedConfig,
-) -> PretrainedConfig:
-    """
-    Override all layer types to 'full_attention' to disable sliding window cache.
-
-    GPT-OSS-20B originally has 24 layers alternating between "sliding_attention" and
-    "full_attention". When StaticCache is initialized with sliding attention layers,
-    it creates StaticSlidingWindowLayer instances that use conditional logic and
-    Python Int (which torch.compile treats as constants). This triggers expensive
-    recompilation for every token generated.
-
-    This function offers a hacky workaround. Because this program stops token
-    generation once the cache is full, StaticSlidingWindowLayer would be essentially
-    functionally equivalent to StaticLayer. Hence by forcing all layers to be
-    "full_attention" before passing the config to create the StaticCache, we can
-    ensure the cache only has simple StaticLayer and avoid recompilation.
-
-    See https://github.com/tenstorrent/tt-xla/issues/3186 for progress on properly
-    running sliding window attention.
-
-    Args:
-        config: Model configuration with layer_types attribute
-
-    Returns:
-        Config modified to have all layers set to "full_attention"
-    """
-    config.layer_types = ["full_attention"] * config.num_hidden_layers
-    return config
 
 
 def transfer_to_device(
@@ -329,6 +308,10 @@ def mark_sharding_on_inputs_and_model(
     for layer in input_args["past_key_values"].layers:
         xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
         xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+
+    if hasattr(model, "lm_head") and model.lm_head is not None:
+        hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+        model.lm_head.register_forward_hook(hook)
 
     xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, "batch"))
     xs.mark_sharding(model.model.norm.weight, mesh, ("batch",))
