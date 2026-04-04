@@ -29,7 +29,7 @@ and run in parallel.
 
 **PyTorch path** (two methods):
 1. **`get_mesh_config(num_devices)`** — Define how devices are arranged in a 2D mesh
-2. **`load_shard_spec(model)`** — Define how each weight tensor is partitioned across that mesh
+2. **`load_shard_spec(model, ...)`** — Define how each weight tensor is partitioned across that mesh (`ForgeModel` stubs `load_shard_spec(self, model)`; production loaders often add **`strategy`** / **`batch_axis`** — see Step 2)
 
 The test runner constructs a PyTorch XLA mesh device and applies sharding via
 `xs.mark_sharding(tensor, mesh, shard_spec)`.
@@ -40,6 +40,8 @@ The test runner constructs a PyTorch XLA mesh device and applies sharding via
 
 The test runner constructs a JAX mesh and applies the partition specs when distributing the
 model and inputs across devices.
+
+**JAX EasyDel single-device:** `test_all_models_jax` routes EasyDel loaders through **`DynamicJaxMultiChipModelTester`** even when **`num_devices == 1`**. Implement `get_input_activations_partition_spec` / `load_parameters_partition_spec` so replicated partitioning on a one-device mesh is correct, not only for TP/DP.
 
 ## Prerequisites
 
@@ -110,10 +112,22 @@ Refer to `references/mesh_config_patterns.md` for complete examples from Llama, 
 
 ## Step 2: Implement `load_shard_spec`
 
-### API Signature
+### Base vs production signature
+
+`third_party/tt_forge_models/base.py` declares `load_shard_spec(self, model)`. Production loaders (e.g. Llama) often **extend** the signature:
 
 ```python
-def load_shard_spec(self, model) -> dict:
+def load_shard_spec(self, model, strategy="fsdp", batch_axis="batch"):
+    """strategy: 'fsdp' uses both mesh axes; 'megatron' shards on the model axis only.
+    batch_axis: label for the non-model axis — use 'data' when DP input sharding uses a 'data' mesh name."""
+```
+
+Preserve these parameters when porting from a reference loader; they keep FSDP/Megatron modes and DP axis naming consistent with `tests/runner/utils/dynamic_loader.py` (`load_shard_spec_data_parallel` uses `"data"` on inputs).
+
+### Return value
+
+```python
+def load_shard_spec(self, model, ...) -> Optional[dict]:
     """Returns a mapping from weight tensors to shard specs.
 
     Args:
@@ -462,7 +476,7 @@ Register in the JAX-specific test config files:
 ```yaml
 # tests/runner/test_config/jax/test_config_inference_tensor_parallel.yaml
 test_config:
-  <model_name>/jax-<VariantValue>-tensor_parallel-inference:
+  llama/causal_lm/jax-3B_v2-tensor_parallel-inference:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: IN_PROGRESS
     reason: "Initial multi-chip bringup"
@@ -471,7 +485,7 @@ test_config:
 ```yaml
 # tests/runner/test_config/jax/test_config_inference_data_parallel.yaml
 test_config:
-  <model_name>/jax-<VariantValue>-data_parallel-inference:
+  llama/causal_lm/jax-3B_v2-data_parallel-inference:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: IN_PROGRESS
     reason: "Initial multi-chip bringup"
@@ -480,8 +494,8 @@ test_config:
 ### Run Multi-Chip Tests
 
 ```bash
-pytest -svv "tests/runner/test_models.py::test_all_models_jax[<model_name>/jax-<VariantValue>-tensor_parallel-inference]"
-pytest -svv "tests/runner/test_models.py::test_all_models_jax[<model_name>/jax-<VariantValue>-data_parallel-inference]"
+pytest -svv "tests/runner/test_models.py::test_all_models_jax[llama/causal_lm/jax-3B_v2-tensor_parallel-inference]"
+pytest -svv "tests/runner/test_models.py::test_all_models_jax[llama/causal_lm/jax-3B_v2-data_parallel-inference]"
 ```
 
 ### Common JAX Multi-Chip Errors
@@ -512,3 +526,5 @@ pytest -svv "tests/runner/test_models.py::test_all_models_jax[<model_name>/jax-<
 See `references/mesh_config_patterns.md` for complete PyTorch `get_mesh_config` and `load_shard_spec` examples extracted from production loaders (Llama, Qwen, Mistral).
 
 See `references/jax_partition_patterns.md` for complete JAX `get_input_activations_partition_spec` and `load_parameters_partition_spec` examples from production EasyDeL loaders.
+
+YAML test keys must use the full **`rel_path`** to the loader (e.g. `llama/causal_lm/jax-...`), not a shortened `<model>/jax-...` alias — see `../tt-model-bringup/references/test_ids_and_yaml.md`.
