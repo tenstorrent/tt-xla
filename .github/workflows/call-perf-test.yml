@@ -414,7 +414,7 @@ jobs:
     # Perf Regression Check
     - name: Set perf query strings
       id: set-query-strings
-      if: inputs.perf_regression_check
+      if: (success() || failure()) && inputs.perf_regression_check && steps.run-benchmark.outcome == 'success'
       shell: bash
       run: |
         echo "model_name=$(cat ${{ steps.strings.outputs.perf_report_json_file }} | jq -r '.model')" >> $GITHUB_OUTPUT
@@ -439,14 +439,14 @@ jobs:
 
     - name: Fetch previous perf results
       id: prev-perf
-      if: inputs.perf_regression_check
+      if: (success() || failure()) && inputs.perf_regression_check && steps.run-benchmark.outcome == 'success'
       uses: ./.github/actions/superset-api
       with:
         query: 'benchmarks/last_measurement'
         query_params: '{"project":"tt-forge/tt-xla","ml_model_name":"${{ steps.set-query-strings.outputs.model_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}"}'
 
     - name: Check perf regression
-      if: inputs.perf_regression_check
+      if: (success() || failure()) && inputs.perf_regression_check && steps.run-benchmark.outcome == 'success'
       shell: bash
       run: |
         if [[ "${{ steps.prev-perf.outputs.response }}" == "[]" ]]; then
