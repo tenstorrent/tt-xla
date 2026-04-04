@@ -341,7 +341,6 @@ def benchmark_llm_torch_xla(
             verbose=False,
             collect_logits=True,
         )
-        cpu_logits = cpu_output_logits[0]
 
     # Transfer model and inputs to device
     input_args = construct_inputs(
@@ -570,7 +569,7 @@ def benchmark_llm_torch_xla(
     else:
         # Check PCC
         pcc_value = compute_pcc(
-            output_logits[0][0], cpu_logits[0], required_pcc=required_pcc
+            output_logits[0][0], cpu_output_logits[0][0], required_pcc=required_pcc
         )
         print("PCC verification passed with PCC={:.6f}".format(pcc_value))
 
