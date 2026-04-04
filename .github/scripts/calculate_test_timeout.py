@@ -41,6 +41,12 @@ def main():
     parser.add_argument(
         "--default-timeout", type=int, default=240, help="Default timeout in minutes"
     )
+    parser.add_argument(
+        "--max-timeout",
+        type=int,
+        default=0,
+        help="Maximum timeout in minutes (0 disables max cap)",
+    )
 
     args = parser.parse_args()
 
@@ -67,6 +73,9 @@ def main():
             f"Total duration: {total_duration_seconds:.1f} seconds ({total_duration_seconds/60:.1f} minutes)"
         )
         print(f"Timeout with 3x safety margin: {timeout_minutes} minutes")
+
+    if args.max_timeout > 0:
+        timeout_minutes = min(timeout_minutes, args.max_timeout)
 
     print(timeout_minutes)
 
