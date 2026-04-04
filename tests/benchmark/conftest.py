@@ -61,6 +61,17 @@ def pytest_addoption(parser):
         help="Limit the maximum number of output tokens generated. Useful for profiling runs.",
     )
 
+    parser.addoption(
+        "--perf-regression-check",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable in-process performance regression assertions. "
+            "Fails the test if measured latency exceeds the known baseline "
+            "by more than the configured slack percentage."
+        ),
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -85,3 +96,8 @@ def accuracy_testing(request):
 @pytest.fixture
 def max_output_tokens(request):
     return request.config.getoption("--max-output-tokens")
+
+
+@pytest.fixture
+def perf_regression_check(request):
+    return request.config.getoption("--perf-regression-check")
