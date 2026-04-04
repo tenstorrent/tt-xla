@@ -495,6 +495,24 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Flax model class removed in transformers 5.x"
 
+  stablelm/causal_lm/jax-7B_Alpha-single_device-inference:
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Not enough space to allocate 603979776 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4089"
+        bringup_status: FAILED_RUNTIME
+      p150:
+        status: EXPECTED_PASSING
+
+  stablelm/causal_lm/jax-3B_Alpha-single_device-inference:
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Not enough space to allocate 268435456 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4089"
+        bringup_status: FAILED_RUNTIME
+      p150:
+        status: EXPECTED_PASSING
+
   squeezebert/masked_lm/jax-Base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Flax model class removed in transformers 5.x"
