@@ -404,6 +404,20 @@ jobs:
             --job-id-url "$JOB_ID_URL"
         fi
 
+    # Patch report fields that can't be properly set in benchmark scripts
+    - name: Patch report fields
+      if: success() || failure()
+      shell: bash
+      run: |
+        PERF_REPORT_FILE="${{ steps.strings.outputs.perf_report_json_file }}"
+        # Patch device_info.device_type from CI runner
+        MACHINE_TYPE="${{ matrix.build.runs-on }}"
+        if [ -f "$PERF_REPORT_FILE" ] && [ -n "$MACHINE_TYPE" ]; then
+          jq --arg mt "$MACHINE_TYPE" '.device_info.device_type = $mt' "$PERF_REPORT_FILE" > "${PERF_REPORT_FILE}.tmp" \
+            && mv "${PERF_REPORT_FILE}.tmp" "$PERF_REPORT_FILE"
+          echo "Patched device_info.device_type to '$MACHINE_TYPE' in $PERF_REPORT_FILE"
+        fi
+
     - name: Upload Perf Report
       uses: actions/upload-artifact@v6
       if: success() || failure()
