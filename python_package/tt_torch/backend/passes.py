@@ -93,7 +93,10 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     for node in gm.graph.nodes:
         if node.op == "call_function":
-            if node.target in composite_ops.replacements:
+            if (
+                node.target in composite_ops.replacements
+                and composite_ops.can_apply_composite(node)
+            ):
                 node.target = composite_ops.replacements[node.target]
 
         elif node.op == "call_module":

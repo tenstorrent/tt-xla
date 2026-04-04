@@ -7,6 +7,7 @@ from typing import List, Optional, Union
 import torch
 from torch import Tensor
 from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
+from ttxla_tools.logging import logger
 
 """
 From XLA documentation: '(Composite operation) Encapsulates an operation made up (composed) of
@@ -168,6 +169,54 @@ def composite_group_norm(
     return output
 
 
+def composite_scaled_dot_product_attention(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    attn_mask: Optional[Tensor] = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    scale: Optional[float] = None,
+    enable_gqa: bool = False,
+) -> Tensor:
+    """
+    Creates composite scaled_dot_product_attention operation for torch xla
+    """
+
+    attr = {"is_causal": is_causal}
+    if scale is not None:
+        attr["scale"] = scale
+
+    if dropout_p > 0:
+        logger.warning(
+            "Dropout is not supported for composite scaled_dot_product_attention, setting dropout_p to 0"
+        )
+        dropout_p = 0
+
+    builder = StableHLOCompositeBuilder(
+        name="tenstorrent.scaled_dot_product_attention", attr=attr
+    )
+
+    if attn_mask is not None:
+        query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
+    else:
+        query, key, value = builder.mark_inputs(query, key, value)
+
+    output = torch.nn.functional.scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        attn_mask=attn_mask,
+        dropout_p=dropout_p,
+        is_causal=is_causal,
+        scale=scale,
+        enable_gqa=enable_gqa,
+    )
+    output = builder.mark_outputs(output)
+
+    return output
+
+
 ################# module replacements #################
 
 
@@ -280,6 +329,48 @@ def replace_group_norm_module(
     gm.graph.erase_node(node)
 
 
+################# composite constraint checks #################
+
+
+def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
+    """
+    Check that SDPA inputs are bfloat16, the only dtype our composite supports.
+    If not, skip the composite and use the native implementation.
+    """
+    # Check all positional args and tensor kwargs (e.g. attn_mask)
+    tensor_args = list(node.args) + [
+        v for v in node.kwargs.values() if isinstance(v, torch.fx.Node)
+    ]
+    for arg in tensor_args:
+        if hasattr(arg, "meta"):
+            val = arg.meta.get("example_value", None)
+            if val is not None and val.dtype != torch.bfloat16:
+                logger.debug(
+                    "composite scaled_dot_product_attention only supports bfloat16 inputs, "
+                    "skipping composite and using native implementation."
+                )
+                return False
+
+    return True
+
+
+def can_apply_composite(node: torch.fx.Node) -> bool:
+    """
+    Check whether a composite replacement should be applied for the given node.
+    Returns True if the replacement is valid, False if it should be skipped.
+    """
+    return constraints.get(node.target, lambda _: True)(node)
+
+
+"""
+Dictionary holding constraints for composite replacements.
+Maps torch API calls to constraint functions.
+"""
+constraints = {
+    torch.nn.functional.scaled_dot_product_attention: _check_sdpa_constraints,
+}
+
+
 """
 Dictionary holding replacement composite functions for torch functions and modules.
 Maps torch API calls and module types to composite implementations.
@@ -291,6 +382,7 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
+    torch.nn.functional.scaled_dot_product_attention: composite_scaled_dot_product_attention,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
     # torch.nn.functional.group_norm: composite_group_norm,
     # module replacements
