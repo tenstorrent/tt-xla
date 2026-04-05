@@ -291,8 +291,13 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
         Currently used for our hand-written models (AlexNet and MNIST).
         """
-
-        return "apply"
+        if self._model_loader is not None and hasattr(
+            self._model_loader, "get_forward_method_name"
+        ):
+            return self._model_loader.get_forward_method_name()
+        if isinstance(self._model, linen.Module):
+            return "apply"
+        return "__call__"
 
     def _get_input_activations(self):
         """Get input activations."""
