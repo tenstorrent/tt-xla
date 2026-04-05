@@ -427,11 +427,7 @@ class CMakeBuildPy(build_py):
             if lib_path is None:
                 for repo_path in repo_search_paths:
                     for candidate in repo_path.rglob(lib):
-                        if (
-                            candidate.exists()
-                            and not candidate.is_symlink()
-                            and candidate.is_file()
-                        ):
+                        if candidate.exists() and candidate.is_file():
                             lib_path = candidate
                             break
                     if lib_path is not None:
