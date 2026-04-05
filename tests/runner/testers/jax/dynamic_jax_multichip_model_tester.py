@@ -16,6 +16,7 @@ from infra.utilities import Framework, PyTree, ShardingMode, Tensor
 from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding, PartitionSpec
+from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -222,7 +223,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         By default returns specs for input parameters and activations for the Flax linen
         models, and empty tuple for other type of models.
         """
-        if isinstance(self._model, (linen.Module, nnx.Module)):
+        if isinstance(self._model, (linen.Module, nnx.Module, FlaxPreTrainedModel)):
             return (
                 self._input_parameters_partition_specs,
                 *self._input_activations_partition_specs,
@@ -348,7 +349,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     # @override
     def _get_forward_method_kwargs(self) -> Dict[str, jax.Array]:
-        if isinstance(self._model, nnx.Module):
+        if isinstance(self._model, (FlaxPreTrainedModel, nnx.Module)):
             return {
                 "params": self._input_parameters,
                 **self._input_activations,
