@@ -125,34 +125,32 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   if (options.dry_run || options.backend != BackendRuntime::TTNNCodegenPy) {
     // dry_run mode or non-Python codegen: return zero-filled output buffers.
     createDefaultOutputBuffers(args->output_lists, args->num_devices);
-    return tt_pjrt_status::kSuccess;
-  }
-
+  } else {
 #if !TTXLA_ENABLE_EMITPY_EXECUTION
-  LOG_F(ERROR, "EmitPy execution requested, but this build does not include "
-               "PythonModelRunner support");
-  return tt_pjrt_status::kInternal;
-#else
-  // Execute the generated Python code via PythonModelRunner.
-  tt::alchemist::PythonModelRunner runner;
-  runner.addToSysPath(options.export_path.value());
-  runner.loadModule("main", "main_for_test");
-
-  std::vector<tt::runtime::Tensor> output_tensors =
-      runner.forward(input_tensors, *runtime_device);
-
-  if (output_tensors.size() != m_executable_image->getNumOutputs()) {
-    LOG_F(ERROR,
-          "PythonModelRunner produced different number of output tensors "
-          "(%zu) than the compiler estimated number of outputs (%zu)",
-          output_tensors.size(), m_executable_image->getNumOutputs());
+    LOG_F(ERROR, "EmitPy execution requested, but this build does not include "
+                 "PythonModelRunner support");
     return tt_pjrt_status::kInternal;
-  }
+#else
+    // Execute the generated Python code via PythonModelRunner.
+    tt::alchemist::PythonModelRunner runner;
+    runner.addToSysPath(options.export_path.value());
+    runner.loadModule("main", "main_for_test");
 
-  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
-                      m_executable_image->getOutputTypes());
+    std::vector<tt::runtime::Tensor> output_tensors =
+        runner.forward(input_tensors, *runtime_device);
+
+    if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+      LOG_F(ERROR,
+            "PythonModelRunner produced different number of output tensors "
+            "(%zu) than the compiler estimated number of outputs (%zu)",
+            output_tensors.size(), m_executable_image->getNumOutputs());
+      return tt_pjrt_status::kInternal;
+    }
+
+    fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
+                        m_executable_image->getOutputTypes());
 #endif
-
+  }
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
       std::unique_ptr<EventInstance> device_complete_event =
