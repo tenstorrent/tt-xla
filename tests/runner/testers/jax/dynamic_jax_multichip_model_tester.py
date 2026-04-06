@@ -201,15 +201,38 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
             self._workload.is_jax
         ), "Workload must be JAX workload to create JAX multichip workload"
 
-        in_specs = self._get_forward_method_arg_specs()
+        executable = self._workload.executable
+        args = list(self._workload.args)
+        kwargs = dict(self._workload.kwargs)
+        in_specs = tuple(self._get_forward_method_arg_specs())
+
+        # shard_map wrappers on the non-nnx path do not accept runtime kwargs. Flatten
+        # HF Flax kwargs into ordered positional args so multichip execution uses the
+        # same contract for both CPU and TT compilation/execution.
+        if isinstance(self._model, FlaxPreTrainedModel) and kwargs:
+            kwarg_keys = tuple(kwargs.keys())
+            kwarg_values = tuple(kwargs[key] for key in kwarg_keys)
+
+            def executable(*call_args):
+                positional_prefix = len(args)
+                positional_args = call_args[:positional_prefix]
+                kwarg_args = call_args[positional_prefix:]
+                rebuilt_kwargs = {
+                    key: value for key, value in zip(kwarg_keys, kwarg_args, strict=True)
+                }
+                return self._workload.executable(*positional_args, **rebuilt_kwargs)
+
+            args = [*args, *kwarg_values]
+            kwargs = {}
+
         out_spec = PartitionSpec()  # Assuming replicated outputs for now.
 
         return JaxMultichipWorkload(
-            executable=self._workload.executable,
+            executable=executable,
             compiled_executable=self._workload.compiled_executable,
             model=self._model,
-            args=self._workload.args,
-            kwargs=self._workload.kwargs,
+            args=args,
+            kwargs=kwargs,
             static_argnames=self._workload.static_argnames,
             device_mesh=mesh,
             in_specs=in_specs,
