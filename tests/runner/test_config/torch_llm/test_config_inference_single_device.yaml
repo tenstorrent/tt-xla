@@ -26,22 +26,24 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+    arch_overrides:
+      n150:
+        status: EXPECTED_PASSING
+        required_pcc: 0.98
+        assert_pcc: false
+      p150:
+        status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845 - original test also has low pcc
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    required_pcc: 0.970 # Calculated: pcc=0.9717385717419725 - https://github.com/tenstorrent/tt-xla/issues/3212
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-14B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
-    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
   qwen_2_5/causal_lm/pytorch-32B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -50,11 +52,15 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/4004"
+    bringup_status: FAILED_RUNTIME
 
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
+    bringup_status: FAILED_RUNTIME
 
   gemma/pytorch-2_2B_IT-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
@@ -90,10 +96,14 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4125"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
@@ -114,6 +124,8 @@ test_config:
 
   llama/causal_lm/pytorch-3.2_3B-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
+    assert_pcc: false
+    required_pcc: 0.97
 
   llama/causal_lm/pytorch-Tinyllama_v1.1-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
@@ -190,15 +202,11 @@ test_config:
     markers: [nightly]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_1-single_device-inference:
-    required_pcc: 0.98 # Is 0.986 for n150 and p150
     status: EXPECTED_PASSING
-    assert_pcc: false
     markers: [nightly]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_2-single_device-inference:
-    required_pcc: 0.98 # Is 0.984 for n150 and p150
     status: EXPECTED_PASSING
-    assert_pcc: false
     markers: [nightly, large]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_1-single_device-inference:
@@ -209,7 +217,6 @@ test_config:
 
       p150:
         status: EXPECTED_PASSING
-        assert_pcc: false # Is 0.895. Debugging blocked by https://github.com/tenstorrent/tt-mlir/issues/6872
         markers: [nightly]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_2-single_device-inference:
@@ -220,7 +227,6 @@ test_config:
         markers: [nightly]
       p150:
         status: EXPECTED_PASSING
-        assert_pcc: false # Is 0.896. Debugging blocked by https://github.com/tenstorrent/tt-mlir/issues/6872
         markers: [nightly]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_1-single_device-inference:

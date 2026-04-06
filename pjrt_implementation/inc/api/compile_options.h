@@ -34,7 +34,7 @@ struct CompileOptions {
   int optimization_level = 0;
 
   // Target dtype for weight conversion in matmul and linear operations.
-  // Valid values: "bfp8", "bfp4". Empty string disables.
+  // Valid values: "bfp_bf8", "bfp_bf4". Empty string disables.
   std::string experimental_weight_dtype = "";
 
   // Override math fidelity for all ttnn operations exposing compute kernel
@@ -96,6 +96,9 @@ struct CompileOptions {
   // some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
   bool experimental_enable_permute_matmul_fusion = true;
 
+  // Enable DRAM space saving optimization pass (TTNNMemoryManagement).
+  bool experimental_enable_dram_space_saving_optimization = false;
+
   // Enable collection of TTNN performance metrics during execution.
   bool ttnn_perf_metrics_enabled = false;
 
@@ -103,6 +106,9 @@ struct CompileOptions {
   // structure of the original graph. This generates a more readable solution,
   // useful when generating code.
   bool codegen_try_recover_structure = false;
+
+  // Enables splitting codegen output into separate files.
+  bool codegen_split_files = false;
 
   // Output file path for TTNN performance metrics.
   // If empty, metrics will be saved to the "perf_metrics" directory with a

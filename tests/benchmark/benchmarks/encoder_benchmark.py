@@ -191,7 +191,7 @@ def benchmark_encoder_torch_xla(
             Signature: fn(outputs, model_inputs) -> embeddings.
             This function should extract hidden states and apply the appropriate pooling.
         required_pcc: Minimum PCC threshold for output validation
-        experimental_weight_dtype: Weight dtype for block format conversion ("bfp8", "bfp4", or "" for none)
+        experimental_weight_dtype: Weight dtype for block format conversion ("bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
 
     Returns:

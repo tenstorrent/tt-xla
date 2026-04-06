@@ -64,7 +64,6 @@ class SetupConfig:
             .strip()
         )
 
-        # NOTE this is how tt-forge-fe does it.
         return "0.1." + date + "+dev." + short_hash
 
     @property
@@ -553,6 +552,7 @@ setup(
         "console_scripts": [
             "tt-forge-install = ttxla_tools.install_sfpi:main",
             "tracy = tracy.__main__:main",
+            "tt-gen-weight-template = tt_torch.weight_dtype:main",
         ],
     },
     include_package_data=True,

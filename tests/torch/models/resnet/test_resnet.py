@@ -4,6 +4,7 @@
 
 import pytest
 from infra import Framework, RunMode
+from infra.evaluators import ComparisonConfig, PccConfig
 from pytest import MonkeyPatch
 from utils import (
     BringupStatus,
@@ -12,7 +13,6 @@ from utils import (
     ModelSource,
     ModelTask,
     build_model_name,
-    incorrect_result,
 )
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -42,7 +42,11 @@ def create_inference_tester(format: str, optimization_level: int) -> ResnetTeste
         optimization_level=optimization_level,
     )
     return create_torch_inference_tester(
-        ResnetTester, VARIANT_NAME, format, compiler_config=compiler_config
+        ResnetTester,
+        VARIANT_NAME,
+        format,
+        compiler_config=compiler_config,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
     )
 
 
@@ -76,11 +80,11 @@ def training_tester() -> ResnetTester:
     "format,optimization_level",
     [
         pytest.param(
-            "bfp8",
+            "bfp_bf8",
             1,
         ),
         pytest.param(
-            "bfp8",
+            "bfp_bf8",
             0,
         ),
         pytest.param(

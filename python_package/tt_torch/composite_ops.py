@@ -127,6 +127,106 @@ def composite_layer_norm(
     return output
 
 
+def composite_group_norm(
+    input: Tensor,
+    num_groups: int,
+    weight: Optional[Tensor] = None,
+    bias: Optional[Tensor] = None,
+    eps: float = 1e-5,
+) -> Tensor:
+    """
+    Creates composite group_norm operation for torch xla using StableHLOCompositeBuilder.
+    Operation name is tenstorrent.group_norm for MLIR to handle it.
+
+    Args:
+        input: Input tensor to normalize
+        num_groups: Number of groups to divide the channels into
+        weight: Optional learnable weight parameter for affine transformation
+        bias: Optional learnable bias parameter for affine transformation
+        eps: Small constant for numerical stability (default: 1e-5)
+
+    Returns:
+        Normalized tensor with same shape as input
+    """
+    attr = {"num_groups": num_groups, "epsilon": eps, "channel_dim": 1}
+
+    builder = StableHLOCompositeBuilder(name="tenstorrent.group_norm", attr=attr)
+
+    if weight is not None and bias is not None:
+        input, weight, bias = builder.mark_inputs(input, weight, bias)
+    elif weight is not None:
+        input, weight = builder.mark_inputs(input, weight)
+    elif bias is not None:
+        input, bias = builder.mark_inputs(input, bias)
+    else:
+        input = builder.mark_inputs(input)
+
+    output = torch.nn.functional.group_norm(input, num_groups, weight, bias, eps)
+
+    output = builder.mark_outputs(output)
+
+    return output
+
+
+def composite_topk(
+    input: Tensor,
+    k: int,
+    dim: int = -1,
+    largest: bool = True,
+    sorted: bool = True,
+    *,
+    out: tuple[Tensor, ...] | list[Tensor] | None = None,
+) -> tuple[Tensor, Tensor]:
+    """
+    Creates composite topk operation for torch-xla using StableHLOCompositeBuilder.
+    Returns a (values, indices) tuple.
+    """
+    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
+
+    builder = StableHLOCompositeBuilder(name="tenstorrent.topk", attr=attrs)
+
+    input = builder.mark_inputs(input)
+    values, indices = torch.topk(input, k, dim, largest, sorted, out=out)
+    values, indices = builder.mark_outputs(values, indices)
+    return (values, indices)
+
+
+def composite_topk_values(
+    input: Tensor,
+    k: int,
+    dim: int = -1,
+    largest: bool = True,
+    sorted: bool = True,
+    *,
+    out: tuple[Tensor, ...] | list[Tensor] | None = None,
+) -> Tensor:
+    """Composite topk returning only values. Marks a single output at pos=0."""
+    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
+    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_values", attr=attrs)
+    input = builder.mark_inputs(input)
+    values, _ = torch.topk(input, k, dim, largest, sorted)
+    values = builder.mark_outputs(values)
+    return values
+
+
+def composite_topk_indices(
+    input: Tensor,
+    k: int,
+    dim: int = -1,
+    largest: bool = True,
+    sorted: bool = True,
+    *,
+    out: tuple[Tensor, ...] | list[Tensor] | None = None,
+) -> Tensor:
+    """Composite topk returning only indices. Marks a single output at pos=0."""
+    attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
+    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_indices", attr=attrs)
+    input = builder.mark_inputs(input)
+    _, indices = torch.topk(input, k, dim, largest, sorted)
+    indices = builder.mark_outputs(indices)
+    return indices
+
+
 ################# module replacements #################
 
 
@@ -186,10 +286,69 @@ def replace_layer_norm_module(
     gm.graph.erase_node(node)
 
 
+def replace_group_norm_module(
+    gm: torch.fx.GraphModule,
+    node: torch.fx.Node,
+    module: torch.nn.GroupNorm,
+) -> None:
+    """
+    Replace nn.GroupNorm call_module node with composite_group_norm call_function.
+
+    Transformation:
+        BEFORE: %out = call_module[target=group_norm](args=(%x,))
+        AFTER:  %weight = get_attr[target=group_norm.weight]
+                %bias = get_attr[target=group_norm.bias]
+                %out = call_function[target=composite_group_norm](
+                    args=(%x,),
+                    kwargs={num_groups: 8, weight: %weight,
+                            bias: %bias, eps: 1e-5}
+                )
+
+    Args:
+        gm: GraphModule containing the node
+        node: call_module node to replace
+        module: nn.GroupNorm instance
+    """
+    num_groups = module.num_groups
+    eps = module.eps
+    has_weight = module.weight is not None and module.affine
+    has_bias = module.bias is not None and module.affine
+
+    input_tensor = node.args[0]
+
+    kwargs = {"num_groups": num_groups, "eps": eps}
+
+    with gm.graph.inserting_before(node):
+        if has_weight:
+            weight_node = gm.graph.get_attr(f"{node.target}.weight")
+            kwargs["weight"] = weight_node
+        else:
+            kwargs["weight"] = None
+
+        if has_bias:
+            bias_node = gm.graph.get_attr(f"{node.target}.bias")
+            kwargs["bias"] = bias_node
+        else:
+            kwargs["bias"] = None
+
+        new_node = gm.graph.call_function(
+            composite_group_norm, args=(input_tensor,), kwargs=kwargs
+        )
+
+    node.replace_all_uses_with(new_node)
+    gm.graph.erase_node(node)
+
+
 """
 Dictionary holding replacement composite functions for torch functions and modules.
 Maps torch API calls and module types to composite implementations.
 Used for call_function and call_module nodes where node.target is a function reference or module type.
+
+When the node.target is a torch function returning just a single output, we use the
+composite function directly.
+
+When the node.target is a torch function returning multiple outputs, we use a dictionary
+of composite functions, keyed by the frozenset of output indices used.
 """
 replacements = {
     # function replacements
@@ -197,6 +356,25 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
+    # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
+    # torch.nn.functional.group_norm: composite_group_norm,
+    torch.topk: {
+        frozenset({0, 1}): composite_topk,
+        frozenset({0}): composite_topk_values,
+        frozenset({1}): composite_topk_indices,
+    },
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
+    # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
+    # torch.nn.GroupNorm: replace_group_norm_module,
+}
+
+"""
+Maps tensor method name strings to their torch function equivalents.
+Used to resolve call_method FX nodes (e.g. x.topk(k)) where dynamo sets
+node.target to the method name string "topk".
+The mapped function must be a key in `replacements` for the rewrite to apply.
+"""
+method_name_to_function = {
+    "topk": torch.topk,
 }

@@ -8,6 +8,7 @@ import gc
 import io
 import os
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -22,6 +23,40 @@ from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 
 from third_party.tt_forge_models.config import ModelInfo
+
+COMMIT_HASH_LOG_ENV_VAR = "TT_XLA_LOG_COMMIT_HASHES"
+
+
+def _get_commit(repo_path: Path) -> str:
+    """Return HEAD commit hash for repo_path, or a human-readable fallback."""
+    if not repo_path.is_dir():
+        return "N/A (path not present)"
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=os.fspath(repo_path),
+            text=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        return "Not a git repository"
+
+
+def _log_repo_commits(project_root: Path) -> None:
+    """Log commit hashes for tt-xla and its pinned third_party repos."""
+    tt_mlir = project_root / "third_party" / "tt-mlir" / "src" / "tt-mlir"
+    tt_metal = tt_mlir / "third_party" / "tt-metal" / "src" / "tt-metal"
+    logger.info(f"tt-xla commit: {_get_commit(project_root)}")
+    logger.info(f"tt-mlir commit: {_get_commit(tt_mlir)}")
+    logger.info(f"tt-metal commit: {_get_commit(tt_metal)}")
+
+
+def pytest_sessionstart(session: pytest.Session):
+    """Optionally log repository commit hashes once at pytest session start."""
+    del session  # unused hook arg
+    if os.environ.get(COMMIT_HASH_LOG_ENV_VAR, "0") != "1":
+        return
+    project_root = Path(__file__).resolve().parent.parent
+    _log_repo_commits(project_root)
 
 
 def pytest_configure(config: pytest.Config):

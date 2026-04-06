@@ -84,9 +84,7 @@ def test_op_tester_custom_comparator_is_called():
     ):
         tester = OpTester(framework=Framework.TORCH, custom_comparator=comparator)
 
-    with patch.object(tester, "_compile_for_tt_device"), patch(
-        "tests.infra.testers.single_chip.op.op_tester.compile_torch_workload_for_cpu"
-    ):
+    with patch.object(tester, "_compile_for_tt_device"):
         tester.test(_make_torch_workload())
 
     comparator.assert_called_once()
@@ -103,9 +101,9 @@ def test_op_tester_custom_comparator_is_not_called():
 
     assert tester._custom_comparator is None
 
-    with patch.object(tester, "_compile_for_tt_device"), patch(
-        "tests.infra.testers.single_chip.op.op_tester.compile_torch_workload_for_cpu"
-    ), patch.object(tester._evaluator, "evaluate") as mock_evaluate:
+    with patch.object(tester, "_compile_for_tt_device"), patch.object(
+        tester._evaluator, "evaluate"
+    ) as mock_evaluate:
         tester.test(_make_torch_workload())
 
     mock_evaluate.assert_called_once()
@@ -126,9 +124,7 @@ def test_graph_tester_custom_comparator_is_called():
     ):
         tester = GraphTester(framework=Framework.TORCH, custom_comparator=comparator)
 
-    with patch.object(tester, "_compile_for_tt_device"), patch(
-        "tests.infra.testers.single_chip.op.op_tester.compile_torch_workload_for_cpu"
-    ):
+    with patch.object(tester, "_compile_for_tt_device"):
         tester.test(_make_torch_workload())
 
     comparator.assert_called_once()
@@ -145,9 +141,9 @@ def test_graph_tester_custom_comparator_is_not_called():
 
     assert tester._custom_comparator is None
 
-    with patch.object(tester, "_compile_for_tt_device"), patch(
-        "tests.infra.testers.single_chip.op.op_tester.compile_torch_workload_for_cpu"
-    ), patch.object(tester._evaluator, "evaluate") as mock_evaluate:
+    with patch.object(tester, "_compile_for_tt_device"), patch.object(
+        tester._evaluator, "evaluate"
+    ) as mock_evaluate:
         tester.test(_make_torch_workload())
 
     mock_evaluate.assert_called_once()
@@ -168,9 +164,7 @@ def test_model_tester_custom_comparator_is_called():
     ):
         tester = _SimpleTorchModelTester(custom_comparator=comparator)
 
-    with patch.object(tester, "_compile_for_cpu"), patch.object(
-        tester, "_compile_for_tt_device"
-    ):
+    with patch.object(tester, "_compile_for_tt_device"):
         tester.test()
 
     comparator.assert_called_once()
@@ -187,9 +181,9 @@ def test_model_tester_custom_comparator_is_not_called():
 
     assert tester._custom_comparator is None
 
-    with patch.object(tester, "_compile_for_cpu"), patch.object(
-        tester, "_compile_for_tt_device"
-    ), patch.object(tester._evaluator, "evaluate") as mock_evaluate:
+    with patch.object(tester, "_compile_for_tt_device"), patch.object(
+        tester._evaluator, "evaluate"
+    ) as mock_evaluate:
         tester.test()
 
     mock_evaluate.assert_called_once()

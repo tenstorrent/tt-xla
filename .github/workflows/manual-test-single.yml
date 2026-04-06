@@ -31,6 +31,7 @@ on:
           - 'llmbox-1'
           - 'llmbox-2'
           - 'galaxy-wh-6u'
+          - 'qb2-blackhole'
       shared_runners:
         description: 'Run test on the CIv2 runner'
         required: false
@@ -55,8 +56,10 @@ on:
           type: string
 
 permissions:
+  actions: write
   packages: write
   checks: write
+  contents: read
 
 run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} )'
 

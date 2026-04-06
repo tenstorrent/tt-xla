@@ -12,6 +12,7 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
+from transformers import AutoModelForCausalLM
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
 from transformers.models.llama.modeling_llama import LlamaMLP
@@ -475,7 +476,7 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
 
 @pytest.mark.nightly
 @pytest.mark.parametrize("mlp_type", ["standard", "sparse"])
-@parametrize_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox", "galaxy"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("gpt_oss").items(),
@@ -483,7 +484,10 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
 )
 def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     if mlp_type == "sparse" and arch != "llmbox":
-        pytest.skip("Sparse MLP test only supported on multi-device (llmbox) arch")
+        # Cannot run sparse MLP on galaxy due to hang: https://github.com/tenstorrent/tt-xla/issues/3941
+        pytest.skip("Sparse MLP test only supported on llmbox arch")
+    if variant == GPTOSSModelVariant.GPT_OSS_120B and arch == "single_device":
+        pytest.skip("120B model too large for single device")
     if mlp_type != "sparse":
         request.node.add_marker(
             pytest.mark.filecheck(["matmul_with_activation_silu.ttnn.mlir"])
@@ -491,22 +495,25 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant, num_layers=1)
-    model = loader.load_model()
     config = loader.load_config()
-    inputs = loader.load_inputs()
 
-    batch_size = inputs["input_ids"].shape[0]  # 1
-    seq_len = inputs["input_ids"].shape[1]  # 128 with padding
+    batch_size = 1
+    seq_len = 128
 
+    model = AutoModelForCausalLM.from_config(
+        config, trust_remote_code=True, torch_dtype=torch.bfloat16
+    )
+    model.eval()
     mlp = model.model.layers[0].mlp
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
 
-    if arch == "llmbox":
+    if arch in ("llmbox", "galaxy"):
+        batch_size = 2 if arch == "llmbox" else 4
         num_devices = xr.global_runtime_device_count()
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
         if mlp_type == "sparse":
@@ -537,9 +544,14 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         mesh = None
         get_shard_spec = None
 
+    comparison_config = ComparisonConfig()
+    if variant == "120B" and arch == "single_device" and mlp_type == "standard":
+        comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.985))
+
     run_graph_test(
         mlp,
         [hidden_states],
+        comparison_config=comparison_config,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,

@@ -33,12 +33,12 @@ class RequirementsManager:
     - Also looks for system-requirements.txt for system packages (e.g. ffmpeg)
     """
 
-    # JAX test infra imports flax/transformers at module level; purging them
-    # from sys.modules would break isinstance checks between old class objects
-    # held by module-level variables (e.g. nnx.Module) and freshly loaded ones.
+    # JAX test infra imports flax at module level; purging it from sys.modules
+    # would break isinstance checks between old class objects held by
+    # module-level variables (e.g. nnx.Module) and freshly loaded ones.
     # Entries must be import names (e.g. "PIL", not "Pillow"), since they are
     # compared against resolved import names in _purge_stale_modules.
-    _JAX_PURGE_SKIP = frozenset({"flax", "transformers"})
+    _JAX_PURGE_SKIP = frozenset({"flax"})
 
     # Top-level directory names in RECORD that are not importable packages.
     _RECORD_SKIP = frozenset({"__pycache__", "bin", "share"})
@@ -314,14 +314,11 @@ class RequirementsManager:
         point to the old version's code.  Purging forces Python to re-import
         from the updated on-disk packages the next time they are imported.
 
-        For JAX, ``flax`` and ``transformers`` are excluded from purging because
-        the JAX test infrastructure imports them at module level during test
-        collection.  Purging them would create a mismatch between the old class
-        objects held by module-level variables (e.g. ``nnx.Module``) and the
-        freshly loaded ones, breaking ``isinstance`` checks.  Keeping them in
-        ``sys.modules`` preserves the same behaviour as before sys-module
-        purging was introduced — the old versions remain in memory and are used
-        consistently by both the tester and the model.
+        For JAX, ``flax`` is excluded from purging because the JAX test
+        infrastructure imports it at module level during test collection.
+        Purging it would create a mismatch between the old class objects held
+        by module-level variables (e.g. ``nnx.Module``) and the freshly loaded
+        ones, breaking ``isinstance`` checks.
         """
         affected_normalized: Set[str] = set()
         for name in self._newly_installed | set(self._changed_versions.keys()):
@@ -346,6 +343,7 @@ class RequirementsManager:
         for key in list(sys.modules.keys()):
             top_level = key.split(".")[0].lower().replace("-", "_")
             if top_level in affected_normalized:
+                self._unregister_arrow_ext_types(sys.modules[key])
                 purged.append(key)
                 del sys.modules[key]
 
@@ -355,6 +353,29 @@ class RequirementsManager:
             )
 
         importlib.invalidate_caches()
+
+    @staticmethod
+    def _unregister_arrow_ext_types(module) -> None:
+        """Unregister any pyarrow extension types defined in *module*.
+
+        pyarrow's C-level type registry survives sys.modules purges.
+        Without this, re-importing the module would re-register its types
+        and raise ArrowKeyError.
+        """
+        pa = sys.modules.get("pyarrow")
+        if pa is None:
+            return
+        for attr in vars(module).values():
+            if (
+                isinstance(attr, type)
+                and issubclass(attr, pa.ExtensionType)
+                and attr is not pa.ExtensionType
+            ):
+                name = f"{attr.__module__}.{attr.__qualname__}"
+                try:
+                    pa.unregister_extension_type(name)
+                except (pa.lib.ArrowKeyError, KeyError):
+                    pass
 
     @staticmethod
     def _pip(args: Tuple[str, ...]) -> None:

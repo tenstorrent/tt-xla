@@ -33,7 +33,7 @@ on:
         description: "Skip device performance measurement"
         required: false
         type: boolean
-        default: false
+        default: true
       perf_regression_check:
         description: "Enable perf metrics regression testing"
         required: false
@@ -295,7 +295,7 @@ jobs:
           | jq -r '.workflow_runs[0].id')
 
         if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-          echo "The tt-mlir commit doesn't contain a ttrt wheel artifact. Run an artifact building workflow on the commit (e.g. 'On PR')."
+          echo "The tt-mlir commit doesn't contain a ttrt wheel artifact. Run the "On push" workflow on the commit in tt-mlir."
           exit 1
         fi
 
@@ -352,7 +352,11 @@ jobs:
         cp ./modules/*.ttnn flatbuffers/ 2>/dev/null
 
         echo "Run ttrt perf"
-        ttrt perf flatbuffers --ignore-version
+        if [[ "${{ matrix.build.runs-on }}" == "galaxy-wh-6u" ]]; then
+          ttrt perf flatbuffers --ignore-version --fabric-config fabric_1d_ring
+        else
+          ttrt perf flatbuffers --ignore-version
+        fi
 
         echo "Write device perf to report"
         python3 ./tests/benchmark/scripts/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }}
