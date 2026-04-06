@@ -217,9 +217,28 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
                 positional_prefix = len(args)
                 positional_args = call_args[:positional_prefix]
                 kwarg_args = call_args[positional_prefix:]
-                rebuilt_kwargs = {
-                    key: value for key, value in zip(kwarg_keys, kwarg_args, strict=True)
-                }
+
+                if len(kwarg_args) == len(kwarg_keys):
+                    rebuilt_kwargs = {
+                        key: value for key, value in zip(kwarg_keys, kwarg_args, strict=True)
+                    }
+                elif len(kwarg_args) == len(kwarg_keys) - 1 and kwarg_keys[0] == "params":
+                    rebuilt_kwargs = {"params": kwargs["params"]}
+                    rebuilt_kwargs.update(
+                        {
+                            key: value
+                            for key, value in zip(
+                                kwarg_keys[1:], kwarg_args, strict=True
+                            )
+                        }
+                    )
+                else:
+                    raise AssertionError(
+                        "Unexpected HF Flax multichip kwarg flattening mismatch: "
+                        f"expected {len(kwarg_keys)} or {len(kwarg_keys) - 1} "
+                        f"runtime kwargs, got {len(kwarg_args)}"
+                    )
+
                 return self._workload.executable(*positional_args, **rebuilt_kwargs)
 
             args = [*args, *kwarg_values]
