@@ -348,8 +348,7 @@ ModuleBuilder::buildModule(
   }
 
   std::string optimized_mlir_code = getMlirCode(sanitized_module);
-  printModule(sanitized_module, compile_options.export_path,
-              "shlo_compiler_cleaned");
+  //printModule(sanitized_module, compile_options.export_path,"shlo_compiler_cleaned");
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
@@ -429,7 +428,7 @@ ModuleBuilder::createVHLOModule(const std::string_view &mlir_code,
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(vhlo_module, export_path, "vhlo", model_name);
+  //printModule(vhlo_module, export_path, "vhlo", model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -449,7 +448,7 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(mlir_module, export_path, "shlo", model_name);
+  //printModule(mlir_module, export_path, "shlo", model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -462,7 +461,7 @@ tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
   tt_pjrt_status status =
       frontend_passes::annotateArgumentAttributes(mlir_module);
 
-  printModule(mlir_module, export_path, "shlo_frontend", model_name);
+  //printModule(mlir_module, export_path, "shlo_frontend", model_name);
 
   return status;
 }
@@ -840,7 +839,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(mlir_module, export_path, "shlo_compiler", model_name);
+  //printModule(mlir_module, export_path, "shlo_compiler", model_name);
 
   if (!tt_pjrt_status_is_ok(
           frontend_passes::setProperSdyMeshAttributeInSpmdMode(
@@ -849,7 +848,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(mlir_module, export_path, "shlo_set_mesh_attr", model_name);
+  //printModule(mlir_module, export_path, "shlo_set_mesh_attr", model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -1114,8 +1113,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   ttnn_mlir = getMlirCode(mlir_module);
 
-  printModule(mlir_module, compile_options.export_path, "ttnn",
-              compile_options.export_model_name);
+  //printModule(mlir_module, compile_options.export_path, "ttnn",compile_options.export_model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -1216,12 +1214,11 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                                 const std::optional<std::string> &export_path,
                                 const std::string &stage_name,
                                 const std::string &model_name) {
-  if (loguru::g_stderr_verbosity >= LOG_DEBUG) {
-    VLOG_F(LOG_DEBUG, "MLIR Module %s:", stage_name.c_str());
-    mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
-    llvm::errs()
-        << "------------------ END OF MLIR MODULE ------------------\n";
-  }
+  
+  VLOG_F(LOG_DEBUG, "MLIR Module %s:", stage_name.c_str());
+  mlir_module->print(llvm::errs(), mlir::OpPrintingFlags().enableDebugInfo());
+  llvm::errs()
+      << "------------------ END OF MLIR MODULE ------------------\n";
 
   if (!export_path.has_value()) {
     return;
