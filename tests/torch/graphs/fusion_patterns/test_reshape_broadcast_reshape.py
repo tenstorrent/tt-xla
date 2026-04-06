@@ -14,14 +14,14 @@ from utils import Category
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["reshape_broadcast_reshape_to_repeat_interleave.ttnn.mlir"])
 def test_reshape_broadcast_reshape_to_repeat_interleave(request):
-    # insert 1 after kv_heads: (1,2,32,64) -> (1,2,1,32,64) -> expand -> (1,8,32,64)
-    # changedDim(1) == insertedDim(2) - 1  =>  repeat_interleave
     def repeat_interleave_pattern(x: torch.Tensor) -> torch.Tensor:
-        return x.reshape(1, 2, 1, 32, 64).expand(1, 2, 4, 32, 64).reshape(1, 8, 32, 64)
+        return (
+            x.reshape(11, 3, 1, 32, 64).expand(11, 3, 5, 32, 64).reshape(11, 15, 32, 64)
+        )
 
     run_graph_test_with_random_inputs(
         repeat_interleave_pattern,
-        [(1, 2, 32, 64)],
+        [(11, 3, 32, 64)],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
         request=request,
@@ -34,14 +34,14 @@ def test_reshape_broadcast_reshape_to_repeat_interleave(request):
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["reshape_broadcast_reshape_to_repeat.ttnn.mlir"])
 def test_reshape_broadcast_reshape_to_repeat(request):
-    # insert 1 before kv_heads: (1,2,32,64) -> (1,1,2,32,64) -> expand -> (1,8,32,64)
-    # changedDim(1) == insertedDim(1)  =>  repeat
     def repeat_pattern(x: torch.Tensor) -> torch.Tensor:
-        return x.reshape(1, 1, 2, 32, 64).expand(1, 4, 2, 32, 64).reshape(1, 8, 32, 64)
+        return (
+            x.reshape(11, 1, 3, 32, 64).expand(11, 5, 3, 32, 64).reshape(11, 15, 32, 64)
+        )
 
     run_graph_test_with_random_inputs(
         repeat_pattern,
-        [(1, 2, 32, 64)],
+        [(11, 3, 32, 64)],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
         request=request,

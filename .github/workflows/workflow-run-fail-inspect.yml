@@ -26,8 +26,8 @@ on:
       - completed
 
 permissions:
-  packages: write
-  checks: write
+  actions: write
+  contents: read
 
 
 jobs:
@@ -55,7 +55,7 @@ jobs:
       #   id: inspect-failures
       #   shell: bash
       #   env:
-      #       GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      #       GH_TOKEN: ${{ github.token }}
       #   run: |
       #     repo="${{ github.repository }}"
       #     test_job_names=("test ")
@@ -206,7 +206,7 @@ jobs:
         id: success-failed
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           repo="${{ github.repository }}"
           wf_name="schedule-nightly.yml"
@@ -342,7 +342,7 @@ jobs:
 
     env:
       TT_XLA_CI: 1
-      GH_TOKEN: ${{ secrets.GH_TOKEN }} # for gh cli tool
+      GH_TOKEN: ${{ github.token }} # for gh cli tool
 
     steps:
       - name: Mark repo as safe for git

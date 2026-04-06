@@ -1,5 +1,10 @@
 name: Test (call)
 
+permissions:
+  actions: write
+  checks: write
+  contents: read
+
 on:
   workflow_call:
     inputs:
@@ -329,7 +334,7 @@ jobs:
       env:
         HF_HOME: /mnt/dockercache/huggingface
         TORCH_HOME: /mnt/dockercache/torchhub
-        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        GITHUB_TOKEN: ${{ github.token }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
       shell: bash
@@ -398,7 +403,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-*" --dir test_reports || echo "No reports found"
           find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \;
