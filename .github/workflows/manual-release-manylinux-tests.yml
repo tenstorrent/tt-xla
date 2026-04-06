@@ -15,7 +15,7 @@ on:
         description: 'Branch to build from'
         type: string
         required: false
-        default: 'main'
+        default: 'master'
 
 permissions:
   actions: write
