@@ -6,7 +6,8 @@
 Shared utilities for Z-Image-Turbo proper_tp inference.
 
 Models loaded from: Tongyi-MAI/Z-Image-Turbo
-  - transformer: ZImageTransformer2DModel, 30 layers, dim=3840, n_heads=30
+  - text_encoder: Qwen3Model (Qwen3-2.5B), 36 layers, hidden_size=2560
+  - transformer:  ZImageTransformer2DModel, 30 layers, dim=3840, n_heads=30
 """
 
 import os
@@ -33,6 +34,44 @@ def get_mesh(mesh_shape, axis_names):
     mesh = Mesh(device_ids, mesh_shape, axis_names)
     print(f"Created mesh: shape={mesh_shape}, axes={axis_names}, devices={num_devices}")
     return mesh
+
+
+def load_text_encoder():
+    """Load Qwen3 text encoder (base model, no LM head) in bf16."""
+    from transformers import AutoModel, AutoTokenizer
+
+    print(f"Loading text encoder from {MODEL_ID}/text_encoder ...")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, subfolder="tokenizer")
+    text_encoder = AutoModel.from_pretrained(
+        MODEL_ID,
+        subfolder="text_encoder",
+        torch_dtype=torch.bfloat16,
+        use_cache=False,
+    )
+    text_encoder.eval()
+    print(
+        f"Text encoder loaded: {sum(p.numel() for p in text_encoder.parameters())/1e9:.2f}B params"
+    )
+    return tokenizer, text_encoder
+
+
+def apply_te_sharding_tp(text_encoder, mesh, model_axis="model"):
+    """Apply Megatron-style tensor parallel sharding to Qwen3 text encoder.
+
+    Column-parallel: q/k/v_proj, gate_proj, up_proj  -> (model_axis, None)
+    Row-parallel:    o_proj, down_proj               -> (None, model_axis)
+
+    Requires: num_attention_heads % mesh[model_axis] == 0  (32 / 4 = 8 ✓)
+              num_key_value_heads % mesh[model_axis] == 0  (8 / 4 = 2 ✓)
+    """
+    for layer in text_encoder.layers:
+        xs.mark_sharding(layer.mlp.up_proj.weight,      mesh, (model_axis, None))
+        xs.mark_sharding(layer.mlp.gate_proj.weight,    mesh, (model_axis, None))
+        xs.mark_sharding(layer.mlp.down_proj.weight,    mesh, (None, model_axis))
+        xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, (model_axis, None))
+        xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, (model_axis, None))
+        xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, (model_axis, None))
+        xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, model_axis))
 
 
 def load_transformer():
@@ -104,19 +143,22 @@ def apply_transformer_full_sharding_tp(transformer, mesh, model_axis="model"):
 
 
 def patch_rope_for_tt():
-    """Replace complex-number RoPE with real-valued equivalent for TT backend.
+    """Apply all TT-backend compatibility patches. Call once before any model runs.
 
-    TT-MLIR does not support complex<f32> tensors. ZImageTransformer2DModel uses
-    torch.polar / torch.view_as_complex for RoPE. This patch replaces them with
-    equivalent real ops:
-      precompute_freqs_cis: returns [end, dim//2, 2] real (cos at ...,0; sin at ...,1)
-      RopeEmbedder.__call__: cats on dim=-2 instead of -1
-      ZSingleStreamAttnProcessor.__call__: uses real multiply instead of complex
+    Patches applied:
+    1. Real-valued RoPE: TT-MLIR doesn't support complex<f32>. Replaces
+       torch.polar/view_as_complex in ZImageTransformer2DModel with equivalent
+       real ops (cos/sin multiply).
 
-    Also patches _prepare_sequence to replace boolean-indexed assignment with
-    torch.where, which is XLA-compatible (no dynamic shape indexing).
+    2. XLA-compatible _prepare_sequence: replaces boolean-indexed tensor
+       assignment with torch.where (no dynamic shape indexing).
 
-    Call once before any model runs so all models share the same implementation.
+    3. XLA-compatible unpatchify: derives reshape dims from tensor shape instead
+       of Python ints from the `size` list argument, avoiding a dynamo graph break.
+
+    4. cumsum u8 fix: TT hardware only supports cumsum on INT32/UINT32/BFLOAT16/
+       UINT16/FLOAT32. transformers/masking_utils.py calls .cumsum() on a boolean
+       tensor (maps to uint8). Patched to cast to int32 first.
     """
     from diffusers.models.transformers.transformer_z_image import (
         RopeEmbedder,
@@ -308,3 +350,23 @@ def patch_rope_for_tt():
     ZImageTransformer2DModel._unpatchify_original = ZImageTransformer2DModel.unpatchify
     ZImageTransformer2DModel.unpatchify = _unpatchify_xla
     print("Applied XLA-compatible unpatchify patch (tensor-shape reshape, single graph)")
+
+    # Patch find_packed_sequence_indices to cast bool→int32 before cumsum.
+    # (position_diff != 1) produces a bool tensor; .cumsum() on bool → uint8,
+    # which TT hardware does not support. Cast to int32 before cumsum.
+    from transformers import masking_utils as _masking_utils
+
+    _original_find_packed = _masking_utils.find_packed_sequence_indices
+
+    def _find_packed_sequence_indices_tt(position_ids: torch.Tensor):
+        first_dummy_value = position_ids[:, :1] - 1
+        position_diff = torch.diff(position_ids, prepend=first_dummy_value, dim=-1)
+        # Cast bool to int32 before cumsum — TT does not support cumsum on uint8/bool
+        packed_sequence_mask = (position_diff != 1).to(torch.int32).cumsum(-1)
+        from transformers.utils.import_utils import is_tracing
+        if not is_tracing(packed_sequence_mask) and (packed_sequence_mask[:, -1] == 0).all():
+            return None
+        return packed_sequence_mask
+
+    _masking_utils.find_packed_sequence_indices = _find_packed_sequence_indices_tt
+    print("Applied cumsum u8 fix (bool→int32 cast before cumsum in masking_utils)")
