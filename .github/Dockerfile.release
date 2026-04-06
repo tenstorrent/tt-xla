@@ -38,7 +38,7 @@ RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
 
 COPY *.whl /tmp/
-RUN pip install --no-cache-dir /tmp/*.whl && \
+RUN pip install --no-cache-dir --ignore-installed /tmp/*.whl && \
     tt-forge-install && \
     rm -rf /tmp/*.whl
 
