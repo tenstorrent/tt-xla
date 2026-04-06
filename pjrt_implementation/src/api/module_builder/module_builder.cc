@@ -983,6 +983,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   static std::atomic<int> graph_counter{0};
 
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+  options.enableGreedyOptimizer = true;
 
   // Optimizer passes are not supported in distributed runtime.
   if (tt::runtime::getCurrentHostRuntime() ==
