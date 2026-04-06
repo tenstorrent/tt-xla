@@ -2,6 +2,20 @@ name: Manual manylinux release tests
 
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Type of build to test'
+        type: choice
+        required: true
+        default: 'release'
+        options:
+          - release
+          - debug
+      branch:
+        description: 'Branch to build from'
+        type: string
+        required: false
+        default: 'main'
 
 permissions:
   actions: write
@@ -14,23 +28,12 @@ jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
-    with:
-      dockbuild: all
 
-  build-ttxla:
-    uses: ./.github/workflows/call-build-manylinux.yml
-    name: "Build manylinux tt-xla"
-    secrets: inherit
+  build-xla-torch:
+    runs-on: builder
     needs: build-image
-    with:
-      docker-image: ${{ needs.build-image.outputs.docker-image-manylinux }}
-
-  build-release-docker:
-    name: Build Fedora Docker image with manylinux wheel
-    runs-on: ubuntu-latest
-    needs: build-ttxla
-    outputs:
-      docker_image: ${{ steps.build-docker.outputs.docker_image }}
+    container:
+      image: ${{ needs.build-image.outputs.docker-image }}
     steps:
       - name: Fix workspace permissions issue
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
@@ -38,60 +41,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ github.token }}
-
-      - name: Download manylinux wheel
-        uses: actions/download-artifact@v6
-        with:
-          name: xla-whl-manylinux
-          path: .
-
-      - name: Build & push Docker image
+      - name: Build xla-torch
         shell: bash
-        id: build-docker
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
         run: |
-          set -eo pipefail
+          # set up limit for bazel to avoid OOM issues on GitHub runners
+          echo "build --local_ram_resources=HOST_RAM*0.8" > ~/.bazelrc
+          echo "build --local_cpu_resources=12" >> ~/.bazelrc
+          echo "build --discard_analysis_cache" >> ~/.bazelrc
+          scripts/build_torch_xla.sh --${{ inputs.build_type }} --wheel --branch=${{ inputs.branch }}
 
-          docker_tag=${{ github.sha }}
-          IMAGE_NAME=ghcr.io/tenstorrent/tt-xla/tt-xla-bare-fedora
+      - name: List built wheel
+        run: ls -l temp/pytorch/dist/*.whl
 
-          if docker manifest inspect $IMAGE_NAME:$docker_tag > /dev/null; then
-            echo "Docker image $IMAGE_NAME:$docker_tag exists"
-          else
-            echo "Building image $IMAGE_NAME:$docker_tag"
-            docker build \
-              --progress=plain \
-              -t $IMAGE_NAME:$docker_tag \
-              -f .github/Dockerfile.release-fedora .
-
-            echo "Pushing image $IMAGE_NAME:$docker_tag"
-            docker push $IMAGE_NAME:$docker_tag
-          fi
-
-          echo "docker_image=$IMAGE_NAME:$docker_tag" >> "$GITHUB_OUTPUT"
-
-  basic-tests:
-    needs: [ build-release-docker ]
-    uses: tenstorrent/tt-forge/.github/workflows/basic-tests.yml@main
-    secrets: inherit
-    with:
-      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
-      ref: main
-      project-filter: tt-xla
-
-  demo-tests:
-    needs: [ build-release-docker ]
-    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
-    secrets: inherit
-    with:
-      docker-image: ${{ needs.build-release-docker.outputs.docker_image }}
-      ref: main
-      project-filter: tt-xla
+      - name: Upload xla-torch wheel
+        uses: actions/upload-artifact@v6
+        with:
+          name: xla-torch-wheel-${{ inputs.build_type }}
+          path: temp/pytorch/dist/*.whl

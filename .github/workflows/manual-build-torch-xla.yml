@@ -11,6 +11,11 @@ on:
         options:
           - release
           - debug
+      branch:
+        description: 'Branch to build from'
+        type: string
+        required: false
+        default: 'main'
 
 permissions:
   actions: write
@@ -45,7 +50,10 @@ jobs:
           echo "build --local_ram_resources=HOST_RAM*0.8" > ~/.bazelrc
           echo "build --local_cpu_resources=12" >> ~/.bazelrc
           echo "build --discard_analysis_cache" >> ~/.bazelrc
-          scripts/build_torch_xla.sh --${{ inputs.build_type }}
+          scripts/build_torch_xla.sh --${{ inputs.build_type }} --wheel --branch=${{ inputs.branch }}
+
+      - name: List built wheel
+        run: ls -l temp/pytorch/dist/*.whl
 
       - name: Upload xla-torch wheel
         uses: actions/upload-artifact@v6
