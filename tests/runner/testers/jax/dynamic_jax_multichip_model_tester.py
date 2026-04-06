@@ -210,13 +210,13 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         # HF Flax kwargs into ordered positional args so multichip execution uses the
         # same contract for both CPU and TT compilation/execution.
         if isinstance(self._model, FlaxPreTrainedModel) and kwargs:
+            positional_arg_count = len(args)
             kwarg_keys = tuple(kwargs.keys())
             kwarg_values = tuple(kwargs[key] for key in kwarg_keys)
 
             def executable(*call_args):
-                positional_prefix = len(args)
-                positional_args = call_args[:positional_prefix]
-                kwarg_args = call_args[positional_prefix:]
+                positional_args = call_args[:positional_arg_count]
+                kwarg_args = call_args[positional_arg_count:]
 
                 if len(kwarg_args) == len(kwarg_keys):
                     rebuilt_kwargs = {
