@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   uplift-pjrt-api:
@@ -129,4 +130,4 @@ jobs:
             - [ ] Run the `model-test-extended.json` test matrix against this branch (needs to be run manually).
           draft: false
           delete-branch: true
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ github.token }}

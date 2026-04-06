@@ -49,8 +49,10 @@ on:
         default: false
 
 permissions:
+  actions: write
   packages: write
   checks: write
+  contents: read
 
 run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
 
