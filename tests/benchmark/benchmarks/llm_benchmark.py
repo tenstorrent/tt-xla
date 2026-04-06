@@ -487,9 +487,7 @@ def benchmark_llm_torch_xla(
 
     # Post-processing: derive predicted tokens for accuracy testing
     if accuracy_testing:
-        predicted_tokens = [
-            logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits
-        ]
+        predicted_tokens = [logits.argmax(dim=-1)[0].item() for logits in output_logits]
 
     ttft_ns = iteration_times[0]
     ttft_ms = ttft_ns / 1e6
