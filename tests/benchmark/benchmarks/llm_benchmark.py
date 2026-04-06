@@ -22,7 +22,7 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.sharding import sharding_constraint_hook, sharding_constraint_tensor
 from utils import (
     build_xla_export_name,
     compute_pcc,
@@ -372,13 +372,23 @@ def benchmark_llm_torch_xla(
 
         # Also shard KV cache tensors created in input_args
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+            xs.mark_sharding(layer.keys, mesh, ("batch", "model", None, None))
+            xs.mark_sharding(layer.values, mesh, ("batch", "model", None, None))
+
+        # Shard input_ids on batch dimension
+        xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
 
         # Apply sharding constraint on lm_head output to all_gather logits
         if hasattr(model, "lm_head") and model.lm_head is not None:
             hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
             model.lm_head.register_forward_hook(hook)
+
+    # Build output sharding constraint for next_token_ids (batch-sharded)
+    output_sharding_constraint = None
+    if is_multichip:
+        output_sharding_constraint = lambda t: sharding_constraint_tensor(
+            t, mesh, ("batch", None)
+        )
 
     # Set XLA compilation options
     num_layers_override = getattr(model_loader, "num_layers", None)
@@ -405,7 +415,12 @@ def benchmark_llm_torch_xla(
 
     # PERFORMANCE BENCHMARK
     # No logits returned to avoid OOM.
-    perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
+    perf_wrapper = LLMSamplingWrapper(
+        model,
+        read_logits_fn,
+        return_logits=False,
+        output_sharding_constraint=output_sharding_constraint,
+    )
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
@@ -443,6 +458,8 @@ def benchmark_llm_torch_xla(
         input_args["cache_position"] = decode_only_cache_position
 
     input_args = transfer_to_device(input_args, device)
+    if is_multichip:
+        xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
@@ -463,7 +480,12 @@ def benchmark_llm_torch_xla(
     # ACCURACY BENCHMARK
     # Logits moved to CPU each step to avoid OOM.
     if not decode_only:
-        accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+        accuracy_wrapper = LLMSamplingWrapper(
+            model,
+            read_logits_fn,
+            return_logits=True,
+            output_sharding_constraint=output_sharding_constraint,
+        )
         accuracy_wrapper.eval()
         compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
 
@@ -482,6 +504,8 @@ def benchmark_llm_torch_xla(
             ),
         )
         input_args = transfer_to_device(input_args, device)
+        if is_multichip:
+            xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
 
         print(
             f"\nStarting accuracy benchmark "

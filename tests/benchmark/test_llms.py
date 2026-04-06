@@ -1595,6 +1595,58 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     )
 
 
+def _batch_parallel_input_sharding_fn(mesh, input_args):
+    """Data-parallel style batch sharding (activations only).
+    Matches non-xfail DP patterns (vLLM plugin / examples): shard only
+    activation inputs on the batch axis and keep parameter sharding policy
+    independent.
+    """
+    xs.mark_sharding(input_args["input_ids"], mesh, ("batch", None))
+
+
+def _gpt_oss_galaxy_mesh_config_fn(model_loader, num_devices):
+    """4x8 wormhole_galaxy mesh (benchmark-only; forge loader stays upstream main)."""
+
+    if num_devices != 32:
+        raise ValueError(
+            "GPT-OSS wormhole_galaxy benchmarks expect 32 devices (4x8 mesh)."
+        )
+    return (4, 8), ("batch", "model")
+
+
+def _gpt_oss_galaxy_shard_spec_fn(model_loader, model):
+    """Galaxy 4x8 shard layout aligned with repo ``tt-metal_galaxy_parallelism`` (tt-metal HF tensors).
+    Mesh axes: ``("batch", "model")`` — TP on the 8-wide ``model`` columns; weights use ``None``
+    on ``batch`` (replicated across rows). Activations: batch-sharded via ``input_sharding_fn``.
+    MoE / sinks / lm_head axes match the "Closest tt-metal-style shard specs" and shape notes
+    there (vocab-parallel ``lm_head`` on HF ``[vocab, hidden]``).
+    """
+
+    batch_axis = None
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, batch_axis)
+    shard_specs[model.model.norm.weight] = (batch_axis,)
+    # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
+    shard_specs[model.lm_head.weight] = (None, None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.o_proj.weight] = (batch_axis, "model")
+        shard_specs[layer.self_attn.sinks] = ("model",)
+        shard_specs[layer.mlp.router.weight] = (None, batch_axis)
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
+        shard_specs[layer.input_layernorm.weight] = (batch_axis,)
+        shard_specs[layer.post_attention_layernorm.weight] = (batch_axis,)
+
+    return shard_specs
+
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     output_file,
@@ -1620,10 +1672,10 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        batch_size=(
-            batch_size if batch_size is not None else 64
-        ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
+        batch_size=128,
         arch="wormhole_galaxy",
         optimization_level=1,
+        mesh_config_fn=_gpt_oss_galaxy_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_galaxy_shard_spec_fn,
         trace_enabled=False,
     )

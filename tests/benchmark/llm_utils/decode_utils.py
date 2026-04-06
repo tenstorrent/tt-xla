@@ -38,11 +38,13 @@ class LLMSamplingWrapper(torch.nn.Module):
         model: torch.nn.Module,
         read_logits_fn,
         return_logits: bool = True,
+        output_sharding_constraint=None,
     ):
         super().__init__()
         self.model = model
         self.read_logits_fn = read_logits_fn
         self.return_logits = return_logits
+        self.output_sharding_constraint = output_sharding_constraint
 
     def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
         output = self.model(
@@ -53,6 +55,8 @@ class LLMSamplingWrapper(torch.nn.Module):
         )
         logits = self.read_logits_fn(output)
         next_token_ids = logits[:, -1].argmax(dim=-1, keepdim=True)
+        if self.output_sharding_constraint is not None:
+            next_token_ids = self.output_sharding_constraint(next_token_ids)
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
             return next_token_ids, next_cache_position, logits
