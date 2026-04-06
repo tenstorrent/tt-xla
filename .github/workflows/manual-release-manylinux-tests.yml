@@ -53,7 +53,7 @@ jobs:
           scripts/build_torch_xla.sh --${{ inputs.build_type }} --wheel --branch=${{ inputs.branch }}
 
       - name: List built wheel
-        run: ls -l temp/pytorch/dist/*.whl
+        run: find temp -name "*.whl" -exec ls -l {} \;
 
       - name: Upload xla-torch wheel
         uses: actions/upload-artifact@v6
