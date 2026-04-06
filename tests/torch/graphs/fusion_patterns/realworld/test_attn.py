@@ -92,7 +92,9 @@ def test_gpt_oss_20b_sdpa(layer_idx, request):
         attention,
         [hidden_states, (cos, sin), None, None],
         framework=Framework.TORCH,
-        compiler_config=CompilerConfig(optimization_level=1),
+        # Revert optimization level to 1 once tt-mlir issue is fixed:
+        # https://github.com/tenstorrent/tt-mlir/issues/7763
+        compiler_config=CompilerConfig(optimization_level=0),
         comparison_config=comparison_config,
         request=request,
     )
