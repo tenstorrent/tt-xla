@@ -115,17 +115,17 @@ jobs:
               ${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/src/tt-mlir/build/tools/tt-alchemist/templates
 
       - name: Build vllm plugin wheel
-        if: inputs.build_type == 'release'
+        if: inputs.build_type == 'release' || inputs.build_type == 'debug'
         shell: bash
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin
-            python setup.py bdist_wheel $(if [ '${{ inputs.debug_build }}' == 'true' ]; then echo '--code-coverage'; fi)
+            python setup.py bdist_wheel
 
       - name: Upload the vllm plugin wheel
-        if: inputs.build_type == 'release'
+        if: inputs.build_type == 'release' || inputs.build_type == 'debug'
         id: upload-vllm-tt-wheel
         uses: actions/upload-artifact@v6
         with:
-            name: vllm-tt-whl-${{ inputs.build_type }}${{ inputs.artifact_suffix }}
+            name: vllm-tt-whl-release${{ inputs.artifact_suffix }} # sketch
             path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
