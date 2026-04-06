@@ -229,8 +229,6 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   }
 
   if (m_executable_image->getCompileOptions().dry_run) {
-    // dry_run mode: skip actual execution and return zero-filled output
-    // buffers.
     createDefaultOutputBuffers(args->output_lists, args->num_devices);
     return tt_pjrt_status::kSuccess;
   }
