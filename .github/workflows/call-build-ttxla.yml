@@ -127,5 +127,5 @@ jobs:
         id: upload-vllm-tt-wheel
         uses: actions/upload-artifact@v6
         with:
-            name: vllm-tt-whl-release${{ inputs.artifact_suffix }} # sketch
+            name: vllm-tt-whl-release${{ inputs.artifact_suffix }} # sketchy
             path: ${{ steps.strings.outputs.work-dir }}/integrations/vllm_plugin/dist/vllm_tt*.whl
