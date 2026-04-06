@@ -191,23 +191,35 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
+          set -euo pipefail
+          echo "=== [1/5] Enter workspace and activate venv ==="
           cd /workspace
           source venv/activate
+          echo "=== [1/5] Complete: venv active ==="
 
+          echo "=== [2/5] Export logger and test env (TTXLA_*, TT_METAL_*) ==="
           export TTXLA_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_TYPES=Fabric,Always
           # export TT_RUNTIME_USING_DUALT3K=1
+          echo "=== [2/5] Complete ==="
 
-          echo "--- topology env export (before eval) ---"
+          echo "=== [3/5] Topology dry-run (print export lines to stdout) ==="
           python -m tests.torch.multi_host.topology \
             --topology dual_t3k \
             --script-dir tests/torch/multi_host/experimental
-          eval $(python -m tests.torch.multi_host.topology \
-            --topology dual_t3k \
-            --script-dir tests/torch/multi_host/experimental)
+          echo "=== [3/5] Complete ==="
 
+          echo "=== [4/5] Apply topology exports (eval) and show TT_DISTRIBUTED_* / TT_RUNTIME_* ==="
+          eval "$(python -m tests.torch.multi_host.topology \
+            --topology dual_t3k \
+            --script-dir tests/torch/multi_host/experimental)"
+          env | grep -E "^(TT_RUNTIME_ENABLE_DISTRIBUTED|TT_DISTRIBUTED_)" | sort || true
+          echo "=== [4/5] Complete ==="
+
+          echo "=== [5/5] Run pytest ==="
           pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
+          echo "=== [5/5] Complete: pytest exited successfully ==="
         '
 
     - name: Upload Test Log
