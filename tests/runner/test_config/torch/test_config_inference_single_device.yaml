@@ -2654,8 +2654,8 @@ test_config:
     reason: "stablehlo.scatter failed to legalize to TTIR - https://github.com/tenstorrent/tt-xla/issues/4044"
 
   gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Dynamic shapes from get_placeholder_mask cause ValueError in _xla_warm_up_cache - https://github.com/tenstorrent/tt-xla/issues/3854"
+    status: EXPECTED_PASSING
+    # reason: "Dynamic shapes from get_placeholder_mask cause ValueError in _xla_warm_up_cache - https://github.com/tenstorrent/tt-xla/issues/3854"
 
   gemma3/causal_lm/pytorch-270M_Instruct-single_device-inference:
     status: EXPECTED_PASSING
