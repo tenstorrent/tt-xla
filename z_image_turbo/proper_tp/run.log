@@ -1,4 +1,4 @@
-2026-04-06 14:02:48.622 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+2026-04-06 14:32:06.838 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
 /localdev/svuckovic/_workspace/repos/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
   warnings.warn(
 Applied real-valued RoPE patch (no complex tensors) for TT backend compatibility
@@ -7,8 +7,8 @@ Applied XLA-compatible unpatchify patch (tensor-shape reshape, single graph)
 
 Running CPU reference (original 30-head model, patched RoPE)...
 Loading transformer from Tongyi-MAI/Z-Image-Turbo/transformer ...
-Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 11491.24it/s]
-Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:01,  1.44it/s]Loading checkpoint shards:  67%|██████▋   | 2/3 [00:01<00:00,  1.47it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.94it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.78it/s]
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 10058.28it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:01,  1.40it/s]Loading checkpoint shards:  67%|██████▋   | 2/3 [00:01<00:00,  1.45it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.92it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.76it/s]
 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
 WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
 Transformer loaded: 6.15B params
@@ -16,10 +16,10 @@ CPU reference output shapes: [torch.Size([16, 1, 32, 32])]
 
 Running padded 32-head model on CPU (padding correctness check)...
 Loading transformer from Tongyi-MAI/Z-Image-Turbo/transformer ...
-Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 12075.73it/s]
-Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:01,  1.79it/s]Loading checkpoint shards:  67%|██████▋   | 2/3 [00:01<00:00,  1.59it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  2.05it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.92it/s]
-2026-04-06 14:03:02.862 (   4.632s) [        75A46140]              stubs.inc:122   WARN| STUB: PJRT_Client_TopologyDescription
-2026-04-06 14:03:02.863146: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 12421.43it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:01,  1.79it/s]Loading checkpoint shards:  67%|██████▋   | 2/3 [00:01<00:00,  1.58it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  2.04it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.92it/s]
+2026-04-06 14:32:21.228 (   4.701s) [        CF392140]              stubs.inc:122   WARN| STUB: PJRT_Client_TopologyDescription
+2026-04-06 14:32:21.228292: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
 Transformer loaded: 6.15B params
 Head padding applied: 30 → 32 heads (+2 zero-weight dummy heads)
 
@@ -37,20 +37,20 @@ Codegen output will be written to: /localdev/svuckovic/_workspace/repos/tt-xla/z
 Created mesh: shape=(1, 4), axes=('batch', 'model'), devices=4
 Using dummy cap_feats on TT: torch.Size([7, 2560])
 Loading transformer from Tongyi-MAI/Z-Image-Turbo/transformer ...
-Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 9853.49it/s]
-Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:01,  1.43it/s]Loading checkpoint shards:  67%|██████▋   | 2/3 [00:01<00:00,  1.47it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.94it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.78it/s]
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 12633.45it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|███▎      | 1/3 [00:00<00:01,  1.49it/s]Loading checkpoint shards:  67%|██████▋   | 2/3 [00:01<00:00,  1.49it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.97it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:01<00:00,  1.81it/s]
 /localdev/svuckovic/_workspace/repos/tt-xla/venv/lib/python3.12/site-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
   torch._dynamo.utils.warn_once(msg)
-2026-04-06 14:04:37.327 (  99.096s) [        75A46140]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
-2026-04-06 14:04:37.327 (  99.096s) [        75A46140]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
-2026-04-06 14:04:37.327 (  99.096s) [        75A46140]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
-2026-04-06 14:06:52.384 ( 234.153s) [        75A46140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-04-06 14:33:56.313 (  99.786s) [        CF392140]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-04-06 14:33:56.313 (  99.786s) [        CF392140]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-04-06 14:33:56.313 (  99.786s) [        CF392140]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-04-06 14:36:11.080 ( 234.553s) [        CF392140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
 Python codegen successful. Check /localdev/svuckovic/_workspace/repos/tt-xla/z_image_turbo/proper_tp/codegen_output/transformer for the results.
-2026-04-06 14:07:04.752 ( 246.521s) [        75A46140]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
-2026-04-06 14:07:04.752 ( 246.521s) [        75A46140]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
-2026-04-06 14:07:04.752 ( 246.521s) [        75A46140]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-04-06 14:36:23.511 ( 246.984s) [        CF392140]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-04-06 14:36:23.511 ( 246.984s) [        CF392140]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-04-06 14:36:23.511 ( 246.984s) [        CF392140]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
 Copied export directory to: "/localdev/svuckovic/_workspace/repos/tt-xla/z_image_turbo/proper_tp/codegen_output/transformer_0"
-2026-04-06 14:09:17.421 ( 379.190s) [        75A46140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-04-06 14:38:36.064 ( 379.537s) [        CF392140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
 Python codegen successful. Check /localdev/svuckovic/_workspace/repos/tt-xla/z_image_turbo/proper_tp/codegen_output/transformer for the results.
 Copied export directory to: "/localdev/svuckovic/_workspace/repos/tt-xla/z_image_turbo/proper_tp/codegen_output/transformer_1"
 Transformer loaded: 6.15B params
@@ -60,4 +60,6 @@ Running TT transformer codegen emission...
 TT output shapes: [torch.Size([16, 1, 32, 32])]
 
 Codegen completed!
-  Transformer: /localdev/svuckovic/_workspace/repos/tt-xla/z_image_turbo/proper_tp/codegen_output/transformer/
+  Primary output : /localdev/svuckovic/_workspace/repos/tt-xla/z_image_turbo/proper_tp/codegen_output/transformer_0/  ← complete graph, use this one
+  Secondary      : /localdev/svuckovic/_workspace/repos/tt-xla/z_image_turbo/proper_tp/codegen_output/transformer/     ← last TT compile pass (may differ slightly)
+  Note: 2 codegen dirs are a TT backend artifact (1 dynamo graph, 2 TT passes).

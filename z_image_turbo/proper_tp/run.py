@@ -161,7 +161,7 @@ def run(codegen: bool):
 
     # Inputs shared across all runs
     cap_feats_cpu = [torch.randn(7, 2560, dtype=torch.bfloat16)]   # [seq=7, hidden=2560]
-    latents_cpu   = make_dummy_latents(batch_size=1, height=256, width=256)
+    latents_cpu   = make_dummy_latents(batch_size=1, height=512, width=512)
     timestep_cpu  = torch.tensor([0.5], dtype=torch.bfloat16)
 
     # ---- CPU reference: original 30-head model ----
@@ -257,7 +257,9 @@ def run(codegen: bool):
 
     if codegen:
         print(f"\nCodegen completed!")
-        print(f"  Transformer: {EXPORT_BASE}/transformer/")
+        print(f"  Primary output : {EXPORT_BASE}/transformer_0/  ← complete graph, use this one")
+        print(f"  Secondary      : {EXPORT_BASE}/transformer/     ← last TT compile pass (may differ slightly)")
+        print(f"  Note: 2 codegen dirs are a TT backend artifact (1 dynamo graph, 2 TT passes).")
     else:
         compare(tt_out, cpu_out, label="TT 4-way TP (padded 32-head) vs CPU (original 30-head)")
         print("Validation completed!")
