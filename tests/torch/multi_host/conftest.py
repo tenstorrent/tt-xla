@@ -85,7 +85,7 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
     ),
     "dual_galaxy": MultihostConfiguration(
         rank_binding="dual_galaxy",
-        controller_host_name="g02glx01",
+        controller_host_name="g05glx01",
         hosts_file="/etc/mpirun/hostfile",
         tt_distributed_tcp_iface="cnx1",
     ),
