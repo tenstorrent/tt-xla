@@ -280,7 +280,6 @@ test_config:
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-Reader_Single_Nq_Base-single_device-inference:
-    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-Reader_Multiset_Base-single_device-inference:
@@ -768,9 +767,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   opt/qa/pytorch-1.3b-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99"
 
   # yolov8/pytorch-yolov8n-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -785,9 +782,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   albert/token_classification/pytorch-Xlarge_v2-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99"
 
   t5/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
