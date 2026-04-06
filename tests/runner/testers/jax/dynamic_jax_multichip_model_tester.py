@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
@@ -223,6 +224,33 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         By default returns specs for input parameters and activations for the Flax linen
         models, and empty tuple for other type of models.
         """
+        if isinstance(self._model, FlaxPreTrainedModel):
+            activation_specs = self._input_activations_partition_specs
+            if isinstance(self._input_activations, Mapping):
+                if isinstance(activation_specs, Mapping):
+                    ordered_specs = tuple(
+                        activation_specs[key] for key in self._input_activations.keys()
+                    )
+                elif (
+                    isinstance(activation_specs, Sequence)
+                    and not isinstance(activation_specs, (str, bytes))
+                    and len(activation_specs) == len(self._input_activations)
+                ):
+                    ordered_specs = tuple(activation_specs)
+                else:
+                    default_spec = (
+                        activation_specs[0]
+                        if isinstance(activation_specs, Sequence)
+                        and not isinstance(activation_specs, (str, bytes))
+                        else activation_specs
+                    )
+                    ordered_specs = tuple(
+                        default_spec for _ in self._input_activations.keys()
+                    )
+            else:
+                ordered_specs = tuple(activation_specs)
+            return (self._input_parameters_partition_specs, *ordered_specs)
+
         if isinstance(self._model, (linen.Module, nnx.Module, FlaxPreTrainedModel)):
             return (
                 self._input_parameters_partition_specs,
