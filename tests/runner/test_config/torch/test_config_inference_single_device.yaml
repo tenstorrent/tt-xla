@@ -494,7 +494,7 @@ test_config:
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
-      - split_query_key_value_and_split_heads.ttnn.mlir
+      # - split_query_key_value_and_split_heads.ttnn.mlir # now only appears with optimization level 1
       - layer_norm.ttnn.mlir
     markers: [push, nightly]
 
