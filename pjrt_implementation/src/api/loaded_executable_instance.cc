@@ -35,8 +35,8 @@
 #include "api/error_instance.h"
 #include "api/executable_image.h"
 #include "api/executable_instance.h"
-#include "utils/assert.h"
 #include "api/tensor.h"
+#include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
 
