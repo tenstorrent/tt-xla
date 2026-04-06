@@ -5,7 +5,8 @@
 import json
 
 import pytest
-from benchmarks.sdxl_pipeline_benchmark import SDXLConstants, benchmark_sdxl_pipeline
+from benchmarks.sdxl_benchmark import benchmark_sdxl_pipeline
+from benchmarks.sdxl_pipeline import SDXLConstants, load_pipeline_models
 from utils import aggregate_ttnn_perf_metrics, resolve_display_name
 
 
@@ -58,9 +59,17 @@ def run_sdxl_benchmark(
     )
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
+    if resolution == 1024:
+        model_id = "stabilityai/stable-diffusion-xl-base-1.0"
+        hf_variant = "fp16"
+    else:
+        model_id = "hotshotco/SDXL-512"
+        hf_variant = None
+
     print(f"Running SDXL pipeline benchmark: {model_info_name}")
     print(
         f"Configuration:\n"
+        f"    model_id={model_id}\n"
         f"    resolution={resolution}\n"
         f"    num_inference_steps={num_inference_steps}\n"
         f"    optimization_level={optimization_level}\n"
@@ -69,7 +78,19 @@ def run_sdxl_benchmark(
         f"    ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}"
     )
 
+    print("Loading SDXL pipeline models...")
+    unet, vae, text_encoder, text_encoder_2, tokenizer, tokenizer_2, scheduler = (
+        load_pipeline_models(model_id, hf_variant)
+    )
+
     results = benchmark_sdxl_pipeline(
+        unet=unet,
+        vae=vae,
+        text_encoder=text_encoder,
+        text_encoder_2=text_encoder_2,
+        tokenizer=tokenizer,
+        tokenizer_2=tokenizer_2,
+        scheduler=scheduler,
         model_info_name=model_info_name,
         display_name=resolved_display_name,
         optimization_level=optimization_level,
