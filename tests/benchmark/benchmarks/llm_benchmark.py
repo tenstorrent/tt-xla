@@ -341,6 +341,13 @@ def benchmark_llm_torch_xla(
         )
         cpu_logits = cpu_output_logits[0]
 
+        if decode_only:
+            # Save post-prefill state: CPU prefill populated the KV cache and
+            # updated input_ids to the next token and cache_position to prompt_len.
+            decode_only_input_ids = input_args["input_ids"].clone()
+            decode_only_cache_position = input_args["cache_position"].clone()
+            decode_only_cache = input_args["past_key_values"]
+
     # Transfer model and inputs to device
     input_args = construct_inputs(
         tokenizer,
@@ -426,6 +433,13 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
+
+    if decode_only:
+        # Reset to post-prefill decode state (single token input)
+        input_args["input_ids"] = decode_only_input_ids
+        input_args["cache_position"] = decode_only_cache_position
+        input_args["past_key_values"] = decode_only_cache
+
     input_args = transfer_to_device(input_args, device)
 
     # Run perf benchmark
@@ -446,43 +460,44 @@ def benchmark_llm_torch_xla(
 
     # ACCURACY BENCHMARK
     # Logits moved to CPU each step to avoid OOM.
-    accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
-    accuracy_wrapper.eval()
-    compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
+    if not decode_only:
+        accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+        accuracy_wrapper.eval()
+        compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
 
-    accuracy_steps = max_output_tokens
+        accuracy_steps = max_output_tokens
 
-    # Reconstruct inputs for accuracy run
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=input_args["past_key_values"],
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-    )
-    input_args = transfer_to_device(input_args, device)
+        # Reconstruct inputs for accuracy run
+        input_args = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            past_key_values=input_args["past_key_values"],
+            input_prompt=custom_input_prompt,
+            input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        )
+        input_args = transfer_to_device(input_args, device)
 
-    print(
-        f"\nStarting accuracy benchmark "
-        f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
-    )
-    output_logits, _ = generate_and_benchmark(
-        compiled_accuracy,
-        input_args,
-        device,
-        accuracy_steps,
-        verbose=False,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=True,
-    )
+        print(
+            f"\nStarting accuracy benchmark "
+            f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
+        )
+        output_logits, _ = generate_and_benchmark(
+            compiled_accuracy,
+            input_args,
+            device,
+            accuracy_steps,
+            verbose=False,
+            ground_truth_tokens=ground_truth_for_benchmark,
+            collect_logits=True,
+        )
 
-    # Post-processing: derive predicted tokens for accuracy testing
-    if accuracy_testing:
-        predicted_tokens = [
-            logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits
-        ]
+        # Post-processing: derive predicted tokens for accuracy testing
+        if accuracy_testing:
+            predicted_tokens = [
+                logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits
+            ]
 
     ttft_ns = iteration_times[0] if not decode_only else 0.0
     ttft_ms = ttft_ns / 1e6
