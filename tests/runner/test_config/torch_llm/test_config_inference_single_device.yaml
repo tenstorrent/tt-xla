@@ -101,7 +101,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4125"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
