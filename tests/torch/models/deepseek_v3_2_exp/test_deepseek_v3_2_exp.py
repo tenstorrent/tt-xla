@@ -30,7 +30,6 @@ def test_deepseek_modified_transformer_single_layer():
     # Create model args with a single layer for testing
     args = ModelArgs(
         n_layers=1,
-        q_lora_rank=3072,
     )
 
     model = ModifiedTransformer(args)
@@ -92,9 +91,7 @@ def test_deepseek_complex_rotary_emb():
 def test_deepseek_attention_prefill(batch_size):
     xr.set_device_type("TT")
     seq_len = 32
-    args = ModelArgs(
-        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
-    )
+    args = ModelArgs(n_layers=1, max_batch_size=batch_size, max_seq_len=seq_len * 2)
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
@@ -163,9 +160,7 @@ def test_deepseek_indexer(batch_size):
     xr.set_device_type("TT")
 
     seq_len = 32
-    args = ModelArgs(
-        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
-    )
+    args = ModelArgs(n_layers=1, max_batch_size=batch_size, max_seq_len=seq_len * 2)
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
@@ -251,7 +246,6 @@ def test_deepseek_v3_2_moe_only():
     seq_len = 128
     args = ModelArgs(
         n_layers=2,
-        q_lora_rank=3072,
         max_batch_size=batch_size,
         max_seq_len=seq_len * 2,
     )
@@ -335,7 +329,6 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
 
     args = ModelArgs(
         n_layers=2,
-        q_lora_rank=3072,
         max_batch_size=batch_size,
         max_seq_len=seq_len * 2,
     )
@@ -460,7 +453,6 @@ def test_deepseek_v3_2_full_sparse_moe():
     seq_len = 16
     args = ModelArgs(
         n_layers=2,
-        q_lora_rank=3072,
         max_batch_size=batch_size,
         max_seq_len=seq_len * 2,
     )
