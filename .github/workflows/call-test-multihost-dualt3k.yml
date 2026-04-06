@@ -11,7 +11,7 @@ name: Multi-host Test - Dual T3K (call)
 #   4. Runs pytest inside the controller container
 #
 # Environment variables for distributed execution (TT_DISTRIBUTED_*) are set
-# by directly invoking tests/torch/multi_host/topology.py before pytest runs.
+# by directly invoking scripts/multihost_topology.py before pytest runs.
 # This avoids relying on conftest.py fixtures, which are only loaded when tests
 # live under tests/torch/multi_host/.
 
@@ -64,6 +64,7 @@ jobs:
           .gitmodules
           pytest.ini
           python_package/requirements.txt
+          scripts
           tests
           venv
 
@@ -205,13 +206,13 @@ jobs:
           echo "=== [2/5] Complete ==="
 
           echo "=== [3/5] Topology dry-run (print export lines to stdout) ==="
-          python -m tests.torch.multi_host.topology \
+          python scripts/multihost_topology.py \
             --topology dual_t3k \
             --script-dir tests/torch/multi_host/experimental
           echo "=== [3/5] Complete ==="
 
           echo "=== [4/5] Apply topology exports (eval) and show TT_DISTRIBUTED_* / TT_RUNTIME_* ==="
-          eval "$(python -m tests.torch.multi_host.topology \
+          eval "$(python scripts/multihost_topology.py \
             --topology dual_t3k \
             --script-dir tests/torch/multi_host/experimental)"
           env | grep -E "^(TT_RUNTIME_ENABLE_DISTRIBUTED|TT_DISTRIBUTED_)" | sort || true
