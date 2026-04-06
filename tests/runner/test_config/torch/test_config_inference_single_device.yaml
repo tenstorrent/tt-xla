@@ -1238,9 +1238,7 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 4786749440 B DRAM buffer across 12 banks, where each bank needs to store 398897152 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3412"
 
   deepseek/pytorch-single_device-inference:
-    status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "ttir.scatter does not work - https://github.com/tenstorrent/tt-xla/issues/2391"
+    status: EXPECTED_PASSING
 
   gemma/pytorch-1.1_2B_IT-single_device-inference:
     status: EXPECTED_PASSING
@@ -2147,9 +2145,10 @@ test_config:
     status: EXPECTED_PASSING
 
   deepseek/qwen/pytorch-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
-    markers: [large]
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+    # markers: [large]
+    status: EXPECTED_PASSING
 
   detr/segmentation/pytorch-ResNet50_Backbone_Panoptic-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2659,8 +2658,7 @@ test_config:
     reason: "stablehlo.scatter failed to legalize to TTIR - https://github.com/tenstorrent/tt-xla/issues/4044"
 
   gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Dynamic shapes from get_placeholder_mask cause ValueError in _xla_warm_up_cache - https://github.com/tenstorrent/tt-xla/issues/3854"
+    status: EXPECTED_PASSING
 
   gemma3/causal_lm/pytorch-270M_Instruct-single_device-inference:
     status: EXPECTED_PASSING
