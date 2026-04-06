@@ -356,6 +356,7 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        past_key_values=decode_only_cache if decode_only else None,
     )
     input_args = transfer_to_device(input_args, device)
     model = model.to(device, dtype=torch.bfloat16)
@@ -429,7 +430,9 @@ def benchmark_llm_torch_xla(
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=input_args["past_key_values"],
+        past_key_values=(
+            input_args["past_key_values"] if not decode_only else decode_only_cache
+        ),
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
@@ -438,7 +441,6 @@ def benchmark_llm_torch_xla(
         # Reset to post-prefill decode state (single token input)
         input_args["input_ids"] = decode_only_input_ids
         input_args["cache_position"] = decode_only_cache_position
-        input_args["past_key_values"] = decode_only_cache
 
     input_args = transfer_to_device(input_args, device)
 
@@ -475,7 +477,9 @@ def benchmark_llm_torch_xla(
             max_cache_len,
             past_key_values=input_args["past_key_values"],
             input_prompt=custom_input_prompt,
-            input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+            input_prompt_tokens=(
+                token_accuracy.input_prompt if accuracy_testing else None
+            ),
         )
         input_args = transfer_to_device(input_args, device)
 
