@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import copy
 import os
 import shutil
 import socket
@@ -162,7 +163,6 @@ def _run_model_test_impl(
 
                 # Deep-copy the CPU model and inputs BEFORE test() moves them to XLA.
                 # EmitPy verification needs a pristine model that dynamo/XLA have never seen.
-                import copy
 
                 emitpy_enabled = request.config.getoption("--emitpy", default=False)
                 cpu_model_copy = None
