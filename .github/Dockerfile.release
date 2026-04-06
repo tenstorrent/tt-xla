@@ -28,7 +28,7 @@ RUN apt-get update && \
 COPY *.whl /tmp/
 RUN python3.12 -m venv /opt/venv && \
     source /opt/venv/bin/activate && \
-    pip install --no-cache-dir --ignore-installed --upgrade pip
+    pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir /tmp/*.whl && \
     tt-forge-install && \
     rm -rf /tmp/*.whl
