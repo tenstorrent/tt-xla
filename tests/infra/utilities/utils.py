@@ -223,13 +223,8 @@ def compile_jax_workload_for_tt_device(
 def compile_torch_workload_for_tt_device(
     workload: Workload, torch_options: dict = None
 ) -> None:
-    """Compile Torch workload for TT device using tt backend."""
-    to_compile = workload.model if workload.model is not None else workload.executable
-    workload.compiled_executable = torch.compile(
-        to_compile,
-        backend="tt",
-        options=torch_options if torch_options is not None else {},
-    )
+    """Run Torch workload on TT device without torch.compile (XLA handles compilation)."""
+    workload.compiled_executable = workload.model if workload.model is not None else workload.executable
 
 
 def compile_jax_multichip_workload(
