@@ -121,9 +121,11 @@ def get_distributed_worker_path() -> str:
     Get path to distributed worker binary.
 
     First checks TT_DISTRIBUTED_WORKER_PATH environment variable.
-    If not set, constructs path from TT_PJRT_PLUGIN_DIR or TTMLIR_TOOLCHAIN_DIR.
+    If not set, calls ``pjrt_plugin_tt.setup_tt_pjrt_plugin_dir()`` so ``TT_PJRT_PLUGIN_DIR``
+    is populated from the installed package (wheel) when not already set.
+    Then constructs path from ``TT_PJRT_PLUGIN_DIR`` or ``TT_MLIR_HOME``.
 
-    TT_PJRT_PLUGIN_DIR is valid for wheel build. For source build, it will be set but point to invalid path.
+    TT_PJRT_PLUGIN_DIR is valid for wheel build. For source build, it may be set but point to invalid path.
     TT_MLIR_HOME is valid for source build inside activated venv, for local development.
 
     Returns:
@@ -138,6 +140,13 @@ def get_distributed_worker_path() -> str:
             worker_path
         ), f"Distributed worker file does not exist at path: {worker_path} as explicitly specified in TT_DISTRIBUTED_WORKER_PATH. Please check that the path is correct."
         return worker_path
+
+    try:
+        from pjrt_plugin_tt import setup_tt_pjrt_plugin_dir  # type: ignore[import-untyped]
+
+        setup_tt_pjrt_plugin_dir()
+    except ImportError:
+        pass
 
     pjrt_plugin_dir = os.environ.get("TT_PJRT_PLUGIN_DIR")
     if pjrt_plugin_dir:
