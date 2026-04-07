@@ -2714,7 +2714,7 @@ def test_glm_4_attention(seq_len, variant, variant_config, arch):
     get_available_variants("glm_5").items(),
     ids=[str(k) for k in get_available_variants("glm_5").keys()],
 )
-def test_glm_5_attention_prefill(variant, variant_config):
+def test_glm_5_attention_prefill(variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = GLMModelLoader(variant=variant)
