@@ -1373,6 +1373,238 @@ def moe_expert_token_remap_fake(
     return mapping, reduced
 
 
+@torch.library.custom_op(
+    "tt::flash_mla_prefill",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def flash_mla_prefill(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    value: Optional[torch.Tensor] = None,
+    attention_mask: Optional[torch.Tensor] = None,
+    is_causal: bool = True,
+    scale: Optional[float] = None,
+) -> torch.Tensor:
+    """MLA prefill attention.
+
+    Args:
+        query: shape [B, H, S, qk_head_dim]
+        key:   shape [B, 1, S, kv_lora_rank + qk_rope_head_dim]
+        head_dim_v: output value head dimension
+        value: optional pre-expanded value [B, H, S, head_dim_v]
+        attention_mask: optional additive attention mask
+        is_causal: whether to apply causal masking
+        scale: optional attention scale factor
+
+    Returns:
+        shape [B, H, S, head_dim_v]
+    """
+    device = query.device
+
+    if is_causal:
+        assert attention_mask is None, "attention_mask must be None when is_causal is True."
+
+    if device.type == "xla":
+        inputs = [query, key]
+        if value is not None:
+            inputs.append(value)
+        if attention_mask is not None:
+            inputs.append(attention_mask)
+
+        attrs = {
+            "is_causal": str(is_causal),
+            "head_dim_v": str(head_dim_v),
+            "has_value": str(value is not None),
+            "has_attention_mask": str(attention_mask is not None),
+        }
+        if scale is not None:
+            attrs["scale"] = str(scale)
+
+        output_shape = list(query.shape[:-1]) + [head_dim_v]
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.flash_mla_prefill",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes=attrs,
+        )
+    elif device.type == "cpu":
+        assert value is not None, "CPU fallback requires pre-expanded value tensor."
+        return torch.nn.functional.scaled_dot_product_attention(
+            query,
+            key,
+            value,
+            attn_mask=attention_mask,
+            is_causal=is_causal,
+            scale=scale,
+            enable_gqa=True,
+        )
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@flash_mla_prefill.register_fake
+def flash_mla_prefill_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    value: Optional[torch.Tensor] = None,
+    attention_mask: Optional[torch.Tensor] = None,
+    is_causal: bool = True,
+    scale: Optional[float] = None,
+) -> torch.Tensor:
+    output_shape = list(query.shape[:-1]) + [head_dim_v]
+    return torch.zeros(output_shape, dtype=query.dtype, device=query.device)
+
+
+@torch.library.custom_op(
+    "tt::paged_flash_multi_latent_attention_decode",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def paged_flash_multi_latent_attention_decode(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    page_table_tensor: torch.Tensor,
+    head_dim_v: int,
+    value: Optional[torch.Tensor] = None,
+    is_causal: bool = True,
+    attention_mask: Optional[torch.Tensor] = None,
+    curr_pos_tensor: Optional[torch.Tensor] = None,
+    attention_sink: Optional[torch.Tensor] = None,
+    scale: Optional[float] = None,
+) -> torch.Tensor:
+    """Paged MLA decode attention.
+
+    Args:
+        query:            shape [1, B, H, qk_head_dim]
+        key:              paged compressed KV [num_blocks, 1, block_size, kv_lora_rank + qk_rope_head_dim]
+        page_table_tensor: shape [B, max_blocks_per_req]
+        head_dim_v:       output value head dimension
+        value:            optional paged value [num_blocks, H, block_size, head_dim_v]
+        is_causal:        whether to apply causal masking
+        attention_mask:   optional additive attention mask
+        curr_pos_tensor:  optional [B] current sequence positions (required for causal masking on CPU)
+        attention_sink:   optional attention sink tensor
+        scale:            optional attention scale factor
+
+    Returns:
+        shape [1, B, H, head_dim_v]
+    """
+    device = query.device
+
+    if is_causal:
+        assert attention_mask is None, "attention_mask must be None when is_causal is True."
+
+    if device.type == "xla":
+        attrs = {
+            "is_causal": str(is_causal),
+            "head_dim_v": str(head_dim_v),
+            "has_value": str(value is not None),
+            "has_attention_mask": str(attention_mask is not None),
+            "has_curr_pos_tensor": str(curr_pos_tensor is not None),
+            "has_attention_sink": str(attention_sink is not None),
+        }
+        if scale is not None:
+            attrs["scale"] = str(scale)
+
+        inputs = [query, key, page_table_tensor]
+        if value is not None:
+            inputs.append(value)
+        if attention_mask is not None:
+            inputs.append(attention_mask)
+        if curr_pos_tensor is not None:
+            inputs.append(curr_pos_tensor)
+        if attention_sink is not None:
+            inputs.append(attention_sink)
+
+        output_shape = list(query.shape[:-1]) + [head_dim_v]
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.paged_flash_multi_latent_attention_decode",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes=attrs,
+        )
+    elif device.type == "cpu":
+        assert value is not None, "CPU fallback requires pre-expanded value tensor."
+        assert (
+            curr_pos_tensor is not None
+        ), "curr_pos_tensor must be provided for the CPU fallback."
+
+        block_size = key.shape[-2]
+        num_kv_heads = value.shape[-3]
+        num_users = curr_pos_tensor.shape[0]
+        head_size_v = value.shape[-1]
+
+        num_blocks_per_user = page_table_tensor.shape[1]
+        max_seq_len = num_blocks_per_user * block_size
+
+        new_value = torch.zeros(
+            num_users, num_kv_heads, max_seq_len, head_size_v, dtype=query.dtype
+        )
+        causal_mask = torch.zeros(num_users, max_seq_len, dtype=query.dtype)
+
+        for i in range(num_users):
+            block_indices = page_table_tensor[i]
+            user_value_blocks = value[block_indices]
+            user_value = user_value_blocks.transpose(0, 1).reshape(
+                num_kv_heads, max_seq_len, head_size_v
+            )
+            new_value[i] = user_value
+            causal_mask[i, curr_pos_tensor[i] + 1 :] = float("-inf")
+
+        num_heads = query.shape[2]
+        qk_head_dim = query.shape[3]
+        query = query.reshape(num_users, num_heads, 1, qk_head_dim)
+
+        attn_mask = (
+            causal_mask.reshape(num_users, 1, 1, max_seq_len) if is_causal else attention_mask
+        )
+
+        scale_val = 1 / qk_head_dim**0.5 if scale is None else scale
+
+        # Gather key blocks and expand for GQA
+        new_key_lora_dim = key.shape[-1]
+        new_key = torch.zeros(
+            num_users, num_kv_heads, max_seq_len, new_key_lora_dim, dtype=query.dtype
+        )
+        for i in range(num_users):
+            block_indices = page_table_tensor[i]
+            user_key_blocks = key[block_indices]
+            user_key = user_key_blocks.transpose(0, 1).reshape(
+                num_kv_heads, max_seq_len, new_key_lora_dim
+            )
+            new_key[i] = user_key
+
+        attn_weight = query @ new_key.transpose(-2, -1) * scale_val
+        attn_weight = attn_weight + attn_mask
+        attn_weight = torch.softmax(attn_weight, dim=-1)
+        out = attn_weight @ new_value
+        return out.reshape(1, num_users, num_heads, head_size_v)
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@paged_flash_multi_latent_attention_decode.register_fake
+def paged_flash_multi_latent_attention_decode_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    page_table_tensor: torch.Tensor,
+    head_dim_v: int,
+    value: Optional[torch.Tensor] = None,
+    is_causal: bool = True,
+    attention_mask: Optional[torch.Tensor] = None,
+    curr_pos_tensor: Optional[torch.Tensor] = None,
+    attention_sink: Optional[torch.Tensor] = None,
+    scale: Optional[float] = None,
+) -> torch.Tensor:
+    output_shape = list(query.shape[:-1]) + [head_dim_v]
+    return torch.zeros(output_shape, dtype=query.dtype, device=query.device)
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):

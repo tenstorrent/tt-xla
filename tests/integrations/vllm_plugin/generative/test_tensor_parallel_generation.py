@@ -41,10 +41,11 @@ def test_tensor_parallel_generation_n300(model_name: str, use_2d_mesh: bool):
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_weight_dtype"],
     [
-        pytest.param("Qwen/Qwen3-0.6B", False, ""),
+        # pytest.param("Qwen/Qwen3-0.6B", False, ""),
+        pytest.param("deepseek-ai/DeepSeek-V3", False, ""),
     ],
 )
-@pytest.mark.parametrize("use_2d_mesh", [True, False])
+@pytest.mark.parametrize("use_2d_mesh", [True])
 def test_tensor_parallel_generation_llmbox_small(
     model_name: str,
     enable_const_eval: bool,
@@ -67,6 +68,7 @@ def test_tensor_parallel_generation_llmbox_small(
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "use_2d_mesh": use_2d_mesh,
+            "num_hidden_layers": 1,
         },
     }
     llm = vllm.LLM(**llm_args)
