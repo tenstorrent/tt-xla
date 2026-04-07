@@ -74,5 +74,5 @@ jobs:
     secrets: inherit
     with:
       release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
-      docker_image_base: ${{ needs.build-release-docker.outputs.docker_image_base }}
+      docker_image_base: ${{ needs.build-and-test-release-docker.outputs.docker_image_base }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
