@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Mapping
 from typing import Any, Dict, Optional, Sequence, Tuple
 
@@ -14,6 +15,10 @@ from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.runners import JaxDeviceRunner
 from infra.testers.single_chip.model import JaxModelTester, RunMode
 from infra.utilities import Framework, PyTree, ShardingMode, Tensor
+from infra.utilities.jax_multichip_utils import (
+    make_default_input_partition_specs,
+    make_replicated_partition_specs_like,
+)
 from infra.workloads import JaxMultichipWorkload, Workload
 from jax.experimental.shard_map import shard_map
 from jax.sharding import NamedSharding, PartitionSpec
@@ -372,7 +377,10 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
     def _get_input_activations(self):
         """Get input activations."""
         if self._model_loader is not None:
-            return self._model_loader.load_inputs(mesh=self._cpu_mesh)
+            signature = inspect.signature(self._model_loader.load_inputs)
+            if "mesh" in signature.parameters:
+                return self._model_loader.load_inputs(mesh=self._cpu_mesh)
+            return self._model_loader.load_inputs()
         else:
             raise NotImplementedError(
                 "Must provide model_loader or override _get_input_activations"
@@ -380,11 +388,17 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     def _get_input_activations_partition_spec(self) -> PartitionSpec:
         """Returns partition specs for the input activations."""
-        if self._model_loader is not None:
+        if self._model_loader is not None and hasattr(
+            self._model_loader, "get_input_activations_partition_spec"
+        ):
             return self._model_loader.get_input_activations_partition_spec(
                 self._cpu_mesh,
                 axis_name=self.main_axis_name,
                 parallelism=self._parallelism,
+            )
+        if isinstance(self._model, FlaxPreTrainedModel):
+            return make_default_input_partition_specs(
+                self._input_activations, axis_name=self.main_axis_name
             )
         else:
             raise NotImplementedError(
@@ -393,7 +407,9 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
 
     def _get_input_parameters_partition_spec(self) -> PyTree:
         """Returns partition specs for the parameters."""
-        if self._model_loader is not None:
+        if self._model_loader is not None and hasattr(
+            self._model_loader, "load_parameters_partition_spec"
+        ):
             return self._model_loader.load_parameters_partition_spec(
                 model_for_multichip=self._model,
                 cpu_mesh=self._cpu_mesh,
@@ -401,6 +417,8 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
                 inputs=self._input_activations,
                 parallelism=self._parallelism,
             )
+        if isinstance(self._model, FlaxPreTrainedModel):
+            return make_replicated_partition_specs_like(self._model.params)
         else:
             raise NotImplementedError(
                 "Must provide model_loader or override _get_input_parameters_partition_spec"

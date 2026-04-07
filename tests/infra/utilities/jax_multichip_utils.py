@@ -4,7 +4,7 @@
 
 from contextlib import contextmanager
 from enum import Enum
-from typing import Tuple
+from typing import Any, Mapping, Sequence, Tuple
 
 import jax
 from flax import linen
@@ -69,6 +69,41 @@ def make_flax_linen_parameters_partition_specs_on_cpu(
             cpu_inputs,
         )
     )
+
+
+def make_replicated_partition_specs_like(tree: Any) -> PyTree:
+    """Return a replicated PartitionSpec tree matching ``tree`` structure.
+
+    This is the safe default for HF Flax loaders that do not yet provide
+    model-family-specific parameter partitioning rules. It keeps multichip
+    bring-up moving without assuming Linen ``.init`` support.
+    """
+
+    return jax.tree_util.tree_map(lambda _: PartitionSpec(), tree)
+
+
+def make_default_input_partition_specs(inputs: Any, axis_name: str = "X"):
+    """Return default activation PartitionSpecs for multichip input sharding.
+
+    Batch-shaped tensors are sharded on the leading axis, while scalars remain
+    replicated. The returned object preserves mapping structure when inputs are
+    keyed, otherwise it returns a tuple aligned to positional inputs.
+    """
+
+    def spec_for(value: Any) -> PartitionSpec:
+        ndim = getattr(value, "ndim", None)
+        if ndim is None:
+            shape = getattr(value, "shape", None)
+            ndim = len(shape) if shape is not None else 0
+        if ndim and ndim > 0:
+            return PartitionSpec(axis_name)
+        return PartitionSpec()
+
+    if isinstance(inputs, Mapping):
+        return {key: spec_for(value) for key, value in inputs.items()}
+    if isinstance(inputs, Sequence) and not isinstance(inputs, (str, bytes)):
+        return tuple(spec_for(value) for value in inputs)
+    return (spec_for(inputs),)
 
 
 def make_easydel_parameters_partition_specs(
