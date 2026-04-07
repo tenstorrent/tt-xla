@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   publish-forge:
-    runs-on: builder
+    runs-on: ubuntu-latest
     steps:
       - name: Fix workspace permissions issue
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
