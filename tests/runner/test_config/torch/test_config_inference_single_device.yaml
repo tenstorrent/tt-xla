@@ -2573,23 +2573,23 @@ test_config:
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
+    status: EXPECTED_PASSING
+    # reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0725-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
+    status: EXPECTED_PASSING
+    # reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
+    status: EXPECTED_PASSING
+    # reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
 
   olm_ocr/image_text_generation/pytorch-olmOCR-2-7B-1025-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
+    status: EXPECTED_PASSING
+    # reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
 
   solar-10_7B/causal_lm/pytorch-10_7B_Instruct_v1.0-single_device-inference:
     arch_overrides:
@@ -2654,8 +2654,7 @@ test_config:
     reason: "stablehlo.scatter failed to legalize to TTIR - https://github.com/tenstorrent/tt-xla/issues/4044"
 
   gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Dynamic shapes from get_placeholder_mask cause ValueError in _xla_warm_up_cache - https://github.com/tenstorrent/tt-xla/issues/3854"
+    status: EXPECTED_PASSING
 
   gemma3/causal_lm/pytorch-270M_Instruct-single_device-inference:
     status: EXPECTED_PASSING
