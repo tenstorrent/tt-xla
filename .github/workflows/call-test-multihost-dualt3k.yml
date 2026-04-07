@@ -193,16 +193,13 @@ jobs:
           cd /workspace
           source venv/activate
 
-          export TTXLA_LOGGER_LEVEL=DEBUG
-          export TT_METAL_LOGGER_LEVEL=DEBUG
-          export TT_METAL_LOGGER_TYPES=Fabric,Always
-          export TT_RUNTIME_USING_DUALT3K=1
-
-          pytest -svv \
-            tests/torch/multi_host/experimental/test_multihost_basic.py \
-            -k "dual_t3k" \
-            --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
-            2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
+          TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
+          TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
+          TT_DISTRIBUTED_PLM_RSH_AGENT=tests/torch/multi_host/experimental/remote_docker.sh
+          TT_DISTRIBUTED_RANK_BINDING=dual_t3k
+          TT_DISTRIBUTED_WORKER_PATH=/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker
+          TT_RUNTIME_ENABLE_DISTRIBUTED=1
+          pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
         '
 
     - name: Upload Test Log
