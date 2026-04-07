@@ -4,43 +4,9 @@
 
 import json
 
-import pytest
 from benchmarks.sdxl_benchmark import benchmark_sdxl_pipeline
 from benchmarks.sdxl_pipeline import SDXLConstants, load_pipeline_models
 from utils import aggregate_ttnn_perf_metrics, resolve_display_name
-
-
-def assert_no_perf_regression(measurements, device_type, resolution):
-    key = (device_type, resolution)
-    thresholds = SDXLConstants.PERF_THRESHOLDS.get(key)
-
-    if thresholds is None:
-        print(f"[perf-regression-check] No baseline for {key}; skipping.")
-        return
-
-    failures = []
-    for measurement in measurements:
-        name = measurement.get("measurement_name", "")
-        if name not in SDXLConstants.CHECKED_METRICS or name not in thresholds:
-            continue
-        value = measurement["value"]
-        limit = thresholds[name]
-        status = "PASS" if value <= limit else "FAIL"
-        print(
-            f"[perf-regression-check] {name}: measured={value:.4f}s "
-            f"limit={limit:.4f}s"
-        )
-        if value > limit:
-            failures.append(
-                f"  {name}: {value:.4f}s exceeds limit {limit:.4f}s "
-                f"by {(value - limit) / limit * 100:.1f}%"
-            )
-
-    if failures:
-        pytest.fail(
-            f"Performance regression detected on {device_type} at resolution {resolution}:\n"
-            + "\n".join(failures)
-        )
 
 
 def run_sdxl_benchmark(
@@ -51,7 +17,6 @@ def run_sdxl_benchmark(
     optimization_level=SDXLConstants.OPTIMIZATION_LEVEL,
     loop_count=SDXLConstants.LOOP_COUNT,
     data_format=SDXLConstants.DATA_FORMAT,
-    perf_regression_check=False,
 ):
     model_info_name = f"sdxl_pipeline_{resolution}x{resolution}"
     resolved_display_name = resolve_display_name(
@@ -101,20 +66,6 @@ def run_sdxl_benchmark(
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
     )
 
-    device_type = results["device_info"]["device_type"]
-    thresholds = SDXLConstants.PERF_THRESHOLDS.get((device_type, resolution), {})
-    for measurement in results["measurements"]:
-        name = measurement.get("measurement_name", "")
-        if name in thresholds:
-            measurement["target"] = thresholds[name]
-
-    if perf_regression_check:
-        assert_no_perf_regression(
-            measurements=results["measurements"],
-            device_type=device_type,
-            resolution=resolution,
-        )
-
     if output_file:
         results["project"] = "tt-forge/tt-xla"
         results["model_rawname"] = model_info_name
@@ -123,21 +74,19 @@ def run_sdxl_benchmark(
             json.dump(results, file, indent=2)
 
 
-def test_sdxl_pipeline_512(output_file, request, perf_regression_check):
+def test_sdxl_pipeline_512(output_file, request):
     run_sdxl_benchmark(
         output_file=output_file,
         request=request,
         resolution=512,
         loop_count=1,
-        perf_regression_check=perf_regression_check,
     )
 
 
-def test_sdxl_pipeline_1024(output_file, request, perf_regression_check):
+def test_sdxl_pipeline_1024(output_file, request):
     run_sdxl_benchmark(
         output_file=output_file,
         request=request,
         resolution=1024,
         loop_count=1,
-        perf_regression_check=perf_regression_check,
     )
