@@ -46,6 +46,10 @@ import os
 import torch
 import ttnn
 
+# ── Debug tensor dumping ────────────────────────────────────────────────────────
+# Set ZImageTransformerTTNN.dump_dir to a directory path before calling forward()
+# to save all intermediate tensors to disk as .pt files for NaN diagnosis.
+
 
 class LightweightModule:
     def __call__(self, *args, **kwargs):
@@ -369,6 +373,39 @@ class ZImageTransformerTTNN(LightweightModule):
         self.weights["_cap_pad_token"] = self._static_inputs[329]
 
 
+    # ── Debug tensor dumping ────────────────────────────────────────────────────
+    # Set ZImageTransformerTTNN.dump_dir = "/some/path" before calling forward()
+    # to save all major intermediate tensors to disk for NaN diagnosis.
+    dump_dir = None
+
+    def _dump(self, name, tt_tensor):
+        """Save a TTNN tensor to disk as a .pt file (float32 on CPU).
+
+        Uses ConcatMeshToTensor(dim=0) — always takes the first 1/4 of the
+        concatenated result (replicated tensors). For sharded tensors along dim≠0
+        the file will contain only the first device's shard, but that's enough
+        for NaN detection.
+        """
+        if self.dump_dir is None:
+            return
+        try:
+            host = ttnn.to_torch(
+                ttnn.from_device(tt_tensor),
+                mesh_composer=ttnn.ConcatMeshToTensor(self.mesh_device, dim=0),
+            )
+            n = host.shape[0] // 4
+            cpu = host[:n].float()
+        except Exception as e:
+            print(f"    [dump] {name}: conversion failed ({e})")
+            return
+        path = os.path.join(self.dump_dir, f"tt_{name}.pt")
+        torch.save(cpu, path)
+        nan_count = int(torch.isnan(cpu).sum())
+        inf_count = int(torch.isinf(cpu).sum())
+        print(f"    [dump] tt_{name}: shape={tuple(cpu.shape)}"
+              f" mean={cpu[~torch.isnan(cpu)].mean() if nan_count < cpu.numel() else float('nan'):.4f}"
+              f" nan={nan_count} inf={inf_count}")
+
     # ── Forward pass ────────────────────────────────────────────────────────────
 
     def forward(self, latents, timestep, cap_feats):
@@ -387,15 +424,21 @@ class ZImageTransformerTTNN(LightweightModule):
 
         # ── Step 1: patchify + patch embed → [1, IMG_PATCHES, HIDDEN_DIM] ─────
         # Latent [16, 1, 64, 64] → patches [1024, 64] → [1, 1024, 3840]
+        self._dump("00_latent_in", latent)
         x = self._patchify_and_embed(latent)
+        self._dump("01_patchify_embed", x)
 
         # ── Step 2: timestep embedding → adaln_input [1, 256] ────────────────
         # t [1] BF16 → sinusoidal [1, 256] → MLP → adaln_input [1, 256] BF16
+        self._dump("02_timestep_in", timestep)
         adaln_input = self._timestep_embed(timestep)
+        self._dump("03_adaln_input", adaln_input)
 
         # ── Step 3: caption embedding → [1, CAP_TOKENS, HIDDEN_DIM] ──────────
         # cap_feats [CAP_TOKENS, 2560] → LayerNorm(2560) → Linear(2560→3840)
+        self._dump("04_cap_feats_in", cap_feats)
         cap = self._cap_embed(cap_feats)
+        self._dump("05_cap_embed", cap)
 
         # ── Step 4: concatenate image + caption tokens ─────────────────────────
         # [1, 1024+32, 3840] = [1, 1056, 3840]
@@ -416,6 +459,7 @@ class ZImageTransformerTTNN(LightweightModule):
                 x, adaln_input, x_img_seq,
                 block_prefix=f"noise_refiner.{i}",
             )
+            self._dump(f"06_noise_refiner_{i}", x)
 
         # ── Step 6: context_refiner (2 blocks, no AdaLN, caption tokens only) ─
         for i in range(2):
@@ -424,6 +468,7 @@ class ZImageTransformerTTNN(LightweightModule):
                 block_prefix=f"context_refiner.{i}",
                 is_caption=True,
             )
+            self._dump(f"07_context_refiner_{i}", cap)
 
         # ── Step 7: main layers (30 blocks with AdaLN, joint image+caption) ───
         # Concatenate image and caption sequences for joint attention.
@@ -437,6 +482,7 @@ class ZImageTransformerTTNN(LightweightModule):
                 joint, adaln_input, total_seq,
                 block_prefix=f"layers.{i}",
             )
+            self._dump(f"08_layer_{i:02d}", joint)
 
         # ── Step 8: extract image tokens ──────────────────────────────────────
         # Slice out the first x_img_seq tokens (image portion).
@@ -447,13 +493,16 @@ class ZImageTransformerTTNN(LightweightModule):
             [1, 1, 1],
             memory_config=DRAM_MC,
         )  # [1, 1024, 3840]
+        self._dump("09_img_tokens", x)
 
         # ── Step 9: final layer ───────────────────────────────────────────────
         x = self._final_layer(x, adaln_input, x_img_seq)
+        self._dump("10_final_layer", x)
         # x: [1, 1024, 64]
 
         # ── Step 10: unpatchify → [C, F, H, W] ───────────────────────────────
         out = self._unpatchify(x)
+        self._dump("11_output", out)
 
         ttnn.synchronize_device(self.mesh_device)
         return [out]

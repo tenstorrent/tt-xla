@@ -232,23 +232,15 @@ class TextEncoderTTNN(LightweightModule):
                 hidden_states, cos, sin, attn_mask, layer_idx
             )
 
-        # Final RMSNorm
-        # Ensure shape is [seq_len, 2560] for norm
+        # Return pre-norm hidden states (equivalent to hidden_states[-2] in HuggingFace
+        # Qwen3Model with output_hidden_states=True). The ZImagePipeline uses
+        # hidden_states[-2] as cap_feats input, not last_hidden_state.
+        # The cap_embedder in the transformer applies its own RMSNorm, so the
+        # text encoder's final norm should NOT be applied here.
         if len(hidden_states.shape) == 3:
             hidden_states = ttnn.reshape(
                 hidden_states, [seq_len, self.HIDDEN_SIZE], memory_config=DRAM_MC
             )
-
-        hidden_states = ttnn.rms_norm(
-            hidden_states,
-            epsilon=self.RMS_NORM_EPS,
-            weight=self.weights["norm.weight"],
-            bias=None,
-            residual_input_tensor=None,
-            memory_config=DRAM_MC,
-            program_config=None,
-            compute_kernel_config=NORM_KERNEL,
-        )  # [seq_len, 2560]
 
         return hidden_states
 
