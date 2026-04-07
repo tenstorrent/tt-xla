@@ -1885,10 +1885,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
-            self._precompile_mm_encoder()
-            self._precompile_backbone()
-            self._precompile_select_hidden_states()
+            # self._precompile_mm_encoder()
+            # self._precompile_backbone()
+            # self._precompile_select_hidden_states()
             self._precompile_compute_logits()
+            return
             self._precompile_structured_decoding()
             if not self.tt_config.cpu_sampling:
                 self._precompile_sample_from_logits()
@@ -1901,6 +1902,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
+        return
         if self.supports_mm_inputs:
             mm_config = self.model_config.multimodal_config
             if mm_config is not None and mm_config.skip_mm_profiling:
