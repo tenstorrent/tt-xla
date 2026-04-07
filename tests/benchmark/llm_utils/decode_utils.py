@@ -121,6 +121,7 @@ def generate_and_benchmark(
     tokenizer: Optional[object] = None,
     verbose: bool = True,
     ground_truth_tokens: Optional[torch.Tensor] = None,
+    input_shard_fn: Optional[Callable] = None,
 ) -> tuple[list[torch.Tensor], list[int]]:
     """Unified decode loop for benchmarks, accuracy testing, and reference generation.
 
@@ -144,6 +145,10 @@ def generate_and_benchmark(
         verbose: Print per-iteration timing and decoded tokens
         ground_truth_tokens: 1D tensor of ground truth token IDs for teacher forcing.
                            None = autoregressive mode.
+        input_shard_fn: Optional callable(input_args) applied after each input_ids
+                        update.  Used by models that require batch-sharded input
+                        tokens (e.g., DeepSeek MoE with all_to_all_dispatch).
+                        None = no re-sharding.
 
     Returns:
         (output_logits, iteration_times)
@@ -194,10 +199,18 @@ def generate_and_benchmark(
             else:
                 input_args["input_ids"] = next_token_ids.unsqueeze(-1).to(device)
 
+            # Re-shard input_ids for models that require per-device batch slicing
+            # (e.g., DeepSeek MoE whose all_to_all_dispatch expects batch-sharded tokens).
+            if input_shard_fn is not None:
+                input_shard_fn(input_args)
+
             # Advance cache_position: take last position, add 1.
             # reshape(-1)[-1:] normalizes from [prefill_len] to [1] on step 0.
-            host_cache_pos = input_args["cache_position"].to("cpu").reshape(-1)[-1:]
-            input_args["cache_position"] = (host_cache_pos + 1).to(device)
+            # Skipped for models that manage their own KV cache (e.g. DeepSeek)
+            # where cache_position is not passed to the compiled model.
+            if "cache_position" in input_args:
+                host_cache_pos = input_args["cache_position"].to("cpu").reshape(-1)[-1:]
+                input_args["cache_position"] = (host_cache_pos + 1).to(device)
 
             end = time.perf_counter_ns()
             tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")

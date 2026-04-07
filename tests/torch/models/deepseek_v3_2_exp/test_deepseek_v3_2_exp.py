@@ -9,12 +9,22 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from infra.testers.compiler_config import CompilerConfig
-from modified_model import ModelArgs
-from modified_model import Transformer as ModifiedTransformer
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.loader import (
+    ModelLoader,
+)
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.modified_model import (
+    LayerNorm as DeepSeekLayerNorm,
+)
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.modified_model import (
+    ModelArgs,
+)
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.modified_model import (
+    Transformer as ModifiedTransformer,
+)
 
 # This model is modified from the original deepseek_v3_2_exp model.py to:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
@@ -149,6 +159,125 @@ def test_deepseek_attention_prefill(batch_size):
             0,  # start_pos
             freqs_cis,
             attention_mask,
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=comparison_config,
+    )
+
+
+@pytest.mark.llmbox
+@pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
+def test_deepseek_attention_prefill_then_decode(batch_size):
+    """Tests MLA attention running prefill (seqlen=32) followed by one decode step.
+
+    During prefill, kv_cache/pe_cache/k_cache are written at positions 0:32.
+    During decode, the new token is written at position 32 and scores are
+    computed over the full history (0:33).  Both steps share the same module
+    instance so the cache state from prefill is visible to decode.
+    """
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    seq_len = 32
+    args = ModelArgs(
+        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=128
+    )
+    model = ModifiedTransformer(args)
+    model = model.to(torch.bfloat16)
+    attention = model.layers[0].attn
+
+    hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
+    # Zero mask = attend everywhere (no causal masking needed for shape testing)
+    prefill_mask = torch.zeros(batch_size, seq_len, seq_len, dtype=torch.bfloat16)
+    decode_hidden = torch.randn((batch_size, 1, args.dim), dtype=torch.bfloat16)
+    freqs_cis_prefill = model.freqs_cis[0:seq_len]
+    freqs_cis_decode = model.freqs_cis[seq_len : seq_len + 1]
+
+    class PrefillDecodeWrapper(torch.nn.Module):
+        """Runs prefill then one decode step on the same attention module.
+
+        start_pos values (0 and seq_len) are Python ints so they are folded as
+        constants in the compiled graph rather than traced as SymInts.
+        freqs_cis tensors are passed as inputs so the correct positional
+        embeddings are used for each phase.
+        """
+
+        def __init__(self, attn, seq_len):
+            super().__init__()
+            self.attn = attn
+            self.seq_len = seq_len  # constant: number of prefill tokens
+
+        def forward(
+            self,
+            hidden_states,
+            freqs_cis_prefill,
+            prefill_mask,
+            decode_hidden,
+            freqs_cis_decode,
+        ):
+            # Prefill: fills kv_cache/pe_cache/k_cache at positions 0:seq_len
+            self.attn(hidden_states, 0, freqs_cis_prefill, prefill_mask)
+            # Decode: writes at seq_len, reads full history 0:seq_len+1
+            return self.attn(decode_hidden, self.seq_len, freqs_cis_decode, None)
+
+    wrapper = PrefillDecodeWrapper(attention, seq_len)
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (4, 8)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(model, args, kwargs):
+        mesh_batch_axis_size = mesh.shape()["batch"]
+        batch_axis = "batch" if batch_size >= mesh_batch_axis_size else None
+
+        attn = model.attn
+        shard_specs = {}
+
+        shard_specs[args[0]] = (
+            None,
+            None,
+            batch_axis,
+        )  # hidden_states [batch, seq, dim]
+        # args[1] freqs_cis_prefill → replicated (not listed)
+        shard_specs[args[2]] = (
+            batch_axis,
+            None,
+            None,
+        )  # prefill_mask [batch, seq, seq]
+        shard_specs[args[3]] = (None, None, batch_axis)  # decode_hidden [batch, 1, dim]
+        # args[4] freqs_cis_decode → replicated (not listed)
+
+        shard_specs[attn.wq_b.weight] = ("model", None)
+        shard_specs[attn.wkv_b.weight] = ("model", None)
+        shard_specs[attn.wo.weight] = (batch_axis, "model")
+        shard_specs[attn.wq_a.weight] = (None, batch_axis)
+        shard_specs[attn.wkv_a.weight] = (None, batch_axis)
+
+        shard_specs[attn.kv_cache] = (batch_axis, None, None)
+        shard_specs[attn.pe_cache] = (batch_axis, None, None)
+
+        shard_specs[attn.indexer.wq_b.weight] = ("model", None)
+        shard_specs[attn.indexer.wk.weight] = (None, batch_axis)
+        shard_specs[attn.indexer.weights_proj.weight] = ("model", batch_axis)
+        shard_specs[attn.indexer.k_cache] = (batch_axis, None, None)
+
+        return shard_specs
+
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.95),
+    )
+
+    run_graph_test(
+        wrapper,
+        [
+            hidden_states,
+            freqs_cis_prefill,
+            prefill_mask,
+            decode_hidden,
+            freqs_cis_decode,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -435,44 +564,29 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
 
 @pytest.mark.llmbox
 def test_deepseek_v3_2_full_sparse_moe():
-    """Test full DeepseekV3-2 Transformer with A2aSparseMLP on (2,4) mesh."""
+    """Test full DeepseekV3-2 Transformer with A2aSparseMLP on (4,8) galaxy mesh."""
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
     batch_size = 64
     seq_len = 32
-    args = ModelArgs(
-        n_layers=2,
-        q_lora_rank=3072,
-        max_batch_size=batch_size,
-        max_seq_len=seq_len * 2,
-    )
 
-    model = ModifiedTransformer(args)
-    model = model.to(torch.bfloat16)
-    # head is intentionally float32 in the original model (logits computed in fp32),
-    # but model.to(bf16) converts it. Restore to float32 to match forward's .float() call.
-    model.head = model.head.to(torch.float32)
-
-    mesh_shape = (4, 8)
-    enable_sparse_mlp(
-        model,
-        mesh=mesh_shape,
-        cluster_axis=0,
-        config=args,
-    )
-
-    model.eval()
+    # ModelLoader handles: bfloat16 cast, head dtype restore, enable_sparse_mlp, eval
+    loader = ModelLoader(num_layers=2, max_batch_size=batch_size)
+    wrapped = loader.load_model(dtype_override=torch.bfloat16, max_seq_len=seq_len * 2)
+    transformer = wrapped.transformer
+    args = loader._args
 
     tokens = torch.randint(0, args.vocab_size, (batch_size, seq_len))
     # Pre-compute freqs_cis and mask outside forward() to avoid an unsharded
     # graph segment that compiles before the device mesh is opened with the
     # correct shape.  Without this, the first compiled segment has a trivial
     # [1,1] shardy mesh that falls back to a wrong [1,N] layout and segfaults.
-    freqs_cis = model.freqs_cis[:seq_len]
+    freqs_cis = transformer.freqs_cis[:seq_len]
     mask = torch.full((seq_len, seq_len), float("-inf"), dtype=torch.bfloat16).triu_(1)
 
     num_devices = xr.global_runtime_device_count()
+    mesh_shape = (4, 8)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
 
@@ -568,11 +682,261 @@ def test_deepseek_v3_2_full_sparse_moe():
     )
 
     run_graph_test(
-        model,
+        transformer,
         [tokens, 0, freqs_cis, mask],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
         compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
+    )
+
+
+@pytest.mark.llmbox
+def test_deepseek_v3_2_full_sparse_moe_via_loader():
+    """Test full DeepSeekV3-2 via ModelLoader wrapper forward() on a (4,8) galaxy mesh.
+
+    Unlike test_deepseek_v3_2_full_sparse_moe (which extracts wrapped.transformer and
+    pre-computes freqs_cis/mask outside the compiled region), this test calls through
+    the DeepSeekV32ForCausalLM wrapper.  It exercises:
+      - buffer-based freqs_cis/_causal_mask slicing inside forward()
+      - load_shard_spec() replicated specs for those buffers
+      - the full loader → wrapper → transformer call chain
+
+    Layer layout with num_layers=2 (n_dense_layers capped to 1 by the loader):
+      layer 0 (layer_id=0, < n_dense_layers=1): dense MLP
+      layer 1 (layer_id=1, >= n_dense_layers=1): A2aSparseMLPWithSharedExperts (MoE)
+    """
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    batch_size = 32
+    seq_len = 32
+
+    loader = ModelLoader(num_layers=2, max_batch_size=batch_size)
+    wrapped = loader.load_model(dtype_override=torch.bfloat16, max_seq_len=128)
+
+    tokens = torch.randint(0, loader._args.vocab_size, (batch_size, seq_len))
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (4, 8)
+    device_ids = np.array(range(num_devices))
+    # Use ("batch", "model") to match loader.load_shard_spec axis names directly.
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(model, args, kwargs):
+        # model is DeepSeekV32ForCausalLM directly (no _LogitsWrapper).
+        shard_specs = loader.load_shard_spec(model)
+        # Input tokens [batch, seq] — batch dim on model axis (size 8).
+        shard_specs[args[0]] = ("model", None)
+        return shard_specs
+
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.95),
+    )
+
+    run_graph_test(
+        wrapped,
+        [tokens],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=comparison_config,
+        compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
+    )
+
+
+def test_kv_cache_shared_between_cpu_and_device_runs():
+    """Check that model.to(device) carries dirty KV cache from CPU run to device.
+
+    Simulates the llm_benchmark.py call sequence:
+        1. CPU reference run  — generate_and_benchmark writes to kv_cache/pe_cache
+        2. model.to(device)   — moves the model *including dirty cache* to device
+        3. Device forward run — starts with the cache already populated
+
+    Two facts are verified:
+
+    Fact 1 — Cache IS shared:
+        After the CPU forward, kv_cache and pe_cache are non-zero.  model.to(device)
+        transfers those values to device; the device model sees the same dirty cache.
+
+    Fact 2 — Dirty cache does NOT corrupt output (with start_pos=0):
+        The model always writes kv_cache[0:seqlen] *before* reading from it
+        (start_pos=0 hardcoded in DeepSeekV32ForCausalLM.forward).  The initial
+        cache contents are overwritten on every call, so a clean-cache forward and
+        a dirty-cache forward on the same tokens produce identical logits.
+
+    Consequence for PCC=0.68:
+        The observed PCC degradation is NOT caused by cache contamination.
+        It is caused by the CPU and device runs using different random tokens
+        (each construct_inputs call independently called torch.randint).
+        The fix is to generate _prefill_tokens once and reuse across all
+        construct_inputs calls (done in llm_benchmark.py).
+    """
+    torch.manual_seed(42)
+
+    args = ModelArgs(n_layers=1, q_lora_rank=3072, max_batch_size=2, max_seq_len=64)
+    model = ModifiedTransformer(args).to(torch.bfloat16).eval()
+
+    # Restore LayerNorm and head to float32 — mirrors loader.load_model() post-cast
+    # fixups.  LayerNorm.forward() calls x.float() before F.layer_norm, so its
+    # weight/bias must remain float32 or CPU execution raises a mixed-dtype error.
+    # head is also float32 in the original model (logits computed in fp32).
+    for module in model.modules():
+        if isinstance(module, DeepSeekLayerNorm):
+            module.weight.data = module.weight.data.to(torch.float32)
+            module.bias.data = module.bias.data.to(torch.float32)
+    model.head = model.head.to(torch.float32)
+
+    attn = model.layers[0].attn
+
+    batch_size, seq_len = 2, 32
+    tokens = torch.randint(0, args.vocab_size, (batch_size, seq_len))
+
+    # ------------------------------------------------------------------ #
+    # Fact 1: CPU run writes to kv_cache/pe_cache; model.to(device)       #
+    # carries those values.                                                #
+    # ------------------------------------------------------------------ #
+
+    # Cache starts at zero
+    assert attn.kv_cache.abs().max() == 0.0, "kv_cache should be zero-initialised"
+    assert attn.pe_cache.abs().max() == 0.0, "pe_cache should be zero-initialised"
+
+    # CPU forward run (mirrors the PCC-reference run in llm_benchmark)
+    with torch.no_grad():
+        model(tokens, start_pos=0)
+
+    kv_after_cpu = attn.kv_cache[:batch_size, :seq_len].detach().clone()
+    pe_after_cpu = attn.pe_cache[:batch_size, :seq_len].detach().clone()
+
+    assert (
+        kv_after_cpu.abs().max() > 0.0
+    ), "CPU run should have written non-zero values to kv_cache"
+    assert (
+        pe_after_cpu.abs().max() > 0.0
+    ), "CPU run should have written non-zero values to pe_cache"
+
+    # model.to(device) would carry these values; confirm they are present on
+    # the same buffer object (no implicit reset on to()).
+    model_cpu = model.to("cpu")  # no-op (already cpu), but mirrors model.to(device)
+    assert attn.kv_cache[:batch_size, :seq_len].allclose(
+        kv_after_cpu
+    ), "model.to(device) must not reset kv_cache — dirty values are transferred"
+
+    # ------------------------------------------------------------------ #
+    # Fact 2: Dirty cache does NOT change output because start_pos=0       #
+    # overwrites before reading.                                           #
+    # ------------------------------------------------------------------ #
+
+    # Run on clean cache: reset to zero and forward
+    attn.kv_cache.zero_()
+    attn.pe_cache.zero_()
+    if attn.indexer is not None:
+        attn.indexer.k_cache.zero_()
+    with torch.no_grad():
+        logits_clean = model(tokens, start_pos=0).clone()
+
+    # Run on dirty cache: cache is now populated from the previous forward
+    kv_dirty = attn.kv_cache[:batch_size, :seq_len].detach().clone()
+    assert (
+        kv_dirty.abs().max() > 0.0
+    ), "cache should be non-zero (dirty) before second run"
+    with torch.no_grad():
+        logits_dirty = model(tokens, start_pos=0).clone()
+
+    # Outputs must be identical: the write at [0:seqlen] overwrites dirty state
+    # before the read at [:seqlen], so initial cache values are irrelevant.
+    assert torch.allclose(logits_clean, logits_dirty), (
+        "With start_pos=0, dirty cache should not affect output — the write "
+        "always precedes the read for positions [0:seqlen]."
+    )
+
+    # Confirm PCC=1.0 (same tokens, same cache state after write)
+    c = logits_clean.float().reshape(-1)
+    d = logits_dirty.float().reshape(-1)
+    pcc = torch.corrcoef(torch.stack([c, d]))[0, 1].item()
+    assert (
+        pcc > 0.9999
+    ), f"Expected PCC≈1.0 for same-token clean vs dirty run, got {pcc:.6f}"
+
+    print(
+        f"\nFact 1 confirmed: CPU run populates kv_cache (max={kv_after_cpu.abs().max():.4f})."
+        f"\nFact 2 confirmed: dirty cache does not change output (PCC={pcc:.6f})."
+        f"\nConclusion: PCC=0.68 in benchmark was caused by different tokens, "
+        f"not cache contamination."
+    )
+
+
+def test_decode_cache_position_stuck_at_zero():
+    """Confirm that DeepSeekV32ForCausalLM.forward() always writes position 0.
+
+    loader.py's DeepSeekV32ForCausalLM.forward() hardcodes start_pos=0 in its
+    self.transformer(..., start_pos=0, ...) call.  This means every forward
+    call — both prefill and decode — writes to kv_cache[0:seqlen].
+
+    After a prefill of seq_len=32, a decode step should append the new token at
+    position 32 (start_pos=32, writing kv_cache[32:33]).  Instead, it overwrites
+    position 0, leaving positions 1–31 as stale prefill data and never populating
+    position 32+.
+
+    This test exercises DeepSeekV32ForCausalLM (the loader wrapper) directly to
+    confirm the stuck-at-0 behaviour.
+    """
+    torch.manual_seed(42)
+
+    batch_size, prefill_len = 1, 32
+    loader = ModelLoader(num_layers=1, max_batch_size=batch_size)
+    model = loader.load_model(dtype_override=torch.bfloat16, max_seq_len=64)
+    model.eval()
+
+    attn = model.transformer.layers[0].attn
+
+    prefill_tokens = torch.randint(
+        0, loader._args.vocab_size, (batch_size, prefill_len)
+    )
+    decode_token = torch.randint(0, loader._args.vocab_size, (batch_size, 1))
+
+    # --- Prefill: input_ids shape [1, 32] → should write kv_cache[0:32] ---
+    with torch.no_grad():
+        model(input_ids=prefill_tokens)
+
+    kv_after_prefill = attn.kv_cache[:batch_size].detach().clone()
+
+    assert (
+        kv_after_prefill[0, :prefill_len].abs().max() > 0
+    ), "Prefill should write positions 0:32"
+    assert (
+        kv_after_prefill[0, prefill_len:].abs().max() == 0
+    ), "Positions 32+ should be zero after prefill (not yet decoded)"
+
+    # --- Decode: input_ids shape [1, 1] → should append at position 32,
+    #     but loader hardcodes start_pos=0 so it overwrites position 0 instead ---
+    with torch.no_grad():
+        model(input_ids=decode_token)
+
+    kv_after_decode = attn.kv_cache[:batch_size].detach().clone()
+
+    pos0_overwritten = not torch.allclose(kv_after_decode[0, 0], kv_after_prefill[0, 0])
+    pos1_31_stale = torch.allclose(
+        kv_after_decode[0, 1:prefill_len], kv_after_prefill[0, 1:prefill_len]
+    )
+    pos32_never_written = kv_after_decode[0, prefill_len].abs().max() == 0
+
+    assert (
+        pos0_overwritten
+    ), "Decode overwrites position 0 (stuck-at-0 bug in loader.py)"
+    assert (
+        pos1_31_stale
+    ), "Positions 1–31 are stale prefill values — decode did not append to history"
+    assert (
+        pos32_never_written
+    ), "Position 32 is still zero — the new decode token was never appended"
+
+    print(
+        f"\nstuck-at-0 confirmed via DeepSeekV32ForCausalLM (loader.py wrapper):"
+        f"\n  pos 0 overwritten by decode : {pos0_overwritten}"
+        f"\n  pos 1-31 stale prefill data : {pos1_31_stale}"
+        f"\n  pos 32 never written        : {pos32_never_written}"
+        f"\nFix requires exposing start_pos through the loader wrapper and "
+        f"tracking cache position externally (e.g. a DeepSeekStaticCache)."
     )

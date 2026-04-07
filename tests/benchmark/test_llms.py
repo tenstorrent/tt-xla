@@ -1166,3 +1166,24 @@ def test_llama_3_1_70b_tp_galaxy(output_file, num_layers, request):
         request=request,
         arch="wormhole_galaxy",
     )
+
+
+def test_deepseek_v3_2_exp(output_file, num_layers, request):
+    from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.loader import (
+        ModelLoader,
+    )
+    from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.loader import (
+        ModelVariant as ModelVariant,
+    )
+
+    variant = ModelVariant.DEEPSEEK_V3_2_EXP
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=2,
+        request=request,
+        arch="wormhole_galaxy",
+        batch_size=32,
+        optimization_level=0,
+    )

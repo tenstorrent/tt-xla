@@ -44,7 +44,7 @@ MODULE_EXPORT_PATH = "modules"
 
 
 def setup_model_and_tokenizer(
-    model_loader, model_variant
+    model_loader, model_variant, **load_kwargs
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
     """
     Instantiate model and tokenizer.
@@ -52,13 +52,16 @@ def setup_model_and_tokenizer(
     Args:
         model_loader: Loader of the HuggingFace model.
         model_variant: Specific variant of the model.
+        **load_kwargs: Extra keyword arguments forwarded to load_model (e.g.
+            max_seq_len for models with an internal KV cache sized at
+            construction time, such as DeepSeek).
 
     Returns:
         Tuple of (model, tokenizer)
     """
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
-    model = model_loader.load_model(dtype_override=torch.bfloat16)
+    model = model_loader.load_model(dtype_override=torch.bfloat16, **load_kwargs)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
     model = model.eval()
@@ -293,9 +296,19 @@ def benchmark_llm_torch_xla(
     # Connect the device
     device: torch.device = torch_xla.device()
 
-    # Instantiate model and tokenizer
-    model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
+    # Instantiate model and tokenizer.
+    # Pass max_seq_len so that models with an internal KV cache (e.g. DeepSeek)
+    # allocate it to fit the actual benchmark context window rather than their
+    # full-model default (16384), which is too large to fit on device.
+    model, tokenizer = setup_model_and_tokenizer(
+        model_loader, model_variant, max_seq_len=max_cache_len
+    )
     full_model_name = model_loader.get_model_info(variant=model_variant).name
+
+    # Generate prefill tokens once so that CPU and device runs use identical inputs.
+    # Calling torch.randint inside each construct_inputs call would produce different
+    # random tokens for each call, making PCC comparison meaningless.
+    _prefill_tokens = torch.randint(0, model.config.vocab_size, (32,))
 
     # Initialize accuracy testing if enabled
     token_accuracy = None
@@ -315,7 +328,9 @@ def benchmark_llm_torch_xla(
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt if accuracy_testing else _prefill_tokens
+        ),
     )
 
     # Limit maximum generation count to fit within preallocated static cache
@@ -343,13 +358,24 @@ def benchmark_llm_torch_xla(
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt if accuracy_testing else _prefill_tokens
+        ),
     )
     input_args = transfer_to_device(input_args, device)
-    model = model.to(device, dtype=torch.bfloat16)
+    # Models that manage their own KV cache (e.g. DeepSeek) must not receive
+    # past_key_values / cache_position as compiled-graph inputs: even though
+    # forward() absorbs them in **kwargs, TorchDynamo still sees the device
+    # tensors and can corrupt Shardy's in_sharding for sdy.manual_computation.
+    if not getattr(model_loader, "uses_external_kv_cache", True):
+        input_args.pop("past_key_values", None)
+        input_args.pop("cache_position", None)
+        input_args.pop("use_cache", None)
+    model = model.to(device, dtype=torch.bfloat16)  # TODO: fix this
 
     # Shard model if shard spec function is provided
     mesh = None
+    input_sharding = None
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
@@ -357,15 +383,43 @@ def benchmark_llm_torch_xla(
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        # Also shard KV cache tensors created in input_args
-        for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+        # Also shard KV cache tensors created in input_args.
+        # Models that manage their own internal KV cache (e.g. DeepSeek, which
+        # ignores past_key_values entirely) can opt out by setting
+        # uses_external_kv_cache = False on the loader so that the sharded
+        # StaticCache tensors are not marked — and therefore not seen as
+        # graph inputs with an unexpected sharding by the SPMD partitioner.
+        if getattr(model_loader, "uses_external_kv_cache", True):
+            for layer in input_args["past_key_values"].layers:
+                xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+                xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
         # Apply sharding constraint on lm_head output to all_gather logits
         if hasattr(model, "lm_head") and model.lm_head is not None:
             hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
             model.lm_head.register_forward_hook(hook)
+
+        # Shard input tokens if the model loader specifies an input sharding.
+        # Models whose all_to_all_dispatch assumes tokens are batch-sharded
+        # (e.g., DeepSeek MoE) must set get_input_sharding() so that every
+        # forward call — prefill and decode — sees sharded input_ids instead
+        # of replicated ones.  Without this, Shardy propagates the wrong
+        # in_sharding into sdy.manual_computation and the all-to-all hangs.
+        if hasattr(model_loader, "get_input_sharding"):
+            input_sharding = model_loader.get_input_sharding()
+            if input_sharding is not None:
+                xs.mark_sharding(input_args["input_ids"], mesh, input_sharding)
+
+    # Build a closure that re-shards input_ids after each decode step.
+    # Called by generate_and_benchmark so that the decode-step tokens have
+    # the same per-device batch slice as the prefill tokens.
+    _input_shard_fn = None
+    if mesh is not None and input_sharding is not None:
+        _mesh_ref = mesh
+        _spec_ref = input_sharding
+
+        def _input_shard_fn(ia):
+            xs.mark_sharding(ia["input_ids"], _mesh_ref, _spec_ref)
 
     # Set XLA compilation options
     num_layers_override = getattr(model_loader, "num_layers", None)
@@ -404,6 +458,7 @@ def benchmark_llm_torch_xla(
         read_logits_fn=read_logits_fn,
         tokenizer=tokenizer,
         verbose=False,
+        input_shard_fn=_input_shard_fn,
     )
 
     tracy.signpost("warmup_complete")
@@ -414,11 +469,20 @@ def benchmark_llm_torch_xla(
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=input_args["past_key_values"],
+        past_key_values=input_args.get("past_key_values"),
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt if accuracy_testing else _prefill_tokens
+        ),
     )
     input_args = transfer_to_device(input_args, device)
+    if not getattr(model_loader, "uses_external_kv_cache", True):
+        input_args.pop("past_key_values", None)
+        input_args.pop("cache_position", None)
+        input_args.pop("use_cache", None)
+    # Re-shard input_ids after reconstruction (transfer_to_device creates a fresh tensor).
+    if _input_shard_fn is not None:
+        _input_shard_fn(input_args)
 
     # Run benchmark once
     print(f"\nStarting benchmark...")
@@ -434,6 +498,7 @@ def benchmark_llm_torch_xla(
         tokenizer=tokenizer,
         verbose=True,
         ground_truth_tokens=ground_truth_for_benchmark,
+        input_shard_fn=_input_shard_fn,
     )
 
     # Post-processing: derive predicted tokens for accuracy testing
