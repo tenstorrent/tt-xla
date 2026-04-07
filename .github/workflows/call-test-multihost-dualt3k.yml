@@ -199,6 +199,12 @@ jobs:
           TT_DISTRIBUTED_RANK_BINDING=dual_t3k
           TT_DISTRIBUTED_WORKER_PATH=/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker
           TT_RUNTIME_ENABLE_DISTRIBUTED=1
+
+
+          pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
+
+          sleep 5
+          echo "done pytest"
           pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
         '
 
