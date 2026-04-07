@@ -299,17 +299,16 @@ jobs:
           echo "docker_sha=$curr_head_sha" >> $GITHUB_OUTPUT
           echo "success=true" >> $GITHUB_OUTPUT
 
-      - uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v3.0.1
         if: ${{ steps.success-failed.outputs.success != 'true' && github.event_name == 'workflow_run' }}
         with:
+          webhook: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
+          webhook-type: webhook-trigger
           payload: |
-            {
-              "text": "${{ steps.success-failed.outputs.msg }}",
-              "job_link": ""
-              "unfurl_links": false, "unfurl_media": false
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
+            text: "${{ steps.success-failed.outputs.msg }}"
+            job_link: ""
+            unfurl_links: false
+            unfurl_media: false
 
   build-image:
     needs: inspect
@@ -466,6 +465,7 @@ jobs:
           fi
 
       - uses: slackapi/slack-github-action@v3.0.1
+        if: ${{ github.event_name == 'workflow_run' }}
         with:
           webhook: ${{ secrets.SLACK_NIGHTLY_INSPECT_RESULT }}
           webhook-type: webhook-trigger
