@@ -90,6 +90,7 @@ from .attention import (
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
     TTMetadata,
+    TTMLAAttentionBackend,
     TTMLADecodeMetadata,
     TTMLAMetadata,
     TTMLAPrefillMetadata,
@@ -1637,8 +1638,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 for param in model.parameters():
                     if param.dtype in _FP8_DTYPES:
                         param.data = param.data.to(torch.bfloat16)
+                # Replace any remaining quantized linear methods with unquantized.
+                # DeepSeek-V3's block-FP8 quantization is embedded in its HF config
+                # and survives quantization=None at the vllm config level. After
+                # converting weights to bf16, the quant_method must also be cleared
+                # so that the standard bf16 GEMM path is taken during forward passes.
+                from vllm.model_executor.layers.linear import (
+                    LinearBase,
+                    UnquantizedLinearMethod,
+                )
+                for module in model.modules():
+                    if (
+                        isinstance(module, LinearBase)
+                        and module.quant_method is not None
+                        and not isinstance(module.quant_method, UnquantizedLinearMethod)
+                    ):
+                        module.quant_method = UnquantizedLinearMethod()
                 replace_modules(model)
                 model = model.to(self.device)
+                # Move MLA plain-tensor weight attributes to device.
+                # MLAAttention stores W_UK_T and W_UV as plain tensors (not
+                # parameters/buffers), so model.to(device) doesn't move them.
+                from vllm.model_executor.layers.attention.mla_attention import (
+                    MLAAttention as _MLAAttention,
+                )
+                for _mod in model.modules():
+                    if isinstance(_mod, _MLAAttention):
+                        for _attr in ("W_UK_T", "W_UV", "W_K", "W_V"):
+                            if hasattr(_mod, _attr):
+                                _t = getattr(_mod, _attr)
+                                if isinstance(_t, torch.Tensor):
+                                    setattr(_mod, _attr, _t.to(self.device))
 
                 if self.enable_tensor_parallel:
                     # Apply sharding constraints to the model weights.
@@ -2172,21 +2202,31 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
                 if isinstance(kv_cache_spec, AttentionSpec):
-                    if self.enable_tensor_parallel:
-                        num_kv_heads = kv_cache_spec.num_kv_heads
-                        assert self.original_parallel_config is not None
-                        tp_size = self.original_parallel_config.tensor_parallel_size
-                        # TODO: Handle kv cache duplication under SPMD mode.
-                        assert num_kv_heads % tp_size == 0, (
-                            f"num_kv_heads {num_kv_heads} must be divisible by "
-                            f"tp_size {tp_size} under SPMD mode"
+                    if isinstance(kv_cache_spec, MLAAttentionSpec):
+                        # MLA layers use a 4D cache (no K/V split dim):
+                        # (num_blocks, num_kv_heads, block_size, head_size)
+                        kv_cache_shape = TTMLAAttentionBackend.get_kv_cache_shape(
+                            num_blocks,
+                            kv_cache_spec.block_size,
+                            kv_cache_spec.num_kv_heads,
+                            kv_cache_spec.head_size,
                         )
-                    kv_cache_shape = TTAttentionBackend.get_kv_cache_shape(
-                        num_blocks,
-                        kv_cache_spec.block_size,
-                        kv_cache_spec.num_kv_heads,
-                        kv_cache_spec.head_size,
-                    )
+                    else:
+                        if self.enable_tensor_parallel:
+                            num_kv_heads = kv_cache_spec.num_kv_heads
+                            assert self.original_parallel_config is not None
+                            tp_size = self.original_parallel_config.tensor_parallel_size
+                            # TODO: Handle kv cache duplication under SPMD mode.
+                            assert num_kv_heads % tp_size == 0, (
+                                f"num_kv_heads {num_kv_heads} must be divisible by "
+                                f"tp_size {tp_size} under SPMD mode"
+                            )
+                        kv_cache_shape = TTAttentionBackend.get_kv_cache_shape(
+                            num_blocks,
+                            kv_cache_spec.block_size,
+                            kv_cache_spec.num_kv_heads,
+                            kv_cache_spec.head_size,
+                        )
                     dtype = kv_cache_spec.dtype
 
                     tpu_kv_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(
@@ -2209,8 +2249,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_tensor_parallel:
             # Shard KV Cache
             for cache in self.kv_caches:
-                assert cache.ndim == 5, "KV cache tensor must be 5D."
-                xs.mark_sharding(cache, self.mesh, (None, None, "batch", None, None))
+                if cache.ndim == 5:
+                    # Standard 5D attention cache: (kv, num_blocks, num_kv_heads, block_size, head_size)
+                    xs.mark_sharding(cache, self.mesh, (None, None, "batch", None, None))
+                # 4D MLA caches (num_blocks, 1, block_size, head_size) have a single KV head
+                # and don't benefit from head-dim sharding — skip.
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)

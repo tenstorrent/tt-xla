@@ -38,6 +38,40 @@ logger = tt_init_logger(__name__)
 # via paged_fill_cache — the double-write is idempotent).
 # ---------------------------------------------------------------------------
 import vllm._custom_ops as _vllm_custom_ops
+from vllm.model_executor.custom_op import PluggableLayer
+from vllm.model_executor.layers.mla import MultiHeadLatentAttentionWrapper as _MLAWrapper
+
+# ---------------------------------------------------------------------------
+# Register a TT-compatible replacement for MultiHeadLatentAttentionWrapper
+# using the official PluggableLayer OOT mechanism.
+#
+# The TT model runner passes input_ids shaped (max_num_reqs, num_tokens),
+# so hidden_states arriving here is 3D (batch, seq_len, hidden_size). The
+# vllm MLA code assumes 2D flat (T, hidden_size): k_pe.unsqueeze(1) on
+# (batch, seq, rope_dim) produces (batch, 1, seq, rope_dim), which then
+# incorrectly broadcasts with RoPE cos/sin tensors of shape (T, 1, rope_dim),
+# yielding (batch, T, seq, rope_dim) instead of (T, 1, rope_dim).
+# ---------------------------------------------------------------------------
+
+
+@PluggableLayer.register_oot(name="MultiHeadLatentAttentionWrapper")
+class TTMultiHeadLatentAttentionWrapper(_MLAWrapper):
+    """TT-aware MLA wrapper that flattens batched hidden_states before forward."""
+
+    def forward(
+        self,
+        positions: torch.Tensor,
+        hidden_states: torch.Tensor,
+        llama_4_scaling=None,
+    ) -> torch.Tensor:
+        if hidden_states.ndim == 3:
+            orig_leading = hidden_states.shape[:2]           # (batch, seq_len)
+            hidden_states = hidden_states.flatten(0, 1)      # (T, hidden_size)
+            if positions.ndim == 2:
+                positions = positions.flatten()              # (T,) instead of (batch, seq_len)
+            output = super().forward(positions, hidden_states, llama_4_scaling)
+            return output.unflatten(0, orig_leading)         # (batch, seq_len, out_size)
+        return super().forward(positions, hidden_states, llama_4_scaling)
 
 
 def _tt_concat_and_cache_mla(
@@ -53,6 +87,11 @@ def _tt_concat_and_cache_mla(
     Writes concatenated (kv_c ‖ k_pe) into the paged MLA KV cache for ALL
     tokens (decode + prefill) using index_put, which compiles to XLA scatter.
     """
+    # Guard: during the profile run MLAAttention.kv_cache is initialized to
+    # [torch.tensor([])] — a 1D empty tensor. Dynamo may lift it as a graph
+    # input and still trace this function. Skip the cache write in that case.
+    if kv_cache.ndim < 3:
+        return
     kv_combined = torch.cat([kv_c, k_pe], dim=-1)       # [T, head_size]
     block_size = kv_cache.shape[2]
     block_ids = (slot_mapping // block_size).long()      # [T]
