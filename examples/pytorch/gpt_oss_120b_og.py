@@ -26,8 +26,9 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils.quantization_config import Mxfp4Config
-from tt_torch.sparse_mlp import A2aSparseMLP, enable_sparse_mlp
+from tt_torch.sparse_mlp import enable_sparse_mlp
 from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
 
 DEFAULT_PROMPT = "Explain quantum mechanics."
 
@@ -36,7 +37,7 @@ DEFAULT_PROMPT = "Explain quantum mechanics."
 # GPT-OSS 120B Generation Loop Example
 # --------------------------------
 def gpt_oss_120b(
-    interactive: bool = False, sparse_moe: bool = False, batch_size: int = 8
+    interactive: bool = False, sparse_moe: bool = False, batch_size: int = 64
 ):
 
     # Set up config variables.
@@ -50,7 +51,6 @@ def gpt_oss_120b(
     mesh, mesh_shape = create_device_mesh()
 
     # Instantiate model and tokenizer
-    print("Setting up model and tokenizer...")
     model, tokenizer = setup_model_and_tokenizer(model_name)
 
     # Optionally replace MoE MLP layers with sparse implementation.
@@ -73,7 +73,6 @@ def gpt_oss_120b(
             user_prompt = [DEFAULT_PROMPT] * batch_size
 
         # Construct inputs, including static cache
-        print("Constructing inputs...")
         input_args, formatted_prompts = construct_inputs(
             user_prompt, tokenizer, model.config, batch_size, max_cache_len, sparse_moe
         )
@@ -82,19 +81,15 @@ def gpt_oss_120b(
         max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
         # Transfer model and inputs to device
-        print("Moving model and inputs to device...")
         model, input_args = transfer_to_device(model, input_args, device)
 
         # Mark sharding on inputs and model internals
         mark_sharding_on_inputs_and_model(model, input_args, mesh, sparse_moe)
 
-        # Compile model (lazy — actual XLA/TT-MLIR compilation happens on first forward pass)
-        t0 = time.perf_counter()
+        # Compile model
         compiled_model = torch.compile(model, backend="tt")
-        print(f"torch.compile() wrapper: {time.perf_counter() - t0:.3f}s (lazy, first forward triggers actual compile)")
 
         # Run generation loop until EOS token generated or max tokens reached
-        print("Begin generation...")
         run_generate(
             compiled_model,
             input_args,
@@ -134,9 +129,7 @@ def setup_spmd():
     # input shapes change. First run populates it; subsequent runs load from disk.
     cache_dir = os.path.expanduser("~/.cache/tt_xla/gpt_oss_120b")
     xr.initialize_cache(cache_dir)
-    cache_files = list(os.scandir(cache_dir)) if os.path.isdir(cache_dir) else []
-    cache_status = f"WARM ({len(cache_files)} entries)" if cache_files else "COLD (will compile)"
-    print(f"Compilation cache: {cache_dir} [{cache_status}]")
+    print(f"Compilation cache: {cache_dir}")
 
     print("XLA environment configured.")
 
@@ -199,7 +192,7 @@ def setup_model_and_tokenizer(
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
     )
-    print(f"Applied weight overrides: {applied}")
+    print(f"Applied {len(applied)} expert weight BFP4 overrides")
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
@@ -249,7 +242,7 @@ def construct_inputs(
     # compile on every prompt. Must NOT be a multiple of 32 — sparse MoE has two
     # dispatch paths (split_seq when seq_len%32==0, split_bd otherwise) and only
     # split_bd is validated on QB2. 100 tokens fits typical chat prompts.
-    PREFILL_PAD_LEN = 100
+    PREFILL_PAD_LEN = 96
     if actual_max > PREFILL_PAD_LEN:
         raise ValueError(
             f"Prompt is {actual_max} tokens, exceeds PREFILL_PAD_LEN={PREFILL_PAD_LEN}. "
@@ -403,18 +396,10 @@ def mark_sharding_on_inputs_and_model(
         # biases: small enough to replicate
         xs.mark_sharding(layer.self_attn.sinks, mesh, (None,))
 
-        if sparse_moe and isinstance(layer.mlp, A2aSparseMLP):
-            # sparse MoE needs full expert set on all devices — shard E dim across both axes
-            # to match get_moe_shard_specs() in the runner
-            expert_e_shard = (("batch", "model"), None, None)
-            expert_e_bias_shard = (("batch", "model"), None)
-        else:
-            expert_e_shard = ("model", None, None)
-            expert_e_bias_shard = ("model", None)
-        xs.mark_sharding(layer.mlp.experts.gate_up_proj, mesh, expert_e_shard)
-        xs.mark_sharding(layer.mlp.experts.gate_up_proj_bias, mesh, expert_e_bias_shard)
-        xs.mark_sharding(layer.mlp.experts.down_proj, mesh, expert_e_shard)
-        xs.mark_sharding(layer.mlp.experts.down_proj_bias, mesh, expert_e_bias_shard)
+        xs.mark_sharding(layer.mlp.experts.gate_up_proj, mesh, ("model", None, None))
+        xs.mark_sharding(layer.mlp.experts.gate_up_proj_bias, mesh, ("model", None))
+        xs.mark_sharding(layer.mlp.experts.down_proj, mesh, ("model", None, None))
+        xs.mark_sharding(layer.mlp.experts.down_proj_bias, mesh, ("model", None))
 
 
 def run_generate(
