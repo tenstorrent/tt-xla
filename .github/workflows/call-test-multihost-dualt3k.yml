@@ -29,6 +29,11 @@ on:
         description: 'Suffix for the artifact name'
         required: false
         type: string
+      wheel_artifact_name:
+        description: 'Exact GitHub Actions artifact name for the xla wheel (overrides xla-whl-{wheel_build}{artifact_suffix} when non-empty)'
+        required: false
+        type: string
+        default: ''
       wheel_build:
         description: 'Build type to use for testing, e.g. release, manylinux'
         required: false
@@ -70,7 +75,11 @@ jobs:
       id: strings
       shell: bash
       run: |
-        echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        if [[ -n "${{ inputs.wheel_artifact_name }}" ]]; then
+          echo "wheel_artifact_name=${{ inputs.wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        fi
         echo "test_report_path=report_multihost_dualt3k.xml" >> "$GITHUB_OUTPUT"
         echo "test_log_path=pytest_multihost_dualt3k.log" >> "$GITHUB_OUTPUT"
 

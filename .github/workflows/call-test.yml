@@ -20,6 +20,11 @@ on:
         description: 'Suffix for the artifact name'
         required: false
         type: string
+      wheel_artifact_name:
+        description: 'Exact GitHub Actions artifact name for the xla wheel (overrides xla-whl-{wheel_build}{artifact_suffix} when non-empty)'
+        required: false
+        type: string
+        default: ''
       wheel_build:
         description: 'Build to use for testing, e.g. release, manylinux'
         required: false
@@ -137,7 +142,11 @@ jobs:
           echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
         fi
         echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
-        echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        if [[ -n "${{ inputs.wheel_artifact_name }}" ]]; then
+          echo "wheel_artifact_name=${{ inputs.wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        fi
         echo "wheel_release_vllm_tt_artifact_name=vllm-tt-whl-release${{inputs.artifact_suffix}}" >> "$GITHUB_OUTPUT"
         echo "alchemist_artifact_name=alchemist-lib-release${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
         echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
