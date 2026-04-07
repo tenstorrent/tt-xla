@@ -24,6 +24,7 @@ from vllm.config import (
     ParallelConfig,
     VllmConfig,
     get_layers_from_vllm_config,
+    set_current_vllm_config,
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
@@ -55,7 +56,7 @@ from vllm.multimodal.inputs import (
 from vllm.multimodal.utils import group_mm_kwargs_by_modality
 from vllm.sequence import IntermediateTensors
 from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
-from vllm.utils.math_utils import cdiv, prev_power_of_2
+from vllm.utils.math_utils import cdiv
 from vllm.utils.platform_utils import is_pin_memory_available
 from vllm.v1.attention.backend import AttentionType
 from vllm.v1.kv_cache_interface import (
@@ -97,7 +98,7 @@ from .logger import tt_init_logger
 from .overrides import replace_modules
 from .platform import TTConfig
 from .vllm_distributed_utils import shard_model
-from .vllm_utils import determine_mesh_shape
+from .vllm_utils import determine_mesh_shape, prev_power_of_2
 
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
@@ -1472,9 +1473,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # Temporarily replace the method
                     model_loader.get_all_weights = filtered_get_all_weights
 
-                model = model_loader.load_model(
-                    vllm_config=self.vllm_config, model_config=self.model_config
-                ).eval()
+                with set_current_vllm_config(self.vllm_config):
+                    model = model_loader.load_model(
+                        vllm_config=self.vllm_config, model_config=self.model_config
+                    ).eval()
                 replace_modules(model)
                 model = model.to(self.device)
 
