@@ -107,9 +107,15 @@ void EventInstance::await() {
 
 void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
                             void *user_arg) {
-  // PJRT allows callbacks on an internal thread or the calling thread. We run
-  // them asynchronously so completion threads never invoke Python while holding
-  // runtime/device locks.
+  // PJRT allows callbacks on an internal thread or the calling thread.
+  //
+  // If event is already ready, run the callback immediately on this thread.
+  // This keeps user_arg lifetime requirements minimal (callers may pass stack
+  // state expecting immediate invocation).
+  //
+  // For not-ready events, callback invocation is deferred to
+  // markAsReadyAndCallback, where we dispatch asynchronously to avoid running
+  // Python callbacks on completion threads that may hold runtime/device locks.
 
   tt_pjrt_status status_for_callback = tt_pjrt_status::kUnknown;
   {
@@ -121,9 +127,8 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
     status_for_callback = m_status;
   }
 
-  dispatchCallbacksAsync(
-      std::vector<OnReadyCallback>{{callback_function, user_arg}},
-      status_for_callback);
+  callback_function(*ErrorInstance::makeError(status_for_callback).release(),
+                    user_arg);
 }
 
 void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,

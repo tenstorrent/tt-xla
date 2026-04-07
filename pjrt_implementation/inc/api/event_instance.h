@@ -70,8 +70,8 @@ public:
   void await();
 
   // If the event is not ready yet, registers the callback for when it becomes
-  // ready. If already ready, the callback is dispatched asynchronously and
-  // never runs on the caller/completion thread.
+  // ready. If already ready, invokes callback immediately on the calling
+  // thread.
   void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
 
   // See comment below for `m_indestructible`.
