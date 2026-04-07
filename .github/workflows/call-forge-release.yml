@@ -83,6 +83,7 @@ jobs:
 
           project="tt-forge"
           commit_tag="${{ inputs.xla_sha_override }}"
+          distro="ubuntu"
           version_tag="${{ inputs.release_tag }}"
           latest_tag="latest"
           if [[ "$version_tag" == *dev* ]]; then
