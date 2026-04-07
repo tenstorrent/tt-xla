@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """DeepSeek-OCR masked_scatter decomposition — five sanities, **CPU vs TT PCC** (no ``masked_scatter_``).
 
-Same shapes/dtypes as ``inputs_embeds[idx]`` / ``images_seq_mask[idx]`` in ``DeepseekOCRModel.forward``.
-No third-party loading.
+Same shapes/dtypes as ``inputs_embeds[idx]`` / ``images_seq_mask[idx]`` in ``DeepseekOCRModel.forward``
+(seq_len=913, n_image_tokens=903, hidden_size=1280 — from CPU run). No third-party loading.
 
 **1.** Cumsum only: ``source_idx = torch.cumsum(mask_i, 0) - 1``
 
@@ -24,9 +24,11 @@ import torch_xla.runtime as xr
 from infra import Framework, run_op_test
 from utils import Category
 
+pytestmark = [pytest.mark.forked]
 
 HIDDEN_SIZE = 1280
-SEQ_LEN = 512
+N_IMAGE_TOKENS = 903
+SEQ_LEN = N_IMAGE_TOKENS + 10  # 913 — matches real CPU run
 MASK_I_NUMEL = SEQ_LEN * HIDDEN_SIZE
 INPUTS_EMBEDS_DTYPE = torch.bfloat16
 
@@ -37,7 +39,7 @@ def _make_row_inputs(seed: int):
         SEQ_LEN, HIDDEN_SIZE, dtype=INPUTS_EMBEDS_DTYPE, generator=g
     )
     images_seq_mask = torch.zeros(SEQ_LEN, dtype=torch.bool)
-    images_seq_mask[torch.randperm(SEQ_LEN, generator=g)[:200]] = True
+    images_seq_mask[torch.randperm(SEQ_LEN, generator=g)[:N_IMAGE_TOKENS]] = True
     n_img = int(images_seq_mask.sum().item())
     stacked_image_feats = torch.randn(
         n_img, HIDDEN_SIZE, dtype=INPUTS_EMBEDS_DTYPE, generator=g

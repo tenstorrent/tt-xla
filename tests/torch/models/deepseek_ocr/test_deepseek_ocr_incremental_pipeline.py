@@ -47,6 +47,8 @@ from third_party.tt_forge_models.deepseek.deepseek_ocr.pytorch.src.deepencoder i
     build_sam_vit_b,
 )
 
+pytestmark = [pytest.mark.forked]
+
 N_EMBED = 1280
 # ``preprocess``: crop tiles ``image_size=640``; global ``base_size=1024``
 PATCH_HW = 640
@@ -67,8 +69,9 @@ def _whole_model_pixel_inputs(seed: int) -> tuple[torch.Tensor, torch.Tensor]:
     return patches, image_ori
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def vision_stack():
+    """Fresh vision stack per test — ``run_op_test`` mutates models in-place via ``.to(device)``."""
     sam = build_sam_vit_b().eval().to(DTYPE)
     vision = build_clip_l().eval().to(DTYPE)
     projector = MlpProjector(
@@ -94,7 +97,7 @@ def aligned_embeds_and_mask_for_final(vision_stack):
     with torch.no_grad():
         stacked = stage5(patches_d, image_ori_d)
     n_tok = int(stacked.shape[0])
-    seq_len = max(n_tok + 128, 512)
+    seq_len = n_tok + 10
     g = torch.Generator().manual_seed(100)
     inputs_embeds = torch.randn(seq_len, N_EMBED, dtype=DTYPE, generator=g)
     mask = torch.zeros(seq_len, dtype=torch.bool)

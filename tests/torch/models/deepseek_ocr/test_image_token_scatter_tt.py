@@ -15,8 +15,6 @@ import torch_xla.runtime as xr
 from infra import Framework, run_op_test
 from utils import Category
 
-from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
-
 
 class DeepseekOcrImageTokenScatterBlock(nn.Module):
     """Line-for-line copy of the scatter block (no shared helper in source)."""
@@ -75,12 +73,8 @@ def test_deepseek_ocr_image_token_scatter_cpu_vs_tt_pcc(seq_len, hidden, num_ima
         seq_len, hidden, num_image_tokens, seed=42, dtype=dtype
     )
 
-    comparison_config = ComparisonConfig()
-    comparison_config.pcc = PccConfig(required_pcc=0.98)
-
     run_op_test(
         DeepseekOcrImageTokenScatterBlock(),
         [inputs_embeds, mask, stacked],
-        framework=Framework.TORCH,
-        comparison_config=comparison_config,
+        framework=Framework.TORCH
     )

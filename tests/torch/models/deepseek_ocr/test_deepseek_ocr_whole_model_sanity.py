@@ -20,7 +20,7 @@ Input geometry (same as the whole-model / incremental-pipeline tests):
 - ``patches``           : ``[6, 3, 640, 640]``   (``crop_shape = [2, 3]``)
 - ``image_ori``         : ``[1, 3, 1024, 1024]``
 - ``images_seq_mask``   : 903 ``True`` positions  (630 local + 272 global + 1 sep)
-- ``seq_len``           : 1031  (``903 + 128``)
+- ``seq_len``           : 913  (``903 + 10``)
 """
 
 from __future__ import annotations
@@ -37,6 +37,8 @@ from third_party.tt_forge_models.deepseek.deepseek_ocr.pytorch.src.modeling_deep
     DeepseekOCRForCausalLM,
 )
 
+pytestmark = [pytest.mark.forked]
+
 DTYPE = torch.bfloat16
 
 CROP_W = 2
@@ -46,7 +48,8 @@ PATCH_HW = 640
 GLOBAL_HW = 1024
 
 N_IMAGE_TOKENS = 903
-SEQ_LEN = N_IMAGE_TOKENS + 128  # 1031
+N_TEXT_TOKENS = 10
+SEQ_LEN = N_IMAGE_TOKENS + N_TEXT_TOKENS  # 913
 
 
 WEIGHTS_DIR = "DeepSeek_OCR_weights"
@@ -83,7 +86,7 @@ def _make_inputs(seed: int):
 class WholeModelWrapper(nn.Module):
     """Thin wrapper that flattens ``images`` from positional tensors for ``run_op_test``."""
 
-    def __init__(self, model: DeepseekOCRForCausalLM, early_stop: bool = False):
+    def __init__(self, model: DeepseekOCRForCausalLM, early_stop: str = ""):
         super().__init__()
         self.causal_lm = model
         self.early_stop = early_stop
@@ -129,7 +132,7 @@ def test_deepseek_ocr_whole_model_early_stop(causal_lm_model):
     xr.set_device_type("TT")
     inputs = _make_inputs(seed=42)
     run_op_test(
-        WholeModelWrapper(causal_lm_model, early_stop=True),
+        WholeModelWrapper(causal_lm_model, early_stop="before_super"),
         list(inputs),
         framework=Framework.TORCH,
     )
