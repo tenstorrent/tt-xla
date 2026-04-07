@@ -106,14 +106,14 @@ class AscendScheduler(Scheduler):
                     continue
 
             # Skip request if the structured output request is still waiting
-            # for FSM compilation.
-            if request.status == RequestStatus.WAITING_FOR_FSM:
+            # for structured output grammar compilation.
+            if request.status == RequestStatus.WAITING_FOR_STRUCTURED_OUTPUT_GRAMMAR:
                 structured_output_req = request.structured_output_request
                 if structured_output_req and structured_output_req.grammar:
-                    # unblock request if FSM is now ready
+                    # unblock request if ready
                     request.status = RequestStatus.WAITING
                 else:
-                    # skip request if FSM is still not ready
+                    # skip request if not ready
                     skip_cur_request()
                     continue
 
@@ -509,6 +509,9 @@ class AscendScheduler(Scheduler):
         For example, the API server can abort a request when the client
         disconnects.
         """
+        if request_ids is None:
+            return
+
         for req_id in request_ids:
             request = self.requests.get(req_id)
             if request is None:
