@@ -43,8 +43,6 @@ def _run_sampler(logits, metadata):
 
 # ---------------------------------------------------------------------------
 # Repetition penalty: positive logits divided, negative logits multiplied.
-# This is the path fixed by replacing torch.where with clamp-based arithmetic
-# to avoid SelectOp_InvertPredicateAndSwap in StablehloAggressiveSimplificationPass.
 # ---------------------------------------------------------------------------
 
 
