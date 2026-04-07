@@ -28,7 +28,8 @@ on:
 permissions:
   actions: write
   contents: read
-
+  checks: write
+  packages: write
 
 jobs:
   inspect:
