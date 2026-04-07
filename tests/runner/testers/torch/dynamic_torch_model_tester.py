@@ -179,7 +179,8 @@ class DynamicTorchModelTester(TorchModelTester):
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
         else:
-            mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
+            # mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
+            mesh_shape, mesh_names = (1, num_devices), ("model", "data")
 
         if mesh_shape and mesh_names:
             return get_mesh(mesh_shape, mesh_names)
