@@ -39,3 +39,8 @@ def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]
         mesh_shape = (1, num_devices)
         logger.info(f"Using 1D mesh shape for {num_devices} devices: {mesh_shape}")
         return mesh_shape
+
+
+def prev_power_of_2(n: int) -> int:
+    """The previous power of 2 (inclusive)"""
+    return 0 if n <= 0 else 1 << (n.bit_length() - 1)
