@@ -1,16 +1,21 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import json
+import re
+
 import numpy as np
 import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+from huggingface_hub import hf_hub_download
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from infra.testers.compiler_config import CompilerConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
+from safetensors import safe_open
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
@@ -22,6 +27,164 @@ from tests.utils import failed_ttmlir_compilation
 # 2. Disable FP8 quantization features (act_quant, fp8_gemm, fp8_index) with stubs
 #    - the original implementation (kernel.py) relies on custom tilelang kernels not supported on TT
 # 3. Avoid torch.view_as_complex/view_as_real operations
+
+DEEPSEEK_V3_REPO = "deepseek-ai/DeepSeek-V3"
+
+
+def _rename_hf_key(ckpt_key, n_dense_layers=1):
+    """Rename a HuggingFace checkpoint key to match modified_model.py state dict naming."""
+    key = ckpt_key
+
+    # Strip "model." prefix
+    if key.startswith("model."):
+        key = key[len("model.") :]
+
+    # Skip FP8 quantization scale keys
+    if "weight_scale_inv" in key:
+        return None
+
+    # Top-level renames
+    key = key.replace("lm_head.", "head.")
+    key = key.replace("embed_tokens.", "embed.")
+
+    # Layer norms
+    key = re.sub(r"(layers\.\d+\.)input_layernorm\.", r"\1attn_norm.", key)
+    key = re.sub(r"(layers\.\d+\.)post_attention_layernorm\.", r"\1ffn_norm.", key)
+
+    # Attention
+    key = key.replace("self_attn.q_a_proj.", "attn.wq_a.")
+    key = key.replace("self_attn.q_b_proj.", "attn.wq_b.")
+    key = key.replace("self_attn.q_a_layernorm.", "attn.q_norm.")
+    key = key.replace("self_attn.kv_a_proj_with_mqa.", "attn.wkv_a.")
+    key = key.replace("self_attn.kv_b_proj.", "attn.wkv_b.")
+    key = key.replace("self_attn.kv_a_layernorm.", "attn.kv_norm.")
+    key = key.replace("self_attn.o_proj.", "attn.wo.")
+
+    # MoE routed experts (before bare mlp renames)
+    key = re.sub(r"mlp\.experts\.(\d+)\.gate_proj\.", r"ffn.experts.\1.w1.", key)
+    key = re.sub(r"mlp\.experts\.(\d+)\.down_proj\.", r"ffn.experts.\1.w2.", key)
+    key = re.sub(r"mlp\.experts\.(\d+)\.up_proj\.", r"ffn.experts.\1.w3.", key)
+
+    # MoE shared experts (explicit shared_experts prefix)
+    key = key.replace("mlp.shared_experts.gate_proj.", "ffn.shared_experts.w1.")
+    key = key.replace("mlp.shared_experts.down_proj.", "ffn.shared_experts.w2.")
+    key = key.replace("mlp.shared_experts.up_proj.", "ffn.shared_experts.w3.")
+
+    # MoE router gate
+    key = key.replace("mlp.gate.e_score_correction_bias", "mlp.gate.bias")
+    key = key.replace("mlp.gate.", "ffn.gate.")
+
+    # Bare mlp.{gate_proj,down_proj,up_proj}: only valid for dense layers.
+    # For MoE layers, these have incompatible shapes — skip them.
+    # (MoE shared experts are loaded via explicit mlp.shared_experts.* keys above.)
+    layer_m = re.match(r"layers\.(\d+)\.", key)
+    if layer_m:
+        layer_id = int(layer_m.group(1))
+        if layer_id < n_dense_layers:
+            key = key.replace("mlp.gate_proj.", "ffn.w1.")
+            key = key.replace("mlp.down_proj.", "ffn.w2.")
+            key = key.replace("mlp.up_proj.", "ffn.w3.")
+        elif (
+            "mlp.gate_proj." in key or "mlp.down_proj." in key or "mlp.up_proj." in key
+        ):
+            return None  # Skip — incompatible shape for MoE shared experts
+
+    return key
+
+
+def load_deepseek_config(repo_id=DEEPSEEK_V3_REPO):
+    """Download and parse the HuggingFace config.json into ModelArgs fields."""
+    config_path = hf_hub_download(repo_id, "config.json")
+    with open(config_path) as f:
+        hf_cfg = json.load(f)
+
+    # Map HuggingFace config keys to ModelArgs field names
+    return ModelArgs(
+        vocab_size=hf_cfg["vocab_size"],
+        dim=hf_cfg["hidden_size"],
+        inter_dim=hf_cfg["intermediate_size"],
+        moe_inter_dim=hf_cfg["moe_intermediate_size"],
+        n_layers=hf_cfg["num_hidden_layers"],
+        n_dense_layers=hf_cfg.get("first_k_dense_replace", 1),
+        n_heads=hf_cfg["num_attention_heads"],
+        n_routed_experts=hf_cfg.get("n_routed_experts", 256),
+        n_shared_experts=hf_cfg.get("n_shared_experts", 1),
+        n_activated_experts=hf_cfg.get("num_experts_per_tok", 8),
+        n_expert_groups=hf_cfg.get("n_group", 8),
+        n_limited_groups=hf_cfg.get("topk_group", 4),
+        score_func=hf_cfg.get("scoring_func", "sigmoid"),
+        route_scale=hf_cfg.get("routed_scaling_factor", 2.5),
+        q_lora_rank=hf_cfg.get("q_lora_rank", 1536),
+        kv_lora_rank=hf_cfg.get("kv_lora_rank", 512),
+        qk_nope_head_dim=hf_cfg.get("qk_nope_head_dim", 128),
+        qk_rope_head_dim=hf_cfg.get("qk_rope_head_dim", 64),
+        v_head_dim=hf_cfg.get("v_head_dim", 128),
+        rope_theta=hf_cfg.get("rope_theta", 10000.0),
+    )
+
+
+def load_deepseek_weights(
+    model, repo_id=DEEPSEEK_V3_REPO, n_layers=2, n_dense_layers=1
+):
+    """Load pretrained weights from a HuggingFace repo into the model.
+
+    The HF checkpoint uses different key naming than modified_model.py,
+    so keys are remapped during loading.  Only the safetensors shards
+    containing the first ``n_layers`` layers (plus top-level weights
+    like embed, norm, head) are downloaded.
+
+    Weights not found in the checkpoint (e.g. Indexer parameters, caches)
+    remain at their initialized values.
+    """
+    index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
+    with open(index_path) as f:
+        index = json.load(f)
+
+    weight_map = index["weight_map"]
+
+    # Build ckpt_key -> (model_key, shard_file) mapping, filtering by layer
+    needed_shards = set()
+    needed_keys = {}  # ckpt_key -> model_key
+    for ckpt_key, shard_file in weight_map.items():
+        model_key = _rename_hf_key(ckpt_key, n_dense_layers)
+        if model_key is None:
+            continue
+        # Filter to only needed layers
+        layer_m = re.match(r"layers\.(\d+)\.", model_key)
+        if layer_m and int(layer_m.group(1)) >= n_layers:
+            continue
+        needed_shards.add(shard_file)
+        needed_keys[ckpt_key] = model_key
+
+    # Download needed shards and build state dict
+    state_dict = {}
+    for shard_name in sorted(needed_shards):
+        print(f"[weights] loading shard: {shard_name}")
+        shard_path = hf_hub_download(repo_id, shard_name)
+        with safe_open(shard_path, framework="pt", device="cpu") as f:
+            for key in f.keys():
+                if key in needed_keys:
+                    state_dict[needed_keys[key]] = f.get_tensor(key)
+
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    print(
+        f"[weights] loaded {len(state_dict)} tensors from {repo_id}. "
+        f"Missing: {len(missing)}, Unexpected: {len(unexpected)}"
+    )
+    if unexpected:
+        print(
+            f"[weights] first 20 unexpected keys (checkpoint): {sorted(unexpected)[:20]}"
+        )
+    if missing:
+        print(f"[weights] first 20 missing keys (model): {sorted(missing)[:20]}")
+
+    # Verify all weight parameters were loaded (non-weight buffers like caches may remain at init)
+    model_keys = set(model.state_dict().keys())
+    loaded_keys = set(state_dict.keys())
+    not_loaded = model_keys - loaded_keys
+    print(f"[weights] model keys not loaded: {sorted(not_loaded)}")
+
+    return model
 
 
 def test_deepseek_modified_transformer_single_layer():
@@ -449,17 +612,44 @@ def test_deepseek_v3_2_full_sparse_moe():
     def peak_rss_gb():
         return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 / 1024
 
+    token_ids = [
+        671,
+        6102,
+        294,
+        8760,
+        344,
+        11111,
+        14,
+        260,
+        5217,
+        6354,
+        362,
+        2783,
+        14,
+        13556,
+        14,
+        17224,
+        87191,
+        305,
+    ]
+
     batch_size = 32
-    seq_len = 16
-    args = ModelArgs(
-        n_layers=2,
-        max_batch_size=batch_size,
-        max_seq_len=seq_len * 2,
-    )
+    seq_len = len(token_ids)
+
+    args = load_deepseek_config()
+    # args.n_dense_layers = 1
+    args.n_layers = 1
+    args.max_batch_size = batch_size
+    args.max_seq_len = seq_len * 2
+    print(f"[config] {args}")
 
     print(f"[mem] before model init: {peak_rss_gb():.2f} GB")
     model = ModifiedTransformer(args)
     print(f"[mem] after model init: {peak_rss_gb():.2f} GB")
+    load_deepseek_weights(
+        model, n_layers=args.n_layers, n_dense_layers=args.n_dense_layers
+    )
+    print(f"[mem] after weight loading: {peak_rss_gb():.2f} GB")
     model = model.to(torch.bfloat16)
     print(f"[mem] after to(bf16): {peak_rss_gb():.2f} GB")
     # head is intentionally float32 in the original model (logits computed in fp32),
@@ -478,7 +668,8 @@ def test_deepseek_v3_2_full_sparse_moe():
 
     model.eval()
 
-    tokens = torch.randint(0, args.vocab_size, (batch_size, seq_len))
+    single_sequence = torch.tensor(token_ids).long()
+    tokens = single_sequence.unsqueeze(0).expand(batch_size, seq_len)
 
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
