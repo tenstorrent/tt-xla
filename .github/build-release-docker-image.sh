@@ -5,17 +5,21 @@
 
 set -e
 
-if [ $# -ne 2 ]; then
-    echo "Error: Exactly 2 arguments are required."
-    echo "Usage: $0 <project> <docker-commit-tag>"
+if [ $# -ne 3 ]; then
+    echo "Error: Exactly 3 arguments are required."
+    echo "Usage: $0 <project> <docker-commit-tag> <disto>"
     exit 1
 fi
 
 PROJECT=$1
 COMMIT_TAG=$2
+DISTRO=$3
 
-REPO=tenstorrent
-IMAGE_NAME=ghcr.io/$REPO/$PROJECT-slim
+if [[ "$DISTRO" == "ubuntu" ]]; then
+  IMAGE_NAME=ghcr.io/tenstorrent/$PROJECT-slim
+else
+  IMAGE_NAME=ghcr.io/tenstorrent/$PROJECT-slim-$DISTRO
+fi
 
 build_and_push() {
   local image_name=$1
@@ -31,7 +35,7 @@ build_and_push() {
   docker push $image_name:$COMMIT_TAG
 }
 
-build_and_push $IMAGE_NAME .github/Dockerfile.release $ON_MAIN
+build_and_push $IMAGE_NAME .github/Dockerfile.release-$DISTRO $ON_MAIN
 
 echo "Image built and pushed successfully"
 echo $IMAGE_NAME
