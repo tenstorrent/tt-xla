@@ -108,4 +108,5 @@ jobs:
             # else
             #   s3pypi upload "$wheel_file" --put-root-index --bucket ${{ secrets.PYPI_BUCKET }}
             # fi
+            echo "uploading $wheel_file"
           done
