@@ -16,7 +16,6 @@
 
 // tt-xla includes
 #include "api/buffer_instance.h"
-#include "api/error_instance.h"
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/tensor.h"
@@ -227,6 +226,11 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
 
   if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
+  }
+
+  if (m_executable_image->getCompileOptions().dry_run) {
+    createDefaultOutputBuffers(args->output_lists, args->num_devices);
+    return tt_pjrt_status::kSuccess;
   }
 
   FlatbufferExecutableImage *executable_image =
