@@ -249,7 +249,11 @@ def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=F
         t_step = time.time()
 
         # Normalized timestep: t ∈ [0, 1000] → (1000 − t) / 1000 ∈ [0, 1].
-        t_norm = (1000.0 - float(t)) / 1000.0
+        # Clip away from exactly 0.0: TTNN sinusoidal timestep embedding produces
+        # ~2% hardware error at t_norm=0 (vs ~0.1% at all other timesteps), which
+        # seeds a latent divergence that amplifies over subsequent steps (Jacobian
+        # amplification). 1e-3 is numerically negligible for generation quality.
+        t_norm = max((1000.0 - float(t)) / 1000.0, 1e-3)
         t_bf16 = torch.tensor([t_norm], dtype=torch.bfloat16)
         tt_timestep = _to_device_bf16(t_bf16, mesh_device)
 
