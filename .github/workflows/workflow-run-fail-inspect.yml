@@ -26,9 +26,10 @@ on:
       - completed
 
 permissions:
-  packages: write
+  actions: write
+  contents: read
   checks: write
-
+  packages: write
 
 jobs:
   inspect:
@@ -55,7 +56,7 @@ jobs:
       #   id: inspect-failures
       #   shell: bash
       #   env:
-      #       GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      #       GH_TOKEN: ${{ github.token }}
       #   run: |
       #     repo="${{ github.repository }}"
       #     test_job_names=("test ")
@@ -206,15 +207,15 @@ jobs:
         id: success-failed
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           repo="${{ github.repository }}"
           wf_name="schedule-nightly.yml"
 
           curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
 
-          # get json of the last 10 workflow runs
-          gh run list --workflow $wf_name -R $repo -b main -L 100 --status completed --json attempt,conclusion,databaseId,headSha >runs.json
+          # get json of the last 20 workflow runs
+          gh run list --workflow $wf_name -R $repo -b main -L 20 --json attempt,conclusion,databaseId,headSha >runs.json
 
           # Remove entries from runs.json up to the entry with curr_wf_id
           jq --argjson curr_id "$curr_wf_id" 'map(select(.databaseId <= $curr_id))' runs.json > temp_runs.json
@@ -222,21 +223,21 @@ jobs:
 
           echo "Extracted runs: $(jq '.[:2]' runs.json)"
 
-          # check if current workflow ID is the one form workflow_run context
+          # check if current workflow ID is the one from workflow_run context
           if [ "$(jq -r '.[0].databaseId' runs.json)" -ne "$curr_wf_id" ]; then
             echo "Current workflow ID does not match the workflow_run context ID. Exiting."
             exit 1
           fi
 
           # check if the latest workflow run failed
-          if [ "$(jq -r '.[0].conclusion' runs.json)" != "failure" ]; then
+          if [ "$(jq -r '.[0].conclusion' runs.json)" == "success" ]; then
             echo "The latest workflow run did not fail. Exiting."
             exit 1
           fi
 
           # Filter runs.json to include only entries where "conclusion" is "failure" or "success"
-          jq '[.[] | select(.conclusion == "failure" or .conclusion == "success")]' runs.json >filtered_runs.json
-          mv filtered_runs.json runs.json
+          # jq '[.[] | select(.conclusion == "failure" or .conclusion == "success")]' runs.json >filtered_runs.json
+          # mv filtered_runs.json runs.json
 
           # check if runs.json has at least 2 entries
           if [ "$(jq 'length' runs.json)" -lt 2 ]; then
@@ -244,15 +245,18 @@ jobs:
             exit 1
           fi
 
-          curr_wf_attempt=$(jq -r '.[0].attempt' runs.json)
+          curr_wf_attempt="${{ inputs.workflow_run_attempt || github.event.workflow_run.run_attempt }}"
+          # curr_wf_attempt=$(jq -r '.[0].attempt' runs.json)
           curr_head_sha=$(jq -r '.[0].headSha' runs.json)
           prev_wf_id=$(jq -r '.[1].databaseId' runs.json)
           prev_head_sha=$(jq -r '.[1].headSha' runs.json)
 
           # check if commits are the same
           if [ "$curr_head_sha" == "$prev_head_sha" ]; then
+            echo "msg=\"No commits between last 2 nightly runs\"" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
             echo "No commits between last 2 nightly runs. Exiting."
-            exit 1
+            exit 0
           fi
 
           # save current nightly workflow ID and attempt
@@ -277,24 +281,35 @@ jobs:
           # find newly failed tests
           rm -rf log-out
           mkdir -p log-out
-          python .github/scripts/new_failed_tests_bymachine.py log-a log-b log-out $prev_head_sha $curr_head_sha "${{ inputs.test_filter }}" "${{ inputs.num_runs || 1 }}"
+          if ! python .github/scripts/new_failed_tests_bymachine.py log-a log-b log-out $prev_head_sha $curr_head_sha "${{ inputs.test_filter }}" "${{ inputs.num_runs || 1 }}"; then
+            echo "msg=\"No newly failed tests found between last 2 nightly runs\"" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "No new tests failed"
+            exit 0
+          fi
 
           # cleanup
           rm -rf log-a
           rm -rf log-b
           rm -f runs.json
 
-          echo "Resulting upload list:"
-          cat .upload_list.json
           echo "Resulting matrix:"
           cat .matrix.json|jq -c
           echo "test_matrix=$(cat .matrix.json|jq -c)" >> $GITHUB_OUTPUT
           echo "docker_sha=$curr_head_sha" >> $GITHUB_OUTPUT
+          echo "success=true" >> $GITHUB_OUTPUT
 
-      - uses: nsumrakTT/upload-multiple-artifacts@main
+      - uses: slackapi/slack-github-action@v1.26.0
+        if: ${{ steps.success-failed.outputs.success != 'true' && github.event_name == 'workflow_run' }}
         with:
-          continue-on-error: 'false'
-          config: .upload_list.json
+          payload: |
+            {
+              "text": "${{ steps.success-failed.outputs.msg }}",
+              "job_link": ""
+              "unfurl_links": false, "unfurl_media": false
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
 
   build-image:
     needs: inspect
@@ -316,7 +331,7 @@ jobs:
     name: "test ${{ matrix.build.runs-on }} (sha ${{ matrix.build.fromc }} - ${{ matrix.build.toc }})"
 
     container:
-      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image) }}
+      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image-base || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image-base) }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
@@ -328,7 +343,7 @@ jobs:
 
     env:
       TT_XLA_CI: 1
-      GH_TOKEN: ${{ secrets.GH_TOKEN }} # for gh cli tool
+      GH_TOKEN: ${{ github.token }} # for gh cli tool
 
     steps:
       - name: Mark repo as safe for git
@@ -341,11 +356,6 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Download test to run
-        uses: actions/download-artifact@v6
-        with:
-          name: ${{ matrix.build.runs-on }}-test-to-run
-
       - name: Set caching env variables
         shell: bash
         run: |
@@ -356,12 +366,6 @@ jobs:
             echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
           fi
 
-      # - name: ccache
-      #   uses: hendrikmuhs/ccache-action@v1.2
-      #   with:
-      #     create-symlink: true
-      #     key: "release-build"
-
       - name: Bisect
         shell: bash
         id: bisect
@@ -371,6 +375,7 @@ jobs:
           cp -r .github/scripts/* .bisect-run/
           source venv/activate >/dev/null
           found=false
+
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
           while true; do
             echo "New iteration of bisect, updating submodules"
@@ -381,7 +386,7 @@ jobs:
             if .bisect-run/download_wheel.sh; then
               # Run tests
               echo "Running tests"
-              if python .bisect-run/run_tests.py -v 2>&1; then
+              if pytest "${{ matrix.build.test }}" -v 2>&1; then
                 echo "Tests passed"
                 out=$(git bisect good || true)
               else
@@ -411,6 +416,8 @@ jobs:
               *"There are only 'skip'ped commits left to test."*)
                 echo "Bisect inconclusive: only skipped commits left."
                 echo "Last bisect output: $first_line"
+                bad_commit=$(echo "$first_line" | grep -oP '[0-9a-f]{40}' | head -n1)
+                title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
                 break
                 ;;
               "")
@@ -424,181 +431,51 @@ jobs:
           # Get the bad commit info
           git bisect reset
 
-          # detect uplift commits
-          # if [[ "$title" == "Uplift third_party/tt-mlir"* ]]; then
-          #   echo "Uplift commit detected!"
-          #   # Extract changes from the uplift commit
-          #   git show $bad_commit -- third_party/CMakeLists.txt > patch.txt
-
-          #   if [ -s patch.txt ]; then
-          #     from=$(grep '^-.*set(TT_MLIR_VERSION' patch.txt | sed 's/^-.*set(TT_MLIR_VERSION "\([^"]*\)".*/\1/')
-          #     to=$(grep '^+.*set(TT_MLIR_VERSION' patch.txt | sed 's/^+.*set(TT_MLIR_VERSION "\([^"]*\)".*/\1/')
-
-          #     if [ -n "$from" ] && [ -n "$to" ]; then
-          #       # try bisecting between from and to in tt-mlir
-          #       echo "tt-mlir bisect: from $from to $to (uplift)"
-
-          #       git checkout $bad_commit
-          #       git submodule update --init --recursive
-          #       TT_XLA_SOURCE=$(pwd)
-          #       TT_MLIR_PATH=$TT_XLA_SOURCE/.bisect-run/tt-mlir
-          #       git clone https://github.com/tenstorrent/tt-mlir.git $TT_MLIR_PATH --quiet
-          #       cd $TT_MLIR_PATH
-          #       git fetch --quiet
-          #       git bisect start $to $from
-          #       while true; do
-          #         mlir_commit=$(git rev-parse HEAD)
-          #         echo "New iteration of tt-mlir bisect at $mlir_commit"
-          #         out=""
-
-          #         # update tt-mlir version in tt-xla
-          #         cd $TT_XLA_SOURCE
-          #         sed -i "s/set(TT_MLIR_VERSION \".*\")/set(TT_MLIR_VERSION \"${mlir_commit}\")/" third_party/CMakeLists.txt
-
-          #         echo "Building tt-xla with tt-mlir at $mlir_commit..."
-          #         if .bisect-run/build.sh; then
-          #           # Run tests
-          #           echo "Running tests"
-          #           if python .bisect-run/run_tests.py -v 2>&1; then
-          #             echo "Tests passed"
-          #             cd $TT_MLIR_PATH
-          #             out=$(git bisect good || true)
-          #           else
-          #             echo "Tests failed"
-          #             cd $TT_MLIR_PATH
-          #             out=$(git bisect bad || true)
-          #           fi
-          #         else
-          #           echo "Build failed, skipping..."
-          #           cd $TT_MLIR_PATH
-          #           out=$(git bisect skip || true)
-          #         fi
-
-          #         # Check if bisect is complete
-          #         echo "$out"
-          #         first_line="$(printf '%s\n' "$out" | head -n1)"
-          #         case "$first_line" in
-          #           *"is the first bad commit"*)
-          #             echo "FOUND IT: $first_line"
-          #             # Get the bad commit info
-          #             repo="tt-mlir"
-          #             bad_commit=$(echo "$first_line" | grep -oP '[0-9a-f]{40}' | head -n1)
-          #             title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
-          #             git bisect reset
-          #             found=true
-          #             break
-          #             ;;
-          #           *"There are only 'skip'ped commits left to test."*)
-          #             echo "Bisect inconclusive: only skipped commits left."
-          #             echo "Last bisect output: $first_line"
-          #             break
-          #             ;;
-          #           "")
-          #             echo "git bisect produced no output; stopping to avoid an infinite loop."
-          #             echo "Last bisect output: $first_line"
-          #             break
-          #             ;;
-          #         esac
-          #       done
-
-          #       cd $TT_XLA_SOURCE
-          #       rm -rf $TT_MLIR_PATH
-          #     fi
-          #   fi
-          # fi
-
           if [ -n "$bad_commit" ]; then
-            echo "${repo}_${bad_commit}" > .bisect-run/bisect-result.txt
-            echo "Title: $title" >> .bisect-run/bisect-result.txt
+            echo "commit=$bad_commit" >> $GITHUB_OUTPUT
             if [ "$found" = true ]; then
-              echo "found" >> .bisect-run/bisect-result.txt
+              if [ "${{ matrix.build.indeterminate }}" = "true" ]; then
+                if [ "${{ matrix.build.fromc }}" == "$bad_commit" ]; then
+                  echo "code=red" >> $GITHUB_OUTPUT
+                else
+                  echo "code=yellow" >> $GITHUB_OUTPUT
+                fi
+                echo "note=\"Test was not found in previous nightly run\"" >> $GITHUB_OUTPUT
+                echo "Bisect found a bad commit but it is marked indeterminate: $repo/$bad_commit - $title"
+              else
+                echo "code=green" >> $GITHUB_OUTPUT
+                echo "note=\"Found bad commit\"" >> $GITHUB_OUTPUT
+                echo "Bisect found a bad commit: $repo/$bad_commit - $title"
+              fi
             else
-              echo "inconclusive" >> .bisect-run/bisect-result.txt
+              if [ "${{ matrix.build.indeterminate }}" = "true" ]; then
+                echo "code=red" >> $GITHUB_OUTPUT
+                echo "note=\"Very indeterminate result, can't resolve bisect and test was not found in previous nightly run\"" >> $GITHUB_OUTPUT
+              else
+                echo "code=yellow" >> $GITHUB_OUTPUT
+                echo "note=\"Can't resolve bisect\"" >> $GITHUB_OUTPUT
+              fi
+              echo "Bisect inconclusive, last commit tested: $repo/$bad_commit - $title"
             fi
-            echo "Tests:" >> .bisect-run/bisect-result.txt
-            cat .tests_to_run >> .bisect-run/bisect-result.txt
-            echo "Bisect result:"
-            cat .bisect-run/bisect-result.txt
-            echo "found=true" >> $GITHUB_OUTPUT
+            echo "title=\"$title\"" >> $GITHUB_OUTPUT
           else
-            echo "Bisect result:"
-            echo "No conclusive bad commit identified."
+            echo "code=red" >> $GITHUB_OUTPUT
+            echo "note=\"Bisect did not find a bad commit. This likely means the test if flaky\"" >> $GITHUB_OUTPUT
+            echo "Bisect result: No conclusive bad commit identified."
             echo "found=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload bisect result
-        uses: actions/upload-artifact@v6
-        if: ${{ steps.bisect.outputs.found == 'true' }}
-        with:
-          name: bisect-result-${{ matrix.build.run_no }}-${{ matrix.build.runs-on }}
-          path: .bisect-run/bisect-result.txt
-          include-hidden-files: true
-
-  deduct:
-    needs: [ inspect, test ]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deduct bad commits
-        id: deduct
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          gh run download ${{ github.run_id }} -R ${{ github.repository }} --pattern "bisect-result-*" -D bisect-results
-
-          # Prepare bisect-commits directory
-          rm -rf bisect-commits
-          mkdir -p bisect-commits
-
-          find bisect-results -name "bisect-result.txt" | while read -r file; do
-            bad_commit=$(head -n1 "$file")
-            tests=$(tail -n +5 "$file")
-            echo "Bad commit: $bad_commit"
-            echo "Tests:"
-            echo "$tests"
-
-            echo "$tests" >> "bisect-commits/$bad_commit"
-          done
-
-          # Create markdown file for this commit
-          echo "# Bad Commit Analysis [Nightly](<https://github.com/${{ github.repository }}/actions/runs/${{ needs.inspect.outputs.curr_wf_id }}/attempts/${{ needs.inspect.outputs.curr_wf_attempt }}>)" > .bisect-report.md
-          echo "" >> .bisect-report.md
-          echo "Bad Commit Analysis :arrow_heading_down:" > .bisect-msg.txt
-          for commit_file in bisect-commits/*; do
-            if [[ -f "$commit_file" ]]; then
-              full_commit=$(basename "$commit_file")
-              repo=$(echo "$full_commit" | cut -d'_' -f1)
-              commit=$(echo "$full_commit" | cut -d'_' -f2)
-              tests=$(cat "$commit_file")
-
-              # get commit image link
-              html=$(curl -s "https://github.com/tenstorrent/$repo/commit/$commit")
-              commitimg=$(echo "$html" | grep -oP '(?<=<meta name="twitter:image" content=")[^"]*')
-              echo "$repo/$commit, imgurl: $commitimg, tests: $tests"
-
-              echo "## Commit: [$repo/$commit](https://github.com/tenstorrent/$repo/commit/$commit)<img src=\"$commitimg\" width=\"25%\" align=\"right\"/>" >> .bisect-report.md
-              echo "" >> .bisect-report.md
-              echo "### Failed Tests" >> .bisect-report.md
-              echo "" >> .bisect-report.md
-              echo "\`\`\`" >> .bisect-report.md
-              echo "$tests" >> .bisect-report.md
-              echo "\`\`\`" >> .bisect-report.md
-              echo "" >> .bisect-report.md
-
-              echo "In commit: $repo/$commit, the following tests failed:" >> .bisect-msg.txt
-              echo "$tests" >> .bisect-msg.txt
-              echo "" >> .bisect-msg.txt
-            fi
-          done
-          cat .bisect-report.md >> $GITHUB_STEP_SUMMARY
-          rm -rf bisect-commits
-
-          echo "Message text: $(cat .bisect-msg.txt | jq -Rs .)"
-          echo "send_msg={\"text\": $(cat .bisect-msg.txt | jq -Rs .), \"job_link\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
-
       - uses: slackapi/slack-github-action@v1.26.0
-        if: ${{ steps.deduct.outputs.send_msg && github.event_name == 'workflow_run' }}
+        if: ${{ github.event_name == 'workflow_run' }}
         with:
-          payload: ${{ steps.deduct.outputs.send_msg }}
+          payload: |
+            {
+              "commit": "${{ steps.bisect.outputs.commit }}",
+              "code": "${{ steps.bisect.outputs.code }}",
+              "note": "${{ steps.bisect.outputs.note }}",
+              "title": "${{ steps.bisect.outputs.title }}",
+              "test": "${{ matrix.build.test }} on ${{matrix.build.runs-on }}",
+              "unfurl_links": false, "unfurl_media": false
+            }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_INSPECT_RESULT }}
