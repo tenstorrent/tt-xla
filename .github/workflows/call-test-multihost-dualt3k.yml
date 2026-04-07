@@ -207,8 +207,13 @@ jobs:
     - name: Run tests
       timeout-minutes: 60
       shell: bash
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        docker exec ubuntu-host-mapped bash -c '
+        docker exec \
+          -e HF_TOKEN \
+          -e HF_HOME=/mnt/dockercache/huggingface \
+          ubuntu-host-mapped bash -c '
           cd /workspace
           source venv/activate
 
