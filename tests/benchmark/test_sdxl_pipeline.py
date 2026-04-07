@@ -123,10 +123,6 @@ def run_sdxl_benchmark(
             json.dump(results, file, indent=2)
 
 
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.large
-@pytest.mark.single_device
 def test_sdxl_pipeline_512(output_file, request, perf_regression_check):
     run_sdxl_benchmark(
         output_file=output_file,
@@ -137,10 +133,6 @@ def test_sdxl_pipeline_512(output_file, request, perf_regression_check):
     )
 
 
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.large
-@pytest.mark.single_device
 def test_sdxl_pipeline_1024(output_file, request, perf_regression_check):
     run_sdxl_benchmark(
         output_file=output_file,
