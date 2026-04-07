@@ -436,30 +436,30 @@ jobs:
             if [ "$found" = true ]; then
               if [ "${{ matrix.build.indeterminate }}" = "true" ]; then
                 if [ "${{ matrix.build.fromc }}" == "$bad_commit" ]; then
-                  echo "code=red" >> $GITHUB_OUTPUT
+                  echo "code=RED" >> $GITHUB_OUTPUT
                 else
-                  echo "code=yellow" >> $GITHUB_OUTPUT
+                  echo "code=YELLOW" >> $GITHUB_OUTPUT
                 fi
                 echo "note=Test was not found in previous nightly run" >> $GITHUB_OUTPUT
                 echo "Bisect found a bad commit but it is marked indeterminate: $repo/$bad_commit - $title"
               else
-                echo "code=green" >> $GITHUB_OUTPUT
+                echo "code=GREEN" >> $GITHUB_OUTPUT
                 echo "note=Found bad commit" >> $GITHUB_OUTPUT
                 echo "Bisect found a bad commit: $repo/$bad_commit - $title"
               fi
             else
               if [ "${{ matrix.build.indeterminate }}" = "true" ]; then
-                echo "code=red" >> $GITHUB_OUTPUT
+                echo "code=RED" >> $GITHUB_OUTPUT
                 echo "note=Very indeterminate result, can't resolve bisect and test was not found in previous nightly run" >> $GITHUB_OUTPUT
               else
-                echo "code=yellow" >> $GITHUB_OUTPUT
+                echo "code=YELLOW" >> $GITHUB_OUTPUT
                 echo "note=Can't resolve bisect" >> $GITHUB_OUTPUT
               fi
               echo "Bisect inconclusive, last commit tested: $repo/$bad_commit - $title"
             fi
             echo "title=$title" >> $GITHUB_OUTPUT
           else
-            echo "code=red" >> $GITHUB_OUTPUT
+            echo "code=RED" >> $GITHUB_OUTPUT
             echo "note=Bisect did not find a bad commit. This likely means the test if flaky" >> $GITHUB_OUTPUT
             echo "Bisect result: No conclusive bad commit identified."
             echo "found=false" >> $GITHUB_OUTPUT
