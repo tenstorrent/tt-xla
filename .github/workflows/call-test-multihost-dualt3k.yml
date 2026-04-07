@@ -192,34 +192,31 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
-          echo "=== [1/5] Enter workspace and activate venv ==="
+          echo "=== [1/4] Enter workspace and activate venv ==="
           cd /workspace
           source venv/activate
-          echo "=== [1/5] Complete: venv active ==="
+          echo "=== [1/4] Complete: venv active ==="
 
-          echo "=== [2/5] Export logger and test env (TTXLA_*, TT_METAL_*) ==="
+          echo "=== [2/4] Export logger and test env (TTXLA_*, TT_METAL_*) ==="
           export TTXLA_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_TYPES=Fabric,Always
           # export TT_RUNTIME_USING_DUALT3K=1
-          echo "=== [2/5] Complete ==="
+          echo "=== [2/4] Complete ==="
 
-          echo "=== [3/5] Topology dry-run (print export lines to stdout) ==="
-          python scripts/multihost_topology.py \
-            --topology dual_t3k \
-            --script-dir tests/torch/multi_host/experimental
-          echo "=== [3/5] Complete ==="
-
-          echo "=== [4/5] Apply topology exports (eval) and show TT_DISTRIBUTED_* / TT_RUNTIME_* ==="
-          eval "$(python scripts/multihost_topology.py \
-            --topology dual_t3k \
-            --script-dir tests/torch/multi_host/experimental)"
+          echo "=== [3/4] Distributed topology env (explicit; must match multihost_topology.py dual_t3k) ==="
+          export TT_RUNTIME_ENABLE_DISTRIBUTED=1
+          export TT_DISTRIBUTED_WORKER_PATH=/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker
+          export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
+          export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
+          export TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
+          export TT_DISTRIBUTED_PLM_RSH_AGENT=tests/torch/multi_host/experimental/remote_docker.sh
           env | grep -E "^(TT_RUNTIME_ENABLE_DISTRIBUTED|TT_DISTRIBUTED_)" | sort || true
-          echo "=== [4/5] Complete ==="
+          echo "=== [3/4] Complete ==="
 
-          echo "=== [5/5] Run pytest ==="
-          pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
-          echo "=== [5/5] Complete: pytest exited successfully ==="
+          echo "=== [4/4] Run pytest ==="
+          python -m pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
+          echo "=== [4/4] Complete: pytest exited successfully ==="
         '
 
     - name: Upload Test Log
