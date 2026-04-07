@@ -163,7 +163,6 @@ class ModelTester(BaseTester, ABC):
         results.
         """
         cpu_res = self._run_on_cpu(self._workload)
-
         self._compile_for_tt_device(self._workload)
 
         if not self._disable_perf_measurement:
