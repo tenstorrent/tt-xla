@@ -237,6 +237,12 @@ def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=F
         scheduler.set_timesteps(num_steps)
     timesteps = scheduler.timesteps  # [num_steps] values in [0, 1000]
 
+    # CPU reference tracking for debug mode (fully independent accumulation).
+    if debug:
+        import copy
+        sched_cpu = copy.deepcopy(scheduler)
+        latents_cpu = latents.clone()
+
     # ·· Denoising loop ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ··
     print(f"  Denoising ({num_steps} steps) ...")
     for i, t in enumerate(timesteps):
@@ -259,35 +265,38 @@ def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=F
         out_tt = _tt_to_torch(tt_out, mesh_device)         # [16, 1, 64, 64] float32
         out_4d = out_tt.squeeze(1).unsqueeze(0).bfloat16() # [1, 16, 64, 64]
 
-        # ── Debug: compare TTNN vs CPU on the SAME latent input ─────────────
-        if debug:
-            with torch.no_grad():
-                # Use the same latent that TTNN just processed (not a separate CPU track).
-                lat_cpu_ref = lat_bf16  # [16, 1, 64, 64] bfloat16
-                cpu_out_list = _tr_model_pt.forward(
-                    transformer_pt, [lat_cpu_ref], t_bf16, cap_padded
-                )
-            out_cpu_ref = cpu_out_list[0].float()  # [16, 1, 64, 64]
-            p = _pcc(out_tt, out_cpu_ref)
-            print(f"    step {i+1:2d}/{num_steps}: t={float(t):6.0f}  t_norm={t_norm:.4f}"
-                  f"  | TTNN mean={float(out_tt.mean()):7.3f} std={float(out_tt.std()):6.3f}"
-                  f"  | CPU  mean={float(out_cpu_ref.mean()):7.3f} std={float(out_cpu_ref.std()):6.3f}"
-                  f"  | PCC={p:.4f}")
-        # ───────────────────────────────────────────────────────────────────
-
         # Flow-matching sign convention: model output is negated before scheduler step.
         noise_pred = -out_4d.float()
-
         latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
 
         step_ms = (time.time() - t_step) * 1000
-        if not debug:
+
+        # ── Debug: CPU runs fully independently on its own accumulated latent ──
+        if debug:
+            with torch.no_grad():
+                lat_cpu_ref = latents_cpu.squeeze(0).unsqueeze(1).bfloat16()
+                cpu_out_list = _tr_model_pt.forward(
+                    transformer_pt, [lat_cpu_ref], t_bf16, cap_padded
+                )
+            out_cpu_ref = cpu_out_list[0].float()
+            noise_pred_cpu = -out_cpu_ref.squeeze(1).unsqueeze(0).float()
+            latents_cpu = sched_cpu.step(noise_pred_cpu, t, latents_cpu, return_dict=False)[0]
+            step_pcc = _pcc(latents.squeeze(0).unsqueeze(1), latents_cpu.squeeze(0).unsqueeze(1))
+            print(f"    step {i+1:2d}/{num_steps}: t={float(t):6.0f}  t_norm={t_norm:.4f}"
+                  f"  | latents TTNN mean={float(latents.mean()):7.4f} std={float(latents.std()):6.4f}"
+                  f"  | CPU mean={float(latents_cpu.mean()):7.4f} std={float(latents_cpu.std()):6.4f}"
+                  f"  | PCC={step_pcc:.4f}  ({step_ms:.0f} ms)")
+        else:
             print(f"    step {i+1}/{num_steps}: t={float(t):.0f}  {step_ms:.0f} ms"
                   f"  | out: mean={float(out_tt.mean()):.3f} std={float(out_tt.std()):.3f}"
                   f"  | latents: mean={float(latents.mean()):.3f} std={float(latents.std()):.3f}")
-        else:
-            print(f"      latents: mean={float(latents.mean()):.3f} std={float(latents.std()):.3f}"
-                  f"  ({step_ms:.0f} ms)")
+        # ───────────────────────────────────────────────────────────────────
+
+    if debug:
+        final_pcc = _pcc(latents.squeeze(0).unsqueeze(1), latents_cpu.squeeze(0).unsqueeze(1))
+        print(f"\n  Final latents PCC (TTNN vs CPU, fully accumulated): {final_pcc:.4f}")
+        print(f"    TTNN: mean={float(latents.mean()):.4f} std={float(latents.std()):.4f}")
+        print(f"    CPU:  mean={float(latents_cpu.mean()):.4f} std={float(latents_cpu.std()):.4f}")
 
     # ·· VAE decode (CPU) ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ··
     print("  VAE decoding (CPU) ...")
