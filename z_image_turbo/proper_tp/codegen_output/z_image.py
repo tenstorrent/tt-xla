@@ -237,29 +237,15 @@ def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=F
         scheduler.set_timesteps(num_steps)
     timesteps = scheduler.timesteps  # [num_steps] values in [0, 1000]
 
-    # Separate CPU scheduler for debug comparison (keeps its own step_index state).
-    if debug:
-        import copy
-        sched_cpu = copy.deepcopy(scheduler)
-        latents_cpu = latents.clone()
-
     # ·· Denoising loop ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ··
     print(f"  Denoising ({num_steps} steps) ...")
     for i, t in enumerate(timesteps):
         t_step = time.time()
 
         # Normalized timestep: t ∈ [0, 1000] → (1000 − t) / 1000 ∈ [0, 1].
-        # Clip away from exactly 0.0: the TTNN sinusoidal embedding produces NaN
-        # at t_internal = 0 (i.e. t=1000 → t_norm=0.0). 1e-3 → t_internal=1,
-        # which is numerically identical for generation quality.
-        t_norm = max((1000.0 - float(t)) / 1000.0, 1e-3)
+        t_norm = (1000.0 - float(t)) / 1000.0
         t_bf16 = torch.tensor([t_norm], dtype=torch.bfloat16)
         tt_timestep = _to_device_bf16(t_bf16, mesh_device)
-
-        # Enable transformer tensor dumps on the first step only (for NaN diagnosis).
-        if i == 0:
-            os.makedirs("/tmp/zt_debug/tt_pipeline", exist_ok=True)
-            ZImageTransformerTTNN.dump_dir = "/tmp/zt_debug/tt_pipeline"
 
         # Reshape latent: [1, 16, 64, 64] → [16, 1, 64, 64] (transformer format).
         lat_bf16 = latents.squeeze(0).unsqueeze(1).bfloat16()
@@ -268,30 +254,25 @@ def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=F
         # Run TTNN transformer.
         tt_out_list = tr_model([tt_lat], tt_timestep, tt_cap)
         tt_out = tt_out_list[0]  # [16, 1, 64, 64] TTNN
-        # Disable dumps after first step.
-        if i == 0:
-            ZImageTransformerTTNN.dump_dir = None
 
         # Pull result to CPU.
         out_tt = _tt_to_torch(tt_out, mesh_device)         # [16, 1, 64, 64] float32
         out_4d = out_tt.squeeze(1).unsqueeze(0).bfloat16() # [1, 16, 64, 64]
 
-        # ── Debug: compare with CPU reference at this step ──────────────────
+        # ── Debug: compare TTNN vs CPU on the SAME latent input ─────────────
         if debug:
             with torch.no_grad():
-                lat_cpu_ref = latents_cpu.squeeze(0).unsqueeze(1).bfloat16()  # [16,1,64,64]
+                # Use the same latent that TTNN just processed (not a separate CPU track).
+                lat_cpu_ref = lat_bf16  # [16, 1, 64, 64] bfloat16
                 cpu_out_list = _tr_model_pt.forward(
                     transformer_pt, [lat_cpu_ref], t_bf16, cap_padded
                 )
             out_cpu_ref = cpu_out_list[0].float()  # [16, 1, 64, 64]
-            pcc = _pcc(out_tt, out_cpu_ref)
-            print(f"    step {i+1}/{num_steps}: t={float(t):.0f}  t_norm={t_norm:.3f}"
-                  f"  | TTNN out: mean={float(out_tt.mean()):.3f} std={float(out_tt.std()):.3f}"
-                  f"  | CPU  out: mean={float(out_cpu_ref.mean()):.3f} std={float(out_cpu_ref.std()):.3f}"
-                  f"  | PCC={pcc:.4f}")
-
-            noise_pred_cpu = -out_cpu_ref.squeeze(1).unsqueeze(0)
-            latents_cpu = sched_cpu.step(noise_pred_cpu, t, latents_cpu, return_dict=False)[0]
+            p = _pcc(out_tt, out_cpu_ref)
+            print(f"    step {i+1:2d}/{num_steps}: t={float(t):6.0f}  t_norm={t_norm:.4f}"
+                  f"  | TTNN mean={float(out_tt.mean()):7.3f} std={float(out_tt.std()):6.3f}"
+                  f"  | CPU  mean={float(out_cpu_ref.mean()):7.3f} std={float(out_cpu_ref.std()):6.3f}"
+                  f"  | PCC={p:.4f}")
         # ───────────────────────────────────────────────────────────────────
 
         # Flow-matching sign convention: model output is negated before scheduler step.
@@ -305,8 +286,7 @@ def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=F
                   f"  | out: mean={float(out_tt.mean()):.3f} std={float(out_tt.std()):.3f}"
                   f"  | latents: mean={float(latents.mean()):.3f} std={float(latents.std()):.3f}")
         else:
-            print(f"      latents:  TTNN mean={float(latents.mean()):.3f} std={float(latents.std()):.3f}"
-                  f"  | CPU  mean={float(latents_cpu.mean()):.3f} std={float(latents_cpu.std()):.3f}"
+            print(f"      latents: mean={float(latents.mean()):.3f} std={float(latents.std()):.3f}"
                   f"  ({step_ms:.0f} ms)")
 
     # ·· VAE decode (CPU) ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ·· ··
