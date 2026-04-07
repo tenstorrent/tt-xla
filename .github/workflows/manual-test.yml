@@ -59,7 +59,7 @@ on:
         type: string
         default: '24098031766'
       wheel_artifact_name:
-        description: 'Exact artifact name on that run (e.g. xla-whl-release, xla-whl-manylinux, xla-whl-release-abc1234)'
+        description: 'Artifact name prefix on that run; matches xla-whl-release, xla-whl-release-abc1234, etc. (gh --pattern prefix*)'
         required: false
         type: string
         default: 'xla-whl-release'

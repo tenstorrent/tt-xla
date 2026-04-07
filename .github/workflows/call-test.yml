@@ -21,7 +21,7 @@ on:
         required: false
         type: string
       wheel_artifact_name:
-        description: 'Exact GitHub Actions artifact name for the xla wheel (overrides xla-whl-{wheel_build}{artifact_suffix} when non-empty)'
+        description: 'Prefix for the xla wheel artifact when non-empty; downloaded with gh --pattern "{prefix}*". Empty uses exact name xla-whl-{wheel_build}{artifact_suffix}'
         required: false
         type: string
         default: ''
@@ -144,8 +144,10 @@ jobs:
         echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
         if [[ -n "${{ inputs.wheel_artifact_name }}" ]]; then
           echo "wheel_artifact_name=${{ inputs.wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "wheel_download_use_pattern=true" >> "$GITHUB_OUTPUT"
         else
           echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "wheel_download_use_pattern=false" >> "$GITHUB_OUTPUT"
         fi
         echo "wheel_release_vllm_tt_artifact_name=vllm-tt-whl-release${{inputs.artifact_suffix}}" >> "$GITHUB_OUTPUT"
         echo "alchemist_artifact_name=alchemist-lib-release${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
@@ -162,11 +164,19 @@ jobs:
       shell: bash
       run: |
         echo "=== Downloading wheels ==="
-        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
-        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
-          --repo ${{ github.repository }} \
-          --dir wheels \
-          --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        if [[ "${{ steps.strings.outputs.wheel_download_use_pattern }}" == "true" ]]; then
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} pattern ${{ steps.strings.outputs.wheel_artifact_name }}*"
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --pattern "${{ steps.strings.outputs.wheel_artifact_name }}*"
+        else
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_artifact_name }}
+        fi
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
