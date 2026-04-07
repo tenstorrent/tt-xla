@@ -52,7 +52,7 @@ on:
         description: 'Skip tt-xla wheel build; download the wheel by name from wheel_artifact_run_id (Docker image is still built)'
         required: false
         type: boolean
-        default: false
+        default: true
       wheel_artifact_run_id:
         description: 'Workflow run ID for gh run download (used when skip_build is true)'
         required: false
