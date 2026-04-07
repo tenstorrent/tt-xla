@@ -193,12 +193,12 @@ jobs:
           cd /workspace
           source venv/activate
 
-          TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
-          TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
-          TT_DISTRIBUTED_PLM_RSH_AGENT=tests/torch/multi_host/experimental/remote_docker.sh
-          TT_DISTRIBUTED_RANK_BINDING=dual_t3k
-          TT_DISTRIBUTED_WORKER_PATH=/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker
-          TT_RUNTIME_ENABLE_DISTRIBUTED=1
+          export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
+          export TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
+          export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
+          export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
+          export TT_DISTRIBUTED_WORKER_PATH=/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt/bin/ttmlir/runtime/distributed/worker
+          export TT_RUNTIME_ENABLE_DISTRIBUTED=1
 
 
           pytest -svv tests/torch/graphs/test_tensor_persistence.py::test_simple_sharded_addition
