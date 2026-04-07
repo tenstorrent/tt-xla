@@ -90,6 +90,9 @@ from .attention import (
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
     TTMetadata,
+    TTMLADecodeMetadata,
+    TTMLAMetadata,
+    TTMLAPrefillMetadata,
     get_page_size_bytes,
 )
 from .input_batch import CachedRequestState, InputBatch
@@ -879,6 +882,90 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         return slot_mapping_metadata
 
+    def _build_mla_metadata(
+        self,
+        num_reqs: int,
+        num_scheduled_tokens_per_req: np.ndarray,  # [num_reqs] int32
+        page_table_cpu: np.ndarray,                # [num_reqs, max_blocks] int32
+        seq_lens_cpu: np.ndarray,                  # [num_reqs] int32
+    ) -> TTMLAMetadata:
+        """Build TTMLAMetadata for MLA attention layers (e.g. DeepSeek V3).
+
+        Decode requests (num_scheduled_tokens == 1) are assumed to come before
+        prefill requests in the batch — the standard vLLM v1 scheduling order.
+        """
+        block_size = self.block_size
+        num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+
+        # Count leading decode requests (1 scheduled token each)
+        num_decode_reqs = int(np.sum(num_scheduled_tokens_per_req == 1))
+        num_prefill_reqs = num_reqs - num_decode_reqs
+        num_decode_tokens = num_decode_reqs  # exactly 1 token per decode request
+
+        total_tokens = int(num_scheduled_tokens_per_req.sum())
+
+        # Build flat slot_mapping: decode slots first, then prefill slots.
+        # This matches the token ordering expected by MLAAttention.forward_impl.
+        slot_mapping = np.empty(total_tokens, dtype=np.int64)
+        idx = 0
+
+        for i in range(num_decode_reqs):
+            pos = int(num_computed[i])
+            block_id = int(page_table_cpu[i, pos // block_size])
+            slot_mapping[idx] = block_id * block_size + (pos % block_size)
+            idx += 1
+
+        for i in range(num_decode_reqs, num_reqs):
+            start = int(num_computed[i])
+            n = int(num_scheduled_tokens_per_req[i])
+            for j in range(n):
+                pos = start + j
+                block_id = int(page_table_cpu[i, pos // block_size])
+                slot_mapping[idx] = block_id * block_size + (pos % block_size)
+                idx += 1
+
+        slot_mapping_t = torch.tensor(slot_mapping, dtype=torch.long).to(self.device)
+
+        # Decode sub-metadata
+        decode_meta = None
+        if num_decode_reqs > 0:
+            decode_meta = TTMLADecodeMetadata(
+                block_table=torch.from_numpy(
+                    page_table_cpu[:num_decode_reqs].copy()
+                ).to(dtype=torch.int32, device=self.device),
+                seq_lens=torch.from_numpy(
+                    seq_lens_cpu[:num_decode_reqs].copy()
+                ).to(dtype=torch.int32, device=self.device),
+            )
+
+        # Prefill sub-metadata
+        prefill_meta = None
+        if num_prefill_reqs > 0:
+            toks = num_scheduled_tokens_per_req[num_decode_reqs:]
+            qsl = np.zeros(num_prefill_reqs + 1, dtype=np.int32)
+            np.cumsum(toks, out=qsl[1:])
+            prefill_meta = TTMLAPrefillMetadata(
+                query_start_loc=torch.tensor(qsl, dtype=torch.int32).to(self.device),
+                block_table=torch.from_numpy(
+                    page_table_cpu[num_decode_reqs:num_reqs].copy()
+                ).to(dtype=torch.int32, device=self.device),
+                max_query_len=int(toks.max()),
+            )
+
+        all_qsl = np.zeros(num_reqs + 1, dtype=np.int32)
+        np.cumsum(num_scheduled_tokens_per_req, out=all_qsl[1:])
+
+        return TTMLAMetadata(
+            num_actual_tokens=total_tokens,
+            slot_mapping=slot_mapping_t,
+            query_start_loc=torch.tensor(all_qsl, dtype=torch.int32).to(self.device),
+            num_decodes=num_decode_reqs,
+            num_decode_tokens=num_decode_tokens,
+            num_prefills=num_prefill_reqs,
+            prefill=prefill_meta,
+            decode=decode_meta,
+        )
+
     def _prepare_inputs(self, scheduler_output: "SchedulerOutput", start_index: int):
         assert scheduler_output.total_num_scheduled_tokens > 0
         num_reqs = self.input_batch.num_reqs
@@ -1028,6 +1115,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position[1:] = -1
             page_table[1:, :] = 0
 
+        # Capture CPU copies for MLA metadata before moving to device
+        page_table_cpu_np = page_table[:num_reqs].numpy().copy()
+        seq_lens_cpu_np = seq_lens[:num_reqs].numpy().copy()
+
         cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
 
@@ -1071,6 +1162,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         per_layer_attn_metadata = {
             layer_name: attn_metadata for layer_name in layer_names
         }
+
+        # Build MLA metadata for MLAAttention layers (e.g. DeepSeek V3)
+        mla_layer_names = list(
+            get_layers_from_vllm_config(self.vllm_config, MLAAttention).keys()
+        )
+        if mla_layer_names:
+            mla_metadata = self._build_mla_metadata(
+                num_reqs,
+                num_scheduled_tokens_per_req,
+                page_table_cpu_np,
+                seq_lens_cpu_np,
+            )
+            per_layer_attn_metadata.update(
+                {ln: mla_metadata for ln in mla_layer_names}
+            )
+
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -1590,6 +1697,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         per_layer_attn_metadata = {
             layer_name: attn_metadata for layer_name in layer_names
         }
+
+        # Build MLA metadata for MLAAttention layers (e.g. DeepSeek V3)
+        mla_layer_names = list(
+            get_layers_from_vllm_config(self.vllm_config, MLAAttention).keys()
+        )
+        if mla_layer_names:
+            # Simulate num_reqs decode requests (1 token each) for shape capture
+            dummy_pt = np.zeros((num_reqs, num_blocks), dtype=np.int32)
+            dummy_sl = np.ones(num_reqs, dtype=np.int32)
+            dummy_scheduled = np.ones(num_reqs, dtype=np.int32)
+            dummy_mla = self._build_mla_metadata(
+                num_reqs, dummy_scheduled, dummy_pt, dummy_sl
+            )
+            per_layer_attn_metadata.update(
+                {ln: dummy_mla for ln in mla_layer_names}
+            )
 
         with (
             self.maybe_select_dummy_loras(

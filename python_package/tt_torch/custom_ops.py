@@ -1529,15 +1529,17 @@ def paged_flash_multi_latent_attention_decode(
             frontend_attributes=attrs,
         )
     elif device.type == "cpu":
-        assert value is not None, "CPU fallback requires pre-expanded value tensor."
+        # MLA absorb path: value may be None; derive V from the key cache's
+        # first head_dim_v dims (kv_c portion of kv_c ∥ k_pe cache).
         assert (
             curr_pos_tensor is not None
         ), "curr_pos_tensor must be provided for the CPU fallback."
 
         block_size = key.shape[-2]
-        num_kv_heads = value.shape[-3]
+        mla_absorb = value is None  # True for MLA decode absorb-attention
+        num_kv_heads = key.shape[-3] if mla_absorb else value.shape[-3]
         num_users = curr_pos_tensor.shape[0]
-        head_size_v = value.shape[-1]
+        head_size_v = head_dim_v if mla_absorb else value.shape[-1]
 
         num_blocks_per_user = page_table_tensor.shape[1]
         max_seq_len = num_blocks_per_user * block_size
@@ -1549,11 +1551,18 @@ def paged_flash_multi_latent_attention_decode(
 
         for i in range(num_users):
             block_indices = page_table_tensor[i]
-            user_value_blocks = value[block_indices]
-            user_value = user_value_blocks.transpose(0, 1).reshape(
-                num_kv_heads, max_seq_len, head_size_v
-            )
-            new_value[i] = user_value
+            if mla_absorb:
+                # V = kv_c portion of the combined key cache (first head_dim_v dims)
+                user_kv_blocks = key[block_indices]  # [max_blocks, 1, block_size, head_size]
+                user_v = user_kv_blocks.transpose(0, 1).reshape(
+                    num_kv_heads, max_seq_len, key.shape[-1]
+                )[..., :head_dim_v]
+            else:
+                user_value_blocks = value[block_indices]
+                user_v = user_value_blocks.transpose(0, 1).reshape(
+                    num_kv_heads, max_seq_len, head_size_v
+                )
+            new_value[i] = user_v
             causal_mask[i, curr_pos_tensor[i] + 1 :] = float("-inf")
 
         num_heads = query.shape[2]

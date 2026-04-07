@@ -21,11 +21,48 @@ from vllm.v1.attention.backend import (
     AttentionImpl,
     AttentionLayer,
     AttentionType,
+    MLAAttentionImpl,
 )
 
 from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Monkey-patch vllm's CUDA-only concat_and_cache_mla with a TT-compatible
+# implementation. MLAAttention.forward_impl calls ops.concat_and_cache_mla
+# which dispatches to torch.ops._C_cache_ops (CUDA only, fails on TT XLA).
+# We replace it with an index_put-based implementation that is traceable by
+# torch.compile and compilable to XLA scatter operations.
+# Prefill tokens are also written here (same data as forward_mha will write
+# via paged_fill_cache — the double-write is idempotent).
+# ---------------------------------------------------------------------------
+import vllm._custom_ops as _vllm_custom_ops
+
+
+def _tt_concat_and_cache_mla(
+    kv_c: torch.Tensor,          # [T, kv_lora_rank]
+    k_pe: torch.Tensor,          # [T, qk_rope_head_dim]
+    kv_cache: torch.Tensor,      # [num_blocks, 1, block_size, kv_lora_rank+rope_dim]
+    slot_mapping: torch.Tensor,  # [T] flat slot indices (block_id * block_size + offset)
+    kv_cache_dtype: str,         # unused on TT
+    scale: torch.Tensor,         # unused on TT
+) -> None:
+    """TT replacement for vllm._custom_ops.concat_and_cache_mla.
+
+    Writes concatenated (kv_c ‖ k_pe) into the paged MLA KV cache for ALL
+    tokens (decode + prefill) using index_put, which compiles to XLA scatter.
+    """
+    kv_combined = torch.cat([kv_c, k_pe], dim=-1)       # [T, head_size]
+    block_size = kv_cache.shape[2]
+    block_ids = (slot_mapping // block_size).long()      # [T]
+    offsets = (slot_mapping % block_size).long()         # [T]
+    zeros = torch.zeros_like(block_ids)                  # kv_head index (always 0 for MLA)
+    new_cache = kv_cache.index_put((block_ids, zeros, offsets), kv_combined)
+    kv_cache.copy_(new_cache)
+
+
+_vllm_custom_ops.concat_and_cache_mla = _tt_concat_and_cache_mla
 
 # TT requires the head size to be a multiple of 32.
 TT_HEAD_SIZE_ALIGNMENT = 32
@@ -643,6 +680,341 @@ def get_dtype_packing(dtype):
             "dtype={dtype}"
         )
     return 32 // bits
+
+
+# ---------------------------------------------------------------------------
+# TT MLA Attention: metadata dataclasses, backend, and impl
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class TTMLAPrefillMetadata:
+    """Per-request metadata for MLA prefill (compute-friendly MHA) path."""
+
+    # Cumulative token counts for prefill requests: [num_prefill_reqs + 1]
+    query_start_loc: torch.Tensor
+    # Page table for prefill requests: [num_prefill_reqs, max_blocks_per_req]
+    block_table: torch.Tensor
+    max_query_len: int
+    # Always None for TT (no chunked prefill context support)
+    chunked_context: None = None
+
+
+@dataclass
+class TTMLADecodeMetadata:
+    """Per-request metadata for MLA decode (data-movement-friendly MQA) path."""
+
+    # Page table for decode requests: [num_decode_reqs, max_blocks_per_req]
+    block_table: torch.Tensor
+    # Sequence lengths (total cached tokens) for decode requests: [num_decode_reqs]
+    seq_lens: torch.Tensor
+    # Unused for TT; kept for duck-type compatibility with MLACommonMetadata
+    dcp_tot_seq_lens: None = None
+
+
+@dataclass
+class TTMLAMetadata:
+    """Full attention metadata for TT MLA layers.
+
+    Duck-types the MLACommonMetadata interface expected by
+    MLAAttention.forward_impl.
+    """
+
+    # Total number of non-padded tokens in this batch
+    num_actual_tokens: int
+    # Flat physical KV-cache slot per token: [num_actual_tokens]
+    slot_mapping: torch.Tensor
+    # Cumulative token counts across all requests: [num_reqs + 1]
+    query_start_loc: torch.Tensor
+    # Counts for MLAAttention.forward_impl split logic
+    num_decodes: int
+    num_decode_tokens: int
+    num_prefills: int
+    # Phase-specific sub-metadata (None when that phase is absent)
+    prefill: Optional[TTMLAPrefillMetadata]
+    decode: Optional[TTMLADecodeMetadata]
+
+
+class TTMLAAttentionBackend(AttentionBackend):
+    """AttentionBackend for TT MLA (Multi-head Latent Attention).
+
+    Routes MLA layers to TTMLAAttentionBackendImpl, which calls the
+    flash_mla_prefill and paged_flash_multi_latent_attention_decode custom ops.
+    """
+
+    # Required by MLAAttention.forward: allocate output buffer and pass it in.
+    accept_output_buffer: bool = True
+
+    @staticmethod
+    def get_name() -> str:
+        return "CUSTOM_MLA"
+
+    @staticmethod
+    def get_impl_cls() -> type["TTMLAAttentionBackendImpl"]:
+        return TTMLAAttentionBackendImpl
+
+    @staticmethod
+    def get_builder_cls():
+        return TTAttentionMetadataBuilder
+
+    @staticmethod
+    def get_kv_cache_shape(
+        num_blocks: int,
+        block_size: int,
+        num_kv_heads: int,
+        head_size: int,
+        cache_dtype_str: str = "auto",
+    ) -> tuple[int, ...]:
+        # MLA stores kv_c_normed ∥ k_pe per token (one combined KV head).
+        # Shape: [num_blocks, num_kv_heads, block_size, kv_lora_rank + qk_rope_head_dim]
+        return (num_blocks, num_kv_heads, block_size, head_size)
+
+    @staticmethod
+    def swap_blocks(
+        src_kv_cache: torch.Tensor,
+        dst_kv_cache: torch.Tensor,
+        src_to_dst: torch.Tensor,
+    ) -> None:
+        raise RuntimeError("swap_blocks is not used for the TT MLA backend.")
+
+    @staticmethod
+    def get_min_page_size(vllm_config: VllmConfig) -> int:
+        max_num_page_per_req = (
+            1024 * 1024 // 2 // vllm_config.scheduler_config.max_num_seqs // 4
+        )
+        min_page_size = cdiv(
+            vllm_config.model_config.max_model_len, max_num_page_per_req
+        )
+        min_page_size = 1 << (min_page_size - 1).bit_length()
+        return min_page_size
+
+    @staticmethod
+    def get_max_num_seqs(model_len: int, page_size: int) -> int:
+        num_page_per_req = cdiv(model_len, page_size)
+        return 1024 * 1024 // 2 // num_page_per_req // 4
+
+    @staticmethod
+    def get_page_size(vllm_config: VllmConfig) -> int:
+        return 32
+
+
+class TTMLAAttentionBackendImpl(MLAAttentionImpl):
+    """TT implementation of MLA attention.
+
+    Prefill  (forward_mha): expands the compressed KV through kv_b_proj then
+    calls tt.flash_mla_prefill.
+
+    Decode (forward_mqa): uses the absorb-attention approach — queries are
+    already projected into latent (kv_lora_rank) space by the caller
+    (MLAAttention.forward_impl). This impl calls
+    tt.paged_flash_multi_latent_attention_decode against the paged compressed
+    KV cache and returns the result in kv_lora_rank space; the caller
+    (_v_up_proj) then projects to v_head_dim.
+    """
+
+    def __init__(
+        self,
+        num_heads: int,
+        head_size: int,
+        scale: float,
+        num_kv_heads: int,
+        alibi_slopes: Optional[List[float]],
+        sliding_window: Optional[int],
+        kv_cache_dtype: str,
+        logits_soft_cap: Optional[float],
+        attn_type: str,
+        kv_sharing_target_layer_name: Optional[str],
+        # MLA-specific
+        q_lora_rank: Optional[int],
+        kv_lora_rank: int,
+        qk_nope_head_dim: int,
+        qk_rope_head_dim: int,
+        qk_head_dim: int,
+        v_head_dim: int,
+        kv_b_proj,  # ColumnParallelLinear
+        indexer=None,
+        q_pad_num_heads: Optional[int] = None,
+    ) -> None:
+        # Do NOT call super().__init__() — MLAAttentionImpl.__init__ is abstract
+        # and raises NotImplementedError. AttentionImplBase.__new__ already sets
+        # dcp_world_size / dcp_rank / pcp_* via __new__.
+        self.num_heads = num_heads
+        self.head_size = head_size
+        self.scale = float(scale)
+        self.num_kv_heads = num_kv_heads
+        self.kv_lora_rank = kv_lora_rank
+        self.qk_nope_head_dim = qk_nope_head_dim
+        self.qk_rope_head_dim = qk_rope_head_dim
+        self.qk_head_dim = qk_head_dim
+        self.v_head_dim = v_head_dim
+        self.kv_b_proj = kv_b_proj
+        self.q_pad_num_heads = q_pad_num_heads
+
+    # ------------------------------------------------------------------
+    # KV cache write helpers
+    # ------------------------------------------------------------------
+    def do_kv_cache_update(
+        self,
+        kv_c: torch.Tensor,          # [B_dec, kv_lora_rank]
+        k_pe: torch.Tensor,          # [B_dec, qk_rope_head_dim] — already squeezed
+        kv_cache: torch.Tensor,      # [num_blocks, 1, block_size, head_size]
+        attn_metadata: TTMLAMetadata,
+    ) -> None:
+        """Write DECODE tokens' kv_c ‖ k_pe into the paged MLA KV cache.
+
+        Uses paged_update_cache (one-token-per-request decode update).
+        Prefill tokens are written inside forward_mha using paged_fill_cache.
+        This method is called from _tt_concat_and_cache_mla for the decode
+        subset when a finer-grained split is needed; currently the module-level
+        monkey-patch handles all writes via index_put so this method is kept
+        as a utility for potential future use.
+        """
+        if kv_cache.numel() == 0 or kv_c.shape[0] == 0:
+            return
+        assert attn_metadata.decode is not None
+
+        kv_combined = torch.cat([kv_c, k_pe], dim=-1)    # [B_dec, head_size]
+        # paged_update_cache fill_value: [1, B, num_heads, head_size]
+        fill_value = kv_combined.unsqueeze(0).unsqueeze(2)   # [1, B_dec, 1, head_size]
+        cache_pos = attn_metadata.decode.seq_lens - 1        # [B_dec] absolute position
+        new_cache = torch.ops.tt.paged_update_cache(
+            kv_cache, fill_value, cache_pos,
+            attn_metadata.decode.block_table,
+        )
+        kv_cache.copy_(new_cache)
+
+    # ------------------------------------------------------------------
+    # Prefill: compute-friendly MHA approach
+    # ------------------------------------------------------------------
+    def forward_mha(
+        self,
+        q: torch.Tensor,
+        kv_c_normed: torch.Tensor,
+        k_pe: torch.Tensor,
+        kv_c_and_k_pe_cache: torch.Tensor,
+        attn_metadata: TTMLAMetadata,
+        k_scale: torch.Tensor,
+        output: torch.Tensor,
+    ) -> None:
+        """MHA-style prefill.
+
+        Shapes (flat-token form):
+            q             : [T, N, qk_head_dim]
+            kv_c_normed   : [T, kv_lora_rank]
+            k_pe          : [T, 1, qk_rope_head_dim]
+            output        : [T, N, v_head_dim]
+        """
+        # Write prefill KV to cache using paged_fill_cache.
+        # _tt_concat_and_cache_mla has already written all tokens via index_put,
+        # so this write is idempotent (same data, same slots). When TT compiler
+        # support for paged_fill_cache is preferred over index_put scatter, this
+        # path takes effect and the monkey-patch can be simplified.
+        if kv_c_and_k_pe_cache.numel() > 0 and attn_metadata.num_prefills > 0:
+            assert attn_metadata.prefill is not None
+            kv_combined_pre = torch.cat(
+                [kv_c_normed, k_pe.squeeze(1)], dim=-1
+            )  # [T_prefill, head_size]
+            qsl = attn_metadata.prefill.query_start_loc  # [B_pre + 1]
+            for i in range(attn_metadata.num_prefills):
+                req_kv = kv_combined_pre[int(qsl[i]):int(qsl[i + 1])]  # [T_i, head_size]
+                # paged_fill_cache fill_value: [1, num_heads, T_i, head_size]
+                fill_value = req_kv.unsqueeze(0).unsqueeze(0)           # [1, 1, T_i, head_size]
+                new_cache = torch.ops.tt.paged_fill_cache(
+                    kv_c_and_k_pe_cache, fill_value,
+                    attn_metadata.prefill.block_table,
+                    batch_idx=torch.tensor(
+                        [i], dtype=torch.int32,
+                        device=kv_c_and_k_pe_cache.device
+                    ),
+                )
+                kv_c_and_k_pe_cache.copy_(new_cache)
+
+        T = q.shape[0]
+        N = self.num_heads
+
+        # Expand compressed KV through kv_b_proj → K_nope + V
+        # kv_b_proj: [kv_lora_rank] → [N * (qk_nope + v_head_dim)]
+        kv_nope = self.kv_b_proj(kv_c_normed)[0].view(
+            T, N, self.qk_nope_head_dim + self.v_head_dim
+        )
+        k_nope, v = kv_nope.split([self.qk_nope_head_dim, self.v_head_dim], dim=-1)
+
+        # Build full K: concat K_nope with k_pe (broadcast across heads)
+        k_pe_exp = k_pe.squeeze(1).unsqueeze(1).expand(-1, N, -1)  # [T, N, R]
+        k = torch.cat([k_nope, k_pe_exp], dim=-1)  # [T, N, qk_head_dim]
+
+        # Reshape to [B, H, S, D] convention used by the custom op: [1, N, T, D]
+        q_4d = q.permute(1, 0, 2).unsqueeze(0)  # [1, N, T, qk_head_dim]
+        k_4d = k.permute(1, 0, 2).unsqueeze(0)  # [1, N, T, qk_head_dim]
+        v_4d = v.permute(1, 0, 2).unsqueeze(0)  # [1, N, T, v_head_dim]
+
+        attn_out = torch.ops.tt.flash_mla_prefill(
+            q_4d,
+            k_4d,
+            self.v_head_dim,
+            value=v_4d,
+            is_causal=True,
+            scale=self.scale,
+        )
+        # [1, N, T, v_head_dim] → [T, N, v_head_dim]
+        attn_out = attn_out.squeeze(0).permute(1, 0, 2)
+        output.copy_(attn_out.reshape_as(output))
+
+    # ------------------------------------------------------------------
+    # Decode: data-movement-friendly MQA / absorb-attention approach
+    # ------------------------------------------------------------------
+    def forward_mqa(
+        self,
+        q,  # tuple[Tensor, Tensor] or Tensor
+        kv_c_and_k_pe_cache: torch.Tensor,
+        attn_metadata: TTMLAMetadata,
+        layer: AttentionLayer,
+    ):
+        """MQA-style decode.
+
+        q is a tuple (ql_nope, q_pe) provided by MLAAttention.forward_impl:
+            ql_nope : [B, N, kv_lora_rank]   — q_nope already projected to latent
+            q_pe    : [B, N, qk_rope_head_dim]
+
+        kv_c_and_k_pe_cache : [num_blocks, 1, block_size, kv_lora_rank + rope_dim]
+
+        Returns:
+            attn_out : [B, N, kv_lora_rank]  (in latent space; caller applies W_UV)
+            lse      : None
+        """
+        if isinstance(q, tuple):
+            ql_nope, q_pe = q  # [B, N, L], [B, N, R]
+        else:
+            # DCP case: q is already concatenated [B, N, L+R]
+            ql_nope = q[..., : self.kv_lora_rank]
+            q_pe = q[..., self.kv_lora_rank :]
+
+        # Concatenate to full latent-space query: [B, N, L+R]
+        q_full = torch.cat([ql_nope, q_pe], dim=-1)
+        # Reshape to decode op convention [1, B, N, L+R]
+        q_4d = q_full.unsqueeze(0)
+
+        assert attn_metadata.decode is not None, (
+            "TTMLADecodeMetadata must be set for decode phase"
+        )
+        page_table = attn_metadata.decode.block_table  # [B, max_blocks]
+        seq_lens = attn_metadata.decode.seq_lens       # [B]
+        # curr_pos is 0-indexed position of the last cached token
+        curr_pos = seq_lens - 1
+
+        # kv_c_and_k_pe_cache: [num_blocks, 1, block_size, L+R]
+        attn_out = torch.ops.tt.paged_flash_multi_latent_attention_decode(
+            q_4d,
+            kv_c_and_k_pe_cache,
+            page_table,
+            self.kv_lora_rank,     # head_dim_v: output is in latent (kv_lora_rank) space
+            is_causal=True,
+            curr_pos_tensor=curr_pos,
+            scale=self.scale,
+        )
+        # [1, B, N, kv_lora_rank] → [B, N, kv_lora_rank]
+        attn_out = attn_out.squeeze(0)
+        return attn_out, None
 
 
 def get_page_size_bytes(

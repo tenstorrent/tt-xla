@@ -119,10 +119,16 @@ class TTPlatform(Platform):
         selected_backend: "AttentionBackendEnum",
         attn_selector_config: "AttentionSelectorConfig",
     ) -> str:
+        if attn_selector_config.use_mla:
+            if attn_selector_config.use_sparse:
+                logger.warning(
+                    "Sparse MLA (e.g. DeepSeek-V3.2) is not natively supported; "
+                    "falling back to dense MLA."
+                )
+            logger.info("Using TT MLA Attention layer.")
+            return "vllm_tt.attention.TTMLAAttentionBackend"
         if attn_selector_config.use_sparse:
-            raise NotImplementedError(
-                "Sparse Attention is not supported on TT devices."
-            )
+            raise NotImplementedError("Sparse Attention is not supported on TT devices.")
         if selected_backend != AttentionBackendEnum.CUSTOM:
             logger.info("Cannot use %s backend on TT devices.", selected_backend)
 
