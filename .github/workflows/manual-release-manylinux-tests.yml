@@ -52,11 +52,8 @@ jobs:
           echo "build --discard_analysis_cache" >> ~/.bazelrc
           scripts/build_torch_xla.sh --${{ inputs.build_type }} --wheel --branch=${{ inputs.branch }}
 
-      - name: List built wheel
-        run: find temp -name "*.whl" -exec ls -l {} \;
-
       - name: Upload xla-torch wheel
         uses: actions/upload-artifact@v6
         with:
           name: xla-torch-wheel-${{ inputs.build_type }}
-          path: temp/pytorch/dist/*.whl
+          path: temp/pytorch/xla/dist/torch_xla*.whl
