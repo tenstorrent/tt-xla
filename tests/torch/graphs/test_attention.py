@@ -134,7 +134,7 @@ AVAILABLE_VARIANT_MAP = {
     ],
     "gpt_oss": ["20B", "120B"],
     "glm_4": ["4.7", "4.5", "4.5_Air"],
-    "glm_5": ["5.0"],
+    "glm_5": ["5", "5.1"],
 }
 
 
@@ -2708,7 +2708,7 @@ def test_glm_4_attention(seq_len, variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@parametrize_arch(["llmbox"])
+@parametrize_arch(["galaxy"])
 @pytest.mark.parametrize(
     "variant,variant_config",
     get_available_variants("glm_5").items(),
