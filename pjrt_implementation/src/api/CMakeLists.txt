@@ -66,10 +66,9 @@ PUBLIC
 
 if(TTXLA_ENABLE_EMITPY_EXECUTION)
     target_link_libraries(TTPJRTApi PRIVATE tt-alchemist-python-runner)
-    target_compile_definitions(TTPJRTApi PRIVATE TTXLA_ENABLE_EMITPY_EXECUTION=1)
-else()
-    target_compile_definitions(TTPJRTApi PRIVATE TTXLA_ENABLE_EMITPY_EXECUTION=0)
 endif()
+
+target_compile_definitions(TTPJRTApi PRIVATE TTXLA_ENABLE_EMITPY_EXECUTION=$<BOOL:${TTXLA_ENABLE_EMITPY_EXECUTION}>)
 
 # Enable Tracy profiling if requested
 if(TTXLA_TRACY_ZONES)

@@ -163,6 +163,9 @@ def _run_model_test_impl(
 
                 # Deep-copy the CPU model and inputs BEFORE test() moves them to XLA.
                 # EmitPy verification needs a pristine model that dynamo/XLA have never seen.
+                # There is a known bug/quirk of TorchXLA that compile options are set globally via torch_xla.set_custom_compile_options
+                # and that they are not considered for the purpose of caching, neither by dynamo nor by XLA/TorchXLA DynamoBridge.
+                # If a model that was already seen by dynamo is used, EmitPy will effectively be turned off, as the already compiled(without EmitPy) executable will be reused.
 
                 emitpy_enabled = request.config.getoption("--emitpy", default=False)
                 cpu_model_copy = None
