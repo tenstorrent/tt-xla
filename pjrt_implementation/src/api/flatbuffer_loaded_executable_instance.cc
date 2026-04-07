@@ -78,7 +78,11 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
 
+  auto r = tt::runtime::getMemoryView(runtime_device);
+  auto r2 = r[tt::runtime::MemoryBufferType::DRAM];
+  std::cout << r2.toString();
   tensor.ensure_layout(runtime_device, expected_layout);
+  std::cout << r2.toString();
 
   return tensor.runtime_tensor();
 }
