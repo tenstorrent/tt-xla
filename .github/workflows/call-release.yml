@@ -52,14 +52,10 @@ jobs:
       is_nightly_release: ${{ inputs.is_nightly_release }}
       should_overwrite_release: ${{ inputs.should_overwrite_release }}
 
-  build-and-test-release-docker:
+  build-and-test-release-docker-ubuntu:
     uses: ./.github/workflows/call-build-release-docker.yml
     needs: [ publish-release-wheel ]
     secrets: inherit
-    strategy:
-      fail-fast: false
-      matrix:
-        distro: [ "ubuntu", "fedora" ]
     with:
       wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
       wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
@@ -67,12 +63,26 @@ jobs:
       wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
       caller_workflow: ${{ github.workflow }}
+      distro: "ubuntu"
+
+  build-and-test-release-docker-fedora:
+    uses: ./.github/workflows/call-build-release-docker.yml
+    needs: [ publish-release-wheel ]
+    secrets: inherit
+    with:
+      wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
+      wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
+      wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
+      wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
+      xla_sha_override: ${{ inputs.xla_sha_override }}
+      caller_workflow: ${{ github.workflow }}
+      distro: "fedora"
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
-    needs: [ publish-release-wheel, build-and-test-release-docker ]
+    needs: [ publish-release-wheel, build-and-test-release-docker-ubuntu ]
     secrets: inherit
     with:
       release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
-      docker_image_base: ${{ needs.build-and-test-release-docker.outputs.docker_image_base }}
+      docker_image_base: ${{ needs.build-and-test-release-docker-ubuntu.outputs.docker_image_base }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
