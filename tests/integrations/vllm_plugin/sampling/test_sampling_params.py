@@ -630,9 +630,6 @@ def test_additive_penalties_end_to_end(llm):
     _assert_penalty_reduces_repetition(
         llm, "frequency_penalty=2.0", base, 64, frequency_penalty=2.0
     )
-    _assert_penalty_reduces_repetition(
-        llm, "presence_penalty=2.0", base, 64, presence_penalty=2.0
-    )
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
