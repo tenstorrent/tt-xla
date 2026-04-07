@@ -69,17 +69,12 @@ jobs:
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
             echo "build-name=${{ inputs.build_type }}" >> "$GITHUB_OUTPUT"
-            # Sanitize ref for cache keys (GitHub cache keys cannot contain '/')
-            REF_SAFE="${GITHUB_REF_NAME//\//-}"
-            echo "ccache-ref=${REF_SAFE}" >> "$GITHUB_OUTPUT"
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
             create-symlink: true
-            key: "${{ steps.strings.outputs.ccache-ref }}-${{ steps.strings.outputs.build-name }}-build"
-            restore-keys: |
-              main-${{ steps.strings.outputs.build-name }}-build
+            key: "${{ steps.strings.outputs.build-name }}-build"
 
       - name: Build the wheel
         shell: bash
