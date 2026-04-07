@@ -1025,6 +1025,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
       compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enablePermuteMatmulFusion =
       compile_options.experimental_enable_permute_matmul_fusion;
+  options.enableGreedyOptimizer = true;
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
