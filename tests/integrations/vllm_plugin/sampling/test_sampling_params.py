@@ -619,12 +619,11 @@ def _assert_penalty_reduces_repetition(
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
 def test_additive_penalties_end_to_end(llm):
-    """frequency_penalty and presence_penalty must measurably reduce token repetition.
+    """frequency_penalty must measurably reduce token repetition.
 
     Complements test_penalties_correctness.py (which validates the math) by
-    checking the full pipeline: that output_token_counts and prompt_token_mask
-    are correctly built and apply_penalties() is actually called during live
-    greedy decoding.
+    checking the full pipeline: that output_token_counts is correctly built
+    and apply_penalties() is actually called during live greedy decoding.
     """
     base = _penalty_baseline(llm)
     _assert_penalty_reduces_repetition(
