@@ -114,8 +114,6 @@ class Sampler(nn.Module):
         rep_mask_float = rep_union - (rep_union - 1).clamp(min=0)
 
         # Repetition penalty: positive logits divided by rep, negative multiplied.
-        # Uses clamp instead of torch.where to avoid SelectOp_InvertPredicateAndSwap
-        # in StablehloAggressiveSimplificationPass producing incorrect results.
         rep = repetition_penalties.unsqueeze(1)
         pos_logits = logits.clamp(min=0)
         neg_logits = logits.clamp(max=0)
