@@ -180,7 +180,7 @@ class DynamicTorchModelTester(TorchModelTester):
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
         else:
             # mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
-            mesh_shape, mesh_names = (4, 4), ("batch", "model")
+            mesh_shape, mesh_names = (16, 1), ("batch", "model")
 
         if mesh_shape and mesh_names:
             return get_mesh(mesh_shape, mesh_names)
