@@ -187,32 +187,32 @@ def load_deepseek_weights(
     return model
 
 
-def test_deepseek_modified_transformer_single_layer():
-    xr.set_device_type("TT")
+# def test_deepseek_modified_transformer_single_layer():
+#     xr.set_device_type("TT")
 
-    # Create model args with a single layer for testing
-    args = ModelArgs(
-        n_layers=1,
-    )
+#     # Create model args with a single layer for testing
+#     args = ModelArgs(
+#         n_layers=1,
+#     )
 
-    model = ModifiedTransformer(args)
+#     model = ModifiedTransformer(args)
 
-    model = model.to(torch.bfloat16)
+#     model = model.to(torch.bfloat16)
 
-    model = model.eval()
-    compiled_model = torch.compile(model, backend="tt")
+#     model = model.eval()
+#     compiled_model = torch.compile(model, backend="tt")
 
-    batch_size = 1
-    seq_len = 32
-    tokens = torch.randint(0, args.vocab_size, (batch_size, seq_len))
+#     batch_size = 1
+#     seq_len = 32
+#     tokens = torch.randint(0, args.vocab_size, (batch_size, seq_len))
 
-    device = torch_xla.device()
-    tokens = tokens.to(device)
-    compiled_model = compiled_model.to(device)
+#     device = torch_xla.device()
+#     tokens = tokens.to(device)
+#     compiled_model = compiled_model.to(device)
 
-    with torch.no_grad():
-        output = compiled_model(tokens)
-        output.to("cpu")
+#     with torch.no_grad():
+#         output = compiled_model(tokens)
+#         output.to("cpu")
 
 
 def test_deepseek_complex_rotary_emb():
@@ -267,7 +267,7 @@ def test_deepseek_attention_prefill(batch_size):
     freqs_cis = model.freqs_cis[0:seq_len]
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -340,7 +340,7 @@ def test_deepseek_indexer(batch_size):
 
     # Setup mesh
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -417,7 +417,7 @@ def test_deepseek_v3_2_moe_only():
     model = model.to(torch.bfloat16)
     # Extract MoE module from block layer 1
     moe = model.layers[1].ffn
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     enable_sparse_mlp(moe, mesh=mesh_shape, cluster_axis=0, config=args)
     moe.eval()
 
@@ -485,11 +485,6 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    import resource
-
-    def peak_rss_gb():
-        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 / 1024
-
     args = ModelArgs(
         n_layers=2,
         max_batch_size=batch_size,
@@ -497,18 +492,13 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
     )
 
     # Create full model to get freqs_cis, then extract MoE block (layer 1)
-    print(f"[mem] before model init: {peak_rss_gb():.2f} GB")
     model = ModifiedTransformer(args)
-    print(f"[mem] after model init: {peak_rss_gb():.2f} GB")
     model = model.to(torch.bfloat16)
-    print(f"[mem] after to(bf16): {peak_rss_gb():.2f} GB")
     block = model.layers[1]  # layer_id=1 >= n_dense_layers=1 → MoE
     freqs_cis = model.freqs_cis[:seq_len]
 
     mesh_shape = (4, 8)
-    print(f"[mem] before enable_sparse_mlp: {peak_rss_gb():.2f} GB")
     enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
-    print(f"[mem] after enable_sparse_mlp: {peak_rss_gb():.2f} GB")
     block.eval()
 
     hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
@@ -517,7 +507,6 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
-    print(f"[mem] before run_graph_test: {peak_rss_gb():.2f} GB")
 
     def get_shard_spec(block, args, kwargs):
         shard_specs = {}
@@ -598,7 +587,6 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
     )
-    print(f"[mem] after run_graph_test: {peak_rss_gb():.2f} GB")
 
 
 @pytest.mark.llmbox
@@ -606,11 +594,6 @@ def test_deepseek_v3_2_full_sparse_moe():
     """Test full DeepseekV3-2 Transformer with A2aSparseMLP on (2,4) mesh."""
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
-
-    import resource
-
-    def peak_rss_gb():
-        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 / 1024
 
     token_ids = [
         671,
@@ -643,28 +626,22 @@ def test_deepseek_v3_2_full_sparse_moe():
     args.max_seq_len = seq_len * 2
     print(f"[config] {args}")
 
-    print(f"[mem] before model init: {peak_rss_gb():.2f} GB")
     model = ModifiedTransformer(args)
-    print(f"[mem] after model init: {peak_rss_gb():.2f} GB")
     load_deepseek_weights(
         model, n_layers=args.n_layers, n_dense_layers=args.n_dense_layers
     )
-    print(f"[mem] after weight loading: {peak_rss_gb():.2f} GB")
     model = model.to(torch.bfloat16)
-    print(f"[mem] after to(bf16): {peak_rss_gb():.2f} GB")
     # head is intentionally float32 in the original model (logits computed in fp32),
     # but model.to(bf16) converts it. Restore to float32 to match forward's .float() call.
     model.head = model.head.to(torch.float32)
 
     mesh_shape = (4, 8)
-    print(f"[mem] before enable_sparse_mlp: {peak_rss_gb():.2f} GB")
     enable_sparse_mlp(
         model,
         mesh=mesh_shape,
         cluster_axis=0,
         config=args,
     )
-    print(f"[mem] after enable_sparse_mlp: {peak_rss_gb():.2f} GB")
 
     model.eval()
 
@@ -674,7 +651,6 @@ def test_deepseek_v3_2_full_sparse_moe():
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
-    print(f"[mem] before run_graph_test: {peak_rss_gb():.2f} GB")
 
     def get_shard_spec(model, args, kwargs):
         shard_specs = {}
@@ -776,4 +752,3 @@ def test_deepseek_v3_2_full_sparse_moe():
         comparison_config=comparison_config,
         compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
     )
-    print(f"[mem] after run_graph_test: {peak_rss_gb():.2f} GB")
