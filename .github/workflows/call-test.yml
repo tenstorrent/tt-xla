@@ -260,7 +260,7 @@ jobs:
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
         if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
-          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
+          ARCH="--arch ${{ matrix.build.arch || matrix.build['runs-on-original'] || matrix.build.runs-on }}"
         fi
 
         MARKS="${{ matrix.build.test-mark }}"
