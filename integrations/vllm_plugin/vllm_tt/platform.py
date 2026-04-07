@@ -151,6 +151,20 @@ class TTPlatform(Platform):
         raise NotImplementedError
 
     @classmethod
+    def has_device_capability(
+        cls,
+        capability: "tuple[int, int] | int",
+        device_id: int = 0,
+    ) -> bool:
+        """TT hardware does not use CUDA capability levels.
+
+        Returns True to prevent vllm from enabling CUDA-only fallback kernels
+        such as the Marlin FP8 kernel, which asserts CUDA availability via
+        torch.cuda.get_device_properties() and fails on TT hardware.
+        """
+        return True
+
+    @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
         return False
 
@@ -227,6 +241,16 @@ class TTPlatform(Platform):
                 model_config.dtype,
             )
             model_config.dtype = torch.bfloat16
+
+        if model_config is not None and model_config.quantization is not None:
+            logger.warning(
+                "TT does not support quantization (%s); disabling. "
+                "Weights will be loaded and computed in bfloat16.",
+                model_config.quantization,
+            )
+            model_config.quantization = None
+            if hasattr(model_config.model_arch_config, "quantization_config"):
+                model_config.model_arch_config.quantization_config = None
 
         from .attention import TTAttentionBackend
 

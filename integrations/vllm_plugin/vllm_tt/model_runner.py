@@ -1629,6 +1629,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model_loader.load_model(
                     vllm_config=self.vllm_config, model_config=self.model_config
                 ).eval()
+                # Convert any fp8 parameters to bfloat16 before moving to device.
+                # DeepSeek-V3 and similar models store weights as float8_e4m3fn in
+                # their checkpoints. With quantization disabled, these are loaded
+                # as raw fp8 tensors which TT hardware does not support natively.
+                _FP8_DTYPES = (torch.float8_e4m3fn, torch.float8_e5m2)
+                for param in model.parameters():
+                    if param.dtype in _FP8_DTYPES:
+                        param.data = param.data.to(torch.bfloat16)
                 replace_modules(model)
                 model = model.to(self.device)
 
