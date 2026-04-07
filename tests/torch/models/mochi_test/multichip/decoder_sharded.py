@@ -95,7 +95,7 @@ def _get_mesh():
     if num_devices == 32:
         mesh_shape = (8, 4)
     elif num_devices == 8:
-        mesh_shape = (4, 2)
+        mesh_shape = (1, 8)
     elif num_devices == 4:
         mesh_shape = (1, 4)
     else:
@@ -399,6 +399,9 @@ def run_vae_decoder_sharded():
     Output: [1, 3, 48, 480, 848] (decoded video frames)
     """
     # ---- Setup ----
+    torch_xla.set_custom_compile_options(
+        {"experimental-enable-dram-space-saving-optimization": "true"}
+    )
     xr.set_device_type("TT")
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     xr.use_spmd()
@@ -423,7 +426,7 @@ def run_vae_decoder_sharded():
     # Replace the original view+permute+view with a staged decomposition
     # that avoids placing small factors (sw=2) in tile-padded dimensions.
     # Reduces peak intermediate from 11-80 GB to 0.8-6.4 GB per pixel shuffle.
-    _patch_pixel_shuffle(decoder)
+    # _patch_pixel_shuffle(decoder)
 
     # ---- Verify Divisibility ----
     _verify_divisibility(decoder, mesh)
