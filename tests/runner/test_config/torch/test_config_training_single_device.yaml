@@ -544,15 +544,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   detr3d/pytorch-single_device-training:
-    markers: [trigger]
-    arch_overrides:
-      n150:
-        status: KNOWN_FAILURE_XFAIL
-        markers: [notimeout]
-        reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1330944 B"
-      p150:
-        status: EXPECTED_PASSING
-        assert_pcc: false
+    status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
+    reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1330944 B"
   # yolov8/pytorch-yolov8n-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
@@ -1287,15 +1281,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   monodepth2/pytorch-Stereo_No_Pt_640x192-single_device-training:
-    markers: [trigger]
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        bringup_status: FAILED_RUNTIME
-        reason: "Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
-      p150:
-        status: EXPECTED_PASSING
-        assert_pcc: false
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
   monodepth2/pytorch-Mono+stereo_No_Pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1395,15 +1383,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   unet_for_conditional_generation/pytorch-Base-single_device-training:
-    markers: [trigger]
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        bringup_status: FAILED_RUNTIME
-        reason: "Out of Memory: Not enough space to allocate 125829120 B DRAM buffer across 12 banks, where each bank needs to store 10485760 B"
-      p150:
-        status: EXPECTED_PASSING
-        assert_pcc: false
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 125829120 B DRAM buffer across 12 banks, where each bank needs to store 10485760 B"
   whisper/pytorch-Tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
