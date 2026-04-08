@@ -623,8 +623,7 @@ test_config:
 
   yoloworld_s640/pytorch-Small_640-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: not_started
-    reason: "Initial bringup — first TT device run"
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13"
 
   yoloworld/pytorch-Small_640-single_device-inference:
     status: EXPECTED_PASSING
