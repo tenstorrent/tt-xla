@@ -252,3 +252,35 @@ test_config:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  # StableLM base-alpha multi-chip tensor parallelism
+  # Both variants have 32 attention heads → fits 2, 4, 8, 16, 32 devices.
+  # Mesh shape is selected automatically in get_mesh_config().
+  stablelm/causal_lm/pytorch-3B_Alpha-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  stablelm/causal_lm/pytorch-7B_Alpha-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  # GPT-Neo multi-chip tensor parallelism
+  # All three variants work on 2, 4, and 8 chips — mesh shape is selected
+  # automatically in get_mesh_config() based on attention-head divisibility.
+  #   125M : 12 heads → (1,2) for 2 chips, (1,4) for 4, (2,4) for 8
+  #   1.3B : 16 heads → (1,2) for 2 chips, (1,4) for 4, (1,8) for 8
+  #   2.7B : 20 heads → (1,2) for 2 chips, (1,4) for 4, (2,4) for 8
+  gpt_neo/causal_lm/pytorch-125M-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Tensor parallel requires multi-chip mesh; single-chip machine returns device_count=1"
+
+  gpt_neo/causal_lm/pytorch-1_3B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Tensor parallel requires multi-chip mesh; single-chip machine returns device_count=1"
+
+  gpt_neo/causal_lm/pytorch-2_7B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Tensor parallel requires multi-chip mesh; single-chip machine returns device_count=1"

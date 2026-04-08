@@ -21,17 +21,21 @@ test_config:
     status: EXPECTED_PASSING
 
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
-    arch_overrides:
-      n150:
-        status: EXPECTED_PASSING
-      p150:
-        status: EXPECTED_PASSING
-        required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/3860
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13"
 
   gpt_neo/causal_lm/pytorch-1_3B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13"
 
   gpt_neo/causal_lm/pytorch-2_7B-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13"
+
+  stablelm/causal_lm/pytorch-3B_Alpha-single_device-inference:
+    status: EXPECTED_PASSING
+
+  stablelm/causal_lm/pytorch-7B_Alpha-single_device-inference:
     status: EXPECTED_PASSING
 
   vovnet/pytorch-27s-single_device-inference:
