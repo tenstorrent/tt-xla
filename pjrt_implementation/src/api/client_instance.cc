@@ -354,7 +354,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  size_t devices_count = m_system_descriptor->chip_desc_indices()->size();
+  size_t devices_count = tt::runtime::getNumAvailableDevices();
   m_devices.reserve(devices_count);
   m_devices_raw.reserve(devices_count);
   m_addressable_devices_raw.reserve(devices_count);
