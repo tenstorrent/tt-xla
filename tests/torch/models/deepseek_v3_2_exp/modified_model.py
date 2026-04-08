@@ -655,18 +655,11 @@ class Indexer(torch.nn.Module):
 
         self.k_cache[:bsz, start_pos:end_pos] = k
 
-        # Use local key tensor directly — in-place buffer updates are not
-        # visible within the same forward pass on XLA backends.
-        if start_pos > 0:
-            keys = torch.cat([self.k_cache[:bsz, :start_pos], k], dim=1)
-        else:
-            keys = k
-
         # In full implementation, this would use fp8_index with quantized values
         weights = self.weights_proj(x) * self.n_heads**-0.5
         weights = weights.unsqueeze(-1) * self.softmax_scale
 
-        index_score = bf16_index(q, weights, keys)
+        index_score = bf16_index(q, weights, self.k_cache[:bsz, :end_pos])
 
         if mask is not None:
             index_score += mask
@@ -675,7 +668,9 @@ class Indexer(torch.nn.Module):
         if self.return_raw_scores:
             return index_score
 
-        return index_score
+        topk_indices = index_score.topk(min(self.index_topk, end_pos), dim=-1)[1]
+
+        return topk_indices
 
 
 def weight_dequant(weight, scale):
@@ -818,23 +813,14 @@ class MLA(nn.Module):
             k = torch.cat([k_nope, k_pe.expand(-1, -1, self.n_local_heads, -1)], dim=-1)
             scores = torch.einsum("bshd,bthd->bsht", q, k).mul_(self.softmax_scale)
 
-            # indexer — sparse attention masking
+            # indexer
             if self.indexer is not None:
-                index_score = self.indexer(x, qr, start_pos, freqs_cis, mask)
-                # Threshold-based masking: avoids ttnn.sort index bug by using
-                # sort values (which are correct) instead of indices.
-                k = min(self.indexer.index_topk, end_pos)
-                threshold = index_score.topk(k, dim=-1)[0][..., -1:]
-                index_mask = torch.where(
-                    index_score >= threshold,
-                    torch.zeros_like(index_score),
-                    torch.full_like(index_score, float("-inf")),
-                )
+                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+                index_mask = torch.full(
+                    (bsz, seqlen, seqlen), float("-inf"), device=x.device
+                ).scatter_(-1, topk_indices, 0)
                 index_mask += mask
                 scores += index_mask.unsqueeze(2)
-            else:
-                # All positions selected when end_pos <= index_topk; apply mask directly
-                scores += mask.unsqueeze(-2)
 
             scores = scores.softmax(dim=-1)
             x = torch.einsum("bsht,bthd->bshd", scores, v)
@@ -855,14 +841,10 @@ class MLA(nn.Module):
 
             # indexer
             if self.indexer is not None:
-                index_score = self.indexer(x, qr, start_pos, freqs_cis, mask)
-                k = min(self.indexer.index_topk, end_pos)
-                threshold = index_score.topk(k, dim=-1)[0][..., -1:]
-                index_mask = torch.where(
-                    index_score >= threshold,
-                    torch.zeros_like(index_score),
-                    torch.full_like(index_score, float("-inf")),
-                )
+                topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
+                index_mask = torch.full(
+                    (bsz, 1, end_pos), float("-inf"), device=x.device
+                ).scatter_(-1, topk_indices, 0)
                 scores += index_mask.unsqueeze(2)
 
             scores = scores.softmax(dim=-1)
