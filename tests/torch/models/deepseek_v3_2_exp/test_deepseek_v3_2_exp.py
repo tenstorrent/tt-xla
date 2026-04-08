@@ -30,7 +30,7 @@ from tests.utils import failed_ttmlir_compilation
 #    - the original implementation (kernel.py) relies on custom tilelang kernels not supported on TT
 # 3. Avoid torch.view_as_complex/view_as_real operations
 
-DEEPSEEK_V3_REPO = "deepseek-ai/DeepSeek-V3"
+DEEPSEEK_V3_REPO = "deepseek-ai/DeepSeek-V3.2"
 
 
 def _rename_hf_key(ckpt_key, n_dense_layers=1):
@@ -53,7 +53,8 @@ def _rename_hf_key(ckpt_key, n_dense_layers=1):
     key = re.sub(r"(layers\.\d+\.)input_layernorm\.", r"\1attn_norm.", key)
     key = re.sub(r"(layers\.\d+\.)post_attention_layernorm\.", r"\1ffn_norm.", key)
 
-    # Attention
+    # Attention (indexer must come before other self_attn renames)
+    key = key.replace("self_attn.indexer.", "attn.indexer.")
     key = key.replace("self_attn.q_a_proj.", "attn.wq_a.")
     key = key.replace("self_attn.q_b_proj.", "attn.wq_b.")
     key = key.replace("self_attn.q_a_layernorm.", "attn.q_norm.")
@@ -122,6 +123,9 @@ def load_deepseek_config(repo_id=DEEPSEEK_V3_REPO):
         qk_rope_head_dim=hf_cfg.get("qk_rope_head_dim", 64),
         v_head_dim=hf_cfg.get("v_head_dim", 128),
         rope_theta=hf_cfg.get("rope_theta", 10000.0),
+        index_n_heads=hf_cfg.get("index_n_heads", 0),
+        index_head_dim=hf_cfg.get("index_head_dim", 128),
+        index_topk=hf_cfg.get("index_topk", 2048),
     )
 
 
@@ -560,10 +564,11 @@ def test_deepseek_v3_2_moe_only():
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
-    # Extract MoE module from block layer 1
-    moe = model.layers[1].ffn
+    # Replace MoE module in block layer 1, then extract the replaced ffn
+    block = model.layers[1]
     mesh_shape = (4, 8)
-    enable_sparse_mlp(moe, mesh=mesh_shape, cluster_axis=0, config=args)
+    enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
+    moe = block.ffn  # Now A2aSparseMLPWithSharedExperts
     moe.eval()
 
     hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
@@ -765,7 +770,6 @@ def test_deepseek_v3_2_full_sparse_moe():
     seq_len = len(token_ids)
 
     args = load_deepseek_config()
-    # args.n_dense_layers = 1
     args.n_layers = 4
     args.max_batch_size = batch_size
     args.max_seq_len = seq_len * 2
@@ -789,6 +793,17 @@ def test_deepseek_v3_2_full_sparse_moe():
     )
 
     model.eval()
+
+    # Prepopulate topk indices to bypass broken TTNN TopK indices.
+    # With index_topk >= seq_len, all positions are selected anyway,
+    # so we provide all indices as a no-op mask.
+    for layer in model.layers:
+        if layer.attn.indexer is not None:
+            k = min(args.index_topk, seq_len)
+            topk_indices = (
+                torch.arange(k).unsqueeze(0).unsqueeze(0).expand(batch_size, seq_len, k)
+            )
+            layer.attn.prepopulated_topk_indices = topk_indices
 
     single_sequence = torch.tensor(token_ids).long()
     tokens = single_sequence.unsqueeze(0).expand(batch_size, seq_len)
