@@ -60,9 +60,12 @@ class OpTester(BaseTester):
             custom_comparator=custom_comparator,
         )
 
-    def test(self, workload: Workload, request=None) -> None:
+    def test(self, workload: Workload, request=None) -> tuple:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
+
+        Returns:
+            A tuple of (tt_res, cpu_res).
         """
         cpu_workload = workload
         if self._framework == Framework.JAX:
@@ -85,6 +88,8 @@ class OpTester(BaseTester):
 
         if request:
             self.handle_filecheck_and_serialization(request, tt_workload)
+
+        return tt_res, cpu_res
 
     def _test_e2e_perf(self, workload: Workload) -> None:
         warmup_iters_count = 3

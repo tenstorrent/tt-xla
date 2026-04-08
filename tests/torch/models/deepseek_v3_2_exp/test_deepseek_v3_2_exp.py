@@ -626,7 +626,7 @@ def test_deepseek_v3_2_full_sparse_moe():
 
     args = load_deepseek_config()
     # args.n_dense_layers = 1
-    args.n_layers = 1
+    args.n_layers = 4
     args.max_batch_size = batch_size
     args.max_seq_len = seq_len * 2
     print(f"[config] {args}")
@@ -748,7 +748,7 @@ def test_deepseek_v3_2_full_sparse_moe():
         pcc=PccConfig(enabled=True, required_pcc=0.95),
     )
 
-    run_graph_test(
+    tt_res, cpu_res = run_graph_test(
         model,
         [tokens],
         framework=Framework.TORCH,
@@ -757,3 +757,14 @@ def test_deepseek_v3_2_full_sparse_moe():
         comparison_config=comparison_config,
         compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
     )
+
+    # Instantiate tokenizer only after the test to avoid a known bug where it affects PCC
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(DEEPSEEK_V3_REPO)
+
+    tt_tokens = tt_res.argmax(dim=-1)
+    cpu_tokens = cpu_res.argmax(dim=-1)
+
+    print(f"[output] TT  tokens: {tokenizer.decode(tt_tokens[0].tolist())}")
+    print(f"[output] CPU tokens: {tokenizer.decode(cpu_tokens[0].tolist())}")

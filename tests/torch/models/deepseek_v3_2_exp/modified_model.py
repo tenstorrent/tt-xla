@@ -819,7 +819,7 @@ class MLA(nn.Module):
             scores = torch.einsum("bshd,bthd->bsht", q, k).mul_(self.softmax_scale)
 
             # indexer — sparse attention masking
-            if self.indexer is not None and end_pos > self.indexer.index_topk:
+            if self.indexer is not None:
                 index_score = self.indexer(x, qr, start_pos, freqs_cis, mask)
                 # Threshold-based masking: avoids ttnn.sort index bug by using
                 # sort values (which are correct) instead of indices.

@@ -71,7 +71,7 @@ def run_graph_test(
         )
     else:
         workload = Workload(framework=framework, executable=graph, args=inputs)
-    tester.test(workload, request=request)
+    return tester.test(workload, request=request)
 
 
 def run_graph_test_with_random_inputs(
