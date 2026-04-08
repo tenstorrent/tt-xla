@@ -1,0 +1,5 @@
+[
+  { "runs-on": "qb2-blackhole", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "inference and expected_passing", "parallel-groups": 10},
+  { "runs-on": "qb2-blackhole", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_llms_torch", "test-mark": "inference and expected_passing", "parallel-groups": 2 },
+  { "runs-on": "qb2-blackhole", "name": "run_forge_models", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "inference and expected_passing", "parallel-groups": 2 }
+]
