@@ -257,7 +257,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
         self.is_sharded_compute_logits = False
-
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
             mesh_shape = determine_mesh_shape(
@@ -359,9 +358,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Multi-modal data support
         self.mm_registry = MULTIMODAL_REGISTRY
         self.uses_mrope = model_config.uses_mrope
-        # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
-        #     model_config)
-        self.supports_mm_inputs = False
+        self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
+            model_config
+        )
 
         self._num_slices_per_kv_cache_update_block = (
             _get_num_slices_per_kv_cache_update_block(
@@ -541,7 +540,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # For passing scheduler_output between successive
         # execute_model() and sample_tokens() calls.
         self.scheduler_output: SchedulerOutput | None = None
-        self.mm_embed_inputs: tuple[list[torch.Tensor], torch.Tensor] | None = None
+        self.mm_embed_inputs: (
+            tuple[list[torch.Tensor], torch.Tensor, torch.Tensor] | None
+        ) = None
 
         # Override number of hidden layers if specified in TTConfig
         self._original_num_layers, self._target_num_layers = (
@@ -1240,7 +1241,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return
 
         # Batch the multi-modal inputs.
-        mm_kwargs = list[MultiModalKwargsItem]()
+        # `group_and_batch_mm_kwargs` expects a list of (modality, item) tuples.
+        mm_kwargs = list[tuple[str, MultiModalKwargsItem]]()
         # List of tuple (mm_hash, pos_info)
         mm_hashes_pos = list[tuple[str, PlaceholderRange]]()
         for req_id, encoder_input_ids in scheduled_encoder_inputs.items():
@@ -1251,7 +1253,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 if mm_feature.data is None:
                     continue
                 mm_hash = mm_feature.identifier
-                mm_kwargs.append(mm_feature.data)
+                mm_kwargs.append((mm_feature.modality, mm_feature.data))
                 mm_hashes_pos.append((mm_hash, mm_feature.mm_position))
 
         # Batch mm inputs as much as we can: if a request in the batch has
@@ -1285,7 +1287,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
             if isinstance(curr_group_outputs, torch.Tensor):
-                encoder_outputs.append(curr_group_outputs)
+                # Shape is (num_items, feature_size, hidden_size). Unbind the
+                # leading item dimension so each cached entry is a single item's
+                # (feature_size, hidden_size) embedding.
+                for output in curr_group_outputs:
+                    encoder_outputs.append(output)
             else:
                 assert isinstance(curr_group_outputs, (list, tuple))
                 for output in curr_group_outputs:
@@ -1295,27 +1301,35 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # NOTE (NickLucche) here we diverge from logic in other runners, as we
         # assume to only have whole mm items to process. Hence we avoid the
         # intrinsic dynamism that `scatter_mm_placeholders` introduces.
-        for (mm_hash, pos_info), output in zip(mm_hashes_pos, encoder_outputs):
-            assert pos_info.is_embed is None, (
-                "Expected all positions to be" " contiguous and embeddings."
-            )
+        for (mm_hash, _pos_info), output in zip(mm_hashes_pos, encoder_outputs):
             self.encoder_cache[mm_hash] = output
 
     def _gather_mm_embeddings(
         self,
         scheduler_output: "SchedulerOutput",
-    ) -> tuple[list[torch.Tensor], torch.Tensor]:
-        total_num_scheduled_tokens = scheduler_output.total_num_scheduled_tokens
-        padded_total_num_scheduled_tokens = _get_padded_token_len(
-            self.num_tokens_paddings, total_num_scheduled_tokens
+    ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
+        # The mask must match the (max_num_reqs, padded_width) layout of
+        # `self.input_ids` (see `_prepare_inputs`), so that it broadcasts
+        # against the 3D `inputs_embeds` produced by `embed_input_ids` during
+        # the masked_scatter in `_merge_multimodal_embeddings`. The padded
+        # width is derived from the max per-request scheduled tokens, matching
+        # how `_prepare_inputs` sizes `input_ids`.
+        max_num_scheduled_tokens = max(
+            scheduler_output.num_scheduled_tokens[rid]
+            for rid in self.input_batch.req_ids
+        )
+        padded_width = _get_padded_token_len(
+            self.num_tokens_paddings, max_num_scheduled_tokens
         )
 
-        is_mm_embed = self.is_mm_embed_cpu
-        is_mm_embed[:padded_total_num_scheduled_tokens] = False
+        is_mm_embed = torch.zeros(
+            (self.max_num_reqs, padded_width),
+            dtype=torch.bool,
+            device="cpu",
+        )
         mm_embeds = list[torch.Tensor]()
-        req_start_idx = 0
 
-        for req_id in self.input_batch.req_ids:
+        for req_idx, req_id in enumerate(self.input_batch.req_ids):
             num_scheduled_tokens = scheduler_output.num_scheduled_tokens[req_id]
             req_state = self.requests[req_id]
             num_computed_tokens = req_state.num_computed_tokens
@@ -1347,43 +1361,85 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     num_encoder_tokens,
                 )
                 assert start_idx < end_idx
+                # A placeholder range may interleave real text tokens (e.g.
+                # Pixtral's [IMG_BREAK]/[IMG_END]) with image embeddings, so
+                # map the token range to the corresponding embedding range.
+                curr_embeds_start, curr_embeds_end = (
+                    pos_info.get_embeds_indices_in_range(start_idx, end_idx)
+                )
+                # No embeddings in the current range; nothing to gather.
+                if curr_embeds_start == curr_embeds_end:
+                    continue
 
                 mm_hash = mm_feature.identifier
                 encoder_output = self.encoder_cache.get(mm_hash, None)
                 assert encoder_output is not None, f"Encoder cache miss for {mm_hash}."
 
-                assert pos_info.is_embed is None, (
-                    "Expected all positions to" " be contiguous and embeddings."
-                )
+                if (is_embed := pos_info.is_embed) is not None:
+                    is_embed = is_embed[start_idx:end_idx]
+                    mm_embeds_item = encoder_output[curr_embeds_start:curr_embeds_end]
+                else:
+                    mm_embeds_item = encoder_output[start_idx:end_idx]
 
-                req_start_pos = req_start_idx + start_pos - num_computed_tokens
-                is_mm_embed[req_start_pos + start_idx : req_start_pos + end_idx] = True
+                # Column of this request's row where the placeholder begins.
+                # `self.input_ids` stores each request's scheduled tokens
+                # starting at column 0, so the offset is relative to
+                # num_computed_tokens.
+                col_base = start_pos - num_computed_tokens
+                if is_embed is None:
+                    is_mm_embed[req_idx, col_base + start_idx : col_base + end_idx] = (
+                        True
+                    )
+                else:
+                    is_mm_embed[
+                        req_idx, col_base + start_idx : col_base + end_idx
+                    ] |= is_embed
 
-                # Only whole mm items are processed
-                mm_embeds.append(encoder_output)
+                mm_embeds.append(mm_embeds_item)
 
-            req_start_idx += num_scheduled_tokens
+        # Precompute the flat (row-major) positions of the multimodal tokens on
+        # the host. This lets `_get_model_inputs` scatter the encoder
+        # embeddings into `inputs_embeds` with a statically-shaped index tensor
+        # via `index_copy`, instead of vLLM's `masked_scatter_` which lowers to
+        # a data-dependent (dynamic-shaped) op that the Shardy/SPMD
+        # tensor-parallel pass cannot handle. The row-major order of the True
+        # entries matches the concatenation order of `mm_embeds`.
+        mm_indices = is_mm_embed.flatten().nonzero(as_tuple=True)[0].to(self.device)
+        is_mm_embed = is_mm_embed.to(self.device)
 
-        is_mm_embed = is_mm_embed[:padded_total_num_scheduled_tokens].to(self.device)
-
-        return mm_embeds, is_mm_embed
+        return mm_embeds, is_mm_embed, mm_indices
 
     def _get_model_inputs(
         self,
         input_ids: torch.Tensor,
-        mm_embed_inputs: tuple[list[torch.Tensor], torch.Tensor] | None,
+        mm_embed_inputs: tuple[list[torch.Tensor], torch.Tensor, torch.Tensor] | None,
     ):
         if self.supports_mm_inputs:
-            mm_embeds, is_mm_embed = mm_embed_inputs or (None, None)
+            mm_embeds, is_mm_embed, mm_indices = mm_embed_inputs or (
+                None,
+                None,
+                None,
+            )
 
             # NOTE(woosuk): To unify token ids and soft tokens (vision
             # embeddings), we always use embeddings (rather than token ids)
             # as input to the multimodal model, even when the input is text.
+            # Compute the text embeddings only (no multimodal merge here). The
+            # multimodal embeddings are scattered in below with a static
+            # `index_copy` rather than vLLM's `masked_scatter_`, which lowers to
+            # a dynamic-shaped op that the Shardy/SPMD pass rejects.
             inputs_embeds = self.model.embed_input_ids(
                 input_ids,
-                multimodal_embeddings=mm_embeds,
                 is_multimodal=is_mm_embed,
             )
+
+            if mm_embeds:
+                mm_flat = torch.cat(list(mm_embeds)).to(inputs_embeds.dtype)
+                original_shape = inputs_embeds.shape
+                hidden_size = original_shape[-1]
+                inputs_embeds = inputs_embeds.reshape(-1, hidden_size)
+                inputs_embeds = inputs_embeds.index_copy(0, mm_indices, mm_flat)
+                inputs_embeds = inputs_embeds.reshape(original_shape)
 
             return None, inputs_embeds
         else:
@@ -1935,9 +1991,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         mm_budget = self.mm_budget
         assert mm_budget is not None
 
-        max_items_per_seq_by_modality = (
-            mm_budget.max_items_per_batch_by_modality
-        )  # noqa: E501
+        max_items_per_seq_by_modality = mm_budget.mm_max_items_per_batch  # noqa: E501
 
         for mode, max_items_per_seq in max_items_per_seq_by_modality.items():
             logger.info(
@@ -1978,10 +2032,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         mm_mask = torch.tensor([False] * num_tokens)
                         mm_mask[:items_size] = True
                         mm_mask = mm_mask.to(self.device)
+
+                        # Match the runtime path: a list of per-item 2D
+                        # embeddings plus a static index tensor for the scatter
+                        # (the mm tokens occupy the first `items_size` slots).
+                        mm_embeds_list = list(mm_embeds)
+                        mm_indices = torch.arange(
+                            items_size, dtype=torch.int64, device="cpu"
+                        ).to(self.device)
                         # Assign outputs or the graph will be cut short.
                         a, b = self._get_model_inputs(
                             placeholders_ids,
-                            mm_embed_inputs=([mm_embeds], mm_mask),
+                            mm_embed_inputs=(mm_embeds_list, mm_mask, mm_indices),
                         )
                         assert a is None
                         torch_xla.sync(wait=False)
@@ -2664,7 +2726,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # modality with the max possible input tokens even when
                     # it supports multiple.
                     dummy_modality = mm_budget.get_modality_with_max_tokens()
-                    max_mm_items_per_batch = mm_budget.max_items_per_batch_by_modality[
+                    max_mm_items_per_batch = mm_budget.mm_max_items_per_batch[
                         dummy_modality
                     ]
 
@@ -3260,22 +3322,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Dummy data for profiling and precompiling multimodal models."""
         assert self.mm_budget is not None
 
-        dummy_decoder_data = self.mm_registry.get_decoder_dummy_data(
-            model_config=self.model_config,
-            seq_len=self.max_num_tokens,
+        dummy_mm_inputs = self.mm_registry.get_dummy_mm_inputs(
+            self.model_config,
             mm_counts={modality: 1},
             cache=self.mm_budget.cache,
         )
-        dummy_mm_data = dummy_decoder_data.multi_modal_data
-
-        # Result in the maximum GPU consumption of the model
-        dummy_mm_item = dummy_mm_data[modality][0]
-        dummy_mm_items = [dummy_mm_item] * max_items_per_batch
+        dummy_mm_item = dummy_mm_inputs["mm_kwargs"][modality][0]
 
         return next(
             grouped_mm_kwargs
             for _, _, grouped_mm_kwargs in group_mm_kwargs_by_modality(
-                dummy_mm_items,
+                [(modality, dummy_mm_item)] * max_items_per_batch,
                 device=self.device,
                 pin_memory=self.pin_memory,
             )
