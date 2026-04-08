@@ -77,12 +77,23 @@ CONFIGS = {
     "OPT_ALL": dict(
         cls=ZImageTransformerTTNNOpt,
         flags=dict(USE_FAST_NORMS=True, USE_FAST_QK_NORM=True,
-                   USE_FAST_FINAL_NORM=True, USE_DIT_NORM=False, USE_MINIMAL_MATMUL=True),
-        label="Opt: all optimizations combined",
+                   USE_FAST_FINAL_NORM=True, USE_DIT_NORM=False, USE_MINIMAL_MATMUL=True,
+                   USE_FUSED_QKV=False),
+        label="Opt: norms + minimal_matmul (separate Q/K/V)",
+    ),
+    "OPT_FUSED_QKV": dict(
+        cls=ZImageTransformerTTNNOpt,
+        flags=dict(USE_FAST_NORMS=True, USE_FAST_QK_NORM=True,
+                   USE_FAST_FINAL_NORM=True, USE_DIT_NORM=False, USE_MINIMAL_MATMUL=True,
+                   USE_FUSED_QKV=True),
+        label="Opt: norms + minimal_matmul_split (fused QKV) + nlp_create_qkv_heads",
     ),
 }
 
-DEFAULT_RUN_ORDER = ["BASELINE", "OPT_NORMS", "OPT_FINAL_NORM", "OPT_DIT_NORM", "OPT_MM", "OPT_ALL"]
+DEFAULT_RUN_ORDER = [
+    "BASELINE", "OPT_NORMS", "OPT_FINAL_NORM", "OPT_DIT_NORM",
+    "OPT_MM", "OPT_ALL", "OPT_FUSED_QKV",
+]
 
 
 def _to_device(pt, mesh_device):

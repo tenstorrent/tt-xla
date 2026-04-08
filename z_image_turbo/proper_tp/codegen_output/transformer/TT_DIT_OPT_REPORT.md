@@ -15,7 +15,8 @@
 | OPT_FINAL_NORM | 1813 ms | 0.551 it/s | 0.9974 ✓ | +42.3% |
 | OPT_DIT_NORM | 1809 ms | 0.553 it/s | 0.9974 ✓ | +42.6% |
 | OPT_MM | 2410 ms | 0.415 it/s | 0.9961 ✓ | +7.0% |
-| **OPT_ALL** | **1744 ms** | **0.573 it/s** | **0.9986** ✓ | **+48.0%** |
+| OPT_ALL | 1703 ms | 0.587 it/s | 0.9986 ✓ | +51.5% |
+| **OPT_FUSED_QKV** | **1672 ms** | **0.598 it/s** | **0.9986** ✓ | **+54.3%** |
 
 Side note: **the baseline was already failing** the PCC ≥ 0.995 correctness threshold (PCC = 0.9947). All optimized configurations fix this. More on why below.
 

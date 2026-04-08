@@ -15,12 +15,18 @@ Optimizations applied (each independently measurable):
   5. ttnn.experimental.minimal_matmul — optimized matmul for the attention and MLP
      projection matrices.  Parallel weights (Q/K/V, w1/w2/w3, to_out) are transposed
      once at init time so minimal_matmul can be called without runtime transpose.
+  6. ttnn.experimental.minimal_matmul_split + ttnn.experimental.nlp_create_qkv_heads —
+     fuse Q/K/V into a single [HIDDEN, 3·N] weight at init, then produce Q, K, V in
+     one kernel call (3 matmuls → 1).  nlp_create_qkv_heads handles the V head-reshape
+     in a single fused op (replaces reshape + permute).  Q/K still go through the
+     QK-norm → RoPE pipeline which expects [1, seq, heads, head_dim] format.
 
 Benchmarking flags (set at class level before instantiation):
   USE_FAST_NORMS      = True   # enables #1 (#2 always follows when this is True)
   USE_FAST_FINAL_NORM = True   # enables #3
   USE_DIT_NORM        = False  # enables #4 instead of #1/#2 when True
-  USE_MINIMAL_MATMUL  = True   # enables #5
+  USE_MINIMAL_MATMUL  = True   # enables #5 (MLP + to_out; Q/K/V handled by #6 when set)
+  USE_FUSED_QKV       = True   # enables #6
 
 Usage:
     from model_ttnn_opt import ZImageTransformerTTNNOpt
@@ -101,6 +107,8 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
     USE_FAST_FINAL_NORM = True   # replace manual LayerNorm in _final_layer
     USE_DIT_NORM        = False  # use dit_rms_norm_unary_fused instead of rms_norm
     USE_MINIMAL_MATMUL  = True   # transpose weights at init + use minimal_matmul
+    USE_FUSED_QKV       = True   # fuse Q/K/V into one weight; use minimal_matmul_split
+                                 # + nlp_create_qkv_heads
 
     def __init__(self, mesh_device, transformer):
         super().__init__(mesh_device, transformer)
@@ -113,7 +121,11 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
         if self.USE_FAST_QK_NORM:
             self._prep_qk_norm_weights()
 
-        # ── Pre-transpose parallel matmul weights ──────────────────────────────
+        # ── Fuse Q/K/V weights for minimal_matmul_split ───────────────────────
+        if self.USE_FUSED_QKV:
+            self._prep_fused_qkv_weights()
+
+        # ── Pre-transpose remaining parallel weights (to_out, w1/w2/w3) ───────
         if self.USE_MINIMAL_MATMUL:
             self._prep_parallel_weights()
 
@@ -182,6 +194,44 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
                     )
                     transposed += 1
         print(f"  [Opt] Pre-transposed {transposed} parallel weight tensors for minimal_matmul.")
+
+    def _prep_fused_qkv_weights(self):
+        """Fuse Q/K/V weights per block for ttnn.experimental.minimal_matmul_split.
+
+        Transposes each of to_q/to_k/to_v from [N, K] → [K, N] and concatenates
+        along the N dimension to produce a single [K, 3N] fused weight:
+
+            fused_qkv_mmT = concat([to_q_T, to_k_T, to_v_T], dim=1)
+                          = [HIDDEN_DIM, 3 * HEADS_PER_DEV * HEAD_DIM]
+                          = [3840, 3072]  per device
+
+        minimal_matmul_split(x, fused_qkv_mmT, chunks=3) then yields
+        [q, k, v] each [seq, HEADS_PER_DEV * HEAD_DIM] in a single kernel.
+
+        Stored under "…attention.qkv_fused_mmT".
+        """
+        all_prefixes = (
+            [f"noise_refiner.{i}"   for i in range(2)] +
+            [f"context_refiner.{i}" for i in range(2)] +
+            [f"layers.{i}"          for i in range(30)]
+        )
+        fused = 0
+        for prefix in all_prefixes:
+            q_key = f"{prefix}.attention.to_q.weight"
+            k_key = f"{prefix}.attention.to_k.weight"
+            v_key = f"{prefix}.attention.to_v.weight"
+            if q_key not in self.weights:
+                continue
+            # Transpose each: [HEADS_PER_DEV*HEAD_DIM, HIDDEN_DIM] → [HIDDEN_DIM, HEADS_PER_DEV*HEAD_DIM]
+            q_T = ttnn.permute(self.weights[q_key], [1, 0], memory_config=DRAM_MC)
+            k_T = ttnn.permute(self.weights[k_key], [1, 0], memory_config=DRAM_MC)
+            v_T = ttnn.permute(self.weights[v_key], [1, 0], memory_config=DRAM_MC)
+            # Concat along N dimension → [HIDDEN_DIM, 3*HEADS_PER_DEV*HEAD_DIM]
+            self.weights[f"{prefix}.attention.qkv_fused_mmT"] = ttnn.concat(
+                [q_T, k_T, v_T], dim=1, memory_config=DRAM_MC
+            )
+            fused += 1
+        print(f"  [Opt] Fused {fused} QKV weight triplets → minimal_matmul_split + nlp_create_qkv_heads.")
 
     # ──────────────────────────────────────────────────────────────────────────
     # Optimized norm helpers
@@ -293,53 +343,102 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
     # ──────────────────────────────────────────────────────────────────────────
 
     def _attention(self, x, seq_len, block_prefix, is_caption=False):
-        """Override: use minimal_matmul for Q/K/V/to_out projections.
+        """Override: optimized QKV projection and head-reshape.
 
-        Falls back to base class for each projection if USE_MINIMAL_MATMUL is False
-        or the transposed weight is not found.
+        Priority order:
+          USE_FUSED_QKV=True  → minimal_matmul_split (3-in-1) + nlp_create_qkv_heads for V
+          USE_MINIMAL_MATMUL=True → 3 separate minimal_matmul calls
+          else → base class (ttnn.matmul with transpose_b=True)
+
+        to_out always uses minimal_matmul when USE_MINIMAL_MATMUL or USE_FUSED_QKV is set.
         """
-        if not self.USE_MINIMAL_MATMUL:
+        if not self.USE_MINIMAL_MATMUL and not self.USE_FUSED_QKV:
             return super()._attention(x, seq_len, block_prefix, is_caption)
 
         x_2d = ttnn.reshape(x, [seq_len, HIDDEN_DIM], memory_config=DRAM_MC)
+        N = HEADS_PER_DEV * HEAD_DIM  # 1024 per device
 
-        # ── Q projection (col_par) ────────────────────────────────────────────
-        q_wT = self.weights.get(f"{block_prefix}.attention.to_q.weight_mmT")
-        if q_wT is not None:
-            q = self._mm(x_2d, q_wT, seq_len, HIDDEN_DIM, HEADS_PER_DEV * HEAD_DIM,
-                         dtype=ttnn.DataType.FLOAT32)
-        else:
-            q = ttnn.matmul(x_2d, self.weights[f"{block_prefix}.attention.to_q.weight"],
-                            transpose_b=True, memory_config=DRAM_MC, dtype=ttnn.DataType.FLOAT32)
-        q = ttnn.reshape(q, [1, seq_len, HEADS_PER_DEV, HEAD_DIM], memory_config=DRAM_MC)
-        q = self._qk_norm(q, self.weights[f"{block_prefix}.attention.norm_q.weight"],
-                          seq_len, HEADS_PER_DEV)
-        q = self._apply_rope(q, seq_len, HEADS_PER_DEV, is_caption=is_caption)
+        # ── QKV projection ────────────────────────────────────────────────────
+        fused_qkv = self.weights.get(f"{block_prefix}.attention.qkv_fused_mmT")
 
-        # ── K projection ─────────────────────────────────────────────────────
-        k_wT = self.weights.get(f"{block_prefix}.attention.to_k.weight_mmT")
-        if k_wT is not None:
-            k = self._mm(x_2d, k_wT, seq_len, HIDDEN_DIM, HEADS_PER_DEV * HEAD_DIM,
-                         dtype=ttnn.DataType.FLOAT32)
-        else:
-            k = ttnn.matmul(x_2d, self.weights[f"{block_prefix}.attention.to_k.weight"],
-                            transpose_b=True, memory_config=DRAM_MC, dtype=ttnn.DataType.FLOAT32)
-        k = ttnn.reshape(k, [1, seq_len, HEADS_PER_DEV, HEAD_DIM], memory_config=DRAM_MC)
-        k = self._qk_norm(k, self.weights[f"{block_prefix}.attention.norm_k.weight"],
-                          seq_len, HEADS_PER_DEV)
-        k = self._apply_rope(k, seq_len, HEADS_PER_DEV, is_caption=is_caption)
+        if self.USE_FUSED_QKV and fused_qkv is not None:
+            # Single fused matmul → 3 output chunks via minimal_matmul_split
+            # Weight shape: [HIDDEN_DIM, 3*N] = [3840, 3072]
+            if _HAS_MATMUL_CONFIG:
+                config = _get_matmul_config(seq_len, HIDDEN_DIM, 3 * N, self._core_grid)
+            else:
+                config = None
+            q_2d, k_2d, v_2d = ttnn.experimental.minimal_matmul_split(
+                x_2d,
+                fused_qkv,
+                chunks=3,
+                dim=-1,
+                config=config,
+                compute_kernel_config=REDUCE_KERNEL,
+                dtype=ttnn.DataType.BFLOAT16,
+                memory_config=DRAM_MC,
+            )  # each [seq, N] BF16
 
-        # ── V projection ─────────────────────────────────────────────────────
-        v_wT = self.weights.get(f"{block_prefix}.attention.to_v.weight_mmT")
-        if v_wT is not None:
-            v = self._mm(x_2d, v_wT, seq_len, HIDDEN_DIM, HEADS_PER_DEV * HEAD_DIM,
-                         dtype=ttnn.DataType.BFLOAT16)
+            # Q path: reshape → QK norm → RoPE
+            q = ttnn.reshape(q_2d, [1, seq_len, HEADS_PER_DEV, HEAD_DIM], memory_config=DRAM_MC)
+            q = self._qk_norm(q, self.weights[f"{block_prefix}.attention.norm_q.weight"],
+                              seq_len, HEADS_PER_DEV)
+            q = self._apply_rope(q, seq_len, HEADS_PER_DEV, is_caption=is_caption)
+
+            # K path: same
+            k = ttnn.reshape(k_2d, [1, seq_len, HEADS_PER_DEV, HEAD_DIM], memory_config=DRAM_MC)
+            k = self._qk_norm(k, self.weights[f"{block_prefix}.attention.norm_k.weight"],
+                              seq_len, HEADS_PER_DEV)
+            k = self._apply_rope(k, seq_len, HEADS_PER_DEV, is_caption=is_caption)
+
+            # V path: nlp_create_qkv_heads handles head-reshape in one fused op
+            # Input needs [B, 1, seq, N]; num_kv_heads=0 means treat all N features as Q heads
+            v_4d = ttnn.reshape(v_2d, [1, 1, seq_len, N], memory_config=DRAM_MC)
+            v_4d = self._ensure_tile(v_4d)
+            v, _, _ = ttnn.experimental.nlp_create_qkv_heads(
+                v_4d,
+                num_heads=HEADS_PER_DEV,
+                num_kv_heads=0,
+                transpose_k_heads=False,
+                memory_config=DRAM_MC,
+            )  # → [1, HEADS_PER_DEV, seq, HEAD_DIM] BF16
+
         else:
-            v = ttnn.matmul(x_2d, self.weights[f"{block_prefix}.attention.to_v.weight"],
-                            transpose_b=True, memory_config=DRAM_MC, dtype=ttnn.DataType.BFLOAT16,
-                            compute_kernel_config=REDUCE_KERNEL)
-        v = ttnn.reshape(v, [1, seq_len, HEADS_PER_DEV, HEAD_DIM], memory_config=DRAM_MC)
-        v = ttnn.permute(v, [0, 2, 1, 3], memory_config=DRAM_MC, pad_value=0.0)
+            # 3 separate minimal_matmul calls (USE_MINIMAL_MATMUL path)
+            q_wT = self.weights.get(f"{block_prefix}.attention.to_q.weight_mmT")
+            if q_wT is not None:
+                q_2d = self._mm(x_2d, q_wT, seq_len, HIDDEN_DIM, N, dtype=ttnn.DataType.BFLOAT16)
+            else:
+                q_2d = ttnn.matmul(x_2d, self.weights[f"{block_prefix}.attention.to_q.weight"],
+                                   transpose_b=True, memory_config=DRAM_MC,
+                                   dtype=ttnn.DataType.FLOAT32)
+            q = ttnn.reshape(q_2d, [1, seq_len, HEADS_PER_DEV, HEAD_DIM], memory_config=DRAM_MC)
+            q = self._qk_norm(q, self.weights[f"{block_prefix}.attention.norm_q.weight"],
+                              seq_len, HEADS_PER_DEV)
+            q = self._apply_rope(q, seq_len, HEADS_PER_DEV, is_caption=is_caption)
+
+            k_wT = self.weights.get(f"{block_prefix}.attention.to_k.weight_mmT")
+            if k_wT is not None:
+                k_2d = self._mm(x_2d, k_wT, seq_len, HIDDEN_DIM, N, dtype=ttnn.DataType.BFLOAT16)
+            else:
+                k_2d = ttnn.matmul(x_2d, self.weights[f"{block_prefix}.attention.to_k.weight"],
+                                   transpose_b=True, memory_config=DRAM_MC,
+                                   dtype=ttnn.DataType.FLOAT32)
+            k = ttnn.reshape(k_2d, [1, seq_len, HEADS_PER_DEV, HEAD_DIM], memory_config=DRAM_MC)
+            k = self._qk_norm(k, self.weights[f"{block_prefix}.attention.norm_k.weight"],
+                              seq_len, HEADS_PER_DEV)
+            k = self._apply_rope(k, seq_len, HEADS_PER_DEV, is_caption=is_caption)
+
+            v_wT = self.weights.get(f"{block_prefix}.attention.to_v.weight_mmT")
+            if v_wT is not None:
+                v_2d = self._mm(x_2d, v_wT, seq_len, HIDDEN_DIM, N, dtype=ttnn.DataType.BFLOAT16)
+            else:
+                v_2d = ttnn.matmul(x_2d, self.weights[f"{block_prefix}.attention.to_v.weight"],
+                                   transpose_b=True, memory_config=DRAM_MC,
+                                   dtype=ttnn.DataType.BFLOAT16,
+                                   compute_kernel_config=REDUCE_KERNEL)
+            v = ttnn.reshape(v_2d, [1, seq_len, HEADS_PER_DEV, HEAD_DIM], memory_config=DRAM_MC)
+            v = ttnn.permute(v, [0, 2, 1, 3], memory_config=DRAM_MC, pad_value=0.0)
 
         # ── SDPA ─────────────────────────────────────────────────────────────
         attn_out = ttnn.transformer.scaled_dot_product_attention(
@@ -347,12 +446,12 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
             sliding_window_size=None, memory_config=DRAM_MC,
         )
         attn_out = ttnn.transformer.concatenate_heads(attn_out, memory_config=DRAM_MC)
-        attn_out = ttnn.reshape(attn_out, [seq_len, HEADS_PER_DEV * HEAD_DIM], memory_config=DRAM_MC)
+        attn_out = ttnn.reshape(attn_out, [seq_len, N], memory_config=DRAM_MC)
 
         # ── to_out projection (row_par) ───────────────────────────────────────
         out_wT = self.weights.get(f"{block_prefix}.attention.to_out.0.weight_mmT")
         if out_wT is not None:
-            attn_out = self._mm(attn_out, out_wT, seq_len, HEADS_PER_DEV * HEAD_DIM, HIDDEN_DIM,
+            attn_out = self._mm(attn_out, out_wT, seq_len, N, HIDDEN_DIM,
                                 dtype=ttnn.DataType.BFLOAT16)
         else:
             attn_out = ttnn.matmul(attn_out,
