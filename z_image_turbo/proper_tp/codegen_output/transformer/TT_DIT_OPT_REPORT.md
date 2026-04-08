@@ -17,6 +17,7 @@
 | OPT_MM | 2410 ms | 0.415 it/s | 0.9961 ✓ | +7.0% |
 | OPT_ALL | 1703 ms | 0.587 it/s | 0.9986 ✓ | +51.5% |
 | **OPT_FUSED_QKV** | **1672 ms** | **0.598 it/s** | **0.9986** ✓ | **+54.3%** |
+| OPT_ASYNC_CCL | 1674 ms | 0.597 it/s | 0.9985 ✓ | +54.1% |
 
 Side note: **the baseline was already failing** the PCC ≥ 0.995 correctness threshold (PCC = 0.9947). All optimized configurations fix this. More on why below.
 
@@ -85,6 +86,26 @@ Replacing with `ttnn.layer_norm` saves ops but requires an extra `typecast(BF16)
 
 ---
 
+---
+
+### 5. `reduce_scatter_minimal_async` + `all_gather_async` — negligible gain (+1.5%, within noise)
+
+**What was swapped**: `ttnn.reduce_scatter` + `ttnn.all_gather` → `ttnn.experimental.reduce_scatter_minimal_async` + `ttnn.experimental.all_gather_async`, managed by `CCLManager` from `tt_dit/parallel/manager.py`.
+
+**What was gained**: ~25 ms per forward pass (1699 ms → 1674 ms). Within measurement noise.
+
+**Why so little**: Profiling (see `PERF_TRACE_REPORT.md`) showed that communication accounts for ~89% of wall-clock time (~1480 ms). The improvement from switching to async variants comes from two sources:
+
+1. **Persistent pre-allocated buffers**: the `CCLManager` allocates ping-pong output buffers for each unique tensor shape on first call and reuses them every iteration, avoiding per-call DRAM allocation. This accounts for most of the ~25 ms gain.
+
+2. **`minimal` ring protocol**: a more lightweight ERISC kernel than the standard `reduce_scatter`. However, for our ring size (4 devices) and tensor sizes (~8 MB per all_reduce), latency is dominated by the ring rounds, not protocol overhead.
+
+**The fundamental limitation**: each `all_reduce` result is immediately consumed by the next `rms_norm`. There is no compute work that can run concurrently with a given all_reduce because the very next op depends on its output. Async dispatch doesn't help when every queued op is dependent on the previous one. True overlap would require restructuring the computation graph to pipeline across transformer blocks (block N+1's norm running during block N's all_reduce), which is a significant architectural change.
+
+**Implementation note**: `CCLManager` works with 4D tensors only. Since `_all_reduce` already reshapes to `[1, 1, seq, H]` before calling `reduce_scatter`, we pass 4D directly with `dim=3` on both RS and AG calls. Persistent buffers are keyed by tensor shape, so the three sequence lengths (1056, 1024, 32) each get their own buffer pair.
+
+---
+
 ## What Didn't Work / Wasn't Applicable
 
 ### `ttnn.experimental.rotary_embedding_llama` — format mismatch
@@ -118,12 +139,11 @@ These ops implement **sequence-parallel** distributed normalization where the hi
 | `ttnn.experimental.dit_rms_norm_unary_fused` | ✓ | Same as `rms_norm` (+42.6%), use for fused activation |
 | `ttnn.layer_norm` | ✓ | Neutral in isolation, small positive in OPT_ALL |
 | `ttnn.experimental.minimal_matmul` | ✓ | +7% standalone, +3.7% on top of norms (untuned) |
+| `ttnn.experimental.minimal_matmul_split` | ✓ | +1.8% (fused QKV, vs separate Q/K/V with minimal_matmul) |
+| `ttnn.experimental.nlp_create_qkv_heads` | ✓ | Used for V head-reshape in fused QKV path |
+| `ttnn.experimental.all_gather_async` + `reduce_scatter_minimal_async` | ✓ | +1.5% (within noise) — no compute to overlap with |
 | `ttnn.experimental.rotary_embedding_llama` | ✗ | Format mismatch with Z-Image 3D RoPE |
-| `ttnn.experimental.all_gather_async` | ✗ | Needs CCL manager infrastructure |
-| `ttnn.experimental.reduce_scatter_minimal_async` | ✗ | Same |
-| `ttnn.experimental.nlp_create_qkv_heads` | ✗ | Requires fused QKV weight |
-| `ttnn.experimental.minimal_matmul_split` | ✗ | Same — needs fused QKV weight |
-| Distributed norm ops (pre/post allgather) | ✗ | Wrong parallelism topology |
+| Distributed norm ops (pre/post allgather) | ✗ | Wrong parallelism topology (seq-par vs tensor-par) |
 
 ---
 

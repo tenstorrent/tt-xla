@@ -42,6 +42,14 @@ import ttnn
 
 # Base model (same directory)
 _HERE = os.path.dirname(os.path.abspath(__file__))
+
+# tt_dit models path for CCLManager import
+_TT_DIT_MODELS_PATH = os.path.normpath(os.path.join(
+    _HERE, "../../../..",
+    "third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/models",
+))
+if _TT_DIT_MODELS_PATH not in sys.path:
+    sys.path.insert(0, _TT_DIT_MODELS_PATH)
 sys.path.insert(0, _HERE)
 
 from model_ttnn import (  # noqa: E402
@@ -59,6 +67,14 @@ from model_ttnn import (  # noqa: E402
     ATTN_SCALE,
     PATCH_DIM,
 )
+
+# tt_dit CCLManager for async ring CCL ops
+try:
+    from tt_dit.parallel.manager import CCLManager as _CCLManager
+    _HAS_CCL_MANAGER = True
+except Exception as _e:
+    _HAS_CCL_MANAGER = False
+    _CCLManager = None
 
 # tt_dit matmul config utility (for MinimalMatmulConfig shape lookup)
 # Use importlib to avoid name conflict with ttnn's internal `matmul` module.
@@ -109,6 +125,8 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
     USE_MINIMAL_MATMUL  = True   # transpose weights at init + use minimal_matmul
     USE_FUSED_QKV       = True   # fuse Q/K/V into one weight; use minimal_matmul_split
                                  # + nlp_create_qkv_heads
+    USE_ASYNC_CCL       = True   # replace synchronous reduce_scatter+all_gather with
+                                 # reduce_scatter_minimal_async+all_gather_async via CCLManager
 
     def __init__(self, mesh_device, transformer):
         super().__init__(mesh_device, transformer)
@@ -128,6 +146,19 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
         # ── Pre-transpose remaining parallel weights (to_out, w1/w2/w3) ───────
         if self.USE_MINIMAL_MATMUL:
             self._prep_parallel_weights()
+
+        # ── Async CCL infrastructure ───────────────────────────────────────────
+        self._ccl = None
+        if self.USE_ASYNC_CCL:
+            if not _HAS_CCL_MANAGER:
+                print("  [Opt] WARNING: CCLManager not available, falling back to sync CCL.")
+            else:
+                self._ccl = _CCLManager(
+                    mesh_device,
+                    num_links=1,
+                    topology=ttnn.Topology.Ring,
+                )
+                print("  [Opt] Async CCL initialized (reduce_scatter_minimal_async + all_gather_async).")
 
     # ──────────────────────────────────────────────────────────────────────────
     # Init helpers
@@ -537,6 +568,58 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
             dtype=dtype,
             memory_config=DRAM_MC,
         )
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Async all-reduce (reduce_scatter_minimal_async + all_gather_async)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _all_reduce(self, x, seq_len):
+        """Override: replace synchronous ring CCL with async minimal variants.
+
+        Uses CCLManager from tt_dit which wraps:
+          - ttnn.experimental.reduce_scatter_minimal_async
+          - ttnn.experimental.all_gather_async
+
+        With use_persistent_buffer=True, output buffers are pre-allocated once
+        (lazily on first call, keyed by shape) and reused every iteration —
+        eliminating per-call DRAM allocation.  Ping-pong pairing prevents
+        write-after-read hazards when a buffer from the previous call is still
+        in-flight.
+
+        Falls back to the base-class synchronous _all_reduce when either
+        USE_ASYNC_CCL is False or CCLManager failed to import.
+
+        Args:
+            x:       [seq, HIDDEN_DIM] BF16 — partial sum per device.
+            seq_len: sequence length.
+
+        Returns:
+            [1, seq, HIDDEN_DIM] F32 — fully summed.
+        """
+        if not self.USE_ASYNC_CCL or self._ccl is None:
+            return super()._all_reduce(x, seq_len)
+
+        H = HIDDEN_DIM  # 3840
+
+        # Reshape to 4D — required by the async CCL kernels
+        x = ttnn.reshape(x, [1, 1, seq_len, H], memory_config=DRAM_MC)
+
+        # Reduce-scatter: each device partial-sums across the ring and keeps
+        # its own H//TP shard → [1, 1, seq, H//TP]
+        x = self._ccl.reduce_scatter(x, dim=3, mesh_axis=1, use_persistent_buffer=True)
+
+        # All-gather: each device broadcasts its shard to all others
+        # → [1, 1, seq, H]
+        x = self._ccl.all_gather(
+            x, dim=3, mesh_axis=1, use_hyperparams=True, use_persistent_buffer=True
+        )
+
+        # Cast to F32 (matches base class: subsequent RMSNorm operates in F32)
+        x = ttnn.typecast(x, ttnn.DataType.FLOAT32, memory_config=DRAM_MC)
+
+        # Collapse leading 1,1 → [1, seq, H]
+        x = ttnn.reshape(x, [1, seq_len, H], memory_config=DRAM_MC)
+        return x
 
     # ──────────────────────────────────────────────────────────────────────────
     # Optimized final layer (LayerNorm → ttnn.layer_norm)

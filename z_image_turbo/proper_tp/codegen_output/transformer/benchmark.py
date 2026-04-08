@@ -85,14 +85,21 @@ CONFIGS = {
         cls=ZImageTransformerTTNNOpt,
         flags=dict(USE_FAST_NORMS=True, USE_FAST_QK_NORM=True,
                    USE_FAST_FINAL_NORM=True, USE_DIT_NORM=False, USE_MINIMAL_MATMUL=True,
-                   USE_FUSED_QKV=True),
+                   USE_FUSED_QKV=True, USE_ASYNC_CCL=False),
         label="Opt: norms + minimal_matmul_split (fused QKV) + nlp_create_qkv_heads",
+    ),
+    "OPT_ASYNC_CCL": dict(
+        cls=ZImageTransformerTTNNOpt,
+        flags=dict(USE_FAST_NORMS=True, USE_FAST_QK_NORM=True,
+                   USE_FAST_FINAL_NORM=True, USE_DIT_NORM=False, USE_MINIMAL_MATMUL=True,
+                   USE_FUSED_QKV=True, USE_ASYNC_CCL=True),
+        label="Opt: all prev + reduce_scatter_minimal_async + all_gather_async",
     ),
 }
 
 DEFAULT_RUN_ORDER = [
     "BASELINE", "OPT_NORMS", "OPT_FINAL_NORM", "OPT_DIT_NORM",
-    "OPT_MM", "OPT_ALL", "OPT_FUSED_QKV",
+    "OPT_MM", "OPT_ALL", "OPT_FUSED_QKV", "OPT_ASYNC_CCL",
 ]
 
 
