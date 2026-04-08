@@ -203,6 +203,8 @@ jobs:
             -k "dual_galaxy" \
             --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
             2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
+
+          pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
         '
 
     - name: Upload Test Log
