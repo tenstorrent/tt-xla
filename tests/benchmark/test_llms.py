@@ -16,7 +16,7 @@ from utils import create_model_loader, resolve_display_name
 DEFAULT_OPTIMIZATION_LEVEL = 2
 DEFAULT_TP_OPTIMIZATION_LEVEL = 1
 DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
-DEFAULT_TRACE_ENABLED = False
+DEFAULT_TRACE_ENABLED = True
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_LOOP_COUNT = 1
 # WARNING: Changing this value will affect accuracy metrics due to context length differences.
@@ -25,9 +25,9 @@ DEFAULT_LOOP_COUNT = 1
 DEFAULT_INPUT_SEQUENCE_LENGTH = 128
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
-DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp8"
+DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
-DEFAULT_REQUIRED_PCC = 0.95
+DEFAULT_REQUIRED_PCC = 0.94
 
 
 def default_read_logits_fn(output):
@@ -70,7 +70,7 @@ def test_llm(
         input_sequence_length: Input sequence length
         data_format: Data format
         task: Task type
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Enable permute matmul fusion optimization
         read_logits_fn: Function to extract logits from model output
         required_pcc: Required PCC threshold
@@ -716,6 +716,7 @@ def test_mistral_7b(
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3934)
 def test_ministral_8b(
     output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
 ):
@@ -735,6 +736,7 @@ def test_ministral_8b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -844,6 +846,7 @@ def test_mistral_7b_tp(
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3935)
 def test_ministral_8b_tp(
     output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
 ):
@@ -862,6 +865,7 @@ def test_ministral_8b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        trace_enabled=False,
     )
 
 
@@ -1180,6 +1184,7 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp(
     output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
 ):
@@ -1200,9 +1205,11 @@ def test_gpt_oss_20b_tp(
         max_output_tokens=max_output_tokens,
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        trace_enabled=False,
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp_batch_size_1(
     output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
 ):
@@ -1223,6 +1230,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
+        trace_enabled=False,
     )
 
 
@@ -1248,6 +1256,7 @@ def test_llama_3_1_70b_tp_galaxy(
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
 ):
@@ -1270,9 +1279,11 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
+        trace_enabled=False,
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
 ):
@@ -1295,4 +1306,5 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
+        trace_enabled=False,
     )

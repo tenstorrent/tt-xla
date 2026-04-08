@@ -1,0 +1,59 @@
+name: Manual Build Torch-XLA
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Type of build to test'
+        type: choice
+        required: true
+        default: 'release'
+        options:
+          - release
+          - debug
+      branch:
+        description: 'Branch to build from'
+        type: string
+        required: false
+        default: 'master'
+
+permissions:
+  actions: write
+  id-token: write
+  packages: write
+  checks: write
+  contents: write
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  build-xla-torch:
+    runs-on: builder
+    needs: build-image
+    container:
+      image: ${{ needs.build-image.outputs.docker-image }}
+    steps:
+      - name: Fix workspace permissions issue
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build xla-torch
+        shell: bash
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
+        run: |
+          # set up limit for bazel to avoid OOM issues on GitHub runners
+          echo "build --local_ram_resources=HOST_RAM*0.8" > ~/.bazelrc
+          echo "build --local_cpu_resources=12" >> ~/.bazelrc
+          echo "build --discard_analysis_cache" >> ~/.bazelrc
+          scripts/build_torch_xla.sh --${{ inputs.build_type }} --wheel --branch=${{ inputs.branch }}
+
+      - name: Upload xla-torch wheel
+        uses: actions/upload-artifact@v6
+        with:
+          name: xla-torch-wheel-${{ inputs.build_type }}
+          path: temp/pytorch/xla/dist/torch_xla*.whl

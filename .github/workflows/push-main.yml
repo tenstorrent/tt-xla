@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
   packages: write
   checks: write
   pages: write

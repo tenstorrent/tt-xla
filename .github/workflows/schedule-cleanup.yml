@@ -1,6 +1,9 @@
 
 name: Container image retention
 
+permissions:
+  packages: write
+
 on:
   workflow_dispatch:
   schedule:
@@ -15,6 +18,8 @@ jobs:
       - uses: snok/container-retention-policy@v3.0.0
         with:
           account: tenstorrent
+          # Action can't run with github.token permissions, we need to use a PAT bot token
+          # with package write permissions. Action only accepts classic PAT
           token: ${{ secrets.GH_TOKEN }}
           image-names: "tt-xla*ci* tt-xla*ird*"
           cut-off: 4w

@@ -9,9 +9,17 @@
 # Based on: https://gist.github.com/vkovinicTT/dce22ed9d94065d3c64c61cf1805ef14
 #
 # Usage:
-#   ./scripts/build_torch_xla.sh [--debug]   # default is Release
-#   ./scripts/build_torch_xla.sh --release
-#   ./scripts/build_torch_xla.sh --debug
+#   ./scripts/build_torch_xla.sh [--debug|--release] [--branch=<name>] [--wheel]
+#
+# Options:
+#   --debug          Build in Debug mode (default: Release)
+#   --release        Build in Release mode
+#   --branch=<name>  PyTorch-XLA branch to build (default: master)
+#   --wheel          Build a portable wheel instead of editable install
+#
+# Examples:
+#   ./scripts/build_torch_xla.sh
+#   ./scripts/build_torch_xla.sh --debug --branch=user/my_feature --wheel
 #
 set -euo pipefail
 
@@ -33,11 +41,16 @@ TTXLA_VENV="${PROJECT_ROOT}/venv"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 BUILD_TYPE="Release"
+XLA_INSTALL_MODE="editable"
 for arg in "$@"; do
     case "$arg" in
-        --debug)  BUILD_TYPE="Debug" ;;
-        --release) BUILD_TYPE="Release" ;;
-        *) echo "Unknown argument: $arg"; echo "Usage: $0 [--debug|--release]"; exit 1 ;;
+        --debug)    BUILD_TYPE="Debug" ;;
+        --release)  BUILD_TYPE="Release" ;;
+        --branch=*) PYTORCH_XLA_BRANCH="${arg#--branch=}" ;;
+        --wheel)    XLA_INSTALL_MODE="wheel" ;;
+        *) echo "Unknown argument: $arg"
+           echo "Usage: $0 [--debug|--release] [--branch=<name>] [--wheel]"
+           exit 1 ;;
     esac
 done
 
@@ -45,6 +58,7 @@ echo "=== Build configuration ==="
 echo "  Python:     ${PYTHON_VERSION}"
 echo "  PyTorch:    ${PYTORCH_TAG}"
 echo "  XLA branch: ${PYTORCH_XLA_BRANCH}"
+echo "  XLA install:${XLA_INSTALL_MODE}"
 echo "  Build type: ${BUILD_TYPE}"
 echo "  Temp dir:   ${TEMP_DIR}"
 echo ""
@@ -61,19 +75,19 @@ check_command() {
 # ── Step 1: Install prerequisites ───────────────────────────────────────────
 info "Installing system dependencies..."
 
-sudo apt update
-sudo apt install -y build-essential cmake git curl wget unzip
-sudo apt install -y libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev
-sudo apt install -y libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev
+sudo -E apt update
+sudo -E apt install -y build-essential cmake git curl wget unzip
+sudo -E apt install -y libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev
+sudo -E apt install -y libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev
 
 # Install Python 3.12
 PYTHON_BIN="python${PYTHON_VERSION}"
 if ! check_command "${PYTHON_BIN}"; then
     info "Installing Python ${PYTHON_VERSION}..."
-    sudo apt install software-properties-common -y
-    sudo add-apt-repository ppa:deadsnakes/ppa -y
-    sudo apt update
-    sudo apt install "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-venv" "python${PYTHON_VERSION}-dev" -y
+    sudo -E apt install software-properties-common -y
+    sudo -E add-apt-repository ppa:deadsnakes/ppa -y
+    sudo -E apt update
+    sudo -E apt install "python${PYTHON_VERSION}" "python${PYTHON_VERSION}-venv" "python${PYTHON_VERSION}-dev" -y
 fi
 
 # Install Bazel
@@ -81,7 +95,7 @@ if ! check_command bazel || [[ "$(bazel --version | awk '{print $2}')" != "${BAZ
     info "Installing Bazel ${BAZEL_VERSION}..."
     wget "https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
     chmod +x "bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
-    sudo "./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
+    sudo -E "./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
     rm -f "bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh"
 fi
 
@@ -194,14 +208,29 @@ fi
 XLA_COMMIT=$(git rev-parse HEAD)
 XLA_STAMP_FILE="${TEMP_DIR}/.torch_xla_built_commit"
 
-if [[ -f "${XLA_STAMP_FILE}" ]] && [[ "$(cat "${XLA_STAMP_FILE}")" == "${XLA_COMMIT}" ]] && \
+XLA_STAMP_SUFFIX="${XLA_COMMIT}_${XLA_INSTALL_MODE}"
+
+if [[ -f "${XLA_STAMP_FILE}" ]] && [[ "$(cat "${XLA_STAMP_FILE}")" == "${XLA_STAMP_SUFFIX}" ]] && \
    python -c "import torch_xla" 2>/dev/null; then
-    echo "  PyTorch-XLA already built for commit ${XLA_COMMIT:0:7}. Skipping rebuild."
+    echo "  PyTorch-XLA already built (${XLA_INSTALL_MODE}) for commit ${XLA_COMMIT:0:7}. Skipping rebuild."
 else
-    rm -rf build/
-    python setup.py develop
-    echo "${XLA_COMMIT}" > "${XLA_STAMP_FILE}"
+    rm -rf build/ dist/
+    if [[ "${XLA_INSTALL_MODE}" == "wheel" ]]; then
+        python setup.py bdist_wheel
+        echo "  PyTorch-XLA wheel built at: ${XLA_DIR}/dist/"
+        ls -1 "${XLA_DIR}"/dist/*.whl
+    else
+        python setup.py develop
+    fi
+    echo "${XLA_STAMP_SUFFIX}" > "${XLA_STAMP_FILE}"
     echo "  PyTorch-XLA build complete."
+fi
+
+if [[ "${XLA_INSTALL_MODE}" == "wheel" ]]; then
+    XLA_WHL=$(ls -1t "${XLA_DIR}"/dist/torch_xla*.whl 2>/dev/null | head -1)
+    [[ -z "${XLA_WHL}" ]] && fail "No torch_xla wheel found in ${XLA_DIR}/dist/"
+    info "Done! Wheel: ${XLA_WHL}"
+    exit 0
 fi
 
 # ── Step 7: Integrate into tt-xla venv ───────────────────────────────────────

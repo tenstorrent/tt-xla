@@ -49,7 +49,7 @@ def get_default_inputs(batch_size: int, sentences=MULTILINGUAL_SENTENCES) -> Lis
 
 # Defaults for all encoder models
 DEFAULT_OPTIMIZATION_LEVEL = 1
-DEFAULT_TRACE_ENABLED = False
+DEFAULT_TRACE_ENABLED = True
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_LOOP_COUNT = 32
 DEFAULT_INPUT_SEQUENCE_LENGTH = 128
@@ -96,7 +96,7 @@ def test_encoder(
         input_sequence_length: Length of input sentence
         data_format: Data format
         required_pcc: Required PCC threshold
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Enable permute matmul fusion
         load_inputs_fn: Optional function to load raw inputs.
             Signature: fn(batch_size) -> List[str]. Defaults to get_default_inputs.
@@ -212,6 +212,7 @@ def test_bert(output_file, num_layers, request):
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3936)
 def test_qwen3_embedding_4b(output_file, num_layers, request):
     from third_party.tt_forge_models.qwen_3.embedding.pytorch.loader import (
         ModelLoader,
@@ -269,6 +270,7 @@ def test_qwen3_embedding_4b(output_file, num_layers, request):
         input_sequence_length=input_sequence_length,
         loop_count=32,
         optimization_level=0,
+        trace_enabled=False,
     )
 
 
@@ -496,6 +498,7 @@ def test_bge_m3(output_file, request):
     )
 
 
+# Trace disabled: output tensor not on device (https://github.com/tenstorrent/tt-xla/issues/3937)
 def test_unet_for_conditional_generation(output_file, request):
     """Test UNet for Conditional Generation model. This is a core component of the Stable Diffusion XL pipeline (https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)"""
     from third_party.tt_forge_models.unet_for_conditional_generation.pytorch.loader import (
@@ -545,4 +548,5 @@ def test_unet_for_conditional_generation(output_file, request):
         input_sequence_length=unet_max_seqlen,  # for UNet it is always set to the max sequence length
         loop_count=128,
         optimization_level=1,
+        trace_enabled=False,
     )

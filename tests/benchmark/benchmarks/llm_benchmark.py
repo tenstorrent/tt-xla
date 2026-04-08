@@ -18,11 +18,13 @@ import tracy
 import transformers
 from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
 from llm_utils.decode_utils import LLMSamplingWrapper
+from loguru import logger
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from utils import (
     build_xla_export_name,
     compute_pcc,
@@ -62,6 +64,10 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+    # Use static dense experts forward to avoid graph breaks from data-dependent
+    # loops in the original experts and _grouped_mm CPU crashes.
+    if hasattr(model.config, "_experts_implementation"):
+        model.config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -172,18 +178,18 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
 
 def check_transformers_version():
     """
-    Check that transformers version is <= 4.57.1.
+    Check that transformers version is = 5.2.0.
     Raises RuntimeError if version is incompatible.
     """
     import packaging.version
 
     current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("4.57.1")
+    max_version = packaging.version.parse("5.2.0")
 
-    if current_version > max_version:
+    if current_version != max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version <= 4.57.1"
+            f"Please use version 5.2.0"
         )
 
 
@@ -230,7 +236,7 @@ def benchmark_llm_torch_xla(
         task: Task type
         data_format: Data precision format
         input_sequence_length: Length of input sequence for generation context
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp8", "bfp4", or "" for none)
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         read_logits_fn: Callback function to extract logits from model output
@@ -335,7 +341,6 @@ def benchmark_llm_torch_xla(
             verbose=False,
             collect_logits=True,
         )
-        cpu_logits = cpu_output_logits[0]
 
     # Transfer model and inputs to device
     input_args = construct_inputs(
@@ -391,6 +396,13 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
+    # Apply per-tensor weight dtype overrides from model's weight_dtype_configs JSON.
+    weight_dtype_config = model_loader.get_weight_dtype_config_path()
+    if weight_dtype_config:
+        applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+        logger.info(
+            f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+        )
     # PERFORMANCE BENCHMARK
     # No logits returned to avoid OOM.
     perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
@@ -475,9 +487,7 @@ def benchmark_llm_torch_xla(
 
     # Post-processing: derive predicted tokens for accuracy testing
     if accuracy_testing:
-        predicted_tokens = [
-            logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits
-        ]
+        predicted_tokens = [logits.argmax(dim=-1)[0].item() for logits in output_logits]
 
     ttft_ns = iteration_times[0]
     ttft_ms = ttft_ns / 1e6
@@ -557,7 +567,7 @@ def benchmark_llm_torch_xla(
     else:
         # Check PCC
         pcc_value = compute_pcc(
-            output_logits[0][0], cpu_logits[0], required_pcc=required_pcc
+            output_logits[0][0], cpu_output_logits[0][0], required_pcc=required_pcc
         )
         print("PCC verification passed with PCC={:.6f}".format(pcc_value))
 

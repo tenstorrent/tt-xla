@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import copy
 import os
 import shutil
 import socket
@@ -79,13 +80,13 @@ def _run_model_test_impl(
     loader_path = test_entry.path
     variant, ModelLoader = test_entry.variant_info
 
+    # Get the model loader and model info from desired model, variant.
+    loader = ModelLoader(variant=variant)
+    model_info = ModelLoader.get_model_info(variant=variant)
+    print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+
     # Ensure per-model requirements are installed, and roll back after the test
     with RequirementsManager.for_loader(loader_path, framework=str(framework)):
-
-        # Get the model loader and model info from desired model, variant.
-        loader = ModelLoader(variant=variant)
-        model_info = ModelLoader.get_model_info(variant=variant)
-        print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
         ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
@@ -96,8 +97,8 @@ def _run_model_test_impl(
             compiler_config = CompilerConfig()
         weights_dtype = None
         if test_metadata.enable_weight_bfp8_conversion:
-            compiler_config.experimental_weight_dtype = "bfp8"
-            weights_dtype = "bfp8"
+            compiler_config.experimental_weight_dtype = "bfp_bf8"
+            weights_dtype = "bfp_bf8"
 
         if ir_dump_path:
             compiler_config.export_path = ir_dump_path
@@ -160,6 +161,25 @@ def _run_model_test_impl(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
 
+                # Deep-copy the CPU model and inputs BEFORE test() moves them to XLA.
+                # EmitPy verification needs a pristine model that dynamo/XLA have never seen.
+                # There is a known bug/quirk of TorchXLA that compile options are set globally via torch_xla.set_custom_compile_options
+                # and that they are not considered for the purpose of caching, neither by dynamo nor by XLA/TorchXLA DynamoBridge.
+                # If a model that was already seen by dynamo is used, EmitPy will effectively be turned off, as the already compiled(without EmitPy) executable will be reused.
+
+                emitpy_enabled = request.config.getoption("--emitpy", default=False)
+                cpu_model_copy = None
+                cpu_args_copy = None
+                cpu_kwargs_copy = None
+                if (
+                    emitpy_enabled
+                    and framework == Framework.TORCH
+                    and run_mode == RunMode.INFERENCE
+                ):
+                    cpu_model_copy = copy.deepcopy(tester._workload.model)
+                    cpu_args_copy = copy.deepcopy(list(tester._workload.args))
+                    cpu_kwargs_copy = copy.deepcopy(dict(tester._workload.kwargs))
+
                 comparison_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
@@ -168,6 +188,20 @@ def _run_model_test_impl(
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
                 Evaluator._assert_on_results(comparison_result)
+
+                # EmitPy verification: re-run via codegen_py and compare
+                # against flatbuffer result. Only for passing torch inference tests.
+                if emitpy_enabled and succeeded:
+                    print(
+                        f"Running EmitPy verification for {request.node.nodeid}",
+                        flush=True,
+                    )
+                    tester.verify_emitpy(
+                        cpu_model_copy,
+                        cpu_args_copy,
+                        cpu_kwargs_copy,
+                        assert_exact=test_metadata.emitpy_assert_exact,
+                    )
 
         except Exception as e:
             try:

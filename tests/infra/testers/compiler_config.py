@@ -28,7 +28,7 @@ class CompilerConfig:
     optimization_level: int = 0
 
     # Target dtype for weight conversion in matmul and linear operations.
-    # Valid values: "", "bfp8", "bfp4". Empty string disables.
+    # Valid values: "", "bfp_bf8", "bfp_bf4". Empty string disables.
     experimental_weight_dtype: str = ""
 
     # Override math fidelity for all ttnn operations exposing compute kernel

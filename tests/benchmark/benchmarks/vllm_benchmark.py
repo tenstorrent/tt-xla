@@ -240,7 +240,7 @@ def benchmark_vllm(
         program_cache_enabled=True,
         trace_enabled=False,
         experimental_weight_dtype=(
-            "bfp8"
+            "bfp_bf8"
             if config.additional_config.get(
                 "experimental_enable_weight_bfp8_conversion", False
             )

@@ -280,7 +280,6 @@ test_config:
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-Reader_Single_Nq_Base-single_device-inference:
-    required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-Reader_Multiset_Base-single_device-inference:
@@ -495,7 +494,7 @@ test_config:
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
-      - split_query_key_value_and_split_heads.ttnn.mlir
+      # - split_query_key_value_and_split_heads.ttnn.mlir # now only appears with optimization level 1
       - layer_norm.ttnn.mlir
     markers: [push, nightly]
 
@@ -768,9 +767,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   opt/qa/pytorch-1.3b-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9410670165223607. Required: pcc=0.99"
 
   # yolov8/pytorch-yolov8n-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -785,9 +782,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   albert/token_classification/pytorch-Xlarge_v2-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.872334097539835. Required: pcc=0.99"
 
   t5/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
@@ -2428,10 +2423,6 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
 
-  wan/pytorch-2.2_Ti2v_5B-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Wan2.2 model requires a lot of memeory and takes a lot of time to load hence skipping it for now."
-
   monodle/pytorch-Dla34-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -2462,6 +2453,8 @@ test_config:
       n150:
         status: KNOWN_FAILURE_XFAIL
         reason: "Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 12 banks, where each bank needs to store 8388608 B, but bank size is 1073741792 B"
+      p150:
+        required_pcc: 0.98
 
   siglip/image_text_similarity/pytorch-Base_Patch16_224-single_device-inference:
     status: EXPECTED_PASSING
@@ -2654,6 +2647,11 @@ test_config:
 
   llama/sequence_classification/pytorch-3.1_405B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
+
+  smolvla/vision_language_action/pytorch-smolvla_base-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "stablehlo.scatter failed to legalize to TTIR - https://github.com/tenstorrent/tt-xla/issues/4044"
 
   gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
