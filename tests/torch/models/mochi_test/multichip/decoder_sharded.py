@@ -48,6 +48,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKLMochi
 from diffusers.models.autoencoders.autoencoder_kl_mochi import (
+    MochiChunkedGroupNorm3D,
     MochiResnetBlock3D,
     MochiUpBlock3D,
 )
@@ -112,6 +113,151 @@ def _get_shard_axis(mesh):
     """Return the name of the mesh axis with the most devices."""
     max_idx = max(range(len(mesh.mesh_shape)), key=lambda i: mesh.mesh_shape[i])
     return mesh.axis_names[max_idx]
+
+
+# ---------------------------------------------------------------------------
+# Chunked GroupNorm patch — eliminate graph breaks from super().unflatten()
+# ---------------------------------------------------------------------------
+def _patch_chunked_groupnorm(decoder):
+    """
+    Monkey-patch MochiChunkedGroupNorm3D.forward() to eliminate graph breaks.
+
+    The original forward does:
+        x = x.permute(0,2,1,3,4).flatten(0,1)
+        output = torch.cat([self.norm_layer(chunk) for chunk in x.split(...)], dim=0)
+        output = output.unflatten(0, (batch_size, -1)).permute(0,2,1,3,4)
+
+    Two problems:
+    1. The chunked torch.cat([... for chunk in x.split(...)]) creates a
+       list comprehension that Dynamo must unroll, adding overhead.
+       With batch_size=1, B*T is small enough for single-pass GroupNorm.
+    2. Tensor.unflatten() internally calls super().unflatten() which Dynamo
+       can't trace, causing a graph break.
+
+    The patched forward:
+    - Calls self.norm_layer(x) directly (no chunking) since B*T is small.
+    - Uses output.reshape(batch_size, -1, *output.shape[1:]) instead of
+      output.unflatten(0, (batch_size, -1)) to avoid the untraceable path.
+    """
+
+    def _make_patched_forward(original_forward):
+        import functools
+
+        @functools.wraps(original_forward)
+        def patched_forward(self, x: torch.Tensor = None) -> torch.Tensor:
+            batch_size = x.size(0)
+
+            # Permute from [B, C, T, H, W] to [B, T, C, H, W] and flatten B*T
+            x = x.permute(0, 2, 1, 3, 4).flatten(0, 1)
+
+            # Single-pass GroupNorm (no chunking needed for small B*T)
+            output = self.norm_layer(x)
+
+            # Restore [B, T, C, H, W] using reshape instead of unflatten
+            # to avoid Dynamo graph break from super().unflatten()
+            output = output.reshape(batch_size, -1, *output.shape[1:])
+            output = output.permute(0, 2, 1, 3, 4)
+
+            return output
+
+        return patched_forward
+
+    count = 0
+    for name, module in decoder.named_modules():
+        if isinstance(module, MochiChunkedGroupNorm3D):
+            module.forward = _make_patched_forward(module.forward).__get__(
+                module, MochiChunkedGroupNorm3D
+            )
+            count += 1
+
+    print(
+        f"[Patch] {count} MochiChunkedGroupNorm3D modules patched "
+        f"(single-pass norm + reshape instead of unflatten)"
+    )
+    return count
+
+
+# ---------------------------------------------------------------------------
+# Pixel shuffle patch — remove .contiguous() to avoid intermediate blowup
+# ---------------------------------------------------------------------------
+def _pixel_shuffle_remove_contiguous(decoder):
+    """
+    Monkey-patch MochiUpBlock3D.forward() to remove the .contiguous() call
+    from the original pixel shuffle.
+
+    The original diffusers code does:
+        view 8D -> permute(0,1,5,2,6,3,7,4).contiguous() -> view 5D
+
+    The .contiguous() forces materialization of the permute intermediate,
+    making it a graph output. TTNNLayoutFuncReturnRewriter then forces it
+    to tile layout, causing a pathological memref<5898240x1xtile> = 11.6 GB.
+
+    By removing .contiguous(), the intermediates stay as lazy views and
+    the DRAM space saving optimization (PermuteRowMajorAdjusting) can
+    keep the permute output in row major (~622 MB).
+    """
+
+    def _make_patched_forward(original_forward):
+        import functools
+
+        @functools.wraps(original_forward)
+        def patched_forward(self, hidden_states, conv_cache=None):
+            new_conv_cache = {}
+            conv_cache = conv_cache or {}
+
+            for i, resnet in enumerate(self.resnets):
+                conv_cache_key = f"resnet_{i}"
+                if torch.is_grad_enabled() and self.gradient_checkpointing:
+                    hidden_states, new_conv_cache[conv_cache_key] = (
+                        self._gradient_checkpointing_func(
+                            resnet,
+                            hidden_states,
+                            conv_cache.get(conv_cache_key),
+                        )
+                    )
+                else:
+                    hidden_states, new_conv_cache[conv_cache_key] = resnet(
+                        hidden_states, conv_cache=conv_cache.get(conv_cache_key)
+                    )
+
+            # Linear projection (unchanged from original)
+            hidden_states = hidden_states.permute(0, 2, 3, 4, 1)
+            hidden_states = self.proj(hidden_states)
+            hidden_states = hidden_states.permute(0, 4, 1, 2, 3)
+
+            B, C_packed, T, H, W = hidden_states.shape
+            st = self.temporal_expansion
+            sh = self.spatial_expansion
+            sw = self.spatial_expansion
+
+            # Original pixel shuffle WITHOUT .contiguous()
+            # Use .reshape() instead of .view() to avoid forcing a
+            # contiguity sync after permute -- .view() requires contiguous
+            # memory, which forces XLA to materialize the tensor and
+            # creates a graph break with all intermediates as outputs.
+            hidden_states = hidden_states.reshape(
+                B, -1, st, sh, sw, T, H, W
+            )
+            hidden_states = hidden_states.permute(0, 1, 5, 2, 6, 3, 7, 4)
+            hidden_states = hidden_states.reshape(
+                B, -1, T * st, H * sh, W * sw
+            )
+
+            return hidden_states, new_conv_cache
+
+        return patched_forward
+
+    count = 0
+    for up_block in decoder.up_blocks:
+        up_block.forward = _make_patched_forward(up_block.forward).__get__(
+            up_block, MochiUpBlock3D
+        )
+        count += 1
+
+    print(
+        f"[Patch] {count} MochiUpBlock3D pixel shuffles patched (removed .contiguous())"
+    )
+    return count
 
 
 # ---------------------------------------------------------------------------
@@ -422,11 +568,16 @@ def run_vae_decoder_sharded():
     # Extract the decoder
     decoder = vae.decoder
 
+    # ---- Patch Chunked GroupNorm ----
+    # Replace chunked GroupNorm + unflatten with single-pass norm + reshape
+    # to eliminate graph breaks from super().unflatten() that Dynamo can't trace.
+    _patch_chunked_groupnorm(decoder)
+
     # ---- Patch Pixel Shuffle ----
-    # Replace the original view+permute+view with a staged decomposition
-    # that avoids placing small factors (sw=2) in tile-padded dimensions.
-    # Reduces peak intermediate from 11-80 GB to 0.8-6.4 GB per pixel shuffle.
-    # _patch_pixel_shuffle(decoder)
+    # Remove .contiguous() from the original pixel shuffle to prevent
+    # intermediate materialization. The DRAM space saving optimization
+    # (PermuteRowMajorAdjusting) handles the row major layout conversion.
+    _pixel_shuffle_remove_contiguous(decoder)
 
     # ---- Verify Divisibility ----
     _verify_divisibility(decoder, mesh)
