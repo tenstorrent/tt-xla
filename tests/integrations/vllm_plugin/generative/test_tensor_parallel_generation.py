@@ -214,3 +214,64 @@ def test_tensor_parallel_generation_bhqb_gemma4_31b(
     assert_output_coherent(output_text)
 
     check_host_memory(model_name)
+
+
+@pytest.mark.skip(
+    reason="Skipped these models due to tt-mlir uplift https://github.com/tenstorrent/tt-xla/issues/5163"
+)
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize(
+    ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
+    [
+        pytest.param(
+            "mistralai/Mistral-Small-3.1-24B-Instruct-2503", True, "bfp_bf8", True
+        ),
+        pytest.param(
+            "mistralai/Mistral-Small-3.2-24B-Instruct-2506", True, "bfp_bf8", True
+        ),
+    ],
+)
+def test_tensor_parallel_generation_mistral_small(
+    model_name: str,
+    enable_const_eval: bool,
+    experimental_weight_dtype: str,
+    use_2d_mesh: bool,
+):
+    image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
+
+    user_text = "What action do you think I should take in this situation? "
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_text},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        },
+    ]
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+
+    llm_args = {
+        "model": model_name,
+        "limit_mm_per_prompt": {"image": 1},
+        "max_num_batched_tokens": 3025,
+        "max_num_seqs": 1,
+        "max_model_len": 512,
+        "gpu_memory_utilization": 0.01,
+        "additional_config": {
+            "enable_const_eval": enable_const_eval,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "experimental_weight_dtype": experimental_weight_dtype,
+            "use_2d_mesh": use_2d_mesh,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.chat(messages, sampling_params=sampling_params)[0].outputs[0].text
+    print(f"prompt: {user_text}, output: {output_text}")
+    assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
