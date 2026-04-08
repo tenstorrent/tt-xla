@@ -867,76 +867,82 @@ def test_kv_cache_shared_between_cpu_and_device_runs():
     )
 
 
-def test_decode_cache_position_stuck_at_zero():
-    """Confirm that DeepSeekV32ForCausalLM.forward() always writes position 0.
+def test_decode_appends_to_kv_cache_with_mla_cache():
+    """Verify that DeepSeekMLACache tracks position so decode appends correctly.
 
-    loader.py's DeepSeekV32ForCausalLM.forward() hardcodes start_pos=0 in its
-    self.transformer(..., start_pos=0, ...) call.  This means every forward
-    call — both prefill and decode — writes to kv_cache[0:seqlen].
+    Without an external cache, DeepSeekV32ForCausalLM.forward() hardcodes
+    start_pos=0 and every call overwrites position 0 instead of appending.
 
-    After a prefill of seq_len=32, a decode step should append the new token at
-    position 32 (start_pos=32, writing kv_cache[32:33]).  Instead, it overwrites
-    position 0, leaving positions 1–31 as stale prefill data and never populating
-    position 32+.
+    With a DeepSeekMLACache passed as past_key_values, the loader reads
+    cache.current_pos as start_pos and advances it by seqlen after each call.
+    This test confirms:
 
-    This test exercises DeepSeekV32ForCausalLM (the loader wrapper) directly to
-    confirm the stuck-at-0 behaviour.
+    1. After prefill (32 tokens): cache.current_pos == 32, positions 0–31 written.
+    2. After decode (1 token):   cache.current_pos == 33, position 32 written,
+                                  prefill history (positions 0–31) intact.
     """
+    from tests.torch.models.utils.mla_cache import DeepSeekMLACache
+
     torch.manual_seed(42)
 
-    batch_size, prefill_len = 1, 32
+    batch_size, prefill_len, max_seq = 1, 32, 64
     loader = ModelLoader(num_layers=1, max_batch_size=batch_size)
-    model = loader.load_model(dtype_override=torch.bfloat16, max_seq_len=64)
+    model = loader.load_model(dtype_override=torch.bfloat16, max_seq_len=max_seq)
     model.eval()
 
-    attn = model.transformer.layers[0].attn
+    cache = DeepSeekMLACache.from_model_args(
+        loader._args, batch_size=batch_size, max_seq_len=max_seq
+    )
 
     prefill_tokens = torch.randint(
         0, loader._args.vocab_size, (batch_size, prefill_len)
     )
     decode_token = torch.randint(0, loader._args.vocab_size, (batch_size, 1))
 
-    # --- Prefill: input_ids shape [1, 32] → should write kv_cache[0:32] ---
+    # --- Prefill ---
     with torch.no_grad():
-        model(input_ids=prefill_tokens)
+        model(input_ids=prefill_tokens, past_key_values=cache)
 
-    kv_after_prefill = attn.kv_cache[:batch_size].detach().clone()
+    assert (
+        cache.current_pos == prefill_len
+    ), f"current_pos should be {prefill_len} after prefill, got {cache.current_pos}"
+
+    layer0 = cache.layers[0]
+    kv_after_prefill = layer0.compressed_kv[:batch_size].detach().clone()
 
     assert (
         kv_after_prefill[0, :prefill_len].abs().max() > 0
-    ), "Prefill should write positions 0:32"
+    ), "Prefill should write positions 0:32 into the external cache"
     assert (
         kv_after_prefill[0, prefill_len:].abs().max() == 0
-    ), "Positions 32+ should be zero after prefill (not yet decoded)"
+    ), "Positions 32+ should be zero after prefill"
 
-    # --- Decode: input_ids shape [1, 1] → should append at position 32,
-    #     but loader hardcodes start_pos=0 so it overwrites position 0 instead ---
+    # --- Decode ---
     with torch.no_grad():
-        model(input_ids=decode_token)
+        model(input_ids=decode_token, past_key_values=cache)
 
-    kv_after_decode = attn.kv_cache[:batch_size].detach().clone()
+    assert (
+        cache.current_pos == prefill_len + 1
+    ), f"current_pos should be {prefill_len + 1} after decode, got {cache.current_pos}"
 
-    pos0_overwritten = not torch.allclose(kv_after_decode[0, 0], kv_after_prefill[0, 0])
-    pos1_31_stale = torch.allclose(
-        kv_after_decode[0, 1:prefill_len], kv_after_prefill[0, 1:prefill_len]
+    kv_after_decode = layer0.compressed_kv[:batch_size].detach().clone()
+
+    pos32_written = kv_after_decode[0, prefill_len].abs().max() > 0
+    history_intact = torch.allclose(
+        kv_after_decode[0, :prefill_len], kv_after_prefill[0, :prefill_len]
     )
-    pos32_never_written = kv_after_decode[0, prefill_len].abs().max() == 0
 
     assert (
-        pos0_overwritten
-    ), "Decode overwrites position 0 (stuck-at-0 bug in loader.py)"
+        pos32_written
+    ), "Decode token should be written at position 32 in the external cache"
     assert (
-        pos1_31_stale
-    ), "Positions 1–31 are stale prefill values — decode did not append to history"
-    assert (
-        pos32_never_written
-    ), "Position 32 is still zero — the new decode token was never appended"
+        history_intact
+    ), "Prefill history (positions 0–31) should be unchanged after decode"
 
     print(
-        f"\nstuck-at-0 confirmed via DeepSeekV32ForCausalLM (loader.py wrapper):"
-        f"\n  pos 0 overwritten by decode : {pos0_overwritten}"
-        f"\n  pos 1-31 stale prefill data : {pos1_31_stale}"
-        f"\n  pos 32 never written        : {pos32_never_written}"
-        f"\nFix requires exposing start_pos through the loader wrapper and "
-        f"tracking cache position externally (e.g. a DeepSeekStaticCache)."
+        f"\nDeepSeekMLACache prefill→decode verified:"
+        f"\n  current_pos after prefill : {prefill_len}"
+        f"\n  current_pos after decode  : {prefill_len + 1}"
+        f"\n  position 32 written       : {pos32_written}"
+        f"\n  prefill history intact    : {history_intact}"
     )
