@@ -162,6 +162,7 @@ def benchmark_encoder_torch_xla(
     required_pcc=0.97,
     experimental_weight_dtype="",
     experimental_enable_permute_matmul_fusion=False,
+    enable_greedy_optimizer=True,
 ):
     """
     Benchmark an encoder model using PyTorch and torch-xla.
@@ -226,6 +227,7 @@ def benchmark_encoder_torch_xla(
         "enable_trace": trace_enabled,
         "experimental_weight_dtype": experimental_weight_dtype,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
+        "enable_greedy_optimizer": enable_greedy_optimizer,
     }
 
     torch_xla.set_custom_compile_options(options)

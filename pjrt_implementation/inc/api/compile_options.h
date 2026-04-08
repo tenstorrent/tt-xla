@@ -96,6 +96,11 @@ struct CompileOptions {
   // some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
   bool experimental_enable_permute_matmul_fusion = true;
 
+  // Use the greedy optimizer (GreedyLayoutPropagation + L1SpillManagement)
+  // instead of the default TTNNOptimizer. When tt-mlir defaults to greedy,
+  // individual tests can set this to false to fall back to legacy optimizer.
+  bool enable_greedy_optimizer = true;
+
   // Enable DRAM space saving optimization pass (TTNNMemoryManagement).
   bool experimental_enable_dram_space_saving_optimization = false;
 

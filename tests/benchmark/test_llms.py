@@ -27,6 +27,7 @@ DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
 DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
+DEFAULT_ENABLE_GREEDY_OPTIMIZER = True
 DEFAULT_REQUIRED_PCC = 0.94
 
 
@@ -47,6 +48,7 @@ def test_llm(
     task=DEFAULT_TASK,
     experimental_weight_dtype=DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE,
     experimental_enable_permute_matmul_fusion=DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION,
+    enable_greedy_optimizer=DEFAULT_ENABLE_GREEDY_OPTIMIZER,
     read_logits_fn=default_read_logits_fn,
     mesh_config_fn=None,
     shard_spec_fn=None,
@@ -105,6 +107,7 @@ def test_llm(
     task={task}
     experimental_weight_dtype={experimental_weight_dtype}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
+    enable_greedy_optimizer={enable_greedy_optimizer}
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
@@ -135,6 +138,7 @@ def test_llm(
         input_sequence_length=input_sequence_length,
         experimental_weight_dtype=experimental_weight_dtype,
         experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
+        enable_greedy_optimizer=enable_greedy_optimizer,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
         read_logits_fn=read_logits_fn,
         mesh_config_fn=mesh_config_fn,

@@ -101,6 +101,7 @@ def benchmark_vision_torch_xla(
     load_inputs_fn,
     extract_output_tensor_fn,
     display_name=None,
+    enable_greedy_optimizer=True,
     required_pcc=0.97,
 ):
     """
@@ -155,6 +156,7 @@ def benchmark_vision_torch_xla(
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
         "enable_trace": trace_enabled,
+        "enable_greedy_optimizer": enable_greedy_optimizer,
     }
 
     torch_xla.set_custom_compile_options(options)

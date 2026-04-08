@@ -992,6 +992,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     return tt_pjrt_status::kInternal;
   }
 
+  options.enableGreedyOptimizer = compile_options.enable_greedy_optimizer;
   options.optimizationLevel = compile_options.optimization_level;
   // Map user-facing dtype names to WeightDtype enum values.
   if (compile_options.experimental_weight_dtype == "bfp_bf8") {

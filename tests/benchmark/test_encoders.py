@@ -57,6 +57,7 @@ DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_REQUIRED_PCC = 0.97
 DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = ""
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
+DEFAULT_ENABLE_GREEDY_OPTIMIZER = True
 
 
 def test_encoder(
@@ -77,6 +78,7 @@ def test_encoder(
     required_pcc=DEFAULT_REQUIRED_PCC,
     experimental_weight_dtype=DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE,
     experimental_enable_permute_matmul_fusion=DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION,
+    enable_greedy_optimizer=DEFAULT_ENABLE_GREEDY_OPTIMIZER,
     num_layers=None,
 ):
     """Test encoder model with the given variant and optional configuration overrides.
@@ -119,6 +121,7 @@ def test_encoder(
     required_pcc={required_pcc}
     experimental_weight_dtype={experimental_weight_dtype}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
+    enable_greedy_optimizer={enable_greedy_optimizer}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
     """
     )
@@ -141,6 +144,7 @@ def test_encoder(
         required_pcc=required_pcc,
         experimental_weight_dtype=experimental_weight_dtype,
         experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
+        enable_greedy_optimizer=enable_greedy_optimizer,
     )
 
     if output_file:

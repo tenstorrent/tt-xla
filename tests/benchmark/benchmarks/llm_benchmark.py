@@ -206,6 +206,7 @@ def benchmark_llm_torch_xla(
     input_sequence_length,
     experimental_weight_dtype,
     experimental_enable_permute_matmul_fusion,
+    enable_greedy_optimizer,
     ttnn_perf_metrics_output_file,
     read_logits_fn,
     mesh_config_fn,
@@ -390,6 +391,7 @@ def benchmark_llm_torch_xla(
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
         "experimental_weight_dtype": experimental_weight_dtype,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
+        "enable_greedy_optimizer": enable_greedy_optimizer,
     }
     if fp32_dest_acc_en is not None:
         options["fp32_dest_acc_en"] = fp32_dest_acc_en

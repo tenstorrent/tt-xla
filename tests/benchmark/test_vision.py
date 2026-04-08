@@ -15,6 +15,7 @@ DEFAULT_BATCH_SIZE = 1
 DEFAULT_LOOP_COUNT = 128
 DEFAULT_INPUT_SIZE = (3, 224, 224)  # (channels, height, width)
 DEFAULT_DATA_FORMAT = torch.bfloat16
+DEFAULT_ENABLE_GREEDY_OPTIMIZER = True
 DEFAULT_REQUIRED_PCC = 0.97
 
 
@@ -31,6 +32,7 @@ def test_vision(
     loop_count=DEFAULT_LOOP_COUNT,
     input_size=DEFAULT_INPUT_SIZE,
     data_format=DEFAULT_DATA_FORMAT,
+    enable_greedy_optimizer=DEFAULT_ENABLE_GREEDY_OPTIMIZER,
     required_pcc=DEFAULT_REQUIRED_PCC,
 ):
     """Test vision model with the given configuration.
@@ -64,6 +66,7 @@ def test_vision(
     loop_count={loop_count}
     input_size={input_size}
     data_format={data_format}
+    enable_greedy_optimizer={enable_greedy_optimizer}
     required_pcc={required_pcc}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
     """
@@ -82,6 +85,7 @@ def test_vision(
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
         load_inputs_fn=load_inputs_fn,
         extract_output_tensor_fn=extract_output_tensor_fn,
+        enable_greedy_optimizer=enable_greedy_optimizer,
         required_pcc=required_pcc,
     )
 
