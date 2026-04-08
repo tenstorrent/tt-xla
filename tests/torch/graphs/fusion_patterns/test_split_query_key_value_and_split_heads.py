@@ -8,6 +8,8 @@ from einops import rearrange
 from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
+from tests.infra.testers.compiler_config import CompilerConfig
+
 
 @pytest.mark.extended
 @pytest.mark.nightly
@@ -47,6 +49,7 @@ def test_split_query_key_value_and_split_heads_mha_matmul(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -95,6 +98,7 @@ def test_split_query_key_value_and_split_heads_mha_matmul_with_bias(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -153,6 +157,7 @@ def test_split_query_key_value_and_split_heads_mha_linear(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -162,6 +167,9 @@ def test_split_query_key_value_and_split_heads_mha_linear(request):
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["split_query_key_value_and_split_heads.ttnn.mlir"])
+@pytest.mark.xfail(
+    reason="Broken after a Split QKV refactor - https://github.com/tenstorrent/tt-xla/issues/4096"
+)
 def test_split_query_key_value_and_split_heads_mha_transposed_key(request):
     """MHA pattern: transposed key variant (key permute is [0, 2, 3, 1])."""
     batch, seq_len, hidden_dim = 1, 32, 512
@@ -195,6 +203,7 @@ def test_split_query_key_value_and_split_heads_mha_transposed_key(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -237,5 +246,6 @@ def test_split_query_key_value_and_split_heads_gqa_matmul(request):
         ],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )

@@ -56,8 +56,10 @@ on:
           type: string
 
 permissions:
+  actions: write
   packages: write
   checks: write
+  contents: read
 
 run-name: 'Test ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} - Shared runner: ${{ inputs.shared_runners }} )'
 

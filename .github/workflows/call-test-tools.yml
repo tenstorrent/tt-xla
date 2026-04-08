@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   test-tools:
-    runs-on: n300
+    runs-on: [ n300, in-service ]
     name: "Test tool packages"
     container:
       image: ${{ inputs.docker_image }}
