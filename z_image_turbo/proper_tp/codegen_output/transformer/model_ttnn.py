@@ -1255,6 +1255,7 @@ class ZImageTransformerTTNN(LightweightModule):
             transpose_b=True,
             memory_config=DRAM_MC,
             dtype=ttnn.DataType.BFLOAT16,
+            compute_kernel_config=REDUCE_KERNEL,
         )  # [seq, HEADS_PER_DEV * HEAD_DIM]
 
         v = ttnn.reshape(
@@ -1290,6 +1291,7 @@ class ZImageTransformerTTNN(LightweightModule):
             transpose_b=True,
             memory_config=DRAM_MC,
             dtype=ttnn.DataType.BFLOAT16,
+            compute_kernel_config=REDUCE_KERNEL,
         )  # [seq, 3840] partial sum
 
         return self._all_reduce(attn_out, seq_len)  # [1, seq, 3840]
@@ -1315,7 +1317,9 @@ class ZImageTransformerTTNN(LightweightModule):
         Returns:
             [1, seq, HIDDEN_DIM] BF16 after all-reduce.
         """
-        # Gate: w1(x) with SiLU fused (col_par)
+        # Gate: w1(x) with SiLU fused (col_par).
+        # Note: if TTNN rejects activation + compute_kernel_config together, split into
+        # matmul(..., dtype=BF16, compute_kernel_config=REDUCE_KERNEL) then ttnn.silu().
         gate = ttnn.matmul(
             x,
             self.weights[f"{block_prefix}.feed_forward.w1.weight"],
@@ -1324,6 +1328,7 @@ class ZImageTransformerTTNN(LightweightModule):
             memory_config=DRAM_MC,
             dtype=ttnn.DataType.BFLOAT16,
             activation="silu",
+            compute_kernel_config=REDUCE_KERNEL,
         )  # [seq, MLP_PER_DEV] per device
 
         # Up: w3(x) without activation (col_par)
@@ -1334,6 +1339,7 @@ class ZImageTransformerTTNN(LightweightModule):
             transpose_b=True,
             memory_config=DRAM_MC,
             dtype=ttnn.DataType.BFLOAT16,
+            compute_kernel_config=REDUCE_KERNEL,
         )  # [seq, MLP_PER_DEV]
 
         # SwiGLU element-wise product
@@ -1348,6 +1354,7 @@ class ZImageTransformerTTNN(LightweightModule):
             transpose_b=True,
             memory_config=DRAM_MC,
             dtype=ttnn.DataType.BFLOAT16,
+            compute_kernel_config=REDUCE_KERNEL,
         )  # [seq, HIDDEN_DIM] partial
 
         return self._all_reduce(out, seq_len)  # [1, seq, HIDDEN_DIM]
@@ -1750,6 +1757,7 @@ class ZImageTransformerTTNN(LightweightModule):
             transpose_b=True,
             memory_config=DRAM_MC,
             dtype=ttnn.DataType.BFLOAT16,
+            compute_kernel_config=REDUCE_KERNEL,
         )  # [seq, 64]
 
         out = ttnn.add(

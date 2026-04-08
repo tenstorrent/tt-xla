@@ -8,7 +8,7 @@ Fixed-resolution: 512×512 px (64×64 latent, 32 caption tokens — TTNN compile
 
 Usage:
     python z_image.py --prompt "sunny mountain range, with peaks peaking through misty clouds"
-    python z_image.py --prompt "..." --steps 8 --seed 42 --output out.png
+    python z_image.py --prompt "..." --steps 9 --seed 42 --output out.png
 """
 
 import argparse
@@ -124,7 +124,7 @@ def _pcc(a, b):
     return torch.corrcoef(torch.stack([a, b]))[0, 1].item()
 
 
-def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=False):
+def run_pipeline(prompt, num_steps=9, seed=42, output_path="output.png", debug=False):
     """
     Generate a 512×512 image from a text prompt using:
       - TTNN text encoder  (Qwen3, 4-way TP on (1,4) mesh)
@@ -133,7 +133,7 @@ def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=F
 
     Args:
         prompt:      Text description of the desired image.
-        num_steps:   Denoising steps (default 8, per model docs).
+        num_steps:   Denoising steps (default 9 → 8 effective; last t=0 step is a scheduler no-op).
         seed:        Random seed for reproducible noise.
         output_path: Where to save the output PNG.
         debug:       If True, compare TTNN transformer output vs CPU at each step.
@@ -312,6 +312,14 @@ def run_pipeline(prompt, num_steps=8, seed=42, output_path="output.png", debug=F
         image_tensor = vae.decode(latents_vae, return_dict=False)[0]
         print(f"    VAE output: mean={float(image_tensor.mean()):.3f} std={float(image_tensor.std()):.3f}"
               f" min={float(image_tensor.min()):.3f} max={float(image_tensor.max()):.3f}")
+
+        if debug:
+            # Also decode CPU reference latents to measure post-VAE PCC.
+            latents_cpu_vae = (latents_cpu / vae.config.scaling_factor) + vae.config.shift_factor
+            image_tensor_cpu = vae.decode(latents_cpu_vae, return_dict=False)[0]
+            post_vae_pcc = _pcc(image_tensor.flatten(), image_tensor_cpu.flatten())
+            print(f"    Post-VAE PCC (TTNN vs CPU image): {post_vae_pcc:.4f}")
+
     image = vae_processor.postprocess(image_tensor, output_type="pil")[0]
     print(f"    {(time.time()-t0)*1000:.0f} ms")
 
@@ -333,8 +341,8 @@ def main():
         help="Text description of the image to generate",
     )
     parser.add_argument(
-        "--steps", type=int, default=8,
-        help="Number of denoising steps (default: 8)",
+        "--steps", type=int, default=9,
+        help="Number of denoising steps (default: 9 → 8 effective; last t=0 step is a scheduler no-op)",
     )
     parser.add_argument(
         "--seed", type=int, default=42,
