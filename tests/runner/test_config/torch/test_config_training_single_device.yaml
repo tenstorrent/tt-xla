@@ -544,6 +544,7 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   detr3d/pytorch-single_device-training:
+    markers: [trigger]
     arch_overrides:
       n150:
         status: KNOWN_FAILURE_XFAIL
@@ -1286,6 +1287,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   monodepth2/pytorch-Stereo_No_Pt_640x192-single_device-training:
+    markers: [trigger]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1393,7 +1395,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   unet_for_conditional_generation/pytorch-Base-single_device-training:
-    markers: [large]
+    markers: [trigger]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1541,6 +1543,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_3/causal_lm/pytorch-1_7B-single_device-training:
+    markers: [trigger]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1553,6 +1556,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   gemma/pytorch-1.1_2B_IT-single_device-training:
+    markers: [trigger]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1566,6 +1570,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
   gemma/pytorch-2_2B_IT-single_device-training:
+    markers: [trigger]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
