@@ -22,7 +22,7 @@ Test discovery builds a **base string** from each `loader.py` path:
 
 - `variant`: the **string value** of the `ModelVariant` enum member (e.g. `3.0_8B`, `3.1_8B_Instruct`). Omit the segment only if the loader has **no** variants (`_VARIANTS` empty).
 - `parallelism`: `single_device` | `data_parallel` | `tensor_parallel`
-- `run_mode`: `inference` | `training`
+- `run_mode`: **`inference`** (model bringup targets inference only — do not use `training` unless explicitly requested)
 
 **Examples:**
 
@@ -32,6 +32,8 @@ llama/causal_lm/jax-3B_v2-tensor_parallel-inference
 ```
 
 YAML keys under `test_config:` must match the **full** string inside the pytest parametrized bracket (see `pytest_collection_modifyitems` in `tests/runner/conftest.py`).
+
+**Important:** Always register new models with `status: EXPECTED_PASSING` initially — never `KNOWN_FAILURE_XFAIL`. The xfail marker hides actual errors in pytest output, making bringup debugging impossible. Only downgrade to `KNOWN_FAILURE_XFAIL` after observing and diagnosing a specific failure.
 
 ## PyTorch LLMs: `test_llms_torch` (decode / prefill)
 

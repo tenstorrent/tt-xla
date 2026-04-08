@@ -24,6 +24,20 @@ It is organized in two phases:
 2. For PyTorch models: Python env has `torch`, `transformers`
 3. For JAX models: Python env has `jax`, `flax`, `easydel`, `transformers`
 4. Know the model's HuggingFace ID or have the custom source code + weights
+5. For models whose weights are fetched via `get_file()` (custom/non-HuggingFace weights), set the IRD cache to avoid download timeouts:
+   ```bash
+   export IRD_LF_CACHE=http://aus2-lfcache.aus2.tenstorrent.com/
+   ```
+
+## Code Generation Rules
+
+When generating any file (loader, sanity script, CPU check, test file):
+
+- **Do NOT add comments at the top of the file** describing how to run it, summarizing
+  what the file does, or listing shell commands. The only acceptable header is the
+  SPDX copyright block.
+- Keep the code clean — comments should only explain non-obvious logic, not narrate
+  what the code does or how to invoke it.
 
 **See also:** `references/test_ids_and_yaml.md` — canonical **test IDs**, **`rel_path`**, **`test_llms_torch`**, submodule workflow, **`requirements.txt`**, TorchDynamicLoader **bfloat16** behavior, and JAX **EasyDel + multichip tester** path.
 
@@ -260,16 +274,24 @@ from .pytorch import ModelLoader   # or .jax
 
 ## A5. Sanity-Check on CPU
 
+All CPU sanity scripts and intermediate test files must be saved under the model's
+test directory within the repo:
+
+```
+tests/torch/models/<model_name>/
+```
+
+**Do NOT use `/tmp` or any location outside the repo.** This keeps artefacts version-controlled
+and co-located with the model. After the full bringup is complete (model is `EXPECTED_PASSING`),
+clean up any intermediate sanity scripts that are no longer needed — only keep files that
+serve as permanent regression tests.
+
 ### PyTorch models
 
-Use a **dotted import path** that matches the directory layout (not only `<model_name>.pytorch`):
+Save the following as `tests/torch/models/<model_name>/test_<model_name>_cpu_sanity.py`:
 
 ```python
 import torch
-# Examples:
-# from third_party.tt_forge_models.llama.causal_lm.pytorch import ModelLoader
-# from third_party.tt_forge_models.resnet50.image_classification.pytorch import ModelLoader
-
 from third_party.tt_forge_models.<path.to.pytorch.package> import ModelLoader
 
 loader = ModelLoader()
@@ -289,9 +311,10 @@ print("bfloat16 forward pass succeeded")
 
 ### JAX / EasyDeL models
 
+Save the following as `tests/torch/models/<model_name>/test_<model_name>_cpu_sanity.py`:
+
 ```python
 import jax
-# Example: from third_party.tt_forge_models.llama.causal_lm.jax import ModelLoader
 from third_party.tt_forge_models.<path.to.jax.package> import ModelLoader
 
 loader = ModelLoader()
@@ -309,6 +332,12 @@ print("bfloat16 forward pass succeeded")
 ```
 
 If this fails, fix the loader before proceeding — the test runner will hit the same errors.
+
+### Cleanup after bringup
+
+Once the model is fully brought up and `EXPECTED_PASSING`, remove intermediate sanity
+scripts from `tests/torch/models/<model_name>/` that are no longer needed. Keep only
+files that serve as permanent tests (e.g., op-specific regression tests).
 
 ---
 
@@ -328,9 +357,11 @@ trace through XLA / StableHLO / tt-mlir. The model code in `src/model.py` (if cu
 
 ## B2. Register in Test Config
 
-The test runner discovers models from YAML config files. Add an entry to the appropriate file:
+The test runner discovers models from YAML config files. Add an entry to the appropriate
+**inference** config file. Model bringup targets **inference only** — do not add training
+configs unless explicitly requested.
 
-**PyTorch models:**
+**PyTorch models (inference):**
 
 | Model type | Config file |
 |-----------|-------------|
@@ -340,41 +371,59 @@ The test runner discovers models from YAML config files. Add an entry to the app
 | LLM single-device | `tests/runner/test_config/torch_llm/test_config_inference_single_device.yaml` |
 | LLM tensor-parallel | `tests/runner/test_config/torch_llm/test_config_inference_tensor_parallel.yaml` |
 
-**JAX models:**
+**JAX models (inference):**
 
 | Model type | Config file |
 |-----------|-------------|
 | Single-device | `tests/runner/test_config/jax/test_config_inference_single_device.yaml` |
 | Tensor-parallel | `tests/runner/test_config/jax/test_config_inference_tensor_parallel.yaml` |
 | Data-parallel | `tests/runner/test_config/jax/test_config_inference_data_parallel.yaml` |
-| Training | `tests/runner/test_config/jax/test_config_training_single_device.yaml` |
 
 ### Test ID and YAML key (critical)
 
-Keys must use the full **`rel_path`** from `third_party/tt_forge_models` to the **parent of `loader.py`**, not a shortened `<model_name>/pytorch` alias.
+Keys must use the full **`rel_path`** from `third_party/tt_forge_models` to the **parent of `loader.py`**, not a shortened `<model_name>/pytorch` alias. The `run_mode` segment must be **`inference`**.
 
-**Canonical pattern** for `test_all_models_torch` / `test_all_models_jax`:
+**Canonical pattern** for `test_all_models_torch` / `test_all_models_jax` (always `inference`):
 
 ```text
-{rel_path}-{VariantValue}-{parallelism}-{run_mode}
+{rel_path}-{VariantValue}-{parallelism}-inference
 ```
 
-Example keys:
+### Initial status: always start with `EXPECTED_PASSING`
+
+⚠ **Do NOT register new models as `KNOWN_FAILURE_XFAIL`.**
+
+When a test is marked `KNOWN_FAILURE_XFAIL`, pytest treats failures as expected (xfail) and
+**hides the actual error output**. This makes it impossible to see what went wrong during
+bringup. Instead:
+
+1. **Register with `EXPECTED_PASSING`** so the real error is fully visible in pytest output
+2. **Run the test** — if it fails, you see the exact error (OOM, PCC drop, compilation failure, etc.)
+3. **After diagnosing the failure**, update the status to `KNOWN_FAILURE_XFAIL` with a specific reason
+4. When the issue is fixed and PCC meets threshold, the status stays `EXPECTED_PASSING`
+
+Example — initial registration:
+
+```yaml
+test_config:
+  llama/causal_lm/pytorch-3.1_8B-single_device-inference:
+    status: EXPECTED_PASSING
+```
+
+```yaml
+test_config:
+  llama/causal_lm/jax-3B_v2-single_device-inference:
+    status: EXPECTED_PASSING
+```
+
+Example — after observing a specific failure, update with a diagnosis:
 
 ```yaml
 test_config:
   llama/causal_lm/pytorch-3.1_8B-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: IN_PROGRESS
-    reason: "Initial bringup — awaiting first PCC pass"
-```
-
-```yaml
-test_config:
-  llama/causal_lm/jax-3B_v2-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: IN_PROGRESS
-    reason: "Initial bringup — awaiting first PCC pass"
+    reason: "OOM in attention layer — grid_sample index tensor blowup (tracking issue #1234)"
 ```
 
 **PyTorch LLMs (decode/prefill):** if you implement `load_inputs_decode` / `load_inputs_prefill`, also add entries under `tests/runner/test_config/torch_llm/` using the **long** IDs (`llm_decode`, `llm_prefill`, `seq_*`, `batch_*`). See `references/test_ids_and_yaml.md` and `tests/runner/validate_test_config.py`.
@@ -401,6 +450,12 @@ pytest -svv "tests/runner/test_models.py::test_all_models_torch[llama/causal_lm/
 
 ```bash
 pytest -svv "tests/runner/test_models.py::test_all_models_jax[llama/causal_lm/jax-3B_v2-single_device-inference]"
+```
+
+**IRD cache for `get_file()` models:** If the model loader uses `get_file()` to download
+weights (custom/non-HuggingFace weights), set the IRD cache before running:
+```bash
+export IRD_LF_CACHE=http://aus2-lfcache.aus2.tenstorrent.com/
 ```
 
 **PyTorch note:** `TorchDynamicLoader` passes **`dtype_override=torch.bfloat16`** to `load_model` / `load_inputs` when those methods accept `dtype_override`, so the default device comparison path often uses bfloat16 — align PCC expectations accordingly.
@@ -434,23 +489,32 @@ When the TT run fails, the error message usually points to one of these categori
 - Some architectures have inherently lower PCC on certain hardware — use `required_pcc` to relax
 - Per-arch differences can be handled with `arch_overrides` in the YAML
 
-## B5. Promote to Passing
+## B5. Confirm Passing or Downgrade to XFAIL
 
-Once PCC meets the threshold consistently:
+Since the initial registration uses `EXPECTED_PASSING` (see B2), the workflow after running
+the test is:
 
-```yaml
-  llama/causal_lm/pytorch-3.1_8B-single_device-inference:
-    status: EXPECTED_PASSING
-```
-
-Drop the `bringup_status` and `reason` fields. If PCC is slightly below 0.99 but stable,
-document the relaxed threshold:
+**If the test passes** — nothing to change; the model is already `EXPECTED_PASSING`. If PCC
+is slightly below 0.99 but stable, document the relaxed threshold:
 
 ```yaml
   llama/causal_lm/pytorch-3.1_8B-single_device-inference:
     required_pcc: 0.97   # <link to tracking issue>
     status: EXPECTED_PASSING
 ```
+
+**If the test fails** — you have seen the real error (not hidden by xfail). Now downgrade
+to `KNOWN_FAILURE_XFAIL` with a **specific reason** describing the observed failure:
+
+```yaml
+  llama/causal_lm/pytorch-3.1_8B-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: IN_PROGRESS
+    reason: "OOM — attention gather index tensor 18.7 GB after TTNN tiling (issue #1234)"
+```
+
+When the underlying issue is fixed and the test passes again, restore to `EXPECTED_PASSING`
+and drop the `bringup_status` and `reason` fields.
 
 ---
 
@@ -526,7 +590,7 @@ from infra.utilities import make_easydel_parameters_partition_specs  # partition
 - [ ] `__init__.py` files re-export `ModelLoader` and `ModelVariant`
 - [ ] SPDX copyright header on all new `.py` files
 - [ ] CPU forward pass succeeds in both default dtype and bfloat16
-- [ ] YAML keys use full **`rel_path`** (see `references/test_ids_and_yaml.md`), initial `KNOWN_FAILURE_XFAIL` where appropriate
+- [ ] YAML keys use full **`rel_path`** (see `references/test_ids_and_yaml.md`), initial status is `EXPECTED_PASSING` (never `KNOWN_FAILURE_XFAIL` — xfail hides errors)
 - [ ] `requirements.txt` next to `loader.py` if non-standard pip deps are required
 - [ ] Submodule: loader commits in `third_party/tt_forge_models`, tt-xla commit updates the submodule pointer
 

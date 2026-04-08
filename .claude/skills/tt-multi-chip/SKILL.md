@@ -471,24 +471,22 @@ def load_parameters_partition_spec(
 
 ### Test Config Registration
 
-Register in the JAX-specific test config files:
+Register in the JAX-specific **inference** config files with `EXPECTED_PASSING` so real
+errors are visible (not hidden by xfail). Only downgrade to `KNOWN_FAILURE_XFAIL` after
+observing and diagnosing a specific failure:
 
 ```yaml
 # tests/runner/test_config/jax/test_config_inference_tensor_parallel.yaml
 test_config:
   llama/causal_lm/jax-3B_v2-tensor_parallel-inference:
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: IN_PROGRESS
-    reason: "Initial multi-chip bringup"
+    status: EXPECTED_PASSING
 ```
 
 ```yaml
 # tests/runner/test_config/jax/test_config_inference_data_parallel.yaml
 test_config:
   llama/causal_lm/jax-3B_v2-data_parallel-inference:
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: IN_PROGRESS
-    reason: "Initial multi-chip bringup"
+    status: EXPECTED_PASSING
 ```
 
 ### Run Multi-Chip Tests

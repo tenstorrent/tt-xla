@@ -298,7 +298,9 @@ class ModelLoader(ForgeModel):
     def load_model(self, *, dtype_override=None, **kwargs):
         model = <ModelClass>(<constructor_args>)
 
-        # Load pretrained weights if available
+        # Load pretrained weights if available.
+        # When using get_file(), ensure IRD_LF_CACHE is set:
+        #   export IRD_LF_CACHE=http://aus2-lfcache.aus2.tenstorrent.com/
         # weights_path = get_file("<path_to_weights>")
         # state_dict = torch.load(weights_path, map_location="cpu")
         # model.load_state_dict(state_dict)
