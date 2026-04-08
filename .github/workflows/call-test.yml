@@ -355,6 +355,7 @@ jobs:
       shell: bash
       run: |
         source venv/activate
+
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
