@@ -300,7 +300,7 @@ def update_test_metadata_for_exception(
 # ruamel returns ScalarFloat/ScalarString types (subclasses of float/str).
 # pytest-forked uses Python's marshal, which rejects non-builtin subclasses inside the
 # test report's user_properties, causing ValueError: unmarshallable object.
-def _to_marshal_safe(value):
+def to_marshal_safe(value):
     """Recursively convert values to marshal-safe builtin types for pytest-forked."""
     # None stays None
     if value is None:
@@ -327,9 +327,9 @@ def _to_marshal_safe(value):
 
     # Collections
     if isinstance(value, dict):
-        return {str(k): _to_marshal_safe(v) for k, v in value.items()}
+        return {str(k): to_marshal_safe(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
-        return [_to_marshal_safe(v) for v in value]
+        return [to_marshal_safe(v) for v in value]
 
     # Fallback to string to avoid unmarshallable objects
     return str(value)
@@ -676,10 +676,10 @@ def record_model_test_properties(
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
-        record_property("error_message", _to_marshal_safe(reason))
+        record_property("error_message", to_marshal_safe(reason))
 
     # Write properties
-    record_property("tags", _to_marshal_safe(tags))
+    record_property("tags", to_marshal_safe(tags))
     record_property("owner", "tt-xla")
     if hasattr(model_info, "group") and model_info.group is not None:
         record_property("group", str(model_info.group))
