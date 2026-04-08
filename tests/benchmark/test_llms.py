@@ -57,6 +57,7 @@ def test_llm(
     request=None,
     accuracy_testing: bool = False,
     max_output_tokens=None,
+    weight_dtype_overrides: dict = None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -146,6 +147,7 @@ def test_llm(
         model_name_for_accuracy=model_name_for_accuracy,
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
+        weight_dtype_overrides=weight_dtype_overrides,
     )
 
     if output_file:
@@ -1307,4 +1309,123 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         arch="wormhole_galaxy",
         optimization_level=1,
         trace_enabled=False,
+    )
+
+
+def test_gpt_oss_120b_tp_galaxy_batch_size_64_bfp8(
+    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+):
+    """GPT OSS 120B with default bfp8 weights (no per-tensor overrides)."""
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        batch_size=(batch_size if batch_size is not None else 64),
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        trace_enabled=False,
+    )
+
+
+def test_gpt_oss_120b_tp_galaxy_batch_size_64_all_mlp_bfp4(
+    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+):
+    """GPT OSS 120B with all MLP/Expert weights at bfp4, everything else default bfp8."""
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        batch_size=(batch_size if batch_size is not None else 64),
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        trace_enabled=False,
+        weight_dtype_overrides={
+            "model.layers.*.mlp.router.weight": "bfp_bf4",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
+    )
+
+
+def test_gpt_oss_120b_tp_galaxy_batch_size_64_decoder_0_3_mlp_bfp4(
+    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+):
+    """GPT OSS 120B with decoder layers 0-3 MLP/Expert weights at bfp4, everything else default bfp8."""
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    overrides = {}
+    for layer_idx in range(4):
+        overrides[f"model.layers.{layer_idx}.mlp.router.weight"] = "bfp_bf4"
+        overrides[f"model.layers.{layer_idx}.mlp.experts.gate_up_proj"] = "bfp_bf4"
+        overrides[f"model.layers.{layer_idx}.mlp.experts.down_proj"] = "bfp_bf4"
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        batch_size=(batch_size if batch_size is not None else 64),
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        trace_enabled=False,
+        weight_dtype_overrides=overrides,
+    )
+
+
+def test_gpt_oss_120b_tp_galaxy_batch_size_64_last_half_mlp_bfp4(
+    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+):
+    """GPT OSS 120B with last 18 decoder layers (18-35) MLP/Expert weights at bfp4, everything else default bfp8."""
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    overrides = {}
+    for layer_idx in range(18, 36):
+        overrides[f"model.layers.{layer_idx}.mlp.router.weight"] = "bfp_bf4"
+        overrides[f"model.layers.{layer_idx}.mlp.experts.gate_up_proj"] = "bfp_bf4"
+        overrides[f"model.layers.{layer_idx}.mlp.experts.down_proj"] = "bfp_bf4"
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        batch_size=(batch_size if batch_size is not None else 64),
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        trace_enabled=False,
+        weight_dtype_overrides=overrides,
     )
