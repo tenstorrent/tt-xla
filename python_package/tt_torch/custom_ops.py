@@ -213,6 +213,7 @@ def scaled_dot_product_attention(
     attn_mask: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
+    sliding_window_size: int = None,
 ) -> torch.Tensor:
 
     assert (
@@ -270,6 +271,12 @@ def scaled_dot_product_attention(
         if scale is not None:
             frontend_attributes["scale"] = str(scale)
 
+        if sliding_window_size is not None:
+            assert (
+                sliding_window_size > 0
+            ), "sliding_window_size must be a positive integer."
+            frontend_attributes["sliding_window_size"] = str(sliding_window_size)
+
         return stablehlo_custom_call.stablehlo_custom_call(
             inputs,
             "tt.scaled_dot_product_attention",
@@ -301,6 +308,7 @@ def scaled_dot_product_attention(
     attn_mask: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
+    sliding_window_size: int = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
