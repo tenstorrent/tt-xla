@@ -6,6 +6,7 @@ import os
 
 import pytest
 
+from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.constants import ALLOWED_ARCHES
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
@@ -22,6 +23,26 @@ _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 # Maps nodeid -> item, populated during collection for crash-report fallback.
 _item_by_nodeid: dict = {}
+
+
+def pytest_sessionstart(session):
+    """Capture the clean pip environment at session start for crash recovery.
+
+    This must be a hook (not a session-scoped fixture) because pytest-forked
+    runs ``runtestprotocol`` — including fixture setup — inside each fork()ed
+    child.  A session fixture would lazily re-initialise in every child,
+    capturing the (possibly dirty) on-disk state instead of the original
+    clean state.  ``pytest_sessionstart`` runs once in the parent process
+    before any forking occurs, so the snapshot is taken exactly once and
+    inherited by all children via fork().
+    """
+    RequirementsManager.capture_golden_state()
+
+
+@pytest.fixture(autouse=True)
+def restore_pip_env_if_dirty():
+    """Restore pip environment before each test if a previous fork was killed."""
+    RequirementsManager.check_and_restore_environment()
 
 
 def _get_model_group_from_item(item):
