@@ -266,3 +266,18 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 39845888 B DRAM buffer across 12 banks, where each bank needs to store 3321856 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
+
+  # StableLM base-alpha JAX/EasyDeL multi-chip tensor parallelism
+  # Both variants have 32 attention heads → divides evenly across 8 (llmbox) and 32 (galaxy) devices.
+  # Partition rules come from EasyDeL StableLmConfig.get_partition_rules().
+  stablelm/causal_lm/jax-3B_Alpha-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox", "galaxy-wh-6u"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "PCC not checked — EasyDeL multi-chip sharding produces numerically divergent outputs vs CPU reference (expected for tensor-parallel JAX)"
+
+  stablelm/causal_lm/jax-7B_Alpha-tensor_parallel-inference:
+    supported_archs: ["galaxy-wh-6u"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "PCC not checked — EasyDeL multi-chip sharding; 7B restricted to galaxy-wh-6u (32 chips) to avoid DRAM OOM on 8-chip llmbox"
