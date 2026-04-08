@@ -20,9 +20,8 @@ import re
 import signal
 
 import pytest
-from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
-
 import vllm
+from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
 from vllm.sampling_params import RequestOutputKind, StructuredOutputsParams
 
 # ---------------------------------------------------------------------------

@@ -29,11 +29,21 @@ def device():
     return xm.xla_device()
 
 
-def _apply_penalties(logits, output_token_counts, prompt_token_mask,
-                     presence_penalties, frequency_penalties, repetition_penalties):
+def _apply_penalties(
+    logits,
+    output_token_counts,
+    prompt_token_mask,
+    presence_penalties,
+    frequency_penalties,
+    repetition_penalties,
+):
     return Sampler().apply_penalties(
-        logits, output_token_counts, prompt_token_mask,
-        presence_penalties, frequency_penalties, repetition_penalties,
+        logits,
+        output_token_counts,
+        prompt_token_mask,
+        presence_penalties,
+        frequency_penalties,
+        repetition_penalties,
     )
 
 
@@ -74,7 +84,9 @@ def test_repetition_penalty_occurred_tokens(device):
     output_token_counts[0, 0] = 1.0
     output_token_counts[0, 1] = 1.0
 
-    compiled_fn = torch.compile(_apply_penalties, backend="tt", fullgraph=True, dynamic=False)
+    compiled_fn = torch.compile(
+        _apply_penalties, backend="tt", fullgraph=True, dynamic=False
+    )
     result = compiled_fn(
         logits.to(device),
         output_token_counts.to(device),
@@ -88,15 +100,15 @@ def test_repetition_penalty_occurred_tokens(device):
     print(f"[TESTOUT] logits[1]={result[0,1].item():.4f} (expected -8.0)")
     print(f"[TESTOUT] logits[2]={result[0,2].item():.4f} (expected 4.0)")
 
-    assert torch.isclose(result[0, 0], torch.tensor(2.0), atol=1e-4), (
-        f"Positive occurred logit must be divided by rep: expected 2.0, got {result[0,0].item()}"
-    )
-    assert torch.isclose(result[0, 1], torch.tensor(-8.0), atol=1e-4), (
-        f"Negative occurred logit must be multiplied by rep: expected -8.0, got {result[0,1].item()}"
-    )
-    assert torch.isclose(result[0, 2], torch.tensor(4.0), atol=1e-4), (
-        f"Non-occurred logit must be unchanged: expected 4.0, got {result[0,2].item()}"
-    )
+    assert torch.isclose(
+        result[0, 0], torch.tensor(2.0), atol=1e-4
+    ), f"Positive occurred logit must be divided by rep: expected 2.0, got {result[0,0].item()}"
+    assert torch.isclose(
+        result[0, 1], torch.tensor(-8.0), atol=1e-4
+    ), f"Negative occurred logit must be multiplied by rep: expected -8.0, got {result[0,1].item()}"
+    assert torch.isclose(
+        result[0, 2], torch.tensor(4.0), atol=1e-4
+    ), f"Non-occurred logit must be unchanged: expected 4.0, got {result[0,2].item()}"
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +138,9 @@ def test_presence_penalty_reduces_occurred_tokens(device):
     output_token_counts = torch.zeros(1, VOCAB, dtype=torch.float32)
     output_token_counts[0, :OCCURRED] = 1.0
 
-    compiled_fn = torch.compile(_apply_penalties, backend="tt", fullgraph=True, dynamic=False)
+    compiled_fn = torch.compile(
+        _apply_penalties, backend="tt", fullgraph=True, dynamic=False
+    )
     result = compiled_fn(
         torch.zeros(1, VOCAB, dtype=torch.float32).to(device),
         output_token_counts.to(device),
@@ -142,12 +156,12 @@ def test_presence_penalty_reduces_occurred_tokens(device):
     print(f"[TESTOUT] penalized tokens (0-{OCCURRED-1}): {penalized[:5].tolist()}")
     print(f"[TESTOUT] unaffected tokens ({OCCURRED}+): {unaffected[:5].tolist()}")
 
-    assert torch.allclose(penalized, torch.full_like(penalized, -PENALTY), atol=1e-4), (
-        f"Occurred tokens must have logit -= {PENALTY}, got: {penalized[:5].tolist()}"
-    )
-    assert torch.allclose(unaffected, torch.zeros_like(unaffected), atol=1e-4), (
-        f"Non-occurred tokens must be unchanged (0.0), got: {unaffected[:5].tolist()}"
-    )
+    assert torch.allclose(
+        penalized, torch.full_like(penalized, -PENALTY), atol=1e-4
+    ), f"Occurred tokens must have logit -= {PENALTY}, got: {penalized[:5].tolist()}"
+    assert torch.allclose(
+        unaffected, torch.zeros_like(unaffected), atol=1e-4
+    ), f"Non-occurred tokens must be unchanged (0.0), got: {unaffected[:5].tolist()}"
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +180,9 @@ def test_presence_penalty_prod_vocab(device, vocab_size):
     output_token_counts = torch.zeros(1, vocab_size, dtype=torch.float32)
     output_token_counts[0, :OCCURRED] = 1.0
 
-    compiled_fn = torch.compile(_apply_penalties, backend="tt", fullgraph=True, dynamic=False)
+    compiled_fn = torch.compile(
+        _apply_penalties, backend="tt", fullgraph=True, dynamic=False
+    )
     result = compiled_fn(
         torch.zeros(1, vocab_size, dtype=torch.float32).to(device),
         output_token_counts.to(device),
@@ -179,15 +195,19 @@ def test_presence_penalty_prod_vocab(device, vocab_size):
     penalized = result[0, :OCCURRED]
     unaffected = result[0, OCCURRED:]
 
-    print(f"[TESTOUT] vocab={vocab_size} penalized (0-{OCCURRED-1}): {penalized[:5].tolist()}")
-    print(f"[TESTOUT] vocab={vocab_size} unaffected ({OCCURRED}+): {unaffected[:5].tolist()}")
+    print(
+        f"[TESTOUT] vocab={vocab_size} penalized (0-{OCCURRED-1}): {penalized[:5].tolist()}"
+    )
+    print(
+        f"[TESTOUT] vocab={vocab_size} unaffected ({OCCURRED}+): {unaffected[:5].tolist()}"
+    )
 
-    assert torch.allclose(penalized, torch.full_like(penalized, -PENALTY), atol=1e-3), (
-        f"vocab={vocab_size}: occurred tokens must have logit == -{PENALTY}, got {penalized.tolist()}"
-    )
-    assert torch.allclose(unaffected, torch.zeros_like(unaffected), atol=1e-3), (
-        f"vocab={vocab_size}: non-occurred tokens must be unchanged (0.0), got {unaffected[:10].tolist()}"
-    )
+    assert torch.allclose(
+        penalized, torch.full_like(penalized, -PENALTY), atol=1e-3
+    ), f"vocab={vocab_size}: occurred tokens must have logit == -{PENALTY}, got {penalized.tolist()}"
+    assert torch.allclose(
+        unaffected, torch.zeros_like(unaffected), atol=1e-3
+    ), f"vocab={vocab_size}: non-occurred tokens must be unchanged (0.0), got {unaffected[:10].tolist()}"
 
 
 # ---------------------------------------------------------------------------
@@ -235,10 +255,14 @@ def test_presence_penalty_steers_full_sampler(device, vocab_size):
         prompt_token_mask=torch.zeros(1, vocab_size, dtype=torch.bool, device=device),
     )
 
-    compiled_fn = torch.compile(_run_sampler, backend="tt", fullgraph=True, dynamic=False)
+    compiled_fn = torch.compile(
+        _run_sampler, backend="tt", fullgraph=True, dynamic=False
+    )
     token = compiled_fn(logits_cpu.to(device), metadata).cpu().item()
 
-    print(f"[TESTOUT] vocab={vocab_size} presence_penalty={PENALTY}: sampled token={token}")
+    print(
+        f"[TESTOUT] vocab={vocab_size} presence_penalty={PENALTY}: sampled token={token}"
+    )
 
     assert token >= OCCURRED, (
         f"vocab={vocab_size}: presence_penalty={PENALTY} must steer away from tokens 0-{OCCURRED-1}, "
