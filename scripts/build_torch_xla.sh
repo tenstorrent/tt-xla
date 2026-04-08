@@ -25,7 +25,7 @@ set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
 PYTHON_VERSION="3.12"
-PYTORCH_TAG="v2.9.1"
+PYTORCH_TAG="v2.10.0"
 PYTORCH_XLA_REPO="https://github.com/tenstorrent/pytorch-xla.git"
 PYTORCH_XLA_BRANCH="master"
 BAZEL_VERSION="7.4.1"
