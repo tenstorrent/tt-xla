@@ -340,6 +340,12 @@ jobs:
       shell: bash
       run: |
         source venv/activate
+
+        echo "Using custom torchxla install from run 24097698902"
+        gh run download 24097698902
+        uv pip install --force-reinstall xla-torch-wheel-release/*.whl
+        uv pip show torch_xla
+
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
