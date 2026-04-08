@@ -289,6 +289,19 @@ def boolean_bitwise_or(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor
     return NotImplemented
 
 
+def sum_dim_IntList(
+    input: torch.Tensor,
+    dim: Optional[List[int]] = None,
+    keepdim: bool = False,
+    dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
+    if dim is not None and len(dim) == 0:
+        return torch.sum(
+            input, dim=list(range(input.ndim)), keepdim=keepdim, dtype=dtype
+        )
+    return NotImplemented
+
+
 def copy_default(
     dst: torch.Tensor, src: torch.Tensor, non_blocking: bool = False
 ) -> torch.Tensor:
@@ -398,6 +411,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
         aten.masked_scatter.default: masked_scatter,
+        aten.sum.dim_IntList: sum_dim_IntList,
     }
 
 
