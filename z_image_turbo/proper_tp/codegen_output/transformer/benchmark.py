@@ -15,6 +15,9 @@ Tested configurations (can be set via env vars or edited below):
   OPT_DIT_NORM     — ttnn.experimental.dit_rms_norm_unary_fused instead of rms_norm
   OPT_MM           — minimal_matmul only (norms baseline)
   OPT_ALL          — all flags on (norms + final_norm + minimal_matmul)
+  OPT_FUSED_QKV    — norms + minimal_matmul_split (fused QKV) + nlp_create_qkv_heads
+  OPT_ASYNC_CCL    — all prev + reduce_scatter_minimal_async + all_gather_async
+  OPT_TRACE        — all prev + Metal Trace (ttnn.begin/end/execute_trace)
 
 Usage:
     python benchmark.py
@@ -92,14 +95,21 @@ CONFIGS = {
         cls=ZImageTransformerTTNNOpt,
         flags=dict(USE_FAST_NORMS=True, USE_FAST_QK_NORM=True,
                    USE_FAST_FINAL_NORM=True, USE_DIT_NORM=False, USE_MINIMAL_MATMUL=True,
-                   USE_FUSED_QKV=True, USE_ASYNC_CCL=True),
+                   USE_FUSED_QKV=True, USE_ASYNC_CCL=True, USE_METAL_TRACE=False),
         label="Opt: all prev + reduce_scatter_minimal_async + all_gather_async",
+    ),
+    "OPT_TRACE": dict(
+        cls=ZImageTransformerTTNNOpt,
+        flags=dict(USE_FAST_NORMS=True, USE_FAST_QK_NORM=True,
+                   USE_FAST_FINAL_NORM=True, USE_DIT_NORM=False, USE_MINIMAL_MATMUL=True,
+                   USE_FUSED_QKV=True, USE_ASYNC_CCL=True, USE_METAL_TRACE=True),
+        label="Opt: all prev + Metal Trace (eliminates host dispatch overhead)",
     ),
 }
 
 DEFAULT_RUN_ORDER = [
     "BASELINE", "OPT_NORMS", "OPT_FINAL_NORM", "OPT_DIT_NORM",
-    "OPT_MM", "OPT_ALL", "OPT_FUSED_QKV", "OPT_ASYNC_CCL",
+    "OPT_MM", "OPT_ALL", "OPT_FUSED_QKV", "OPT_ASYNC_CCL", "OPT_TRACE",
 ]
 
 
@@ -226,6 +236,10 @@ def main():
     model_pt.pad_heads(transformer)
 
     # ── Open mesh device ──────────────────────────────────────────────────────
+    # Pre-allocate trace region if OPT_TRACE is in the run list (must be set before open)
+    if any(c in args.configs for c in ["OPT_TRACE"]):
+        utils.DeviceGetter.trace_region_size = 50_000_000
+        print("\nMetal Trace enabled: opening device with trace_region_size=50MB")
     mesh_device = utils.DeviceGetter.get_device((1, 4))
     print(f"\nMesh device: {mesh_device}")
 

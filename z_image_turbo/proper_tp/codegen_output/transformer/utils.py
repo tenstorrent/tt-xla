@@ -10,6 +10,7 @@ class DeviceGetter:
     _instance = None
     _mesh_shape = None
     l1_small_size = 1 << 15
+    trace_region_size = 0  # set to e.g. 50_000_000 before first get_device() call to enable Metal Trace
 
     def __init__(self):
         raise RuntimeError("This is Singleton, invoke get_device() instead.")
@@ -37,6 +38,7 @@ class DeviceGetter:
             cls._instance = ttnn.open_mesh_device(
                 mesh_shape=ttnn.MeshShape(mesh_shape),
                 l1_small_size=cls.l1_small_size,
+                trace_region_size=cls.trace_region_size,
             )
             print(f"Device: {cls._instance}")
 

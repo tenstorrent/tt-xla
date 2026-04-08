@@ -76,6 +76,14 @@ except Exception as _e:
     _HAS_CCL_MANAGER = False
     _CCLManager = None
 
+# tt_dit Tracer for Metal Trace support
+try:
+    from tt_dit.utils.tracing import Tracer as _Tracer
+    _HAS_TRACER = True
+except Exception:
+    _HAS_TRACER = False
+    _Tracer = None
+
 # tt_dit matmul config utility (for MinimalMatmulConfig shape lookup)
 # Use importlib to avoid name conflict with ttnn's internal `matmul` module.
 _TT_DIT_MATMUL_PATH = os.path.normpath(os.path.join(
@@ -127,6 +135,8 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
                                  # + nlp_create_qkv_heads
     USE_ASYNC_CCL       = True   # replace synchronous reduce_scatter+all_gather with
                                  # reduce_scatter_minimal_async+all_gather_async via CCLManager
+    USE_METAL_TRACE     = False  # capture Metal Trace on first forward, execute on subsequent
+                                 # requires device opened with trace_region_size > 0
 
     def __init__(self, mesh_device, transformer):
         super().__init__(mesh_device, transformer)
@@ -159,6 +169,15 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
                     topology=ttnn.Topology.Ring,
                 )
                 print("  [Opt] Async CCL initialized (reduce_scatter_minimal_async + all_gather_async).")
+
+        # ── Metal Trace ────────────────────────────────────────────────────────
+        self._tracer = None
+        if self.USE_METAL_TRACE:
+            if not _HAS_TRACER:
+                print("  [Opt] WARNING: Tracer not available, Metal Trace disabled.")
+            else:
+                self._tracer = _Tracer(self._forward_for_trace, device=mesh_device)
+                print("  [Opt] Metal Trace enabled (trace capture on first forward call).")
 
     # ──────────────────────────────────────────────────────────────────────────
     # Init helpers
@@ -692,3 +711,34 @@ class ZImageTransformerTTNNOpt(ZImageTransformerTTNN):
 
         out = ttnn.reshape(out, [1, seq_len, PATCH_DIM], memory_config=DRAM_MC)
         return out
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Metal Trace support
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _forward_for_trace(self, latents, timestep, cap_feats):
+        """Forward pass without ttnn.synchronize_device — safe for Metal Trace capture.
+
+        Metal Trace cannot capture event synchronization commands. This method
+        monkey-patches ttnn.synchronize_device to a no-op for the duration of
+        the call. The caller is responsible for any needed synchronization after
+        execute_trace.
+        """
+        orig_sync = ttnn.synchronize_device
+        ttnn.synchronize_device = lambda device: None
+        try:
+            return super().forward(latents, timestep, cap_feats)
+        finally:
+            ttnn.synchronize_device = orig_sync
+
+    def forward(self, latents, timestep, cap_feats):
+        """Forward pass with optional Metal Trace acceleration.
+
+        On first call when USE_METAL_TRACE=True: compiles and captures trace.
+        On subsequent calls: copies inputs into trace tensors and executes trace.
+        Falls back to the base implementation when USE_METAL_TRACE=False.
+        """
+        if self._tracer is None:
+            return super().forward(latents, timestep, cap_feats)
+
+        return self._tracer(latents, timestep, cap_feats)

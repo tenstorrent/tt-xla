@@ -16,8 +16,9 @@
 | OPT_DIT_NORM | 1809 ms | 0.553 it/s | 0.9974 ✓ | +42.6% |
 | OPT_MM | 2410 ms | 0.415 it/s | 0.9961 ✓ | +7.0% |
 | OPT_ALL | 1703 ms | 0.587 it/s | 0.9986 ✓ | +51.5% |
-| **OPT_FUSED_QKV** | **1672 ms** | **0.598 it/s** | **0.9986** ✓ | **+54.3%** |
+| OPT_FUSED_QKV | 1672 ms | 0.598 it/s | 0.9986 ✓ | +54.3% |
 | OPT_ASYNC_CCL | 1674 ms | 0.597 it/s | 0.9985 ✓ | +54.1% |
+| **OPT_TRACE** | **1106 ms** | **0.904 it/s** | **0.9985** ✓ | **+133%** |
 
 Side note: **the baseline was already failing** the PCC ≥ 0.995 correctness threshold (PCC = 0.9947). All optimized configurations fix this. More on why below.
 
@@ -106,6 +107,28 @@ Replacing with `ttnn.layer_norm` saves ops but requires an extra `typecast(BF16)
 
 ---
 
+### 6. Metal Trace (`ttnn.begin/end/execute_trace`) — **+54.1% on top of async CCL**
+
+**What was added**: `Tracer` from `tt_dit.utils.tracing` wraps the forward pass. First call = compile run + trace capture. All subsequent calls = `ttnn.execute_trace` only.
+
+**What was gained**: 1704 ms → 1106 ms, **-35% latency**, **0.587 → 0.904 it/s** (+54.1%). vs original baseline: **+133%** total throughput gain.
+
+**Why so much** (expected only ~20ms from host dispatch, got 600ms):
+
+The perf trace attributed ~1480ms to ERISC communication. But that measurement was a residual — wall-clock minus Tensix kernels minus estimated dispatch. What Metal Trace revealed is that a large portion of that gap was not wire-time in the ring protocol, but **host-side synchronization overhead between consecutive ops**. With standard execution:
+
+- After each CCL op, the host driver must observe completion, schedule the next op, and enqueue it to the device command queue.
+- With 76 all_reduces per pass, each with a norm immediately after, there are 76+ host round-trips of ~5–8ms each = **~450–600ms of dispatch-sync overhead masquerading as communication latency**.
+
+Metal Trace compiles the entire forward pass into a single device command stream. After `begin_trace_capture` / `end_trace_capture`, the device has all 1000+ ops pre-enqueued. `execute_trace` replays the stream with zero host involvement — the only latency is actual compute + wire time.
+
+**Implementation**:
+- `utils.py`: `DeviceGetter.trace_region_size = 50_000_000` (50MB L1 allocation for trace)
+- `model_ttnn_opt.py`: `_forward_for_trace()` patches `ttnn.synchronize_device` to a no-op (sync commands cannot be captured in a trace); `forward()` delegates to `Tracer` when `USE_METAL_TRACE=True`
+- `benchmark.py`: `OPT_TRACE` config; sets `trace_region_size` before device open
+
+---
+
 ## What Didn't Work / Wasn't Applicable
 
 ### `ttnn.experimental.rotary_embedding_llama` — format mismatch
@@ -133,7 +156,7 @@ These ops implement **sequence-parallel** distributed normalization where the hi
 
 ## Summary Table
 
-| tt_dit Op | Used? | Result |
+| tt_dit Op / Technique | Used? | Result |
 |---|---|---|
 | `ttnn.rms_norm` | ✓ | **+42.7% speedup, fixes PCC** |
 | `ttnn.experimental.dit_rms_norm_unary_fused` | ✓ | Same as `rms_norm` (+42.6%), use for fused activation |
@@ -142,6 +165,7 @@ These ops implement **sequence-parallel** distributed normalization where the hi
 | `ttnn.experimental.minimal_matmul_split` | ✓ | +1.8% (fused QKV, vs separate Q/K/V with minimal_matmul) |
 | `ttnn.experimental.nlp_create_qkv_heads` | ✓ | Used for V head-reshape in fused QKV path |
 | `ttnn.experimental.all_gather_async` + `reduce_scatter_minimal_async` | ✓ | +1.5% (within noise) — no compute to overlap with |
+| **Metal Trace** (`ttnn.begin/end/execute_trace`) | ✓ | **+54.1% on top of OPT_ASYNC_CCL; +133% vs baseline** |
 | `ttnn.experimental.rotary_embedding_llama` | ✗ | Format mismatch with Z-Image 3D RoPE |
 | Distributed norm ops (pre/post allgather) | ✗ | Wrong parallelism topology (seq-par vs tensor-par) |
 
