@@ -724,8 +724,9 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   t5/pytorch-Small-single_device-inference:
     status: EXPECTED_PASSING
@@ -737,8 +738,9 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Fourier-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   # yolov8/pytorch-yolov8x-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -753,8 +755,9 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Learned-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -1845,9 +1848,10 @@ test_config:
         status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
 
   d_fine/pytorch-Nano-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine nano hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "d_fine nano hangs forever, removing all of them."
+    # bringup_status: FAILED_RUNTIME
 
   d_fine/pytorch-Small-single_device-inference:
     status: NOT_SUPPORTED_SKIP
