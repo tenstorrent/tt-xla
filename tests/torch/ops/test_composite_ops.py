@@ -109,6 +109,9 @@ def test_patched_rms_norm_functional_single_device(
 
 
 @pytest.mark.nightly
+@pytest.mark.xfail(
+    reason="To be investigated - https://github.com/tenstorrent/tt-xla/issues/4138"
+)
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize(

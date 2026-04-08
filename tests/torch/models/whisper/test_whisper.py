@@ -75,7 +75,6 @@ def inference_tester(request) -> WhisperTester:
 # ----- Tests -----
 
 
-@pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.large
 def test_torch_whisper_inference(inference_tester: WhisperTester):
