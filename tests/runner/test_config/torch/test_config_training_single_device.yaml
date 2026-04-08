@@ -1386,6 +1386,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 125829120 B DRAM buffer across 12 banks, where each bank needs to store 10485760 B"
+    markers: [large]
   whisper/pytorch-Tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1525,7 +1526,6 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_3/causal_lm/pytorch-1_7B-single_device-training:
-    markers: [trigger]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1538,7 +1538,6 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   gemma/pytorch-1.1_2B_IT-single_device-training:
-    markers: [trigger]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1552,7 +1551,6 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
   gemma/pytorch-2_2B_IT-single_device-training:
-    markers: [trigger]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
