@@ -179,8 +179,14 @@ def setup_model_and_tokenizer(
         Tuple of (model, tokenizer)
     """
     quantization_config = Mxfp4Config(dequantize=True)
+    from transformers import AutoConfig
+
+    config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
+    config.num_hidden_layers = 1
+    
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name,
+        config=config,
         quantization_config=quantization_config,
         dtype=torch.bfloat16,
         low_cpu_mem_usage=True,
@@ -194,7 +200,7 @@ def setup_model_and_tokenizer(
     applied = apply_weight_dtype_overrides(
         model,
         {
-            "default": "bfp_bf8",
+            #"default": "bfp_bf8",
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
