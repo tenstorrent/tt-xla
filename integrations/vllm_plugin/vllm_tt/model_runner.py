@@ -96,7 +96,7 @@ from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
-from .platform import TTConfig
+from .platform import TTConfig, resolve_hf_decoder_layer_config
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
 from .vllm_utils import determine_mesh_shape
@@ -311,9 +311,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Multi-modal data support
         self.mm_registry = MULTIMODAL_REGISTRY
         self.uses_mrope = model_config.uses_mrope
-        # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
-        #     model_config)
-        self.supports_mm_inputs = False
+        self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
+            model_config
+        )
+        print("supports_mm_inputs", self.supports_mm_inputs)
+        # self.supports_mm_inputs = False
         # TODO: Support M-RoPE (e.g, Qwen2-VL)
         assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
@@ -438,8 +440,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.mm_budget = (
             MultiModalBudget(
-                self.model_config,
-                self.scheduler_config,
+                self.vllm_config,
                 self.mm_registry,
             )
             if self.supports_mm_inputs
@@ -467,16 +468,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._original_num_layers = None
         self._target_num_layers = None
         target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
 
-        if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
-            logger.info(
-                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
-            )
-            # Store original layer count for weight filtering
-            self._original_num_layers = original_num_layers
-            self._target_num_layers = target_num_layers
+        if target_num_layers > 0:
+            hf_cfg = vllm_config.model_config.hf_config
+            original_num_layers, layer_cfg = resolve_hf_decoder_layer_config(hf_cfg)
+            if target_num_layers < original_num_layers:
+                layer_cfg.num_hidden_layers = target_num_layers
+                logger.info(
+                    f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+                )
+                # Store original layer count for weight filtering
+                self._original_num_layers = original_num_layers
+                self._target_num_layers = target_num_layers
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -1652,9 +1655,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         mm_budget = self.mm_budget
         assert mm_budget is not None
 
-        max_items_per_seq_by_modality = (
-            mm_budget.max_items_per_batch_by_modality
-        )  # noqa: E501
+        max_items_per_seq_by_modality = mm_budget.mm_max_items_per_batch  # noqa: E501
 
         for mode, max_items_per_seq in max_items_per_seq_by_modality.items():
             logger.info(
@@ -1934,7 +1935,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # modality with the max possible input tokens even when
                     # it supports multiple.
                     dummy_modality = mm_budget.get_modality_with_max_tokens()
-                    max_mm_items_per_batch = mm_budget.max_items_per_batch_by_modality[
+                    max_mm_items_per_batch = mm_budget.mm_max_items_per_batch[
                         dummy_modality
                     ]
 
@@ -2396,17 +2397,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Dummy data for profiling and precompiling multimodal models."""
         assert self.mm_budget is not None
 
-        dummy_decoder_data = self.mm_registry.get_decoder_dummy_data(
+        dummy_mm_inputs = self.mm_registry.get_dummy_mm_inputs(
             model_config=self.model_config,
-            seq_len=self.max_num_tokens,
             mm_counts={modality: 1},
             cache=self.mm_budget.cache,
         )
-        dummy_mm_data = dummy_decoder_data.multi_modal_data
 
         # Result in the maximum GPU consumption of the model
-        dummy_mm_item = dummy_mm_data[modality][0]
-        dummy_mm_items = [dummy_mm_item] * max_items_per_batch
+        dummy_mm_item = dummy_mm_inputs["mm_kwargs"][modality][0]
+        dummy_mm_items = [(modality, dummy_mm_item)] * max_items_per_batch
 
         return next(
             grouped_mm_kwargs
