@@ -70,7 +70,9 @@ def torch_pass_pipeline(
         tuple(example_inputs),
         strict=False,
     )
+    program.graph.print_tabular()
     program = program.run_decompositions(decompositions)
+    program.graph.print_tabular()
 
     compiled_graph = program.module()
     # When torch.compile traces a model, it flattens the module hierarchy and
@@ -271,6 +273,7 @@ def fw_compiler(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ):
+    logger.info(f"fw_compiler input graph:\n{gm.graph}")
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
