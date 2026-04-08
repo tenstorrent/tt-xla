@@ -24,7 +24,8 @@ It is organized in two phases:
 2. For PyTorch models: Python env has `torch`, `transformers`
 3. For JAX models: Python env has `jax`, `flax`, `easydel`, `transformers`
 4. Know the model's HuggingFace ID or have the custom source code + weights
-5. For models whose weights are fetched via `get_file()` (custom/non-HuggingFace weights), set the IRD cache to avoid download timeouts:
+5. If the original model has extra dependencies (e.g., `mmdet`, `mmcv`, `det3d`), install them in a **separate venv** — do not pollute the tt-xla venv. Use the separate venv only for extracting/understanding the model; the rewritten `model.py` must depend only on standard PyTorch ops.
+6. For models whose weights are fetched via `get_file()` (custom/non-HuggingFace weights), set the IRD cache to avoid download timeouts:
    ```bash
    export IRD_LF_CACHE=http://aus2-lfcache.aus2.tenstorrent.com/
    ```
@@ -346,14 +347,32 @@ files that serve as permanent tests (e.g., op-specific regression tests).
 ## B1. Ensure TT Compatibility
 
 Before registering the model in the test suite, audit the `nn.Module` for ops that won't
-trace through XLA / StableHLO / tt-mlir. The model code in `src/model.py` (if custom) must:
+trace through XLA / StableHLO / tt-mlir. Split the model at the boundary of what TT can run:
+- **CPU side:** preprocessing (tokenization, image normalization, voxelization), dynamic ops, NMS / postprocessing
+- **TT side:** the neural network backbone / neck / head with static shapes
+
+The model code in `src/model.py` (if custom) must:
 
 - Use **fully static tensor shapes** — no data-dependent dimensions
 - Avoid **in-place scatter** (`tensor[:, idx] = val`) — use functional alternatives
 - Avoid **data-dependent control flow** (`if tensor.item() > x`) — restructure as `torch.where`
-- Replace unsupported pooling/conv variants if the compiler doesn't handle them
-- Keep preprocessing (tokenization, image normalization, voxelization) and postprocessing
-  (NMS, decoding) **outside** the traced module — those run on CPU
+- Replace unsupported pooling/conv variants (see known limitations table below)
+- Keep preprocessing and postprocessing **outside** the traced module — those run on CPU
+
+### Known tt-mlir Limitations
+
+These ops are known to fail or produce incorrect results at the compiler/runtime level.
+Proactively replace them during the model rewrite step:
+
+| Op / Pattern | Issue | Workaround |
+|---|---|---|
+| `MaxPool3d` | No bfloat16 support in tt-mlir | Replace with stride-2 `Conv3d` |
+| `ConvTranspose3d` (lhs_dilation) | Incorrect result in tt-mlir | `F.interpolate` + `Conv3d(1×1×1)` |
+| `Conv2d` with large dilation (e.g., dilation=18, 512→512ch) | DRAM Auto slice fatal | Needs compiler fix; avoid large dilation or reduce spatial dims |
+| `Conv3d` with large out_channels (e.g., 1280) | L1 static circular buffer overflow | Needs compiler fix |
+| Dynamic token / spatial shapes | Shardy requires fully static shapes | Fix all shapes to be static constants |
+| Models exceeding single-chip DRAM | Out of memory | Requires multi-chip sharding (see `tt-multi-chip` skill) |
+| `F.grid_sample` with large index tensors | TTNN tiling pads trailing dims → massive memory blowup | May need decomposition or compiler fix |
 
 ## B2. Register in Test Config
 
@@ -488,6 +507,20 @@ When the TT run fails, the error message usually points to one of these categori
 - Check whether any op replacements (e.g., MaxPool → Conv) changed semantics
 - Some architectures have inherently lower PCC on certain hardware — use `required_pcc` to relax
 - Per-arch differences can be handled with `arch_overrides` in the YAML
+- Max absolute error consistent with bfloat16 rounding is ~5e-4; larger deltas indicate a real problem
+
+### Common Runtime Error Reference
+
+| Error Message | Cause | Fix |
+|---|---|---|
+| `Bad StatusOr access: INTERNAL: Error code: 13` | Compilation/runtime error in tt-mlir | Check tt-mlir logs; simplify or replace the failing op |
+| `Input type (float) and bias type (BFloat16)` | Input dtype mismatch on TT device | Cast all inputs to bfloat16 before sending to TT |
+| `Statically allocated circular buffers grow to X B` | L1 SRAM overflow | Reduce channel counts, batch size, or spatial dimensions |
+| `Not enough space to allocate X B DRAM buffer across N banks` | DRAM overflow | Model too large for single chip; use multi-chip or reduce model size |
+| `DRAM Auto slice could not find valid slice configuration` | Large dilated conv can't be sliced | Avoid large dilation values or reduce spatial dims |
+| `Shardy propagation only supports ranked tensors with a static shape` | Dynamic shape detected | Fix all input/intermediate shapes to be fully static |
+| `TT_FATAL ... ToDeviceOp` | Tensor too large after TTNN tiling | Check for padding blowup on small trailing dimensions (see B1 limitations) |
+| PCC < 0.99 but no crash | Numerical divergence | Check op replacements that changed semantics; verify bfloat16 ground truth |
 
 ## B5. Confirm Passing or Downgrade to XFAIL
 
