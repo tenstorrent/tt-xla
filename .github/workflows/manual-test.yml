@@ -48,7 +48,7 @@ on:
         type: boolean
         default: false
       torchxla_build_run_id:
-        description: 'Optional GitHub Actions run ID to download xla-torch-wheel-release from and install over the default wheels'
+        description: 'Manual torch-xla build run ID'
         required: false
         type: string
         default: ''

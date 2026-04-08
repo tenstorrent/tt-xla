@@ -39,7 +39,7 @@ on:
         default: false
         type: boolean
       torchxla_build_run_id:
-        description: 'Optional workflow run ID whose artifacts include xla-torch-wheel-release to install over the downloaded wheels'
+        description: 'Manual torch-xla build run ID'
         required: false
         type: string
         default: ''
