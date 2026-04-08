@@ -298,17 +298,11 @@ class CMakeBuildPy(build_py):
 
         code_coverage = "OFF"
         enable_explorer = "OFF"
-        enable_emitpy_execution = "ON"
 
         if config.build_type == "codecov":
             code_coverage = "ON"
         if config.enable_explorer:
             enable_explorer = "ON"
-        if self.in_ci():
-            # The manylinux wheel doesn't run EmitPy execution on CI and should
-            # avoid depending on the embedded-Python runner and its non-portable
-            # transitive ABI surface.
-            enable_emitpy_execution = "OFF"
 
         cmake_args = [
             "-G",
@@ -319,7 +313,6 @@ class CMakeBuildPy(build_py):
             "-DTTXLA_ENABLE_TOOLS=" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
-            "-DTTXLA_ENABLE_EMITPY_EXECUTION=" + enable_emitpy_execution,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
             "-DTT_USE_SYSTEM_SFPI=ON",
         ]
@@ -398,7 +391,7 @@ class CMakeBuildPy(build_py):
         """
         Add any missing shared library dependencies to the install directory.
         """
-        libs = ["libatomic.so.1", "libfmt.so.11", "libfmtd.so.11"]
+        libs = ["libatomic.so.1"]
 
         # Determine the correct lib directory
         lib_dir = (
@@ -406,17 +399,13 @@ class CMakeBuildPy(build_py):
             if (install_dir / "lib").exists()
             else install_dir / "lib64"
         )
-
         ld_search_path = ["/lib", "/usr/lib", "/lib64", "/usr/lib64"]
         ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
         if ld_library_path:
             ld_search_path.extend(ld_library_path.split(":"))
-        repo_search_paths = [
-            REPO_DIR / "third_party" / "tt-mlir" / "install",
-            REPO_DIR / "third_party" / "tt-mlir" / "src" / "tt-mlir",
-        ]
 
         for lib in libs:
+            # Try to find the library in ld_search_path
             lib_path = None
             for path in ld_search_path:
                 candidate = Path(path) / lib
@@ -424,23 +413,13 @@ class CMakeBuildPy(build_py):
                     lib_path = candidate
                     break
 
-            if lib_path is None:
-                for repo_path in repo_search_paths:
-                    for candidate in repo_path.rglob(lib):
-                        if candidate.exists() and candidate.is_file():
-                            lib_path = candidate
-                            break
-                    if lib_path is not None:
-                        break
-
-            if lib_path is None:
+            if lib_path:
+                print(f"Copying {lib} from {lib_path} to {lib_dir}")
+                shutil.copy2(lib_path, lib_dir / lib)
+            else:
                 print(
-                    f"Warning: {lib} not found in standard library paths, LD_LIBRARY_PATH, or repo dependencies"
+                    f"Warning: {lib} not found in standard library paths or LD_LIBRARY_PATH"
                 )
-                continue
-
-            print(f"Copying {lib} from {lib_path} to {lib_dir}")
-            shutil.copy2(lib_path, lib_dir / lib)
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
