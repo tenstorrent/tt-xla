@@ -22,6 +22,7 @@ from transformers.models.glm.modeling_glm import GlmAttention
 from transformers.models.glm.modeling_glm import (
     eager_attention_forward as glm_eager_attention_forward,
 )
+from transformers.models.glm_moe_dsa.modeling_glm_moe_dsa import GlmMoeDsaAttention
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssAttention
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
@@ -89,7 +90,8 @@ MODEL_LOADER_MAP = {
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
     "gpt_oss": GPTOSSModelLoader,
-    "glm": GLMModelLoader,
+    "glm_4": GLMModelLoader,
+    "glm_5": GLMModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
@@ -131,7 +133,8 @@ AVAILABLE_VARIANT_MAP = {
         "Ministral_8B_Instruct",
     ],
     "gpt_oss": ["20B", "120B"],
-    "glm": ["4.7", "4.5", "4.5_Air"],
+    "glm_4": ["4.7", "4.5", "4.5_Air"],
+    "glm_5": ["5", "5.1"],
 }
 
 
@@ -2478,10 +2481,10 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
-    get_available_variants("glm").items(),
-    ids=[str(k) for k in get_available_variants("glm").keys()],
+    get_available_variants("glm_4").items(),
+    ids=[str(k) for k in get_available_variants("glm_4").keys()],
 )
-def test_glm_attention_prefill(seq_len, variant, variant_config):
+def test_glm_4_attention_prefill(seq_len, variant, variant_config):
     xr.set_device_type("TT")
 
     loader = GLMModelLoader(variant=variant)
@@ -2534,10 +2537,10 @@ def test_glm_attention_prefill(seq_len, variant, variant_config):
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
-    get_available_variants("glm").items(),
-    ids=[str(k) for k in get_available_variants("glm").keys()],
+    get_available_variants("glm_4").items(),
+    ids=[str(k) for k in get_available_variants("glm_4").keys()],
 )
-def test_glm_attention_decode(variant, variant_config, arch):
+def test_glm_4_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = GLMModelLoader(variant=variant)
@@ -2613,10 +2616,10 @@ def test_glm_attention_decode(variant, variant_config, arch):
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
-    get_available_variants("glm").items(),
-    ids=[str(k) for k in get_available_variants("glm").keys()],
+    get_available_variants("glm_4").items(),
+    ids=[str(k) for k in get_available_variants("glm_4").keys()],
 )
-def test_glm_attention(seq_len, variant, variant_config, arch):
+def test_glm_4_attention(seq_len, variant, variant_config, arch):
     xr.set_device_type("TT")
 
     def sdpa(
@@ -2698,6 +2701,72 @@ def test_glm_attention(seq_len, variant, variant_config, arch):
             dropout,
             scaling,
         ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@parametrize_arch(["galaxy"])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm_5").items(),
+    ids=[str(k) for k in get_available_variants("glm_5").keys()],
+)
+def test_glm_5_attention_prefill(variant, variant_config, arch):
+    xr.set_device_type("TT")
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    config._attn_implementation = "sdpa"
+    attention = GlmMoeDsaAttention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 1
+    seq_len = 128
+    rope_dim = config.qk_rope_head_dim
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    cos_sin = torch.rand(batch_size, seq_len, rope_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh_shape = (4, num_devices // 4)
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(attention, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = (None, None, "batch")
+        shard_specs[attention.q_a_proj.weight] = (None, "batch")  # [6144, 2048]
+        # q_a_layernorm: [2048]
+        shard_specs[attention.q_b_proj.weight] = (
+            "model",
+            None,
+        )  # colwise [2048, 16384]
+        shard_specs[attention.kv_a_proj_with_mqa.weight] = (
+            None,
+            "batch",
+        )  # needs to be mla_kv_a_proj [6144, 576]
+        shard_specs[attention.kv_b_proj.weight] = (
+            "model",
+            None,
+        )  # colwise [512, 28672]
+        shard_specs[attention.o_proj.weight] = (
+            "batch",
+            "model",
+        )  # rowwise [16384, 6144]
+
+        # TODO(@ddilbazTT): Add shard specs for indexer
+        return shard_specs
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
