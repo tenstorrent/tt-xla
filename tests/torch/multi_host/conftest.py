@@ -170,8 +170,6 @@ def setup_distributed_env():
         topology: Name of the topology from TOPOLOGIES dict
         script_dir: Directory containing the remote_docker.sh script
     """
-    original_values = {}
-
     def _setup(topology: str, script_dir: Path):
         """Configure environment for specified topology."""
         if topology not in TOPOLOGIES:
@@ -204,7 +202,6 @@ def setup_distributed_env():
             )
         # Set environment variables
         for key, value in env_vars.items():
-            original_values[key] = os.environ.get(key)
             os.environ[key] = value
 
         logger.info(
@@ -215,11 +212,4 @@ def setup_distributed_env():
 
         return topo
 
-    yield _setup
-
-    # Cleanup: restore original values or unset
-    for key, original_value in original_values.items():
-        if original_value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = original_value
+    return _setup
