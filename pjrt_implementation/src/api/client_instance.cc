@@ -15,7 +15,6 @@
 #include <filesystem>
 #include <map>
 #include <optional>
-#include <string>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
@@ -898,51 +897,14 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                 .release();
   }
 
-  const std::int64_t *effective_dims = args->dims;
-  size_t effective_num_dims = args->num_dims;
-  const std::int64_t *effective_byte_strides = args->byte_strides;
-  size_t effective_num_byte_strides = args->num_byte_strides;
-
-  if (args->num_dims > 0 && args->num_byte_strides > 0 &&
-      args->num_byte_strides == args->num_dims &&
-      args->byte_strides[args->num_byte_strides - 1] == -1) {
-    const std::int64_t logical_id = args->dims[args->num_dims - 1];
-    LOG_F(INFO, "logical id: %lld", static_cast<long long>(logical_id));
-    effective_num_dims = args->num_dims - 1;
-    effective_num_byte_strides = args->num_byte_strides - 1;
-  }
-
   std::unique_ptr<BufferInstance> buffer =
-      BufferInstance::createInputBufferInstance(args->type, effective_dims,
-                                                effective_num_dims, device_instance,
+      BufferInstance::createInputBufferInstance(args->type, args->dims,
+                                                args->num_dims, device_instance,
                                                 memory_instance);
 
-  std::string shape_str;
-  for (size_t i = 0; i < effective_num_dims; ++i) {
-    if (i > 0) {
-      shape_str += ",";
-    }
-    shape_str += std::to_string(effective_dims[i]);
-  }
-  std::string stride_str;
-  if (effective_num_byte_strides == 0) {
-    stride_str = "implicit";
-  } else {
-    for (size_t i = 0; i < effective_num_byte_strides; ++i) {
-      if (i > 0) {
-        stride_str += ",";
-      }
-      stride_str += std::to_string(effective_byte_strides[i]);
-    }
-  }
-  LOG_F(INFO,
-        "BufferFromHostBuffer: buffer_uid=%llu shape=[%s] stride=[%s]",
-        static_cast<unsigned long long>(buffer->getUID()), shape_str.c_str(),
-        stride_str.c_str());
-
   buffer->copyFromHost(
-      args->data, args->type, effective_dims, effective_num_dims,
-      effective_byte_strides, effective_num_byte_strides, args->host_buffer_semantics,
+      args->data, args->type, args->dims, args->num_dims, args->byte_strides,
+      args->num_byte_strides, args->host_buffer_semantics,
       reinterpret_cast<EventInstance **>(&args->done_with_host_buffer));
 
   // Releasing the ownership to the PJRT API caller since the caller is
