@@ -46,7 +46,7 @@ artifacts/
 tests/benchmark/reference_outputs/*.refpt
 
 # Perf benchmark generated modules
-.modules/
+/modules/
 
 # Tracy profiling files
-.tracy_artifacts/
+/tracy_artifacts/
