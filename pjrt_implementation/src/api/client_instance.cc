@@ -50,10 +50,10 @@ static std::string getRankBindingPath(const std::string &metal_home) {
        "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
       {"quad_galaxy",
        "tests/tt_metal/distributed/config/quad_galaxy_rank_bindings.yaml"},
-       {"dual_exabox_galaxy",
-        "tests/tt_metal/distributed/config/16x4_dual_bh_galaxy_rank_bindings.yaml"},
-       {"quad_exabox_galaxy",
-        "tests/tt_metal/distributed/config/32x4_quad_bh_galaxy_rank_bindings.yaml"},
+      {"dual_exabox_galaxy", "tests/tt_metal/distributed/config/"
+                             "16x4_dual_bh_galaxy_rank_bindings.yaml"},
+      {"quad_exabox_galaxy", "tests/tt_metal/distributed/config/"
+                             "32x4_quad_bh_galaxy_rank_bindings.yaml"},
   };
 
   const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
@@ -192,7 +192,7 @@ static tt_pjrt_status launchDistributedRuntime() {
   if (rank_file_path) {
     distributed_options.multiProcessArgs->withRankFilePath(rank_file_path);
   }
-  
+
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
   tt::runtime::launchDistributedRuntime(distributed_options);
 
