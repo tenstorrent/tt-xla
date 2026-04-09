@@ -62,7 +62,11 @@ class XlaMergedColumnParallelLinear(nn.Module):
         self, merged_column_parallel_linear: nn.Module
     ):
         # The weight is a concatenation of all output weights along the output dimension
-        merged_column_parallel_weight = merged_column_parallel_linear.weight.data.cpu()
+        # Keep the tensor on its current device. In vLLM 0.17 the model may
+        # already be on XLA when we wrap it for tensor parallelism, and forcing
+        # a CPU copy here materializes the full sharded weight via
+        # ReplicateShardedData before we immediately move the slices back to XLA.
+        merged_column_parallel_weight = merged_column_parallel_linear.weight.detach()
 
         start_idx = 0
         for i, output_size in enumerate(self.output_sizes):
@@ -154,7 +158,11 @@ class XlaQKVParallelLinear(nn.Module):
         q_proj_size, k_proj_size, _ = qkv_linear.output_sizes
         # The weight of qkv linear is a concatenation of q, k, and v weights
         # along the output dimension.
-        qkv_weight = qkv_linear.weight.data.cpu()
+        # Keep the tensor on its current device. In vLLM 0.17 the model may
+        # already be on XLA when we wrap it for tensor parallelism, and forcing
+        # a CPU copy here materializes the full sharded weight via
+        # ReplicateShardedData before we immediately move the slices back to XLA.
+        qkv_weight = qkv_linear.weight.detach()
         q_weight = Parameter(qkv_weight[:q_proj_size], requires_grad=False)
         k_weight = Parameter(
             qkv_weight[q_proj_size : q_proj_size + k_proj_size], requires_grad=False
