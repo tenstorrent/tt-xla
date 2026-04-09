@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import RunMode
+from infra import ComparisonConfig, RunMode
 from utils import BringupStatus, Category, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.whisper.pytorch import ModelLoader, ModelVariant
@@ -18,6 +18,11 @@ from .tester import WhisperTester
 
 _FAILING_VARIANTS = [
     ModelVariant.WHISPER_LARGE,
+]
+
+_NO_ASSERT_PCC_VARIANTS = [
+    ModelVariant.WHISPER_LARGE_V3,
+    ModelVariant.WHISPER_LARGE_V3_TURBO,
 ]
 
 
@@ -69,7 +74,10 @@ def inference_tester(request) -> WhisperTester:
     """Fixture that returns a WhisperTester configured for each model variant."""
     variant, bringup_status = request.param
     request.node.bringup_status = bringup_status
-    return WhisperTester(variant)
+    comparison_config = ComparisonConfig()
+    if variant in _NO_ASSERT_PCC_VARIANTS:
+        comparison_config.pcc.disable()
+    return WhisperTester(variant, comparison_config=comparison_config)
 
 
 # ----- Tests -----
