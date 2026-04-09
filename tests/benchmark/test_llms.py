@@ -58,6 +58,9 @@ def test_llm(
     accuracy_testing: bool = False,
     max_output_tokens=None,
     decode_only: bool = False,
+    inject_custom_moe: bool = False,
+    cluster_axis: int = 0,
+    weight_dtype_overrides: dict = None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -77,6 +80,8 @@ def test_llm(
         required_pcc: Required PCC threshold
         num_layers: Number of layers to override
         accuracy_testing: Enable token accuracy testing with reference data
+        inject_custom_moe: Whether to inject custom MoE logic for models that support it (e.g. GPT-OSS)
+        cluster_axis: Mesh axis for MoE dispatch/combine (0=batch, 1=model)
     """
     # Set default batch size if None
     if batch_size is None:
@@ -148,6 +153,9 @@ def test_llm(
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        inject_custom_moe=inject_custom_moe,
+        cluster_axis=cluster_axis,
+        weight_dtype_overrides=weight_dtype_overrides,
     )
 
     if output_file:
@@ -1626,4 +1634,81 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         arch="wormhole_galaxy",
         optimization_level=1,
         trace_enabled=False,
+    )
+
+
+def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
+    return (1, 4), ("batch", "model")
+
+
+def _gpt_oss_120b_qb2_shard_spec_fn(model_loader, model):
+    """QB2 (1,4) mesh shard specs — model-axis-only, no batch sharding.
+
+    After inject_custom_moe, MLP layers are A2aSparseMLP instances, so expert
+    weights need (("batch", "model"), None, None) sharding for sparse dispatch.
+    """
+    from tt_torch.sparse_mlp import A2aSparseMLP
+
+    shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = (None,)
+
+        if isinstance(layer.mlp, A2aSparseMLP):
+            expert_e_shard = (("batch", "model"), None, None)
+            expert_e_bias_shard = (("batch", "model"), None)
+        else:
+            expert_e_shard = ("model", None, None)
+            expert_e_bias_shard = ("model", None)
+        shard_specs[layer.mlp.experts.gate_up_proj] = expert_e_shard
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = expert_e_bias_shard
+        shard_specs[layer.mlp.experts.down_proj] = expert_e_shard
+        shard_specs[layer.mlp.experts.down_proj_bias] = expert_e_bias_shard
+    return shard_specs
+
+
+def test_gpt_oss_120b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=batch_size if batch_size is not None else 8,
+        arch="blackhole_qb2",
+        optimization_level=1,
+        trace_enabled=False,
+        inject_custom_moe=True,
+        cluster_axis=1,
+        experimental_weight_dtype="",  # Disable global; per-tensor overrides handle bf8+bf4 mixed precision
+        weight_dtype_overrides={
+            "default": "bfp_bf8",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
+        mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
     )

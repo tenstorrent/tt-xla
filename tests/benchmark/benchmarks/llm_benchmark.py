@@ -24,6 +24,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenize
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.sparse_mlp import enable_sparse_mlp
 from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from utils import (
     build_xla_export_name,
@@ -218,6 +219,9 @@ def benchmark_llm_torch_xla(
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
     decode_only: bool = False,
+    inject_custom_moe: bool = False,
+    cluster_axis: int = 0,
+    weight_dtype_overrides: dict = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -369,8 +373,10 @@ def benchmark_llm_torch_xla(
     # Shard model if shard spec function is provided
     mesh = None
     if is_multichip:
-        shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
+        if inject_custom_moe:
+            enable_sparse_mlp(model, mesh.mesh_shape, cluster_axis=cluster_axis)
+        shard_specs = shard_spec_fn(model_loader, model)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
@@ -408,13 +414,18 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
-    # Apply per-tensor weight dtype overrides from model's weight_dtype_configs JSON.
-    weight_dtype_config = model_loader.get_weight_dtype_config_path()
-    if weight_dtype_config:
-        applied = apply_weight_dtype_overrides(model, weight_dtype_config)
-        logger.info(
-            f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
-        )
+    # Apply per-tensor weight dtype overrides.
+    # Explicit overrides dict takes priority; falls back to model's JSON config.
+    if weight_dtype_overrides:
+        applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
+        logger.info(f"Applied {len(applied)} weight dtype overrides from test config")
+    else:
+        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        if weight_dtype_config:
+            applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+            logger.info(
+                f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+            )
     # PERFORMANCE BENCHMARK
     # No logits returned to avoid OOM.
     perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
