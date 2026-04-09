@@ -103,6 +103,12 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         controller_host_name="f10cs03",
         hosts_file="/etc/mpirun/hostfile",
     ),
+    "dual_bh_loudbox_1x16": MultihostConfiguration(
+        rank_binding="dual_bh_loudbox_1x16",
+        controller_host_name="bh-lb-12",
+        hosts_list="bh-lb-12,bh-lb-13",
+        tt_distributed_tcp_iface="",
+    ),
 }
 
 
