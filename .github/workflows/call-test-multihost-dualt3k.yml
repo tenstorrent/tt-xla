@@ -191,8 +191,16 @@ jobs:
     - name: Run tests
       timeout-minutes: 60
       shell: bash
+      env:
+        HF_HOME: /mnt/dockercache/huggingface
+        TORCH_HOME: /mnt/dockercache/torchhub
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
-        docker exec ubuntu-host-mapped bash -c '
+        docker exec \
+          -e HF_HOME="$HF_HOME" \
+          -e TORCH_HOME="$TORCH_HOME" \
+          -e HF_TOKEN="$HF_TOKEN" \
+          ubuntu-host-mapped bash -c '
           cd /workspace
           source venv/activate
 
@@ -203,7 +211,7 @@ jobs:
 
           pytest -svv \
             tests/torch/multi_host/experimental/test_multihost_basic.py \
-            tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference] \
+            tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-120B-tensor_parallel-inference] \
             -k "dual_galaxy or test_all_models_torch" \
             --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
             2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
