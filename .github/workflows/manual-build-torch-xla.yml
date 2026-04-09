@@ -1,5 +1,7 @@
 name: Manual Build Torch-XLA
 
+run-name: Build Torch-XLA wheel (${{ inputs.branch }}, ${{ inputs.build_type }})
+
 on:
   workflow_dispatch:
     inputs:
