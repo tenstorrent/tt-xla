@@ -52,6 +52,11 @@ on:
         required: false
         type: string
         default: ''
+      ttxla_build_run_id:
+        description: 'Run ID of a previous workflow that already contains the tt-xla wheel artifact(s). When provided, the build steps are skipped and the wheel is sourced from that run.'
+        required: false
+        type: string
+        default: '24212607038'
 
 permissions:
   actions: write
@@ -70,6 +75,7 @@ jobs:
       dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
   build-ttxla:
+    if: ${{ inputs.ttxla_build_run_id == '' }}
     needs: build-image
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
@@ -88,8 +94,8 @@ jobs:
       test_suite: ${{ inputs.test_suite }}
       test_suite_custom: ${{ inputs.test_suite_custom }}
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_release_run_id: ${{ inputs.ttxla_build_run_id != '' && inputs.ttxla_build_run_id || (inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id) }}
+      artifact_suffix: ${{ inputs.ttxla_build_run_id == '' && needs.build-ttxla.outputs.artifact_suffix || '' }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
 
@@ -100,5 +106,5 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_release_run_id: ${{ inputs.ttxla_build_run_id != '' && inputs.ttxla_build_run_id || needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ inputs.ttxla_build_run_id == '' && needs.build-ttxla.outputs.artifact_suffix || '' }}
