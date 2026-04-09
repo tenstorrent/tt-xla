@@ -546,7 +546,7 @@ test_config:
   detr3d/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-    reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1330944 B"
+    reason: "Out of Memory: Not enough space to allocate 8589934592 B DRAM buffer across 8 banks, where each bank needs to store 1073741824 B, but bank size is 4273390016 B"
   # yolov8/pytorch-yolov8n-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
@@ -837,8 +837,8 @@ test_config:
     markers: [notimeout]
   resnet/pytorch-ResNet50_HuggingFace_High_Resolution-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is only 1073741792 B"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   resnet/pytorch-ResNet50_TIMM-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1283,7 +1283,7 @@ test_config:
   monodepth2/pytorch-Stereo_No_Pt_640x192-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
+    reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   monodepth2/pytorch-Mono+stereo_No_Pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1385,7 +1385,7 @@ test_config:
   unet_for_conditional_generation/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 125829120 B DRAM buffer across 12 banks, where each bank needs to store 10485760 B"
+    reason: "Out of Memory: Not enough space to allocate 6710886400 B DRAM buffer across 8 banks, where each bank needs to store 838860800 B"
     markers: [large]
   whisper/pytorch-Tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
