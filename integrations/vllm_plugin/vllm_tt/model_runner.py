@@ -637,6 +637,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 output_token_ids=[],
                 lora_request=new_req_data.lora_request,
             )
+
             if sampling_params and sampling_params.prompt_logprobs is not None:
                 self.num_prompt_logprobs[req_id] = (
                     self.input_batch.vocab_size
@@ -1038,11 +1039,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 np.min(self.input_batch.num_computed_tokens_cpu[:num_reqs])
             )
             prefill_block_offset = min_computed // self.block_size
-        fill_page_table = torch.roll(page_table, shifts=-prefill_block_offset, dims=1)
+        if prefill_block_offset > 0:
+            fill_page_table = torch.roll(
+                page_table, shifts=-prefill_block_offset, dims=1
+            )
+        else:
+            fill_page_table = page_table
 
         cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
-        fill_page_table = fill_page_table.to(self.device)
+        fill_page_table = (
+            fill_page_table.to(self.device)
+            if fill_page_table is not page_table
+            else page_table
+        )
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1069,7 +1079,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Per-user last-token index within each padded slot.
         logits_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32)
         logits_indices[: len(num_scheduled_tokens_per_req)] = (
-            torch.from_numpy(num_scheduled_tokens_per_req).to(torch.int32) - 1
+            torch.from_numpy(num_scheduled_tokens_per_req) - 1
         )
         logits_indices = logits_indices.to(self.device)
 

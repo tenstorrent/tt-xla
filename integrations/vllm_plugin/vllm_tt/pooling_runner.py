@@ -1088,7 +1088,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Per-user last-token index within each padded slot.
         logits_indices = torch.zeros(padded_num_reqs, dtype=torch.int32)
         logits_indices[: len(num_scheduled_tokens_per_req)] = (
-            torch.from_numpy(num_scheduled_tokens_per_req).to(torch.int32) - 1
+            torch.from_numpy(num_scheduled_tokens_per_req) - 1
         )
         logits_indices = logits_indices.to(self.device)
 
