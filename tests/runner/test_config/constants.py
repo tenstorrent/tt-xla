@@ -34,8 +34,6 @@ ALLOWED_FIELDS = {
     "enable_weight_bfp8_conversion",
     # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
     "inject_custom_moe",
-    # EmitPy verification: assert exact match between emitpy and flatbuffer results
-    "emitpy_assert_exact",
 }
 
 # Single source of truth for the placeholders YAML filename
