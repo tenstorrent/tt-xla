@@ -271,7 +271,7 @@ jobs:
           -e DOCKER_IMAGE="$DOCKER_IMAGE" \
           -e WORKSPACE_PATH="${{ github.workspace }}" \
           ubuntu-host-mapped bash -c '
-          mpirun --hostfile /etc/mpirun/hostfile \
+          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
             --tag-output \
@@ -552,7 +552,7 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
-          mpirun --hostfile /etc/mpirun/hostfile \
+          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
             --tag-output \
