@@ -1027,6 +1027,123 @@ def test_deepseek_v3_1_layer_sparse_moe(batch_size, seq_len):
     )
 
 
+def _build_moe_block_with_real_weights(repo_id, batch_size=32, seq_len=32):
+    """Helper: create a MoE block with real weights for component testing."""
+    args = load_deepseek_config(repo_id)
+    args.n_layers = args.n_dense_layers + 1
+    args.max_batch_size = batch_size
+    args.max_seq_len = seq_len * 2
+
+    model = ModifiedTransformer(args)
+    load_deepseek_weights(
+        model,
+        repo_id=repo_id,
+        n_layers=args.n_layers,
+        n_dense_layers=args.n_dense_layers,
+    )
+    model = model.to(torch.bfloat16)
+    block = model.layers[args.n_dense_layers]  # first MoE layer
+    return model, block, args
+
+
+@pytest.mark.llmbox
+def test_deepseek_v3_1_attention():
+    """Test V3.1 MLA attention with real weights — should pass."""
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    batch_size, seq_len = 32, 32
+    model, block, args = _build_moe_block_with_real_weights(
+        DEEPSEEK_V3_1_REPO, batch_size, seq_len
+    )
+    freqs_cis = model.freqs_cis[:seq_len]
+    attn = block.attn
+    attn.eval()
+
+    hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
+    mask = torch.full((seq_len, seq_len), float("-inf"), dtype=torch.bfloat16).triu_(1)
+
+    mesh_shape = (4, 8)
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+
+    def get_shard_spec(attn, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
+        shard_specs[attn.wq_b.weight] = ("_axis_0", None)
+        shard_specs[attn.wkv_b.weight] = ("_axis_0", None)
+        shard_specs[attn.wo.weight] = (None, "_axis_0")
+        shard_specs[attn.wq_a.weight] = (None, "_axis_0")
+        shard_specs[attn.wkv_a.weight] = (None, "_axis_0")
+        shard_specs[attn.kv_cache] = ("_axis_1", None, None)
+        shard_specs[attn.pe_cache] = ("_axis_1", None, None)
+        return shard_specs
+
+    run_graph_test(
+        attn,
+        [hidden_states, 0, freqs_cis, mask],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=ComparisonConfig(
+            pcc=PccConfig(enabled=True, required_pcc=0.95)
+        ),
+    )
+
+
+@pytest.mark.llmbox
+def test_deepseek_v3_1_moe_ffn():
+    """Test V3.1 MoE FFN (A2aSparseMLPWithSharedExperts) with real weights — isolates MoE PCC."""
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    batch_size, seq_len = 32, 32
+    _, block, args = _build_moe_block_with_real_weights(
+        DEEPSEEK_V3_1_REPO, batch_size, seq_len
+    )
+
+    mesh_shape = (4, 8)
+    enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
+    ffn = block.ffn
+    ffn.eval()
+
+    hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+
+    def get_shard_spec(ffn, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
+        mlp = ffn.mlp if hasattr(ffn, "mlp") else ffn
+        shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
+        shard_specs[mlp.experts.gate_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.up_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.down_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shared = getattr(ffn, "shared_experts", None)
+        if shared is not None:
+            shard_specs[shared.w1.weight] = (None, "_axis_0")
+            shard_specs[shared.w3.weight] = (None, "_axis_0")
+            shard_specs[shared.w2.weight] = ("_axis_0", None)
+        return shard_specs
+
+    run_graph_test(
+        ffn,
+        [hidden_states],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=ComparisonConfig(
+            pcc=PccConfig(enabled=True, required_pcc=0.95)
+        ),
+    )
+
+
 @pytest.mark.llmbox
 def test_deepseek_v3_1_full_sparse_moe():
     """Test full DeepseekV3.1 Transformer with A2aSparseMLP on (4,8) mesh."""
