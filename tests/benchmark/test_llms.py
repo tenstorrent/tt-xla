@@ -1468,7 +1468,6 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp(
     output_file,
     num_layers,
@@ -1496,11 +1495,9 @@ def test_gpt_oss_20b_tp(
         decode_only=decode_only,
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
-        trace_enabled=False,
     )
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp_batch_size_1(
     output_file,
     num_layers,
@@ -1528,7 +1525,6 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
-        trace_enabled=False,
     )
 
 
@@ -1561,7 +1557,6 @@ def test_llama_3_1_70b_tp_galaxy(
     )
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     output_file,
     num_layers,
@@ -1591,11 +1586,9 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
-        trace_enabled=False,
     )
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     output_file,
     num_layers,
@@ -1625,5 +1618,4 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
-        trace_enabled=False,
     )
