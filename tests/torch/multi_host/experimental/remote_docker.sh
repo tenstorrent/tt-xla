@@ -12,7 +12,10 @@ shift
 
 # Capture the entire remaining command as one block
 REMOTE_COMMAND="$*"
+
+# This username must, on baremetal, have keyless ssh from controller to worker
 USERNAME="ubuntu"
+
 CONTAINER_NAME="ubuntu-host-mapped"
 
 # SSH Options:
