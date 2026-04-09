@@ -229,8 +229,8 @@ jobs:
           -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
           -v /mnt/dockercache:/mnt/dockercache \
           -v /etc/mpirun:/etc/mpirun:ro \
-          -v /etc/mpirun/id_rsa_multihost_ssh_agent_sock:/ssh-agent \
-          -e SSH_AUTH_SOCK=/ssh-agent \
+          -v /etc/mpirun/id_rsa_multihost_ssh_agent_sock:/ssh-agent-sock \
+          -e SSH_AUTH_SOCK=/ssh-agent-sock \
           -v ${{ github.workspace }}:/workspace \
           -w /workspace \
           "$DOCKER_IMAGE" sleep infinity
@@ -242,9 +242,6 @@ jobs:
       run: |
         DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
 
-        # Make remote_docker.sh executable
-        docker exec ubuntu-host-mapped chmod +x \
-          /workspace/tests/torch/multi_host/experimental/remote_docker.sh
 
         # Launch containers on all hosts idempotently (controller already running, will skip)
         docker exec \
@@ -465,23 +462,23 @@ jobs:
             export TT_METAL_LOGGER_LEVEL=DEBUG
             export TT_METAL_LOGGER_TYPES=Fabric,Always
 
-            # Dual T3K distributed env vars
-            export TT_RUNTIME_ENABLE_DISTRIBUTED=1
-            export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
-            export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
-            export TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
-            export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
+            # # Dual T3K distributed env vars
+            # export TT_RUNTIME_ENABLE_DISTRIBUTED=1
+            # export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
+            # export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
+            # export TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
+            # export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
 
-            # Resolve distributed worker binary path
-            WORKER_PATH=""
-            if [ -n "$TT_PJRT_PLUGIN_DIR" ]; then
-              CANDIDATE="$TT_PJRT_PLUGIN_DIR/bin/ttmlir/runtime/distributed/worker"
-              [ -f "$CANDIDATE" ] && WORKER_PATH="$CANDIDATE"
-            fi
-            if [ -z "$WORKER_PATH" ] && [ -n "$TT_MLIR_HOME" ]; then
-              WORKER_PATH="$TT_MLIR_HOME/build/runtime/bin/distributed/worker"
-            fi
-            export TT_DISTRIBUTED_WORKER_PATH="$WORKER_PATH"
+            # # Resolve distributed worker binary path
+            # WORKER_PATH=""
+            # if [ -n "$TT_PJRT_PLUGIN_DIR" ]; then
+            #   CANDIDATE="$TT_PJRT_PLUGIN_DIR/bin/ttmlir/runtime/distributed/worker"
+            #   [ -f "$CANDIDATE" ] && WORKER_PATH="$CANDIDATE"
+            # fi
+            # if [ -z "$WORKER_PATH" ] && [ -n "$TT_MLIR_HOME" ]; then
+            #   WORKER_PATH="$TT_MLIR_HOME/build/runtime/bin/distributed/worker"
+            # fi
+            # export TT_DISTRIBUTED_WORKER_PATH="$WORKER_PATH"
 
             $FULL_PYTEST_CMD 2>&1 | tee pytest.log
           '
