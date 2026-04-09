@@ -211,6 +211,10 @@ jobs:
           fi
         fi
 
+    - name: Install Docker CLI
+      if: ${{ matrix.build.multihost }}
+      run: curl -fsSL https://get.docker.com | sh
+
     - name: Start multihost controller container
       if: ${{ matrix.build.multihost }}
       shell: bash
