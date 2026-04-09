@@ -1886,7 +1886,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             # self._precompile_mm_encoder()
-            # self._precompile_backbone()
+            self._precompile_backbone()
             # self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             return
