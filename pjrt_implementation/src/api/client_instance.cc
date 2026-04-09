@@ -902,6 +902,11 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                                                 args->num_dims, device_instance,
                                                 memory_instance);
 
+  LOG_F(INFO,
+        "BufferFromHostBuffer: shape=%s uid=%zu data=%p",
+        buffer->toShapeStr().c_str(),
+        static_cast<size_t>(buffer->getUID()), args->data);
+
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
       args->num_byte_strides, args->host_buffer_semantics,
