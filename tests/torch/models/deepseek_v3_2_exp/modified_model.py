@@ -424,9 +424,7 @@ class LayerNorm(nn.Module):
         self.bias = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
 
     def forward(self, x: torch.Tensor):
-        return F.layer_norm(
-            x.float(), (self.dim,), self.weight, self.bias, self.eps
-        ).type_as(x)
+        return F.layer_norm(x, (self.dim,), self.weight, self.bias, self.eps).type_as(x)
 
 
 def precompute_freqs_cis(args: ModelArgs) -> torch.Tensor:
@@ -846,6 +844,7 @@ class MLA(nn.Module):
                 if self.prepopulated_topk_indices is not None:
                     topk_indices = self.prepopulated_topk_indices
                 else:
+                    print("not using prepopulated indices")
                     topk_indices = self.indexer(x, qr, start_pos, freqs_cis, mask)
                 index_mask = torch.full(
                     (bsz, seqlen, seqlen), float("-inf"), device=x.device
@@ -926,7 +925,6 @@ class MLA(nn.Module):
                     x, qr, start_pos, freqs_cis, mask
                 )  # (bsz, 1, topk)
             gather_idx = topk_indices.squeeze(1)  # (bsz, topk)
-            batch_idx = torch.arange(gather_idx.size(0)).view(-1, 1)  # (bsz, 1)
 
             orig_kv_cache = self.kv_cache[
                 :bsz, :end_pos
@@ -935,13 +933,12 @@ class MLA(nn.Module):
                 :bsz, :end_pos
             ]  # (bsz, seq_len, qk_rope_head_dim)
 
-            # Extract only the indices specified by batch_idx and gather_idx
-            kv_for_attention = orig_kv_cache[
-                batch_idx, gather_idx
-            ]  # (bsz, topk, kv_lora_rank)
-            pe_for_attention = orig_pe_cache[
-                batch_idx, gather_idx
-            ]  # (bsz, topk, qk_rope_head_dim)
+            # For each batch item b and topk index k, selects orig_kv_cache[b, gather_idx[b,k], :]
+            # Equivalent to fancy indexing: orig_kv_cache[batch_idx, gather_idx]
+            kv_index = gather_idx.unsqueeze(-1).expand(-1, -1, orig_kv_cache.size(-1))
+            pe_index = gather_idx.unsqueeze(-1).expand(-1, -1, orig_pe_cache.size(-1))
+            kv_for_attention = torch.gather(orig_kv_cache, 1, kv_index)
+            pe_for_attention = torch.gather(orig_pe_cache, 1, pe_index)
         else:
             kv_for_attention = self.kv_cache[:bsz, :end_pos]
             pe_for_attention = self.pe_cache[:bsz, :end_pos]

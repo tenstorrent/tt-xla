@@ -210,7 +210,7 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
         q_lora_rank=3072,
         max_batch_size=batch_size,
         max_seq_len=prefill_seq_len * 2,
-        index_topk=prefill_seq_len // 2,
+        # index_topk=prefill_seq_len // 2,
     )
 
     model = ModifiedTransformer(args)
@@ -236,11 +236,9 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
     # Prepopulating topk_indices instead of running the indexer, since we have no
     # guarantee that the topk indices returned by it will be the same across CPU and
     # TT devices. Also, the indexer is already separately tested.
-    attention.prepopulated_topk_indices = torch.stack(
-        [torch.randperm(prefill_seq_len)[: args.index_topk] for _ in range(batch_size)]
-    ).unsqueeze(
-        1
-    )  # (batch_size, 1, index_topk)
+    # attention.prepopulated_topk_indices = torch.stack(
+    #     [torch.randperm(prefill_seq_len)[: args.index_topk] for _ in range(batch_size)]
+    # ).unsqueeze(1)  # (batch_size, 1, index_topk)
 
     # Get rotary embeddings for the current position
     freqs_cis = model.freqs_cis[start_pos : start_pos + decode_seq_len]
@@ -441,3 +439,222 @@ def test_dsa_optimized_decode_flow_compared_to_original(batch_size, prefill_seq_
     pcc = compute_pcc(test_modified_output, test_original_output)
 
     assert pcc > 0.99, f"PCC too low: {pcc}"
+
+
+def _map_hf_key_to_custom(hf_key):
+    """Map a HuggingFace checkpoint key to the corresponding modified_model.py parameter name."""
+    import re
+
+    patterns = [
+        (r"^model\.embed_tokens\.weight$", "embed.weight"),
+        (r"^model\.norm\.weight$", "norm.weight"),
+        (r"^lm_head\.weight$", "head.weight"),
+        (
+            r"^model\.layers\.(\d+)\.self_attn\.q_a_proj\.weight$",
+            r"layers.\1.attn.wq_a.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.self_attn\.q_a_layernorm\.weight$",
+            r"layers.\1.attn.q_norm.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.self_attn\.q_b_proj\.weight$",
+            r"layers.\1.attn.wq_b.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.self_attn\.kv_a_proj_with_mqa\.weight$",
+            r"layers.\1.attn.wkv_a.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.self_attn\.kv_a_layernorm\.weight$",
+            r"layers.\1.attn.kv_norm.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.self_attn\.kv_b_proj\.weight$",
+            r"layers.\1.attn.wkv_b.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.self_attn\.o_proj\.weight$",
+            r"layers.\1.attn.wo.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.input_layernorm\.weight$",
+            r"layers.\1.attn_norm.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.post_attention_layernorm\.weight$",
+            r"layers.\1.ffn_norm.weight",
+        ),
+        # Dense MLP (first n_dense_layers)
+        (r"^model\.layers\.(\d+)\.mlp\.gate_proj\.weight$", r"layers.\1.ffn.w1.weight"),
+        (r"^model\.layers\.(\d+)\.mlp\.down_proj\.weight$", r"layers.\1.ffn.w2.weight"),
+        (r"^model\.layers\.(\d+)\.mlp\.up_proj\.weight$", r"layers.\1.ffn.w3.weight"),
+        # MoE gate
+        (r"^model\.layers\.(\d+)\.mlp\.gate\.weight$", r"layers.\1.ffn.gate.weight"),
+        (
+            r"^model\.layers\.(\d+)\.mlp\.gate\.e_score_correction_bias$",
+            r"layers.\1.ffn.gate.bias",
+        ),
+        # MoE routed experts
+        (
+            r"^model\.layers\.(\d+)\.mlp\.experts\.(\d+)\.gate_proj\.weight$",
+            r"layers.\1.ffn.experts.\2.w1.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.mlp\.experts\.(\d+)\.down_proj\.weight$",
+            r"layers.\1.ffn.experts.\2.w2.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.mlp\.experts\.(\d+)\.up_proj\.weight$",
+            r"layers.\1.ffn.experts.\2.w3.weight",
+        ),
+        # MoE shared experts
+        (
+            r"^model\.layers\.(\d+)\.mlp\.shared_experts\.gate_proj\.weight$",
+            r"layers.\1.ffn.shared_experts.w1.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.mlp\.shared_experts\.down_proj\.weight$",
+            r"layers.\1.ffn.shared_experts.w2.weight",
+        ),
+        (
+            r"^model\.layers\.(\d+)\.mlp\.shared_experts\.up_proj\.weight$",
+            r"layers.\1.ffn.shared_experts.w3.weight",
+        ),
+    ]
+
+    for pattern, replacement in patterns:
+        result = re.sub(pattern, replacement, hf_key)
+        if result != hf_key:
+            return result
+
+    return None  # Key not used by this model
+
+
+def _load_hf_weights_into_model(model, model_path):
+    """
+    Load weights from HuggingFace safetensors shards into the modified_model.py Transformer.
+
+    Iterates over all shards from the index file, maps HuggingFace key names to the
+    custom naming convention, and loads with strict=False (the Indexer's weights are
+    not present in the HuggingFace checkpoint and remain randomly initialized).
+    """
+    import json
+    import os
+
+    from safetensors import safe_open
+
+    index_path = os.path.join(model_path, "model.safetensors.index.json")
+    with open(index_path) as f:
+        weight_map = json.load(f)["weight_map"]
+
+    model_state = model.state_dict()
+    custom_state = {}
+
+    for shard_file in sorted(set(weight_map.values())):
+        shard_path = os.path.join(model_path, shard_file)
+        with safe_open(shard_path, framework="pt", device="cpu") as f:
+            for hf_key in f.keys():
+                custom_key = _map_hf_key_to_custom(hf_key)
+                if custom_key is None or custom_key not in model_state:
+                    continue
+                tensor = f.get_tensor(hf_key)
+                # Cast to match the dtype the model parameter was initialized with
+                target_dtype = model_state[custom_key].dtype
+                custom_state[custom_key] = tensor.to(target_dtype)
+
+    missing, _ = model.load_state_dict(custom_state, strict=False)
+
+    non_indexer_missing = [k for k in missing if "indexer" not in k]
+    assert (
+        not non_indexer_missing
+    ), f"Unexpected missing keys after weight loading: {non_indexer_missing}"
+
+
+def test_run_modified_model_e2e():
+    """
+    End-to-end test that downloads real DeepSeek V3.2 weights from HuggingFace,
+    loads them into the modified Transformer, and runs a prefill step followed
+    by a single decode step on TT hardware.
+
+    The Indexer component (DSA-specific) is disabled here because its weights are
+    not present in the HuggingFace checkpoint.
+    """
+    from huggingface_hub import snapshot_download
+    from transformers import AutoConfig, AutoTokenizer
+
+    MODEL_NAME = "deepseek-ai/DeepSeek-V3.2"
+
+    model_path = snapshot_download(repo_id=MODEL_NAME)
+
+    hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+    rope_scaling = hf_config.rope_scaling or {}
+
+    args = ModelArgs(
+        max_batch_size=1,
+        max_seq_len=2048,
+        vocab_size=hf_config.vocab_size,
+        dim=hf_config.hidden_size,
+        inter_dim=hf_config.intermediate_size,
+        moe_inter_dim=hf_config.moe_intermediate_size,
+        n_layers=hf_config.num_hidden_layers,
+        n_dense_layers=hf_config.first_k_dense_replace,
+        n_heads=hf_config.num_attention_heads,
+        n_routed_experts=hf_config.n_routed_experts,
+        n_shared_experts=hf_config.n_shared_experts,
+        n_activated_experts=hf_config.num_experts_per_tok,
+        n_expert_groups=hf_config.n_group,
+        n_limited_groups=hf_config.topk_group,
+        score_func=hf_config.scoring_func,
+        route_scale=hf_config.routed_scaling_factor,
+        q_lora_rank=hf_config.q_lora_rank,
+        kv_lora_rank=hf_config.kv_lora_rank,
+        qk_nope_head_dim=hf_config.qk_nope_head_dim,
+        qk_rope_head_dim=hf_config.qk_rope_head_dim,
+        v_head_dim=hf_config.v_head_dim,
+        rope_theta=hf_config.rope_theta,
+        rope_factor=rope_scaling.get("factor", 40),
+        beta_fast=int(rope_scaling.get("beta_fast", 32)),
+        beta_slow=int(rope_scaling.get("beta_slow", 1)),
+        mscale=rope_scaling.get("mscale", 1.0),
+        original_seq_len=rope_scaling.get("original_max_position_embeddings", 4096),
+        # Indexer weights are not in the HuggingFace checkpoint; disable it here.
+        index_n_heads=0,
+    )
+
+    model = ModifiedTransformer(args)
+    _load_hf_weights_into_model(model, model_path)
+    model = model.to(torch.bfloat16).eval()
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    prompt = "The capital of France is"
+    tokens = tokenizer(prompt, return_tensors="pt")["input_ids"]  # (1, seq_len)
+
+    xr.set_device_type("TT")
+    compiled_model = torch.compile(model, backend="tt")
+    device = torch_xla.device()
+    compiled_model = compiled_model.to(device)
+    tokens = tokens.to(device)
+
+    # Prefill: process the full prompt
+    with torch.no_grad():
+        logits = compiled_model(tokens)
+        logits = logits.to("cpu")
+
+    assert logits.shape == (
+        1,
+        args.vocab_size,
+    ), f"Unexpected prefill logits shape: {logits.shape}"
+
+    # Decode: generate one new token from the last predicted token
+    next_token = logits.argmax(dim=-1, keepdim=True).to(device)  # (1, 1)
+    prefill_len = tokens.shape[1]
+
+    with torch.no_grad():
+        decode_logits = compiled_model(next_token, start_pos=prefill_len)
+        decode_logits = decode_logits.to("cpu")
+
+    assert decode_logits.shape == (
+        1,
+        args.vocab_size,
+    ), f"Unexpected decode logits shape: {decode_logits.shape}"
