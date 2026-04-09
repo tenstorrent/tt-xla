@@ -255,7 +255,7 @@ def construct_inputs(
     # compile on every prompt. Must NOT be a multiple of 32 — sparse MoE has two
     # dispatch paths (split_seq when seq_len%32==0, split_bd otherwise) and only
     # split_bd is validated on QB2. 100 tokens fits typical chat prompts.
-    PREFILL_PAD_LEN = 100
+    PREFILL_PAD_LEN = 96
     if actual_max > PREFILL_PAD_LEN:
         raise ValueError(
             f"Prompt is {actual_max} tokens, exceeds PREFILL_PAD_LEN={PREFILL_PAD_LEN}. "
