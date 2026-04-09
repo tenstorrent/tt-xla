@@ -1,11 +1,83 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import torch
 from transformers.cache_utils import StaticCache, StaticLayer, StaticSlidingWindowLayer
-from transformers.masking_utils import create_sliding_window_causal_mask
+from transformers.masking_utils import (
+    create_sliding_window_causal_mask as _original_create_sliding_window_causal_mask,
+)
+
+
+def init_static_cache_layers_mixed_head_dim(
+    cache: StaticCache,
+    config,
+    batch_size: int,
+    dtype: torch.dtype = torch.bfloat16,
+    device: Optional[Union[str, torch.device]] = None,
+) -> None:
+    """Lazily initialize each ``StaticCache`` layer with per-layer ``(num_heads, head_dim)``.
+
+    Gemma 4 (and similar hybrids) use ``global_head_dim`` / ``num_global_key_value_heads``
+    on full-attention layers and ``head_dim`` / ``num_key_value_heads`` on sliding layers.
+    ``StaticCache.early_initialization`` uses a single ``head_dim`` for every layer, which
+    breaks these models; call this instead after constructing ``StaticCache``.
+
+    Args:
+        cache: ``StaticCache`` instance (``cache.layers`` already built).
+        config: Full model or text ``PretrainedConfig`` (``get_text_config`` used when present).
+        batch_size: Batch size for dummy KV tensors (seq dim 0).
+        dtype: Floating dtype for cache tensors.
+        device: Device for cache tensors; default ``cpu``. Strings are passed to ``torch.device``.
+    """
+    if device is None:
+        device = torch.device("cpu")
+    elif isinstance(device, str):
+        device = torch.device(device)
+
+    text_config = (
+        config.get_text_config(decoder=True)
+        if hasattr(config, "get_text_config")
+        else config
+    )
+
+    layer_types = list(
+        getattr(text_config, "layer_types", ["full_attention"] * len(cache.layers))
+    )
+    nkv = getattr(text_config, "num_kv_shared_layers", 0) or 0
+    num_hidden = getattr(text_config, "num_hidden_layers", None)
+
+    if nkv:
+        if num_hidden is not None and len(layer_types) == num_hidden:
+            layer_types = layer_types[:-nkv]
+        elif len(layer_types) > len(cache.layers):
+            layer_types = layer_types[:-nkv]
+
+    if len(layer_types) != len(cache.layers):
+        if len(layer_types) > len(cache.layers):
+            layer_types = layer_types[: len(cache.layers)]
+        else:
+            raise ValueError(
+                f"layer_types length ({len(layer_types)}) < len(cache.layers) "
+                f"({len(cache.layers)}); check layer_types / num_kv_shared_layers."
+            )
+
+    for layer, layer_type in zip(cache.layers, layer_types):
+        if layer_type == "full_attention" and getattr(
+            text_config, "global_head_dim", None
+        ):
+            hd = text_config.global_head_dim
+            nh = (
+                getattr(text_config, "num_global_key_value_heads", None)
+                or text_config.num_key_value_heads
+            )
+        else:
+            hd = text_config.head_dim
+            nh = text_config.num_key_value_heads
+
+        fake_kv = torch.zeros((batch_size, nh, 0, hd), dtype=dtype, device=device)
+        layer.lazy_initialization(fake_kv, fake_kv)
 
 
 def override_gpt_oss_sliding_window_causal_mask():
@@ -16,9 +88,34 @@ def override_gpt_oss_sliding_window_causal_mask():
     Call this before torch.compile so that dynamo traces through the
     patched function.
     """
+    import transformers.masking_utils as masking_utils
     import transformers.models.gpt_oss.modeling_gpt_oss as gpt_oss_mod
 
     gpt_oss_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
+    masking_utils.LAYER_PATTERN_TO_MASK_FUNCTION_MAPPING["sliding_attention"] = (
+        tt_create_sliding_window_causal_mask
+    )
+
+
+def override_gemma4_sliding_window_causal_mask():
+    """
+    Override gemma4's modeling so that its
+    create_sliding_window_causal_mask points to the TT-friendly version.
+
+    Patches both the modeling module (for TextModel.forward) and the global
+    LAYER_PATTERN_TO_MASK_FUNCTION_MAPPING (for Gemma4Model.forward which
+    routes through create_masks_for_generate).
+
+    Call this before torch.compile so that dynamo traces through the
+    patched function.
+    """
+    import transformers.masking_utils as masking_utils
+    import transformers.models.gemma4.modeling_gemma4 as gemma4_mod
+
+    gemma4_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
+    masking_utils.LAYER_PATTERN_TO_MASK_FUNCTION_MAPPING["sliding_attention"] = (
+        tt_create_sliding_window_causal_mask
+    )
 
 
 def override_olmo3_sliding_window_causal_mask():
@@ -74,34 +171,62 @@ def override_cache_sliding_window_layers(
         cache.layers[i] = tt_layer
 
 
+def _has_tt_sliding_window_layers(past_key_values) -> bool:
+    """Check if any cache layer is a TTStaticSlidingWindowLayer."""
+    return any(
+        isinstance(layer, TTStaticSlidingWindowLayer)
+        for layer in getattr(past_key_values, "layers", [])
+    )
+
+
 def tt_create_sliding_window_causal_mask(
     config,
     inputs_embeds: torch.Tensor,
     attention_mask: Optional[torch.Tensor],
-    cache_position: torch.Tensor,
+    cache_position: Optional[torch.Tensor] = None,
+    *,
     past_key_values=None,
+    position_ids: Optional[torch.Tensor] = None,
     **kwargs,
 ) -> torch.Tensor:
     """
     Compile-friendly sliding-window causal mask for the always-roll cache layout.
 
-    Builds a 4D additive mask (batch, 1, query_length, sliding_window) using
+    Builds a 4D additive mask (batch, 1, query_length, kv_length) using
     only broadcasting tensor operations — no get_mask_sizes(),
     and no mutable Python state.  Designed to run with torch.compile on TT
     hardware as part of the model forward graph.
+
+    Falls back to the original transformers implementation when the cache
+    does not contain TTStaticSlidingWindowLayer instances.
     """
-    if past_key_values is None:
-        return create_sliding_window_causal_mask(
+    if past_key_values is None or not _has_tt_sliding_window_layers(past_key_values):
+        return _original_create_sliding_window_causal_mask(
             config,
             inputs_embeds,
             attention_mask,
             cache_position,
-            past_key_values,
+            past_key_values=past_key_values,
+            position_ids=position_ids,
             **kwargs,
         )
 
     if isinstance(attention_mask, torch.Tensor) and attention_mask.ndim == 4:
         return attention_mask
+
+    if cache_position is None:
+        if position_ids is not None:
+            cache_position = position_ids[0]
+        else:
+            q_length = inputs_embeds.shape[1]
+            past_seen = (
+                past_key_values.get_seq_length() if past_key_values is not None else 0
+            )
+            if isinstance(past_seen, torch.Tensor):
+                past_seen = past_seen.to(inputs_embeds.device)
+            cache_position = (
+                torch.arange(q_length, device=inputs_embeds.device) + past_seen
+            )
 
     if hasattr(past_key_values, "is_sliding") and True in past_key_values.is_sliding:
         layer_idx = past_key_values.is_sliding.index(True)
@@ -181,6 +306,7 @@ class TTStaticSlidingWindowLayer(StaticLayer):
             self.lazy_initialization(key_states, value_states)
 
         n = key_states.shape[-2]
+        self.cumulative_length.add_(n)
 
         # Cat old buffer + new tokens before mutating (n > 1 only).
         # Shape is always (max_cache_len + n) — both static.
@@ -212,4 +338,4 @@ class TTStaticSlidingWindowLayer(StaticLayer):
     def get_seq_length(self) -> int:
         if not self.is_initialized:
             return 0
-        return (self.keys[0, 0].cpu().any(dim=-1)).sum().item()
+        return self.cumulative_length
