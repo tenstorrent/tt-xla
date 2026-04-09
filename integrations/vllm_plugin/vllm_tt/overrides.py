@@ -6,6 +6,7 @@ from typing import OrderedDict, cast
 
 import torch
 import torch.nn as nn
+from tt_torch.sparse_mlp import enable_sparse_mlp
 from vllm.forward_context import ForwardContext, get_forward_context
 from vllm.model_executor.layers.fused_moe import layer as fused_moe_layer
 from vllm.model_executor.layers.fused_moe.router import fused_topk_router
@@ -190,6 +191,8 @@ MODULE_TYPE_TO_TT_OVERRIDE = OrderedDict(
     ]
 )
 
+from vllm.model_executor.layers.fused_moe.layer import FusedMoE
+
 
 def replace_modules(model: torch.nn.Module) -> None:
     logger.info(
@@ -207,6 +210,8 @@ def replace_modules(model: torch.nn.Module) -> None:
             "Monkey-patching get_layer_from_name function for TT MoE layer reduction compatibility"
         )
         fused_moe_layer.get_layer_from_name = tt_get_layer_from_name
+    # mesh_shape = (2, 4)
+    # enable_sparse_mlp(model, mesh_shape, target_classes=[FusedMoE])
 
     def _process_module(module, name=None, parent=None):
         if get_fqn(module) in MODULE_TYPE_TO_TT_OVERRIDE:

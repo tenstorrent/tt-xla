@@ -1075,8 +1075,13 @@ def enable_sparse_mlp(
         should_replace = False
         if target_classes:
             should_replace = any(isinstance(module, cls) for cls in target_classes)
+            print(f"module {module}")
+            print(
+                f"Checking {name} against target classes: {should_replace}", flush=True
+            )
         else:
             should_replace = _is_moe_mlp(module)
+            print(f"Checking {name} for MoE MLP patterns: {should_replace}", flush=True)
 
         if not should_replace:
             return False

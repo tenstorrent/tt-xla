@@ -542,7 +542,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         query_for_sdpa = inputs.query.transpose(-3, -2)
         key_for_sdpa = inputs.key.transpose(-3, -2)
         value_for_sdpa = inputs.value.transpose(-3, -2)
-        sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
+        # sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
 
         output = torch.ops.tt.scaled_dot_product_attention(
             query_for_sdpa,
@@ -550,7 +550,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             value_for_sdpa,
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
-            attention_sink=sink,
+            # attention_sink=sink,
         ).transpose(
             -3, -2
         )  # Back to [users, tokens, num_heads, head_size]
