@@ -51,7 +51,7 @@ jobs:
             tag="$VERSION.$nightly_release_suffix"
           fi
 
-          tag="0.1.0dev040700"
+          tag="0.1.0dev040701"
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Set up Python
