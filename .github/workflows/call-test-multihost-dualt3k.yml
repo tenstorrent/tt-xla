@@ -13,6 +13,9 @@ name: Multi-host Test - Dual T3K (call)
 # Environment variables for distributed execution (TT_DISTRIBUTED_*) are set
 # automatically by the configure_topology pytest fixture in the test's conftest,
 # using the "dual_t3k" topology from tests/torch/multi_host/conftest.py.
+# Multihost and model tests run in a single pytest process so os.environ updates
+# from distributed setup remain visible across tests (not possible across separate
+# pytest subprocesses from the shell).
 
 on:
   workflow_call:
@@ -200,11 +203,10 @@ jobs:
 
           pytest -svv \
             tests/torch/multi_host/experimental/test_multihost_basic.py \
-            -k "dual_galaxy" \
+            tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference] \
+            -k "dual_galaxy or test_all_models_torch" \
             --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
             2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
-
-          pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
         '
 
     - name: Upload Test Log
