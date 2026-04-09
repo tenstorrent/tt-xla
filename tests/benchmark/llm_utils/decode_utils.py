@@ -221,7 +221,9 @@ def generate_and_benchmark(
             input_args["cache_position"] = next_cache_position
 
             if tokenizer:
-                decoded = tokenizer.batch_decode(next_token_ids.to("cpu").squeeze(-1))
+                decoded = tokenizer.batch_decode(
+                    next_token_ids.to("cpu").view(batch_size, -1)
+                )
                 for i in range(batch_size):
                     generated_texts[i] += decoded[i]
 
