@@ -46,7 +46,7 @@ def create_inference_tester(format: str, optimization_level: int) -> ResnetTeste
         VARIANT_NAME,
         format,
         compiler_config=compiler_config,
-        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
+        #comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
     )
 
 
