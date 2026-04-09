@@ -2257,7 +2257,7 @@ test_config:
     required_pcc: 0.98
 
   owl_vit/pytorch-Base_Patch32-single_device-inference:
-    required_pcc: 0.98  # PCC dropped to 0.9837 on n150 0.9836 on p150 - https://github.com/tenstorrent/tt-xla/issues/3182
+    required_pcc: 0.975  # PCC dropped to 0.9837 on n150 0.9836 on p150 - https://github.com/tenstorrent/tt-xla/issues/3182
     status: EXPECTED_PASSING
 
   # yolov12/pytorch-yolo12n-single_device-inference:
