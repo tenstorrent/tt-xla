@@ -55,7 +55,7 @@ test_config:
         reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9832790861293572. Required: pcc=0.99."
 
   clip/pytorch-Large_Patch14_336-single_device-inference:
-    required_pcc: 0.97
+    # required_pcc: 0.97
     status: EXPECTED_PASSING
 
   wide_resnet/pytorch-50.2-single_device-inference:
