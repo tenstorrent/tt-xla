@@ -17,6 +17,9 @@ from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from transformers.cache_utils import StaticCache
 from transformers.models.bert.modeling_bert import BertSelfAttention
+from transformers.models.gemma4.modeling_gemma4 import (
+    eager_attention_forward as gemma4_eager_attention_forward,
+)
 from transformers.models.gemma.modeling_gemma import GemmaAttention
 from transformers.models.glm.modeling_glm import GlmAttention
 from transformers.models.glm.modeling_glm import (
@@ -34,6 +37,7 @@ from transformers.models.qwen2.modeling_qwen2 import Qwen2Attention
 from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
 from transformers.models.xlm_roberta.modeling_xlm_roberta import XLMRobertaSelfAttention
 
+from tests.infra.testers.compiler_config import CompilerConfig
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.bert.masked_lm.pytorch.loader import (
     ModelLoader as BertModelLoader,
@@ -2770,4 +2774,59 @@ def test_glm_5_attention_prefill(variant, variant_config, arch):
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
+    )
+
+
+class Gemma4EagerAttentionWithSoftcap(torch.nn.Module):
+    """Wraps Gemma4's eager_attention_forward (from HuggingFace transformers)
+    with softcap enabled. This is the actual production code path that applies
+    softmax(cap * tanh(QK * scale / cap)). Projections are added only because
+    run_graph_test requires an nn.Module."""
+
+    def __init__(self, num_heads, num_kv_heads, head_dim, softcap=50.0):
+        super().__init__()
+        self.num_key_value_groups = num_heads // num_kv_heads
+        self.head_dim = head_dim
+        self.softcap = softcap
+
+    def forward(self, query, key, value):
+        attn_output, _ = gemma4_eager_attention_forward(
+            self,
+            query,
+            key,
+            value,
+            attention_mask=None,
+            softcap=self.softcap,
+        )
+        return attn_output
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "batch_size,seq_len,num_heads,num_kv_heads,head_dim,softcap",
+    [
+        # S != D to avoid shape ambiguity in K transpose detection
+        (1, 64, 8, 8, 128, 50.0),
+        (1, 128, 4, 2, 64, 50.0),
+    ],
+)
+def test_gemma4_softcap_attention(
+    batch_size, seq_len, num_heads, num_kv_heads, head_dim, softcap
+):
+    model = Gemma4EagerAttentionWithSoftcap(
+        num_heads, num_kv_heads, head_dim, softcap
+    ).to(torch.bfloat16)
+
+    query = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(batch_size, num_kv_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    value = torch.randn(
+        batch_size, num_kv_heads, seq_len, head_dim, dtype=torch.bfloat16
+    )
+
+    run_graph_test(
+        model,
+        [query, key, value],
+        framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
     )

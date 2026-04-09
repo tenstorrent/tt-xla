@@ -228,3 +228,157 @@ def test_paged_scaled_dot_product_attention_decode(
         [query, key, value, page_table, True, None, cur_pos_tensor],
         framework=Framework.TORCH,
     )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "batch_size,num_heads,num_kv_heads,seq_len,head_dim,logits_softcap",
+    [
+        # Generic test
+        (1, 8, 8, 128, 128, 50.0),
+        # Gemma 4 text config: 8 heads, 4 kv heads, head_dim=256, softcap=50.0
+        (1, 8, 4, 128, 256, 50.0),
+    ],
+)
+def test_scaled_dot_product_attention_softcap(
+    batch_size, num_heads, num_kv_heads, seq_len, head_dim, logits_softcap
+):
+    query = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(batch_size, num_kv_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    value = torch.randn(
+        batch_size, num_kv_heads, seq_len, head_dim, dtype=torch.bfloat16
+    )
+
+    scale = 1.0 / (head_dim**0.5)
+    run_op_test(
+        torch.ops.tt.scaled_dot_product_attention,
+        [query, key, value, None, True, scale, logits_softcap],
+        framework=Framework.TORCH,
+    )
+
+
+def _gemma4_attention_reference(query, key, value, scale, softcap, num_kv_groups):
+    """Reference implementation matching Gemma4's eager_attention_forward with softcap."""
+    key = key.repeat_interleave(num_kv_groups, dim=1)
+    value = value.repeat_interleave(num_kv_groups, dim=1)
+    attn_weights = torch.matmul(query, key.transpose(2, 3)) * scale
+    attn_weights = attn_weights / softcap
+    attn_weights = torch.tanh(attn_weights)
+    attn_weights = attn_weights * softcap
+    # causal mask
+    seq_len = query.shape[-2]
+    causal_mask = torch.triu(
+        torch.full((seq_len, seq_len), float("-inf"), dtype=attn_weights.dtype),
+        diagonal=1,
+    )
+    attn_weights = attn_weights + causal_mask
+    attn_weights = torch.nn.functional.softmax(
+        attn_weights, dim=-1, dtype=torch.float32
+    ).to(query.dtype)
+    return torch.matmul(attn_weights, value)
+
+
+@pytest.mark.parametrize(
+    "batch_size,num_heads,num_kv_heads,seq_len,head_dim,softcap",
+    [
+        # Gemma 4 text config
+        (1, 8, 4, 64, 256, 50.0),
+        (1, 8, 4, 128, 256, 50.0),
+    ],
+)
+def test_gemma4_attention_softcap_cpu_reference(
+    batch_size, num_heads, num_kv_heads, seq_len, head_dim, softcap
+):
+    """Verify our custom op CPU fallback matches Gemma4's eager_attention_forward exactly."""
+    torch.manual_seed(42)
+    num_kv_groups = num_heads // num_kv_heads
+    scale = 1.0
+
+    query = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.float32)
+    key = torch.randn(batch_size, num_kv_heads, seq_len, head_dim, dtype=torch.float32)
+    value = torch.randn(
+        batch_size, num_kv_heads, seq_len, head_dim, dtype=torch.float32
+    )
+
+    # Gemma4 reference
+    expected = _gemma4_attention_reference(
+        query, key, value, scale, softcap, num_kv_groups
+    )
+
+    # Our custom op
+    actual = torch.ops.tt.scaled_dot_product_attention(
+        query, key, value, None, True, scale, softcap
+    )
+
+    pcc = torch.corrcoef(torch.stack([expected.flatten(), actual.flatten()]))[
+        0, 1
+    ].item()
+    assert pcc > 0.9999, f"CPU softcap PCC vs Gemma4 reference: {pcc}"
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("num_users", [8])
+@pytest.mark.parametrize("num_heads", [8])
+@pytest.mark.parametrize("num_kv_heads", [1])
+@pytest.mark.parametrize("max_seq_len", [2048])
+@pytest.mark.parametrize("head_dim", [128])
+@pytest.mark.parametrize("logits_softcap", [50.0])
+def test_scaled_dot_product_attention_decode_softcap(
+    num_users, num_heads, num_kv_heads, max_seq_len, head_dim, logits_softcap
+):
+    query = torch.randn(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(
+        num_users, num_kv_heads, max_seq_len, head_dim, dtype=torch.bfloat16
+    )
+    value = torch.randn(
+        num_users, num_kv_heads, max_seq_len, head_dim, dtype=torch.bfloat16
+    )
+    cur_pos_tensor = torch.randint(0, max_seq_len, (num_users,), dtype=torch.int32)
+
+    scale = 1.0 / (head_dim**0.5)
+    run_op_test(
+        torch.ops.tt.scaled_dot_product_attention_decode,
+        [query, key, value, cur_pos_tensor, None, None, True, scale, logits_softcap],
+        framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize("num_users", [8])
+@pytest.mark.parametrize("num_heads", [8])
+@pytest.mark.parametrize("max_num_blocks_per_seq", [16])
+@pytest.mark.parametrize("block_size", [64])
+@pytest.mark.parametrize("head_dim", [128])
+@pytest.mark.parametrize("logits_softcap", [50.0])
+def test_paged_scaled_dot_product_attention_decode_softcap(
+    num_users, num_heads, max_num_blocks_per_seq, block_size, head_dim, logits_softcap
+):
+    max_num_blocks = max_num_blocks_per_seq * num_users
+
+    query = torch.randn(1, num_users, num_heads, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(
+        max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+    )
+    value = torch.randn(
+        max_num_blocks, num_heads, block_size, head_dim, dtype=torch.bfloat16
+    )
+    page_table = torch.ones(num_users, max_num_blocks_per_seq).to(torch.int32)
+    cur_pos_tensor = torch.ones(num_users).to(torch.int32)
+
+    scale = 1.0 / (head_dim**0.5)
+    run_op_test(
+        torch.ops.tt.paged_scaled_dot_product_attention_decode,
+        [
+            query,
+            key,
+            value,
+            page_table,
+            True,
+            None,
+            cur_pos_tensor,
+            None,
+            scale,
+            logits_softcap,
+        ],
+        framework=Framework.TORCH,
+    )

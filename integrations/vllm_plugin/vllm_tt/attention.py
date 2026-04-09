@@ -514,6 +514,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             value_for_sdpa,
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
+            logits_softcap=self.logits_soft_cap,
         ).transpose(
             -3, -2
         )  # Back to [users, tokens, num_heads, head_size]
@@ -541,6 +542,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
             attention_sink=self.sinks,
+            logits_softcap=self.logits_soft_cap,
         )
         # out: [query_num_tokens, users, num_heads, head_size]
         out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]

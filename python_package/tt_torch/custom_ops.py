@@ -213,6 +213,7 @@ def scaled_dot_product_attention(
     attn_mask: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
+    logits_softcap: float = None,
 ) -> torch.Tensor:
 
     assert (
@@ -269,6 +270,8 @@ def scaled_dot_product_attention(
         frontend_attributes = {"is_causal": str(is_causal)}
         if scale is not None:
             frontend_attributes["scale"] = str(scale)
+        if logits_softcap is not None:
+            frontend_attributes["logits_softcap"] = str(logits_softcap)
 
         return stablehlo_custom_call.stablehlo_custom_call(
             inputs,
@@ -279,6 +282,30 @@ def scaled_dot_product_attention(
         )
 
     elif query.device.type == "cpu":
+        if logits_softcap is not None:
+            # Manual attention with softcap: tanh(qk / cap) * cap before softmax
+            num_kv_heads = key.shape[1]
+            num_heads = query.shape[1]
+            if num_heads != num_kv_heads:
+                key = key.repeat_interleave(num_heads // num_kv_heads, dim=1)
+                value = value.repeat_interleave(num_heads // num_kv_heads, dim=1)
+            _scale = scale if scale is not None else 1.0 / (query.shape[-1] ** 0.5)
+            attn_weight = query @ key.transpose(-2, -1) * _scale
+            attn_weight = torch.tanh(attn_weight / logits_softcap) * logits_softcap
+            if attn_mask is not None:
+                attn_weight = attn_weight + attn_mask
+            elif is_causal:
+                seq_len_q, seq_len_k = query.shape[-2], key.shape[-2]
+                causal_mask = torch.triu(
+                    torch.full(
+                        (seq_len_q, seq_len_k), float("-inf"), dtype=query.dtype
+                    ),
+                    diagonal=seq_len_k - seq_len_q + 1,
+                )
+                attn_weight = attn_weight + causal_mask
+            attn_weight = torch.softmax(attn_weight, dim=-1)
+            return attn_weight @ value
+
         # Enable GQA as the ttnn op handles GQA automatically.
         return torch.nn.functional.scaled_dot_product_attention(
             query,
@@ -301,6 +328,7 @@ def scaled_dot_product_attention(
     attn_mask: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
+    logits_softcap: float = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -319,6 +347,7 @@ def scaled_dot_product_attention_decode(
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
+    logits_softcap: float = None,
 ) -> torch.Tensor:
 
     assert (
@@ -364,6 +393,8 @@ def scaled_dot_product_attention_decode(
         }
         if scale is not None:
             frontend_attributes["scale"] = str(scale)
+        if logits_softcap is not None:
+            frontend_attributes["logits_softcap"] = str(logits_softcap)
 
         return stablehlo_custom_call.stablehlo_custom_call(
             inputs,
@@ -398,6 +429,19 @@ def scaled_dot_product_attention_decode(
                     "-inf"
                 )
 
+        if logits_softcap is not None:
+            num_kv_heads = key.shape[1]
+            if num_heads != num_kv_heads:
+                key = key.repeat_interleave(num_heads // num_kv_heads, dim=1)
+                value = value.repeat_interleave(num_heads // num_kv_heads, dim=1)
+            _scale = scale if scale is not None else 1.0 / (head_size**0.5)
+            attn_weight = query @ key.transpose(-2, -1) * _scale
+            attn_weight = torch.tanh(attn_weight / logits_softcap) * logits_softcap
+            if attn_mask is not None:
+                attn_weight = attn_weight + attn_mask
+            attn_weight = torch.softmax(attn_weight, dim=-1)
+            return (attn_weight @ value).reshape(1, batch_size, num_heads, head_size)
+
         # Enable GQA as the ttnn op handles GQA automatically.
         return torch.nn.functional.scaled_dot_product_attention(
             query, key, value, attn_mask, is_causal=False, scale=scale, enable_gqa=True
@@ -416,6 +460,7 @@ def scaled_dot_product_attention_decode_fake(
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
     scale: float = None,
+    logits_softcap: float = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -773,6 +818,7 @@ def paged_scaled_dot_product_attention_decode(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
+    logits_softcap: float = None,
 ) -> torch.Tensor:
     device = query.device
 
@@ -794,6 +840,8 @@ def paged_scaled_dot_product_attention_decode(
 
         if scale is not None:
             attrs["scale"] = str(scale)
+        if logits_softcap is not None:
+            attrs["logits_softcap"] = str(logits_softcap)
 
         inputs = [query, key, value, page_table]
         if attn_mask is not None:
@@ -866,6 +914,8 @@ def paged_scaled_dot_product_attention_decode(
         value = value.repeat_interleave(query.size(-3) // value.size(-3), -3)
         scale = 1 / head_size**0.5 if scale is None else scale
         attn_weight = query @ new_key.transpose(-2, -1) * scale
+        if logits_softcap is not None:
+            attn_weight = torch.tanh(attn_weight / logits_softcap) * logits_softcap
         attn_weight += attn_mask
         attn_weight = torch.softmax(attn_weight, dim=-1)
         out = attn_weight @ new_value
@@ -886,6 +936,7 @@ def paged_scaled_dot_product_attention_decode_fake(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
+    logits_softcap: float = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
