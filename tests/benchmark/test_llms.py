@@ -58,6 +58,7 @@ def test_llm(
     accuracy_testing: bool = False,
     max_output_tokens=None,
     decode_only: bool = False,
+    weight_dtype_overrides: dict = None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -148,6 +149,7 @@ def test_llm(
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        weight_dtype_overrides=weight_dtype_overrides,
     )
 
     if output_file:
@@ -1444,6 +1446,10 @@ def test_llama_3_1_70b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        weight_dtype_overrides={
+            "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
+            "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
+        },
     )
 
 
@@ -1626,4 +1632,9 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         arch="wormhole_galaxy",
         optimization_level=1,
         trace_enabled=False,
+        weight_dtype_overrides={
+            "model.layers.*.mlp.router.weight": "bfp_bf4",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
     )
