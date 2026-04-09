@@ -231,7 +231,9 @@ def insert_argument_type_markers(
 
         if in_spec.target is not None:
             get_attr_target_type_dict[in_spec.target] = type_str
-        else:
+        # Map arg.name for all specs so the pass works on both
+        # unlifted (get_attr params) and lifted (placeholder params) graphs.
+        if in_spec.arg is not None and hasattr(in_spec.arg, "name"):
             placeholder_target_type_dict[in_spec.arg.name] = type_str
 
     for input_node in input_nodes:
