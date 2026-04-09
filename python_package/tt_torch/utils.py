@@ -6,6 +6,7 @@ Shared utilities for TT-Torch backend integration.
 """
 
 import contextlib
+import re
 
 import torch
 
@@ -31,6 +32,20 @@ def apply_jax_compatibility_patches():
     """Apply JAX compatibility patches globally."""
     torch._C._accelerator_getDeviceIndex = cpu_device_index
     torch._C._accelerator_getStream = cpu_stream
+
+
+def torch_version_at_least(major: int, minor: int) -> bool:
+    """Return whether the current torch version is at least major.minor."""
+    match = re.match(r"^(\d+)\.(\d+)", torch.__version__)
+    if match is None:
+        return False
+    current_version = (int(match.group(1)), int(match.group(2)))
+    return current_version >= (major, minor)
+
+
+def is_torch_2_10_or_newer() -> bool:
+    """Return whether the current torch runtime is 2.10 or newer."""
+    return torch_version_at_least(2, 10)
 
 
 @contextlib.contextmanager
