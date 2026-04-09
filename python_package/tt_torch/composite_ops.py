@@ -5,7 +5,7 @@
 from typing import List, Optional, Union
 
 import torch
-from torch import Tensor
+from torch import LongTensor, Tensor
 from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
 
 """
@@ -227,6 +227,22 @@ def composite_topk_indices(
     return indices
 
 
+def composite_gather(
+    input: Tensor,
+    dim: int,
+    index: LongTensor,
+    *,
+    sparse_grad: bool = False,
+    out: Optional[Tensor] = None,
+):
+    attrs = {"dim": dim, "sparse_grad": sparse_grad}
+    builder = StableHLOCompositeBuilder(name="tenstorrent.gather", attr=attrs)
+    input, index = builder.mark_inputs(input, index)
+    output = torch.gather(input, dim, index, sparse_grad=sparse_grad)
+    output = builder.mark_outputs(output)
+    return output
+
+
 ################# module replacements #################
 
 
@@ -363,6 +379,7 @@ replacements = {
         frozenset({0}): composite_topk_values,
         frozenset({1}): composite_topk_indices,
     },
+    torch.gather: composite_gather,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
@@ -377,4 +394,5 @@ The mapped function must be a key in `replacements` for the rewrite to apply.
 """
 method_name_to_function = {
     "topk": torch.topk,
+    "gather": torch.gather,
 }
