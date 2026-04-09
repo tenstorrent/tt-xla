@@ -1894,8 +1894,9 @@ test_config:
     required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/2990
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
