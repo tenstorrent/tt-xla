@@ -12,6 +12,8 @@ shift
 
 # Capture the entire remaining command as one block
 REMOTE_COMMAND="$*"
+USERNAME="ubuntu"
+CONTAINER_NAME="ubuntu-host-mapped"
 
 # SSH Options:
 # StrictHostKeyChecking=no: Don't ask to verify the host
@@ -20,7 +22,7 @@ REMOTE_COMMAND="$*"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 # Use bash -c inside docker exec to handle the complex MPI environment string
-ssh -A $SSH_OPTS -l ubuntu "$HOST" sudo docker exec \
+ssh -A $SSH_OPTS -l $USERNAME "$HOST" sudo docker exec \
   -u root \
   -e LD_LIBRARY_PATH=/opt/ttmlir-toolchain/lib:/lib/x86_64-linux-gnu \
-  ubuntu-host-mapped bash -c "'$REMOTE_COMMAND'"
+  $CONTAINER_NAME bash -c "'$REMOTE_COMMAND'"
