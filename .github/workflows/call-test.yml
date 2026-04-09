@@ -38,6 +38,11 @@ on:
         required: false
         default: false
         type: boolean
+      enable_debug_logging:
+        description: 'Enable debug logging (TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG, TTXLA_LOGGER_LEVEL=DEBUG) and run pytest -svv'
+        required: false
+        default: false
+        type: boolean
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -250,8 +255,10 @@ jobs:
           fi
         done
 
-        # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
-        if [[ -n "$PYTEST_FORKED" ]]; then
+        # Set verbosity: -svv when debug logging is enabled, otherwise -vv when forking, -sv otherwise
+        if [[ "${{ inputs.enable_debug_logging }}" == "true" ]]; then
+          VERBOSITY="-svv"
+        elif [[ -n "$PYTEST_FORKED" ]]; then
           VERBOSITY="-vv"
         else
           VERBOSITY="-sv"
@@ -337,6 +344,8 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
+        TTMLIR_RUNTIME_LOGGER_LEVEL: ${{ inputs.enable_debug_logging && 'DEBUG' || '' }}
+        TTXLA_LOGGER_LEVEL: ${{ inputs.enable_debug_logging && 'DEBUG' || '' }}
       shell: bash
       run: |
         source venv/activate
