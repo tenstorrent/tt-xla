@@ -1468,6 +1468,7 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+# Trace disabled: ~23% slower with trace on bs=32 (https://github.com/tenstorrent/tt-xla/actions/runs/24198436562)
 def test_gpt_oss_20b_tp(
     output_file,
     num_layers,
@@ -1495,6 +1496,7 @@ def test_gpt_oss_20b_tp(
         decode_only=decode_only,
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        trace_enabled=False,
     )
 
 
