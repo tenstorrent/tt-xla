@@ -1560,6 +1560,50 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     vllm_config=self.vllm_config, model_config=self.model_config
                 ).eval()
                 replace_modules(model)
+                from .moe_integration import count_moe_layers, override_moe_for_tt
+
+                # Count MoE layers before override
+                fusedmoe_before, sparse_mlp_before = count_moe_layers(model)
+                logger.info(
+                    f"Before MLP override: FusedMoE={fusedmoe_before}, A2aSparseMLP={sparse_mlp_before}"
+                )
+
+                # Replace vLLM FusedMoE with TT A2aSparseMLP
+                if self.enable_tensor_parallel and hasattr(self, "mesh"):
+                    # Get mesh shape for MLP override
+                    mesh_shape_dict = (
+                        self.mesh.shape()
+                    )  # Call the method to get actual shape dict
+                    # Convert OrderedDict {'batch': 2, 'model': 4} to tuple (2, 4)
+                    mesh_shape = tuple(mesh_shape_dict.values())
+                    cluster_axis = 0  # Use rows for dispatch (can be configured)
+
+                    logger.info(
+                        f"Applying MoE override with mesh_shape={mesh_shape}, cluster_axis={cluster_axis}"
+                    )
+                    try:
+                        model = override_moe_for_tt(
+                            model=model,
+                            vllm_config=self.vllm_config,
+                            mesh_shape=mesh_shape,
+                            cluster_axis=cluster_axis,
+                        )
+
+                        # Count MoE layers after override
+                        fusedmoe_after, sparse_mlp_after = count_moe_layers(model)
+                        logger.info(
+                            f"After MLP override: FusedMoE={fusedmoe_after}, A2aSparseMLP={sparse_mlp_after}"
+                        )
+                    except Exception as e:
+                        logger.warning(f"MoE override failed with error: {e}")
+                        logger.warning(
+                            "Continuing with TT-compatible MXFP4 implementation"
+                        )
+                else:
+                    logger.info(
+                        "Tensor parallel not enabled or mesh not available, using TT-compatible MXFP4"
+                    )
+
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
