@@ -38,6 +38,11 @@ on:
         required: false
         default: false
         type: boolean
+      max_timeout_minutes:
+        description: 'Maximum timeout in minutes for each test job'
+        required: false
+        default: 0
+        type: number
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -321,11 +326,18 @@ jobs:
           SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
             --collected-output collected_tests.txt \
             --durations-file .test_durations \
-            --default-timeout 240)
+            --default-timeout 240\
+            --max-timeout ${{ inputs.max_timeout_minutes }})
           echo "$SCRIPT_OUTPUT"
           ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
         fi
 
+        # For callers that provide max_timeout_minutes (e.g. manual-test-single),
+        # enforce a predictable timeout for the Run tests step.
+        if [[ "${{ inputs.max_timeout_minutes }}" -gt 0 ]]; then
+          ESTIMATED_DURATION=${{ inputs.max_timeout_minutes }}
+        fi
+        
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
