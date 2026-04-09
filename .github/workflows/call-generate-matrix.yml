@@ -50,6 +50,8 @@ jobs:
           echo "test-suite-file=$TEST_SUITE_FILE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
       - name: Generate test matrix
         id: generate-test-matrix
         shell: bash

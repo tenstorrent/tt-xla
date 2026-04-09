@@ -206,14 +206,14 @@ jobs:
         '
 
     - name: Upload Test Log
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: success() || failure()
       with:
         name: test-log-multihost-dualt3k-${{ github.run_id }}
         path: ${{ steps.strings.outputs.test_log_path }}
 
     - name: Upload Test Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: success() || failure()
       with:
         name: test-reports-multihost-dualt3k-${{ github.run_attempt }}.${{ github.run_id }}

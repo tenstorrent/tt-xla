@@ -15,7 +15,7 @@ jobs:
           python-version: 3.12.0
           cache: 'pip'
       - name: Run pre-commit
-        uses: pre-commit/action@v3.0.1
+        uses: andrewaylett/pre-commit-action@v4
       - uses: enarx/spdx@master
         with:
           licenses: Apache-2.0
