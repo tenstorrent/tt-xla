@@ -182,12 +182,12 @@ jobs:
       #       echo "send_msg={\"text\": \"Nightly failure caused by machine failures. $msg_retry_text\", \"job_link\": \"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
       #     fi
 
-      # - uses: slackapi/slack-github-action@v1.26.0
+      # - uses: slackapi/slack-github-action@v1.26.0 -> change to v3.0.1
       #   if: ${{ steps.inspect-failures.outputs.send_msg && github.event_name == 'workflow_run' }}
       #   with:
       #     payload: ${{ steps.inspect-failures.outputs.send_msg }}
-      #   env:
-      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
+      #     webhook: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
+      #     webhook-type: webhook-trigger
 
       # - name: Machine failure detected
       #   if: ${{ steps.inspect-failures.outputs.send_msg }}

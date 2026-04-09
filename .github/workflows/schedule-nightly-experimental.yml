@@ -64,14 +64,12 @@ jobs:
     steps:
       - name: Send Fail Notification
         if: ${{ needs.fail-notify.outputs.is-main == 'true' }}
-        uses: slackapi/slack-github-action@v1.26.0
+        uses: slackapi/slack-github-action@v3.0.1
         with:
+          webhook: ${{ secrets.SLACK_EXPERIMENTAL_NIGHTLY }}
+          webhook-type: webhook-trigger
           payload: |
-            {
-              "text": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}",
-              "result": "${{ needs.fail-notify.outputs.failed == 'true' && 'FAILED' || 'SUCCEEDED' }}",
-              "channel": "C08GYB57C8M",
-              "unfurl_links": false, "unfurl_media": false
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_EXPERIMENTAL_NIGHTLY }}
+            text: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
+            result: "${{ needs.fail-notify.outputs.failed == 'true' && 'FAILED' || 'SUCCEEDED' }}"
+            unfurl_links: false
+            unfurl_media: false
