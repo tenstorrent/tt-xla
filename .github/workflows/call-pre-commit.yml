@@ -9,13 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: 3.12.0
-          cache: 'pip'
-      - name: Run pre-commit
-        uses: andrewaylett/pre-commit-action@v4
       - uses: enarx/spdx@master
         with:
           licenses: Apache-2.0
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.12
+      - name: Run pre-commit
+        uses: andrewaylett/pre-commit-action@v4
