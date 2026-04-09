@@ -163,7 +163,7 @@ jobs:
         gh run download ${{ steps.strings.outputs.artifact_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
-          --name ${{ steps.strings.outputs.wheel_artifact_name }}
+          --pattern "${{ steps.strings.outputs.wheel_artifact_name }}*"
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
@@ -178,7 +178,7 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-        uv pip install wheels/*.whl
+        uv pip install wheels/*/*.whl
 
     - name: Install custom torch_xla from workflow run
       if: ${{ inputs.torchxla_build_run_id != '' }}
