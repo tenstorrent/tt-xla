@@ -25,6 +25,7 @@ pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy
 |--------|-------------|
 | `--num-layers N` | Override number of model layers (positive integer) |
 | `--max-output-tokens N` | Limit generated tokens (LLMs only) (useful for profiling runs) |
+| `--decode-only` | Run prefill on CPU and only decode on device (only for local testing, cannot be combined with `--accuracy-testing`) |
 
 
 ### Examples
@@ -32,6 +33,9 @@ pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy
 ```bash
 # Short profiling run
 pytest -svv tests/benchmark/test_llms.py::test_qwen_3_0_6b --num-layers 1 --max-output-tokens 3
+
+# Decode-only: measure pure decode throughput (prefill runs on CPU, skips warmup and PCC check)
+pytest -svv tests/benchmark/test_llms.py::test_llama_3_2_1b --decode-only
 ```
 
 ## Directory Structure
@@ -103,7 +107,7 @@ gh workflow run "Performance benchmark" --ref my-feature-branch \
 
 ```python
 def test_new_model(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens, decode_only
 ):
     from third_party.tt_forge_models.new_model.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -120,6 +124,7 @@ def test_new_model(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 ```
 

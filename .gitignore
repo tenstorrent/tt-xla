@@ -44,3 +44,9 @@ artifacts/
 
 # LLM accuracy reference outputs (generated on-demand during accuracy tests)
 tests/benchmark/reference_outputs/*.refpt
+
+# Perf benchmark generated modules
+/modules/
+
+# Tracy profiling files
+/tracy_artifacts/

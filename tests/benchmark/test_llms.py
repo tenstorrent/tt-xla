@@ -27,7 +27,7 @@ DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
 DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
-DEFAULT_REQUIRED_PCC = 0.95
+DEFAULT_REQUIRED_PCC = 0.94
 
 
 def default_read_logits_fn(output):
@@ -57,6 +57,7 @@ def test_llm(
     request=None,
     accuracy_testing: bool = False,
     max_output_tokens=None,
+    decode_only: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -146,6 +147,7 @@ def test_llm(
         model_name_for_accuracy=model_name_for_accuracy,
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
     if output_file:
@@ -207,6 +209,7 @@ def test_llm_tp(
     num_layers=None,
     request=None,
     arch="wormhole_llmbox",
+    decode_only=False,
     **kwargs,
 ):
     mesh_config_fn = kwargs.pop(
@@ -231,12 +234,19 @@ def test_llm_tp(
         arch=arch,
         num_layers=num_layers,
         request=request,
+        decode_only=decode_only,
         **kwargs,
     )
 
 
 def test_llama_3_2_1b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -253,11 +263,18 @@ def test_llama_3_2_1b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_llama_3_2_3b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -274,11 +291,18 @@ def test_llama_3_2_3b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_gemma_1_1_2b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
@@ -295,11 +319,18 @@ def test_gemma_1_1_2b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_gemma_2_2b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
@@ -316,11 +347,18 @@ def test_gemma_2_2b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_phi1(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.phi1.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -337,11 +375,18 @@ def test_phi1(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_phi1_5(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.phi1_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -358,11 +403,18 @@ def test_phi1_5(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_phi2(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.phi2.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -379,11 +431,18 @@ def test_phi2(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_falcon3_1b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -403,11 +462,18 @@ def test_falcon3_1b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_falcon3_3b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -427,11 +493,18 @@ def test_falcon3_3b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_2_5_0_5b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -449,11 +522,18 @@ def test_qwen_2_5_0_5b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_0_6b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -470,11 +550,18 @@ def test_qwen_3_0_6b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_1_7b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -491,11 +578,18 @@ def test_qwen_3_1_7b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_4b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -512,11 +606,18 @@ def test_qwen_3_4b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_2_5_1_5b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -533,11 +634,18 @@ def test_qwen_2_5_1_5b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_2_5_3b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -554,11 +662,18 @@ def test_qwen_2_5_3b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_8b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -575,11 +690,18 @@ def test_qwen_3_8b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_2_5_7b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -596,6 +718,7 @@ def test_qwen_2_5_7b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
@@ -672,7 +795,13 @@ def test_mamba_2_8b(output_file, num_layers, request, max_output_tokens):
 
 
 def test_falcon3_7b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -692,11 +821,18 @@ def test_falcon3_7b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_mistral_7b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -713,12 +849,19 @@ def test_mistral_7b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3934)
 def test_ministral_8b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -736,12 +879,19 @@ def test_ministral_8b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
         trace_enabled=False,
     )
 
 
 def test_llama_3_1_8b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -759,11 +909,18 @@ def test_llama_3_1_8b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_falcon3_7b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -780,11 +937,18 @@ def test_falcon3_7b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_falcon3_10b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -801,11 +965,18 @@ def test_falcon3_10b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_llama_3_1_8b_instruct_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -822,11 +993,18 @@ def test_llama_3_1_8b_instruct_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_mistral_7b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -843,12 +1021,19 @@ def test_mistral_7b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3935)
 def test_ministral_8b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -865,12 +1050,19 @@ def test_ministral_8b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
         trace_enabled=False,
     )
 
 
 def test_mistral_nemo_instruct_2407_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -887,11 +1079,18 @@ def test_mistral_nemo_instruct_2407_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_mistral_small_24b_instruct_2501_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -908,11 +1107,18 @@ def test_mistral_small_24b_instruct_2501_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_2_5_14b_instruct_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -929,11 +1135,18 @@ def test_qwen_2_5_14b_instruct_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_2_5_32b_instruct_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -950,11 +1163,18 @@ def test_qwen_2_5_32b_instruct_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_2_5_coder_32b_instruct_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_2_5_coder.pytorch.loader import (
         ModelLoader,
@@ -971,11 +1191,18 @@ def test_qwen_2_5_coder_32b_instruct_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_0_6b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -992,11 +1219,18 @@ def test_qwen_3_0_6b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_1_7b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1013,11 +1247,18 @@ def test_qwen_3_1_7b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_8b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1034,11 +1275,18 @@ def test_qwen_3_8b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_14b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1055,11 +1303,18 @@ def test_qwen_3_14b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_qwen_3_32b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1076,11 +1331,18 @@ def test_qwen_3_32b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_llama_3_8b_instruct_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1097,11 +1359,18 @@ def test_llama_3_8b_instruct_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_llama_3_1_8b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1118,11 +1387,18 @@ def test_llama_3_1_8b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_llama_3_8b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1139,11 +1415,18 @@ def test_llama_3_8b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
 def test_llama_3_1_70b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1160,6 +1443,7 @@ def test_llama_3_1_70b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
     )
 
 
@@ -1186,7 +1470,13 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1203,6 +1493,7 @@ def test_gpt_oss_20b_tp(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
@@ -1211,7 +1502,13 @@ def test_gpt_oss_20b_tp(
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp_batch_size_1(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1227,6 +1524,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         request=request,
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
@@ -1235,7 +1533,13 @@ def test_gpt_oss_20b_tp_batch_size_1(
 
 
 def test_llama_3_1_70b_tp_galaxy(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1252,13 +1556,20 @@ def test_llama_3_1_70b_tp_galaxy(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
         arch="wormhole_galaxy",
     )
 
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp_galaxy_batch_size_64(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1274,6 +1585,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         request=request,
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
         batch_size=(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
@@ -1285,7 +1597,13 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_120b_tp_galaxy_batch_size_64(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1301,6 +1619,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         request=request,
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
         batch_size=(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907

@@ -187,3 +187,15 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 10485760 B DRAM buffer across 12 banks, where each bank needs to store 876544 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
+
+  stablelm/causal_lm/jax-7B_Alpha-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 603979776 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4089"
+    bringup_status: FAILED_RUNTIME
+
+  stablelm/causal_lm/jax-3B_Alpha-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 268435456 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4089"
+    bringup_status: FAILED_RUNTIME

@@ -19,30 +19,6 @@ import tracy
 from transformers.cache_utils import StaticCache
 
 
-def _fast_argmax(last_logits: torch.Tensor) -> torch.Tensor:
-    """Alternative argmax implementation that avoids slow single-core ttnn.argmax.
-
-      1. ``max`` reduction to find the row-wise maximum value  (ttnn.max)
-      2. element-wise ``eq`` to build a boolean mask of matching positions
-      3. multiply mask by a position vector (iota) and ``max``-reduce to
-         recover the index of the (last) matching position
-
-    Args:
-        last_logits: ``[batch, vocab_size]`` logits for the last position.
-
-    Returns:
-        ``[batch, 1]`` token IDs (the argmax indices).
-    """
-    B, V = last_logits.shape
-    row_max = last_logits.max(dim=-1, keepdim=True).values
-    mask = last_logits == row_max
-    positions = torch.arange(1, V + 1, device=last_logits.device, dtype=torch.float32)
-    masked_positions = mask.to(torch.float32) * positions.unsqueeze(0)
-    next_token_ids = (masked_positions.max(dim=-1).values - 1.0).to(torch.int64)
-
-    return next_token_ids.unsqueeze(-1)
-
-
 class LLMSamplingWrapper(torch.nn.Module):
     """Wraps an LLM to perform sampling (token selection, cache positionupdate) on device.
 
@@ -76,10 +52,11 @@ class LLMSamplingWrapper(torch.nn.Module):
             use_cache=use_cache,
         )
         logits = self.read_logits_fn(output)
-        next_token_ids = _fast_argmax(logits[:, -1])
+        last_token_logits = logits[:, -1]
+        next_token_ids = last_token_logits.argmax(dim=-1, keepdim=True)
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
-            return next_token_ids, next_cache_position, logits
+            return next_token_ids, next_cache_position, last_token_logits
         return next_token_ids, next_cache_position
 
 
@@ -210,7 +187,7 @@ def generate_and_benchmark(
 
     output_logits: list[torch.Tensor] = []
     iteration_times: list[int] = []
-    generated_text: str = ""
+    generated_texts: list[str] = [""] * batch_size
 
     # Prepare teacher forcing tokens on CPU; transfer per-step to avoid
     # device-side indexing that can segfault on the TT backend.
@@ -244,7 +221,11 @@ def generate_and_benchmark(
             input_args["cache_position"] = next_cache_position
 
             if tokenizer:
-                generated_text += tokenizer.decode(next_token_ids[0].to("cpu"))
+                decoded = tokenizer.batch_decode(
+                    next_token_ids.to("cpu").view(batch_size, -1)
+                )
+                for i in range(batch_size):
+                    generated_texts[i] += decoded[i]
 
             end = time.perf_counter_ns()
             tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
@@ -256,7 +237,8 @@ def generate_and_benchmark(
                 )
 
     if tokenizer and verbose:
-        print(f"Generated text: {generated_text}")
+        for i in range(batch_size):
+            print(f"User {i}: {generated_texts[i]}")
 
     return output_logits, iteration_times
 
