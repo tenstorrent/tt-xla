@@ -6,6 +6,7 @@ option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" 
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     set(TT_MLIR_VERSION "ssalice/sparse_bfp4")
+    #set(TT_MLIR_VERSION "0cd797d81d449aaacc2bf38eea2fe02a0b9fc56e")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")

@@ -41,6 +41,7 @@ test_config:
     status: EXPECTED_PASSING
     inject_custom_moe: true
     enable_weight_bfp8_conversion: true
+    enable_weight_bfp4_conversion: true
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3490
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:

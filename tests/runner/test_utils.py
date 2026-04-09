@@ -143,6 +143,11 @@ class ModelTestConfig:
             "enable_weight_bfp8_conversion", default=False
         )
 
+        # Compiler config: enable experimental BFP4 weight conversion
+        self.enable_weight_bfp4_conversion = self._resolve(
+            "enable_weight_bfp4_conversion", default=False
+        )
+
         # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
         self.inject_custom_moe = self._resolve("inject_custom_moe", default=False)
         # EmitPy verification: assert exact match (default True).
