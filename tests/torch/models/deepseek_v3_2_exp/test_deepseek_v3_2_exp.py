@@ -30,7 +30,8 @@ from tests.utils import failed_ttmlir_compilation
 #    - the original implementation (kernel.py) relies on custom tilelang kernels not supported on TT
 # 3. Avoid torch.view_as_complex/view_as_real operations
 
-DEEPSEEK_V3_REPO = "deepseek-ai/DeepSeek-V3.2"
+DEEPSEEK_V3_2_REPO = "deepseek-ai/DeepSeek-V3.2"
+DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
 
 
 def _rename_hf_key(ckpt_key, n_dense_layers=1):
@@ -95,7 +96,7 @@ def _rename_hf_key(ckpt_key, n_dense_layers=1):
     return key
 
 
-def load_deepseek_config(repo_id=DEEPSEEK_V3_REPO):
+def load_deepseek_config(repo_id=DEEPSEEK_V3_2_REPO):
     """Download and parse the HuggingFace config.json into ModelArgs fields."""
     config_path = hf_hub_download(repo_id, "config.json")
     with open(config_path) as f:
@@ -130,7 +131,7 @@ def load_deepseek_config(repo_id=DEEPSEEK_V3_REPO):
 
 
 def load_deepseek_weights(
-    model, repo_id=DEEPSEEK_V3_REPO, n_layers=2, n_dense_layers=1
+    model, repo_id=DEEPSEEK_V3_2_REPO, n_layers=2, n_dense_layers=1
 ):
     """Load pretrained weights from a HuggingFace repo into the model.
 
@@ -631,20 +632,23 @@ def test_deepseek_v3_2_moe_only():
 @pytest.mark.parametrize("batch_size", [32, 64])
 @pytest.mark.parametrize("seq_len", [1, 32, 128])
 def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
-    """Test single MoE Block with A2aSparseMLP on (2,4) mesh."""
+    """Test single MoE Block with A2aSparseMLP on (4,8) mesh — V3.2 real weights."""
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    args = ModelArgs(
-        n_layers=2,
-        max_batch_size=batch_size,
-        max_seq_len=seq_len * 2,
-    )
+    args = load_deepseek_config()
+    # Need n_dense_layers + 1 layers to get at least one MoE layer
+    args.n_layers = args.n_dense_layers + 1
+    args.max_batch_size = batch_size
+    args.max_seq_len = seq_len * 2
 
-    # Create full model to get freqs_cis, then extract MoE block (layer 1)
+    # Create full model, load real weights, then extract first MoE block
     model = ModifiedTransformer(args)
+    load_deepseek_weights(
+        model, n_layers=args.n_layers, n_dense_layers=args.n_dense_layers
+    )
     model = model.to(torch.bfloat16)
-    block = model.layers[1]  # layer_id=1 >= n_dense_layers=1 → MoE
+    block = model.layers[args.n_dense_layers]  # first MoE layer
     freqs_cis = model.freqs_cis[:seq_len]
 
     mesh_shape = (4, 8)
@@ -762,8 +766,24 @@ def test_deepseek_v3_2_full_sparse_moe():
         13556,
         14,
         17224,
-        87191,
-        305,
+        671,
+        6102,
+        294,
+        8760,
+        344,
+        11111,
+        14,
+        260,
+        5217,
+        6354,
+        362,
+        2783,
+        14,
+        13556,
+        14,
+        17224,
+        # 87191,
+        # 305,
     ]
 
     batch_size = 32
@@ -793,17 +813,6 @@ def test_deepseek_v3_2_full_sparse_moe():
     )
 
     model.eval()
-
-    # Prepopulate topk indices to bypass broken TTNN TopK indices.
-    # With index_topk >= seq_len, all positions are selected anyway,
-    # so we provide all indices as a no-op mask.
-    for layer in model.layers:
-        if layer.attn.indexer is not None:
-            k = min(args.index_topk, seq_len)
-            topk_indices = (
-                torch.arange(k).unsqueeze(0).unsqueeze(0).expand(batch_size, seq_len, k)
-            )
-            layer.attn.prepopulated_topk_indices = topk_indices
 
     single_sequence = torch.tensor(token_ids).long()
     tokens = single_sequence.unsqueeze(0).expand(batch_size, seq_len)
@@ -913,10 +922,256 @@ def test_deepseek_v3_2_full_sparse_moe():
         compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
     )
 
-    # Instantiate tokenizer only after the test to avoid a known bug where it affects PCC
+    # TODO: Importing AutoTokenizer before run_graph_test somehow degrades PCC.
+    # Instantiate it only after the test until we can debug the root cause.
     from transformers import AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(DEEPSEEK_V3_REPO)
+    tokenizer = AutoTokenizer.from_pretrained(DEEPSEEK_V3_2_REPO)
+
+    tt_tokens = tt_res.argmax(dim=-1)
+    cpu_tokens = cpu_res.argmax(dim=-1)
+
+    print(f"[output] TT  tokens: {tokenizer.decode(tt_tokens[0].tolist())}")
+    print(f"[output] CPU tokens: {tokenizer.decode(cpu_tokens[0].tolist())}")
+
+
+###############################################################################
+# DeepSeek V3.1 tests — same architecture as V3.2 but n_dense_layers=3
+# and no indexer (index_n_heads=0 in HF config).
+###############################################################################
+
+
+@pytest.mark.llmbox
+@pytest.mark.parametrize("batch_size", [32, 64])
+@pytest.mark.parametrize("seq_len", [1, 32, 128])
+def test_deepseek_v3_1_layer_sparse_moe(batch_size, seq_len):
+    """Test single MoE Block with A2aSparseMLP on (4,8) mesh — V3.1 real weights."""
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    # V3.1: n_dense_layers=3, so need 4 layers to get first MoE at index 3
+    args = load_deepseek_config(DEEPSEEK_V3_1_REPO)
+    args.n_layers = 4
+    args.max_batch_size = batch_size
+    args.max_seq_len = seq_len * 2
+
+    model = ModifiedTransformer(args)
+    load_deepseek_weights(
+        model,
+        repo_id=DEEPSEEK_V3_1_REPO,
+        n_layers=args.n_layers,
+        n_dense_layers=args.n_dense_layers,
+    )
+    model = model.to(torch.bfloat16)
+    block = model.layers[3]  # first MoE layer
+    freqs_cis = model.freqs_cis[:seq_len]
+
+    mesh_shape = (4, 8)
+    enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
+    block.eval()
+
+    hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
+    mask = torch.full((seq_len, seq_len), float("-inf"), dtype=torch.bfloat16).triu_(1)
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+
+    def get_shard_spec(block, args, kwargs):
+        shard_specs = {}
+
+        shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
+
+        attn = block.attn
+        shard_specs[attn.wq_b.weight] = ("_axis_0", None)
+        shard_specs[attn.wkv_b.weight] = ("_axis_0", None)
+        shard_specs[attn.wo.weight] = (None, "_axis_0")
+        shard_specs[attn.wq_a.weight] = (None, "_axis_0")
+        shard_specs[attn.wkv_a.weight] = (None, "_axis_0")
+
+        shard_specs[attn.kv_cache] = ("_axis_1", None, None)
+        shard_specs[attn.pe_cache] = ("_axis_1", None, None)
+
+        ffn = block.ffn
+        mlp = ffn.mlp if hasattr(ffn, "mlp") else ffn
+        shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
+        shard_specs[mlp.experts.gate_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.up_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.down_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
+        shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
+
+        shared = getattr(ffn, "shared_experts", None)
+        if shared is not None:
+            shard_specs[shared.w1.weight] = (None, "_axis_0")
+            shard_specs[shared.w3.weight] = (None, "_axis_0")
+            shard_specs[shared.w2.weight] = ("_axis_0", None)
+
+        shard_specs[block.attn_norm.weight] = ("_axis_0",)
+        shard_specs[block.ffn_norm.weight] = ("_axis_0",)
+
+        return shard_specs
+
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.95),
+    )
+
+    run_graph_test(
+        block,
+        [hidden_states, None, 0, freqs_cis, mask],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=comparison_config,
+    )
+
+
+@pytest.mark.llmbox
+def test_deepseek_v3_1_full_sparse_moe():
+    """Test full DeepseekV3.1 Transformer with A2aSparseMLP on (4,8) mesh."""
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    token_ids = [
+        671,
+        6102,
+        294,
+        8760,
+        344,
+        11111,
+        14,
+        260,
+        5217,
+        6354,
+        362,
+        2783,
+        14,
+        13556,
+        14,
+        17224,
+        671,
+        6102,
+        294,
+        8760,
+        344,
+        11111,
+        14,
+        260,
+        5217,
+        6354,
+        362,
+        2783,
+        14,
+        13556,
+        14,
+        17224,
+    ]
+
+    batch_size = 32
+    seq_len = len(token_ids)
+
+    args = load_deepseek_config(DEEPSEEK_V3_1_REPO)
+    args.n_layers = 4
+    args.max_batch_size = batch_size
+    args.max_seq_len = seq_len * 2
+    print(f"[config] {args}")
+
+    model = ModifiedTransformer(args)
+    load_deepseek_weights(
+        model,
+        repo_id=DEEPSEEK_V3_1_REPO,
+        n_layers=args.n_layers,
+        n_dense_layers=args.n_dense_layers,
+    )
+    model = model.to(torch.bfloat16)
+    model.head = model.head.to(torch.float32)
+
+    mesh_shape = (4, 8)
+    enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+    model.eval()
+
+    single_sequence = torch.tensor(token_ids).long()
+    tokens = single_sequence.unsqueeze(0).expand(batch_size, seq_len)
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+
+    def get_shard_spec(model, args, kwargs):
+        shard_specs = {}
+
+        shard_specs[args[0]] = ("_axis_1", None)
+        shard_specs[model.embed.weight] = (None, "_axis_0")
+
+        for layer in model.layers:
+            attn = layer.attn
+
+            shard_specs[attn.wq_b.weight] = ("_axis_0", None)
+            shard_specs[attn.wkv_b.weight] = ("_axis_0", None)
+            shard_specs[attn.wo.weight] = (None, "_axis_0")
+            shard_specs[attn.wq_a.weight] = (None, "_axis_0")
+            shard_specs[attn.wkv_a.weight] = (None, "_axis_0")
+
+            shard_specs[attn.kv_cache] = ("_axis_1", None, None)
+            shard_specs[attn.pe_cache] = ("_axis_1", None, None)
+
+            ffn = layer.ffn
+            if hasattr(ffn, "mlp"):
+                mlp = ffn.mlp
+                shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
+                shard_specs[mlp.experts.gate_proj] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
+                )
+                shard_specs[mlp.experts.up_proj] = (("_axis_0", "_axis_1"), None, None)
+                shard_specs[mlp.experts.down_proj] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
+                )
+                shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
+                shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
+                shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
+
+                shared = getattr(ffn, "shared_experts", None)
+                if shared is not None:
+                    shard_specs[shared.w1.weight] = (None, "_axis_0")
+                    shard_specs[shared.w3.weight] = (None, "_axis_0")
+                    shard_specs[shared.w2.weight] = ("_axis_0", None)
+            else:
+                shard_specs[ffn.w1.weight] = ("_axis_1", "_axis_0")
+                shard_specs[ffn.w3.weight] = ("_axis_1", "_axis_0")
+                shard_specs[ffn.w2.weight] = ("_axis_0", "_axis_1")
+
+            shard_specs[layer.attn_norm.weight] = ("_axis_0",)
+            shard_specs[layer.ffn_norm.weight] = ("_axis_0",)
+
+        shard_specs[model.norm.weight] = ("_axis_0",)
+        shard_specs[model.head.weight] = (None, "_axis_0")
+
+        return shard_specs
+
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.95),
+    )
+
+    tt_res, cpu_res = run_graph_test(
+        model,
+        [tokens],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=comparison_config,
+        compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
+    )
+
+    # TODO: Importing AutoTokenizer before run_graph_test somehow degrades PCC.
+    # Instantiate it only after the test until we can debug the root cause.
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(DEEPSEEK_V3_1_REPO)
 
     tt_tokens = tt_res.argmax(dim=-1)
     cpu_tokens = cpu_res.argmax(dim=-1)
