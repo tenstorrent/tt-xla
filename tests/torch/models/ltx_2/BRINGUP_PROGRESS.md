@@ -4,7 +4,12 @@ Started: 2026-04-09
 Hardware: Blackhole Quietbox (bhqb), 4 x p150b (32 GiB DRAM each)
 Devices: 4 (after chip reset; requires `tt-smi -r 0,1,2,3` if only 2 show up)
 
-## Order of bringup (simplest → hardest)
+## Summary
+
+**6/7 non-Conv3d components PASS. 3 Conv3d components BLOCKED at tt-metal level.**
+**Partial pipeline (text encoding + denoising) runs end-to-end.**
+
+## Component Status
 
 | # | Component | Script | Sharding | Status | Notes |
 |---|-----------|--------|----------|--------|-------|
@@ -15,42 +20,49 @@ Devices: 4 (after chip reset; requires `tt-smi -r 0,1,2,3` if only 2 show up)
 | 5 | Video VAE Decoder | run_ltx2_video_decoder.py | Replicated | **BLOCKED** | Conv3d L1 overflow |
 | 6 | Latent Upsampler | run_ltx2_latent_upsampler.py | Replicated | **BLOCKED** | Conv3d L1 overflow |
 | 7 | Text Connectors | run_ltx2_text_connectors.py | Replicated | **PASS** | Output [1,256,3840], 0.75s |
-| 8 | Text Encoder (Gemma 3) | run_ltx2_text_encoder.py | Replicated | **PASS** | 2-layer minimal, output [1,128,3840], 0.4s |
-| 9 | Transformer (DiT) | run_ltx2_transformer.py | Replicated | **PASS** | 4-layer minimal, video [1,32,128] + audio [1,16,128], 12.5s |
-| 10 | Full Pipeline | run_ltx2_pipeline.py | Mixed | PENDING | Sequential offload |
+| 8 | Text Encoder (Gemma 3) | run_ltx2_text_encoder.py | Replicated | **PASS** | 2-layer minimal, [1,128,3840], 0.4s |
+| 9 | Transformer (DiT) | run_ltx2_transformer.py | Replicated | **PASS** | 4-layer minimal, video+audio, 12.5s |
+| 10 | Partial Pipeline | run_ltx2_partial_pipeline.py | Replicated | **PASS** | Phase 1+2 end-to-end |
 
-## Patches Applied
+## Patches Required
 
-### 1. Text Connectors & Transformer — unflatten -> reshape monkey-patch
-- **Problem**: `tensor.unflatten(dim, (-1, n))` causes dynamo graph breaks
-- **Fix**: Monkey-patch `apply_interleaved_rotary_emb` and `LTX2AudioVideoAttnProcessor.__call__` to use `tensor.reshape()` with explicit dimensions
-- **Also needed**: `fullgraph=True` in `torch.compile`
+### 1. unflatten -> reshape (Text Connectors, Transformer, Pipeline)
+- `tensor.unflatten(dim, (-1, n))` causes dynamo graph breaks
+- Monkey-patch `apply_interleaved_rotary_emb` and `LTX2AudioVideoAttnProcessor.__call__`
+- Must use `fullgraph=True` in `torch.compile`
 
-### 2. Transformer — prims::view_of -> clone() monkey-patch
-- **Problem**: `prims::view_of` creates aliased outputs unsupported by XLA/TT functionalization
-- **Fix**: Monkey-patch `TorchFunctionOverride.__torch_function__` to intercept `torch.ops.prims.view_of.default` and replace with `.clone()`
+### 2. prims::view_of -> clone (Transformer, Pipeline)
+- `prims::view_of` creates aliased outputs unsupported by XLA/TT functionalization
+- Monkey-patch `TorchFunctionOverride.__torch_function__` to intercept and clone
 
-### 3. Text Encoder — pre-computed causal mask
-- **Problem**: Gemma3's `create_causal_mask` generates `slice(-N)` where N > 127 (int8 overflow in XLA HLO)
-- **Fix**: Use `Gemma3TextModel` directly with pre-computed causal mask instead of `Gemma3ForConditionalGeneration`
+### 3. Pre-computed causal mask (Text Encoder, Pipeline)
+- Gemma3's `create_causal_mask` generates `slice(-N)` with N > 127 (int8 overflow)
+- Use `Gemma3TextModel` directly with pre-computed causal mask
 
-### 4. Transformer — audio_num_frames must be explicit
-- **Problem**: `audio_num_frames` defaults to None, causing TypeError in `prepare_audio_coords`
-- **Fix**: Pass `audio_num_frames=n_audio` in forward call
+### 4. audio_num_frames explicit (Transformer, Pipeline)
+- Must pass `audio_num_frames=n_audio` to avoid NoneType+int TypeError
 
-## Blockers
+### 5. rope_type="interleaved" (Transformer, Pipeline)
+- Config override to avoid split rotary emb tracing bug
 
-### Conv3d L1 overflow (blocks Video VAE Encoder, Video VAE Decoder, Latent Upsampler)
+## Blockers (require tt-metal/tt-mlir fixes)
+
+### Conv3d L1 overflow
 - **Error**: `Statically allocated circular buffers grow to N B beyond max L1 size of 1572864 B`
-- **Location**: `Conv3dDeviceOperation` in tt-metal
-- **Workaround**: None at Python level. Requires tt-metal fix.
+- **Affected**: Video VAE Encoder (1.91MB), Video VAE Decoder (3.71MB), Latent Upsampler (3.71MB)
+- **Fix needed**: tt-metal `Conv3dDeviceOperation` L1 allocation strategy
 
-### Gemma3 int8 slice overflow (blocks full 48-layer pretrained text encoder)
-- **Error**: `Value out of range (expected [-128, 127], got -1023/-4095)` on `aten.slice.Tensor`
-- **Root cause**: `sliding_window=1024` and dynamic mask generation create large negative slice indices
-- **Workaround**: Use minimal config with pre-computed mask. Full model needs XLA fix for int8 slice limits.
+### Gemma3 int8 slice overflow (full 48-layer pretrained)
+- **Error**: `Value out of range (expected [-128, 127])` on `aten.slice.Tensor`
+- **Fix needed**: XLA HLO int8 slice index handling
 
-### SPMD + graph breaks (blocks 4-way TP sharding)
-- **Error**: `Device count mismatch: 4 vs 1` in flatbuffer_loaded_executable
-- **Root cause**: Graph breaks cause sub-graphs without sharding info, compiled for 1 device
-- **Workaround**: Use replicated mode for now. Need graph-break-free compilation for SPMD.
+### SPMD + graph breaks (4-way TP sharding)
+- **Error**: `Device count mismatch: 4 vs 1`
+- **Fix needed**: Graph-break-free compilation or partition-aware sharding propagation
+
+## What's Needed for Full Pipeline
+
+1. **tt-metal Conv3d L1 fix** — unblocks VAE encode/decode and latent upsampler
+2. **XLA int8 slice fix** — unblocks full 48-layer Gemma3 pretrained model
+3. **SPMD graph break fix** — unblocks 4-way tensor parallelism for large models
+4. **PCC validation** — compare TT outputs against CPU reference (not yet tested)
