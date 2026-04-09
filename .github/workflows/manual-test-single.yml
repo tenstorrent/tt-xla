@@ -63,6 +63,11 @@ on:
         required: false
         type: string
         default: ''
+      ttxla_build_run_id:
+        description: 'Run ID of a previous workflow that already contains the tt-xla wheel artifact(s). When provided, the build steps are skipped and the wheel is sourced from that run.'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   actions: write
@@ -80,6 +85,7 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
 
   build-ttxla:
+    if: ${{ inputs.ttxla_build_run_id == '' }}
     needs: build-image
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
@@ -88,6 +94,7 @@ jobs:
       mlir_override: ${{ inputs.mlir_override }}
 
   generate-test-config:
+    if: always() && !cancelled() && !failure()
     needs: build-ttxla
     runs-on: ubuntu-latest
     outputs:
@@ -110,7 +117,7 @@ jobs:
           echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT
 
   test:
-    if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
+    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla, generate-test-config ]
     secrets: inherit
@@ -118,7 +125,7 @@ jobs:
       test_suite: 'Custom'
       test_suite_custom: ${{ needs.generate-test-config.outputs.test-config }}
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifact_release_run_id: ${{ inputs.ttxla_build_run_id != '' && inputs.ttxla_build_run_id || needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ inputs.ttxla_build_run_id == '' && needs.build-ttxla.outputs.artifact_suffix || '' }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
       forge_models_override: ${{ inputs.forge_models_override }}
