@@ -1713,3 +1713,65 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
     )
+
+
+def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
+    return (1, 4), ("batch", "model")
+
+
+def _gpt_oss_120b_qb2_shard_spec_fn(model_loader, model):
+    """QB2 (1,4) mesh shard specs — model-axis-only, no batch sharding."""
+    shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
+    return shard_specs
+
+
+def test_gpt_oss_120b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=batch_size if batch_size is not None else 8,
+        arch="blackhole_qb2",
+        optimization_level=1,
+        trace_enabled=False,
+        experimental_weight_dtype="",
+        weight_dtype_overrides={
+            "default": "bfp_bf8",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
+        mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+    )
