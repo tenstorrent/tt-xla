@@ -21,8 +21,9 @@ from third_party.tt_forge_models.gpt_oss.pytorch.overrides import (
     override_gpt_oss_modules,
 )
 
-@pytest.mark.nightly
+@pytest.mark.push
 @pytest.mark.llmbox
+@pytest.mark.training
 def test_gpt_oss_moe_multichip_backward():
 
     model_loader = GptOssModelLoader(GptOssModelVariant.GPT_OSS_20B)
