@@ -135,7 +135,16 @@ def get_distributed_worker_path() -> str:
         ), f"Distributed worker file does not exist at path: {worker_path} as explicitly specified in TT_DISTRIBUTED_WORKER_PATH. Please check that the path is correct."
         return worker_path
 
+    # Auto-discover TT_PJRT_PLUGIN_DIR from pjrt_plugin_tt package if not set
     pjrt_plugin_dir = os.environ.get("TT_PJRT_PLUGIN_DIR")
+    if not pjrt_plugin_dir:
+        try:
+            from pjrt_plugin_tt import setup_tt_pjrt_plugin_dir
+            setup_tt_pjrt_plugin_dir()
+            pjrt_plugin_dir = os.environ.get("TT_PJRT_PLUGIN_DIR")
+        except ImportError:
+            pass  # pjrt_plugin_tt not installed, will fall back to TT_MLIR_HOME
+
     if pjrt_plugin_dir:
         worker_path = os.path.join(
             pjrt_plugin_dir, "bin/ttmlir/runtime/distributed/worker"
