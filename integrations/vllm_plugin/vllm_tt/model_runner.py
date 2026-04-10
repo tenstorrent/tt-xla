@@ -2058,11 +2058,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     )
                     dtype = kv_cache_spec.dtype
 
-                    tpu_kv_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(
-                        self.device
-                    )
+                    # Allocate separate K and V cache tensors to avoid
+                    # slice/concat copies in the compiled decode graph.
+                    k_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
+                    v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
 
-                    kv_caches[layer_name] = tpu_kv_cache
+                    kv_caches[layer_name] = [k_cache, v_cache]
                 else:
                     raise NotImplementedError
 
@@ -2076,10 +2077,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.enable_tensor_parallel:
-            # Shard KV Cache
-            for cache in self.kv_caches:
-                assert cache.ndim == 5, "KV cache tensor must be 5D."
-                xs.mark_sharding(cache, self.mesh, (None, None, "batch", None, None))
+            # Shard KV Cache — each entry is [k_cache, v_cache]
+            for kv_pair in self.kv_caches:
+                for cache in kv_pair:
+                    assert cache.ndim == 4, "KV cache tensor must be 4D."
+                    xs.mark_sharding(cache, self.mesh, (None, "batch", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
@@ -2492,8 +2494,14 @@ def copy_kv_blocks(
     ):
         return
 
-    src_device = next(iter(src_kv_caches.values())).device
-    dst_device = next(iter(dst_kv_caches.values())).device
+    src_val = next(iter(src_kv_caches.values()))
+    dst_val = next(iter(dst_kv_caches.values()))
+    src_device = (
+        src_val[0].device if isinstance(src_val, (list, tuple)) else src_val.device
+    )
+    dst_device = (
+        dst_val[0].device if isinstance(dst_val, (list, tuple)) else dst_val.device
+    )
 
     src_indices, dst_indices = _make_src_and_dst_indices(
         src_block_ids=src_block_ids,
@@ -2504,9 +2512,13 @@ def copy_kv_blocks(
 
     _copy_fn = _insert_blocks_to_tpu if direction == "h2d" else _swap_out_tpu_blocks
     for layer_name in src_kv_caches:
-        src_tensor = src_kv_caches[layer_name]
-        dst_tensor = dst_kv_caches[layer_name]
-        _copy_fn(src_tensor, dst_tensor, src_indices, dst_indices)
+        src_kv = src_kv_caches[layer_name]
+        dst_kv = dst_kv_caches[layer_name]
+        if isinstance(src_kv, (list, tuple)):
+            for src_tensor, dst_tensor in zip(src_kv, dst_kv):
+                _copy_fn(src_tensor, dst_tensor, src_indices, dst_indices)
+        else:
+            _copy_fn(src_kv, dst_kv, src_indices, dst_indices)
 
 
 def _get_padded_num_kv_cache_update_slices(
