@@ -500,10 +500,16 @@ jobs:
             echo "$TOPOLOGY_EXPORTS"
             eval "$TOPOLOGY_EXPORTS"
 
-            # Build pytest command with python3 and topology filter
-            # Replace 'python' with explicit venv python3 path and add -k filter for topology
-            MULTIHOST_PYTEST_CMD=$(echo "$FULL_PYTEST_CMD" | sed "s|^python |$PYTHON |")
-            MULTIHOST_PYTEST_CMD=$(echo "$MULTIHOST_PYTEST_CMD" | sed "s|-k ''|-k '$TOPOLOGY'|")
+            # Build pytest command for multihost (FULL_PYTEST_CMD has malformed -m flag)
+            # Rebuild command from scratch with correct python3 path and topology filter
+            MULTIHOST_PYTEST_CMD="$PYTHON -m pytest ${{ env.VERBOSITY }} \
+              --log-memory --durations=0 \
+              ./tests/torch/multi_host/experimental \
+              -k '$TOPOLOGY' \
+              --junitxml=${{ steps.strings.outputs.test_report_path }} \
+              --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+              --perf-id=${{ steps.fetch-job-id.outputs.job_id }}"
+
             echo "Running: $MULTIHOST_PYTEST_CMD"
             $MULTIHOST_PYTEST_CMD 2>&1 | tee pytest.log
           '
