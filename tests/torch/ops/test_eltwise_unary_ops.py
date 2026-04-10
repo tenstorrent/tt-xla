@@ -104,7 +104,11 @@ def test_asinh():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
+@pytest.mark.skip(
+    "Test skipped due to issue https://github.com/tenstorrent/tt-xla/issues/4210"
+)
 def test_atan():
+
     class Atan(torch.nn.Module):
         def forward(self, x):
             return torch.atan(x)

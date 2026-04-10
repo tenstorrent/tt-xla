@@ -200,6 +200,12 @@ eltwise_unary_ops_eager = [
 @pytest.mark.single_device
 @pytest.mark.parametrize("op", eltwise_unary_ops_eager)
 def test_eltwise_unary_eager(op):
+
+    if op is torch.atan:
+        pytest.skip(
+            reason="Test failed see issue https://github.com/tenstorrent/tt-xla/issues/4210",
+        )
+
     class Unary(torch.nn.Module):
         def forward(self, x):
             return op(x)
