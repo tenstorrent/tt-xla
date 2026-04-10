@@ -1763,15 +1763,16 @@ def test_gpt_oss_120b_tp_qb2(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         batch_size=batch_size if batch_size is not None else 8,
-        arch="blackhole_qb2",
+        arch="qb2-blackhole",
         optimization_level=1,
         trace_enabled=False,
-        experimental_weight_dtype="",
+        experimental_weight_dtype="bfp_bf8",
         weight_dtype_overrides={
             "default": "bfp_bf8",
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
+        required_pcc=0.93, # set for now as it's ~0.93 on test runs locally
         mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
         shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
     )
