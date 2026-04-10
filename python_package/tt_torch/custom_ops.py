@@ -274,7 +274,7 @@ def scaled_dot_product_attention(
         if sliding_window_size is not None:
             assert (
                 sliding_window_size > 0
-            ), "sliding_window_size must be a positive integer."
+            ), f"sliding_window_size must be a positive integer, but is {sliding_window_size}"
             frontend_attributes["sliding_window_size"] = str(sliding_window_size)
 
         return stablehlo_custom_call.stablehlo_custom_call(
