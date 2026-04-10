@@ -101,7 +101,10 @@ class TTAttentionBackend(AttentionBackend):
         head_size: int,
         cache_dtype_str: str = "auto",
     ) -> tuple[int, ...]:
-        return (2, num_blocks, num_kv_heads, block_size, head_size)
+        # Return shape for a single K or V cache tensor.
+        # K and V are allocated as separate tensors to avoid slice/concat
+        # copies in the compiled decode graph.
+        return (num_blocks, num_kv_heads, block_size, head_size)
 
     @staticmethod
     def swap_blocks(
@@ -281,8 +284,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         # Prepare inputs and metadata
         inputs = self._prepare_inputs(query, key, value, attn_metadata)
 
-        # Handle paged attention if KV cache exists
-        if kv_cache.numel() > 1:
+        # Handle paged attention if KV cache exists.
+        # kv_cache is a list [k_cache, v_cache] of separate tensors.
+        if isinstance(kv_cache, (list, tuple)) and kv_cache[0].numel() > 0:
             self._handle_paged_attention(inputs, kv_cache, attn_metadata)
 
         # Compute attention based on mode:
@@ -449,9 +453,12 @@ class TTAttentionBackendImpl(AttentionImpl):
         return query, key, value
 
     def _handle_paged_attention(
-        self, inputs, kv_cache: torch.Tensor, attn_metadata: TTMetadata
+        self, inputs, kv_cache: list[torch.Tensor], attn_metadata: TTMetadata
     ):
-        """Handle paged attention cache updates."""
+        """Handle paged attention cache updates.
+
+        kv_cache is [k_cache, v_cache] — separate tensors, no slice/concat needed.
+        """
         k_cache = kv_cache[0]
         v_cache = kv_cache[1]
 
@@ -497,9 +504,11 @@ class TTAttentionBackendImpl(AttentionImpl):
                     ),
                 )
 
-        # Update the KV cache
-        new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
-        kv_cache.copy_(new_kv_cache)
+        # Copy updated values back to persistent buffers to preserve tensor
+        # identity for XLA graph tracing. This avoids recompilation and
+        # eliminates the slice/concat copies from the combined layout.
+        kv_cache[0].copy_(k_cache)
+        kv_cache[1].copy_(v_cache)
 
     def _compute_full_attention(
         self, inputs, attn_metadata: TTMetadata
@@ -530,7 +539,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         return output
 
     def _compute_decode_attention(
-        self, inputs, kv_cache: torch.Tensor, attn_metadata: TTMetadata
+        self, inputs, kv_cache: list[torch.Tensor], attn_metadata: TTMetadata
     ) -> torch.Tensor:
         """Compute attention for decode phase (paged)."""
         k_cache = kv_cache[0]
