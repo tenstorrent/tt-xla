@@ -1,3 +1,3 @@
 [
-    { "runs-on": "multi-host-bh-lb-2x", "name": "multihost tests",  "dir": "./tests/torch/multi_host/experimental",  "test-mark": "dual_bh_loudbox_1x16", "multihost": true }
+    { "runs-on": "multi-host-bh-lb-2x", "name": "multihost tests",  "dir": "./tests/torch/multi_host/experimental",  "multihost": true }
 ]
