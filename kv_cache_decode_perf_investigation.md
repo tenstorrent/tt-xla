@@ -151,13 +151,83 @@ The first attempt used list assignment (`kv_cache[0] = k_cache`) which broke XLA
 - **Baseline improved**: 80.4 vs 68.9 tok/s at smallest cache (+17%)
 - **Large cache 3.6x faster**: 77.6 vs 21.3 tok/s
 
+### Extended results (OPT-125M, single N150 chip)
+
+| gpu_memory_utilization | KV cache tokens | Without Fix (tok/s) | With Fix (tok/s) | Speedup |
+|---|---|---|---|---|
+| 0.005 | 1,728 | 61.9 | 79.8 | 1.3x |
+| 0.05 | 17,472 | 21.3 | 79.7 | 3.7x |
+| 0.1 | 34,944 | 12.0 | 78.4 | 6.5x |
+| 0.2 | 69,888 | 6.3 | 78.4 | 12.4x |
+| 0.5 | 174,752 | FAILED (compile) | 75.6 | ∞ |
+| 0.8 | 279,616 | FAILED (compile) | 73.5 | ∞ |
+
+### Production validation
+
+Cherry-picked to tt-inference-server on N150:
+- **Llama-3.1-8B-Instruct**: 10.5 → 18-19 tok/s (~1.8x)
+- **Qwen3-8B**: 10.5 → 18-19 tok/s (~1.8x)
+
+## Round 2: Eliminating remaining `.copy_()` overhead
+
+### Problem
+
+With the fix, there's still a ~8% perf drop from 0.005 to 0.8 (79.8 → 73.5 tok/s). This comes from the 24 `.copy_()` calls per decode step (12 layers × K + V) that copy the **entire** cache tensor to preserve XLA tensor identity:
+
+| gpu_mem | num_blocks | Per-cache size | Total copy/step (24×) |
+|---|---|---|---|
+| 0.005 | 54 | 2.7 MB | 64 MB |
+| 0.8 | 8,736 | 428 MB | 10.3 GB |
+
+162x more data moved, but only 8% slower — the TTNN compiler likely recognizes the in-place semantics and makes most of the copy near-free. But it's not zero.
+
+### Solution: `input_output_alias`
+
+XLA/PJRT has `mhlo.input_output_alias` — a mechanism to tell the runtime that a graph output IS the same buffer as a graph input. Currently `input_output_alias = []` (empty) for all graphs. If we alias the cache tensor outputs to their corresponding inputs:
+
+1. Runtime skips allocating separate output buffers
+2. Runtime skips the copy at the graph execution boundary
+3. `paged_update_cache` modifies the buffer in-place end-to-end
+4. The `.copy_()` in attention.py becomes a no-op (same source and dest buffer)
+
+This would make cache size truly invisible to decode performance.
+
+### Investigation: what needs to change
+
+**torch_xla** has the machinery but it's not wired up for paged caches:
+- `torch_xla._XLAC._xla_set_enable_alias_with_buffer_donor_config(True)` exists but defaults to **False**
+- `dynamo_bridge.py:477` temporarily enables it during compilation via `alias_with_buffer_donor_config()`
+- `dynamo_set_buffer_donor_(tensor, True)` marks tensors for aliasing — already called in `write_to_kv_cache` (non-paged path, `attention.py:604`) but **not** in the paged path (`_handle_paged_attention`)
+- When enabled, torch_xla should populate `mhlo.input_output_alias` in the HLO module
+
+**tt-xla PJRT plugin** does not handle aliases at all:
+- `flatbuffer_loaded_executable_instance.cc:execute()` always creates new output buffers — no code to check for aliases and reuse input buffers
+- `module_builder.cc` does not parse `input_output_alias` from the MLIR module
+- No references to `alias`, `donor`, or `buffer_reuse` anywhere in `pjrt_implementation/`
+- This is the main gap — even if torch_xla sends alias info, the plugin ignores it
+
+**tt-mlir** only sees `input_output_alias = []` in test data:
+- No passes parse, propagate, or enforce alias constraints
+- The TTNN backend's `paged_update_cache` is already in-place (returns void) — it naturally supports aliasing at the kernel level
+- tt-mlir may not need changes if the PJRT plugin handles aliasing at the execution boundary
+
+### Required changes (ordered)
+
+1. **tt-xla vLLM plugin** — call `dynamo_set_buffer_donor_` on the separate K and V cache tensors in `_handle_paged_attention` before the `.copy_()` calls. This is a one-line change per cache tensor.
+
+2. **tt-xla PJRT plugin** (C++) — the main work:
+   - Parse `mhlo.input_output_alias` from the compiled MLIR module in `module_builder.cc`
+   - Store the alias mapping (input_idx → output_idx) in `ExecutableImage`
+   - In `execute()`, for aliased outputs, reuse the input buffer instead of allocating a new one
+   - Skip the data copy for aliased pairs
+
+3. **tt-mlir** — likely no changes needed if aliasing is handled at the PJRT level. The compiler already lowers `paged_update_cache` to an in-place TTNN op. If aliasing is enforced at the execution boundary, the buffer reuse happens naturally.
+
 ## Remaining Work
 
-1. **Test with Llama-3.2-1B and Llama-3.1-8B** to confirm at production scales
-2. **Run multibatch test** (`test_opt_generation_multibatch`) to verify batched decode
-3. **Tensor parallel sharding** updated but not tested (no multi-chip test run yet)
-4. **`input_output_alias`** would eliminate the remaining `.copy_()` overhead — future optimization
-5. **KV transfer group** (`register_kv_caches`) passes lists now but not integration-tested
+1. **`input_output_alias`** — investigate and implement (see Round 2 above)
+2. **Tensor parallel sharding** updated but not tested (no multi-chip test run yet)
+3. **KV transfer group** (`register_kv_caches`) passes lists now but not integration-tested
 
 ## Artifacts
 
