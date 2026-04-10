@@ -562,15 +562,15 @@ class DeepseekV3MoE(nn.Module):
             tokens_per_expert_post_gather = tokens_per_expert_group.view(
                 self.ep_size, self.experts_per_rank
             ).sum(dim=0)
-            gatherd_idxs = np.zeros(shape=(gathered_tokens.shape[0],), dtype=np.int32)
+            gatherd_idxs = torch.zeros(gathered_tokens.shape[0], dtype=torch.int64)
             s = 0
-            for i, k in enumerate(tokens_per_expert_group.cpu().numpy()):
+            for i, k in enumerate(tokens_per_expert_group.cpu().tolist()):
                 gatherd_idxs[s : s + k] = i % self.experts_per_rank
                 s += k
             gatherd_idxs = gatherd_idxs.argsort()
             sorted_tokens = gathered_tokens[gatherd_idxs]
             tokens_per_expert = tokens_per_expert_post_gather
-        tokens_per_expert = tokens_per_expert.cpu().numpy()
+        tokens_per_expert = tokens_per_expert.cpu().tolist()
 
         outputs = []
         start_idx = 0
@@ -1439,17 +1439,27 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
                     for layer_idx, (k, v) in enumerate(past_key_values):
                         new_cache.update(k, v, layer_idx)
                 past_key_values = new_cache
-            past_key_values_length = past_key_values.get_seq_length()
+            # Only call get_seq_length() when cache_position is absent; when
+            # cache_position is provided we derive position_ids and the mask
+            # directly from it, avoiding tensor ops in get_seq_length() that
+            # would create a separate XLA graph and break compilation.
+            elif cache_position is None:
+                past_key_values_length = past_key_values.get_seq_length()
 
         if position_ids is None:
-            device = input_ids.device if input_ids is not None else inputs_embeds.device
-            position_ids = torch.arange(
-                past_key_values_length,
-                seq_length + past_key_values_length,
-                dtype=torch.long,
-                device=device,
-            )
-            position_ids = position_ids.unsqueeze(0)
+            if cache_position is not None:
+                # Derive position_ids directly from cache_position to keep everything
+                # in the same compiled graph.
+                position_ids = cache_position.unsqueeze(0)
+            else:
+                device = input_ids.device if input_ids is not None else inputs_embeds.device
+                position_ids = torch.arange(
+                    past_key_values_length,
+                    seq_length + past_key_values_length,
+                    dtype=torch.long,
+                    device=device,
+                )
+                position_ids = position_ids.unsqueeze(0)
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
@@ -1461,6 +1471,31 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
                 if (attention_mask is not None and 0 in attention_mask)
                 else None
             )
+        elif (
+            cache_position is not None
+            and past_key_values is not None
+            and hasattr(past_key_values, "layers")
+            and past_key_values.layers
+            and hasattr(past_key_values.layers[0], "max_cache_len")
+        ):
+            # Build the causal mask as a pure tensor op from cache_position so it
+            # stays inside the compiled graph. This avoids calling get_seq_length()
+            # (which does a tensor reduce) and keeps the mask at the correct static
+            # shape (batch, 1, q_len, max_cache_len) in one step.
+            max_cache_len = past_key_values.layers[0].max_cache_len
+            key_idx = torch.arange(
+                max_cache_len,
+                dtype=cache_position.dtype,
+                device=inputs_embeds.device,
+            )
+            # mask[i, j] = 0 if j <= cache_position[i], else fill_value
+            fill_value = torch.finfo(inputs_embeds.dtype).min
+            causal = (key_idx.unsqueeze(0) > cache_position.unsqueeze(1)).to(
+                inputs_embeds.dtype
+            )
+            attention_mask = (causal * fill_value).unsqueeze(0).unsqueeze(0).expand(
+                batch_size, 1, -1, -1
+            )
         else:
             # 4d mask is passed through the layers
             attention_mask = _prepare_4d_causal_attention_mask(
@@ -1469,6 +1504,26 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
                 inputs_embeds,
                 past_key_values_length,
             )
+            # Static/MLA caches pre-allocate to max_cache_len, so pad unfilled
+            # slots with -inf so the mask matches the attention layer's kv_seq_len.
+            if (
+                attention_mask is not None
+                and use_cache
+                and past_key_values is not None
+                and hasattr(past_key_values, "layers")
+                and past_key_values.layers
+                and hasattr(past_key_values.layers[0], "max_cache_len")
+            ):
+                max_cache_len = past_key_values.layers[0].max_cache_len
+                if attention_mask.shape[-1] < max_cache_len:
+                    pad_len = max_cache_len - attention_mask.shape[-1]
+                    mask_pad = torch.full(
+                        (*attention_mask.shape[:-1], pad_len),
+                        torch.finfo(attention_mask.dtype).min,
+                        dtype=attention_mask.dtype,
+                        device=attention_mask.device,
+                    )
+                    attention_mask = torch.cat([attention_mask, mask_pad], dim=-1)
 
         # embed positions
         hidden_states = inputs_embeds
@@ -1574,6 +1629,7 @@ class DeepseekV3ForCausalLM(DeepseekV3PreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        cache_position: Optional[torch.LongTensor] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -1625,6 +1681,7 @@ class DeepseekV3ForCausalLM(DeepseekV3PreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            cache_position=cache_position,
         )
 
         hidden_states = outputs[0]
