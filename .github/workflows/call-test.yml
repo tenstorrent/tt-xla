@@ -493,16 +493,28 @@ jobs:
 
             # Diagnostics: show python environment
             echo "=== Python environment diagnostics ==="
+            echo "Current directory: $(pwd)"
+            echo "Workspace contents:"
+            ls -la /workspace | head -20
+            echo ""
+            echo "Venv directory check:"
+            ls -la /workspace/venv || echo "venv directory not found!"
+            ls -la /workspace/venv/bin || echo "venv/bin not found!"
+            echo ""
             which python || echo "python not found"
             which python3 || echo "python3 not found"
             echo "PYTHON variable: $PYTHON"
-            $PYTHON --version
+            test -f $PYTHON && echo "$PYTHON exists" || echo "$PYTHON NOT FOUND!"
+            $PYTHON --version || echo "Failed to run $PYTHON"
             echo ""
-            echo "pip freeze output:"
-            pip freeze
+            echo "System pip freeze (from /usr/bin/python3):"
+            /usr/bin/python3 -m pip freeze | head -20
             echo ""
-            echo "Checking pjrt_plugin_tt installation:"
-            pip show pjrt-plugin-tt || echo "WARNING: pjrt-plugin-tt not found"
+            echo "Venv pip freeze (from $PYTHON):"
+            $PYTHON -m pip freeze | head -20 || echo "Failed to get venv pip freeze"
+            echo ""
+            echo "Checking pjrt_plugin_tt in venv:"
+            $PYTHON -m pip show pjrt-plugin-tt || echo "WARNING: pjrt-plugin-tt not found in venv"
             echo "=== End diagnostics ==="
             echo ""
 
