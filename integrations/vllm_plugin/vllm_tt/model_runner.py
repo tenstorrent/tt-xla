@@ -1302,6 +1302,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.scheduler_output is None:
             # Nothing to do (PP non-final rank case), output isn't used.
             return None  # type: ignore[return-value]
+        logger.info(f"sample_tokens")
         scheduler_output = self.scheduler_output
         mm_embed_inputs = self.mm_embed_inputs
         self.scheduler_output = None
@@ -1343,6 +1344,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+            logger.info(f"hidden_states shape: {hidden_states.shape}")
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1566,6 +1568,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logger.info(
                     f"Before MLP override: FusedMoE={fusedmoe_before}, A2aSparseMLP={sparse_mlp_before}"
                 )
+                logger.info(f"Compiled model: \n{model}")
 
                 # Replace vLLM FusedMoE with TT A2aSparseMLP
                 if self.enable_tensor_parallel and hasattr(self, "mesh"):
@@ -1802,7 +1805,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
-            num_tokens = 32
+            # num_tokens = 32
             logger.info("  -- num_tokens: %d", num_tokens)
             logger.info(f"Asif:: self.most_model_len: {self.most_model_len}")
             self._dummy_run(
@@ -1815,7 +1818,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
-            break
+            # break
         logger.info(
             f"Asif:: Finished dummy runs for backbone with num_tokens={num_tokens}."
         )
@@ -1993,9 +1996,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
+            return
             self._precompile_mm_encoder()
             self._precompile_backbone()
-            return
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
