@@ -80,6 +80,7 @@ class TorchModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
+        self._output_activations: Any = None
         self._parallelism = parallelism
         self._model_size = None
 
@@ -189,6 +190,10 @@ class TorchModelTester(ModelTester):
         """
         return output
 
+    def _cache_output_activations(self, output: Any) -> None:
+        """Cache unpacked forward output for reporting (e.g. input/output size)."""
+        self._output_activations = self._unpack_forward_output(output)
+
     def _extract_grads(
         self, model: torch.nn.Module
     ) -> Tuple[Dict[str, torch.Tensor], Set[str]]:
@@ -249,6 +254,7 @@ class TorchModelTester(ModelTester):
         # Run forward on CPU
         cpu_res = self._run_on_cpu(self._workload)
         cpu_res = self._unpack_forward_output(cpu_res)
+        self._output_activations = cpu_res
 
         # Generate random gradient
         random_grad = torch.randn(cpu_res.shape, dtype=cpu_res.dtype)

@@ -54,6 +54,7 @@ class JaxModelTester(ModelTester):
     ) -> None:
 
         self._input_activations: Dict | Sequence[Any] = None
+        self._output_activations: Any = None
         self._input_parameters: PyTree = None
         self._has_batch_norm = has_batch_norm
 
@@ -88,6 +89,10 @@ class JaxModelTester(ModelTester):
         """Caches model inputs."""
         self._input_activations = self._get_input_activations()
         self._input_parameters = self._get_input_parameters()
+
+    def _cache_output_activations(self, output: Any) -> None:
+        """Cache forward output for reporting (e.g. input/output size)."""
+        self._output_activations = output
 
     def _get_input_parameters(self) -> PyTree:
         """
@@ -266,6 +271,7 @@ class JaxModelTester(ModelTester):
             args=[training_workload.args, training_workload.kwargs],
         )
         cpu_forward_out, cpu_pullback = self._run_on_cpu(train_fwd_cpu)
+        self._output_activations = cpu_forward_out
 
         # Compile workloads for TT device with vjp of model
         self._compile_for_tt_device(training_workload)
