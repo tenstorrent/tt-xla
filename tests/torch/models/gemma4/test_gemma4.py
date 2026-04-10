@@ -23,6 +23,10 @@ from .tester import Gemma4Tester
 _SINGLE_DEVICE_VARIANTS = [
     ModelVariant.GEMMA_4_E2B,
     ModelVariant.GEMMA_4_E2B_IT,
+]
+
+# E4B dense variants - sharded across multiple devices
+_E4B_VARIANTS = [
     ModelVariant.GEMMA_4_E4B,
     ModelVariant.GEMMA_4_E4B_IT,
 ]
@@ -61,9 +65,27 @@ def _single_device_variant_param(v):
         ),
     ]
 
-    # E4B variants are larger, mark them
-    if v in (ModelVariant.GEMMA_4_E4B, ModelVariant.GEMMA_4_E4B_IT):
-        marks.append(pytest.mark.large)
+    return pytest.param((v, bringup_status), marks=tuple(marks))
+
+
+def _e4b_variant_param(v):
+    """Create a pytest parameter for an E4B dense variant (tensor parallel)."""
+    model_info = ModelLoader.get_model_info(v)
+    bringup_status = BringupStatus.INCORRECT_RESULT
+
+    marks = [
+        pytest.mark.model_test,
+        pytest.mark.large,
+        pytest.mark.xfail(
+            reason=incorrect_result("Low PCC for Gemma4 E4B causal LM inference")
+        ),
+        pytest.mark.record_test_properties(
+            category=Category.MODEL_TEST,
+            model_info=model_info,
+            run_mode=RunMode.INFERENCE,
+            bringup_status=bringup_status,
+        ),
+    ]
 
     return pytest.param((v, bringup_status), marks=tuple(marks))
 
@@ -117,6 +139,9 @@ _SINGLE_DEVICE_PARAMS = [
 ]
 _SINGLE_DEVICE_IDS = [v.name.lower() for v in _SINGLE_DEVICE_VARIANTS]
 
+_E4B_PARAMS = [_e4b_variant_param(v) for v in _E4B_VARIANTS]
+_E4B_IDS = [v.name.lower() for v in _E4B_VARIANTS]
+
 _MOE_PARAMS = [_moe_variant_param(v) for v in _MOE_VARIANTS]
 _MOE_IDS = [v.name.lower() for v in _MOE_VARIANTS]
 
@@ -142,6 +167,14 @@ def single_device_inference_tester(request) -> Gemma4Tester:
     return _create_tester(variant)
 
 
+@pytest.fixture(params=_E4B_PARAMS, ids=_E4B_IDS)
+def e4b_inference_tester(request) -> Gemma4Tester:
+    """Fixture for E4B dense Gemma4 inference testing (tensor parallel)."""
+    variant, bringup_status = request.param
+    request.node.bringup_status = bringup_status
+    return _create_tp_tester(variant)
+
+
 @pytest.fixture(params=_MOE_PARAMS, ids=_MOE_IDS)
 def moe_inference_tester(request) -> Gemma4Tester:
     """Fixture for 26B MoE Gemma4 inference testing."""
@@ -165,6 +198,13 @@ def dense_31b_inference_tester(request) -> Gemma4Tester:
 @pytest.mark.single_device
 def test_torch_gemma4_inference(single_device_inference_tester: Gemma4Tester):
     single_device_inference_tester.test()
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.forked
+def test_torch_gemma4_inference_e4b(e4b_inference_tester: Gemma4Tester):
+    e4b_inference_tester.test()
 
 
 @pytest.mark.nightly

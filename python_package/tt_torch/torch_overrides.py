@@ -136,3 +136,77 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _gemma4_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Gemma4 experts forward bypassing grouped_mm (which uses torch.histc).
+
+    CPU path uses per-expert loop (memory-efficient, serves as PCC golden reference).
+    Device path uses dense bmm (static graph for torch.compile).
+    """
+    num_tokens = hidden_states.size(0)
+    num_experts = self.num_experts
+
+    if hidden_states.device.type == "cpu":
+        # Per-expert loop — matches the original eager forward exactly.
+        final_hidden_states = torch.zeros_like(hidden_states)
+        with torch.no_grad():
+            expert_mask = torch.nn.functional.one_hot(
+                top_k_index, num_classes=num_experts
+            )
+            expert_mask = expert_mask.permute(2, 1, 0)
+            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hit:
+            expert_idx = expert_idx[0]
+            if expert_idx == num_experts:
+                continue
+            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+            current_state = hidden_states[token_idx]
+            gate, up = torch.nn.functional.linear(
+                current_state, self.gate_up_proj[expert_idx]
+            ).chunk(2, dim=-1)
+            current_hidden_states = self.act_fn(gate) * up
+            current_hidden_states = torch.nn.functional.linear(
+                current_hidden_states, self.down_proj[expert_idx]
+            )
+            current_hidden_states = (
+                current_hidden_states * top_k_weights[token_idx, top_k_pos, None]
+            )
+            final_hidden_states.index_add_(
+                0, token_idx, current_hidden_states.to(final_hidden_states.dtype)
+            )
+        return final_hidden_states
+
+    # Device path: dense bmm over ALL experts (compute-wasteful but static graph).
+    # gate_up_proj: (E, 2*I, H), down_proj: (E, H, I)
+
+    # (E, T, H)
+    h = hidden_states.unsqueeze(0).expand(num_experts, -1, -1)
+
+    # Up + gate projection: (E, T, H) @ (E, H, 2*I) -> (E, T, 2*I)
+    gate_up = torch.bmm(h, self.gate_up_proj.transpose(-1, -2))
+    gate, up = gate_up.chunk(2, dim=-1)
+    h2 = self.act_fn(gate) * up
+
+    # Down projection: (E, T, I) @ (E, I, H) -> (E, T, H)
+    out = torch.bmm(h2, self.down_proj.transpose(-1, -2))
+
+    # Build (T, E) routing weights from top_k indices
+    routing = torch.zeros(
+        num_tokens, num_experts, device=hidden_states.device, dtype=hidden_states.dtype
+    )
+    routing.scatter_add_(1, top_k_index, top_k_weights)
+
+    # Apply routing and reduce: (E, T, H) * (E, T, 1) -> sum -> (T, H)
+    out = out * routing.T.unsqueeze(-1)
+    return out.sum(dim=0).to(hidden_states.dtype)
+
+
+# Monkey-patch Gemma4 experts to bypass grouped_mm (which uses torch.histc,
+# unsupported on the TT backend).  Same pattern as the GptOss patch above.
+try:
+    from transformers.models.gemma4.modeling_gemma4 import Gemma4TextExperts
+
+    Gemma4TextExperts.forward = _gemma4_experts_forward
+except ImportError:
+    pass
