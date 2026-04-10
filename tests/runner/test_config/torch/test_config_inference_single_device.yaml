@@ -1910,8 +1910,9 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 69599232 B L1 buffer across 72 banks, where each bank needs to store 966656 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1497"
 
   bevformer/pytorch-Tiny-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Out of Memory: Not enough space to allocate 65536000 B L1 buffer across 64 banks, where each bank needs to store 1024000 B, but bank size is only 1364704 B, but bank size is only 1366016 B - https://github.com/tenstorrent/tt-xla/issues/1709"
 
   bevformer/pytorch-Small-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1993,40 +1994,49 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B"
 
   maptr/pytorch-Tiny_R50_24e_Av2-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
   maptr/pytorch-Tiny_R50_24e_Bevformer-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
   maptr/pytorch-Tiny_R50_24e_Bevformer_T4-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
   maptr/pytorch-Tiny_R50_24e-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
   maptr/pytorch-Tiny_R50_110e-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
   maptr/pytorch-Tiny_R50_24e_T4-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
   maptr/pytorch-Nano_R18_110e-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
   maptr/pytorch-Tiny_R50_24e_Bevpool-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Out of Memory: Not enough space to allocate 95029248 B L1 buffer across 64 banks, where each bank needs to store 1484832 B, but bank size is only 1364928 B - https://github.com/tenstorrent/tt-xla/issues/1588"
 
   maptr/pytorch-Tiny_Fusion_24e-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: SparseSequential encountered by torch._dynamo"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "AssertionError: SparseSequential encountered by torch._dynamo"
 
   hrnet/pytorch-v2_W64_Osmr-single_device-inference:
     required_pcc: 0.96
