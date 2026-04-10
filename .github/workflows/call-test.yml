@@ -124,6 +124,7 @@ jobs:
           tests/
           venv/
           examples/
+          scripts/
 
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
@@ -484,23 +485,20 @@ jobs:
             export TT_METAL_LOGGER_LEVEL=DEBUG
             export TT_METAL_LOGGER_TYPES=Fabric,Always
 
-            # # Dual T3K distributed env vars
-            # export TT_RUNTIME_ENABLE_DISTRIBUTED=1
-            # export TT_DISTRIBUTED_RANK_BINDING=dual_t3k
-            # export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=f10cs03
-            # export TT_DISTRIBUTED_HOSTS_FILE=/etc/mpirun/hostfile
-            # export TT_DISTRIBUTED_PLM_RSH_AGENT=/workspace/tests/torch/multi_host/experimental/remote_docker.sh
+            # Set multihost distributed environment variables
+            echo "=== Setting up multihost topology: ${{ matrix.build.test-mark }} ==="
 
-            # # Resolve distributed worker binary path
-            # WORKER_PATH=""
-            # if [ -n "$TT_PJRT_PLUGIN_DIR" ]; then
-            #   CANDIDATE="$TT_PJRT_PLUGIN_DIR/bin/ttmlir/runtime/distributed/worker"
-            #   [ -f "$CANDIDATE" ] && WORKER_PATH="$CANDIDATE"
-            # fi
-            # if [ -z "$WORKER_PATH" ] && [ -n "$TT_MLIR_HOME" ]; then
-            #   WORKER_PATH="$TT_MLIR_HOME/build/runtime/bin/distributed/worker"
-            # fi
-            # export TT_DISTRIBUTED_WORKER_PATH="$WORKER_PATH"
+            # Set TT_PJRT_PLUGIN_DIR by importing pjrt_plugin_tt (lightweight, just sets env var)
+            export TT_PJRT_PLUGIN_DIR=$(python -c "from pjrt_plugin_tt import setup_tt_pjrt_plugin_dir; setup_tt_pjrt_plugin_dir(); import os; print(os.environ['TT_PJRT_PLUGIN_DIR'])")
+            echo "TT_PJRT_PLUGIN_DIR=$TT_PJRT_PLUGIN_DIR"
+
+            # Call topology script to set distributed env vars
+            TOPOLOGY_EXPORTS=$(python scripts/multihost_topology.py \
+              --topology ${{ matrix.build.test-mark }} \
+              --script-dir tests/torch/multi_host/experimental)
+            echo "Environment variables being set:"
+            echo "$TOPOLOGY_EXPORTS"
+            eval "$TOPOLOGY_EXPORTS"
 
             $FULL_PYTEST_CMD 2>&1 | tee pytest.log
           '
