@@ -1,7 +1,3 @@
-# Minimal override: compile-only run of examples/pytorch/system_desc.py using
-# examples/pytorch/n150_system_desc.ttsys (checked into the repo).
-# Restore the full matrix/pytest workflow from git history when no longer needed.
-
 name: Test (call)
 
 permissions:
@@ -30,7 +26,7 @@ on:
         type: string
         default: release
       test_suite:
-        description: 'Test suite preset options or custom (ignored in minimal mode)'
+        description: 'Test suite preset options or custom'
         required: true
         type: string
       test_suite_custom:
@@ -54,20 +50,36 @@ on:
         default: ''
 
 env:
-  GH_TOKEN: ${{ github.token }}
-  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  GH_TOKEN: ${{ github.token }} # for gh cli tool
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_XLA_CI: 1
   TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
   TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE: "/opt/tt-triage-venv/bin/python -vvv /opt/tt-triage/tools/tt-triage.py 1>&2"
 
 jobs:
-  run-tests:
-    runs-on: n150
+  generate-matrix-test:
+    uses: ./.github/workflows/call-generate-matrix.yml
+    secrets: inherit
+    with:
+      test_suite: ${{ inputs.test_suite }}
+      test_suite_custom: ${{ inputs.test_suite_custom }}
 
-    name: "system_desc example (n150)"
+  # Run tests on TT hardware
+  run-tests:
+    needs: generate-matrix-test
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
+
+    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
+
+    # Keep this name in sync with the fetch-job-id step
+    name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     container:
-      image: ${{ inputs.docker_image }}
+      image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
+      options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
@@ -77,36 +89,40 @@ jobs:
         - /mnt/dockercache:/mnt/dockercache
 
     steps:
-
-    - name: Fetch job id
-      id: fetch-job-id
-      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
-      with:
-        job_name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
-
     - name: Mark repo as safe for git
       run: |
         git config --global --add safe.directory /__w/tt-xla/tt-xla
         git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
 
-      - name: Log disk space
-        run: df -h
+    - name: Log disk space
+      run: df -h
 
-      - name: Set caching env variables
-        shell: bash
-        run: echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
+    - name: Set caching env variables
+      shell: bash
+      run: |
+        shared_runners=${{ matrix.build.shared-runners }}
+        if [[ "$shared_runners" == "" || "$shared_runners" == "false" ]]; then
+          echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+        else
+          echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
+        fi
 
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-          sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            .github/scripts/
-            .gitmodules
-            pytest.ini
-            python_package/requirements.txt
-            venv/
-            examples/
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+        sparse-checkout-cone-mode: false
+        sparse-checkout: |
+          .github/scripts/
+          .gitmodules
+          .test_durations
+          pjrt_implementation/
+          third_party/pjrt_c_api/
+          pytest.ini
+          python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
+          tests/
+          venv/
+          examples/
 
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
@@ -121,6 +137,12 @@ jobs:
         git fetch --depth=1 origin $RESOLVED
         git checkout FETCH_HEAD
         echo "tt_forge_models checked out at $(git rev-parse HEAD)"
+
+    - name: Fetch job id
+      id: fetch-job-id
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     - name: Set reusable strings
       id: strings
@@ -138,53 +160,54 @@ jobs:
         else
           echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
         fi
+        echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
         echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
         echo "wheel_release_vllm_tt_artifact_name=vllm-tt-whl-release${{inputs.artifact_suffix}}" >> "$GITHUB_OUTPUT"
         echo "alchemist_artifact_name=alchemist-lib-release${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
+
+        # Precompute forge models detection as a reusable output
+        if [[ "${{ matrix.build.dir }}" == *"tests/runner/test_models.py"* ]]; then
+          echo "forge-models-test=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Download and install wheels
       shell: bash
       run: |
         echo "=== Downloading wheels ==="
-        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifact_release_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
-        gh run download ${{ inputs.artifact_release_run_id }} \
+        echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_artifact_name }}"
+        gh run download ${{ steps.strings.outputs.artifact_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
-        if [[ "${{ matrix.build.extra-wheel }}" == "vllm" ]]; then
-          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifact_release_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
-          gh run download ${{ inputs.artifact_release_run_id }} \
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+          echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
             --repo ${{ github.repository }} \
             --dir wheels \
-            --name ${{ steps.strings.outputs.wheel_artifact_name }}
-          ls -la wheels
-          echo "=== Installing wheel ==="
-          source venv/activate
-          uv pip install wheels/*.whl
+            --name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}
+        fi
+        echo "Downloaded wheel files:"
+        ls -la wheels
 
-      - name: Install custom torch_xla from workflow run
-        if: ${{ inputs.torchxla_build_run_id != '' }}
-        shell: bash
-        run: |
-          echo "Using custom torchxla install from run ${{ inputs.torchxla_build_run_id }}"
-          gh run download ${{ inputs.torchxla_build_run_id }} --repo ${{ github.repository }}
-          source venv/activate
-          uv pip install --force-reinstall xla-torch-wheel-release/*.whl
-          uv pip show torch_xla
+        echo "=== Installing wheel ==="
+        source venv/activate
+        uv pip install wheels/*.whl
 
-      - name: Run examples/pytorch/system_desc.py (compile only)
-        timeout-minutes: 60
-        env:
-          HF_HOME: /mnt/dockercache/huggingface
-          TORCH_HOME: /mnt/dockercache/torchhub
-          GITHUB_TOKEN: ${{ github.token }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        shell: bash
-        run: |
-          source venv/activate
-          export TTXLA_LOGGER_LEVEL=DEBUG
-          python examples/pytorch/system_desc.py compile examples/pytorch/n150_system_desc.ttsys \
-            2>&1 | tee pytest.log
+    - name: Install custom torch_xla from workflow run
+      if: ${{ inputs.torchxla_build_run_id != '' }}
+      shell: bash
+      run: |
+        echo "Using custom torchxla install from run ${{ inputs.torchxla_build_run_id }}"
+        gh run download ${{ inputs.torchxla_build_run_id }} --repo ${{ github.repository }}
+        source venv/activate
+        uv pip install --force-reinstall xla-torch-wheel-release/*.whl
+        uv pip show torch_xla
 
     - name: Download and setup alchemist library
       if: ${{ matrix.build.require == 'alchemist' }}
@@ -193,7 +216,7 @@ jobs:
         if [[ -n "${{ steps.strings.outputs.alchemist_artifact_name }}" ]]; then
           echo "=== Downloading alchemist artifact ==="
           mkdir -p alchemist_artifact
-          gh run download ${{ inputs.artifact_release_run_id }} \
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
             --repo ${{ github.repository }} \
             --dir alchemist_artifact \
             --name ${{ steps.strings.outputs.alchemist_artifact_name }} || echo "Alchemist artifact not found, codegen tests will be skipped"
@@ -254,9 +277,11 @@ jobs:
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
-        if [[ "${{ matrix.build.forked }}" == "true" ]]; then
-          PYTEST_FORKED="--forked"
-        fi
+        for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_llm_multichip run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
+          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
+            PYTEST_FORKED="--forked"; break
+          fi
+        done
 
         # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
         if [[ -n "$PYTEST_FORKED" ]]; then
@@ -267,8 +292,8 @@ jobs:
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
-        if [[ "${{ matrix.build.forge-models }}" == "true" ]]; then
-          ARCH="--arch ${{ matrix.build.runs-on-original || matrix.build.runs-on }}"
+        if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
+          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
         fi
 
         MARKS="${{ matrix.build.test-mark }}"
@@ -295,7 +320,7 @@ jobs:
         echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
-      if: ${{ matrix.build.forge-models == true }}
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' }}
       shell: bash
       run: |
         apt-get update
@@ -304,7 +329,7 @@ jobs:
     # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
-      if: ${{ matrix.build.forge-models == true && strategy.job-index == 0 && inputs.forge_models_override == '' }}
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 && inputs.forge_models_override == '' }}
       shell: bash
       run: |
         source venv/activate
@@ -348,11 +373,26 @@ jobs:
       shell: bash
       run: |
         source venv/activate
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+          uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
+          uv pip freeze
+        fi
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
                --junitxml=${{ steps.strings.outputs.test_report_path }} \
                --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
                --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
                2>&1 | tee pytest.log
+
+        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+          uv pip uninstall vllm transformers
+          uv pip install -r $(pwd)/venv/requirements-dev.txt
+        fi
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
@@ -389,16 +429,10 @@ jobs:
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
 
-      - name: Upload Test Report
-        uses: actions/upload-artifact@v6
-        if: success() || failure()
-        with:
-          name: test-reports-system-desc-${{ github.run_attempt }}.${{ github.run_id }}-n150-${{ steps.fetch-job-id.outputs.job_id }}
-          path: ${{ steps.strings.outputs.test_report_path }}
 
   test-summary:
     runs-on: ubuntu-latest
-    needs: [ run-tests ]
+    needs: [ generate-matrix-test, run-tests ]
     if: success() || failure()
     steps:
       - uses: actions/checkout@v6
@@ -408,8 +442,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-system-desc-*" --dir test_reports || echo "No reports found"
-          find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \; 2>/dev/null || true
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-*" --dir test_reports || echo "No reports found"
+          find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \;
 
       - name: Show consolidated test report
         continue-on-error: true
@@ -417,7 +451,7 @@ jobs:
         if: success() || failure()
         with:
           report_paths: test_reports/report_*.xml
-          check_name: TT-XLA system_desc example
+          check_name: TT-XLA ${{ needs.generate-matrix-test.outputs.test_matrix_name }}
           detailed_summary: true
           include_passed: ${{ inputs.include_passed }}
           group_suite: true
