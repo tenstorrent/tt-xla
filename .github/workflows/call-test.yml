@@ -517,8 +517,9 @@ jobs:
             echo "=== End diagnostics ==="
             echo ""
 
-            # Set TT_PJRT_PLUGIN_DIR by importing pjrt_plugin_tt (lightweight, just sets env var)
-            export TT_PJRT_PLUGIN_DIR=$($PYTHON -c "from pjrt_plugin_tt import setup_tt_pjrt_plugin_dir; setup_tt_pjrt_plugin_dir(); import os; print(os.environ['TT_PJRT_PLUGIN_DIR'])")
+            # Set TT_PJRT_PLUGIN_DIR by importing pjrt_plugin_tt
+            $PYTHON -c "from pjrt_plugin_tt import setup_tt_pjrt_plugin_dir; setup_tt_pjrt_plugin_dir(); import os; print('export TT_PJRT_PLUGIN_DIR=' + os.environ['TT_PJRT_PLUGIN_DIR'])" > /tmp/pjrt_env.sh
+            source /tmp/pjrt_env.sh
             echo "TT_PJRT_PLUGIN_DIR=$TT_PJRT_PLUGIN_DIR"
 
             # Call topology script to set distributed env vars
@@ -529,18 +530,16 @@ jobs:
             echo "$TOPOLOGY_EXPORTS"
             eval "$TOPOLOGY_EXPORTS"
 
-            # Build pytest command for multihost (FULL_PYTEST_CMD has malformed -m flag)
-            # Rebuild command from scratch with correct python3 path and topology filter
-            MULTIHOST_PYTEST_CMD="$PYTHON -m pytest ${{ env.VERBOSITY }} \
+            # Hardcoded pytest command for multihost with dual_bh_loudbox_1x16 topology filter
+            echo "Running multihost tests with topology filter: dual_bh_loudbox_1x16"
+            $PYTHON -m pytest -sv \
               --log-memory --durations=0 \
               ./tests/torch/multi_host/experimental \
-              -k '$TOPOLOGY' \
+              -k "dual_bh_loudbox_1x16" \
               --junitxml=${{ steps.strings.outputs.test_report_path }} \
               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
-              --perf-id=${{ steps.fetch-job-id.outputs.job_id }}"
-
-            echo "Running: $MULTIHOST_PYTEST_CMD"
-            $MULTIHOST_PYTEST_CMD 2>&1 | tee pytest.log
+              --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
+              2>&1 | tee pytest.log
           '
 
     - name: Teardown vLLM test dependencies
