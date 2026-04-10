@@ -159,9 +159,7 @@ class VllmA2aSparseMLP(nn.Module):
         self.num_devices = core_a2a_mlp.num_devices
         self.dispatch_devices = core_a2a_mlp.dispatch_devices
 
-        # Delegate attribute access to core MLP
-        self.router = core_a2a_mlp.router
-        self.experts = core_a2a_mlp.experts
+        # Store expert_mapping for compatibility
         self.expert_mapping = core_a2a_mlp.expert_mapping
 
     def forward(
@@ -197,7 +195,7 @@ class VllmA2aSparseMLP(nn.Module):
             router_scores = router_scores.to(hidden_states.device)
         else:
             # Compute router scores using internal router
-            router_scores, router_indices = self.router(hidden_states)
+            router_scores, router_indices = self.core_mlp.router(hidden_states)
             # Ensure outputs are on the same device as hidden_states
             router_indices = router_indices.to(hidden_states.device)
             router_scores = router_scores.to(hidden_states.device)
@@ -207,7 +205,7 @@ class VllmA2aSparseMLP(nn.Module):
 
         if use_cpu_fallback:
             # Standard CPU fallback case - use adapted experts
-            routed_out = self.experts(
+            routed_out = self.core_mlp.experts(
                 hidden_states,
                 router_indices=router_indices,
                 routing_weights=router_scores,
@@ -229,7 +227,7 @@ class VllmA2aSparseMLP(nn.Module):
         except Exception as e:
             # Fallback to CPU if TT operations fail
             logger.warning(f"TT MLP failed ({e}), falling back to CPU")
-            routed_out = self.experts(
+            routed_out = self.core_mlp.experts(
                 hidden_states,
                 router_indices=router_indices,
                 routing_weights=router_scores,
@@ -312,6 +310,9 @@ def create_vllm_a2a_sparse_mlp(
         vLLM-compatible sparse MLP wrapper
     """
     # Create core A2aSparseMLP
+    logger.info(
+        f"num_experts={num_experts}, num_experts_per_tok={num_experts_per_tok}, num_devices={num_devices}, cluster_axis={cluster_axis}, activation_type={activation_type}, dispatch_devices={dispatch_devices}, mesh_shape={mesh_shape}"
+    )
     core_mlp = A2aSparseMLP(
         original_mlp=original_mlp,
         num_experts=num_experts,
@@ -321,7 +322,7 @@ def create_vllm_a2a_sparse_mlp(
         config=config,
         activation_type=activation_type,
         dispatch_devices=dispatch_devices,
-        mesh_shape=mesh_shape,
+        # mesh_shape=mesh_shape,
     )
 
     # Wrap with vLLM compatibility
@@ -356,11 +357,18 @@ def replace_fusedmoe_with_sparse_mlp(
     replacements = {}
 
     def find_and_replace_moe(module, name_prefix=""):
+        logger.warning(
+            f"Searching for FusedMoE in module: {name_prefix} ({type(module)})"
+        )
+        logger.warning(
+            f"Children of {name_prefix}: {[name for name, _ in module.named_children()]}"
+        )
+
         for name, child in module.named_children():
             full_name = f"{name_prefix}.{name}" if name_prefix else name
 
             if isinstance(child, FusedMoE):
-                logger.info(f"Replacing FusedMoE at {full_name} with A2aSparseMLP")
+                logger.warning(f"Replacing FusedMoE at {full_name} with A2aSparseMLP")
 
                 # Create adapter to make FusedMoE compatible with A2aSparseMLP
                 adapted_moe = FusedMoEAdapter(child)
@@ -384,7 +392,7 @@ def replace_fusedmoe_with_sparse_mlp(
                 )
 
                 replacements[full_name] = sparse_mlp
-                logger.info(
+                logger.warning(
                     f"Created A2aSparseMLP: experts={num_experts}, "
                     f"experts_per_tok={num_experts_per_tok}, "
                     f"mesh_shape={mesh_shape}, cluster_axis={cluster_axis}, "
@@ -407,14 +415,14 @@ def replace_fusedmoe_with_sparse_mlp(
             parent = getattr(parent, part)
 
         setattr(parent, parts[-1], new_module)
-        logger.info(f"Successfully replaced {full_name}")
+        logger.warning(f"Successfully replaced {full_name}")
 
     if len(replacements) > 0:
-        logger.info(
+        logger.warning(
             f"Completed MLP override: replaced {len(replacements)} FusedMoE layers"
         )
     else:
-        logger.info("No FusedMoE layers found to replace (this may be expected)")
+        logger.warning("No FusedMoE layers found to replace (this may be expected)")
     return model
 
 
@@ -459,7 +467,7 @@ def override_moe_for_tt(
     Returns:
         Model with MoE layers replaced
     """
-    logger.info(
+    logger.warning(
         f"Starting MoE override for TT with mesh_shape={mesh_shape}, cluster_axis={cluster_axis}"
     )
 
@@ -468,11 +476,13 @@ def override_moe_for_tt(
     if hasattr(vllm_config, "model_config") and hasattr(
         vllm_config.model_config, "hf_config"
     ):
+        logger.warning("Determining activation type from model configuration")
         activation_type = get_activation_type_from_config(
             vllm_config.model_config.hf_config
         )
+        logger.warning(f"Determined activation type: {activation_type}")
 
-    logger.info(f"Using activation type: {activation_type}")
+    logger.warning(f"Using activation type: {activation_type}")
 
     # Replace FusedMoE layers with A2aSparseMLP
     model = replace_fusedmoe_with_sparse_mlp(
@@ -500,8 +510,10 @@ def count_moe_layers(model: nn.Module) -> tuple[int, int]:
         nonlocal fusedmoe_count, sparse_mlp_count
 
         if isinstance(module, (VllmA2aSparseMLP, A2aSparseMLP)):
-            sparse_mlp_count += 1
-            # Don't count FusedMoE instances inside A2aSparseMLP (they're implementation details)
+            # Only count if we're not already inside another sparse MLP wrapper
+            if not inside_sparse_mlp:
+                sparse_mlp_count += 1
+            # Don't count nested instances (e.g., core_mlp inside VllmA2aSparseMLP)
             inside_sparse_mlp = True
         elif isinstance(module, FusedMoE) and not inside_sparse_mlp:
             # Only count FusedMoE if it's not inside an A2aSparseMLP
