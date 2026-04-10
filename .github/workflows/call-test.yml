@@ -1,4 +1,5 @@
-# Minimal override: only runs examples/pytorch/system_desc.py (via pytest).
+# Minimal override: compile-only run of examples/pytorch/system_desc.py using
+# examples/pytorch/n150_system_desc.ttsys (checked into the repo).
 # Restore the full matrix/pytest workflow from git history when no longer needed.
 
 name: Test (call)
@@ -123,11 +124,8 @@ jobs:
       - name: Set reusable strings
         id: strings
         shell: bash
-        env:
-          JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
         run: |
           echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
-          echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
           echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
           echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
@@ -172,7 +170,7 @@ jobs:
           uv pip install --force-reinstall xla-torch-wheel-release/*.whl
           uv pip show torch_xla
 
-      - name: Run examples/pytorch/system_desc.py
+      - name: Run examples/pytorch/system_desc.py (compile only)
         timeout-minutes: 60
         env:
           HF_HOME: /mnt/dockercache/huggingface
@@ -182,8 +180,8 @@ jobs:
         shell: bash
         run: |
           source venv/activate
-          python -m pytest -sv examples/pytorch/system_desc.py \
-            --junitxml=${{ steps.strings.outputs.test_report_path }} \
+          export TTXLA_LOGGER_LEVEL=DEBUG
+          python examples/pytorch/system_desc.py compile examples/pytorch/n150_system_desc.ttsys \
             2>&1 | tee pytest.log
 
     - name: Download and setup alchemist library
