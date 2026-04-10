@@ -91,7 +91,9 @@ def gpt_oss_120b(
         # Compile model (lazy — actual XLA/TT-MLIR compilation happens on first forward pass)
         t0 = time.perf_counter()
         compiled_model = torch.compile(model, backend="tt")
-        print(f"torch.compile() wrapper: {time.perf_counter() - t0:.3f}s (lazy, first forward triggers actual compile)")
+        print(
+            f"torch.compile() wrapper: {time.perf_counter() - t0:.3f}s (lazy, first forward triggers actual compile)"
+        )
 
         # Run generation loop until EOS token generated or max tokens reached
         print("Begin generation...")
@@ -135,7 +137,9 @@ def setup_spmd():
     cache_dir = os.path.expanduser("~/.cache/tt_xla/gpt_oss_120b")
     xr.initialize_cache(cache_dir)
     cache_files = list(os.scandir(cache_dir)) if os.path.isdir(cache_dir) else []
-    cache_status = f"WARM ({len(cache_files)} entries)" if cache_files else "COLD (will compile)"
+    cache_status = (
+        f"WARM ({len(cache_files)} entries)" if cache_files else "COLD (will compile)"
+    )
     print(f"Compilation cache: {cache_dir} [{cache_status}]")
 
     print("XLA environment configured.")
@@ -158,7 +162,9 @@ def create_device_mesh() -> tuple[Mesh, tuple]:
     elif num_devices == 4:  # QB2 (2x p300)
         mesh_shape = (1, 4)
     else:
-        raise RuntimeError(f"Gpt-oss-120b requires 4, 8, or 32 devices (got {num_devices})")
+        raise RuntimeError(
+            f"Gpt-oss-120b requires 4, 8, or 32 devices (got {num_devices})"
+        )
 
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
@@ -179,14 +185,14 @@ def setup_model_and_tokenizer(
         Tuple of (model, tokenizer)
     """
     quantization_config = Mxfp4Config(dequantize=True)
-    #from transformers import AutoConfig
+    # from transformers import AutoConfig
 
-    #config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
-    #config.num_hidden_layers = 1
-    
+    # config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
+    # config.num_hidden_layers = 1
+
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name,
-        #config=config,
+        # config=config,
         quantization_config=quantization_config,
         dtype=torch.bfloat16,
         low_cpu_mem_usage=True,
@@ -475,7 +481,9 @@ def run_generate(
 
             if step == 0:
                 compile_time_prefill = step_elapsed
-                print(f"Prefill done ({compile_time_prefill:.1f}s). Compiling decode...")
+                print(
+                    f"Prefill done ({compile_time_prefill:.1f}s). Compiling decode..."
+                )
             elif step == 1:
                 compile_time_decode = step_elapsed
             else:
