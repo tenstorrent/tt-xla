@@ -218,6 +218,8 @@ def benchmark_llm_torch_xla(
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
     decode_only: bool = False,
+    input_output_sharding_spec=None,
+    kv_cache_sharding_spec=None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -376,9 +378,15 @@ def benchmark_llm_torch_xla(
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
         # Also shard KV cache tensors created in input_args
+        # This is hardcoded for all TP models, and should be moded to tt-forge-models.
+        kv_spec = kv_cache_sharding_spec or (None, "model", None, None)
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
-            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
+            xs.mark_sharding(layer.keys, mesh, kv_spec)
+            xs.mark_sharding(layer.values, mesh, kv_spec)
+
+        # Shard input_ids
+        if input_output_sharding_spec:
+            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
         # Apply sharding constraint on lm_head output to all_gather logits
         if hasattr(model, "lm_head") and model.lm_head is not None:
@@ -417,7 +425,13 @@ def benchmark_llm_torch_xla(
         )
     # PERFORMANCE BENCHMARK
     # No logits returned to avoid OOM.
-    perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
+    perf_wrapper = LLMSamplingWrapper(
+        model,
+        read_logits_fn,
+        return_logits=False,
+        mesh=mesh,
+        output_sharding_spec=input_output_sharding_spec,
+    )
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
@@ -455,6 +469,8 @@ def benchmark_llm_torch_xla(
         input_args["cache_position"] = decode_only_cache_position
 
     input_args = transfer_to_device(input_args, device)
+    if input_output_sharding_spec:
+        xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
@@ -475,7 +491,13 @@ def benchmark_llm_torch_xla(
     # ACCURACY BENCHMARK
     # Logits moved to CPU each step to avoid OOM.
     if not decode_only:
-        accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+        accuracy_wrapper = LLMSamplingWrapper(
+            model,
+            read_logits_fn,
+            return_logits=True,
+            mesh=mesh,
+            output_sharding_spec=input_output_sharding_spec,
+        )
         accuracy_wrapper.eval()
         compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
 
@@ -494,6 +516,8 @@ def benchmark_llm_torch_xla(
             ),
         )
         input_args = transfer_to_device(input_args, device)
+        if input_output_sharding_spec:
+            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
         print(
             f"\nStarting accuracy benchmark "

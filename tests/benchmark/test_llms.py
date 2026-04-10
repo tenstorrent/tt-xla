@@ -58,6 +58,8 @@ def test_llm(
     accuracy_testing: bool = False,
     max_output_tokens=None,
     decode_only: bool = False,
+    input_output_sharding_spec=None,
+    kv_cache_sharding_spec=None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -148,6 +150,8 @@ def test_llm(
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        input_output_sharding_spec=input_output_sharding_spec,
+        kv_cache_sharding_spec=kv_cache_sharding_spec,
     )
 
     if output_file:
@@ -1620,4 +1624,81 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
+    )
+
+
+def _galaxy_mesh_config_fn(model_loader, num_devices):
+    """4x8 wormhole_galaxy mesh"""
+
+    if num_devices != 32:
+        raise ValueError("wormhole_galaxy benchmarks expect 32 devices (4x8 mesh).")
+    return (4, 8), ("batch", "model")
+
+
+def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
+    """Sharding specs for MoE models optimized for throughput on 4x8 galaxy mesh.
+    TP - 8 : DP - 4 : EP - 32
+    Inputs are sharded on the batch axis DP - 4. One tile per device so batch 128 should be used.
+    Attention weights are sharded on model axis TP - 8 and replicated along the batch axis.
+    Expert weights are sharded across both model and batch axes EP - 32.
+    """
+
+    batch_axis = None
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, batch_axis)
+    shard_specs[model.model.norm.weight] = (batch_axis,)
+    # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
+    shard_specs[model.lm_head.weight] = (None, None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", batch_axis)
+        shard_specs[layer.self_attn.o_proj.weight] = (batch_axis, "model")
+        shard_specs[layer.self_attn.sinks] = ("model",)
+        shard_specs[layer.mlp.router.weight] = (None, batch_axis)
+        shard_specs[layer.mlp.experts.gate_up_proj] = (("model", "batch"), None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("model", "batch"), None)
+        shard_specs[layer.mlp.experts.down_proj] = (("model", "batch"), None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = (("model", "batch"), None)
+        shard_specs[layer.input_layernorm.weight] = (batch_axis,)
+        shard_specs[layer.post_attention_layernorm.weight] = (batch_axis,)
+
+    return shard_specs
+
+
+def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=128,
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        mesh_config_fn=_galaxy_mesh_config_fn,
+        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", "model", None, None),
+        trace_enabled=True,
     )
