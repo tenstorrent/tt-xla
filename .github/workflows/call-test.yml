@@ -395,8 +395,7 @@ jobs:
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
-        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
-        cat collected_tests.txt
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} 2>&1 | tee collected_tests.txt
 
         # Check if any collected tests have notimeout marker
         NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
