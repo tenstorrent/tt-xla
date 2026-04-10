@@ -1772,7 +1772,7 @@ def test_gpt_oss_120b_tp_qb2(
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
-        required_pcc=0.93, # set for now as it's ~0.93 on test runs locally
+        required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
         mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
-        shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+        # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
     )
