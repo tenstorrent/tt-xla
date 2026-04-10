@@ -1,4 +1,5 @@
-# Minimal override: only runs examples/pytorch/system_desc.py (via pytest).
+# Minimal override: compile-only run of examples/pytorch/system_desc.py using
+# examples/pytorch/n150_system_desc.ttsys (checked into the repo).
 # Restore the full matrix/pytest workflow from git history when no longer needed.
 
 name: Test (call)
@@ -104,11 +105,8 @@ jobs:
       - name: Set reusable strings
         id: strings
         shell: bash
-        env:
-          JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
         run: |
           echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
-          echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
           echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
           echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
           echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
@@ -136,7 +134,7 @@ jobs:
           uv pip install --force-reinstall xla-torch-wheel-release/*.whl
           uv pip show torch_xla
 
-      - name: Run examples/pytorch/system_desc.py
+      - name: Run examples/pytorch/system_desc.py (compile only)
         timeout-minutes: 60
         env:
           HF_HOME: /mnt/dockercache/huggingface
@@ -146,8 +144,8 @@ jobs:
         shell: bash
         run: |
           source venv/activate
-          python -m pytest -sv examples/pytorch/system_desc.py \
-            --junitxml=${{ steps.strings.outputs.test_report_path }} \
+          export TTXLA_LOGGER_LEVEL=DEBUG
+          python examples/pytorch/system_desc.py compile examples/pytorch/n150_system_desc.ttsys \
             2>&1 | tee pytest.log
 
       - name: Upload Test Log
@@ -156,37 +154,3 @@ jobs:
         with:
           name: test-log-n150-system-desc-${{ steps.fetch-job-id.outputs.job_id }}
           path: pytest.log
-
-      - name: Upload Test Report
-        uses: actions/upload-artifact@v6
-        if: success() || failure()
-        with:
-          name: test-reports-system-desc-${{ github.run_attempt }}.${{ github.run_id }}-n150-${{ steps.fetch-job-id.outputs.job_id }}
-          path: ${{ steps.strings.outputs.test_report_path }}
-
-  test-summary:
-    runs-on: ubuntu-latest
-    needs: [ run-tests ]
-    if: success() || failure()
-    steps:
-      - uses: actions/checkout@v6
-      - name: Process test summary
-        continue-on-error: true
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-system-desc-*" --dir test_reports || echo "No reports found"
-          find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \; 2>/dev/null || true
-
-      - name: Show consolidated test report
-        continue-on-error: true
-        uses: mikepenz/action-junit-report@v6
-        if: success() || failure()
-        with:
-          report_paths: test_reports/report_*.xml
-          check_name: TT-XLA system_desc example
-          detailed_summary: true
-          include_passed: ${{ inputs.include_passed }}
-          group_suite: true
-          token: ${{ github.token }}
