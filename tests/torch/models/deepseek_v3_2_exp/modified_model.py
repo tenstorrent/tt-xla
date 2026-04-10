@@ -933,12 +933,27 @@ class MLA(nn.Module):
                 :bsz, :end_pos
             ]  # (bsz, seq_len, qk_rope_head_dim)
 
-            # For each batch item b and topk index k, selects orig_kv_cache[b, gather_idx[b,k], :]
-            # Equivalent to fancy indexing: orig_kv_cache[batch_idx, gather_idx]
-            kv_index = gather_idx.unsqueeze(-1).expand(-1, -1, orig_kv_cache.size(-1))
-            pe_index = gather_idx.unsqueeze(-1).expand(-1, -1, orig_pe_cache.size(-1))
-            kv_for_attention = torch.gather(orig_kv_cache, 1, kv_index)
-            pe_for_attention = torch.gather(orig_pe_cache, 1, pe_index)
+            use_fancy_indexing = False
+            if use_fancy_indexing:
+                batch_idx = torch.arange(gather_idx.size(0)).view(-1, 1)  # (bsz, 1)
+                # Extract only the indices specified by batch_idx and gather_idx
+                kv_for_attention = orig_kv_cache[
+                    batch_idx, gather_idx
+                ]  # (bsz, topk, kv_lora_rank)
+                pe_for_attention = orig_pe_cache[
+                    batch_idx, gather_idx
+                ]  # (bsz, topk, qk_rope_head_dim)
+            else:
+                # For each batch item b and topk index k, selects orig_kv_cache[b, gather_idx[b,k], :]
+                # Equivalent to fancy indexing: orig_kv_cache[batch_idx, gather_idx]
+                kv_index = gather_idx.unsqueeze(-1).expand(
+                    -1, -1, orig_kv_cache.size(-1)
+                )
+                pe_index = gather_idx.unsqueeze(-1).expand(
+                    -1, -1, orig_pe_cache.size(-1)
+                )
+                kv_for_attention = torch.gather(orig_kv_cache, 1, kv_index)
+                pe_for_attention = torch.gather(orig_pe_cache, 1, pe_index)
         else:
             kv_for_attention = self.kv_cache[:bsz, :end_pos]
             pe_for_attention = self.pe_cache[:bsz, :end_pos]
@@ -959,7 +974,7 @@ class MLP(nn.Module):
     Attributes:
         w1 (nn.Module): Linear layer for input-to-hidden transformation.
         w2 (nn.Module): Linear layer for hidden-to-output transformation.
-        w3 (nn.Module): Additional linear layer for feature transformation.
+        w3 (nn.Module): Additional linear layer for feature transformation
     """
 
     def __init__(self, dim: int, inter_dim: int, reduce_output: bool = True):

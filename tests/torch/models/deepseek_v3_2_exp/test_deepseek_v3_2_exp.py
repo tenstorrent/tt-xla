@@ -13,6 +13,7 @@ from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
+from tt_torch.sharding import sharding_constraint_hook
 
 from tests.utils import failed_ttmlir_compilation
 
@@ -256,7 +257,8 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
         shard_specs = {}
 
         # Input tensors
-        shard_specs[args[0]] = (None, None, batch_axis)  # hidden_states (batch, 1, dim)
+        # shard_specs[args[0]] = (None, None, batch_axis)  # hidden_states (batch, 1, dim)
+        shard_specs[args[0]] = (None, None, None)  # hidden_states (batch, 1, dim)
 
         # Weight tensors
         shard_specs[attention.wq_b.weight] = ("model", None)
@@ -277,6 +279,14 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
 
         return shard_specs
 
+    # Force the attention output (batch, 1, dim) to be fully replicated across all
+    # devices. Without this, wo.weight=(batch_axis, "model") leaves the dim axis
+    # split across the two batch groups; the hook inserts an all-gather on the
+    # batch axis so every device holds the complete (batch, 1, dim) tensor.
+    hook_handle = attention.wo.register_forward_hook(
+        sharding_constraint_hook(attention.wo, mesh, (None, None, None))
+    )
+
     comparison_config = ComparisonConfig(
         pcc=PccConfig(enabled=True, required_pcc=0.99),
     )
@@ -295,6 +305,7 @@ def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
     )
+    hook_handle.remove()
 
 
 @pytest.mark.llmbox
