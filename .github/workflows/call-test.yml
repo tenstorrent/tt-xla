@@ -475,10 +475,10 @@ jobs:
 
             # Diagnostics: show python environment
             echo "=== Python environment diagnostics ==="
-            echo "which python: $(which python || echo 'not found')"
-            echo "which python3: $(which python3 || echo 'not found')"
+            which python || echo "python not found"
+            which python3 || echo "python3 not found"
             echo "PYTHON variable: $PYTHON"
-            echo "$PYTHON --version: $($PYTHON --version)"
+            $PYTHON --version
             echo ""
             echo "pip freeze output:"
             pip freeze
