@@ -1028,21 +1028,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position[1:] = -1
             page_table[1:, :] = 0
 
-        # With prefix caching, some blocks are already filled. Roll the
-        # page_table so prefix blocks move to the end and paged_fill_cache
-        # writes to non-prefix blocks first. The roll is done HERE (outside
-        # the compiled graph) so the tensor shape stays constant and doesn't
-        # trigger torch.compile recompilation.
-        prefill_block_offset = 0
-        if num_reqs > 0:
-            min_computed = int(
-                np.min(self.input_batch.num_computed_tokens_cpu[:num_reqs])
-            )
-            prefill_block_offset = min_computed // self.block_size
-        if prefill_block_offset > 0:
-            fill_page_table = torch.roll(
-                page_table, shifts=-prefill_block_offset, dims=1
-            )
+        # With prefix caching, some blocks are already filled. Roll each
+        # user's page_table row so paged_fill_cache writes to suffix blocks
+        # instead of overwriting shared prefix blocks. Each user may have a
+        # different prefix length, so we roll per-row. Done outside the
+        # compiled graph to avoid shape-change recompilation.
+        offsets = (
+            self.input_batch.num_computed_tokens_cpu[:num_reqs] // self.block_size
+            if num_reqs > 0
+            else np.array([], dtype=np.int64)
+        )
+        if np.any(offsets > 0):
+            fill_page_table = page_table.clone()
+            for i in range(num_reqs):
+                if offsets[i] > 0:
+                    fill_page_table[i] = torch.roll(
+                        page_table[i], shifts=-int(offsets[i])
+                    )
         else:
             fill_page_table = page_table
 
