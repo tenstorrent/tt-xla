@@ -1,7 +1,8 @@
 # KV Cache Size Decode Performance Regression — Investigation
 
 **Date:** 2026-04-10
-**Status:** Root cause identified, fix paths outlined
+**Issue:** #4197
+**Status:** Fix implemented and validated — regression eliminated
 
 ## Reproduction
 
@@ -120,17 +121,50 @@ This might compile to in-place writes instead of full concat + copy.
 
 **Impact:** Would eliminate the concat copy (1 of 3 per layer). The slices might still copy.
 
-## Next Steps
+## Fix: Separate K and V Cache Tensors
 
-1. **Quantify the fix**: Prototype fix path #1 (separate K/V tensors) on OPT-125M and measure the improvement
-2. **Check if TPU backend has the same issue**: vLLM's TPU backend (`vllm/attention/backends/pallas.py`) may use the same combined layout — compare their approach
-3. **Profile with `TTMLIR_ENABLE_PERF_TRACE`**: Confirm that slice/concat ops dominate decode time in the trace
-4. **Verify `input_output_alias` feasibility**: Check if the TT PJRT plugin supports buffer aliasing and what's needed to enable it
+### What changed
+
+1. `get_kv_cache_shape()` returns `(num_blocks, num_kv_heads, block_size, head_size)` — single cache shape, no `(2, ...)` prefix
+2. `initialize_kv_cache()` allocates two tensors per layer: `[k_cache, v_cache]`
+3. `_handle_paged_attention()` no longer slices or stacks — uses `.copy_()` to write back updated values
+4. `_compute_decode_attention()` reads `kv_cache[0]` and `kv_cache[1]` directly (same syntax, but no slice copy)
+
+### Files modified
+
+- `integrations/vllm_plugin/vllm_tt/attention.py` — `get_kv_cache_shape`, `forward`, `_handle_paged_attention`, `_compute_decode_attention`
+- `integrations/vllm_plugin/vllm_tt/model_runner.py` — `initialize_kv_cache`, TP sharding, `copy_kv_blocks`
+
+### Key insight: `.copy_()` preserves tensor identity
+
+The first attempt used list assignment (`kv_cache[0] = k_cache`) which broke XLA's graph tracing — new tensor objects caused recompilation every decode step (0.1 tok/s). Switching to `kv_cache[0].copy_(k_cache)` preserves tensor identity so the traced graph is reused.
+
+### Before/after (OPT-125M, single N150 chip)
+
+| gpu_memory_utilization | Before (tok/s) | After (tok/s) | Before ratio | After ratio |
+|---|---|---|---|---|
+| 0.005 (1,728 tokens) | 68.9 | 80.4 | 1.00x | 1.00x |
+| 0.01 (3,488 tokens) | 60.4 | 77.3 | 0.87x | 0.96x |
+| 0.05 (17,472 tokens) | 21.3 | 77.6 | 0.31x | 0.97x |
+
+- **Regression eliminated**: 0.97x at 10x cache size (was 0.31x)
+- **Baseline improved**: 80.4 vs 68.9 tok/s at smallest cache (+17%)
+- **Large cache 3.6x faster**: 77.6 vs 21.3 tok/s
+
+## Remaining Work
+
+1. **Test with Llama-3.2-1B and Llama-3.1-8B** to confirm at production scales
+2. **Run multibatch test** (`test_opt_generation_multibatch`) to verify batched decode
+3. **Tensor parallel sharding** updated but not tested (no multi-chip test run yet)
+4. **`input_output_alias`** would eliminate the remaining `.copy_()` overhead — future optimization
+5. **KV transfer group** (`register_kv_caches`) passes lists now but not integration-tested
 
 ## Artifacts
 
 - `bench_kv_cache_size.py` — Benchmark script (in repo root)
-- `bench_kv_cache_size.log` — Benchmark output
-- `/tmp/ir_small.log` — Full DEBUG IR dump at gpu_memory_utilization=0.005
-- `/tmp/ir_large.log` — Full DEBUG IR dump at gpu_memory_utilization=0.05
+- `bench_kv_cache_size.log` — Pre-fix benchmark output
+- `bench_kv_cache_size_after_v2.log` — Post-fix benchmark output
+- `/tmp/ir_small.log` — Full DEBUG IR dump at gpu_memory_utilization=0.005 (pre-fix)
+- `/tmp/ir_large.log` — Full DEBUG IR dump at gpu_memory_utilization=0.05 (pre-fix)
 - `tests/torch/ops/test_kv_cache_size_perf.py` — Unit tests (kernel-level + correctness)
+- `tests/integrations/vllm_plugin/generative/test_kv_cache_size_slowdown.py` — E2E slowdown test
