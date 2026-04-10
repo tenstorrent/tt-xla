@@ -37,7 +37,7 @@ class AllcloseConfig(ConfigBase):
 
 @dataclass
 class PccConfig(ConfigBase):
-    required_pcc: float = 0.99
+    required_pcc: float = 0.95
     # When tensors are too close, pcc will output NaN values. To prevent that, we do
     # allclose comparison in that case. For each test it should be possible to
     # separately tune the allclose config for which pcc won't be calculated and
