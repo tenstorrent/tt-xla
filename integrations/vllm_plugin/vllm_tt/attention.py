@@ -477,13 +477,11 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
-            fill_page_table = attn_metadata.fill_page_table
-
             for batch_idx in range(inputs.users):
                 k_cache = torch.ops.tt.paged_fill_cache(
                     k_cache,
                     key_for_update[batch_idx : batch_idx + 1],
-                    fill_page_table,
+                    attn_metadata.fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=k_cache.device
                     ),
@@ -491,7 +489,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 v_cache = torch.ops.tt.paged_fill_cache(
                     v_cache,
                     value_for_update[batch_idx : batch_idx + 1],
-                    fill_page_table,
+                    attn_metadata.fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=v_cache.device
                     ),
