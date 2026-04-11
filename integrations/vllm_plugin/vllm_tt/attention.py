@@ -174,6 +174,9 @@ class TTMetadata:
     attn_mask: torch.Tensor
     page_table: torch.Tensor
     is_causal: bool
+    # Page table with prefix blocks rolled to the end for paged_fill_cache.
+    # Computed outside the compiled graph to avoid shape-change recompilation.
+    fill_page_table: torch.Tensor
 
     def __init__(
         self,
@@ -181,11 +184,15 @@ class TTMetadata:
         attn_mask: torch.Tensor | None = None,
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
+        fill_page_table: torch.Tensor | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
         self.page_table = page_table
         self.is_causal = is_causal
+        self.fill_page_table = (
+            fill_page_table if fill_page_table is not None else page_table
+        )
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -476,7 +483,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 k_cache = torch.ops.tt.paged_fill_cache(
                     k_cache,
                     key_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.page_table,
+                    attn_metadata.fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=k_cache.device
                     ),
@@ -484,7 +491,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 v_cache = torch.ops.tt.paged_fill_cache(
                     v_cache,
                     value_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.page_table,
+                    attn_metadata.fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=v_cache.device
                     ),

@@ -1028,8 +1028,33 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position[1:] = -1
             page_table[1:, :] = 0
 
+        # With prefix caching, some blocks are already filled. Roll each
+        # user's page_table row so paged_fill_cache writes to suffix blocks
+        # instead of overwriting shared prefix blocks. Each user may have a
+        # different prefix length, so we roll per-row. Done outside the
+        # compiled graph to avoid shape-change recompilation.
+        offsets = (
+            self.input_batch.num_computed_tokens_cpu[:num_reqs] // self.block_size
+            if num_reqs > 0
+            else np.array([], dtype=np.int64)
+        )
+        if np.any(offsets > 0):
+            fill_page_table = page_table.clone()
+            for i in range(num_reqs):
+                if offsets[i] > 0:
+                    fill_page_table[i] = torch.roll(
+                        page_table[i], shifts=-int(offsets[i])
+                    )
+        else:
+            fill_page_table = page_table
+
         cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
+        fill_page_table = (
+            fill_page_table.to(self.device)
+            if fill_page_table is not page_table
+            else page_table
+        )
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1047,13 +1072,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            fill_page_table=fill_page_table,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
         # partial request, we do so for simplicity. We will ignore the sampled
         # token from the partial request.
-        # Indices at which we sample (positions of last token in the sequence).
-        logits_indices = self.query_start_loc_cpu[1 : self.max_num_reqs + 1] - 1
+        # Per-user last-token index within each padded slot.
+        logits_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32)
+        logits_indices[: len(num_scheduled_tokens_per_req)] = (
+            torch.from_numpy(num_scheduled_tokens_per_req) - 1
+        )
         logits_indices = logits_indices.to(self.device)
 
         if self.lora_config is not None:
