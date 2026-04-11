@@ -61,9 +61,12 @@ class LLMSamplingWrapper(torch.nn.Module):
             use_cache=use_cache,
         )
         logits = self.read_logits_fn(output)
-        next_token_ids = logits[:, -1].argmax(dim=-1, keepdim=True)
+        # Only take logits for last token in prefill.
+        # This is a noop for decode.
+        logits_last = logits[:, -1]
+        next_token_ids = logits_last.argmax(dim=-1, keepdim=True)
         next_token_ids_replicated = next_token_ids
-        if self.mesh is not None and self.output_sharding_spec is not None:
+        if self.mesh and self.output_sharding_spec:
             # Create two versions of next_token_ids, sharded and replicated.
             # The sharded version is used as input for the next decode step. Passing the replicated version as the input created a differenct graph and trigers recompilation.
             # The replicated version is used for transfer to CPU. Using the sharded version for the transfer create a new graph with a single all gather and triggers recompilation.
@@ -76,11 +79,18 @@ class LLMSamplingWrapper(torch.nn.Module):
             )
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
+            logits_out = logits_last
+            if self.mesh and self.output_sharding_spec:
+                # Ensure logits are replicated for transfer to CPU.
+                replicate_spec = tuple(None for _ in self.output_sharding_spec)
+                logits_out = sharding_constraint_tensor(
+                    logits_last, self.mesh, replicate_spec
+                )
             return (
                 next_token_ids,
                 next_token_ids_replicated,
                 next_cache_position,
-                logits,
+                logits_out,
             )
         return next_token_ids, next_token_ids_replicated, next_cache_position
 

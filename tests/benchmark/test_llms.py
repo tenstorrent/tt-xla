@@ -1670,10 +1670,12 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
         shard_specs[layer.self_attn.o_proj.weight] = (batch_axis, "model")
         shard_specs[layer.self_attn.sinks] = ("model",)
         shard_specs[layer.mlp.router.weight] = (None, batch_axis)
-        shard_specs[layer.mlp.experts.gate_up_proj] = (("model", "batch"), None, None)
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("model", "batch"), None)
-        shard_specs[layer.mlp.experts.down_proj] = (("model", "batch"), None, None)
-        shard_specs[layer.mlp.experts.down_proj_bias] = (("model", "batch"), None)
+        # This is a temporary sharding spec to enable gpt oss to not get OOM on galaxy.
+        # Once the MoE module is refactored, this should be changed to EP 32.
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", "batch", None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, "batch")
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
         shard_specs[layer.input_layernorm.weight] = (batch_axis,)
         shard_specs[layer.post_attention_layernorm.weight] = (batch_axis,)
 
