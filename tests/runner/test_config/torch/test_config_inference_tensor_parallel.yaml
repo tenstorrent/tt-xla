@@ -155,7 +155,6 @@ test_config:
     arch_overrides:
       n300-llmbox:
         enable_weight_bfp8_conversion: true
-        assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3591
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     arch_overrides:
