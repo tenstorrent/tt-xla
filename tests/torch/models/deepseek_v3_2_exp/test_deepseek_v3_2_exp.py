@@ -6,10 +6,12 @@ import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+from benchmark.utils import compute_pcc
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
+from torch import nn
 from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import failed_ttmlir_compilation
@@ -90,11 +92,15 @@ def test_deepseek_complex_rotary_emb():
 
 @pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
-def test_deepseek_attention_prefill(batch_size):
+@pytest.mark.parametrize("seq_len", [32, 64, 128])
+def test_deepseek_attention_prefill(batch_size, seq_len):
     xr.set_device_type("TT")
-    seq_len = 32
     args = ModelArgs(
-        n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
+        n_layers=1,
+        q_lora_rank=3072,
+        max_batch_size=batch_size,
+        max_seq_len=seq_len * 2,
+        index_topk=16,
     )
 
     model = ModifiedTransformer(args)
@@ -104,6 +110,21 @@ def test_deepseek_attention_prefill(batch_size):
     hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
     # Prefill branch expects mask shape (bsz, seqlen, seqlen) for index_mask += mask
     attention_mask = torch.zeros(batch_size, seq_len, seq_len, dtype=torch.bfloat16)
+
+    # Create a (batch_size, seq_len, index_topk) tensor of valid indices.
+    # Each entry along the last axis contains values from 0 to seq_len-1, in random order per batch/position.
+    topk_indices = torch.stack(
+        [
+            torch.stack(
+                [torch.randperm(seq_len)[: args.index_topk] for _ in range(seq_len)]
+            ).unsqueeze(1)
+            for _ in range(batch_size)
+        ]
+    ).squeeze(
+        2
+    )  # shape: (batch_size, seq_len, index_topk)
+
+    attention.prepopulated_topk_indices = topk_indices
 
     freqs_cis = model.freqs_cis[0:seq_len]
 
@@ -140,7 +161,7 @@ def test_deepseek_attention_prefill(batch_size):
         return shard_specs
 
     comparison_config = ComparisonConfig(
-        pcc=PccConfig(enabled=True, required_pcc=0.95),
+        pcc=PccConfig(enabled=True, required_pcc=0.99),
     )
 
     run_graph_test(
@@ -160,10 +181,130 @@ def test_deepseek_attention_prefill(batch_size):
 
 @pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
-def test_deepseek_indexer(batch_size):
+@pytest.mark.parametrize("prefill_seq_len", [32, 128, 512, 2048])
+def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
+    _XFAIL_CONFIGS = {
+        (128, 32),
+        (128, 64),
+        (512, 32),
+        (512, 64),
+        (2048, 4),
+        (2048, 32),
+        (2048, 64),
+    }
+    if (prefill_seq_len, batch_size) in _XFAIL_CONFIGS:
+        request.applymarker(
+            pytest.mark.xfail(
+                reason="Low PCC due to ttir.gather lowering bug - https://github.com/tenstorrent/tt-xla/issues/3726"
+            )
+        )
+
     xr.set_device_type("TT")
 
-    seq_len = 32
+    # Decode-specific parameters
+    decode_seq_len = 1  # Generate one token at a time
+    start_pos = prefill_seq_len  # Start position for the new token
+
+    args = ModelArgs(
+        n_layers=1,
+        q_lora_rank=3072,
+        max_batch_size=batch_size,
+        max_seq_len=prefill_seq_len * 2,
+        index_topk=prefill_seq_len // 2,
+    )
+
+    model = ModifiedTransformer(args)
+    model = model.to(torch.bfloat16)
+    attention = model.layers[0].attn
+
+    # Create decode input: single token only
+    hidden_states = torch.randn(
+        (batch_size, decode_seq_len, args.dim), dtype=torch.bfloat16
+    )
+
+    # Pre-populate caches with random data to simulate previous prefill phase
+    attention.kv_cache[:batch_size, :start_pos] = torch.randn(
+        batch_size, start_pos, args.kv_lora_rank, dtype=torch.bfloat16
+    )
+    attention.pe_cache[:batch_size, :start_pos] = torch.randn(
+        batch_size, start_pos, args.qk_rope_head_dim, dtype=torch.bfloat16
+    )
+    attention.indexer.k_cache[:batch_size, :start_pos] = torch.randn(
+        batch_size, start_pos, args.index_head_dim, dtype=torch.bfloat16
+    )
+
+    # Prepopulating topk_indices instead of running the indexer, since we have no
+    # guarantee that the topk indices returned by it will be the same across CPU and
+    # TT devices. Also, the indexer is already separately tested.
+    attention.prepopulated_topk_indices = torch.stack(
+        [torch.randperm(prefill_seq_len)[: args.index_topk] for _ in range(batch_size)]
+    ).unsqueeze(
+        1
+    )  # (batch_size, 1, index_topk)
+
+    # Get rotary embeddings for the current position
+    freqs_cis = model.freqs_cis[start_pos : start_pos + decode_seq_len]
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (2, 4)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(attention, args, kwargs):
+        mesh_batch_axis_size = mesh.shape()["batch"]
+        # Conditionally shard weights that involve batch axis
+        batch_axis = "batch" if batch_size >= mesh_batch_axis_size else None
+
+        shard_specs = {}
+
+        # Input tensors
+        shard_specs[args[0]] = (None, None, batch_axis)  # hidden_states (batch, 1, dim)
+
+        # Weight tensors
+        shard_specs[attention.wq_b.weight] = ("model", None)
+        shard_specs[attention.wkv_b.weight] = ("model", None)
+        shard_specs[attention.wo.weight] = (batch_axis, "model")
+        shard_specs[attention.wq_a.weight] = (None, batch_axis)
+        shard_specs[attention.wkv_a.weight] = (None, batch_axis)
+
+        # Cache tensors
+        shard_specs[attention.kv_cache] = (batch_axis, None, None)
+        shard_specs[attention.pe_cache] = (batch_axis, None, None)
+
+        # Indexer sharding (if present)
+        shard_specs[attention.indexer.wq_b.weight] = ("model", None)
+        shard_specs[attention.indexer.wk.weight] = (None, batch_axis)
+        shard_specs[attention.indexer.weights_proj.weight] = ("model", batch_axis)
+        shard_specs[attention.indexer.k_cache] = (batch_axis, None, None)
+
+        return shard_specs
+
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.99),
+    )
+
+    run_graph_test(
+        attention,
+        [
+            hidden_states,
+            start_pos,
+            freqs_cis,
+            None,  # attention_mask - triggers decode path
+            True,  # use_optimized_decode_flow
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=comparison_config,
+    )
+
+
+@pytest.mark.llmbox
+@pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
+@pytest.mark.parametrize("seq_len", [32, 128, 512])
+def test_deepseek_indexer(batch_size, seq_len):
+    xr.set_device_type("TT")
+
     args = ModelArgs(
         n_layers=1, q_lora_rank=3072, max_batch_size=batch_size, max_seq_len=seq_len * 2
     )
@@ -223,7 +364,7 @@ def test_deepseek_indexer(batch_size):
         return shard_specs
 
     comparison_config = ComparisonConfig(
-        pcc=PccConfig(enabled=True, required_pcc=0.95),
+        pcc=PccConfig(enabled=True, required_pcc=0.99),
     )
 
     run_graph_test(
@@ -240,3 +381,63 @@ def test_deepseek_indexer(batch_size):
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
     )
+
+
+@pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
+@pytest.mark.parametrize("prefill_seq_len", [32, 128, 512, 2048])
+def test_dsa_optimized_decode_flow_compared_to_original(batch_size, prefill_seq_len):
+    """
+    This test compares the optimized decode flow with the original reference flow provided
+    by Deepseek. It is run only on CPU.
+    """
+    decode_seq_len = 1  # Generate one token at a time
+    start_pos = prefill_seq_len  # Start position for the new token
+
+    args = ModelArgs(
+        n_layers=1,
+        q_lora_rank=3072,
+        max_batch_size=batch_size,
+        max_seq_len=prefill_seq_len * 2,
+        index_topk=16,
+    )
+
+    modified_model = ModifiedTransformer(args)
+    modified_model = modified_model.to(torch.bfloat16)
+    attention = modified_model.layers[0].attn
+
+    freqs_cis = modified_model.freqs_cis[start_pos : start_pos + decode_seq_len]
+
+    hidden_states = torch.randn(
+        (batch_size, decode_seq_len, args.dim), dtype=torch.bfloat16
+    )
+    kv_cache = torch.randn(
+        batch_size, start_pos, args.kv_lora_rank, dtype=torch.bfloat16
+    )
+    pe_cache = torch.randn(
+        batch_size, start_pos, args.qk_rope_head_dim, dtype=torch.bfloat16
+    )
+    k_cache = torch.randn(
+        batch_size, start_pos, args.index_head_dim, dtype=torch.bfloat16
+    )
+    end_pos = start_pos + decode_seq_len
+    topk_indices = torch.stack(
+        [torch.randperm(end_pos)[: args.index_topk] for _ in range(batch_size)]
+    ).unsqueeze(
+        1
+    )  # (batch_size, 1, index_topk)
+
+    attention.prepopulated_topk_indices = topk_indices
+    attention.kv_cache[:batch_size, :start_pos] = kv_cache
+    attention.pe_cache[:batch_size, :start_pos] = pe_cache
+    attention.indexer.k_cache[:batch_size, :start_pos] = k_cache
+
+    test_modified_output = attention(
+        hidden_states, start_pos, freqs_cis, mask=None, use_optimized_decode_flow=True
+    )
+    test_original_output = attention(
+        hidden_states, start_pos, freqs_cis, mask=None, use_optimized_decode_flow=False
+    )
+
+    pcc = compute_pcc(test_modified_output, test_original_output)
+
+    assert pcc > 0.99, f"PCC too low: {pcc}"
