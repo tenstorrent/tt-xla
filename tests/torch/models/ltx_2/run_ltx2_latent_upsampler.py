@@ -24,10 +24,15 @@ import torch_xla
 import torch_xla.runtime as xr
 from diffusers.pipelines.ltx2.latent_upsampler import LTX2LatentUpsamplerModel
 
+from conv3d_decompose import patch_conv3d_to_conv2d
+
 
 def run_ltx2_latent_upsampler():
     xr.set_device_type("TT")
     device = torch_xla.device()
+
+    # Decompose Conv3d -> Conv2d to avoid tt-metal L1 overflow
+    patch_conv3d_to_conv2d()
 
     # Load pretrained latent upsampler
     upsampler = LTX2LatentUpsamplerModel.from_pretrained(

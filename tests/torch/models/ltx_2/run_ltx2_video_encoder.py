@@ -20,10 +20,15 @@ import torch_xla
 import torch_xla.runtime as xr
 from diffusers import AutoencoderKLLTX2Video
 
+from conv3d_decompose import patch_conv3d_to_conv2d
+
 
 def run_ltx2_video_encoder():
     xr.set_device_type("TT")
     device = torch_xla.device()
+
+    # Decompose Conv3d -> Conv2d to avoid tt-metal L1 overflow
+    patch_conv3d_to_conv2d()
 
     # Load pretrained Video VAE, extract encoder
     vae = AutoencoderKLLTX2Video.from_pretrained(

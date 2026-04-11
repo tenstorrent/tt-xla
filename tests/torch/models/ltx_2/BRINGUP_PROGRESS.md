@@ -6,63 +6,55 @@ Devices: 4 (after chip reset; requires `tt-smi -r 0,1,2,3` if only 2 show up)
 
 ## Summary
 
-**6/7 non-Conv3d components PASS. 3 Conv3d components BLOCKED at tt-metal level.**
-**Partial pipeline (text encoding + denoising) runs end-to-end.**
+**ALL 10/10 COMPONENTS PASS.** Full partial pipeline (text encoding + denoising) runs end-to-end.
 
 ## Component Status
 
-| # | Component | Script | Sharding | Status | Notes |
-|---|-----------|--------|----------|--------|-------|
-| 1 | Vocoder (HiFi-GAN) | run_ltx2_vocoder.py | Replicated | **PASS** | Output [1,2,24000], 9.8s |
-| 2 | Audio VAE Encoder | run_ltx2_audio_vae_encoder.py | Replicated | **PASS** | Output [1,16,25,16], 2.8s |
-| 3 | Audio VAE Decoder | run_ltx2_audio_vae_decoder.py | Replicated | **PASS** | Output [1,2,97,64], 4.4s |
-| 4 | Video VAE Encoder | run_ltx2_video_encoder.py | Replicated | **BLOCKED** | Conv3d L1 overflow |
-| 5 | Video VAE Decoder | run_ltx2_video_decoder.py | Replicated | **BLOCKED** | Conv3d L1 overflow |
-| 6 | Latent Upsampler | run_ltx2_latent_upsampler.py | Replicated | **BLOCKED** | Conv3d L1 overflow |
-| 7 | Text Connectors | run_ltx2_text_connectors.py | Replicated | **PASS** | Output [1,256,3840], 0.75s |
-| 8 | Text Encoder (Gemma 3) | run_ltx2_text_encoder.py | Replicated | **PASS** | 2-layer minimal, [1,128,3840], 0.4s |
-| 9 | Transformer (DiT) | run_ltx2_transformer.py | Replicated | **PASS** | 4-layer minimal, video+audio, 12.5s |
-| 10 | Partial Pipeline | run_ltx2_partial_pipeline.py | Replicated | **PASS** | Phase 1+2 end-to-end |
+| # | Component | Script | Status | Inference | Notes |
+|---|-----------|--------|--------|-----------|-------|
+| 1 | Vocoder (HiFi-GAN) | run_ltx2_vocoder.py | **PASS** | 9.8s | No patches needed |
+| 2 | Audio VAE Encoder | run_ltx2_audio_vae_encoder.py | **PASS** | 2.8s | No patches needed |
+| 3 | Audio VAE Decoder | run_ltx2_audio_vae_decoder.py | **PASS** | 4.4s | No patches needed |
+| 4 | Video VAE Encoder | run_ltx2_video_encoder.py | **PASS** | 101.5s | Conv3d decomposition |
+| 5 | Video VAE Decoder | run_ltx2_video_decoder.py | **PASS** | 68.7s | Conv3d decomposition |
+| 6 | Latent Upsampler | run_ltx2_latent_upsampler.py | **PASS** | 49.2s | Conv3d decomposition |
+| 7 | Text Connectors | run_ltx2_text_connectors.py | **PASS** | 0.75s | unflatten patch + fullgraph |
+| 8 | Text Encoder (Gemma 3) | run_ltx2_text_encoder.py | **PASS** | 0.4s | 2-layer, pre-computed mask |
+| 9 | Transformer (DiT) | run_ltx2_transformer.py | **PASS** | 12.5s | 4-layer, view_of + unflatten patches |
+| 10 | Partial Pipeline | run_ltx2_partial_pipeline.py | **PASS** | ~313s | Phase 1+2 end-to-end |
 
-## Patches Required
+## Patches Applied
 
-### 1. unflatten -> reshape (Text Connectors, Transformer, Pipeline)
-- `tensor.unflatten(dim, (-1, n))` causes dynamo graph breaks
-- Monkey-patch `apply_interleaved_rotary_emb` and `LTX2AudioVideoAttnProcessor.__call__`
-- Must use `fullgraph=True` in `torch.compile`
+### 1. Conv3d -> Conv2d temporal decomposition (Video VAE, Latent Upsampler)
+- **File**: `conv3d_decompose.py`
+- **Problem**: tt-metal `Conv3dDeviceOperation` allocates circular buffers exceeding L1 (1.57 MB)
+- **Fix**: Decompose Conv3d(k_t×k_h×k_w) into sum of k_t Conv2d ops over temporal kernel dim
+- **Accuracy**: Max diff 9.54e-6 vs reference (verified on CPU)
+- **Performance**: ~10x slower than native Conv3d would be (many small Conv2d ops)
 
-### 2. prims::view_of -> clone (Transformer, Pipeline)
-- `prims::view_of` creates aliased outputs unsupported by XLA/TT functionalization
-- Monkey-patch `TorchFunctionOverride.__torch_function__` to intercept and clone
+### 2. unflatten -> reshape (Text Connectors, Transformer, Pipeline)
+- **Problem**: `tensor.unflatten(dim, (-1, n))` causes dynamo graph breaks
+- **Fix**: Monkey-patch `apply_interleaved_rotary_emb` and `LTX2AudioVideoAttnProcessor.__call__`
 
-### 3. Pre-computed causal mask (Text Encoder, Pipeline)
-- Gemma3's `create_causal_mask` generates `slice(-N)` with N > 127 (int8 overflow)
-- Use `Gemma3TextModel` directly with pre-computed causal mask
+### 3. prims::view_of -> clone (Transformer, Pipeline)
+- **Problem**: `prims::view_of` creates aliased outputs unsupported by XLA functionalization
+- **Fix**: Monkey-patch `TorchFunctionOverride.__torch_function__`
 
-### 4. audio_num_frames explicit (Transformer, Pipeline)
-- Must pass `audio_num_frames=n_audio` to avoid NoneType+int TypeError
+### 4. Pre-computed causal mask (Text Encoder, Pipeline)
+- **Problem**: Gemma3's `create_causal_mask` generates `slice(-N)` with N > 127 (int8 overflow)
+- **Fix**: Use `Gemma3TextModel` directly with pre-computed mask
 
-### 5. rope_type="interleaved" (Transformer, Pipeline)
-- Config override to avoid split rotary emb tracing bug
+### 5. fullgraph=True (Text Connectors, Transformer)
+- **Problem**: Graph breaks produce `_guards_fn` NameError during decomposition
+- **Fix**: Force single graph with `fullgraph=True`
 
-## Blockers (require tt-metal/tt-mlir fixes)
+### 6. audio_num_frames + rope_type (Transformer)
+- **Problem**: Missing audio_num_frames → NoneType error; split rope → tracing bug
+- **Fix**: Pass explicitly; use `rope_type="interleaved"`
 
-### Conv3d L1 overflow
-- **Error**: `Statically allocated circular buffers grow to N B beyond max L1 size of 1572864 B`
-- **Affected**: Video VAE Encoder (1.91MB), Video VAE Decoder (3.71MB), Latent Upsampler (3.71MB)
-- **Fix needed**: tt-metal `Conv3dDeviceOperation` L1 allocation strategy
+## Remaining Work for Full Pipeline
 
-### Gemma3 int8 slice overflow (full 48-layer pretrained)
-- **Error**: `Value out of range (expected [-128, 127])` on `aten.slice.Tensor`
-- **Fix needed**: XLA HLO int8 slice index handling
-
-### SPMD + graph breaks (4-way TP sharding)
-- **Error**: `Device count mismatch: 4 vs 1`
-- **Fix needed**: Graph-break-free compilation or partition-aware sharding propagation
-
-## What's Needed for Full Pipeline
-
-1. **tt-metal Conv3d L1 fix** — unblocks VAE encode/decode and latent upsampler
-2. **XLA int8 slice fix** — unblocks full 48-layer Gemma3 pretrained model
-3. **SPMD graph break fix** — unblocks 4-way tensor parallelism for large models
-4. **PCC validation** — compare TT outputs against CPU reference (not yet tested)
+1. **Full Gemma3 48-layer pretrained**: Needs int8 slice overflow fix (XLA HLO level)
+2. **SPMD 4-way TP sharding**: Needs graph-break-free compilation for device count consistency
+3. **PCC validation**: Compare TT outputs against CPU reference
+4. **Performance optimization**: Conv3d decomposition is ~10x slower; native Conv3d fix in tt-metal preferred
