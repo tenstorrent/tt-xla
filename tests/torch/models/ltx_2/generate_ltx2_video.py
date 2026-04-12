@@ -26,80 +26,7 @@ import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 from conv3d_decompose import patch_conv3d_to_conv2d
-
-
-# ---------------------------------------------------------------------------
-# Monkey-patches
-# ---------------------------------------------------------------------------
-
-def _patch_unflatten_graph_breaks():
-    """Replace unflatten(-1) with reshape to avoid dynamo graph breaks."""
-    import diffusers.models.transformers.transformer_ltx2 as ltx2_module
-
-    def _patched_apply_interleaved_rotary_emb(x, freqs):
-        cos, sin = freqs
-        # x can be [B, seq, dim] (3D) or [B, heads, seq, head_dim] (4D)
-        half_c = x.shape[-1] // 2
-        x_reshaped = x.reshape(*x.shape[:-1], half_c, 2)
-        x_real = x_reshaped[..., 0]
-        x_imag = x_reshaped[..., 1]
-        x_rotated = torch.stack([-x_imag, x_real], dim=-1).flatten(-2)
-        out = (x.float() * cos + x_rotated.float() * sin).to(x.dtype)
-        return out
-
-    ltx2_module.apply_interleaved_rotary_emb = _patched_apply_interleaved_rotary_emb
-
-    def _patched_processor_call(
-        self, attn, hidden_states, encoder_hidden_states=None, attention_mask=None,
-        query_rotary_emb=None, key_rotary_emb=None,
-    ):
-        batch_size, sequence_length, _ = (
-            hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
-        )
-        if attention_mask is not None:
-            attention_mask = attn.prepare_attention_mask(attention_mask, sequence_length, batch_size)
-            attention_mask = attention_mask.reshape(batch_size, attn.heads, -1, attention_mask.shape[-1])
-        if encoder_hidden_states is None:
-            encoder_hidden_states = hidden_states
-        query = attn.to_q(hidden_states)
-        key = attn.to_k(encoder_hidden_states)
-        value = attn.to_v(encoder_hidden_states)
-        query = attn.norm_q(query)
-        key = attn.norm_k(key)
-
-        # Apply RoPE BEFORE multi-head reshape (RoPE is always [B, S, inner_dim])
-        if query_rotary_emb is not None:
-            query = _patched_apply_interleaved_rotary_emb(query, query_rotary_emb)
-            key = _patched_apply_interleaved_rotary_emb(
-                key, key_rotary_emb if key_rotary_emb is not None else query_rotary_emb
-            )
-
-        head_dim = query.shape[-1] // attn.heads
-        query = query.reshape(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        key = key.reshape(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        value = value.reshape(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        hidden_states = torch.nn.functional.scaled_dot_product_attention(
-            query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False,
-        )
-        hidden_states = hidden_states.transpose(1, 2).flatten(2, 3).to(query.dtype)
-        hidden_states = attn.to_out[0](hidden_states)
-        hidden_states = attn.to_out[1](hidden_states)
-        return hidden_states
-
-    ltx2_module.LTX2AudioVideoAttnProcessor.__call__ = _patched_processor_call
-
-
-def _patch_view_of():
-    """Replace prims::view_of with clone to avoid XLA functionalization error."""
-    import tt_torch.torch_overrides as _overrides
-    _orig = _overrides.TorchFunctionOverride.__torch_function__
-
-    def _patched(self, func, types, args, kwargs=None):
-        if func is torch.ops.prims.view_of.default:
-            return args[0].clone()
-        return _orig(self, func, types, args, kwargs)
-
-    _overrides.TorchFunctionOverride.__torch_function__ = _patched
+from ltx2_patches import apply_all_patches
 
 
 # ---------------------------------------------------------------------------
@@ -182,10 +109,8 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
     num_devices = xr.global_runtime_device_count()
     print(f"Devices: {num_devices} (replicated mode, single device per model)")
 
-    # Apply all patches
-    patch_conv3d_to_conv2d()
-    _patch_unflatten_graph_breaks()
-    _patch_view_of()
+    # Apply all patches (Conv3d decompose, attention reshape, view_of clone)
+    apply_all_patches()
 
     generator = torch.Generator().manual_seed(seed)
 
@@ -334,12 +259,8 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
     transformer = LTX2VideoTransformer3DModel.from_pretrained(
         "Lightricks/LTX-2", subfolder="transformer", torch_dtype=torch.bfloat16,
     )
-    # Override rope_type from "split" to "interleaved" on ALL modules.
-    # "split" causes non-contiguous reshape bug during AOT export tracing.
-    transformer.config.rope_type = "interleaved"
-    for name, module in transformer.named_modules():
-        if hasattr(module, 'rope_type'):
-            module.rope_type = "interleaved"
+    # Keep original "split" rope_type — our patched attention processor
+    # uses the original apply_split_rotary_emb which preserves correctness.
 
     # Truncate to 24 layers to fit on single device (32 GiB)
     import torch.nn as nn
