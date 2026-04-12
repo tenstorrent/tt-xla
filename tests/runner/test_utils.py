@@ -45,6 +45,17 @@ class ResolvedFailingReason:
         self.value = Value(description, component)
 
 
+# Adapter mode for model augmentation during training.
+# NONE means no adapter (baseline training), LORA applies LoRA low-rank adapters.
+# Extend this enum to add new adapter types (e.g. DORA) without changing call sites.
+class AdapterMode(Enum):
+    NONE = "none"
+    LORA = "lora"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 # Optional hint that selects a non-default execution/input-loading phase.
 # Today this is only used to distinguish LLM prefill vs decode; in the future it may
 # be extended to other model families (e.g., vision) if they need phase-specific inputs.

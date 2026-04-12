@@ -25,6 +25,7 @@ from tests.infra.utilities.types import Framework
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
+    AdapterMode,
     ModelTestConfig,
     ModelTestStatus,
     RunPhase,
@@ -69,6 +70,7 @@ def _run_model_test_impl(
     captured_output_fixture,
     run_phase: RunPhase = RunPhase.DEFAULT,
     compiler_config: CompilerConfig = None,
+    adapter_mode: AdapterMode = AdapterMode.NONE,
     **kwargs,  # Extra fixtures like clear_torchxla_computation_cache
 ) -> None:
     """Core implementation for running a model test.
@@ -121,6 +123,7 @@ def _run_model_test_impl(
                         compiler_config=compiler_config,
                         parallelism=parallelism,
                         test_metadata=test_metadata,
+                        adapter_mode=adapter_mode,
                     )
                 elif framework == Framework.JAX:
                     if (
@@ -393,9 +396,17 @@ def _generate_batch_size_id(batch_size):
 @pytest.mark.no_auto_properties
 @pytest.mark.llm
 @pytest.mark.parametrize(
+    "adapter_mode",
+    [
+        pytest.param(AdapterMode.NONE, id="no_adapter", marks=pytest.mark.no_adapter),
+        pytest.param(AdapterMode.LORA, id="lora", marks=pytest.mark.lora),
+    ],
+)
+@pytest.mark.parametrize(
     "run_mode",
     [
         pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
     ],
 )
 @pytest.mark.parametrize(
@@ -429,6 +440,7 @@ def test_llms_torch(
     sequence_length,
     batch_size,
     run_mode,
+    adapter_mode,
     parallelism,
     record_property,
     test_metadata,
@@ -439,6 +451,10 @@ def test_llms_torch(
     """PyTorch LLM model test (decode/prefill phases) - delegates to shared implementation."""
     test_entry, run_phase = test_entry_and_phase
 
+    # Adapters are only meaningful for training; skip for inference.
+    if adapter_mode != AdapterMode.NONE and run_mode == RunMode.INFERENCE:
+        pytest.skip("Adapter tests only run in training mode")
+
     if run_phase == RunPhase.LLM_DECODE:
         # Decode tests don't parametrize on sequence length (default is seq_len = 1).
         if sequence_length is not None:
@@ -446,6 +462,10 @@ def test_llms_torch(
         # Decode tests for now run only batch_size = 1.
         if batch_size != 1:
             pytest.skip("Decode tests currently only support batch_size=1")
+        # Training (with or without LoRA) on a static KV-cache decode step is not
+        # meaningful for gradient testing; backward tests run on prefill only.
+        if run_mode == RunMode.TRAINING:
+            pytest.skip("Training tests run on prefill phase only")
         request.node.add_marker(pytest.mark.llm_decode)
 
     if run_phase == RunPhase.LLM_PREFILL:
@@ -467,6 +487,7 @@ def test_llms_torch(
         record_property=record_property,
         test_metadata=test_metadata,
         captured_output_fixture=captured_output_fixture,
+        adapter_mode=adapter_mode,
         clear_torchxla_computation_cache=clear_torchxla_computation_cache,
     )
 

@@ -39,6 +39,7 @@ from tests.runner.test_config.constants import (
     RUN_MODES_LLM,
     RUN_MODES_STANDARD,
     TORCH_EXCLUDED_MODEL_DIRS,
+    ADAPTER_MODES_LLM,
 )
 
 
@@ -443,17 +444,19 @@ class TestConfigValidator:
             base = f"{rel_path}-{variant}" if variant else rel_path
             for parallelism in PARALLELISMS_LLM:
                 for run_mode in RUN_MODES_LLM:
-                    if phase == "llm_decode":
-                        ids.add(
-                            f"{base}-{phase}-seq_1-batch_1" f"-{parallelism}-{run_mode}"
-                        )
-                    else:
-                        for seq in LLM_SEQUENCE_LENGTHS:
-                            for batch in LLM_BATCH_SIZES:
-                                ids.add(
-                                    f"{base}-{phase}-seq_{seq}-batch_{batch}"
-                                    f"-{parallelism}-{run_mode}"
-                                )
+                    for adapter_mode in ADAPTER_MODES_LLM:
+                        if phase == "llm_decode":
+                            ids.add(
+                                f"{base}-{phase}-seq_1-batch_1"
+                                f"-{parallelism}-{run_mode}-{adapter_mode}"
+                            )
+                        else:
+                            for seq in LLM_SEQUENCE_LENGTHS:
+                                for batch in LLM_BATCH_SIZES:
+                                    ids.add(
+                                        f"{base}-{phase}-seq_{seq}-batch_{batch}"
+                                        f"-{parallelism}-{run_mode}-{adapter_mode}"
+                                    )
 
         return ids
 
