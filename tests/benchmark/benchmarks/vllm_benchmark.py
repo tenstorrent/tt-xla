@@ -30,6 +30,11 @@ class VLLMBenchmarkConfig:
     # TT compile options passed directly to vLLM's additional_config (TTConfig).
     additional_config: Dict[str, Any] = field(default_factory=dict)
 
+    # Sampling params
+    temperature: float = 0.0
+    top_p: float = 1.0
+    repetition_penalty: float = 1.0
+
     # Benchmark params
     batch_size: int = 1
     max_tokens: int = 128
@@ -167,9 +172,15 @@ def benchmark_vllm(
 ) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
     prompts = [DEFAULT_PROMPT] * config.batch_size
-    sampling_params = vllm.SamplingParams(
-        max_tokens=config.max_tokens, ignore_eos=True, temperature=0.0
+    sampling_kwargs = dict(
+        max_tokens=config.max_tokens,
+        ignore_eos=True,
+        temperature=config.temperature,
+        top_p=config.top_p,
     )
+    if config.repetition_penalty != 1.0:
+        sampling_kwargs["repetition_penalty"] = config.repetition_penalty
+    sampling_params = vllm.SamplingParams(**sampling_kwargs)
 
     llm = _create_llm(config)
 
