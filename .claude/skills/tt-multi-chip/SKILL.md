@@ -285,14 +285,46 @@ if shard_specs is not None:
 
 Different HuggingFace model architectures use different attribute names. Here's a quick reference:
 
+### Standard Transformers (Dense MLP)
+
 | Architecture | Layers | MLP Up | MLP Down | MLP Gate | Q/K/V/O Proj |
 |-------------|--------|--------|----------|----------|-------------|
 | Llama, Qwen, Mistral | `model.model.layers` | `mlp.up_proj` | `mlp.down_proj` | `mlp.gate_proj` | `self_attn.{q,k,v,o}_proj` |
+| Gemma | `model.model.layers` | `mlp.up_proj` | `mlp.down_proj` | `mlp.gate_proj` | `self_attn.{q,k,v,o}_proj` |
 | Falcon | `model.transformer.h` | `mlp.dense_h_to_4h` | `mlp.dense_4h_to_h` | — | `self_attention.{query_key_value,dense}` |
 | GPT-2 | `model.transformer.h` | `mlp.c_fc` | `mlp.c_proj` | — | `attn.c_attn` (combined QKV) |
 | BERT | `model.bert.encoder.layer` | `intermediate.dense` | `output.dense` | — | `attention.self.{query,key,value}` |
-| Gemma | `model.model.layers` | `mlp.up_proj` | `mlp.down_proj` | `mlp.gate_proj` | `self_attn.{q,k,v,o}_proj` |
-| Pixtral (vision) | `model.model.vision_tower.transformer.layers` | `feed_forward.up_proj` | `feed_forward.down_proj` | `feed_forward.gate_proj` | `attention.{q,k,v,o}_proj` |
+
+### Combined / Fused Projection Architectures
+
+| Architecture | Layers | MLP | Attention |
+|-------------|--------|-----|-----------|
+| Phi-4 | `model.model.layers` | `mlp.gate_up_proj` (fused) + `mlp.down_proj` | `self_attn.qkv_proj` (fused QKV) + `self_attn.o_proj` |
+| OLM-OCR (vision) | `model.model.visual.blocks` | variant-specific: `mlp.fc1`/`fc2` or `mlp.gate_proj`/`up_proj`/`down_proj` | `attn.qkv` (fused QKV) + `attn.proj` |
+
+### Multimodal Models (Vision + Language)
+
+| Architecture | Vision Layers | Language Layers |
+|-------------|---------------|-----------------|
+| Pixtral (Mistral3) | `model.model.vision_tower.transformer.layers` — `feed_forward.{up,gate,down}_proj`, `attention.{q,k,v,o}_proj` | `model.model.language_model.layers` — standard Mistral paths |
+| Gemma3 | `model.vision_tower.vision_model.encoder.layers` — `self_attn.{q,k,v}_proj`/`out_proj`, `mlp.fc1`/`fc2` | `model.language_model.layers` — standard Gemma paths |
+| OLM-OCR | `model.model.visual.blocks` — `attn.qkv`/`attn.proj`, variant MLPs | `model.model.language_model.layers` — standard Qwen paths |
+
+### MoE (Mixture of Experts) Models
+
+| Architecture | Layers | Router | Expert MLPs | Attention |
+|-------------|--------|--------|-------------|-----------|
+| GPT-OSS | `model.model.layers` | `mlp.router.weight` — replicated `(None, "batch")` | `mlp.experts.gate_up_proj` 3D `("model", "batch", None)`, `mlp.experts.down_proj` 3D `("model", None, "batch")` | `self_attn.{q,k,v}_proj` + biases |
+
+**Note:** Vision-only models (ResNet, ViT, DETR, YOLO, etc.) do not implement multi-chip — single device only. Multi-chip is primarily for LLMs and multimodal models that exceed single-chip memory.
+
+See `references/mesh_config_patterns.md` for generic `load_shard_spec` patterns for each type (standard, fused QKV, multimodal, MoE).
+
+## Data Parallel Note
+
+**PyTorch DP:** the tester bypasses `get_mesh_config` — uses fixed `(1, N), ("model", "data")` mesh and `load_shard_spec_data_parallel`. Loader authors only need `get_mesh_config`/`load_shard_spec` for **tensor parallelism**.
+
+**JAX DP:** handled explicitly via `parallelism` parameter — inputs sharded on batch, parameters replicated.
 
 ---
 
@@ -426,12 +458,13 @@ def load_parameters_partition_spec(
 
 ### EasyDeL Config → Partition Rules Mapping
 
-Each EasyDeL model architecture has a config class with `get_partition_rules()`:
+Each EasyDeL model architecture has a config class with `get_partition_rules()`. Only **17** of the 52 JAX loaders use EasyDeL; the remaining 35 use HuggingFace Flax or custom Flax Linen (see "Non-EasyDeL JAX Loaders" below).
 
 | Model | Config Import | Config Class |
 |-------|--------------|-------------|
 | Llama | `easydel.modules.llama` | `LlamaConfig` |
 | Qwen 2.5 | `easydel.modules.qwen2` | `Qwen2Config` |
+| Qwen 2.5-Coder | `easydel.modules.qwen2` | `Qwen2Config` |
 | Qwen 3 | `easydel.modules.qwen3` | `Qwen3Config` |
 | Phi 1/1.5/2 | `easydel.modules.phi` | `PhiConfig` |
 | Phi 3 | `easydel.modules.phi3` | `Phi3Config` |
@@ -441,8 +474,26 @@ Each EasyDeL model architecture has a config class with `get_partition_rules()`:
 | Mamba2 | `easydel.modules.mamba2` | `Mamba2Config` |
 | GPT-2 | `easydel.modules.gpt2` | `GPT2Config` |
 | GPT-J | `easydel.modules.gpt_j` | `GPTJConfig` |
+| GLM | `easydel.modules.glm` | `GLMConfig` |
 | StableLM | `easydel.modules.stablelm` | `StableLmConfig` |
 | Whisper | `easydel.modules.whisper` | `WhisperConfig` |
+
+### Non-EasyDeL JAX Loaders (HuggingFace Flax / Custom Flax Linen)
+
+35 of 52 JAX loaders do **not** use EasyDeL. These fall into two categories:
+
+**HuggingFace Flax models** (ResNet, ViT, CLIP, DINOv2, BERT, BART, T5, etc.):
+- Loaded via `Flax<Model>ForXxx.from_pretrained()`
+- Currently **no multi-chip partition methods** — single device only
+- Use `cast_hf_model_to_type` from `tools/jax_utils` for dtype casting
+- Return dict/BatchEncoding inputs from HF processors
+
+**Custom Flax Linen models** (MNIST, AlexNet):
+- Use `make_flax_linen_parameters_partition_specs_on_cpu` and `initialize_flax_linen_parameters_on_cpu` from `infra.utilities`
+- Multi-chip variants use `load_multichip_model` (separate from `load_model`)
+- May return raw JAX arrays (not dicts) from `load_inputs`
+
+When adding multi-chip to a **non-EasyDeL** JAX loader, use the Flax Linen pattern below.
 
 ### Flax Linen Pattern (Non-EasyDeL)
 
@@ -495,6 +546,14 @@ test_config:
 pytest -svv "tests/runner/test_models.py::test_all_models_jax[llama/causal_lm/jax-3B_v2-tensor_parallel-inference]"
 pytest -svv "tests/runner/test_models.py::test_all_models_jax[llama/causal_lm/jax-3B_v2-data_parallel-inference]"
 ```
+
+### Tester Invocation Details
+
+**Important:** `DynamicJaxMultiChipModelTester` calls these methods with specific signatures that may differ from what you'd expect:
+
+- `get_input_activations_partition_spec(mesh, axis_name=..., parallelism=...)` — all keyword args after mesh
+- `load_parameters_partition_spec(model, cpu_mesh=..., input_activations_partition_specs=..., inputs=..., parallelism=...)` — note: **`axis_name` is not passed** by the tester; implementations must use the default value `"X"`
+- `load_multichip_model(axis_name=..., num_devices=..., train_mode=...)` — called when defined on the loader, instead of `load_model`
 
 ### Common JAX Multi-Chip Errors
 

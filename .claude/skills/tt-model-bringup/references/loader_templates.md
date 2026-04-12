@@ -657,6 +657,22 @@ class ModelLoader(ForgeModel):
         )
 ```
 
+## Adapting Templates for Other Model Types
+
+**HuggingFace Flax Vision (JAX):** Use Template 6 structure but load via
+`Flax<Model>ForImageClassification.from_pretrained()`, use `ModelSource.HUGGING_FACE` +
+`Framework.JAX`, and cast dtype with `cast_hf_model_to_type` from `tools/jax_utils`.
+No `mesh` parameter needed (single device). See existing `resnet`, `vit`, `clip` JAX loaders.
+
+**Multimodal (PyTorch):** Use Template 1 structure but use `AutoProcessor` instead of
+`AutoTokenizer`, `ModelTask.MM_CAUSAL_LM`, and add `get_mesh_config`/`load_shard_spec`
+for both vision and language towers. Use `text_config.num_attention_heads` for head count.
+See `tt-multi-chip` skill for multimodal sharding patterns.
+
+**Encoder-decoder (JAX):** Use Template 5 but load via `AutoEasyDeLModelForSpeechSeq2Seq`,
+return two `PartitionSpec` entries from `get_input_activations_partition_spec` (one per input).
+See existing `whisper` JAX loader.
+
 ## __init__.py Templates
 
 ### Top-level `__init__.py`

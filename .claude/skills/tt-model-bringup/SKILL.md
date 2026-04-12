@@ -60,10 +60,10 @@ Before writing any code, collect this information:
 
 | Field | How to decide |
 |-------|---------------|
-| `ModelSource` | Where does the model come from? `HUGGING_FACE`, `EASYDEL`, `TORCHVISION`, `TIMM`, `CUSTOM`, `TORCH_HUB`, `GITHUB`, `OSMR` |
+| `ModelSource` | Where does the model come from? `HUGGING_FACE`, `EASYDEL`, `TORCHVISION`, `TIMM`, `CUSTOM`, `TORCH_HUB`, `GITHUB`, `OSMR`, `TORCH_XRAY_VISION`, `DETECTRON2` |
 | `ModelTask` | What does the model do? `NLP_CAUSAL_LM`, `NLP_QA`, `CV_IMAGE_CLS`, `CV_OBJECT_DET`, `MM_CAUSAL_LM`, etc. (see `config.py` for all 40+ enums) |
 | `ModelGroup` | Why are we adding it? `RED` = customer ask, `PRIORITY` = strategic coverage, `GENERALITY` = breadth, `VULCAN` = auto-generated |
-| `Framework` | Implementation framework: `TORCH`, `JAX`, `ONNX`, `PADDLE`. Use `JAX` for EasyDeL-based models |
+| `Framework` | Implementation framework: `TORCH`, `JAX`, `ONNX`, `PADDLE`, `NUMPY`. Use `JAX` for EasyDeL-based and HuggingFace Flax models |
 
 **Variant planning:**
 - How many sizes/versions? (e.g., `base`/`large`, `7B`/`70B`)
@@ -136,6 +136,8 @@ See `references/loader_templates.md` for ready-to-use templates covering:
 - Custom PyTorch vision models with local weights (Template 3)
 - TorchVision / TIMM models (Template 4)
 - EasyDeL JAX Causal LM (Template 5)
+- Flax/Linen JAX Model — Non-EasyDeL (Template 6)
+- Plus notes on adapting for: HF Flax vision, multimodal, encoder-decoder
 
 ### Key conventions — PyTorch loaders
 
@@ -237,15 +239,25 @@ def _load_tokenizer(self, dtype_override=None):
 
 ### Optional methods
 
+**On `ForgeModel` base class (both frameworks):**
+
 | Method | Framework | When to implement |
 |--------|-----------|-------------------|
 | `decode_output()` | Both | Text models producing token IDs; detection models with NMS |
 | `unpack_forward_output()` | Both | Training support — extract a differentiable tensor from complex output objects |
 | `load_config()` | Both | When multi-chip or other code needs `model.config` before `load_model` |
+| `get_weight_dtype_config_path()` | Both | Automatically resolves `mixed_precision_configs/{hf_model}.json` — override only if custom path needed |
 | `get_mesh_config()` | PyTorch | Multi-chip tensor parallelism for PyTorch (see `tt-multi-chip` skill) |
 | `load_shard_spec()` | PyTorch | Weight sharding for PyTorch tensor parallelism (see `tt-multi-chip` skill) |
-| `get_input_activations_partition_spec()` | JAX | Input partitioning for JAX multi-chip (see `tt-multi-chip` skill) |
-| `load_parameters_partition_spec()` | JAX | Parameter sharding for JAX multi-chip (see `tt-multi-chip` skill) |
+
+**On JAX loader subclasses (not on base class — implement directly):**
+
+| Method | When to implement |
+|--------|-------------------|
+| `get_input_activations_partition_spec()` | Input partitioning for JAX multi-chip; also needed for EasyDeL single-device (replicated) |
+| `load_parameters_partition_spec()` | Parameter sharding for JAX multi-chip; also needed for EasyDeL single-device |
+| `load_multichip_model()` | When multi-chip model loading differs from single-device (e.g., custom Flax Linen multichip variants) |
+| `load_parameters()` | When custom parameter initialization is needed for multi-chip (Flax Linen models) |
 
 ## A4. Wire Up `__init__.py` Exports
 
@@ -558,38 +570,89 @@ class ForgeModel(ABC):
     _VARIANTS: Dict[StrEnum, ModelConfig] = {}
     DEFAULT_VARIANT = None
 
-    def __init__(self, variant=None):            # validates + caches _variant_config
-    def load_model(self, **kwargs): ...          # base.py signature; loaders often use *, dtype_override=None
-    def load_inputs(self, **kwargs): ...         # base.py signature
-    def _get_model_info(cls, variant) -> ModelInfo: ...  # abstract classmethod
+    # --- Core (always present) ---
+    def __init__(self, variant=None):            # validates + caches _variant, _variant_config
+    def load_model(self, **kwargs): ...          # @abstractmethod; loaders use *, dtype_override=None
+    def load_inputs(self, **kwargs): ...         # @abstractmethod; JAX loaders accept mesh=None
+    def _get_model_info(cls, variant) -> ModelInfo: ...  # @abstractmethod @classmethod
 
-    # Optional — shared
-    def decode_output(cls, **kwargs): ...
-    def load_config(self, **kwargs): ...
-    def unpack_forward_output(self, fwd_output): ...
+    # --- Public accessors (on base class, not abstract) ---
+    def get_model_info(cls, variant=None) -> ModelInfo: ...    # @classmethod; calls _validate_variant + _get_model_info
+    def query_available_variants(cls) -> Dict: ...             # @classmethod; returns _VARIANTS
+    def get_variant_config(cls, variant=None) -> ModelConfig: ... # @classmethod; returns config for variant
 
-    # Optional — PyTorch multi-chip (loaders may extend load_shard_spec — see tt-multi-chip skill)
-    def get_mesh_config(self, num_devices): ...  # → (mesh_shape, mesh_names)
-    def load_shard_spec(self, model): ...        # → {tensor: shard_tuple} or None
+    # --- Optional — shared ---
+    def decode_output(cls, **kwargs): ...        # @classmethod; default returns kwargs.get("outputs")
+    def load_config(self, **kwargs): ...         # default returns None
+    def unpack_forward_output(self, fwd_output): ...  # delegates to training_utils
+    def get_weight_dtype_config_path(self) -> Optional[str]: ...  # resolves mixed_precision_configs/{hf_model}.json
 
-    # Optional — JAX (used for EasyDeL single- and multi-device via DynamicJaxMultiChipModelTester)
-    def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"): ...
-    def load_parameters_partition_spec(self, model, parallelism, axis_name, ...): ...
+    # --- Optional — PyTorch multi-chip (on base class; see tt-multi-chip skill) ---
+    def get_mesh_config(self, num_devices): ...  # default returns (None, ())
+    def load_shard_spec(self, model): ...        # default returns None
 ```
 
-Config dataclasses:
+**JAX partition methods** are NOT on `ForgeModel` base class — they are implemented directly on loader subclasses (EasyDeL and Flax Linen loaders):
+
+```python
+# Implemented on JAX loader subclasses (not inherited from ForgeModel):
+def get_input_activations_partition_spec(self, mesh, parallelism, axis_name="X"): ...
+def load_parameters_partition_spec(self, model, parallelism, axis_name="X", ...): ...
+def load_multichip_model(self, axis_name=..., num_devices=..., train_mode=...): ...
+def load_parameters(self, train, inputs, model, cpu_mesh, ...): ...
+```
+
+### Config & Enum Dataclasses
+
 ```python
 ModelConfig(pretrained_model_name: str)
-LLMModelConfig(pretrained_model_name, max_length, attention_mechanism, sliding_window)
+
+LLMModelConfig(ModelConfig):
+    max_length: Optional[int] = None
+    attention_mechanism: Optional[str] = None
+    sliding_window: Optional[int] = None
+
 ModelInfo(model, variant, group, task, source, framework)  # frozen
+    .name → str                   # formatted name property
+    .to_report_dict() → dict      # for pytest reporting
+    .is_easydel() → bool          # source == EASYDEL
 ```
 
-EasyDeL entry points (JAX):
+### Complete Enum Values
+
+```python
+ModelGroup:    GENERALITY, RED, PRIORITY, VULCAN
+ModelTask:     NLP_CAUSAL_LM, NLP_QA, NLP_TEXT_CLS, NLP_TOKEN_CLS, NLP_MASKED_LM,
+               NLP_SUMMARIZATION, NLP_TRANSLATION, NLP_SEQ_CLS, NLP_SENTENCE_EMBEDDING,
+               CV_IMAGE_CLS, CV_OBJECT_DET, CV_SEMANTIC_SEG, CV_INSTANCE_SEG,
+               CV_PANOPTIC_SEG, CV_DEPTH_EST, CV_IMAGE_GEN, CV_POSE_EST,
+               CV_LANE_DET, CV_STEREO_DEPTH, CV_VIDEO_GEN,
+               MM_CAUSAL_LM, MM_IMAGE_TEXT, MM_VQA, MM_ZERO_SHOT_CLS,
+               AUDIO_CLS, AUDIO_ASR, AUDIO_TTS,
+               MULTIVIEW_3D_OBJECT_DET, BEV_PERCEPTION,
+               SCIENTIFIC, FORECASTING, ... (40+ total — see config.py)
+ModelSource:   HUGGING_FACE, EASYDEL, TORCHVISION, TIMM, CUSTOM,
+               TORCH_HUB, GITHUB, OSMR, TORCH_XRAY_VISION, DETECTRON2
+Framework:     TORCH, JAX, ONNX, PADDLE, NUMPY
+Parallelism:   SINGLE_DEVICE, DATA_PARALLEL, TENSOR_PARALLEL
+```
+
+### EasyDeL Entry Points (JAX)
+
 ```python
 from easydel import AutoEasyDeLModelForCausalLM          # causal LMs
 from easydel import AutoEasyDeLModelForSpeechSeq2Seq     # audio/speech models
 from easydel.modules.<arch> import <Arch>Config           # per-model config + partition rules
 from infra.utilities import make_easydel_parameters_partition_specs  # partition spec builder
+```
+
+### HuggingFace Flax Entry Points (JAX — Non-EasyDeL)
+
+```python
+from transformers import FlaxResNetForImageClassification  # vision
+from transformers import FlaxViTForImageClassification     # vision
+from transformers import FlaxBertForMaskedLM               # NLP
+from ....tools.jax_utils import cast_hf_model_to_type     # dtype casting
 ```
 
 ## File Locations
