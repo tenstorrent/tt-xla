@@ -14,6 +14,7 @@ SINGLE_DEVICE_CONFIGS = [
             model="meta-llama/Llama-3.2-3B",
             batch_size=1,
             max_model_len=128,
+            gpu_memory_utilization=0.05,
         ),
         id="llama-3.2-3b",
     ),
@@ -22,9 +23,99 @@ SINGLE_DEVICE_CONFIGS = [
             model="meta-llama/Llama-3.2-3B",
             batch_size=32,
             max_model_len=128,
-            gpu_memory_utilization=0.037,
+            gpu_memory_utilization=0.05,
         ),
         id="llama-3.2-3b-batch32",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=1,
+            max_model_len=128,
+            gpu_memory_utilization=0.05,
+            additional_config={
+                "enable_const_eval": True,
+                "cpu_sampling": False,
+                "experimental_weight_dtype": "bfp_bf8",
+                "optimization_level": 1,
+            },
+        ),
+        id="llama-3.1-8b-instruct",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=32,
+            max_model_len=128,
+            gpu_memory_utilization=0.05,
+            additional_config={
+                "enable_const_eval": True,
+                "cpu_sampling": False,
+                "experimental_weight_dtype": "bfp_bf8",
+                "optimization_level": 1,
+            },
+        ),
+        id="llama-3.1-8b-instruct-batch32",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=2,
+            max_model_len=128,
+            gpu_memory_utilization=0.05,
+            additional_config={
+                "enable_const_eval": True,
+                "cpu_sampling": False,
+                "experimental_weight_dtype": "bfp_bf8",
+                "optimization_level": 1,
+            },
+        ),
+        id="llama-3.1-8b-instruct-batch2",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=4,
+            max_model_len=128,
+            gpu_memory_utilization=0.05,
+            additional_config={
+                "enable_const_eval": True,
+                "cpu_sampling": False,
+                "experimental_weight_dtype": "bfp_bf8",
+                "optimization_level": 1,
+            },
+        ),
+        id="llama-3.1-8b-instruct-batch4",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=8,
+            max_model_len=128,
+            gpu_memory_utilization=0.05,
+            additional_config={
+                "enable_const_eval": True,
+                "cpu_sampling": False,
+                "experimental_weight_dtype": "bfp_bf8",
+                "optimization_level": 1,
+            },
+        ),
+        id="llama-3.1-8b-instruct-batch8",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            model="meta-llama/Llama-3.1-8B-Instruct",
+            batch_size=16,
+            max_model_len=128,
+            gpu_memory_utilization=0.05,
+            additional_config={
+                "enable_const_eval": True,
+                "cpu_sampling": False,
+                "experimental_weight_dtype": "bfp_bf8",
+                "optimization_level": 1,
+            },
+        ),
+        id="llama-3.1-8b-instruct-batch16",
     ),
 ]
 
