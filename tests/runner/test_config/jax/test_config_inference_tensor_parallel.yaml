@@ -8,6 +8,19 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  alexnet_claude/image_classification/jax-Custom_1x2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    markers: [nightly]
+
+  alexnet_claude/image_classification/jax-Custom_1x4-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  alexnet_claude/image_classification/jax-Custom_1x8-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   alexnet/image_classification/jax-Custom_1x2-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
@@ -196,6 +209,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Value mlir::sdy::(anonymous namespace)::CollectiveInserter::insert(): Assertion failed. https://github.com/tenstorrent/tt-xla/issues/3393"
 
+  llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  llama_claude/causal_lm/jax-3B_v2-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   llama/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
@@ -266,6 +287,19 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 39845888 B DRAM buffer across 12 banks, where each bank needs to store 3321856 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
+
+  whisper_claude/audio_classification/jax-Base-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  whisper_claude/audio_classification/jax-Medium-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+
+  whisper_claude/audio_classification/jax-Large_v3-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
 
   stablelm/causal_lm/jax-7B_Alpha-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]

@@ -37,6 +37,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Value mlir::sdy::(anonymous namespace)::CollectiveInserter::insert(): Assertion failed. https://github.com/tenstorrent/tt-xla/issues/3393"
 
+  llama_claude/causal_lm/jax-1B_Tiny-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
+  llama_claude/causal_lm/jax-3B_v2-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   llama/causal_lm/jax-1B_Tiny-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
