@@ -528,10 +528,71 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._original_num_layers = original_num_layers
             self._target_num_layers = target_num_layers
 
+    @staticmethod
+    def _should_skip_weight(weight_name: str, target_num_layers: int) -> bool:
+        """Return True if this weight belongs to a layer >= target_num_layers."""
+        if "layers." not in weight_name:
+            return False
+        try:
+            parts = weight_name.split(".")
+            for i, part in enumerate(parts):
+                if part == "layers" and i + 1 < len(parts):
+                    return int(parts[i + 1]) >= target_num_layers
+        except (ValueError, IndexError):
+            pass
+        return False
+
+    def _get_needed_shards(
+        self,
+        model_name: str,
+        revision: str | None,
+        download_dir: str | None,
+    ) -> set | None:
+        """Return shard filenames needed for layers 0..target-1, or None on error.
+
+        Downloads the safetensors index (served from HF cache on subsequent
+        calls) to determine which shards can be skipped entirely.
+        """
+        import json
+        import os
+
+        from huggingface_hub import hf_hub_download
+        from transformers.utils import SAFE_WEIGHTS_INDEX_NAME
+
+        if os.path.isdir(model_name):
+            return None  # local model — no download optimization needed
+
+        try:
+            index_path = hf_hub_download(
+                repo_id=model_name,
+                filename=SAFE_WEIGHTS_INDEX_NAME,
+                cache_dir=download_dir,
+                revision=revision,
+            )
+            with open(index_path) as f:
+                weight_map = json.load(f)["weight_map"]
+
+            needed: set = set()
+            for weight_name, shard_file in weight_map.items():
+                if not self._should_skip_weight(weight_name, self._target_num_layers):
+                    needed.add(shard_file)
+
+            total_shards = len(set(weight_map.values()))
+            logger.info(
+                f"Layer override: {len(needed)}/{total_shards} shards needed "
+                f"for layers 0-{self._target_num_layers - 1}"
+            )
+            return needed
+        except Exception as e:
+            logger.warning(
+                f"Could not determine needed shards for layer override; "
+                f"will download all shards. Error: {e}"
+            )
+            return None
+
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
         if self._original_num_layers is None or self._target_num_layers is None:
-            # No layer override, return all weights
             yield from weights_iterator
             return
 
@@ -544,28 +605,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         kept_count = 0
 
         for weight_name, weight_tensor in weights_iterator:
-            # Check if this weight belongs to a layer that should be skipped
-            should_skip = False
-
-            # Look for layer patterns like "layers.N." where N >= target_num_layers
-            if "layers." in weight_name:
-                try:
-                    # Extract layer number from weight name
-                    parts = weight_name.split(".")
-                    for i, part in enumerate(parts):
-                        if part == "layers" and i + 1 < len(parts):
-                            layer_num = int(parts[i + 1])
-                            if layer_num >= self._target_num_layers:
-                                should_skip = True
-                                break
-                except (ValueError, IndexError):
-                    # If we can't parse the layer number, keep the weight
-                    pass
-
-            if should_skip:
+            if self._should_skip_weight(weight_name, self._target_num_layers):
                 skipped_count += 1
                 logger.debug(f"Skipping weight: {weight_name}")
-                continue
             else:
                 kept_count += 1
                 yield weight_name, weight_tensor
@@ -1454,26 +1496,64 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             try:
                 model_loader = get_model_loader(self.load_config)
 
+                import vllm.model_executor.model_loader.weight_utils as _wu
+
+                _original_snapshot_download = _wu.snapshot_download
+
                 # If layer override is active, patch the weight loading process
                 if (
                     self._original_num_layers is not None
                     and self._target_num_layers is not None
                 ):
-                    # Store reference to original get_all_weights method
+                    # Patch get_all_weights to filter out weights for
+                    # non-existent layers (safety net for mixed/local shards).
                     original_get_all_weights = model_loader.get_all_weights
 
                     def filtered_get_all_weights(model_config, model):
-                        # Get all weights using the original method
                         all_weights = original_get_all_weights(model_config, model)
-                        # Filter out weights for non-existent layers
                         return self._filter_weights_for_layer_override(all_weights)
 
-                    # Temporarily replace the method
                     model_loader.get_all_weights = filtered_get_all_weights
 
-                model = model_loader.load_model(
-                    vllm_config=self.vllm_config, model_config=self.model_config
-                ).eval()
+                    # Also skip downloading shards that contain only unneeded
+                    # layers, to save bandwidth on first-time downloads.
+                    needed_shards = self._get_needed_shards(
+                        self.vllm_config.model_config.model,
+                        self.vllm_config.model_config.revision,
+                        self.load_config.download_dir,
+                    )
+                    if needed_shards is not None:
+                        _needed = needed_shards  # capture for closure
+
+                        def _filtered_snapshot_download(
+                            repo_id, allow_patterns=None, **kwargs
+                        ):
+                            if (
+                                isinstance(allow_patterns, list)
+                                and all(isinstance(p, str) for p in allow_patterns)
+                                and not any(p.startswith("*") for p in allow_patterns)
+                            ):
+                                original_count = len(allow_patterns)
+                                allow_patterns = [
+                                    p for p in allow_patterns if p in _needed
+                                ]
+                                if allow_patterns:
+                                    logger.info(
+                                        f"Shard download optimization: "
+                                        f"{len(allow_patterns)}/{original_count} shards needed"
+                                    )
+                            return _original_snapshot_download(
+                                repo_id, allow_patterns=allow_patterns, **kwargs
+                            )
+
+                        _wu.snapshot_download = _filtered_snapshot_download
+
+                try:
+                    model = model_loader.load_model(
+                        vllm_config=self.vllm_config, model_config=self.model_config
+                    ).eval()
+                finally:
+                    _wu.snapshot_download = _original_snapshot_download
                 # Convert any fp8 parameters to bfloat16 before moving to device.
                 _FP8_DTYPES = (torch.float8_e4m3fn, torch.float8_e5m2)
                 for param in model.parameters():
