@@ -937,6 +937,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         padded_total_num_scheduled_tokens = _get_padded_token_len(
             self.num_tokens_paddings, max_num_scheduled_tokens_all_reqs
         )
+        logger.info(
+            "DEBUG _prepare_inputs: num_reqs=%d, max_scheduled=%d, padded=%d, start_index=%d",
+            num_reqs,
+            max_num_scheduled_tokens_all_reqs,
+            padded_total_num_scheduled_tokens,
+            start_index,
+        )
 
         # Allocate a zero-initialized position tensor of shape
         # [max_num_reqs, padded_total_num_scheduled_tokens]. Entries beyond the
@@ -1742,13 +1749,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._dummy_run(
                 num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
             )
+            # Sync after each dummy run to compile separate XLA graphs for each
+            # token count. Without this, torch_xla accumulates all lazy ops into
+            # one graph, merging prefill (num_tokens>1) and decode (num_tokens=1)
+            # paths which causes issues with in-place cache ops.
+            torch_xla.sync(wait=False)
             if self.most_model_len is not None:
                 self._dummy_run(
                     num_tokens,
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
-        xm.wait_device_ops()
+                torch_xla.sync(wait=False)
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("model backbone")
