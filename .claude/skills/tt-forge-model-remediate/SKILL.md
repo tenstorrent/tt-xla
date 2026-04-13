@@ -5,13 +5,6 @@ model: Opus
 allowed-tools: Bash, Read, Grep, Edit, Task
 ---
 
-venv
-- cache
-- python venv
-- compile only / system desc
-- random weights
-- clearing
-
 The goal of this task is to remediate any test or environment level failures by
 executing the test through our xla compiler infra.
 
@@ -20,12 +13,17 @@ If it's not, this skill cannot be invoked.
 - TT_COMPILE_ONLY_SYSTEM_DESC
 - TT_XLA_ROOT 
 
+Do not bother exploring the project's structure, only if the run command fails
+and we need remediation should we start understanding the test and the project.
+
 ## Available skill scripts
 
 These scripts are located in a subdirectory of this skill.
 
 - `scripts/setup_venv.sh`: Sets up the proper environment.
 - `scripts/run.sh`: Activates environment and forwards all args to pytest.
+- `scripts/log_issue.sh`: Logs that the remediation failed given the test name
+  and a reason string.
 - `scripts/teardown_venv.sh`: Teardown the venv.
 - `scripts/activate`: Source the python virtual environment.
 
@@ -33,14 +31,35 @@ These scripts are located in a subdirectory of this skill.
 
 Invoke the `scripts/setup_venv.sh` script to setup a local venv.
 
-## Phase 2. Run the model.
+## Phase 2. Run the model & Diagnose and resolve all failures.
+
+Determine if this model can run on a Tenstorrent quietbox system via one of the
+following modes:
+- `single_device`: Can fit models up to 32B parameters.
+- `tensor_parallel`: Can fit models up to 120B parameters.
+
+The test string `%0` should be of the form.  If the model should be run
+`tensor_parallel` be sure to update the run string below by substituting
+`single_device` with `tensor_parallel`.
+
+Example:
+- Before: `tests/runner/test_models.py::test_all_models_torch[dreamshaper_xl/pytorch-v2.1-Turbo-DPM-SDE-single_device-inference]`
+- After: `tests/runner/test_models.py::test_all_models_torch[dreamshaper_xl/pytorch-v2.1-Turbo-DPM-SDE-tensor_parallel-inference]`
+
+If the model is too large to run in either of these configs, then we skip step 3
+and log as such using script:
+- `scripts/log_issue.sh $0 MODEL_TOO_LARGE`
+
+## Phase 3. Run the model & Diagnose and resolve all failures.
 
 Run the model with the run script: `scripts/run.sh $0`
 
-## Phase 3. Diagnose and resolve all failures.
-
 If the test fails because of a python dependency issue please update (or create) the
 requirements.txt file that lives next to the test.
+
+If python dependencies do not resolve, it might be best to start with a fresh
+venv because we are reusing the same venv between skill invocations.  To do that
+simply run `scripts/teardown_venv.sh` followed by `scripts/setup_venv.sh`.
 
 Please commit independent, atomic, fixes for each issue that arises with the
 test.  In a loop let's:
@@ -51,3 +70,5 @@ test.  In a loop let's:
 - Run `source scripts/activate && pre-commit run --all-files` to reformat the code.
 - Git commit the changes to checkpoint our progress with a short commit message.
   Describing the fix made for this single issue.
+- If the remediation fails after 20 attempts let's log the error and stop this
+  skill: `scripts/log_issue.sh $0 MAX_FAILED_ATTEMPTS`

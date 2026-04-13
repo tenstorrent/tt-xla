@@ -24,7 +24,7 @@ export TTXLA_LOGGER_LEVEL=DEBUG
 
 TEST_NAME="$@"
 SAFE_NAME=$(echo "${TEST_NAME}" | tr '/:[]\.' '_')
-DATE=$(date +%Y%m%d_%H%M%S) 
+DATE=$(date +%Y%m%d_%H%M%S)
 set -x
 pytest "${TEST_NAME}" \
   --junit-xml=$LOGS_DIR/${SAFE_NAME}_${DATE}.xml \
