@@ -20,12 +20,17 @@ export TTMLIR_VENV_DIR="$(pwd)/venv"
 if [ -d $TTMLIR_VENV_DIR/bin ]; then
   [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
   # The Python venv's bin/activate bakes in the absolute path where the venv was
-  # created. When the workspace is bind-mounted at a different path (e.g. the GHA
-  # container at /__w/tt-xla/tt-xla vs the multihost sibling container at /workspace),
-  # VIRTUAL_ENV and PATH point to a non-existent location. Fix them up.
+  # created. If this checkout is mounted at a different absolute path, VIRTUAL_ENV
+  # and PATH will point to the wrong location. Abort so the venv can be recreated
+  # at the current workspace path instead of trying to relocate it.
   if [ "$VIRTUAL_ENV" != "$TTMLIR_VENV_DIR" ]; then
-    export VIRTUAL_ENV="$TTMLIR_VENV_DIR"
-    export PATH="$TTMLIR_VENV_DIR/bin:$PATH"
+    echo "ERROR: detected relocated Python virtualenv." >&2
+    echo "Expected: $TTMLIR_VENV_DIR" >&2
+    echo "Actual:   ${VIRTUAL_ENV:-<unset>}" >&2
+    echo "This venv was created at a different absolute path and is not safe to reuse." >&2
+    echo "Please remove '$TTMLIR_VENV_DIR' and recreate it from this workspace path." >&2
+    deactivate nondestructive 2> /dev/null || true
+    return 1
   fi
 else
   [ -z "$PIP" ] && { command -v uv &> /dev/null && PIP="uv pip" || PIP="pip"; } # Uv/pip backward compatibility
