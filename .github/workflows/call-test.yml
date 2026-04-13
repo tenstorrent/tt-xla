@@ -220,8 +220,20 @@ jobs:
       if: ${{ matrix.build.multihost }}
       shell: bash
       run: |
-        # maybe mergable - if we use mpirun directly from this container.
         DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+
+        echo "=== Container topology diagnostics ==="
+        echo "Outer container hostname: $(hostname)"
+        echo "Outer container PID 1 cgroup: $(cat /proc/1/cgroup 2>/dev/null | head -5)"
+        echo "github.workspace (used for -v mount): ${{ github.workspace }}"
+        echo "Docker socket: $(ls -la /var/run/docker.sock 2>/dev/null || echo 'not found')"
+        echo "Docker info (server):"
+        docker info --format '{{.OperatingSystem}} | Storage: {{.Driver}} | Root: {{.DockerRootDir}}' 2>/dev/null || echo "docker info failed"
+        echo "Host mount mapping: ${{ github.workspace }} -> /workspace (inside sibling container)"
+        echo "Venv bin/activate VIRTUAL_ENV will be:"
+        grep -o 'VIRTUAL_ENV="[^"]*"' ${{ github.workspace }}/venv/bin/activate 2>/dev/null || echo "  (venv not yet created)"
+        echo "=== End container topology diagnostics ==="
+
         echo "Launching multihost controller container with image: $DOCKER_IMAGE"
         docker run --pull=never --rm -d \
           --name ubuntu-host-mapped \
@@ -246,7 +258,6 @@ jobs:
       shell: bash
       run: |
         DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
-
 
         # Launch containers on all hosts idempotently (controller already running, will skip)
         docker exec \
@@ -466,6 +477,19 @@ jobs:
             export TT_METAL_LOGGER_LEVEL=DEBUG
             export TT_METAL_LOGGER_TYPES=Fabric,Always
 
+            # Verify venv activation resolved the mount-point path correctly
+            echo "=== Venv diagnostics (sibling container) ==="
+            echo "Container hostname: $(hostname)"
+            echo "Container ID: $(cat /proc/self/cgroup 2>/dev/null | grep -o "[0-9a-f]\{64\}" | head -1 || echo unknown)"
+            echo "VIRTUAL_ENV=$VIRTUAL_ENV"
+            echo "TTMLIR_VENV_DIR=$TTMLIR_VENV_DIR"
+            echo "python resolves to: $(which python 2>/dev/null || echo NOT FOUND)"
+            python --version
+            echo "sys.prefix: $(python -c "import sys; print(sys.prefix)")"
+            echo "click location: $(python -c "import click; print(click.__file__)" 2>/dev/null || echo "click NOT FOUND")"
+            python -m pip show pjrt-plugin-tt 2>/dev/null | grep -E "^(Name|Version|Location)" || echo "WARNING: pjrt-plugin-tt not found in venv"
+            echo "=== End venv diagnostics ==="
+
             # Set multihost distributed environment variables
             TOPOLOGY="${{ matrix.build.topology }}"
             echo "=== Setting up multihost topology: $TOPOLOGY ==="
@@ -521,19 +545,18 @@ jobs:
 
             # Call topology script to set distributed env vars
             # The topology script auto-discovers TT_PJRT_PLUGIN_DIR from pjrt_plugin_tt package
-            TOPOLOGY_EXPORTS=$($PYTHON scripts/multihost_topology.py \
+            TOPOLOGY_EXPORTS=$(python scripts/multihost_topology.py \
               --topology "$TOPOLOGY" \
               --script-dir tests/torch/multi_host/experimental)
             echo "Environment variables being set:"
             echo "$TOPOLOGY_EXPORTS"
             eval "$TOPOLOGY_EXPORTS"
 
-            # Hardcoded pytest command for multihost with dual_bh_loudbox_1x16 topology filter
-            echo "Running multihost tests with topology filter: dual_bh_loudbox_1x16"
-            $PYTHON -m pytest -sv \
+            echo "Running multihost tests with topology filter: $TOPOLOGY"
+            python -m pytest -sv \
               --log-memory --durations=0 \
               ./tests/torch/multi_host/experimental \
-              -k "dual_bh_loudbox_1x16" \
+              -k "$TOPOLOGY" \
               --junitxml=${{ steps.strings.outputs.test_report_path }} \
               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
