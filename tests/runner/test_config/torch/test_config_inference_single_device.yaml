@@ -1441,9 +1441,6 @@ test_config:
 
   phi3/phi_3_5/pytorch-Mini_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      p150:
-        required_pcc: 0.985 # Calculated: pcc=0.9885763642059768 - https://github.com/tenstorrent/tt-xla/issues/3212
 
   bi_lstm_crf/pytorch-Default-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
