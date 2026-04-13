@@ -100,6 +100,13 @@ def pytest_configure(config: pytest.Config):
         "no_auto_properties: disable auto user_properties injection at collection",
     )
 
+    # Install random-weights patches early so they're active before test collection
+    # triggers any module-level imports that call from_pretrained.
+    from tests.random_weights import install_patches, is_enabled_by_env
+
+    if config.getoption("--random-weights", default=False) or is_enabled_by_env():
+        install_patches()
+
 
 def pytest_collection_modifyitems(items):
     """
@@ -220,6 +227,13 @@ def pytest_addoption(parser):
 
     Use it when calling pytest like `pytest --log-memory ...` or `pytest --serialize ...`.
     """
+    parser.addoption(
+        "--random-weights",
+        action="store_true",
+        default=False,
+        help="Skip HuggingFace weight downloads by using randomly initialized models. "
+        "Also available via TT_RANDOM_WEIGHTS=1 env var.",
+    )
     parser.addoption(
         "--log-memory",
         action="store_true",
