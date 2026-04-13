@@ -1925,7 +1925,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self._precompile_sample_from_logits()
             else:
                 logger.warning("cpu_sampling=True: skipping device sampling precompilation")
-            self._precompile_gather_logprobs()
+            if not self.tt_config.enable_trace:
+                self._precompile_gather_logprobs()
 
     def profile_run(
         self,
