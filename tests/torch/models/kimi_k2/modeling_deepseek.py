@@ -1434,22 +1434,20 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
         if use_cache:
             use_legacy_cache = not isinstance(past_key_values, Cache)
             if use_legacy_cache:
-                new_cache = DynamicCache()
+                new_cache = DynamicCache()                                 
                 if past_key_values is not None:
-                    for layer_idx, (k, v) in enumerate(past_key_values):
-                        new_cache.update(k, v, layer_idx)
-                past_key_values = new_cache
+                    for layer_idx, (k, v) in enumerate(past_key_values):        
+                        new_cache.update(k, v, layer_idx)                   
+                past_key_values = new_cache                                   
             # Only call get_seq_length() when cache_position is absent; when
             # cache_position is provided we derive position_ids and the mask
-            # directly from it, avoiding tensor ops in get_seq_length() that
-            # would create a separate XLA graph and break compilation.
+            # directly from it, avoiding "failed to legalize operation 
+            # 'stablehlo.reduce'" error.
             elif cache_position is None:
                 past_key_values_length = past_key_values.get_seq_length()
 
         if position_ids is None:
             if cache_position is not None:
-                # Derive position_ids directly from cache_position to keep everything
-                # in the same compiled graph.
                 position_ids = cache_position.unsqueeze(0)
             else:
                 device = input_ids.device if input_ids is not None else inputs_embeds.device
@@ -1473,28 +1471,11 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
             )
         elif (
             cache_position is not None
-            and past_key_values is not None
-            and hasattr(past_key_values, "layers")
-            and past_key_values.layers
-            and hasattr(past_key_values.layers[0], "max_cache_len")
+            and getattr(past_key_values, "layers", None)
+            and hasattr(past_key_values.layers[0], "build_causal_mask")
         ):
-            # Build the causal mask as a pure tensor op from cache_position so it
-            # stays inside the compiled graph. This avoids calling get_seq_length()
-            # (which does a tensor reduce) and keeps the mask at the correct static
-            # shape (batch, 1, q_len, max_cache_len) in one step.
-            max_cache_len = past_key_values.layers[0].max_cache_len
-            key_idx = torch.arange(
-                max_cache_len,
-                dtype=cache_position.dtype,
-                device=inputs_embeds.device,
-            )
-            # mask[i, j] = 0 if j <= cache_position[i], else fill_value
-            fill_value = torch.finfo(inputs_embeds.dtype).min
-            causal = (key_idx.unsqueeze(0) > cache_position.unsqueeze(1)).to(
-                inputs_embeds.dtype
-            )
-            attention_mask = (causal * fill_value).unsqueeze(0).unsqueeze(0).expand(
-                batch_size, 1, -1, -1
+            attention_mask = past_key_values.layers[0].build_causal_mask(
+                cache_position, batch_size, inputs_embeds.dtype, inputs_embeds.device
             )
         else:
             # 4d mask is passed through the layers
@@ -1509,9 +1490,7 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
             if (
                 attention_mask is not None
                 and use_cache
-                and past_key_values is not None
-                and hasattr(past_key_values, "layers")
-                and past_key_values.layers
+                and getattr(past_key_values, "layers", None)
                 and hasattr(past_key_values.layers[0], "max_cache_len")
             ):
                 max_cache_len = past_key_values.layers[0].max_cache_len

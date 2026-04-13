@@ -413,8 +413,12 @@ def benchmark_llm_torch_xla(
         # https://github.com/tenstorrent/tt-xla/issues/4240
         kv_spec = kv_cache_sharding_spec or (None, "model", None, None)
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, kv_spec)
-            xs.mark_sharding(layer.values, mesh, kv_spec)
+            if isinstance(layer, MLAStaticLayer):
+                xs.mark_sharding(layer.compressed_kv, mesh, ("model", None, None, None))                                                                                                                                                                                              
+                xs.mark_sharding(layer.k_pe, mesh, ("model", None, None, None))
+            else:
+                xs.mark_sharding(layer.keys, mesh, kv_spec)
+                xs.mark_sharding(layer.values, mesh, kv_spec)
 
         # Shard input_ids
         if input_output_sharding_spec:

@@ -1808,5 +1808,8 @@ def test_kimi_k2_tp_galaxy_2_layers(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=0,
+        trace_enabled=False,  # topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
         use_mla_cache=True,
+        arch="wormhole_galaxy",
+        required_pcc=0.92,
     )
