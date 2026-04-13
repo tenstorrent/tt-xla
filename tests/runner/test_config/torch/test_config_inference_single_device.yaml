@@ -80,6 +80,9 @@ test_config:
     required_pcc: 0.98
     status: EXPECTED_PASSING
 
+  convnext/pytorch-facebook/convnext-base-224-single_device-inference:
+    status: EXPECTED_PASSING
+
   mamba/pytorch-790M_HF-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
