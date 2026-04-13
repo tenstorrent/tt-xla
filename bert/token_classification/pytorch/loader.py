@@ -113,7 +113,6 @@ class ModelLoader(ForgeModel):
         if variant_name in (
             ModelVariant.DAVLAN_BERT_BASE_MULTILINGUAL_CASED_NER_HRL,
             ModelVariant.DSLIM_BERT_BASE_NER,
-            ModelVariant.DSLIM_BERT_BASE_NER_UNCASED,
             ModelVariant.HATMIMOHA_ARABIC_NER,
             ModelVariant.CAMEL_LAB_BERT_BASE_ARABIC_CAMELBERT_MSA_NER,
             ModelVariant.P208P2002_ZH_WIKI_PUNCTUATION_RESTORE,

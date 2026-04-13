@@ -100,6 +100,8 @@ class ModelLoader(ForgeModel):
         if variant == ModelVariant.TINY_RANDOM:
             group = ModelGroup.VULCAN
 
+        source = getattr(cls._VARIANTS[variant], "source", ModelSource.HUGGING_FACE)
+
         return ModelInfo(
             model="BEiT",
             variant=variant,

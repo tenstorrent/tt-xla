@@ -257,8 +257,8 @@ class ModelLoader(ForgeModel):
         if variant == ModelVariant.B0:
             group = ModelGroup.RED
         elif variant in [
-            ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_B3_IN1K,
-            ModelVariant.HF_B7,
+            ModelVariant.HF_TIMM_TF_EFFICIENTNETV2_XL_IN21K,
+            ModelVariant.HF_TIMM_TF_EFFICIENTNET_B7_NS_JFT_IN1K,
         ]:
             group = ModelGroup.VULCAN
         else:
