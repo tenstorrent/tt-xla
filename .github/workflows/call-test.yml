@@ -272,6 +272,12 @@ jobs:
           -w /workspace \
           "$DOCKER_IMAGE" sleep infinity
         echo "Controller container started"
+        echo "=== SSH agent check in controller container ==="
+        docker exec \
+          -e SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
+          ubuntu-host-mapped \
+          ssh-add -l || echo "WARNING: ssh-add -l failed (agent not reachable or no keys loaded)"
+        echo "=== End SSH agent check ==="
 
     - name: Start multihost worker containers via mpirun
       if: ${{ matrix.build.multihost }}
