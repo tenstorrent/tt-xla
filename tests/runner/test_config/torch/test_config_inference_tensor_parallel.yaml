@@ -125,6 +125,13 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Untested - needs n300-llmbox hardware and 7B model download (~14GB)"
 
+  mixtral/causal_lm/pytorch-8x7B_Instruct_v0.1-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Untested - needs n300-llmbox hardware, 87GB model, and custom MoE injection"
+    inject_custom_moe: true
+
   qwen_2_5/causal_lm/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
