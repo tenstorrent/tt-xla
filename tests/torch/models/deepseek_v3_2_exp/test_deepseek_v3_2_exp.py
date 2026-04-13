@@ -12,7 +12,7 @@ import torch_xla.runtime as xr
 from benchmark.utils import compute_pcc
 from huggingface_hub import hf_hub_download
 from infra import Framework, run_graph_test
-from infra.evaluators import ComparisonConfig, PccConfig
+from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from infra.testers.compiler_config import CompilerConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
@@ -976,15 +976,23 @@ def test_deepseek_v3_1_layer_sparse_moe(batch_size, seq_len):
     # Generate real Block input from tokenizer + model forward through dense layers
     tokenizer = AutoTokenizer.from_pretrained(repo_id, trust_remote_code=True)
     text = "The quick brown fox jumps over the lazy dog. " * 10
-    encoded = tokenizer(text, return_tensors="pt", max_length=seq_len, truncation=True, padding="max_length")
+    encoded = tokenizer(
+        text,
+        return_tensors="pt",
+        max_length=seq_len,
+        truncation=True,
+        padding="max_length",
+    )
     tokens = encoded["input_ids"][:, :seq_len].repeat(batch_size, 1)
 
     with torch.no_grad():
         freqs_cis = model.freqs_cis[:seq_len]
-        mask = torch.full((seq_len, seq_len), float("-inf"), dtype=torch.bfloat16).triu_(1)
+        mask = torch.full(
+            (seq_len, seq_len), float("-inf"), dtype=torch.bfloat16
+        ).triu_(1)
 
         h, residual = model.embed(tokens), None
-        for layer in model.layers[:args.n_dense_layers]:
+        for layer in model.layers[: args.n_dense_layers]:
             h, residual = layer(h, residual, 0, freqs_cis, mask)
         hidden_states = h.detach()
         residual = residual.detach() if residual is not None else None
@@ -1127,22 +1135,37 @@ def test_deepseek_v3_1_moe_ffn():
     ffn.eval()
 
     from transformers import AutoTokenizer
+
     # Generate real hidden_states from tokenizer + model forward
-    tokenizer = AutoTokenizer.from_pretrained(DEEPSEEK_V3_1_REPO, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        DEEPSEEK_V3_1_REPO, trust_remote_code=True
+    )
     text = "The quick brown fox jumps over the lazy dog. " * 10
-    encoded = tokenizer(text, return_tensors="pt", max_length=seq_len, truncation=True, padding="max_length")
+    encoded = tokenizer(
+        text,
+        return_tensors="pt",
+        max_length=seq_len,
+        truncation=True,
+        padding="max_length",
+    )
     tokens = encoded["input_ids"][:, :seq_len].repeat(batch_size, 1)
 
     with torch.no_grad():
         freqs_cis = model.freqs_cis[:seq_len]
-        mask = torch.full((seq_len, seq_len), float("-inf"), dtype=torch.bfloat16).triu_(1)
+        mask = torch.full(
+            (seq_len, seq_len), float("-inf"), dtype=torch.bfloat16
+        ).triu_(1)
 
         h, residual = model.embed(tokens), None
-        for layer in model.layers[:args.n_dense_layers]:
+        for layer in model.layers[: args.n_dense_layers]:
             h, residual = layer(h, residual, 0, freqs_cis, mask)
 
         moe_block = model.layers[args.n_dense_layers]
-        x_normed, residual_out = moe_block.attn_norm(h, residual) if residual is not None else (moe_block.attn_norm(h), h)
+        x_normed, residual_out = (
+            moe_block.attn_norm(h, residual)
+            if residual is not None
+            else (moe_block.attn_norm(h), h)
+        )
         x_attn = moe_block.attn(x_normed, 0, freqs_cis, mask)
         hidden_states, _ = moe_block.ffn_norm(x_attn, residual_out)
         hidden_states = hidden_states.detach()
@@ -1183,50 +1206,18 @@ def test_deepseek_v3_1_moe_ffn():
 
 @pytest.mark.llmbox
 def test_deepseek_v3_1_full_sparse_moe():
-    """Test full DeepseekV3.1 Transformer with A2aSparseMLP on (4,8) mesh."""
+    """Test full DeepseekV3.1 Transformer with A2aSparseMLP on (4,8) mesh — real input."""
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    token_ids = [
-        671,
-        6102,
-        294,
-        8760,
-        344,
-        11111,
-        14,
-        260,
-        5217,
-        6354,
-        362,
-        2783,
-        14,
-        13556,
-        14,
-        17224,
-        671,
-        6102,
-        294,
-        8760,
-        344,
-        11111,
-        14,
-        260,
-        5217,
-        6354,
-        362,
-        2783,
-        14,
-        13556,
-        14,
-        17224,
-    ]
+    from transformers import AutoTokenizer
 
     batch_size = 32
-    seq_len = len(token_ids)
+    seq_len = 32
 
-    args = load_deepseek_config(DEEPSEEK_V3_1_REPO)
-    args.n_layers = 4
+    repo_id = DEEPSEEK_V3_1_REPO
+    args = load_deepseek_config(repo_id)
+    args.n_layers = args.n_dense_layers + 1
     args.max_batch_size = batch_size
     args.max_seq_len = seq_len * 2
     print(f"[config] {args}")
@@ -1234,7 +1225,7 @@ def test_deepseek_v3_1_full_sparse_moe():
     model = ModifiedTransformer(args)
     load_deepseek_weights(
         model,
-        repo_id=DEEPSEEK_V3_1_REPO,
+        repo_id=repo_id,
         n_layers=args.n_layers,
         n_dense_layers=args.n_dense_layers,
     )
@@ -1245,8 +1236,18 @@ def test_deepseek_v3_1_full_sparse_moe():
     enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
     model.eval()
 
-    single_sequence = torch.tensor(token_ids).long()
-    tokens = single_sequence.unsqueeze(0).expand(batch_size, seq_len)
+    tokenizer = AutoTokenizer.from_pretrained(repo_id, trust_remote_code=True)
+    text = "The quick brown fox jumps over the lazy dog. " * 10
+    encoded = tokenizer(
+        text,
+        return_tensors="pt",
+        max_length=seq_len,
+        truncation=True,
+        padding="max_length",
+    )
+    tokens = encoded["input_ids"][:, :seq_len].repeat(batch_size, 1)
+
+    print(f"[input] prompt: {tokenizer.decode(tokens[0].tolist())}")
 
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
@@ -1308,7 +1309,8 @@ def test_deepseek_v3_1_full_sparse_moe():
         return shard_specs
 
     comparison_config = ComparisonConfig(
-        pcc=PccConfig(enabled=True, required_pcc=0.95),
+        pcc=PccConfig(enabled=True, required_pcc=0.99),
+        assert_on_failure=False,
     )
 
     tt_res, cpu_res = run_graph_test(
@@ -1321,17 +1323,16 @@ def test_deepseek_v3_1_full_sparse_moe():
         compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
     )
 
-    # TODO: Importing AutoTokenizer before run_graph_test somehow degrades PCC.
-    # Instantiate it only after the test until we can debug the root cause.
-    from transformers import AutoTokenizer
+    for k in range(5):
+        tt_tokens = tt_res.topk(k + 1, dim=-1).indices[..., k]
+        cpu_tokens = cpu_res.topk(k + 1, dim=-1).indices[..., k]
 
-    tokenizer = AutoTokenizer.from_pretrained(DEEPSEEK_V3_1_REPO)
+        print(f"[top-{k+1}] TT  tokens: {tokenizer.decode(tt_tokens[0].tolist())}")
+        print(f"[top-{k+1}] CPU tokens: {tokenizer.decode(cpu_tokens[0].tolist())}")
 
-    tt_tokens = tt_res.argmax(dim=-1)
-    cpu_tokens = cpu_res.argmax(dim=-1)
-
-    print(f"[output] TT  tokens: {tokenizer.decode(tt_tokens[0].tolist())}")
-    print(f"[output] CPU tokens: {tokenizer.decode(cpu_tokens[0].tolist())}")
+    TorchComparisonEvaluator(
+        ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
+    ).evaluate(tt_res, cpu_res)
 
 
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
