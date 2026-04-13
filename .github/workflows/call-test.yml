@@ -338,6 +338,8 @@ jobs:
           echo "=== End SSH connectivity check (via ssh) ==="
 
           echo "=== SSH connectivity check (via remote_docker.sh) ==="
+          ls -la /workspace/tests/torch/multi_host/experimental/remote_docker.sh
+          chmod +x /workspace/tests/torch/multi_host/experimental/remote_docker.sh
           mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh \
