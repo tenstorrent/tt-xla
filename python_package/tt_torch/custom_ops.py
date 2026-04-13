@@ -1404,7 +1404,9 @@ def flash_mla_prefill(
     device = query.device
 
     if is_causal:
-        assert attention_mask is None, "attention_mask must be None when is_causal is True."
+        assert (
+            attention_mask is None
+        ), "attention_mask must be None when is_causal is True."
 
     if device.type == "xla":
         inputs = [query, key]
@@ -1496,7 +1498,9 @@ def paged_flash_multi_latent_attention_decode(
     device = query.device
 
     if is_causal:
-        assert attention_mask is None, "attention_mask must be None when is_causal is True."
+        assert (
+            attention_mask is None
+        ), "attention_mask must be None when is_causal is True."
 
     if device.type == "xla":
         attrs = {
@@ -1553,7 +1557,9 @@ def paged_flash_multi_latent_attention_decode(
             block_indices = page_table_tensor[i]
             if mla_absorb:
                 # V = kv_c portion of the combined key cache (first head_dim_v dims)
-                user_kv_blocks = key[block_indices]  # [max_blocks, 1, block_size, head_size]
+                user_kv_blocks = key[
+                    block_indices
+                ]  # [max_blocks, 1, block_size, head_size]
                 user_v = user_kv_blocks.transpose(0, 1).reshape(
                     num_kv_heads, max_seq_len, key.shape[-1]
                 )[..., :head_dim_v]
@@ -1570,7 +1576,9 @@ def paged_flash_multi_latent_attention_decode(
         query = query.reshape(num_users, num_heads, 1, qk_head_dim)
 
         attn_mask = (
-            causal_mask.reshape(num_users, 1, 1, max_seq_len) if is_causal else attention_mask
+            causal_mask.reshape(num_users, 1, 1, max_seq_len)
+            if is_causal
+            else attention_mask
         )
 
         scale_val = 1 / qk_head_dim**0.5 if scale is None else scale

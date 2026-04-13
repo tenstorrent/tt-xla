@@ -41,23 +41,23 @@ import vllm._custom_ops as _vllm_custom_ops
 
 
 def _tt_concat_and_cache_mla(
-    kv_c: torch.Tensor,          # [T, kv_lora_rank]
-    k_pe: torch.Tensor,          # [T, qk_rope_head_dim]
-    kv_cache: torch.Tensor,      # [num_blocks, 1, block_size, kv_lora_rank+rope_dim]
+    kv_c: torch.Tensor,  # [T, kv_lora_rank]
+    k_pe: torch.Tensor,  # [T, qk_rope_head_dim]
+    kv_cache: torch.Tensor,  # [num_blocks, 1, block_size, kv_lora_rank+rope_dim]
     slot_mapping: torch.Tensor,  # [T] flat slot indices (block_id * block_size + offset)
-    kv_cache_dtype: str,         # unused on TT
-    scale: torch.Tensor,         # unused on TT
+    kv_cache_dtype: str,  # unused on TT
+    scale: torch.Tensor,  # unused on TT
 ) -> None:
     """TT replacement for vllm._custom_ops.concat_and_cache_mla.
 
     Writes concatenated (kv_c ‖ k_pe) into the paged MLA KV cache for ALL
     tokens (decode + prefill) using index_put, which compiles to XLA scatter.
     """
-    kv_combined = torch.cat([kv_c, k_pe], dim=-1)       # [T, head_size]
+    kv_combined = torch.cat([kv_c, k_pe], dim=-1)  # [T, head_size]
     block_size = kv_cache.shape[2]
-    block_ids = (slot_mapping // block_size).long()      # [T]
-    offsets = (slot_mapping % block_size).long()         # [T]
-    zeros = torch.zeros_like(block_ids)                  # kv_head index (always 0 for MLA)
+    block_ids = (slot_mapping // block_size).long()  # [T]
+    offsets = (slot_mapping % block_size).long()  # [T]
+    zeros = torch.zeros_like(block_ids)  # kv_head index (always 0 for MLA)
     new_cache = kv_cache.index_put((block_ids, zeros, offsets), kv_combined)
     kv_cache.copy_(new_cache)
 
@@ -855,9 +855,9 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
     # ------------------------------------------------------------------
     def do_kv_cache_update(
         self,
-        kv_c: torch.Tensor,          # [B_dec, kv_lora_rank]
-        k_pe: torch.Tensor,          # [B_dec, qk_rope_head_dim] — already squeezed
-        kv_cache: torch.Tensor,      # [num_blocks, 1, block_size, head_size]
+        kv_c: torch.Tensor,  # [B_dec, kv_lora_rank]
+        k_pe: torch.Tensor,  # [B_dec, qk_rope_head_dim] — already squeezed
+        kv_cache: torch.Tensor,  # [num_blocks, 1, block_size, head_size]
         attn_metadata: TTMLAMetadata,
     ) -> None:
         """Write DECODE tokens' kv_c ‖ k_pe into the paged MLA KV cache.
@@ -873,12 +873,14 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             return
         assert attn_metadata.decode is not None
 
-        kv_combined = torch.cat([kv_c, k_pe], dim=-1)    # [B_dec, head_size]
+        kv_combined = torch.cat([kv_c, k_pe], dim=-1)  # [B_dec, head_size]
         # paged_update_cache fill_value: [1, B, num_heads, head_size]
-        fill_value = kv_combined.unsqueeze(0).unsqueeze(2)   # [1, B_dec, 1, head_size]
-        cache_pos = attn_metadata.decode.seq_lens - 1        # [B_dec] absolute position
+        fill_value = kv_combined.unsqueeze(0).unsqueeze(2)  # [1, B_dec, 1, head_size]
+        cache_pos = attn_metadata.decode.seq_lens - 1  # [B_dec] absolute position
         new_cache = torch.ops.tt.paged_update_cache(
-            kv_cache, fill_value, cache_pos,
+            kv_cache,
+            fill_value,
+            cache_pos,
             attn_metadata.decode.block_table,
         )
         kv_cache.copy_(new_cache)
@@ -916,15 +918,17 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             )  # [T_prefill, head_size]
             qsl = attn_metadata.prefill.query_start_loc  # [B_pre + 1]
             for i in range(attn_metadata.num_prefills):
-                req_kv = kv_combined_pre[int(qsl[i]):int(qsl[i + 1])]  # [T_i, head_size]
+                req_kv = kv_combined_pre[
+                    int(qsl[i]) : int(qsl[i + 1])
+                ]  # [T_i, head_size]
                 # paged_fill_cache fill_value: [1, num_heads, T_i, head_size]
-                fill_value = req_kv.unsqueeze(0).unsqueeze(0)           # [1, 1, T_i, head_size]
+                fill_value = req_kv.unsqueeze(0).unsqueeze(0)  # [1, 1, T_i, head_size]
                 new_cache = torch.ops.tt.paged_fill_cache(
-                    kv_c_and_k_pe_cache, fill_value,
+                    kv_c_and_k_pe_cache,
+                    fill_value,
                     attn_metadata.prefill.block_table,
                     batch_idx=torch.tensor(
-                        [i], dtype=torch.int32,
-                        device=kv_c_and_k_pe_cache.device
+                        [i], dtype=torch.int32, device=kv_c_and_k_pe_cache.device
                     ),
                 )
                 kv_c_and_k_pe_cache.copy_(new_cache)
@@ -994,11 +998,11 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         # Reshape to decode op convention [1, B, N, L+R]
         q_4d = q_full.unsqueeze(0)
 
-        assert attn_metadata.decode is not None, (
-            "TTMLADecodeMetadata must be set for decode phase"
-        )
+        assert (
+            attn_metadata.decode is not None
+        ), "TTMLADecodeMetadata must be set for decode phase"
         page_table = attn_metadata.decode.block_table  # [B, max_blocks]
-        seq_lens = attn_metadata.decode.seq_lens       # [B]
+        seq_lens = attn_metadata.decode.seq_lens  # [B]
         # curr_pos is 0-indexed position of the last cached token
         curr_pos = seq_lens - 1
 
@@ -1007,7 +1011,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             q_4d,
             kv_c_and_k_pe_cache,
             page_table,
-            self.kv_lora_rank,     # head_dim_v: output is in latent (kv_lora_rank) space
+            self.kv_lora_rank,  # head_dim_v: output is in latent (kv_lora_rank) space
             is_causal=True,
             curr_pos_tensor=curr_pos,
             scale=self.scale,

@@ -128,7 +128,9 @@ class TTPlatform(Platform):
             logger.info("Using TT MLA Attention layer.")
             return "vllm_tt.attention.TTMLAAttentionBackend"
         if attn_selector_config.use_sparse:
-            raise NotImplementedError("Sparse Attention is not supported on TT devices.")
+            raise NotImplementedError(
+                "Sparse Attention is not supported on TT devices."
+            )
         if selected_backend != AttentionBackendEnum.CUSTOM:
             logger.info("Cannot use %s backend on TT devices.", selected_backend)
 
