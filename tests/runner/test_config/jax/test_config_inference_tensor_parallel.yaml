@@ -226,10 +226,13 @@ test_config:
     reason: "Value mlir::sdy::(anonymous namespace)::CollectiveInserter::insert(): Assertion failed. https://github.com/tenstorrent/tt-xla/issues/3393"
 
   llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
-    reason: "Shardy propagation failure: TinyLlama has 4 KV heads which are not divisible by 8 TP devices — Could not apply propagated tensor shardings to tensor dimensions"
+    supported_archs: ["n300", "n300-llmbox"]
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n300-llmbox:
+        status: KNOWN_FAILURE_XFAIL
+        bringup_status: FAILED_RUNTIME
+        reason: "Shardy propagation failure: TinyLlama has 4 KV heads which are not divisible by 8 TP devices — Could not apply propagated tensor shardings to tensor dimensions"
 
   llama/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
