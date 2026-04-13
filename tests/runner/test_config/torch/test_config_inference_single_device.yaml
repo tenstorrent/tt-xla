@@ -83,6 +83,9 @@ test_config:
   convnext/pytorch-facebook/convnext-base-224-single_device-inference:
     status: EXPECTED_PASSING
 
+  mpnet/sentence_embedding/pytorch-sentence-transformers/all-mpnet-base-v2-single_device-inference:
+    status: EXPECTED_PASSING
+
   mamba/pytorch-790M_HF-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
