@@ -15,11 +15,13 @@ Usage:
     model = enable_sparse_mlp(model)  # Replace MLP layers with SparseMLP
 """
 
+import os
 from typing import Any, Dict, List, Optional, Type
 
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
 
 # Activation types for A2aSparseMLP
 ACTIVATION_GPT_OSS = "gpt_oss"  # clamp, sigmoid, alpha, glu
@@ -233,6 +235,206 @@ def build_expert_mapping(num_experts, num_devices, mesh_shape=None):
             device_id = i // experts_per_device
         mapping[0, 0, i, device_id] = 1
     return mapping
+
+
+def _scatter_compact_router_scores(
+    topk_indices: torch.Tensor,
+    topk_scores: torch.Tensor,
+    num_experts: int,
+) -> torch.Tensor:
+    """Expand compact [T, K] routing scores into the full sparse [T, E] form."""
+    router_scores = torch.zeros(
+        topk_scores.shape[0],
+        num_experts,
+        dtype=topk_scores.dtype,
+        device=topk_scores.device,
+    )
+    router_scores.scatter_(1, topk_indices.long(), topk_scores)
+    return router_scores
+
+
+def _topk_router_gpt_fallback(
+    hidden_states: torch.Tensor,
+    router_weight: torch.Tensor,
+    router_bias: Optional[torch.Tensor],
+    k: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Fallback decomposition for the GPT-OSS fused router."""
+    router_logits = F.linear(hidden_states, router_weight, router_bias)
+    topk_scores, topk_indices = torch.topk(router_logits, k, dim=-1)
+    topk_scores = F.softmax(topk_scores, dim=-1, dtype=topk_scores.dtype)
+    return topk_indices, topk_scores
+
+
+def _composite_topk_router_gpt(
+    hidden_states: torch.Tensor,
+    router_weight: torch.Tensor,
+    router_bias: Optional[torch.Tensor],
+    k: int,
+    num_experts: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Wrap GPT-OSS router decode into a StableHLO composite."""
+    builder = StableHLOCompositeBuilder(
+        name="tenstorrent.topk_router_gpt",
+        attr={"k": k, "num_experts": num_experts},
+    )
+
+    if router_bias is None:
+        hidden_states, router_weight = builder.mark_inputs(hidden_states, router_weight)
+    else:
+        hidden_states, router_weight, router_bias = builder.mark_inputs(
+            hidden_states, router_weight, router_bias
+        )
+
+    topk_indices, topk_scores = torch.ops.tt.topk_router_gpt(
+        hidden_states, router_weight, router_bias, k
+    )
+    topk_indices, topk_scores = builder.mark_outputs(topk_indices, topk_scores)
+    return topk_indices, topk_scores
+
+
+def _moe_gpt_decode_fallback(
+    hidden_states: torch.Tensor,
+    topk_indices: torch.Tensor,
+    topk_scores: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    gate_up_proj: torch.Tensor,
+    gate_up_proj_bias: torch.Tensor,
+    down_proj: torch.Tensor,
+    down_proj_bias: torch.Tensor,
+    num_devices: int,
+    cluster_axis: int,
+    num_experts: int,
+    num_experts_per_tok: int,
+    intermediate_size: int,
+    alpha: float,
+    limit: float,
+) -> torch.Tensor:
+    """Decode-only GPT-OSS decomposition expressed with SHLO custom ops."""
+    batch_size, seq_len, hidden_size = hidden_states.shape
+    assert seq_len == 1, f"Expected GPT-OSS decode input, got seq_len={seq_len}"
+
+    x = hidden_states.view(batch_size, 1, seq_len, hidden_size)
+    expert_indices = topk_indices.view(batch_size, 1, seq_len, num_experts_per_tok)
+    expert_scores = topk_scores.view(batch_size, 1, seq_len, num_experts_per_tok)
+
+    dispatched, metadata_indices, metadata_scores = (
+        torch.ops.tt.all_to_all_dispatch_metadata(
+            x,
+            expert_indices,
+            expert_scores,
+            expert_mapping,
+            num_devices=num_devices,
+            cluster_axis=cluster_axis,
+        )
+    )
+
+    expert_output = torch.ops.tt.moe_gpt(
+        dispatched,
+        metadata_indices,
+        metadata_scores,
+        expert_mapping,
+        gate_up_proj,
+        gate_up_proj_bias,
+        down_proj,
+        down_proj_bias,
+        num_experts_per_tok=num_experts_per_tok,
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+    )
+
+    combined = torch.ops.tt.selective_reduce_combine(
+        expert_output,
+        metadata_indices,
+        expert_mapping,
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+        num_experts_per_tok=num_experts_per_tok,
+        output_shard_dim=2,
+    )
+
+    topk_weights = topk_scores.view(batch_size, num_experts_per_tok)
+    topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)
+    output = (combined.squeeze(1) * topk_weights).sum(dim=0)
+    return output.unsqueeze(1)
+
+
+def _composite_moe_gpt_decode(
+    hidden_states: torch.Tensor,
+    topk_indices: torch.Tensor,
+    topk_scores: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    gate_up_proj: torch.Tensor,
+    gate_up_proj_bias: torch.Tensor,
+    down_proj: torch.Tensor,
+    down_proj_bias: torch.Tensor,
+    num_devices: int,
+    cluster_axis: int,
+    num_experts: int,
+    num_experts_per_tok: int,
+    intermediate_size: int,
+    alpha: float,
+    limit: float,
+) -> torch.Tensor:
+    """
+    Wrap GPT-OSS decode expert flow into one composite.
+
+    TT-MLIR can legalize this composite to a placeholder TTIR op, while the
+    embedded StableHLO decomposition exposes the GPT-OSS custom calls used for
+    sharding propagation.
+    """
+    builder = StableHLOCompositeBuilder(
+        name="tenstorrent.moe_gpt_decode",
+        attr={
+            "num_devices": num_devices,
+            "cluster_axis": cluster_axis,
+            "num_experts": num_experts,
+            "num_experts_per_tok": num_experts_per_tok,
+            "intermediate_size": intermediate_size,
+            "alpha": alpha,
+            "limit": limit,
+        },
+    )
+
+    (
+        hidden_states,
+        topk_indices,
+        topk_scores,
+        expert_mapping,
+        gate_up_proj,
+        gate_up_proj_bias,
+        down_proj,
+        down_proj_bias,
+    ) = builder.mark_inputs(
+        hidden_states,
+        topk_indices,
+        topk_scores,
+        expert_mapping,
+        gate_up_proj,
+        gate_up_proj_bias,
+        down_proj,
+        down_proj_bias,
+    )
+
+    output = _moe_gpt_decode_fallback(
+        hidden_states=hidden_states,
+        topk_indices=topk_indices,
+        topk_scores=topk_scores,
+        expert_mapping=expert_mapping,
+        gate_up_proj=gate_up_proj,
+        gate_up_proj_bias=gate_up_proj_bias,
+        down_proj=down_proj,
+        down_proj_bias=down_proj_bias,
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+        num_experts=num_experts,
+        num_experts_per_tok=num_experts_per_tok,
+        intermediate_size=intermediate_size,
+        alpha=alpha,
+        limit=limit,
+    )
+    output = builder.mark_outputs(output)
+    return output
 
 
 class A2aSparseMLP(nn.Module):
@@ -669,6 +871,66 @@ class A2aSparseMLP(nn.Module):
             topk_weights = topk_weights.permute(2, 0, 1).unsqueeze(-1)  # [K, B, S, 1]
             output = (combined * topk_weights).sum(dim=0)  # [B, S, H]
 
+        return output.to(hidden_states.dtype), router_scores
+
+
+class SparseMOEGPT(A2aSparseMLP):
+    """
+    GPT-OSS-specific MoE wrapper.
+
+    By default this reuses the existing A2A sparse path directly. Setting
+    TT_TORCH_ENABLE_GPT_OSS_COMPOSITE=1 switches decode (S=1) execution to the
+    composite path so the new SHLO/TTIR plumbing can be exercised without
+    changing the module replacement logic.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_decode_composite = (
+            os.environ.get("TT_TORCH_ENABLE_GPT_OSS_COMPOSITE", "0") == "1"
+        )
+
+    def forward(self, hidden_states):
+        if (
+            not self.use_decode_composite
+            or hidden_states.device.type != "xla"
+            or hidden_states.shape[1] != 1
+        ):
+            return super().forward(hidden_states)
+
+        batch_size, seq_len, _ = hidden_states.shape
+        router_bias = getattr(self.router, "bias", None)
+        topk_indices, topk_scores = _composite_topk_router_gpt(
+            hidden_states,
+            self.router.weight,
+            router_bias,
+            self.num_experts_per_tok,
+            self.num_experts,
+        )
+
+        output = _composite_moe_gpt_decode(
+            hidden_states=hidden_states,
+            topk_indices=topk_indices,
+            topk_scores=topk_scores,
+            expert_mapping=self.expert_mapping,
+            gate_up_proj=self.experts.gate_up_proj,
+            gate_up_proj_bias=self.experts.gate_up_proj_bias,
+            down_proj=self.experts.down_proj,
+            down_proj_bias=self.experts.down_proj_bias,
+            num_devices=self.dispatch_devices,
+            cluster_axis=self.cluster_axis,
+            num_experts=self.num_experts,
+            num_experts_per_tok=self.num_experts_per_tok,
+            intermediate_size=self.intermediate_size,
+            alpha=self.alpha,
+            limit=self.limit,
+        )
+
+        router_scores = _scatter_compact_router_scores(
+            topk_indices.view(batch_size * seq_len, self.num_experts_per_tok),
+            topk_scores.view(batch_size * seq_len, self.num_experts_per_tok),
+            self.num_experts,
+        )
         return output.to(hidden_states.dtype), router_scores
 
 
@@ -1120,8 +1382,10 @@ def enable_sparse_mlp(
             return False
 
         num_experts, num_experts_per_tok = moe_config
-
-        sparse_mlp = A2aSparseMLP(
+        sparse_mlp_cls = (
+            SparseMOEGPT if "gptoss" in module_type_name else A2aSparseMLP
+        )
+        sparse_mlp = sparse_mlp_cls(
             module,
             num_experts=num_experts,
             num_experts_per_tok=num_experts_per_tok,
@@ -1136,7 +1400,7 @@ def enable_sparse_mlp(
 
         if verbose:
             print(
-                f"[SparseMLP] Replaced {name}: {type(module).__name__} -> A2aSparseMLP "
+                f"[SparseMLP] Replaced {name}: {type(module).__name__} -> {sparse_mlp_cls.__name__} "
                 f"(experts={num_experts}, num_devices={num_devices})"
             )
         return True

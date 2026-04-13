@@ -5,6 +5,7 @@
 from typing import Optional, Tuple, Union
 
 import torch
+from torch.nn import functional as F
 from torch_xla.experimental import stablehlo_custom_call
 
 
@@ -1148,6 +1149,322 @@ def all_to_all_dispatch_fake(
         [1, BD, S, K], dtype=expert_indices.dtype, device=expert_indices.device
     )
     return dispatched, metadata
+
+
+@torch.library.custom_op(
+    "tt::topk_router_gpt", mutates_args=[], device_types=["xla", "cpu"]
+)
+def topk_router_gpt(
+    hidden_states: torch.Tensor,
+    router_weight: torch.Tensor,
+    router_bias: Optional[torch.Tensor],
+    k: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Decode-oriented GPT-OSS router op.
+
+    Args:
+        hidden_states: Input activations [B, S, H]
+        router_weight: Router projection weights [E, H]
+        router_bias: Optional router bias [E]
+        k: Number of experts selected per token
+
+    Returns:
+        topk_indices: [B, S, K]
+        topk_scores:  [B, S, K]
+    """
+    device = hidden_states.device
+    output_shape = list(hidden_states.shape[:-1]) + [k]
+
+    if device.type == "xla":
+        inputs = [hidden_states, router_weight]
+        if router_bias is not None:
+            inputs.append(router_bias)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.topk_router_gpt",
+            [output_shape, output_shape],
+            [torch.int64, hidden_states.dtype],
+            frontend_attributes={"k": str(k)},
+        )
+
+    if device.type == "cpu":
+        router_logits = F.linear(hidden_states, router_weight, router_bias)
+        topk_scores, topk_indices = torch.topk(router_logits, k, dim=-1)
+        topk_scores = F.softmax(topk_scores, dim=-1, dtype=topk_scores.dtype)
+        return topk_indices, topk_scores
+
+    raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@topk_router_gpt.register_fake
+def topk_router_gpt_fake(
+    hidden_states: torch.Tensor,
+    router_weight: torch.Tensor,
+    router_bias: Optional[torch.Tensor],
+    k: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    output_shape = list(hidden_states.shape[:-1]) + [k]
+    topk_indices = torch.zeros(
+        output_shape, dtype=torch.int64, device=hidden_states.device
+    )
+    topk_scores = torch.zeros(
+        output_shape, dtype=hidden_states.dtype, device=hidden_states.device
+    )
+    return topk_indices, topk_scores
+
+
+@torch.library.custom_op(
+    "tt::all_to_all_dispatch_metadata",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def all_to_all_dispatch_metadata(
+    input_tensor: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_scores: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Dispatch tokens and carry compact routing metadata.
+
+    Args:
+        input_tensor: Input tokens [B, 1, S, H]
+        expert_indices: Selected expert IDs [B, 1, S, K]
+        expert_scores: Compact router weights [B, 1, S, K]
+        expert_mapping: One-hot expert-to-device mapping [1, 1, E, D]
+        num_devices: Number of devices along dispatch axis (D)
+        cluster_axis: Mesh axis to dispatch along
+
+    Returns:
+        dispatched_tokens: [1, B*D, S, H]
+        dispatched_indices: [1, B*D, S, K]
+        dispatched_scores: [1, B*D, S, K]
+    """
+    device = input_tensor.device
+    B, _, S, H = input_tensor.shape
+    K = expert_indices.shape[-1]
+    BD = B * num_devices
+
+    if device.type == "xla":
+        frontend_attributes = {
+            "num_devices": str(num_devices),
+            "cluster_axis": str(cluster_axis),
+        }
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input_tensor, expert_indices, expert_scores, expert_mapping],
+            "tt.all_to_all_dispatch_metadata",
+            [[1, BD, S, H], [1, BD, S, K], [1, BD, S, K]],
+            [input_tensor.dtype, expert_indices.dtype, expert_scores.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    if device.type == "cpu":
+        x = input_tensor.permute(1, 0, 2, 3)
+        indices = expert_indices.permute(1, 0, 2, 3)
+        scores = expert_scores.permute(1, 0, 2, 3)
+        if num_devices > 1:
+            x = x.repeat(1, num_devices, 1, 1)
+            indices = indices.repeat(1, num_devices, 1, 1)
+            scores = scores.repeat(1, num_devices, 1, 1)
+        return x.clone(), indices.clone(), scores.clone()
+
+    raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@all_to_all_dispatch_metadata.register_fake
+def all_to_all_dispatch_metadata_fake(
+    input_tensor: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_scores: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    B, _, S, H = input_tensor.shape
+    K = expert_indices.shape[-1]
+    BD = B * num_devices
+    dispatched = torch.zeros(
+        [1, BD, S, H], dtype=input_tensor.dtype, device=input_tensor.device
+    )
+    metadata_indices = torch.zeros(
+        [1, BD, S, K], dtype=expert_indices.dtype, device=expert_indices.device
+    )
+    metadata_scores = torch.zeros(
+        [1, BD, S, K], dtype=expert_scores.dtype, device=expert_scores.device
+    )
+    return dispatched, metadata_indices, metadata_scores
+
+
+@torch.library.custom_op("tt::moe_gpt", mutates_args=[], device_types=["xla", "cpu"])
+def moe_gpt(
+    input_tensor: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_scores: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    gate_up_proj: torch.Tensor,
+    gate_up_proj_bias: torch.Tensor,
+    down_proj: torch.Tensor,
+    down_proj_bias: torch.Tensor,
+    num_experts_per_tok: int = 2,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+) -> torch.Tensor:
+    """
+    Fused GPT-OSS decode expert compute.
+
+    This op models the local expert compute between dispatch metadata generation
+    and the final selective combine step. It returns expert-major activations in
+    the decode-friendly [E, S, B*D, H] layout.
+    """
+    device = input_tensor.device
+    E = expert_mapping.shape[2]
+    _, BD, S, H = input_tensor.shape
+    output_shape = [E, S, BD, H]
+
+    if device.type == "xla":
+        frontend_attributes = {
+            "num_experts_per_tok": str(num_experts_per_tok),
+            "num_devices": str(num_devices),
+            "cluster_axis": str(cluster_axis),
+        }
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [
+                input_tensor,
+                expert_indices,
+                expert_scores,
+                expert_mapping,
+                gate_up_proj,
+                gate_up_proj_bias,
+                down_proj,
+                down_proj_bias,
+            ],
+            "tt.moe_gpt",
+            [output_shape],
+            [input_tensor.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    if device.type == "cpu":
+        return torch.zeros(
+            output_shape, dtype=input_tensor.dtype, device=input_tensor.device
+        )
+
+    raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@moe_gpt.register_fake
+def moe_gpt_fake(
+    input_tensor: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_scores: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    gate_up_proj: torch.Tensor,
+    gate_up_proj_bias: torch.Tensor,
+    down_proj: torch.Tensor,
+    down_proj_bias: torch.Tensor,
+    num_experts_per_tok: int = 2,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+) -> torch.Tensor:
+    E = expert_mapping.shape[2]
+    _, BD, S, H = input_tensor.shape
+    return torch.zeros(
+        [E, S, BD, H], dtype=input_tensor.dtype, device=input_tensor.device
+    )
+
+
+@torch.library.custom_op(
+    "tt::selective_reduce_combine", mutates_args=[], device_types=["xla", "cpu"]
+)
+def selective_reduce_combine(
+    input_tensor: torch.Tensor,
+    expert_metadata: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+    num_experts_per_tok: int = 2,
+    output_shard_dim: int = 2,
+) -> torch.Tensor:
+    """
+    Decode-oriented combine for the fused GPT-OSS expert path.
+
+    Args:
+        input_tensor: Expert-major activations. Shape depends on output_shard_dim:
+            - output_shard_dim=1: [E, B*D, S, H]
+            - output_shard_dim=2: [E, S, B*D, H]
+        expert_metadata: Routing metadata [1, B*D, S, K]
+        expert_mapping: One-hot expert-to-device mapping [1, 1, E, D]
+
+    Returns:
+        combined: Unweighted top-k expert outputs
+            - output_shard_dim=1: [K, B, S, H]
+            - output_shard_dim=2: [K, S, B, H]
+    """
+    device = input_tensor.device
+    K = num_experts_per_tok
+
+    if output_shard_dim == 1:
+        _, BD, S, H = input_tensor.shape
+    elif output_shard_dim == 2:
+        _, S, BD, H = input_tensor.shape
+    else:
+        raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
+
+    B = BD // num_devices
+
+    if device.type == "xla":
+        output_shape = [K, B, S, H] if output_shard_dim == 1 else [K, S, B, H]
+        frontend_attributes = {
+            "num_devices": str(num_devices),
+            "cluster_axis": str(cluster_axis),
+            "num_experts_per_tok": str(K),
+            "output_shard_dim": str(output_shard_dim),
+        }
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input_tensor, expert_metadata, expert_mapping],
+            "tt.selective_reduce_combine",
+            [output_shape],
+            [input_tensor.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    if device.type == "cpu":
+        return torch.zeros(
+            [K, B, S, H] if output_shard_dim == 1 else [K, S, B, H],
+            dtype=input_tensor.dtype,
+            device=input_tensor.device,
+        )
+
+    raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@selective_reduce_combine.register_fake
+def selective_reduce_combine_fake(
+    input_tensor: torch.Tensor,
+    expert_metadata: torch.Tensor,
+    expert_mapping: torch.Tensor,
+    num_devices: int = 1,
+    cluster_axis: int = 0,
+    num_experts_per_tok: int = 2,
+    output_shard_dim: int = 2,
+) -> torch.Tensor:
+    K = num_experts_per_tok
+    if output_shard_dim == 1:
+        _, BD, S, H = input_tensor.shape
+        B = BD // num_devices
+        output_shape = [K, B, S, H]
+    else:
+        _, S, BD, H = input_tensor.shape
+        B = BD // num_devices
+        output_shape = [K, S, B, H]
+    return torch.zeros(
+        output_shape, dtype=input_tensor.dtype, device=input_tensor.device
+    )
 
 
 @torch.library.custom_op(

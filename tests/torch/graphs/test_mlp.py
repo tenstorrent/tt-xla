@@ -15,11 +15,12 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM
 from transformers.models.falcon.modeling_falcon import FalconMLP
 from transformers.models.gemma.modeling_gemma import GemmaMLP
+from transformers.models.gpt_oss.modeling_gpt_oss import GptOssMLP
 from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
-from tt_torch.sparse_mlp import A2aSparseMLP, enable_sparse_mlp
+from tt_torch.sparse_mlp import A2aSparseMLP, SparseMOEGPT, enable_sparse_mlp
 
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
@@ -552,6 +553,66 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         mlp,
         [hidden_states],
         comparison_config=comparison_config,
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+def test_enable_sparse_mlp_uses_sparse_moe_gpt():
+    class _Wrapper(torch.nn.Module):
+        def __init__(self, config):
+            super().__init__()
+            self.mlp = GptOssMLP(config).to(torch.bfloat16)
+
+    loader = GPTOSSModelLoader(variant=GPTOSSModelVariant.GPT_OSS_20B, num_layers=1)
+    config = loader.load_config()
+    wrapper = _Wrapper(config)
+
+    enable_sparse_mlp(wrapper, mesh=(2, 4), cluster_axis=0, config=config)
+
+    assert isinstance(wrapper.mlp, SparseMOEGPT)
+
+
+@pytest.mark.nightly
+@parametrize_arch(["llmbox"])
+def test_sparse_moe_gpt_decode_mlp(arch):
+    xr.set_device_type("TT")
+
+    loader = GPTOSSModelLoader(variant=GPTOSSModelVariant.GPT_OSS_20B, num_layers=1)
+    config = loader.load_config()
+
+    model = AutoModelForCausalLM.from_config(
+        config, trust_remote_code=True, torch_dtype=torch.bfloat16
+    )
+    model.eval()
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (2, num_devices // 2)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=config)
+    mlp = model.model.layers[0].mlp
+    assert isinstance(mlp, SparseMOEGPT)
+
+    # Decode takes the BD split path, so choose B such that B * dispatch_devices = 32.
+    hidden_states = torch.randn((16, 1, config.hidden_size), dtype=torch.bfloat16)
+
+    def get_shard_spec(mlp, args, kwargs):
+        shard_specs = {}
+        shard_specs[mlp.router.weight] = (None, "batch")
+        shard_specs[mlp.router.bias] = (None,)
+        shard_specs[mlp.experts.gate_up_proj] = (("batch", "model"), None, None)
+        shard_specs[mlp.experts.gate_up_proj_bias] = (("batch", "model"), None)
+        shard_specs[mlp.experts.down_proj] = (("batch", "model"), None, None)
+        shard_specs[mlp.experts.down_proj_bias] = (("batch", "model"), None)
+        return shard_specs
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        comparison_config=ComparisonConfig(),
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
