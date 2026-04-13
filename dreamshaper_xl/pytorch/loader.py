@@ -98,18 +98,17 @@ class ModelLoader(ForgeModel):
         return self.pipeline.unet
 
     def load_inputs(self, dtype_override=None):
-        """Load and return sample inputs for the DreamShaper XL model with this instance's variant settings.
+        """Load and return sample inputs for the DreamShaper XL UNet model.
 
         Args:
             dtype_override: Optional torch.dtype to override the model inputs' default dtype.
 
         Returns:
-            List : Input tensors that can be fed to the model:
-                - latent_model_input (torch.Tensor): Latent input for the UNet
-                - timestep (torch.Tensor): Timestep tensor
-                - prompt_embeds (torch.Tensor): Encoded prompt embeddings
-                - added_cond_kwargs (dict): Additional conditioning inputs (e.g., text/image embeddings,
-                  time IDs, or other auxiliary information required by the pipeline).
+            dict: Keyword arguments for the UNet forward method:
+                - sample (torch.Tensor): Latent input for the UNet
+                - timestep (torch.Tensor): Single timestep tensor
+                - encoder_hidden_states (torch.Tensor): Encoded prompt embeddings
+                - added_cond_kwargs (dict): Additional conditioning inputs
         """
         # Ensure pipeline is initialized
         if self.pipeline is None:
@@ -134,4 +133,9 @@ class ModelLoader(ForgeModel):
             timestep = timestep.to(dtype_override)
             prompt_embeds = prompt_embeds.to(dtype_override)
 
-        return [latent_model_input, timestep, prompt_embeds, added_cond_kwargs]
+        return {
+            "sample": latent_model_input,
+            "timestep": timestep,
+            "encoder_hidden_states": prompt_embeds,
+            "added_cond_kwargs": added_cond_kwargs,
+        }
