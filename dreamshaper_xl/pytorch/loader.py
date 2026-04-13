@@ -125,10 +125,13 @@ class ModelLoader(ForgeModel):
             add_time_ids,
         ) = stable_diffusion_preprocessing_xl(self.pipeline, self.prompt)
 
+        # Select only the first timestep for a single UNet forward pass
+        timestep = timesteps[0]
+
         # Apply dtype conversion if specified
         if dtype_override:
             latent_model_input = latent_model_input.to(dtype_override)
-            timesteps = timesteps.to(dtype_override)
+            timestep = timestep.to(dtype_override)
             prompt_embeds = prompt_embeds.to(dtype_override)
 
-        return [latent_model_input, timesteps, prompt_embeds, added_cond_kwargs]
+        return [latent_model_input, timestep, prompt_embeds, added_cond_kwargs]
