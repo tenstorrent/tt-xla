@@ -208,10 +208,12 @@ def get_env_vars(topology: str, script_dir: Path) -> Dict[str, str]:
     elif topo.hosts_list:
         env_vars["TT_DISTRIBUTED_HOSTS_LIST"] = topo.hosts_list
 
-    # TT_DISTRIBUTED_PLM_RSH_AGENT is only needed for container to container tests
+    # TT_DISTRIBUTED_PLM_RSH_AGENT is only needed for container to container tests.
+    # MPI's plm_ssh_agent requires an absolute path, so resolve() here regardless
+    # of whether script_dir was passed as relative or absolute.
     if topo.remote_script_name:
         env_vars["TT_DISTRIBUTED_PLM_RSH_AGENT"] = str(
-            script_dir / topo.remote_script_name
+            script_dir.resolve() / topo.remote_script_name
         )
 
     return env_vars
