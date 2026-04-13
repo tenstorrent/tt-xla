@@ -153,6 +153,114 @@ def test_encoder(
             json.dump(results, file, indent=2)
 
 
+def test_mpnet_all_base_v2(output_file, num_layers, request):
+    from third_party.tt_forge_models.mpnet.sentence_embedding_generation.pytorch.loader import (
+        ModelLoader,
+    )
+
+    data_format = "bfloat16"
+    input_sequence_length = 128
+
+    loader = create_model_loader(ModelLoader, num_layers=num_layers)
+    if num_layers is not None and loader is None:
+        pytest.fail(
+            "num_layers override requested but ModelLoader does not support it."
+        )
+    model_info_name = loader.get_model_info().name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    load_inputs_fn = get_default_inputs
+
+    tokenizer = loader.tokenizer
+    tokenizer.padding_side = "right"
+    preprocess_fn = lambda sentences, device: {
+        k: v.to(device)
+        for k, v in tokenizer(
+            sentences,
+            padding="max_length",
+            truncation=True,
+            max_length=input_sequence_length,
+            return_tensors="pt",
+        ).items()
+    }
+
+    output_processor_fn = lambda out, inputs: apply_mean_pooling(
+        out.last_hidden_state, inputs["attention_mask"]
+    )
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="mpnet_all_base_v2",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        num_layers=num_layers,
+        batch_size=1,
+        input_sequence_length=input_sequence_length,
+        loop_count=32,
+        optimization_level=1,
+    )
+
+
+def test_nomic_embed_text_v1_5(output_file, num_layers, request):
+    from third_party.tt_forge_models.nomic_embed.sentence_embedding_generation.pytorch.loader import (
+        ModelLoader,
+    )
+
+    data_format = "bfloat16"
+    input_sequence_length = 128
+
+    loader = create_model_loader(ModelLoader, num_layers=num_layers)
+    if num_layers is not None and loader is None:
+        pytest.fail(
+            "num_layers override requested but ModelLoader does not support it."
+        )
+    model_info_name = loader.get_model_info().name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    load_inputs_fn = get_default_inputs
+
+    tokenizer = loader.tokenizer
+    tokenizer.padding_side = "right"
+    preprocess_fn = lambda sentences, device: {
+        k: v.to(device)
+        for k, v in tokenizer(
+            sentences,
+            padding="max_length",
+            truncation=True,
+            max_length=input_sequence_length,
+            return_tensors="pt",
+        ).items()
+    }
+
+    output_processor_fn = lambda out, inputs: apply_mean_pooling(
+        out.last_hidden_state, inputs["attention_mask"]
+    )
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="nomic_embed_text_v1_5",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        num_layers=num_layers,
+        batch_size=1,
+        input_sequence_length=input_sequence_length,
+        loop_count=32,
+        optimization_level=1,
+    )
+
+
 def test_bert(output_file, num_layers, request):
     from third_party.tt_forge_models.bert.sentence_embedding_generation.pytorch.loader import (
         ModelLoader,

@@ -1252,8 +1252,19 @@ test_config:
   gpt2/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
 
+  gpt2/pytorch-Medium-single_device-inference:
+    status: EXPECTED_PASSING
+
   gpt2/pytorch-Sequence_Classification-single_device-inference:
     status: EXPECTED_PASSING
+
+  mpnet/sentence_embedding_generation/pytorch-sentence-transformers/all-mpnet-base-v2-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.99
+
+  nomic_embed/sentence_embedding_generation/pytorch-nomic-ai/nomic-embed-text-v1.5-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.99
 
   yolov9/pytorch-T-single_device-inference:
     required_pcc: 0.94
