@@ -92,14 +92,18 @@ The vLLM model uses vLLM's own `LlamaForCausalLM` which performs a **dynamic gat
 
 ## Benchmark Results (device sampling, greedy, batch=1)
 
-| Model | Trace | TTFT | Decode TPS | Speedup |
-|-------|-------|------|------------|---------|
-| OPT-125m | off | 18.1ms | 75.3 | — |
-| OPT-125m | **on** | 8.2ms | **160.8** | **2.14x** |
-| Llama-3.2-1B | off | 41.4ms | 28.0 | — |
-| Llama-3.2-1B | **on** | 23.9ms | **49.0** | **1.75x** |
-| Llama-3.1-8B | off | 82.6ms | 18.8 | — |
-| Llama-3.1-8B | **on** | — | **FAIL** | blocked |
+From `tests/benchmark/test_vllm_benchmarks.py::test_vllm_trace` (128 generated tokens, 1 warmup):
+
+| Model | Config | Trace | TTFT | Decode TPS | Speedup |
+|-------|--------|-------|------|------------|---------|
+| OPT-125m | const_eval=F, opt=0 | off | 17.2ms | 76.6 | — |
+| OPT-125m | const_eval=F, opt=0 | **on** | 8.1ms | **158.4** | **2.07x** |
+| Llama-3.2-1B | const_eval=F, opt=0 | off | 41.6ms | 28.1 | — |
+| Llama-3.2-1B | const_eval=F, opt=0 | **on** | 24.0ms | **48.7** | **1.73x** |
+| Llama-3.1-8B | const_eval=T, opt=1, bfp8 | off | 83.1ms | 18.8 | — |
+| Llama-3.1-8B | const_eval=T, opt=1, bfp8 | **on** | 74.8ms | **19.9** | **1.06x** |
+
+8B speedup is modest at batch=1 — the model is memory-bandwidth bound at this size, so reducing dispatch overhead via trace has less impact. Smaller models see the full 2x because they're dispatch-overhead bound.
 
 ### Interactive Server+Client Validation (OPT-125m)
 
@@ -110,22 +114,25 @@ Using `examples/vllm/OPT-125M/` server+client demo:
 | No trace | 73.2-73.3 tok/s | 27ms |
 | **Trace** | **157.0 tok/s** | 17ms |
 
-## TTRotaryEmbedding Fix
+## Fixes
 
-Added `TTRotaryEmbedding` override in `integrations/vllm_plugin/vllm_tt/overrides.py` that computes cos/sin from `inv_freq` using `torch.outer` + `cos`/`sin` (math ops, all on device) instead of vLLM's `cos_sin_cache.index_select(0, positions)` (gather → `ttir.embedding` → `from_device`).
+### TTRotaryEmbedding (overrides.py)
 
-This unblocks trace for Llama-3.2-1B (**1.75x decode speedup**).
+Added `TTRotaryEmbedding` override that computes cos/sin from `inv_freq` using `torch.outer` + `cos`/`sin` (math ops, all on device) instead of vLLM's `cos_sin_cache.index_select(0, positions)` (gather → `ttir.embedding` → `from_device`). Handles all `RotaryEmbedding` subclasses (e.g. `Llama3RotaryEmbedding`) via isinstance matching.
 
-## Llama-3.1-8B Trace Failure (remaining)
+### Skip gather_logprobs precompilation (model_runner.py)
 
-8B with `bfp_bf8` + `optimization_level=1` hits a second `from_device` on a different tensor:
-```
-%22 = "ttnn.from_device"(%arg1) : (tensor<1x1xsi32, ...>) is not on device.
-```
-This `1x1xsi32` is likely the token embedding gather (input_ids → vocab embedding), not RoPE. Same `ttir.embedding` pattern but for the vocab lookup. Needs further investigation.
+`_precompile_gather_logprobs()` is called unconditionally at startup but only used when users request logprobs in the API. The `gather_logprobs` graph uses `torch.gather` → `ttir.embedding` which fails with trace at `optimization_level=1` (same TTIR passes at opt=0 — a tt-mlir trace insertion pass inconsistency). Skipping precompilation when trace is enabled unblocks 8B production config.
+
+## Remaining Issues
+
+### gather_logprobs trace incompatibility at opt_level=1
+
+The `gather_logprobs` TTIR graph (83 ops) compiles with trace at opt_level=0 but fails at opt_level=1. The `from_device` on `%arg1` (`1x1xsi32`, the sampled token ID used in `logprobs.gather(-1, token_ids)`) ends up as a trace **input** at opt=0 but a trace **output** at opt=1. This is a tt-mlir trace insertion pass bug — should be filed upstream.
 
 ## Next Steps
 
-1. Investigate the 8B `1x1xsi32` `from_device` — determine which embedding/gather op it comes from and whether a similar override can fix it.
-2. Validate trace for Llama-3.2-1B at batch=32.
-3. Once 8B is unblocked, benchmark at production batch sizes.
+1. File tt-mlir issue for trace insertion pass inconsistency across optimization levels.
+2. Implement CPU fallback for `gather_logprobs` when trace is enabled (for users requesting logprobs).
+3. Benchmark trace at larger batch sizes for 8B where dispatch overhead is a bigger fraction.
+4. Add synthetic sampling params test with trace enabled to CI.
