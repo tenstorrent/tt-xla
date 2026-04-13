@@ -425,7 +425,7 @@ class LayerNorm(nn.Module):
 
     def forward(self, x: torch.Tensor):
         return F.layer_norm(
-            x.float(), (self.dim,), self.weight, self.bias, self.eps
+            x.float(), (self.dim,), self.weight.float(), self.bias.float(), self.eps
         ).type_as(x)
 
 
