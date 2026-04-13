@@ -40,6 +40,7 @@ env:
   GH_TOKEN: ${{ github.token }}
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
   TT_XLA_CI: 1
+  IN_CONTAINER_WORKSPACE: ${{ github.workspace }}
 
 jobs:
   run-multihost-tests:
@@ -132,8 +133,8 @@ jobs:
             fi
 
             DOCKER_CMD="$DOCKER_CMD \
-              -v ${{ github.workspace }}:/workspace \
-              -w /workspace \
+              -v ${{ github.workspace }}:${{ env.IN_CONTAINER_WORKSPACE }} \
+              -w ${{ env.IN_CONTAINER_WORKSPACE }} \
               ${{ inputs.docker_image }} \
               sleep infinity"
 
@@ -149,7 +150,7 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped chmod +x \
-          /workspace/tests/torch/multi_host/experimental/remote_docker.sh
+          ${{ env.IN_CONTAINER_WORKSPACE }}/tests/torch/multi_host/experimental/remote_docker.sh
         echo "remote_docker.sh is executable"
 
     - name: Download wheel artifact in controller container because dualt3k baremetal doesn't have gh
@@ -162,17 +163,17 @@ jobs:
             echo "Downloading from run: ${{ inputs.artifact_release_run_id }} name: ${{ steps.strings.outputs.wheel_artifact_name }}"
             gh run download ${{ inputs.artifact_release_run_id }} \
               --repo ${{ github.repository }} \
-              --dir /workspace/wheels \
+              --dir ${{ env.IN_CONTAINER_WORKSPACE }}/wheels \
               --name ${{ steps.strings.outputs.wheel_artifact_name }}
             echo "Downloaded wheel files:"
-            ls -la /workspace/wheels
+            ls -la ${{ env.IN_CONTAINER_WORKSPACE }}/wheels
           '
 
     - name: Install wheel in controller container
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
-          cd /workspace
+          cd ${{ env.IN_CONTAINER_WORKSPACE }}
           source venv/activate
 
           WHEEL_PATH=$(find wheels -name "*.whl" | head -n 1)
@@ -191,7 +192,7 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
-          cd /workspace
+          cd ${{ env.IN_CONTAINER_WORKSPACE }}
           source venv/activate
 
           export TTXLA_LOGGER_LEVEL=DEBUG
@@ -229,9 +230,9 @@ jobs:
       shell: bash
       run: |
         docker run --rm \
-          -v "${{ github.workspace }}:/workspace" \
+          -v "${{ github.workspace }}:${{ env.IN_CONTAINER_WORKSPACE }}" \
           ${{ inputs.docker_image }} \
-          chown -R "$(id -u):$(id -g)" /workspace || true
+          chown -R "$(id -u):$(id -g)" ${{ env.IN_CONTAINER_WORKSPACE }} || true
         echo "Workspace ownership restored"
 
     - name: Cleanup
