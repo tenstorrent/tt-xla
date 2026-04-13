@@ -1390,11 +1390,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
             # sure `sample_from_logits` does not modify the logits in-place.
-            logprobs = (
-                self.gather_logprobs(logits, selected_token_ids)
-                if sampling_metadata.logprobs
-                else None
-            )
+            if not sampling_metadata.logprobs:
+                logprobs = None
+            elif self.tt_config.enable_trace:
+                # TODO(#4387): remove once trace-insertion pass handles
+                # ttir.embedding on on-device indices. The on-device
+                # gather_logprobs graph fails trace at opt_level=1, so
+                # fall back to CPU — post-processing is cheap and only
+                # the sampled-token id + logits need to move to host.
+                logits_cpu = logits.cpu()
+                tokens_cpu = selected_token_ids.cpu()
+                logprobs = self.sampler.gather_logprobs(
+                    self.sampler.compute_logprobs(logits_cpu),
+                    self.model_config.max_logprobs,
+                    token_ids=tokens_cpu.squeeze(-1),
+                )
+            else:
+                logprobs = self.gather_logprobs(logits, selected_token_ids)
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
@@ -1920,7 +1932,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logger.warning(
                     "cpu_sampling=True: skipping device sampling precompilation"
                 )
-            self._precompile_gather_logprobs()
+            # TODO(#4387): precompile fails trace-insertion at opt_level=1;
+            # skip when trace is on. Paired with the CPU fallback at the
+            # runtime call site. Remove both once the compiler bug is fixed.
+            if not self.tt_config.enable_trace:
+                self._precompile_gather_logprobs()
 
     def profile_run(
         self,
