@@ -246,7 +246,7 @@ jobs:
           -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
           -v /mnt/dockercache:/mnt/dockercache \
           -v /etc/mpirun:/etc/mpirun:ro \
-          -v /etc/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
+          -v /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
           -e SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
           -v ${{ github.workspace }}:/workspace \
           -w /workspace \
