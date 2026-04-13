@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
-from infra import ComparisonConfig, RunMode
+import torch
+from infra import RunMode
 from utils import BringupStatus, Category, failed_ttmlir_compilation
 
 from third_party.tt_forge_models.whisper.pytorch import ModelLoader, ModelVariant
@@ -20,7 +21,10 @@ _FAILING_VARIANTS = [
     ModelVariant.WHISPER_LARGE,
 ]
 
-_NO_ASSERT_PCC_VARIANTS = [
+# whisper-large-v3 and large-v3-turbo have torch_dtype=float16 in their HuggingFace configs
+# (previously float32 in transformers 4.57.1), causing a PCC drop from >0.99 to ~0.53.
+# Smaller models still have float32 in config and are unaffected.
+_FLOAT16_CONFIG_VARIANTS = [
     ModelVariant.WHISPER_LARGE_V3,
     ModelVariant.WHISPER_LARGE_V3_TURBO,
 ]
@@ -74,10 +78,8 @@ def inference_tester(request) -> WhisperTester:
     """Fixture that returns a WhisperTester configured for each model variant."""
     variant, bringup_status = request.param
     request.node.bringup_status = bringup_status
-    comparison_config = ComparisonConfig()
-    if variant in _NO_ASSERT_PCC_VARIANTS:
-        comparison_config.pcc.disable()
-    return WhisperTester(variant, comparison_config=comparison_config)
+    dtype_override = torch.float32 if variant in _FLOAT16_CONFIG_VARIANTS else None
+    return WhisperTester(variant, dtype_override=dtype_override)
 
 
 # ----- Tests -----
