@@ -387,6 +387,8 @@ def benchmark_llm_torch_xla(
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
         "experimental_weight_dtype": experimental_weight_dtype,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
+        # "backend": "codegen_py",
+        # "export_tensors": True,
     }
     if fp32_dest_acc_en is not None:
         options["fp32_dest_acc_en"] = fp32_dest_acc_en

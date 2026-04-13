@@ -5,7 +5,8 @@ description: >
   Use this skill whenever a benchmark test reports a PCC drop or assertion failure,
   when the user mentions PCC issues, numerical divergence, precision problems with
   optimized models, or wants to find which TTNN op breaks accuracy. Also trigger when
-  the user mentions instrument_codegen, vanillify, or codegen PCC comparison.
+  the user mentions instrument_codegen, vanillify, codegen PCC comparison,
+  bfp_bf4, bfp_bf8, mixed precision weights, weight dtype PCC, or typecast precision.
   Covers the full workflow: generating codegen Python, running the instrumentation
   tool to compare vanilla vs optimized intermediate tensors, identifying the first
   bad op, and creating an isolated reproduction test.
@@ -25,6 +26,10 @@ operations -- any of which can introduce numerical divergence.
 - PCC regressed after a tt-mlir or tt-metal update
 - A new model has low PCC only at optimization_level > 0
 - You need to isolate which specific TTNN operation causes precision loss
+- PCC regressed after enabling mixed-precision weight dtypes (bfp_bf4)
+- A model has good PCC with all bfp_bf8 weights but bad PCC when some
+  layers use bfp_bf4 (via a `mixed_precision_configs` JSON)
+- You need to identify which specific bfp_bf4 layer causes precision loss
 
 ## High-level workflow
 
@@ -33,6 +38,13 @@ operations -- any of which can introduce numerical divergence.
 3. **Run `instrument_codegen.py auto`** to compare vanilla vs optimized per-op
 4. **Identify the first bad op** from the comparison summary
 5. **Create an isolated reproduction** for the offending op
+
+The tool supports two vanillification modes via `--mode`:
+
+| Mode | Baseline | Use when |
+|------|----------|----------|
+| `memory` (default) | DRAM interleaved, no program configs | PCC drops from L1/sharded memory layout |
+| `dtype` | All bfp_bf8 weights (bfp_bf4 promoted) | PCC drops from mixed-precision weight dtypes |
 
 ---
 
@@ -145,7 +157,7 @@ to pinpoint which operation introduces numerical divergence.
 
 ### What "vanillify" means
 
-The script creates a vanilla baseline by:
+In **memory mode** (default, `--mode memory`), the script creates a vanilla baseline by:
 - Converting ALL `ttnn.MemoryConfig(...)` to DRAM interleaved (removing L1/sharded configs)
 - Replacing matmul `program_config` with `None` (letting TTNN auto-select kernels)
 - Extracting `fused_activation` from program configs and moving it to the `activation=` kwarg
@@ -155,14 +167,31 @@ This vanilla version has the same graph structure but uses the safest memory
 configuration. If the vanilla version produces correct results but the optimized
 version doesn't, the divergence is caused by the optimizer's memory/layout decisions.
 
+In **dtype mode** (`--mode dtype`), the script creates a vanilla baseline by:
+- Replacing every `ttnn.DataType.BFLOAT4_B` with `ttnn.DataType.BFLOAT8_B` in
+  typecast calls, promoting all bfp_bf4 weights to the higher-precision bfp_bf8
+- Leaving memory configs and program configs unchanged
+
+This isolates PCC regressions caused by lower-precision weight conversions.
+If the model has good PCC with all bfp_bf8 weights but bad PCC with some
+layers on bfp_bf4, dtype mode reveals which specific bfp_bf4 conversions
+cause the most damage. Note that `--num-layers` should generally **not** be
+used with dtype mode, because different layers may have different dtype
+assignments in the mixed-precision config.
+
 ### The `auto` command (recommended)
 
 ```bash
+# Memory mode (default) — DRAM vs L1/sharded comparison
 python scripts/instrument_codegen.py auto modules/main.py
+
+# Dtype mode — bfp_bf8 vs bfp_bf4 weight precision comparison
+python scripts/instrument_codegen.py auto modules/main.py --mode dtype
 ```
 
 This runs three steps automatically:
-1. Creates `modules/main_vanilla.py` (DRAM interleaved baseline)
+1. Creates `modules/main_vanilla.py` (baseline depends on mode: DRAM interleaved
+   for memory mode, bfp_bf4→bfp_bf8 promotion for dtype mode)
 2. Runs vanilla version, monkey-patches every TTNN compute op to save intermediate
    tensors as `.tensorbin` files in `golden_tensors/`
 3. Runs the optimized `main.py` with the same monkey-patching, but instead of
@@ -205,8 +234,8 @@ If `auto` has issues (e.g. device reset between runs fails), run each step
 separately:
 
 ```bash
-# 1. Create vanilla version
-python scripts/instrument_codegen.py vanillify modules/main.py
+# 1. Create vanilla version (add --mode dtype for weight-precision mode)
+python scripts/instrument_codegen.py vanillify modules/main.py [--mode dtype]
 
 # 2. Run vanilla and dump golden tensors
 python scripts/instrument_codegen.py dump modules/main_vanilla.py --tensor-dir golden_tensors
@@ -235,6 +264,10 @@ Common culprits:
 - **`linear`** -- same as matmul (linear is matmul + bias under the hood)
 - **`softmax`/`rms_norm`/`layer_norm`** -- reduction ops can be sensitive to
   memory layout changes
+- **`typecast` to BFLOAT4_B** (dtype mode) -- lower-precision weight conversion
+  can lose significant information, especially for sensitive layers like router
+  weights or attention projections. The downstream `matmul`/`linear` consuming
+  the bfp_bf4 weight will also show degraded PCC
 
 Look at the memory_config and program_config arguments of the failing op in
 `main.py` vs what the vanilla version uses. The difference reveals what the
@@ -298,11 +331,63 @@ Default required PCC by model type (from benchmark tests):
 - Encoders: 0.97
 - Some models override lower (e.g. ResNet50, Swin at 0.90)
 
+## Advanced: CPU Golden Comparison (`--compare-cpu`)
+
+Compare each op's device output against its CPU golden reference (computed via
+the op's built-in `golden_function`). Works with tensor-parallel (multi-device)
+tensors.
+
+```bash
+# Add --compare-cpu to any command
+python scripts/instrument_codegen.py auto modules/main.py --mode dtype --compare-cpu
+
+# Standalone CPU golden comparison (no vanilla needed)
+python scripts/instrument_codegen.py compare-cpu modules/main.py
+```
+
+Output includes per-op CPU PCC alongside the vanilla-vs-optimized PCC:
+```
+  [matmul_0]  PCC=0.999998 OK  cpu=0.999995 OK
+  [sdpa_0]    PCC=0.651000 BAD <<<  cpu=0.998500 OK
+```
+
+This reveals whether an op diverges from CPU truth or just from the vanilla
+device execution. Useful when vanilla itself might have issues.
+
+## Advanced: Isolation Testing (`auto-isolate`)
+
+When comparing vanilla vs optimized, errors cascade -- once one op produces bad
+output, all downstream ops also show bad PCC. Isolation testing feeds each op
+with **golden inputs** (from the vanilla run) so each op's PCC contribution is
+measured independently.
+
+```bash
+# All-in-one
+python scripts/instrument_codegen.py auto-isolate modules/main.py --mode dtype
+
+# Step-by-step
+python scripts/instrument_codegen.py dump-inputs modules/main_vanilla.py
+python scripts/instrument_codegen.py isolate modules/main.py
+```
+
+Output shows each op's **isolated** PCC:
+```
+  [matmul_0]  isolated_pcc=0.999998 OK    (op is fine in isolation)
+  [sdpa_0]    isolated_pcc=0.999200 OK    (op is fine with golden inputs!)
+  [linear_3]  isolated_pcc=0.976000 WARN  (bfp4 weight causes some loss)
+```
+
+If an op shows bad PCC in `auto` but good PCC in `auto-isolate`, the error
+comes from upstream (its inputs were corrupted). If it shows bad PCC in both,
+the op itself introduces the error.
+
 ## Tips
 
-- **Use `--num-layers` for LLMs** to drastically reduce iteration time. A 1-2
-  layer model compiles and runs in seconds vs minutes for the full model, and
-  the same optimizer decisions apply to every layer.
+- **Use `--num-layers` for LLMs** (memory mode only) to drastically reduce
+  iteration time. A 1-2 layer model compiles and runs in seconds vs minutes
+  for the full model, and the same optimizer decisions apply to every layer.
+  **Do not** use `--num-layers` with `--mode dtype` since different layers
+  may have different dtype assignments in the mixed-precision config.
 - If the first bad op is a `to_memory_config`, the issue is likely in the shard
   spec or memory layout chosen by the optimizer, not in the compute op itself.
 - If multiple unrelated ops go bad simultaneously, the issue might be in a shared

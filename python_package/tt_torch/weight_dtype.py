@@ -141,10 +141,10 @@ def dump_weight_names(
     default_dtype: str = "bfp_bf8",
 ) -> dict:
     """
-    Generate a JSON template of all weight parameters in a model.
+    Generate a JSON template of all learnable parameters in a model.
 
-    Iterates model.named_modules() and collects modules that have a 'weight'
-    parameter. Users can edit the resulting dict/file to set per-layer dtypes,
+    Iterates model.named_parameters() to collect every learnable parameter.
+    Users can edit the resulting dict/file to set per-layer dtypes,
     then pass it to apply_weight_dtype_overrides().
 
     Args:
@@ -159,10 +159,8 @@ def dump_weight_names(
         Dict mapping full parameter paths to the default dtype string.
     """
     result = {}
-    for name, module in model.named_modules():
-        if hasattr(module, "weight") and isinstance(module.weight, torch.nn.Parameter):
-            key = f"{name}.weight" if name else "weight"
-            result[key] = default_dtype
+    for name, param in model.named_parameters():
+        result[name] = default_dtype
 
     if output_dir is not None:
         filename = model_name.split("/")[-1] + ".json"
