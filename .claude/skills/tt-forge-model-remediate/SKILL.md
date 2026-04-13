@@ -22,8 +22,8 @@ These scripts are located in a subdirectory of this skill.
 
 - `scripts/setup_venv.sh`: Sets up the proper environment.
 - `scripts/run.sh`: Activates environment and forwards all args to pytest.
-- `scripts/log_issue.sh`: Logs that the remediation failed given the test name
-  and a reason string.
+- `scripts/log_status.sh`: Logs that the remediation failed given the test name
+  and a status string.
 - `scripts/teardown_venv.sh`: Teardown the venv.
 - `scripts/activate`: Source the python virtual environment.
 
@@ -48,7 +48,7 @@ Example:
 
 If the model is too large to run in either of these configs, then we skip step 3
 and log as such using script:
-- `scripts/log_issue.sh $0 MODEL_TOO_LARGE`
+- `scripts/log_status.sh $0 MODEL_TOO_LARGE`
 
 ## Phase 3. Run the model & Diagnose and resolve all failures.
 
@@ -71,4 +71,7 @@ test.  In a loop let's:
 - Git commit the changes to checkpoint our progress with a short commit message.
   Describing the fix made for this single issue.
 - If the remediation fails after 20 attempts let's log the error and stop this
-  skill: `scripts/log_issue.sh $0 MAX_FAILED_ATTEMPTS`
+  skill: `scripts/log_status.sh $0 MAX_FAILED_ATTEMPTS`
+- Git push (potentially with `-u origin HEAD` if the remote branch doesn't yet
+  exist) all of the changes once it's done.
+- Finally, after the test passed log the status with: `scripts/log_status.sh $0 PASS`
