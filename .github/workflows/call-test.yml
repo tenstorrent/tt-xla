@@ -311,6 +311,27 @@ jobs:
         '
         echo "All multihost containers ready"
 
+    - name: SSH connectivity check to worker containers
+      if: ${{ matrix.build.multihost }}
+      shell: bash
+      run: |
+        docker exec ubuntu-host-mapped bash -c '
+          echo "=== SSH connectivity check ==="
+          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
+            --tag-output \
+            bash -c "
+              echo \"\$(hostname): hostname OK\"
+              if [ -f /.dockerenv ]; then
+                echo \"\$(hostname): /.dockerenv EXISTS (running inside container)\"
+              else
+                echo \"\$(hostname): /.dockerenv NOT FOUND (running on bare metal)\"
+              fi
+            "
+          echo "=== End SSH connectivity check ==="
+        '
+
     - name: Check for re-run attempt
       id: check-rerun-attempt
       shell: bash
