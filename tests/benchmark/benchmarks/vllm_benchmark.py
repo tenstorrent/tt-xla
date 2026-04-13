@@ -35,6 +35,10 @@ class VLLMBenchmarkConfig:
     top_p: float = 1.0
     repetition_penalty: float = 1.0
 
+    # Cap on max_num_batched_tokens to avoid compilation OOM at high batch*len.
+    # None = use batch_size * max_model_len (default vLLM behavior).
+    max_num_batched_tokens: Optional[int] = None
+
     # Benchmark params
     batch_size: int = 1
     max_tokens: int = 128
@@ -52,7 +56,7 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
         "model": config.model,
         "max_model_len": config.max_model_len,
         "max_num_seqs": config.batch_size,
-        "max_num_batched_tokens": config.batch_size * config.max_model_len,
+        "max_num_batched_tokens": config.max_num_batched_tokens or (config.batch_size * config.max_model_len),
         "gpu_memory_utilization": config.gpu_memory_utilization,
         "disable_log_stats": False,
         "additional_config": additional_config,

@@ -264,10 +264,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.sliding_window = model_config.get_sliding_window()
         self.block_size = cache_config.block_size
         self.max_model_len = model_config.max_model_len
+        # Only require max_num_batched_tokens >= max_model_len (not * max_num_seqs).
+        # On TT hardware, compiling graphs for batch*len tokens OOMs at high batch
+        # sizes (e.g. 32*4096=131K). Capping max_num_batched_tokens to max_model_len
+        # keeps compilation feasible; vLLM's chunked prefill handles the overflow by
+        # splitting large batches across multiple prefill iterations.
         assert (
-            self.max_model_len * scheduler_config.max_num_seqs
+            self.max_model_len
             <= scheduler_config.max_num_batched_tokens
-        ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}) * max_num_seqs ({scheduler_config.max_num_seqs})"
+        ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}). Chunked prefill handles batch*len overflow."
         self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
         self.num_blocks_per_most_len_req = (
