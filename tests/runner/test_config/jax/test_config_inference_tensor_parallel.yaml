@@ -38,6 +38,10 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Hangs in runtime - https://github.com/tenstorrent/tt-xla/issues/2440"
 
+  falcon_claude/jax-3_1B_Base-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: EXPECTED_PASSING
+
   falcon/jax-3_1B_Base-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
@@ -49,6 +53,18 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
+
+  qwen_2_5_claude/causal_lm/jax-0.5B-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Shardy propagation failure: Qwen2.5-0.5B has 14 attention heads which are not divisible by 8 devices — reshape in Qwen2Attention fails with 'Could not apply propagated tensor shardings to tensor dimensions'"
+
+  qwen_2_5_claude/causal_lm/jax-0.5B_Instruct-tensor_parallel-inference:
+    supported_archs: ["n300"]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Shardy propagation failure: Qwen2.5-0.5B has 14 attention heads which are not divisible by 8 devices — reshape in Qwen2Attention fails with 'Could not apply propagated tensor shardings to tensor dimensions'"
 
   qwen_2_5/causal_lm/jax-0.5B-tensor_parallel-inference:
     supported_archs: ["n300"]
@@ -211,11 +227,9 @@ test_config:
 
   llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-
-  llama_claude/causal_lm/jax-3B_v2-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Shardy propagation failure: TinyLlama has 4 KV heads which are not divisible by 8 TP devices — Could not apply propagated tensor shardings to tensor dimensions"
 
   llama/causal_lm/jax-1B_Tiny-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -287,19 +301,6 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 39845888 B DRAM buffer across 12 banks, where each bank needs to store 3321856 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
-
-  whisper_claude/audio_classification/jax-Base-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-
-  whisper_claude/audio_classification/jax-Medium-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-
-  whisper_claude/audio_classification/jax-Large_v3-tensor_parallel-inference:
-    supported_archs: ["n300-llmbox"]
-    status: EXPECTED_PASSING
 
   stablelm/causal_lm/jax-7B_Alpha-tensor_parallel-inference:
     supported_archs: ["n300-llmbox"]

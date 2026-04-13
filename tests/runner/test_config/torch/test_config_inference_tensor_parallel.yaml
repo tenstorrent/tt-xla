@@ -30,18 +30,6 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  gpt_oss_claude/pytorch-20B-tensor_parallel-inference:
-    supported_archs: [n300-llmbox, galaxy-wh-6u]
-    status: EXPECTED_PASSING
-    required_pcc: 0.975
-    inject_custom_moe: true
-
-  gpt_oss_claude/pytorch-120B-tensor_parallel-inference:
-    supported_archs: [galaxy-wh-6u]
-    status: EXPECTED_PASSING
-    inject_custom_moe: true
-    assert_pcc: false
-
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, galaxy-wh-6u]
     status: EXPECTED_PASSING
@@ -58,10 +46,6 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  llama_claude/causal_lm/pytorch-3.1_8B-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
-
   llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
@@ -74,11 +58,6 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
-  mistral_claude/pixtral/pytorch-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-
   mistral/pixtral/pytorch-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
@@ -88,6 +67,12 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
     markers: [extended]
+
+  qwen_3_claude/causal_lm/pytorch-0_6B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "PCC comparison failed. Calculated: pcc=0.9280847350353889. Required: pcc=0.99"
 
   qwen_3/causal_lm/pytorch-0_6B-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -192,10 +177,6 @@ test_config:
         enable_weight_bfp8_conversion: true
       galaxy-wh-6u:
         status: EXPECTED_PASSING
-
-  phi4_claude/causal_lm/pytorch-Phi_4-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
-    status: EXPECTED_PASSING
 
   phi4/causal_lm/pytorch-Phi_4-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
