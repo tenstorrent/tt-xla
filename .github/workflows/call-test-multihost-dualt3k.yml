@@ -40,7 +40,7 @@ env:
   GH_TOKEN: ${{ github.token }}
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
   TT_XLA_CI: 1
-  IN_CONTAINER_WORKSPACE: ${{ github.workspace }}
+  IN_CONTAINER_WORKSPACE: /__w/tt-xla/tt-xla
 
 jobs:
   run-multihost-tests:
