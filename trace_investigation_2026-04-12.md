@@ -90,16 +90,18 @@ The vLLM model uses vLLM's own `LlamaForCausalLM` which performs a **dynamic gat
 - `/tmp/llama1b_benchmark_trace/` — 4 TTNN graphs from benchmark with trace (all pass)
 - `test_llama_1b_benchmark_trace_debug.log` — benchmark debug log (6381 lines)
 
-## OPT-125M vLLM Results (device sampling, greedy, batch=1)
+## Benchmark Results (device sampling, greedy, batch=1)
 
-### Benchmark
+| Model | Trace | TTFT | Decode TPS | Speedup |
+|-------|-------|------|------------|---------|
+| OPT-125m | off | 18.1ms | 75.3 | — |
+| OPT-125m | **on** | 8.2ms | **160.8** | **2.14x** |
+| Llama-3.2-1B | off | 41.4ms | 28.0 | — |
+| Llama-3.2-1B | **on** | 23.9ms | **49.0** | **1.75x** |
+| Llama-3.1-8B | off | 82.6ms | 18.8 | — |
+| Llama-3.1-8B | **on** | — | **FAIL** | blocked |
 
-| Config | TTFT | Decode TPS | Speedup |
-|--------|------|------------|---------|
-| Greedy, no trace | 16.8ms | 75.6 | baseline |
-| Greedy, **trace** | 8.0ms | **158.3** | **2.09x** |
-
-### Interactive Server+Client Validation
+### Interactive Server+Client Validation (OPT-125m)
 
 Using `examples/vllm/OPT-125M/` server+client demo:
 
@@ -108,15 +110,22 @@ Using `examples/vllm/OPT-125M/` server+client demo:
 | No trace | 73.2-73.3 tok/s | 27ms |
 | **Trace** | **157.0 tok/s** | 17ms |
 
-**2.14x decode speedup** confirmed end-to-end through the vLLM serving stack.
+## TTRotaryEmbedding Fix
+
+Added `TTRotaryEmbedding` override in `integrations/vllm_plugin/vllm_tt/overrides.py` that computes cos/sin from `inv_freq` using `torch.outer` + `cos`/`sin` (math ops, all on device) instead of vLLM's `cos_sin_cache.index_select(0, positions)` (gather → `ttir.embedding` → `from_device`).
+
+This unblocks trace for Llama-3.2-1B (**1.75x decode speedup**).
+
+## Llama-3.1-8B Trace Failure (remaining)
+
+8B with `bfp_bf8` + `optimization_level=1` hits a second `from_device` on a different tensor:
+```
+%22 = "ttnn.from_device"(%arg1) : (tensor<1x1xsi32, ...>) is not on device.
+```
+This `1x1xsi32` is likely the token embedding gather (input_ids → vocab embedding), not RoPE. Same `ttir.embedding` pattern but for the vocab lookup. Needs further investigation.
 
 ## Next Steps
 
-1. **Investigate vLLM's RoPE path**: The fix is to change how vLLM's Llama model computes rotary embeddings so position_ids don't need `from_device` during the traced graph. Options:
-   - Pre-compute cos/sin embeddings before the traced graph (like the benchmark does)
-   - Make the gather work entirely on-device (avoid host-side indexing)
-   - Restructure the model_runner to separate RoPE pre-computation from the main forward
-
-2. **Investigate why the TTNN lowering inserts `from_device` for the gather**: The TTIR graph has a `ttir.gather` on position_ids without `from_device`. The `from_device` is introduced during TTIR→TTNN lowering. Understanding why the gather lowering requires host-side position_ids may reveal a compiler fix.
-
-3. **Test with vLLM's `LlamaForCausalLM` directly** to isolate whether the issue is in the model definition or the vLLM runtime's graph construction.
+1. Investigate the 8B `1x1xsi32` `from_device` — determine which embedding/gather op it comes from and whether a similar override can fix it.
+2. Validate trace for Llama-3.2-1B at batch=32.
+3. Once 8B is unblocked, benchmark at production batch sizes.
