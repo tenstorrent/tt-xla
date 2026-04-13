@@ -2144,7 +2144,7 @@ test_config:
   sam/pytorch-Vit_Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  deepseek/qwen/pytorch-single_device-inference:
+  deepseek/qwen/pytorch-32B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
     markers: [large]
