@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <numeric>
 
 // POSIX includes
@@ -58,10 +59,13 @@
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
+#include "ttmlir/Dialect/TTMetal/Pipelines/TTMetalPipelines.h"
+#include "ttmlir/Dialect/TTMetal/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/Python/PythonEmitter.h"
+#include "ttmlir/Target/TTMetal/TTMetalToFlatbuffer.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
 // tt-xla includes
@@ -220,8 +224,18 @@ ModuleBuilder::ModuleBuilder()
   mlir::func::registerAllExtensions(registry);
   mlir::tt::registerAllExtensions(registry);
 
-  mlir::tt::ttir::registerPasses();
-  mlir::tt::ttnn::registerPasses();
+  // MLIR pass and pipeline registries are process-global. In particular,
+  // mlir::PassPipelineRegistration calls llvm::report_fatal_error on a
+  // duplicate name, which would crash the second ModuleBuilder constructed
+  // in the same process (e.g. when several ClientInstances are created in
+  // unit tests). Register exactly once.
+  static std::once_flag pass_registration_flag;
+  std::call_once(pass_registration_flag, []() {
+    mlir::tt::ttir::registerPasses();
+    mlir::tt::ttnn::registerPasses();
+    mlir::tt::ttmetal::registerPasses();
+    mlir::tt::ttmetal::registerTTMetalPipelines();
+  });
 
   // We need to allow unregistered dialects since shardy uses specific mhlo
   // dialect attributes, which are not registered in the context and live in the
@@ -243,6 +257,25 @@ ModuleBuilder::buildModule(
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   auto compile_options = CompileOptions::parse(compile_options_map);
+
+  // Verify that the client was created with a device runtime compatible with
+  // the requested compile backend. The runtime is fixed at client creation
+  // (see `onClientCreate`) because tt-runtime objects are tagged with their
+  // associated runtime and cannot cross runtimes. A mismatch here would lead
+  // to a runtime assertion during execute, so fail fast with a clear message.
+  const tt::runtime::DeviceRuntime required_runtime =
+      compile_options.backend == BackendRuntime::TTMetalFlatbuffer
+          ? tt::runtime::DeviceRuntime::TTMetal
+          : tt::runtime::DeviceRuntime::TTNN;
+  if (tt::runtime::getCurrentDeviceRuntime() != required_runtime) {
+    LOG_F(ERROR,
+          "Compile backend requires a different device runtime than the one "
+          "the client was created with. Pass the matching 'backend' value to "
+          "PJRT_Client_Create (e.g. torch_plugin_tt.set_backend(\"ttmetal\") "
+          "before `xm.xla_device()`) so the runtime is selected before any "
+          "buffers are allocated.");
+    return {tt_pjrt_status::kInvalidArgument, nullptr};
+  }
 
   // Construct full name: {model_name}_g{N}
   // e.g., 1lyr_phi1_bs32_g0
@@ -372,14 +405,6 @@ ModuleBuilder::buildModule(
   collectMemoryKinds(num_arguments.num_outputs, output_memory_kinds,
                      output_memory_kinds_sizes);
 
-  std::string ttnn_mlir;
-  status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
-                                 compile_options, client_instance, mesh_shape,
-                                 ttnn_mlir);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
-  }
-
   // tt-xla creates 1D mesh by default, so if compiler determines a different
   // mesh shape, we need to update the mesh in the client instance to match the
   // compiler determined mesh shape.
@@ -391,6 +416,32 @@ ModuleBuilder::buildModule(
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
+
+  if (compile_options.backend == BackendRuntime::TTMetalFlatbuffer) {
+    std::string ttmetal_mlir;
+    status =
+        convertFromTTIRToTTMetal(system_descriptor_path, mlir_module,
+                                 compile_options, mesh_shape, ttmetal_mlir);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+
+    return buildModuleForTTMetalRuntime(
+        mlir_module, std::move(original_mlir_code), std::move(ttir_mlir),
+        std::move(ttmetal_mlir), std::move(executable_name),
+        std::move(num_arguments), num_devices_result, mesh_shape,
+        input_shardings, output_shardings, output_types,
+        std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
+        std::move(optimized_mlir_code), std::move(compile_options));
+  }
+
+  std::string ttnn_mlir;
+  status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
+                                 compile_options, client_instance, mesh_shape,
+                                 ttnn_mlir);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
 
   if (compile_options.backend == BackendRuntime::TTNNFlatbuffer) {
     return buildModuleForTTNNRuntime(
@@ -1120,6 +1171,58 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   return tt_pjrt_status::kSuccess;
 }
 
+tt_pjrt_status ModuleBuilder::convertFromTTIRToTTMetal(
+    const std::string &system_descriptor_path,
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const CompileOptions &compile_options,
+    std::vector<std::uint32_t> devices_mesh_shape, std::string &ttmetal_mlir) {
+  mlir::PassManager ttir_to_ttmetal_pm(mlir_module.get()->getName());
+
+  mlir::tt::ttmetal::TTIRToTTMetalPipelineOptions options;
+  options.systemDescPath = system_descriptor_path.data();
+
+  if (devices_mesh_shape.size() != 2) {
+    LOG_F(ERROR,
+          "Invalid mesh shape size: %zu. Shape must have two dimensions!",
+          devices_mesh_shape.size());
+    return tt_pjrt_status::kInternal;
+  }
+
+  options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
+
+  mlir::tt::ttmetal::createTTIRToTTMetalPipeline(ttir_to_ttmetal_pm, options);
+
+  enableVerboseIRPrinting(ttir_to_ttmetal_pm);
+
+  if (mlir::failed(ttir_to_ttmetal_pm.run(mlir_module.get()))) {
+    LOG_F(ERROR, "Failed to convert from TTIR to TTMetal module");
+    return tt_pjrt_status::kInternal;
+  }
+
+  ttmetal_mlir = getMlirCode(mlir_module);
+
+  printModule(mlir_module, compile_options.export_path, "ttmetal",
+              compile_options.export_model_name);
+
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status ModuleBuilder::createTTMetalFlatbufferBinary(
+    const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
+    tt::runtime::Binary &flatbuffer_binary) {
+  flatbuffer_binary =
+      mlir::tt::ttmetal::translateTTMetalToFlatbuffer(mlir_module.get());
+
+  tt_pjrt_status status = verifyCreatedFlatbufferBinary(
+      flatbuffer_binary, input_shardings, output_shardings);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return status;
+  }
+  return tt_pjrt_status::kSuccess;
+}
+
 tt_pjrt_status ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
@@ -1343,6 +1446,53 @@ ModuleBuilder::buildModuleForTTNNRuntime(
   auto executable_image = FlatbufferExecutableImage::createInstance(
       flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
       std::move(ttnn_mlir), std::move(executable_name),
+      num_arguments.num_inputs, num_arguments.num_outputs,
+      std::move(num_arguments.output_dimensions),
+      std::move(num_arguments.output_ranks),
+      std::move(num_arguments.output_dimensions_flat),
+      num_devices_result.num_partitions, num_devices_result.num_replicas,
+      num_devices_result.num_devices_to_utilize, mesh_shape, input_shardings,
+      output_shardings, output_types, std::move(output_memory_kinds),
+      std::move(output_memory_kinds_sizes), std::move(optimized_mlir_code),
+      std::move(compile_options));
+  return {tt_pjrt_status::kSuccess, executable_image};
+}
+
+std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
+ModuleBuilder::buildModuleForTTMetalRuntime(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    std::string &&original_mlir_code, std::string &&ttir_mlir,
+    std::string &&ttmetal_mlir, std::string &&executable_name,
+    NumArgumentsResult &&num_arguments,
+    const NumDevicesResult &num_devices_result,
+    const std::vector<std::uint32_t> &mesh_shape,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
+    const std::vector<PJRT_Buffer_Type> &output_types,
+    std::vector<const char *> &&output_memory_kinds,
+    std::vector<size_t> &&output_memory_kinds_sizes,
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
+  tt::runtime::Binary flatbuffer(nullptr);
+  tt_pjrt_status status = createTTMetalFlatbufferBinary(
+      mlir_module, input_shardings, output_shardings, flatbuffer);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  if (compile_options.export_path.has_value()) {
+    std::string sanitized_model_name =
+        sanitizeForFilename(compile_options.export_model_name);
+    std::string suffix =
+        sanitized_model_name.empty() ? "" : "_" + sanitized_model_name;
+    std::string filename = "fb" + suffix + "_" + getCurrentTimeStamp() + ".ttm";
+    std::filesystem::path output_path =
+        std::filesystem::path(compile_options.export_path.value()) / filename;
+    flatbuffer.store(output_path.string().c_str());
+  }
+
+  auto executable_image = FlatbufferExecutableImage::createInstance(
+      flatbuffer, std::move(original_mlir_code), std::move(ttir_mlir),
+      std::move(ttmetal_mlir), std::move(executable_name),
       num_arguments.num_inputs, num_arguments.num_outputs,
       std::move(num_arguments.output_dimensions),
       std::move(num_arguments.output_ranks),
