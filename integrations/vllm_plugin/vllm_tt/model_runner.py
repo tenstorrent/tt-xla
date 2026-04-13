@@ -1654,6 +1654,33 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
                 _original_snapshot_download = _wu.snapshot_download
 
+                # When using Mxfp4Config(dequantize=True), the model has
+                # no quantization-scale parameters but the checkpoint may
+                # still contain them (e.g. weight_scale_inv for fp8).
+                # Filter them out so load_weights doesn't KeyError.
+                _QUANT_SCALE_SUFFIXES = (
+                    "weight_scale_inv",
+                    "weight_scale",
+                    "input_scale",
+                )
+                from .quantization import Mxfp4Config as _TTMxfp4Config
+
+                _dequant_active = (
+                    isinstance(self.vllm_config.quant_config, _TTMxfp4Config)
+                    and self.vllm_config.quant_config.dequantize
+                )
+
+                if _dequant_active:
+                    _orig_get_all = model_loader.get_all_weights
+
+                    def _skip_quant_scales(model_config, model):
+                        for name, tensor in _orig_get_all(model_config, model):
+                            if name.endswith(_QUANT_SCALE_SUFFIXES):
+                                continue
+                            yield name, tensor
+
+                    model_loader.get_all_weights = _skip_quant_scales
+
                 # If layer override is active, patch the weight loading process
                 if (
                     self._original_num_layers is not None

@@ -245,14 +245,27 @@ class TTPlatform(Platform):
             model_config.dtype = torch.bfloat16
 
         if model_config is not None and model_config.quantization is not None:
-            logger.warning(
-                "TT does not support quantization (%s); disabling. "
-                "Weights will be loaded and computed in bfloat16.",
+            from .quantization import Mxfp4Config
+
+            logger.info(
+                "TT does not support native %s; overriding with "
+                "Mxfp4Config(dequantize=True) so weights are dequantized "
+                "to bfloat16 during loading.",
                 model_config.quantization,
             )
-            model_config.quantization = None
+            # Tell vllm the method is "mxfp4" so the quant-aware weight
+            # loading path is used (strict weight checks are skipped for
+            # quantized models).
+            model_config.quantization = "mxfp4"
+            # Clear the HF quantization_config so get_quant_config()
+            # doesn't try to interpret the original fp8 config dict as
+            # mxfp4 settings.
             if hasattr(model_config.model_arch_config, "quantization_config"):
                 model_config.model_arch_config.quantization_config = None
+            # Set the quant_config directly on vllm_config.  Because
+            # VllmConfig.__init__ only auto-resolves quant_config when it
+            # is None, this pre-set value is preserved.
+            vllm_config.quant_config = Mxfp4Config(dequantize=True)
 
         from .attention import TTAttentionBackend
 
