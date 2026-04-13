@@ -62,7 +62,7 @@ on:
         description: 'Run ID of a previous workflow that already contains the tt-xla wheel artifact(s). When provided, the build steps are skipped and the wheel is sourced from that run.'
         required: false
         type: string
-        default: ''
+        default: '24346936850'
 
 permissions:
   actions: write
