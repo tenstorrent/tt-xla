@@ -55,6 +55,7 @@ env:
   TT_XLA_CI: 1
   TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
   TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE: "/opt/tt-triage-venv/bin/python -vvv /opt/tt-triage/tools/tt-triage.py 1>&2"
+  IN_CONTAINER_WORKSPACE: ${{ github.workspace }}
 
 jobs:
   generate-matrix-test:
@@ -248,7 +249,7 @@ jobs:
         echo "Docker socket: $(ls -la /var/run/docker.sock 2>/dev/null || echo 'not found')"
         echo "Docker info (server):"
         docker info --format '{{.OperatingSystem}} | Storage: {{.Driver}} | Root: {{.DockerRootDir}}' 2>/dev/null || echo "docker info failed"
-        echo "Host mount mapping: ${{ github.workspace }} -> /workspace (inside sibling container)"
+        echo "Host mount mapping: ${{ github.workspace }} -> ${{ env.IN_CONTAINER_WORKSPACE }} (inside sibling container)"
         echo "Venv bin/activate VIRTUAL_ENV will be:"
         grep -o 'VIRTUAL_ENV="[^"]*"' ${{ github.workspace }}/venv/bin/activate 2>/dev/null || echo "  (venv not yet created)"
         echo "=== End container topology diagnostics ==="
@@ -267,8 +268,8 @@ jobs:
           -v /etc/mpirun:/etc/mpirun:ro \
           -v /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
           -e SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
-          -v ${{ github.workspace }}:/workspace \
-          -w /workspace \
+          -v ${{ github.workspace }}:${{ env.IN_CONTAINER_WORKSPACE }} \
+          -w ${{ env.IN_CONTAINER_WORKSPACE }} \
           "$DOCKER_IMAGE" sleep infinity
         echo "Controller container started"
         echo "=== SSH agent check in controller container ==="
@@ -308,8 +309,8 @@ jobs:
                   -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
                   -v /mnt/dockercache:/mnt/dockercache \
                   -v /etc/mpirun:/etc/mpirun:ro \
-                  -v $WORKSPACE_PATH:/workspace \
-                  -w /workspace \
+                  -v $WORKSPACE_PATH:$WORKSPACE_PATH \
+                  -w $WORKSPACE_PATH \
                   $DOCKER_IMAGE sleep infinity
                 echo \"\$(hostname): Container started\"
               fi
@@ -343,11 +344,11 @@ jobs:
           echo "=== End SSH connectivity check (via ssh) ==="
 
           echo "=== SSH connectivity check (via remote_docker.sh) ==="
-          ls -la /workspace/tests/torch/multi_host/experimental/remote_docker.sh
-          chmod +x /workspace/tests/torch/multi_host/experimental/remote_docker.sh
+          ls -la ${{ env.IN_CONTAINER_WORKSPACE }}/tests/torch/multi_host/experimental/remote_docker.sh
+          chmod +x ${{ env.IN_CONTAINER_WORKSPACE }}/tests/torch/multi_host/experimental/remote_docker.sh
           mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
-            --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh \
+            --mca plm_rsh_agent ${{ env.IN_CONTAINER_WORKSPACE }}/tests/torch/multi_host/experimental/remote_docker.sh \
             --tag-output \
             bash -c "
               echo \"\$(hostname): hostname OK\"
@@ -536,7 +537,7 @@ jobs:
           -e ENABLE_BRINGUP_STAGE_LOGGING=1 \
           -e FULL_PYTEST_CMD="${{ env.FULL_PYTEST_CMD }}" \
           ubuntu-host-mapped bash -c '
-            cd /workspace
+            cd ${{ env.IN_CONTAINER_WORKSPACE }}
             source venv/activate
 
             export TTXLA_LOGGER_LEVEL=DEBUG
@@ -561,17 +562,17 @@ jobs:
             echo "=== Setting up multihost topology: $TOPOLOGY ==="
 
             # Use explicit python3 path from venv
-            PYTHON=/workspace/venv/bin/python3
+            PYTHON=${{ env.IN_CONTAINER_WORKSPACE }}/venv/bin/python3
 
             # Diagnostics: show python environment
             echo "=== Python environment diagnostics ==="
             echo "Current directory: $(pwd)"
             echo "Workspace contents:"
-            ls -la /workspace | head -20
+            ls -la ${{ env.IN_CONTAINER_WORKSPACE }} | head -20
             echo ""
             echo "Venv directory check:"
-            ls -la /workspace/venv || echo "venv directory not found!"
-            ls -la /workspace/venv/bin || echo "venv/bin not found!"
+            ls -la ${{ env.IN_CONTAINER_WORKSPACE }}/venv || echo "venv directory not found!"
+            ls -la ${{ env.IN_CONTAINER_WORKSPACE }}/venv/bin || echo "venv/bin not found!"
             echo ""
             which python || echo "python not found"
             which python3 || echo "python3 not found"
@@ -589,7 +590,7 @@ jobs:
             $PYTHON -m pip show pjrt-plugin-tt || echo "WARNING: pjrt-plugin-tt not found in venv"
             echo ""
             echo "=== Rank binding config diagnostics ==="
-            PJRT_DIR=/workspace/venv/lib/python3.12/site-packages/pjrt_plugin_tt
+            PJRT_DIR=${{ env.IN_CONTAINER_WORKSPACE }}/venv/lib/python3.12/site-packages/pjrt_plugin_tt
             echo "PJRT plugin directory: $PJRT_DIR"
             ls -la $PJRT_DIR || echo "PJRT_DIR not found"
             echo ""
@@ -692,9 +693,9 @@ jobs:
       run: |
         DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
         docker run --rm \
-          -v "${{ github.workspace }}:/workspace" \
+          -v "${{ github.workspace }}:${{ env.IN_CONTAINER_WORKSPACE }}" \
           "$DOCKER_IMAGE" \
-          chown -R "$(id -u):$(id -g)" /workspace || true
+          chown -R "$(id -u):$(id -g)" ${{ env.IN_CONTAINER_WORKSPACE }} || true
         echo "Workspace ownership restored"
 
     - name: Teardown multihost controller container
