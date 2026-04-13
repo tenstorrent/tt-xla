@@ -107,30 +107,36 @@ std::optional<tt::runtime::Device>
 LoadedExecutableInstance::getOrCreateMeshDevice(
     PJRT_Buffer *const *const *argument_lists, size_t num_args,
     size_t num_devices, PJRT_Device *pjrt_device) {
-  std::unordered_set<int> device_ids =
-      getDeviceIds(argument_lists, num_args, num_devices);
-
   const std::vector<std::uint32_t> &devices_mesh_shape =
       m_executable_image->getDevicesMeshShape();
   size_t mesh_shape_num_devices = static_cast<size_t>(
       std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
                       std::multiplies<std::uint32_t>{}));
 
-  if (device_ids.size() != mesh_shape_num_devices) {
-    LOG_F(ERROR,
-          "Input buffers are placed on a different number of devices (%zu) "
-          "than in the mesh shape estimated by the compiler (%zu)",
-          device_ids.size(), mesh_shape_num_devices);
-    return std::nullopt;
-  }
+  // For zero-argument modules (e.g., constant subgraphs), there are no input
+  // buffers to infer device placement from. Skip the device count validation
+  // and use the compiler-determined mesh shape directly.
+  if (num_args > 0) {
+    std::unordered_set<int> device_ids =
+        getDeviceIds(argument_lists, num_args, num_devices);
 
-  DeviceInstance *device_instance = DeviceInstance::unwrap(pjrt_device);
-  if (device_instance &&
-      !(device_ids.size() == 1 &&
-        *device_ids.begin() == device_instance->getGlobalDeviceId())) {
-    LOG_F(ERROR, "Input buffers are placed on a different device than the one "
-                 "specified in the execute_device argument");
-    return std::nullopt;
+    if (device_ids.size() != mesh_shape_num_devices) {
+      LOG_F(ERROR,
+            "Input buffers are placed on a different number of devices (%zu) "
+            "than in the mesh shape estimated by the compiler (%zu)",
+            device_ids.size(), mesh_shape_num_devices);
+      return std::nullopt;
+    }
+
+    DeviceInstance *device_instance = DeviceInstance::unwrap(pjrt_device);
+    if (device_instance &&
+        !(device_ids.size() == 1 &&
+          *device_ids.begin() == device_instance->getGlobalDeviceId())) {
+      LOG_F(ERROR,
+            "Input buffers are placed on a different device than the one "
+            "specified in the execute_device argument");
+      return std::nullopt;
+    }
   }
 
   // TODO(mrakita): Currently runtime doesn't allow us to open specific devices

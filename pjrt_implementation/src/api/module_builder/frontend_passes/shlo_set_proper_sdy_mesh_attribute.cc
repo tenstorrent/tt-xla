@@ -21,9 +21,7 @@ namespace tt::pjrt::module_builder::frontend_passes {
 tt_pjrt_status setProperSdyMeshAttributeInSpmdMode(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
-  if (!internal::isSpmdMode(mlir_module)) {
-    return tt_pjrt_status::kSuccess;
-  }
+  bool is_spmd = internal::isSpmdMode(mlir_module);
 
   auto shardy_op = ModuleBuilder::getFirstShardyMeshOp(mlir_module);
   if (shardy_op.has_value()) {
@@ -39,17 +37,19 @@ tt_pjrt_status setProperSdyMeshAttributeInSpmdMode(
 
     // If a mesh is already open and number of axes of opened mesh matches with
     // the mesh op in the current graph, reuse its shape to avoid closing and
-    // reopening. Otherwise, fall back to a 1xN mesh.
+    // reopening. This applies to both SPMD and non-SPMD modules (e.g.,
+    // zero-argument constant subgraphs) to prevent destructive mesh reshaping
+    // that would break execution of modules compiled for the larger mesh.
     if (current_mesh_shape.has_value() &&
         current_mesh_shape->size() == mesh_attr.getAxes().size()) {
       for (auto [i, axis] : llvm::enumerate(mesh_attr.getAxes())) {
         new_axes.push_back(mlir::sdy::MeshAxisAttr::get(
             ctx, axis.getName(), (*current_mesh_shape)[i]));
       }
-      DLOG_F(LOG_DEBUG,
-             "SPMD-enabled mesh has trivial size [1, 1], reusing already "
-             "opened mesh shape");
-    } else {
+      DLOG_F(LOG_DEBUG, "Mesh has trivial size [1, 1], reusing already "
+                        "opened mesh shape");
+    } else if (is_spmd) {
+      // Fall back to a 1xN mesh only for SPMD modules.
       for (auto [i, axis] : llvm::enumerate(mesh_attr.getAxes())) {
         if (i == mesh_attr.getAxes().size() - 1) {
           // We use the last axis to encode the mesh shape (e.g., [1,
@@ -67,7 +67,9 @@ tt_pjrt_status setProperSdyMeshAttributeInSpmdMode(
     }
 
     // Replace the mesh on the op with the updated axes.
-    shardy_op->setMeshAttr(mlir::sdy::MeshAttr::get(ctx, new_axes));
+    if (!new_axes.empty()) {
+      shardy_op->setMeshAttr(mlir::sdy::MeshAttr::get(ctx, new_axes));
+    }
   }
 
   return tt_pjrt_status::kSuccess;
