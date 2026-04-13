@@ -90,6 +90,7 @@ from .attention import (
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
     TTMetadata,
+    TTMLAAttentionBackend,
     TTMLADecodeMetadata,
     TTMLAMetadata,
     TTMLAPrefillMetadata,
@@ -550,8 +551,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return
 
         logger.info(
-            f"Filtering weights: keeping layers 0-{self._target_num_layers-1}, "
-            f"skipping layers {self._target_num_layers}-{self._original_num_layers-1}"
+            f"Filtering weights: keeping layers 0-{self._target_num_layers - 1}, "
+            f"skipping layers {self._target_num_layers}-{self._original_num_layers - 1}"
         )
 
         skipped_count = 0
@@ -1287,9 +1288,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # assume to only have whole mm items to process. Hence we avoid the
         # intrinsic dynamism that `scatter_mm_placeholders` introduces.
         for (mm_hash, pos_info), output in zip(mm_hashes_pos, encoder_outputs):
-            assert pos_info.is_embed is None, (
-                "Expected all positions to be" " contiguous and embeddings."
-            )
+            assert (
+                pos_info.is_embed is None
+            ), "Expected all positions to be contiguous and embeddings."
             self.encoder_cache[mm_hash] = output
 
     def _gather_mm_embeddings(
@@ -1343,9 +1344,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 encoder_output = self.encoder_cache.get(mm_hash, None)
                 assert encoder_output is not None, f"Encoder cache miss for {mm_hash}."
 
-                assert pos_info.is_embed is None, (
-                    "Expected all positions to" " be contiguous and embeddings."
-                )
+                assert (
+                    pos_info.is_embed is None
+                ), "Expected all positions to be contiguous and embeddings."
 
                 req_start_pos = req_start_idx + start_pos - num_computed_tokens
                 is_mm_embed[req_start_pos + start_idx : req_start_pos + end_idx] = True
@@ -1836,7 +1837,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         for mode, max_items_per_seq in max_items_per_seq_by_modality.items():
             logger.info(
-                "Compiling Multimodal %s Encoder with different input" " shapes.", mode
+                "Compiling Multimodal %s Encoder with different input shapes.", mode
             )
             start = time.perf_counter()
             # No padding for MM encoder just yet.
@@ -1898,7 +1899,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             xm.wait_device_ops()
             end = time.perf_counter()
             logger.info(
-                "Multimodal %s Encoder compilation finished in in %.2f " "[secs].",
+                "Multimodal %s Encoder compilation finished in in %.2f [secs].",
                 mode,
                 end - start,
             )
@@ -2204,8 +2205,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         if len(kv_cache_config.kv_cache_groups) > 1:
             raise NotImplementedError(
-                "Hybrid models with more than one KV cache type are not "
-                "supported yet."
+                "Hybrid models with more than one KV cache type are not supported yet."
             )
 
         if (
@@ -2235,9 +2235,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         kv_cache_sizes = {}
         for kv_cache_tensor in kv_cache_config.kv_cache_tensors:
-            assert len(kv_cache_tensor.shared_by) == 1, (
-                "KV cache tensor shared by multiple layers is not supported in " "TPU."
-            )
+            assert (
+                len(kv_cache_tensor.shared_by) == 1
+            ), "KV cache tensor shared by multiple layers is not supported in TPU."
             kv_cache_sizes[kv_cache_tensor.shared_by[0]] = kv_cache_tensor.size
 
         kv_caches: dict[str, torch.Tensor] = {}
@@ -2247,31 +2247,35 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 tensor_size = kv_cache_sizes[layer_name]
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
-                if isinstance(kv_cache_spec, AttentionSpec):
-                    if self.enable_tensor_parallel:
-                        num_kv_heads = kv_cache_spec.num_kv_heads
-                        assert self.original_parallel_config is not None
-                        tp_size = self.original_parallel_config.tensor_parallel_size
-                        # TODO: Handle kv cache duplication under SPMD mode.
-                        assert num_kv_heads % tp_size == 0, (
-                            f"num_kv_heads {num_kv_heads} must be divisible by "
-                            f"tp_size {tp_size} under SPMD mode"
-                        )
+                if self.enable_tensor_parallel:
+                    num_kv_heads = kv_cache_spec.num_kv_heads
+                    assert self.original_parallel_config is not None
+                    tp_size = self.original_parallel_config.tensor_parallel_size
+                    # TODO: Handle kv cache duplication under SPMD mode.
+                    assert num_kv_heads % tp_size == 0, (
+                        f"num_kv_heads {num_kv_heads} must be divisible by "
+                        f"tp_size {tp_size} under SPMD mode"
+                    )
+                if isinstance(kv_cache_spec, MLAAttentionSpec):
+                    kv_cache_shape = TTMLAAttentionBackend.get_kv_cache_shape(
+                        num_blocks,
+                        kv_cache_spec.block_size,
+                        kv_cache_spec.num_kv_heads,
+                        kv_cache_spec.head_size,
+                    )
+                elif isinstance(kv_cache_spec, AttentionSpec):
                     kv_cache_shape = TTAttentionBackend.get_kv_cache_shape(
                         num_blocks,
                         kv_cache_spec.block_size,
                         kv_cache_spec.num_kv_heads,
                         kv_cache_spec.head_size,
                     )
-                    dtype = kv_cache_spec.dtype
-
-                    tpu_kv_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(
-                        self.device
-                    )
-
-                    kv_caches[layer_name] = tpu_kv_cache
                 else:
                     raise NotImplementedError
+
+                dtype = kv_cache_spec.dtype
+                tpu_kv_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
+                kv_caches[layer_name] = tpu_kv_cache
 
         # Set up cross-layer KV cache sharing if needed
         self.maybe_setup_cross_layer_kv_sharing(kv_caches, kv_cache_config)
