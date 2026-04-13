@@ -24,6 +24,8 @@ XFAIL_FILES: dict[str, str] = {
     "pytorch/gpt_oss_20b.py": "Gpt-oss example requires llmbox or galaxy",
     "jax/codegen/cpp/resnet.py": "FlaxResNetModel removed in transformers 5.x",
     "jax/codegen/python/resnet.py": "FlaxResNetModel removed in transformers 5.x",
+    "pytorch/d2m/add_smoke.py": "D2M / TTMetal backend bringup demo, not yet stable in CI",
+    "pytorch/d2m/mlp_mixer_e2e.py": "D2M / TTMetal backend bringup demo, not yet stable in CI",
 }
 
 

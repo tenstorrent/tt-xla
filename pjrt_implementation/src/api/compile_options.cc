@@ -39,8 +39,10 @@ CompileOptions CompileOptions::parse(
           .value_or(options.enable_trace);
   options.export_tensors =
       internal::parseBoolOption(compile_options, "export_tensors")
-          .value_or(options.backend == BackendRuntime::TTNNFlatbuffer ? false
-                                                                      : true);
+          .value_or(options.backend == BackendRuntime::TTNNFlatbuffer ||
+                            options.backend == BackendRuntime::TTMetalFlatbuffer
+                        ? false
+                        : true);
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(options.enable_const_eval);
@@ -76,9 +78,10 @@ CompileOptions CompileOptions::parse(
           .value_or("");
 
   if (!options.export_path.has_value() &&
-      options.backend != BackendRuntime::TTNNFlatbuffer) {
+      options.backend != BackendRuntime::TTNNFlatbuffer &&
+      options.backend != BackendRuntime::TTMetalFlatbuffer) {
     ABORT_F("Compile option 'export_path' must be provided when backend is not "
-            "'TTNNFlatbuffer'");
+            "a flatbuffer runtime ('TTNNFlatbuffer' or 'TTMetalFlatbuffer')");
   }
 
   return options;
@@ -122,6 +125,8 @@ std::optional<BackendRuntime> parseBackendOption(
       return BackendRuntime::TTNNCodegenCpp;
     } else if (option_value == "codegen_py") {
       return BackendRuntime::TTNNCodegenPy;
+    } else if (option_value == "ttmetal_flatbuffer") {
+      return BackendRuntime::TTMetalFlatbuffer;
     }
     ABORT_F("Unknown backend option value: %s for %s", option_value.c_str(),
             option_name.c_str());

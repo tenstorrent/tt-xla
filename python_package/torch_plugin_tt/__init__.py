@@ -9,6 +9,7 @@ import torch_xla
 import tt_torch  # registers "tt" backend for torch.compile
 from pjrt_plugin_tt import (
     get_library_path,
+    get_selected_backend,
     setup_tt_metal_home,
     setup_tt_pjrt_plugin_dir,
 )
@@ -43,6 +44,14 @@ class TTPlugin(DevicePlugin):
     def library_path(self) -> str:
         """Return the path to the TT PJRT plugin binary."""
         return str(get_library_path())
+
+    def client_create_options(self) -> dict:
+        """Options forwarded to `PJRT_Client_Create` when the client is built."""
+        options: dict = {}
+        backend = get_selected_backend()
+        if backend is not None:
+            options["backend"] = backend
+        return options
 
 
 # This tells the torch dynamo to keep the models parameters bound to

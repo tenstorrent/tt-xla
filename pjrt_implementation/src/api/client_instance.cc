@@ -656,10 +656,32 @@ PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Create");
 
-  // We currently don't utilize any of the PJRT Client create options.
+  // The device runtime (TTNN vs TTMetal) must be selected before mesh
+  // device and input buffers are created, since tt-runtime objects are tagged
+  // with the runtime they were created under and cannot cross runtimes. Parse
+  // the `backend` client-create option here so callers can choose the runtime
+  // without relying on process-wide environment state.
   for (size_t i = 0; i < args->num_options; ++i) {
-    DLOG_F(WARNING, "Unused PJRT Client create option: %s",
-           args->create_options[i].name);
+    const PJRT_NamedValue &option = args->create_options[i];
+    std::string name(option.name, option.name_size);
+    if (name == "backend" && option.type == PJRT_NamedValue_kString) {
+      std::string value(option.string_value, option.value_size);
+      if (value == "ttmetal") {
+        DLOG_F(LOG_DEBUG, "Selecting TTMetal device runtime from "
+                          "PJRT_Client_Create 'backend' option");
+        tt::runtime::setCurrentDeviceRuntime(
+            tt::runtime::DeviceRuntime::TTMetal);
+      } else if (value == "ttnn") {
+        DLOG_F(LOG_DEBUG, "Selecting TTNN device runtime from "
+                          "PJRT_Client_Create 'backend' option");
+        tt::runtime::setCurrentDeviceRuntime(tt::runtime::DeviceRuntime::TTNN);
+      } else {
+        LOG_F(WARNING, "Unknown PJRT_Client_Create 'backend' value: %s",
+              value.c_str());
+      }
+    } else {
+      DLOG_F(WARNING, "Unused PJRT Client create option: %s", name.c_str());
+    }
   }
 
   PJRT_Error *error = GlobalClientInstanceSingleton::initClient();

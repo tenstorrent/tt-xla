@@ -11,10 +11,47 @@ Both JAX and PyTorch/XLA plugins reference this package.
 
 import os
 from pathlib import Path
+from typing import Optional
 
 from ttxla_tools.logging import logger
 
 TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
+
+
+_SUPPORTED_BACKENDS = ("ttnn", "ttmetal")
+
+# Backend selected for the PJRT client. Consumed by the framework plugin's
+# `client_create_options` hook when the XLA client is first initialized. Must
+# be set before the XLA/JAX device is initialized because the tt-runtime tags
+# buffers/tensors with the runtime they were created under and cannot cross
+# runtimes. Lives in this lower-level package so callers can set it without
+# having to import `torch_plugin_tt` / `jax_plugin_tt` (which pull in
+# torch_xla/jax and would trigger plugin registration at import time).
+_selected_backend: Optional[str] = None
+
+
+def set_backend(backend: str) -> None:
+    """Select the tt-runtime backend used by the PJRT client.
+
+    Args:
+        backend: Either ``"ttnn"`` (default) or ``"ttmetal"``.
+
+    Must be called before the XLA/JAX device is first initialized (e.g. before
+    the first ``xm.xla_device()`` call). When compiling with the TTMetal
+    flatbuffer pipeline, pair this with
+    ``torch_xla.set_custom_compile_options({"backend": "ttmetal_flatbuffer"})``.
+    """
+    if backend not in _SUPPORTED_BACKENDS:
+        raise ValueError(
+            f"Unsupported backend '{backend}'. Expected one of {_SUPPORTED_BACKENDS}."
+        )
+    global _selected_backend
+    _selected_backend = backend
+
+
+def get_selected_backend() -> Optional[str]:
+    """Return the backend selected by `set_backend`, or None if unset."""
+    return _selected_backend
 
 
 def setup_tt_pjrt_plugin_dir():

@@ -21,7 +21,11 @@ enum class BackendRuntime {
   TTNNCodegenCpp,
 
   // Generates TTNN Python code.
-  TTNNCodegenPy
+  TTNNCodegenPy,
+
+  // Targets tt-mlir TTMetal runtime to execute the compiled flatbuffer.
+  // Compiles TTIR → TTMetal (instead of TTIR → TTNN).
+  TTMetalFlatbuffer
 };
 
 // POD struct containing various options used to customize module compilation.
