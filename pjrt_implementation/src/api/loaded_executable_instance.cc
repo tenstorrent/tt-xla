@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 #include "api/loaded_executable_instance.h"
+#include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 
 // c++ standard library includes
@@ -192,17 +193,20 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
     input_tensors.push_back(*prepared_tensor);
 
-    // Safety check to ensure no input tensor can be accidentally
-    //  deallocated during execution, as it may be reused in a future graph.
-    if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
-                   "be deallocated during execution.");
-      return tt_pjrt_status::kInternal;
-    }
-    if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
-                   "means it was deallocated by a previous operation.");
-      return tt_pjrt_status::kInternal;
+    // Safety checks that rely on TTNN-specific runtime APIs (retain tracking
+    // and allocation status). Skip for runtimes that don't implement them.
+    if (tt::runtime::getCurrentDeviceRuntime() ==
+        tt::runtime::DeviceRuntime::TTNN) {
+      if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
+        LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
+                     "be deallocated during execution.");
+        return tt_pjrt_status::kInternal;
+      }
+      if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
+        LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
+                     "means it was deallocated by a previous operation.");
+        return tt_pjrt_status::kInternal;
+      }
     }
   }
   return tt_pjrt_status::kSuccess;

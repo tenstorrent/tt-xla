@@ -385,6 +385,14 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
+  // Allow selecting the device runtime (TTNN or TTMetal) before opening the
+  // mesh device. TTMetal runtime is required when compiling through the
+  // TTMetal backend pipeline.
+  const char *backend_env = std::getenv("TT_XLA_BACKEND");
+  if (backend_env != nullptr && std::string(backend_env) == "ttmetal") {
+    tt::runtime::setCurrentDeviceRuntime(tt::runtime::DeviceRuntime::TTMetal);
+  }
+
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
     m_parent_mesh =

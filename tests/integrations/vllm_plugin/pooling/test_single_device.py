@@ -128,7 +128,7 @@ def test_embed_qwen3_reduced_dims():
         pytest.param(
             "Qwen/Qwen3-Embedding-4B",
             "baseline/qwen3_embedding_4B_baseline.pt",
-            64,
+            256,
             "",
         ),
         pytest.param(
