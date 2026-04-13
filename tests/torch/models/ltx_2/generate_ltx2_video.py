@@ -89,7 +89,8 @@ def denormalize_audio_latents(latents, mean, std):
 # Scheduler helper
 # ---------------------------------------------------------------------------
 
-def calculate_shift(seq_len, base_seq_len=256, max_seq_len=4096, base_shift=0.5, max_shift=1.16):
+def calculate_shift(seq_len, base_seq_len=1024, max_seq_len=4096, base_shift=0.95, max_shift=2.05):
+    """Match diffusers scheduler config defaults for LTX-2."""
     m = (max_shift - base_shift) / (max_seq_len - base_seq_len)
     b = base_shift - m * base_seq_len
     mu = seq_len * m + b
@@ -185,18 +186,43 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
                                output_hidden_states=True)
     torch_xla.sync(wait=True)
 
-    # Stack all hidden states: num_layers+1 hidden states, each [B, seq, 3840]
+    # Stack hidden states and apply masked normalization (matching diffusers _pack_text_embeds)
     num_hidden = len(enc_out.hidden_states)
     print(f"  Got {num_hidden} hidden states")
-    all_hidden = torch.stack(list(enc_out.hidden_states), dim=0)  # [N, B, seq, 3840]
-    prompt_embeds = all_hidden.permute(1, 2, 0, 3).reshape(1, max_seq_len, -1)  # [1, 256, N*3840]
-    print(f"  Text encoder output: {prompt_embeds.shape}")
+    # [B, seq, hidden, num_layers]
+    text_hidden = torch.stack(list(enc_out.hidden_states), dim=-1)
+
+    # Compute sequence lengths from attention mask
+    seq_lengths = token_attention_mask.sum(dim=1)  # [B]
+
+    # _pack_text_embeds: masked normalization per-batch, per-layer
+    B, S, D, N = text_hidden.shape
+    token_indices = torch.arange(S, device=text_hidden.device).unsqueeze(0)
+    # Left padding (Gemma tokenizer default)
+    start_indices = S - seq_lengths.unsqueeze(1).to(text_hidden.device)
+    mask = token_indices >= start_indices  # [B, S]
+    mask = mask[:, :, None, None]  # [B, S, 1, 1]
+
+    eps = 1e-6
+    masked_h = text_hidden.masked_fill(~mask, 0.0)
+    num_valid = (seq_lengths * D).view(B, 1, 1, 1).to(text_hidden.device).float()
+    masked_mean = masked_h.float().sum(dim=(1, 2), keepdim=True) / (num_valid + eps)
+    x_min = text_hidden.float().masked_fill(~mask, float("inf")).amin(dim=(1, 2), keepdim=True)
+    x_max = text_hidden.float().masked_fill(~mask, float("-inf")).amax(dim=(1, 2), keepdim=True)
+
+    prompt_embeds = (text_hidden.float() - masked_mean) / (x_max - x_min + eps)
+    prompt_embeds = prompt_embeds * 8.0  # scale_factor=8 (diffusers default)
+    prompt_embeds = prompt_embeds.flatten(2)  # [B, S, D*N]
+    mask_flat = mask.squeeze(-1).expand(-1, -1, D * N)
+    prompt_embeds = prompt_embeds.masked_fill(~mask_flat, 0.0)
+    prompt_embeds = prompt_embeds.to(text_hidden.dtype)
+    print(f"  Text encoder output (normalized): {prompt_embeds.shape}")
 
     # Create additive attention mask from token mask
     additive_mask = (1 - token_attention_mask.to(torch.bfloat16)) * -10000.0
     additive_mask = additive_mask.unsqueeze(1).unsqueeze(1).to(device)  # [1, 1, 1, seq]
 
-    del text_encoder, enc_out, all_hidden
+    del text_encoder, enc_out, text_hidden
     torch_xla.sync(wait=True)
 
     # Text Connectors (pretrained)
@@ -296,13 +322,12 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
     audio_scheduler = copy.deepcopy(scheduler)
 
     mu = calculate_shift(n_video)
-    scheduler.set_timesteps(num_inference_steps, device="cpu", mu=mu)
-    audio_scheduler.set_timesteps(num_inference_steps, device="cpu", mu=mu)
+    # Match diffusers: use linspace sigmas
+    sigmas = np.linspace(1.0, 1.0 / num_inference_steps, num_inference_steps)
+    scheduler.set_timesteps(sigmas=sigmas, device="cpu", mu=mu)
+    audio_scheduler.set_timesteps(sigmas=sigmas, device="cpu", mu=mu)
     timesteps = scheduler.timesteps
-
-    # Scale initial latents by first sigma
-    video_latents_packed = video_latents_packed * scheduler.sigmas[0]
-    audio_latents_packed = audio_latents_packed * audio_scheduler.sigmas[0]
+    # NOTE: diffusers does NOT scale initial latents by sigmas[0]
 
     # Attention masks for text conditioning
     enc_mask = torch.ones(2, max_seq_len, dtype=torch.long).to(device)  # batch=2 for CFG
@@ -314,8 +339,8 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
         # CFG: duplicate latents
         latent_input = torch.cat([video_latents_packed, video_latents_packed], dim=0)
         audio_input = torch.cat([audio_latents_packed, audio_latents_packed], dim=0)
-        t_val = t.item() if isinstance(t, torch.Tensor) else float(t)
-        timestep_batch = torch.tensor([t_val, t_val], dtype=torch.long).to(device)
+        # Timestep must be float (not long) and expanded to batch size
+        timestep_batch = t.expand(2).to(device)  # batch=2 for CFG
 
         with torch.no_grad():
             noise_pred_video, noise_pred_audio = transformer_compiled(
@@ -333,19 +358,21 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
             )
         torch_xla.sync(wait=True)
 
-        # Apply CFG
+        # Apply CFG (in float, matching diffusers)
+        noise_pred_video = noise_pred_video.float()
+        noise_pred_audio = noise_pred_audio.float()
         uncond_v, cond_v = noise_pred_video.chunk(2, dim=0)
         uncond_a, cond_a = noise_pred_audio.chunk(2, dim=0)
         noise_pred_v = uncond_v + guidance_scale * (cond_v - uncond_v)
         noise_pred_a = uncond_a + guidance_scale * (cond_a - uncond_a)
 
-        # Scheduler step (on CPU for simplicity)
+        # Scheduler step (on CPU, then cast back to bf16 for next step)
         video_latents_packed = scheduler.step(
             noise_pred_v.cpu(), t, video_latents_packed.cpu()
-        ).prev_sample.to(device)
+        ).prev_sample.to(device=device, dtype=torch.bfloat16)
         audio_latents_packed = audio_scheduler.step(
             noise_pred_a.cpu(), t, audio_latents_packed.cpu()
-        ).prev_sample.to(device)
+        ).prev_sample.to(device=device, dtype=torch.bfloat16)
 
         elapsed = time.time() - t_step
         print(f"  Step {i+1}/{num_inference_steps} (t={t:.1f}): {elapsed:.1f}s")
