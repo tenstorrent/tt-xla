@@ -25,7 +25,7 @@ CONTAINER_NAME="ubuntu-host-mapped"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 # Use bash -c inside docker exec to handle the complex MPI environment string
-ssh -A $SSH_OPTS -l $USERNAME "$HOST" sudo docker exec \
+ssh -A $SSH_OPTS -l $USERNAME "$HOST" docker exec \
   -u root \
   -e LD_LIBRARY_PATH=/opt/ttmlir-toolchain/lib:/lib/x86_64-linux-gnu \
   $CONTAINER_NAME bash -c "'$REMOTE_COMMAND'"
