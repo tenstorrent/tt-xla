@@ -1719,6 +1719,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 replace_modules(model)
                 model = model.to(self.device)
 
+                # vllm's process_weights_after_loading creates derived
+                # tensors (e.g. W_UK_T, W_UV in MLA) as plain attributes,
+                # which nn.Module.to() does not move.  Push any stray CPU
+                # tensors to the target device.
+                for module in model.modules():
+                    for key in list(vars(module)):
+                        val = getattr(module, key)
+                        if isinstance(val, torch.Tensor) and not isinstance(
+                            val, torch.nn.Parameter
+                        ):
+                            if val.device != self.device:
+                                setattr(module, key, val.to(self.device))
+
                 if self.enable_tensor_parallel:
                     # Apply sharding constraints to the model weights.
                     shard_model(model, self.mesh)
