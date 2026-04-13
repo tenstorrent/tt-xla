@@ -73,7 +73,7 @@ test_config:
     status: EXPECTED_PASSING
 
   xglm/pytorch-1.7b-single_device-inference:
-    required_pcc: 0.97 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected; also https://github.com/tenstorrent/tt-xla/issues/2944
+    required_pcc: 0.98 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected; also https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   resnet/pytorch-ResNet50_HuggingFace-single_device-inference:
@@ -283,7 +283,6 @@ test_config:
     status: EXPECTED_PASSING
 
   dpr/reader/pytorch-Reader_Multiset_Base-single_device-inference:
-    assert_pcc: false # PCC: 0.9345 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-B0-single_device-inference:
@@ -573,9 +572,11 @@ test_config:
   phi2/token_classification/pytorch-Phi_2_Pytdml-single_device-inference:
     arch_overrides:
       p150:
+        required_pcc: 0.98
         status: EXPECTED_PASSING
       n150:
         status: EXPECTED_PASSING
+        required_pcc: 0.98
 
   phi2/sequence_classification/pytorch-Phi_2-single_device-inference:
     status: EXPECTED_PASSING
@@ -904,8 +905,11 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-1.5B-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        required_pcc: 0.98
+        status: EXPECTED_PASSING
 
   retinanet/pytorch-ResNet34_Backbone_with_FPN-single_device-inference:
     assert_pcc: false
@@ -941,12 +945,7 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-1.5B_Instruct-single_device-inference:
-    arch_overrides:
-      n150:
-        required_pcc: 0.98
-        status: EXPECTED_PASSING
-      p150:
-        status: EXPECTED_PASSING
+      status: EXPECTED_PASSING
 
   qwen_2_5_coder/pytorch-0.5B-single_device-inference:
     status: EXPECTED_PASSING
