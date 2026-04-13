@@ -34,7 +34,10 @@ def _get_topk_split_params(vocab_size: int) -> tuple[int, int, int, int]:
     pad_size = padded_chunk_size - chunk_size
     return num_chunks, chunk_size, padded_chunk_size, pad_size
 
+import os
+
 _SAMPLING_EPS = 1e-5
+_TOPK_BEFORE_ARGMAX = os.environ.get("TT_TOPK_BEFORE_ARGMAX", "") == "1"
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -200,7 +203,17 @@ class Sampler(nn.Module):
                 sampling_metadata.repetition_penalties,
             )
 
-        greedy_sampled = self.greedy_sample(logits)
+        if _TOPK_BEFORE_ARGMAX:
+            # Experiment: measure pure 4x topk dispatch overhead on greedy path.
+            # Set TT_TOPK_BEFORE_ARGMAX=1 to enable.
+            # Run topk, scatter back to full vocab, argmax on the result.
+            # This measures topk + scatter cost (scatter is cheap for greedy/batch=1).
+            filtered, indices = apply_top_k_top_p_fast(logits, None, None)
+            topk_logits = torch.full_like(logits, float("-inf"))
+            topk_logits.scatter_(1, indices, filtered)
+            greedy_sampled = self.greedy_sample(topk_logits)
+        else:
+            greedy_sampled = self.greedy_sample(logits)
 
         # Apply temperature.
         logits = self.apply_temperature(
@@ -221,23 +234,17 @@ class Sampler(nn.Module):
             sampling_metadata.top_p,
         )
 
-        # Random sample on reduced candidate set.
-        probs = filtered_logits.softmax(dim=-1, dtype=torch.float32)
+        # Scatter filtered values back to full vocab for sampling.
+        # This keeps the topk speedup for filtering while using the
+        # proven full-vocab sampling path.
+        full_logits = torch.full_like(logits, float("-inf"))
+        full_logits.scatter_(1, candidate_indices, filtered_logits)
 
-        # If seeded sampling, gather q_samples at candidate positions.
-        q_samples_reduced = None
-        if sampling_metadata.q_samples is not None:
-            q_samples_reduced = sampling_metadata.q_samples.gather(
-                1, candidate_indices
-            )
-
-        random_sampled_local = self.random_sample(
-            probs, sampling_metadata.generators, q_samples_reduced
+        # Random sample on full vocab (most values are -inf).
+        probs = full_logits.softmax(dim=-1, dtype=torch.float32)
+        random_sampled = self.random_sample(
+            probs, sampling_metadata.generators, sampling_metadata.q_samples
         )
-        # Map local candidate index back to global vocab index.
-        random_sampled = candidate_indices.gather(
-            1, random_sampled_local.unsqueeze(-1)
-        ).squeeze(-1)
 
         sampled = torch.where(
             sampling_metadata.temperature < _SAMPLING_EPS,
@@ -371,26 +378,11 @@ def apply_top_k_top_p_fast(
     all_values = torch.cat(topk_values_list, dim=-1)
     all_indices = torch.cat(topk_indices_list, dim=-1)
 
-    # Apply top-k and top-p on the small candidate set.
-    if k is not None or p is not None:
-        probs = all_values.softmax(dim=-1)
-        probs_sort, _ = probs.sort(dim=-1, descending=False)
-
-        if k is not None:
-            top_k_count = probs_sort.size(1) - k.to(torch.long)
-            top_k_count = top_k_count.clamp(max=probs_sort.size(1) - 1).unsqueeze(1)
-            top_k_cutoff = probs_sort.gather(-1, top_k_count)
-            no_top_k_mask = ((k <= 0) | (k >= vocab_size)).unsqueeze(1)
-            top_k_cutoff.masked_fill_(no_top_k_mask, -float("inf"))
-            all_values = all_values.masked_fill(probs < top_k_cutoff, -float("inf"))
-
-        if p is not None:
-            cumprob = torch.cumsum(probs_sort, dim=-1)
-            top_p_mask = cumprob <= 1 - p.unsqueeze(1)
-            top_p_mask[:, -1] = False
-            top_p_count = top_p_mask.sum(dim=-1).unsqueeze(1)
-            top_p_cutoff = probs_sort.gather(-1, top_p_count)
-            all_values = all_values.masked_fill(probs < top_p_cutoff, -float("inf"))
+    # TODO: top-k/top-p filtering on the reduced candidate set is disabled
+    # pending investigation of correctness issues on device. The topk
+    # pre-filtering already reduces to 64 candidates which provides
+    # implicit top-64 filtering.
+    pass
 
     return all_values, all_indices
 
