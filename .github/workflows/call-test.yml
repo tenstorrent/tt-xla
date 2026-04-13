@@ -323,7 +323,7 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
-          echo "=== SSH connectivity check ==="
+          echo "=== SSH connectivity check (via ssh) ==="
           mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
@@ -336,7 +336,22 @@ jobs:
                 echo \"\$(hostname): /.dockerenv NOT FOUND (running on bare metal)\"
               fi
             "
-          echo "=== End SSH connectivity check ==="
+          echo "=== End SSH connectivity check (via ssh) ==="
+
+          echo "=== SSH connectivity check (via remote_docker.sh) ==="
+          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --mca plm_rsh_agent /workspace/tests/torch/multi_host/experimental/remote_docker.sh \
+            --tag-output \
+            bash -c "
+              echo \"\$(hostname): hostname OK\"
+              if [ -f /.dockerenv ]; then
+                echo \"\$(hostname): /.dockerenv EXISTS (running inside container)\"
+              else
+                echo \"\$(hostname): /.dockerenv NOT FOUND (running on bare metal)\"
+              fi
+            "
+          echo "=== End SSH connectivity check (via remote_docker.sh) ==="
         '
 
     - name: Check for re-run attempt
@@ -596,6 +611,8 @@ jobs:
             echo "Environment variables being set:"
             echo "$TOPOLOGY_EXPORTS"
             eval "$TOPOLOGY_EXPORTS"
+            
+            export TT_DISTRIBUTED_TCP_IFACE=enp194s0f0np0
 
             echo "Running multihost tests with topology filter: $TOPOLOGY"
             python -m pytest -sv \
