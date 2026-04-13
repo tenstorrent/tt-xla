@@ -39,6 +39,60 @@ logger = tt_init_logger(__name__)
 # ---------------------------------------------------------------------------
 import vllm._custom_ops as _vllm_custom_ops
 
+# ---------------------------------------------------------------------------
+# Monkey-patch DeepseekScalingRotaryEmbedding.forward_native so that batched
+# positions (B, T) from the TT model runner don't cause incorrect broadcasting.
+#
+# Problem: vllm's mla.py does k_pe.unsqueeze(1) assuming flat-token (T, D)
+# input, producing (T, 1, D). With the TT batched format (B, T, D) this gives
+# (B, 1, T, D). DeepseekScalingRotaryEmbedding.forward_native then indexes
+# cos_sin_cache with 2-D positions, yielding cos of shape (B, T, 1, D).
+# Broadcasting (B,1,T,D)*(B,T,1,D) = (B,T,T,D) — wrong.
+#
+# Fix: when positions are 2-D, flatten them and reshape key to flat-token
+# format before calling the original, then reshape the result back.
+# ---------------------------------------------------------------------------
+try:
+    from vllm.model_executor.layers.rotary_embedding.deepseek_scaling_rope import (
+        DeepseekScalingRotaryEmbedding,
+    )
+
+    _orig_deepseek_rope_fwd = DeepseekScalingRotaryEmbedding.forward_native
+
+    def _tt_deepseek_rope_forward_native(
+        self, positions, query, key=None, offsets=None
+    ):
+        if positions.dim() != 2:
+            return _orig_deepseek_rope_fwd(self, positions, query, key, offsets)
+
+        batch, seq = positions.shape
+        positions_flat = positions.flatten()  # (T,)
+
+        # key is (B, 1, T, D) from mla.py unsqueeze(1) on batched input.
+        # Reshape to (T, 1, D) so cos (T, 1, D) broadcasts correctly.
+        key_orig_shape = None
+        if key is not None and key.dim() == 4:
+            key_orig_shape = key.shape
+            # (B, 1, T, D) -> (B, T, 1, D) -> (B*T, 1, D)
+            key = key.permute(0, 2, 1, 3).reshape(
+                batch * seq, key.shape[1], key.shape[-1]
+            )
+
+        result_q, result_k = _orig_deepseek_rope_fwd(
+            self, positions_flat, query, key, offsets
+        )
+
+        # Reshape back: (T, 1, D) -> (B, 1, T, D)
+        if key_orig_shape is not None and result_k is not None:
+            b, one, t, d = key_orig_shape
+            result_k = result_k.reshape(b, t, one, d).permute(0, 2, 1, 3)
+
+        return result_q, result_k
+
+    DeepseekScalingRotaryEmbedding.forward_native = _tt_deepseek_rope_forward_native
+except ImportError:
+    pass  # DeepseekScalingRotaryEmbedding not available; nothing to patch
+
 
 def _tt_concat_and_cache_mla(
     kv_c: torch.Tensor,  # [T, kv_lora_rank]
@@ -53,6 +107,17 @@ def _tt_concat_and_cache_mla(
     Writes concatenated (kv_c ‖ k_pe) into the paged MLA KV cache for ALL
     tokens (decode + prefill) using index_put, which compiles to XLA scatter.
     """
+    # During the profile/dummy run the kv_cache is an empty 1-D tensor
+    # (torch.tensor([])).  Guard on dim() — unlike numel(), dim() is a
+    # concrete (non-symbolic) int during Dynamo tracing, so Dynamo resolves
+    # the branch statically and never reaches kv_cache.shape[2].
+    if kv_cache.dim() < 4:
+        return
+    # Flatten batched [B, T, dim] inputs to flat [T, dim].
+    # The TT model runner uses (batch, seq, ...) format, but the index_put
+    # below expects flat (T, ...) tensors matching the 1-D slot_mapping.
+    kv_c = kv_c.reshape(-1, kv_c.shape[-1])
+    k_pe = k_pe.reshape(-1, k_pe.shape[-1])
     kv_combined = torch.cat([kv_c, k_pe], dim=-1)  # [T, head_size]
     block_size = kv_cache.shape[2]
     block_ids = (slot_mapping // block_size).long()  # [T]
