@@ -317,11 +317,11 @@ jobs:
             "
         '
         echo "All multihost containers ready"
-    - name: Hang for now
-      shell: bash
-      run: |
-        echo "Hanging for offline debug"
-        sleep infinity
+    # - name: Hang for now
+    #   shell: bash
+    #   run: |
+    #     echo "Hanging for offline debug"
+    #     sleep infinity
 
     - name: SSH connectivity check to worker containers
       if: ${{ matrix.build.multihost }}
