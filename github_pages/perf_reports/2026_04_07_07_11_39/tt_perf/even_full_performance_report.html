@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPT-OSS 120B · Even full layer (middle, decode₂)</title>
+<style>
+    :root {
+      --page-bg: #1b241d;
+      --page-glow: rgba(240, 192, 214, 0.14);
+      --surface: #1f2f23;
+      --surface-soft: #294030;
+      --surface-deep: rgba(25, 39, 28, 0.98);
+      --text: #f7eff2;
+      --rule: #768775;
+      --title: #f2b9d0;
+      --title-strong: #ffdbe8;
+      --header: #eadde3;
+      --section: #dbe6c3;
+      --tm: #a8b2a9;
+      --matmul: #f7d9e3;
+      --ccl: #ebf2a6;
+      --eltwise: #b9ddd0;
+      --reduce: #d2ddb2;
+      --special: #ffd19a;
+      --stacked: #b8c2b4;
+      --slow-bg: rgba(128, 33, 73, 0.34);
+      --slow-text: #fff1f6;
+      --note: #d7e7c2;
+      --warning: #ffc8d8;
+      --bullet: #e7dde0;
+      --hi-low-bar: #a7b7a2;
+      --hi-low-bg: rgba(167, 183, 162, 0.16);
+      --hi-med-bar: #f2b880;
+      --hi-med-bg: rgba(242, 184, 128, 0.22);
+      --hi-high-bar: #f06b9a;
+      --hi-high-bg: rgba(240, 107, 154, 0.26);
+      --chart-border: rgba(240, 107, 154, 0.32);
+      --pink-line: rgba(240, 107, 154, 0.42);
+      --green-glow: rgba(185, 221, 208, 0.10);
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, var(--page-glow), transparent 34%),
+        radial-gradient(circle at top right, var(--green-glow), transparent 26%),
+        linear-gradient(180deg, #222d24 0%, var(--page-bg) 100%);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    .container {
+      max-width: 1800px;
+      margin: 0 auto;
+      padding: 18px 20px 28px;
+      background: transparent;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.5;
+      font-size: 11px;
+      padding: 18px 20px;
+      border: 1px solid rgba(133, 160, 136, 0.40);
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(247, 214, 228, 0.05), rgba(0, 0, 0, 0)),
+        linear-gradient(135deg, rgba(185, 221, 208, 0.06), rgba(0, 0, 0, 0) 42%),
+        var(--surface-deep);
+      box-shadow:
+        0 16px 36px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        inset 4px 0 0 var(--pink-line);
+    }
+
+    .title {
+      color: var(--title-strong);
+      font-weight: 700;
+      text-shadow: 0 0 12px rgba(240, 107, 154, 0.18);
+    }
+
+    .rule-title {
+      color: var(--title);
+    }
+
+    .rule {
+      color: var(--rule);
+    }
+
+    .header {
+      color: var(--header);
+      font-weight: 600;
+    }
+
+    .section {
+      color: var(--section);
+      font-weight: 700;
+    }
+
+    .cat-tm {
+      color: var(--tm);
+    }
+
+    .cat-matmul {
+      color: var(--matmul);
+    }
+
+    .cat-ccl {
+      color: var(--ccl);
+    }
+
+    .cat-eltwise {
+      color: var(--eltwise);
+    }
+
+    .cat-reduce {
+      color: var(--reduce);
+    }
+
+    .cat-special {
+      color: var(--special);
+    }
+
+    .stacked-row {
+      color: var(--stacked);
+    }
+
+    .stacked-row.hi-us,
+    .stacked-row.hi-us-low,
+    .stacked-row.hi-us-med,
+    .stacked-row.hi-us-high {
+      box-shadow: none;
+      background: transparent;
+      color: var(--stacked);
+      font-weight: inherit;
+    }
+
+    .slow {
+      background: var(--slow-bg);
+      color: var(--slow-text);
+      font-weight: 700;
+    }
+
+    .note {
+      color: var(--note);
+    }
+
+    .warning {
+      color: var(--warning);
+    }
+
+    .bullet {
+      color: var(--bullet);
+    }
+
+    .hi-us {
+      font-weight: 900;
+      border-radius: 5px;
+    }
+
+    .hi-us-low {
+      box-shadow:
+        inset 4px 0 0 var(--hi-low-bar),
+        inset 0 0 0 1px rgba(167, 183, 162, 0.18);
+      background: var(--hi-low-bg);
+    }
+
+    .hi-us-med {
+      box-shadow:
+        inset 4px 0 0 var(--hi-med-bar),
+        inset 0 0 0 1px rgba(242, 184, 128, 0.18);
+      background: var(--hi-med-bg);
+    }
+
+    .hi-us-high {
+      box-shadow:
+        inset 4px 0 0 var(--hi-high-bar),
+        inset 0 0 0 1px rgba(240, 107, 154, 0.22);
+      background: var(--hi-high-bg);
+    }
+
+    .hi-gap {
+      border-radius: 5px;
+    }
+
+    .hi-gap-100 {
+      box-shadow:
+        inset 4px 0 0 rgba(167, 183, 162, 0.95),
+        inset 0 0 0 1px rgba(167, 183, 162, 0.18);
+      background: rgba(167, 183, 162, 0.16);
+    }
+
+    .hi-gap-200 {
+      box-shadow:
+        inset 4px 0 0 rgba(242, 184, 128, 0.95),
+        inset 0 0 0 1px rgba(242, 184, 128, 0.18);
+      background: rgba(242, 184, 128, 0.22);
+    }
+
+    .hi-gap-400 {
+      box-shadow:
+        inset 4px 0 0 rgba(240, 107, 154, 0.98),
+        inset 0 0 0 1px rgba(240, 107, 154, 0.22);
+      background: rgba(240, 107, 154, 0.26);
+    }
+
+    .report-name {
+      margin-bottom: 14px;
+      color: var(--title-strong);
+      font-family: inherit;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      text-shadow: 0 0 12px rgba(240, 107, 154, 0.14);
+    }
+
+    .summary-chart {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--chart-border);
+    }
+
+    .summary-chart img {
+      display: block;
+      width: 600px;
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(240, 107, 154, 0.22);
+      background: var(--surface-soft);
+      box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="report-name">Even Full Layer · GPT-OSS 120B</div>
+    <pre>
+<span class="title">🚀 Performance Report 🚀</span>
+<span class="rule-title">========================</span>
+<span class="rule"></span>
+<span class="header">ID     Total %  Bound  OP Code                                 Device   Device Time  Op-to-Op Gap  Cores  DRAM      DRAM %  FLOPs        FLOPs %  Math Fidelity            </span>
+<span class="rule">---------------------------------------------------------------------------------------------------------------------------------------------------------------------------</span>
+<span class="cat-special hi-us hi-us-med">   25    0.4 %         LayerNormDeviceOperation                     23       108 μs                    1                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-matmul slow">   57    0.2 %   SLOW  MatmulDeviceOperation 32 x 2880 x 512        23        44 μs          1 μs     16   39 GB/s  13.4 %   2.2 TFLOPs    6.6 %  HiFi2 BF16 x BFP8 =&gt; BF16</span>
+<span class="cat-tm">   73    0.1 %         ReshapeViewDeviceOperation                    7        18 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm">  121    0.0 %         SliceDeviceOperation                         23        10 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  133    0.1 %         BinaryNgDeviceOperation                       3        28 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm">  169    0.0 %         SliceDeviceOperation                          7         9 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  222    0.1 %         BinaryNgDeviceOperation                      28        28 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  233    0.1 %         BinaryNgDeviceOperation                       7        14 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  278    0.1 %         BinaryNgDeviceOperation                      20        28 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  311    0.8 %         BinaryNgDeviceOperation                      21        28 μs        206 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  335    0.9 %         BinaryNgDeviceOperation                      13        14 μs        246 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm">  361    1.0 %         ConcatDeviceOperation                         7        12 μs        268 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-matmul slow">  405    2.2 %   SLOW  MatmulDeviceOperation 32 x 2880 x 64         19        30 μs        607 μs      2   13 GB/s   4.3 %   0.4 TFLOPs    9.6 %  HiFi2 BF16 x BFP8 =&gt; BF16</span>
+<span class="cat-tm">  447    0.4 %         ReshapeViewDeviceOperation                   29         5 μs        123 μs     64                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm">  479    0.6 %         SliceDeviceOperation                         29         2 μs        171 μs     32                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm">  497    0.9 %         PermuteDeviceOperation                       15         4 μs        242 μs     32                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  525    0.4 %         BinaryNgDeviceOperation                      11         6 μs        114 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm">  547    0.6 %         SliceDeviceOperation                          1         2 μs        162 μs     32                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm">  578    0.9 %         PermuteDeviceOperation                        0         4 μs        240 μs     32                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  635    0.3 %         BinaryNgDeviceOperation                      25         6 μs         90 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  646    0.6 %         BinaryNgDeviceOperation                       4         3 μs        166 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  705    0.9 %         BinaryNgDeviceOperation                      31         6 μs        257 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  721    0.9 %         BinaryNgDeviceOperation                      15         6 μs        246 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise">  766    0.3 %         BinaryNgDeviceOperation                      28         3 μs         91 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm">  793    0.6 %         ConcatDeviceOperation                        23         2 μs        164 μs     64                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm">  822    1.0 %         InterleavedToShardedDeviceOperation          20         1 μs        297 μs     32                                                       BF16 =&gt; BF16</span>
+<span class="cat-special">  836    0.8 %         PagedUpdateCacheDeviceOperation               2         5 μs        237 μs     32                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-matmul slow">  883    2.0 %   SLOW  MatmulDeviceOperation 32 x 2880 x 64         17        30 μs        534 μs      2   13 GB/s   4.3 %   0.4 TFLOPs    9.6 %  HiFi2 BF16 x BFP8 =&gt; BF16</span>
+<span class="cat-tm">  905    0.4 %         ReshapeViewDeviceOperation                    7         5 μs         99 μs     64                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm">  947    0.7 %         PermuteDeviceOperation                       17         5 μs        185 μs     64                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm">  965    0.9 %         InterleavedToShardedDeviceOperation           3         1 μs        259 μs     32                                                       BF16 =&gt; BF16</span>
+<span class="cat-special"> 1023    0.8 %         PagedUpdateCacheDeviceOperation              29         5 μs        222 μs     32                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm"> 1048    0.4 %         PermuteDeviceOperation                       22         9 μs        107 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-special"> 1077    1.1 %         SdpaDecodeDeviceOperation                    19        18 μs        304 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm"> 1099    0.5 %         InterleavedToShardedDeviceOperation           9         1 μs        136 μs     32                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 1151    0.8 %         NLPConcatHeadsDecodeDeviceOperation          29         4 μs        233 μs      8                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 1161    0.9 %         ShardedToInterleavedDeviceOperation           7         1 μs        265 μs      8                                                       BF16 =&gt; BF16</span>
+<span class="cat-matmul slow"> 1206    2.1 %   SLOW  MatmulDeviceOperation 32 x 512 x 2880        20        15 μs        594 μs     45  112 GB/s  39.0 %   6.3 TFLOPs   13.6 %  HiFi4 BF16 x BFP8 =&gt; BF16</span>
+<span class="cat-ccl hi-us hi-us-low"> 1218    1.6 %         AllGatherDeviceOperation                      0        72 μs        390 μs     24                                                       BF16 =&gt; BF16</span>
+<span class="cat-reduce"> 1269    0.2 %         FastReduceNCDeviceOperation                  19        10 μs         56 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise"> 1294    0.7 %         BinaryNgDeviceOperation                      12         5 μs        188 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-low"> 1322    1.5 %         ReshapeViewDeviceOperation                    8        83 μs        341 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise hi-us hi-us-low"> 1369    0.9 %         BinaryNgDeviceOperation                      23        86 μs        178 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-special hi-us hi-us-med"> 1387    1.0 %         LayerNormDeviceOperation                      9       124 μs        162 μs     32                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-low"> 1427    0.6 %         ReshapeViewDeviceOperation                   17        54 μs        116 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 1443    0.2 %         UntilizeDeviceOperation                       1        15 μs         45 μs     45                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-low"> 1474    0.7 %         RepeatDeviceOperation                         0        60 μs        138 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 1506    0.8 %         TilizeDeviceOperation                         0       208 μs         34 μs     45                                                       BF16 =&gt; BF16</span>
+<span class="cat-matmul hi-us hi-us-high"> 1552    5.8 %   DRAM  MatmulDeviceOperation 32 x 2880 x 5760       14     1,423 μs        231 μs     60  193 GB/s  66.9 %  11.9 TFLOPs   19.4 %  HiFi4 BF16 x BFP8 =&gt; BF16</span>
+<span class="cat-eltwise hi-us hi-us-low"> 1589    0.3 %         BinaryNgDeviceOperation                      19        83 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 1602    0.8 %         UntilizeDeviceOperation                       0       219 μs          1 μs     60                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 1643    4.2 %         SliceDeviceOperation                          9     1,194 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 1697    0.7 %         TilizeDeviceOperation                        31       208 μs          1 μs     45                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise"> 1716    0.1 %         UnaryDeviceOperation                         18        35 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise"> 1731    0.1 %         BinaryNgDeviceOperation                       1        39 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 1776    0.8 %         UntilizeDeviceOperation                      14       221 μs          1 μs     60                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 1795    4.2 %         SliceDeviceOperation                          1     1,193 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 1826    0.7 %         TilizeDeviceOperation                         0       208 μs          1 μs     45                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise"> 1869    0.1 %         UnaryDeviceOperation                         11        35 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise"> 1897    0.1 %         BinaryNgDeviceOperation                       7        42 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise hi-us hi-us-low"> 1946    0.2 %         UnaryDeviceOperation                         24        54 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise"> 1960    0.2 %         BinaryNgDeviceOperation                       6        49 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-eltwise"> 1997    0.2 %         BinaryNgDeviceOperation                      11        49 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-matmul slow hi-us hi-us-high"> 2025    3.3 %   SLOW  MatmulDeviceOperation 32 x 2880 x 2880        7       939 μs          1 μs     45  148 GB/s  51.3 %   9.0 TFLOPs   19.6 %  HiFi4 BF16 x BFP8 =&gt; BF16</span>
+<span class="cat-eltwise"> 2079    0.2 %         BinaryNgDeviceOperation                      29        49 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 2091    4.3 %         ReshapeViewDeviceOperation                    9     1,240 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-med"> 2137    0.4 %         TypecastDeviceOperation                      23       106 μs          1 μs     72                                                       BF16 =&gt; FP32</span>
+<span class="cat-tm hi-us hi-us-low"> 2171    0.3 %         ReshapeViewDeviceOperation                   25        89 μs          1 μs     72                                                       FP32 =&gt; FP32</span>
+<span class="cat-matmul slow"> 2181    0.2 %   SLOW  MatmulDeviceOperation 32 x 2880 x 128         3        43 μs          1 μs      4   18 GB/s   6.1 %   0.6 TFLOPs    6.7 %  HiFi2 FP32 x BFP8 =&gt; FP32</span>
+<span class="cat-tm"> 2218    0.0 %         TypecastDeviceOperation                       8         3 μs          1 μs      4                                                       FP32 =&gt; BF16</span>
+<span class="cat-special hi-us hi-us-low"> 2272    0.3 %         TopKDeviceOperation                          30        80 μs          2 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 2305    0.0 %         SliceDeviceOperation                         31         1 μs          2 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 2321    0.0 %         SliceDeviceOperation                         15         1 μs          2 μs      1                                                   UINT16 =&gt; UINT16</span>
+<span class="cat-tm"> 2343    0.0 %         TypecastDeviceOperation                       5         2 μs          2 μs      1                                                    UINT16 =&gt; INT32</span>
+<span class="cat-tm"> 2400    0.0 %         ReshapeViewDeviceOperation                   30         9 μs          1 μs     32                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2432    0.0 %         UntilizeWithUnpaddingDeviceOperation         30         5 μs          1 μs     32                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2456    0.0 %         UntilizeWithUnpaddingDeviceOperation         22         5 μs          1 μs     32                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2481    0.0 %         PermuteDeviceOperation                       15         4 μs          1 μs     32                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2523    0.0 %         PermuteDeviceOperation                       25         4 μs          1 μs     32                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2536    0.0 %         ConcatDeviceOperation                         6         3 μs          1 μs     64                                              INT32, INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2586    0.0 %         PermuteDeviceOperation                       24         4 μs          1 μs     32                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2610    0.0 %         TilizeWithValPaddingDeviceOperation          16         9 μs          1 μs     32                                                     INT32 =&gt; INT32</span>
+<span class="cat-special"> 2645    0.1 %         SoftmaxDeviceOperation                       19        25 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-ccl hi-us hi-us-low"> 2658    0.3 %         AllGatherDeviceOperation                      0        87 μs          1 μs     24                                                     INT32 =&gt; INT32</span>
+<span class="cat-ccl"> 2690    0.0 %         AllGatherDeviceOperation                      0        11 μs          1 μs      8                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 2753    0.0 %         ReshapeViewDeviceOperation                   31        11 μs          1 μs     16                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2759    0.0 %         SliceDeviceOperation                          5         3 μs          1 μs     16                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2814    0.1 %         UntilizeWithUnpaddingDeviceOperation         28        15 μs          1 μs     16                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2825    0.5 %         SliceDeviceOperation                          7         6 μs        140 μs     72                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2855    0.8 %         TilizeWithValPaddingDeviceOperation           5         8 μs        229 μs     16                                                     INT32 =&gt; INT32</span>
+<span class="cat-eltwise"> 2896    0.4 %         BinaryNgDeviceOperation                      14        13 μs        110 μs     72                                              INT32, INT32 =&gt; INT32</span>
+<span class="cat-eltwise"> 2925    0.5 %         BinaryNgDeviceOperation                      11         4 μs        152 μs     72                                              INT32, INT32 =&gt; INT32</span>
+<span class="cat-tm"> 2960    0.9 %         ReshapeViewDeviceOperation                   14         7 μs        251 μs     16                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3001    0.9 %         ReshapeViewDeviceOperation                   23         4 μs        244 μs     16                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3037    0.3 %         UntilizeWithUnpaddingDeviceOperation         27        11 μs         88 μs      1                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3065    0.5 %         SliceDeviceOperation                         23         1 μs        156 μs      1                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3089    0.5 %         TilizeWithValPaddingDeviceOperation          15        44 μs         95 μs      1                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3106    0.8 %         UntilizeWithUnpaddingDeviceOperation          0        10 μs        211 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3159    0.3 %         SliceDeviceOperation                         21         1 μs         75 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3179    0.6 %         TilizeWithValPaddingDeviceOperation           9        23 μs        156 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3225    0.3 %         UntilizeWithUnpaddingDeviceOperation         23         7 μs         76 μs      1                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3247    0.8 %         UntilizeWithUnpaddingDeviceOperation         13         6 μs        215 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-ccl hi-us hi-us-high"> 3290    1.4 %         ScatterDeviceOperation                       24       313 μs         89 μs      1                                                BF16, INT32 =&gt; BF16</span>
+<span class="cat-tm"> 3311    0.1 %         TilizeWithValPaddingDeviceOperation          13        32 μs          1 μs     64                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3360    0.4 %         UntilizeWithUnpaddingDeviceOperation         30        12 μs         90 μs      1                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3387    0.8 %         SliceDeviceOperation                         25         1 μs        229 μs      1                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3400    0.5 %         TilizeWithValPaddingDeviceOperation           6        44 μs         93 μs      1                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3447    0.5 %         UntilizeWithUnpaddingDeviceOperation         21        10 μs        138 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3472    0.3 %         SliceDeviceOperation                         14         1 μs         73 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3518    0.7 %         TilizeWithValPaddingDeviceOperation          28        23 μs        176 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3531    0.3 %         UntilizeWithUnpaddingDeviceOperation          9         7 μs         69 μs      1                                                     INT32 =&gt; INT32</span>
+<span class="cat-tm"> 3570    0.6 %         UntilizeWithUnpaddingDeviceOperation         16         6 μs        161 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3592    0.3 %         UntilizeWithUnpaddingDeviceOperation          6        10 μs         83 μs     64                                                       BF16 =&gt; BF16</span>
+<span class="cat-ccl hi-us hi-us-high"> 3641    1.7 %         ScatterDeviceOperation                       23       309 μs        169 μs      1                                                BF16, INT32 =&gt; BF16</span>
+<span class="cat-tm"> 3672    0.1 %         TilizeWithValPaddingDeviceOperation          22        32 μs          1 μs     64                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3706    0.1 %         ReshapeViewDeviceOperation                   24        25 μs          1 μs     16                                                       BF16 =&gt; BF16</span>
+<span class="cat-special"> 3728    0.7 %         MeshPartitionDeviceOperation                 14         1 μs        195 μs      4                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3764    0.5 %         UntilizeDeviceOperation                      18         6 μs        140 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-special"> 3786    2.4 %         MeshPartitionDeviceOperation                  8         2 μs        694 μs     32                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3837    0.4 %         TilizeWithValPaddingDeviceOperation          27         4 μs        107 μs      1                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm"> 3854    0.6 %         TransposeDeviceOperation                     12         2 μs        179 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-low"> 3879    0.5 %         ReshapeViewDeviceOperation                    5        50 μs        102 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise hi-us hi-us-high"> 3919    3.8 %         BinaryNgDeviceOperation                      13       938 μs        137 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-high"> 3938    9.1 %         FillPadDeviceOperation                        0     2,619 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-reduce hi-us hi-us-high"> 3979    1.8 %         FastReduceNCDeviceOperation                   9       526 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-low"> 4008    0.2 %         SliceDeviceOperation                          6        65 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="cat-ccl hi-us hi-us-high"> 4034    0.8 %         ReduceScatterDeviceOperation                  0       227 μs          1 μs     24                                                       BF16 =&gt; BF16</span>
+<span class="cat-ccl hi-us hi-us-med"> 4066    0.6 %         AllGatherDeviceOperation                      0       162 μs          1 μs     40                                                       BF16 =&gt; BF16</span>
+<span class="cat-eltwise hi-us hi-us-low"> 4098    0.3 %         BinaryNgDeviceOperation                       0        85 μs          1 μs     72                                                 BF16, BF16 =&gt; BF16</span>
+<span class="cat-tm hi-us hi-us-low"> 4130    0.2 %         ReshapeViewDeviceOperation                    0        53 μs          1 μs     72                                                       BF16 =&gt; BF16</span>
+<span class="rule">---------------------------------------------------------------------------------------------------------------------------------------------------------------------------</span>
+<span class="header">       100.0 %         130 device ops, 0 host ops, 0 signposts             14,744 μs     13,908 μs                                                                          </span>
+<span class="rule"></span>
+<span>📊 Stacked report 📊</span>
+<span class="rule-title">====================</span>
+<span class="rule"></span>
+<span class="header">Total %  Op Code                                                      Device Time Sum  Op Count  Op Category  Min FLOPs  Max FLOPs  Mean FLOPs  Std FLOPs  Weighted Mean FLOPs</span>
+<span class="rule">------------------------------------------------------------------------------------------------------------------------------------------------------------------------------</span>
+<span class="stacked-row cat-tm hi-us hi-us-low">17.76 %  FillPadDeviceOperation (in0:dram_interleaved)                    2,618.86 μs         1           TM                                                                  </span>
+<span class="stacked-row cat-matmul">17.11 %  MatmulDeviceOperation (in0:dram_interleaved)                     2,523.05 μs         7      Compute     6.56 %    19.57 %     12.14 %     5.51 %              18.73 %</span>
+<span class="stacked-row cat-tm">16.90 %  SliceDeviceOperation (in0:dram_interleaved)                      2,491.02 μs        15           TM                                                                  </span>
+<span class="stacked-row cat-tm">11.21 %  ReshapeViewDeviceOperation (in0:dram_interleaved)                1,653.19 μs        14        Other                                                                  </span>
+<span class="stacked-row cat-eltwise">10.93 %  BinaryNgDeviceOperation (in0:dram_interleaved)                   1,611.44 μs        24      Compute                                                                  </span>
+<span class="stacked-row cat-tm"> 4.23 %  TilizeDeviceOperation (in0:dram_interleaved)                       623.43 μs         3           TM                                                                  </span>
+<span class="stacked-row cat-ccl"> 4.21 %  ScatterDeviceOperation (in0:dram_interleaved)                      621.39 μs         2        Other                                                                  </span>
+<span class="stacked-row cat-reduce"> 3.63 %  FastReduceNCDeviceOperation (in0:dram_interleaved)                 535.25 μs         2        Other                                                                  </span>
+<span class="stacked-row cat-tm hi-us hi-us-low"> 3.13 %  UntilizeDeviceOperation (in0:dram_interleaved)                     460.76 μs         4           TM                                                                  </span>
+<span class="stacked-row cat-ccl hi-us hi-us-low"> 2.26 %  AllGatherDeviceOperation (in0:dram_interleaved)                    332.52 μs         4        Other                                                                  </span>
+<span class="stacked-row cat-special"> 1.57 %  LayerNormDeviceOperation (in0:dram_interleaved)                    232.20 μs         2      Compute                                                                  </span>
+<span class="stacked-row cat-ccl hi-us hi-us-low"> 1.54 %  ReduceScatterDeviceOperation (in0:dram_interleaved)                226.63 μs         1           DM                                                                  </span>
+<span class="stacked-row cat-tm"> 1.49 %  TilizeWithValPaddingDeviceOperation (in0:dram_interleaved)         220.10 μs         9           TM                                                                  </span>
+<span class="stacked-row cat-eltwise"> 0.84 %  UnaryDeviceOperation (in0:dram_interleaved)                        123.33 μs         3      Compute                                                                  </span>
+<span class="stacked-row cat-tm"> 0.75 %  TypecastDeviceOperation (in0:dram_interleaved)                     110.47 μs         3           TM                                                                  </span>
+<span class="stacked-row cat-tm hi-us hi-us-low"> 0.69 %  UntilizeWithUnpaddingDeviceOperation (in0:dram_interleaved)        101.73 μs        12           TM                                                                  </span>
+<span class="stacked-row cat-special hi-us hi-us-low"> 0.54 %  TopKDeviceOperation (in0:dram_interleaved)                          79.56 μs         1        Other                                                                  </span>
+<span class="stacked-row cat-tm"> 0.41 %  RepeatDeviceOperation (in0:dram_interleaved)                        60.28 μs         1        Other                                                                  </span>
+<span class="stacked-row cat-tm hi-us hi-us-low"> 0.23 %  PermuteDeviceOperation (in0:dram_interleaved)                       34.61 μs         7           TM                                                                  </span>
+<span class="stacked-row cat-special"> 0.17 %  SoftmaxDeviceOperation (in0:dram_interleaved)                       25.19 μs         1      Compute                                                                  </span>
+<span class="stacked-row cat-special"> 0.12 %  SdpaDecodeDeviceOperation (in0:dram_interleaved)                    18.27 μs         1        Other                                                                  </span>
+<span class="stacked-row cat-tm"> 0.12 %  ConcatDeviceOperation (in0:dram_interleaved)                        17.01 μs         3           TM                                                                  </span>
+<span class="stacked-row cat-special hi-us hi-us-low"> 0.07 %  PagedUpdateCacheDeviceOperation (in0:dram_interleaved)               9.65 μs         2           DM                                                                  </span>
+<span class="stacked-row cat-tm"> 0.03 %  InterleavedToShardedDeviceOperation (in0:dram_interleaved)           4.14 μs         3           DM                                                                  </span>
+<span class="stacked-row cat-tm hi-us hi-us-low"> 0.03 %  NLPConcatHeadsDecodeDeviceOperation (in0:height_sharded)             3.72 μs         1           TM                                                                  </span>
+<span class="stacked-row cat-special"> 0.02 %  MeshPartitionDeviceOperation (in0:dram_interleaved)                  3.07 μs         2        Other                                                                  </span>
+<span class="stacked-row cat-tm hi-us hi-us-low"> 0.01 %  TransposeDeviceOperation (in0:dram_interleaved)                      1.79 μs         1           TM                                                                  </span>
+<span class="stacked-row cat-tm hi-us hi-us-low"> 0.01 %  ShardedToInterleavedDeviceOperation (in0:width_sharded)              0.98 μs         1           DM                                                                  </span>
+<span class="rule">------------------------------------------------------------------------------------------------------------------------------------------------------------------------------</span>
+    </pre>
+    <div class="summary-chart">
+      <img src="even_full_summary.png" alt="Even Full Layer · GPT-OSS 120B" />
+    </div>
+  </div>
+  <script>
+    (function () {
+      const pre = document.querySelector("pre");
+      if (!pre) return;
+
+      const spans = Array.from(pre.querySelectorAll("span"));
+      let inGapSection = false;
+
+      for (const span of spans) {
+        const text = span.textContent.trim();
+
+        if (text === "High Op-to-Op Gap") {
+          inGapSection = true;
+          continue;
+        }
+
+        if (inGapSection && text === "Matmul Optimization") {
+          break;
+        }
+
+        if (!inGapSection) continue;
+
+        if (!/^\d+/.test(text) || !/DeviceOperation/.test(text)) continue;
+
+        span.classList.remove("hi-us", "hi-us-low", "hi-us-med", "hi-us-high");
+
+        const matches = [...span.textContent.matchAll(/(\d[\d,]*(?:\.\d+)?) μs/g)];
+        if (matches.length < 2) continue;
+
+        const gapUs = Number(matches[1][1].replace(/,/g, ""));
+        if (Number.isNaN(gapUs)) continue;
+
+        if (gapUs >= 400) {
+          span.classList.add("hi-gap", "hi-gap-400");
+        } else if (gapUs >= 200) {
+          span.classList.add("hi-gap", "hi-gap-200");
+        } else if (gapUs >= 100) {
+          span.classList.add("hi-gap", "hi-gap-100");
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

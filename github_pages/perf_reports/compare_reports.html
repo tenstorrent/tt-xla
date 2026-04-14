@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compare tt-perf-report HTML (side by side)</title>
+  <style>
+    :root {
+      --page-bg: #1b241d;
+      --page-glow: rgba(240, 192, 214, 0.14);
+      --surface: rgba(31, 47, 35, 0.95);
+      --text: #f7eff2;
+      --muted: #d6ccd1;
+      --outline: rgba(126, 160, 126, 0.34);
+      --heading: #f7d6e4;
+      --pink: #f5b9d0;
+      --green-glow: rgba(185, 221, 208, 0.10);
+      --left-accent: rgba(185, 221, 208, 0.35);
+      --right-accent: rgba(255, 209, 154, 0.35);
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, var(--page-glow), transparent 34%),
+        radial-gradient(circle at top right, var(--green-glow), transparent 28%),
+        linear-gradient(180deg, #222d24 0%, var(--page-bg) 100%);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .toolbar {
+      flex: 0 0 auto;
+      padding: 14px 18px 12px;
+      border-bottom: 1px solid var(--outline);
+      background: var(--surface);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 20px;
+    }
+    .toolbar h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--heading);
+      letter-spacing: 0.02em;
+    }
+    .toolbar a {
+      color: var(--pink);
+      font-size: 13px;
+    }
+    .pick {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .pick label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    select {
+      font: inherit;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--outline);
+      background: rgba(25, 39, 28, 0.98);
+      color: var(--text);
+      min-width: 220px;
+      cursor: pointer;
+    }
+    select:focus {
+      outline: 2px solid rgba(240, 107, 154, 0.35);
+      outline-offset: 2px;
+    }
+    .panes {
+      flex: 1 1 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      min-height: 0;
+    }
+    @media (max-width: 900px) {
+      .panes {
+        grid-template-columns: 1fr;
+      }
+      .pane--left {
+        border-bottom: 1px solid var(--outline);
+      }
+    }
+    .pane {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-height: 70vh;
+    }
+    .pane header {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--outline);
+    }
+    .pane--left header {
+      background: linear-gradient(180deg, rgba(185, 221, 208, 0.08), transparent);
+      border-left: 3px solid var(--left-accent);
+    }
+    .pane--right header {
+      background: linear-gradient(180deg, rgba(255, 209, 154, 0.08), transparent);
+      border-left: 3px solid var(--right-accent);
+    }
+    iframe {
+      flex: 1 1 auto;
+      width: 100%;
+      border: none;
+      background: #141c16;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>Side-by-side reports</h1>
+    <a href="index.html">&larr; Perf hub</a>
+    <div class="pick">
+      <label for="run-left">Left</label>
+      <select id="run-left" aria-label="Choose left run"></select>
+    </div>
+    <div class="pick">
+      <label for="run-right">Right</label>
+      <select id="run-right" aria-label="Choose right run"></select>
+    </div>
+    <div class="pick">
+      <label for="segment">Report</label>
+      <select id="segment" aria-label="Choose report segment to compare"></select>
+    </div>
+  </div>
+  <div class="panes">
+    <div class="pane pane--left">
+      <header id="header-left"></header>
+      <iframe id="frame-left" title="Left report"></iframe>
+    </div>
+    <div class="pane pane--right">
+      <header id="header-right"></header>
+      <iframe id="frame-right" title="Right report"></iframe>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var RUNS = [
+        { id: "2026_03_25", path: "2026_03_25_12_13_39/tt_perf/", label: "2026-03-25 \u00b7 20B dual-axis weight-sharded" },
+        { id: "2026_03_27", path: "2026_03_27_12_21_16/tt_perf/", label: "2026-03-27 \u00b7 20B model-axis + DP input-shard" },
+        { id: "2026_04_07", path: "2026_04_07_07_11_39/tt_perf/", label: "2026-04-07 \u00b7 120B model-axis TP + DP" },
+        { id: "2026_04_14", path: "2026_04_14_13_25_34/tt_perf/", label: "2026-04-14 \u00b7 20B model-axis TP" },
+      ];
+
+      var SEGMENTS = [
+        { id: "index", label: "Run overview (index.html)", file: "index.html" },
+        { id: "even_full", label: "Even Full Layer", file: "even_full_performance_report.html" },
+        { id: "odd_full", label: "Odd Full Layer", file: "odd_full_performance_report.html" },
+        { id: "even_attention", label: "Even Attention Sublayer", file: "even_attention_performance_report.html" },
+        { id: "odd_attention", label: "Odd Attention Sublayer", file: "odd_attention_performance_report.html" },
+        { id: "even_moe", label: "Even MoE Sublayer", file: "even_moe_performance_report.html" },
+        { id: "odd_moe", label: "Odd MoE Sublayer", file: "odd_moe_performance_report.html" },
+        { id: "decode_2", label: "Full decode\u2082 window", file: "decode_2_performance_report.html" },
+      ];
+
+      var runLeftSel = document.getElementById("run-left");
+      var runRightSel = document.getElementById("run-right");
+      var segSel = document.getElementById("segment");
+      var frameL = document.getElementById("frame-left");
+      var frameR = document.getElementById("frame-right");
+      var headerL = document.getElementById("header-left");
+      var headerR = document.getElementById("header-right");
+
+      RUNS.forEach(function (r) {
+        [runLeftSel, runRightSel].forEach(function (sel) {
+          var opt = document.createElement("option");
+          opt.value = r.id;
+          opt.textContent = r.label;
+          sel.appendChild(opt);
+        });
+      });
+      SEGMENTS.forEach(function (s) {
+        var opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.label;
+        segSel.appendChild(opt);
+      });
+
+      function byId(arr, id) {
+        for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i];
+        return arr[0];
+      }
+
+      function apply() {
+        var rl = byId(RUNS, runLeftSel.value);
+        var rr = byId(RUNS, runRightSel.value);
+        var seg = byId(SEGMENTS, segSel.value);
+        headerL.textContent = rl.label;
+        headerR.textContent = rr.label;
+        frameL.src = rl.path + seg.file;
+        frameR.src = rr.path + seg.file;
+        if (history.replaceState) {
+          history.replaceState(null, "", "?l=" + rl.id + "&r=" + rr.id + "&s=" + seg.id);
+        }
+      }
+
+      function syncFromUrl() {
+        var params = new URLSearchParams(window.location.search);
+        runLeftSel.value = params.get("l") || "2026_03_27";
+        runRightSel.value = params.get("r") || "2026_04_14";
+        segSel.value = params.get("s") || SEGMENTS[0].id;
+        apply();
+      }
+
+      runLeftSel.addEventListener("change", apply);
+      runRightSel.addEventListener("change", apply);
+      segSel.addEventListener("change", apply);
+      syncFromUrl();
+    })();
+  </script>
+</body>
+</html>
