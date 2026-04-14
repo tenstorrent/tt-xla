@@ -26,11 +26,15 @@ These scripts are located in a subdirectory of this skill.
 - `scripts/teardown_venv.sh`: Teardown the venv.
 - `scripts/activate`: Source the python virtual environment.
 
-## Phase 1. Setup the venv.
+## Phase 1. Git pull.
+
+`git pull` to ensure you have the most up to date version of this branch.
+
+## Phase 2. Setup the venv.
 
 Invoke the `scripts/setup_venv.sh` script to setup a local venv.
 
-## Phase 2. Run the model & Diagnose and resolve all failures.
+## Phase 3. Run the model & Diagnose and resolve all failures.
 
 Determine if this model can run on a Tenstorrent quietbox system via one of the
 following modes:
@@ -48,7 +52,7 @@ Example:
 If the model is too large to run in either of these configs, then we skip step 3
 and straight to step 4 to log the model is too large.
 
-## Phase 3. Run the model & Diagnose and resolve all failures.
+## Phase 4. Run the model & Diagnose and resolve all failures.
 
 Run the model with the run script: `scripts/run.sh $0`
 
@@ -76,7 +80,7 @@ test.  In a loop let's:
   exist) all of the changes once it's done.
 - Once the test is passing go to phase 4.
 
-## Phase 4. Log status
+## Phase 5. Log status
 
 Finally we want to log the status of the test:
 - If the test passed despite initial issues use: `scripts/log_status.sh $0 PASS`

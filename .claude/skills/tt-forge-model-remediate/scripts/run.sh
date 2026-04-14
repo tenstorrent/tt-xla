@@ -30,6 +30,4 @@ TEST_NAME="$@"
 SAFE_NAME=$(echo "${TEST_NAME}" | tr '/:[]\.' '_')
 DATE=$(date +%Y%m%d_%H%M%S)
 set -x
-pytest "${TEST_NAME}" \
-  --junit-xml=$LOGS_DIR/${SAFE_NAME}_${DATE}.xml \
-  -v 2>&1 | tee $LOGS_DIR/${SAFE_NAME}_${DATE}.log
+pytest "${TEST_NAME}" -v

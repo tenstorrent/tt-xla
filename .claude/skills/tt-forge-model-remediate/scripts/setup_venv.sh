@@ -9,6 +9,10 @@ export XDG_CACHE_HOME="$PWD/.cache"
 export TT_METAL_CACHE="$PWD/.cache"
 export TTMLIR_VENV_DIR=$PWD/.local_venv
 
+rm -rf $XDG_CACHE_HOME
+rm -rf $TT_METAL_CACHE
+rm -rf $TTMLIR_VENV_DIR
+
 cd $TT_XLA_ROOT
 source venv/activate
 
