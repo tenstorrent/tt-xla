@@ -2221,34 +2221,76 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         temp = torch.where(temp < 1e-6, torch.ones_like(temp), temp)
         logits = logits / temp.unsqueeze(1)
 
-        # Apply top-k
-        if sampling_metadata.top_k is not None:
-            top_k = sampling_metadata.top_k.cpu()
-            for i in range(logits.size(0)):
-                k = int(top_k[i].item())
-                if k > 0 and k < logits.size(1):
-                    topk_vals, _ = torch.topk(logits[i], k)
-                    logits[i][logits[i] < topk_vals[-1]] = float('-inf')
+        # Apply top-k and top-p filtering
+        # When top_k > 0, use batched topk to reduce the working set before
+        # top-p sort — sorting k elements instead of the full 128K vocab.
+        has_topk = sampling_metadata.top_k is not None
+        has_topp = sampling_metadata.top_p is not None
+        top_k = sampling_metadata.top_k.cpu() if has_topk else None
+        top_p = sampling_metadata.top_p.cpu() if has_topp else None
 
-        # Apply top-p
-        if sampling_metadata.top_p is not None:
-            top_p = sampling_metadata.top_p.cpu()
-            for i in range(logits.size(0)):
-                p = float(top_p[i].item())
-                if p < 1.0:
-                    sorted_logits, sorted_indices = torch.sort(logits[i], descending=True)
-                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
-                    mask = cumulative_probs - torch.softmax(sorted_logits, dim=-1) >= p
-                    sorted_logits[mask] = float('-inf')
-                    logits[i] = sorted_logits.scatter(0, sorted_indices, sorted_logits)
+        # Determine if we can use the fast batched top-k path:
+        # all requests must have the same k > 0 and k < vocab_size.
+        uniform_k = 0
+        if has_topk:
+            k_vals = top_k.unique()
+            if len(k_vals) == 1:
+                k = int(k_vals.item())
+                if 0 < k < logits.size(1):
+                    uniform_k = k
 
-        # Sample from distribution
-        probs = torch.softmax(logits, dim=-1)
-        # Per-token: use greedy where temperature ~ 0, random otherwise
-        greedy = torch.argmax(logits, dim=-1)
-        random = torch.multinomial(probs, num_samples=1).squeeze(-1)
-        out_tokens = torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
-        return out_tokens
+        if uniform_k > 0:
+            # Fast path: batched top-k reduces vocab from 128K to k elements,
+            # then apply top-p on the small set and sample via Gumbel-max.
+            topk_vals, topk_idx = torch.topk(logits, uniform_k, dim=-1)
+
+            # Apply top-p on the reduced set
+            if has_topp:
+                for i in range(topk_vals.size(0)):
+                    p = float(top_p[i].item())
+                    if p < 1.0:
+                        sorted_vals, sort_idx = torch.sort(topk_vals[i], descending=True)
+                        cum_probs = torch.cumsum(torch.softmax(sorted_vals, dim=-1), dim=-1)
+                        mask = cum_probs - torch.softmax(sorted_vals, dim=-1) >= p
+                        sorted_vals[mask] = float('-inf')
+                        topk_vals[i] = sorted_vals.scatter(0, sort_idx, sorted_vals)
+
+            # Gumbel-max on reduced set
+            greedy = torch.argmax(topk_vals, dim=-1)
+            gumbel = -torch.log(-torch.log(torch.rand_like(topk_vals.float()) + 1e-20) + 1e-20)
+            random = torch.argmax(topk_vals + gumbel, dim=-1)
+            sampled_local = torch.where(temp < 1e-6, greedy, random)
+            # Map back to vocab indices
+            out_tokens = topk_idx.gather(-1, sampled_local.unsqueeze(-1))
+            return out_tokens
+        else:
+            # Slow path: per-request top-k (mixed k values or k=0)
+            if has_topk:
+                for i in range(logits.size(0)):
+                    k = int(top_k[i].item())
+                    if k > 0 and k < logits.size(1):
+                        topk_vals, _ = torch.topk(logits[i], k)
+                        logits[i][logits[i] < topk_vals[-1]] = float('-inf')
+
+            # Apply top-p on full vocab
+            if has_topp:
+                for i in range(logits.size(0)):
+                    p = float(top_p[i].item())
+                    if p < 1.0:
+                        sorted_logits, sorted_indices = torch.sort(logits[i], descending=True)
+                        cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                        mask = cumulative_probs - torch.softmax(sorted_logits, dim=-1) >= p
+                        sorted_logits[mask] = float('-inf')
+                        logits[i] = sorted_logits.scatter(0, sorted_indices, sorted_logits)
+
+            # Gumbel-max trick: replaces softmax + multinomial with argmax(logits + gumbel_noise).
+            # Mathematically equivalent for sampling from categorical distributions.
+            # torch.argmax is ~4x faster than torch.multinomial at vocab=128K.
+            greedy = torch.argmax(logits, dim=-1)
+            gumbel = -torch.log(-torch.log(torch.rand_like(logits.float()) + 1e-20) + 1e-20)
+            random = torch.argmax(logits + gumbel, dim=-1)
+            out_tokens = torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
+            return out_tokens
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def gather_logprobs(
