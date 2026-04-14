@@ -1789,12 +1789,11 @@ def test_kimi_k2_tp_galaxy_2_layers(
     max_output_tokens,
     decode_only,
 ):
-    from third_party.tt_forge_models.kimi.kimi_k2.pytorch.loader import (
+    from third_party.tt_forge_models.kimi_k2.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
-
-    variant = ModelVariant.KIMI_K2_INSTRUCT
+    variant = ModelVariant.KIMI_K2_INSTRUCT_MODIFIED
     test_llm_tp(
         ModelLoader,
         variant,
