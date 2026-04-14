@@ -236,3 +236,64 @@ def test_complex_mul(shape: tuple, dtype: torch.dtype, request):
         framework=Framework.TORCH,
         request=request,
     )
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST, torch_op_name="torch.slice"
+)
+@pytest.mark.parametrize(
+    "shape",
+    [(32, 64), (64, 128)],
+    ids=lambda val: f"{val}",
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [torch.complex64, torch.complex128],
+    ids=["complex64", "complex128"],
+)
+def test_complex_slice(shape: tuple, dtype: torch.dtype, request):
+    class ComplexSlice(torch.nn.Module):
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return x[:, : shape[1] // 2]
+
+    run_op_test(
+        ComplexSlice(),
+        [torch.randn(shape, dtype=dtype)],
+        framework=Framework.TORCH,
+        request=request,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST, torch_op_name="torch.cat"
+)
+@pytest.mark.parametrize(
+    "shape",
+    [(32, 64), (64, 128)],
+    ids=lambda val: f"{val}",
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [torch.complex64, torch.complex128],
+    ids=["complex64", "complex128"],
+)
+def test_complex_concat(shape: tuple, dtype: torch.dtype, request):
+    class ComplexConcat(torch.nn.Module):
+        def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+            return torch.cat([x, y], dim=0)
+
+    run_op_test(
+        ComplexConcat(),
+        [
+            torch.randn(shape, dtype=dtype),
+            torch.randn(shape, dtype=dtype),
+        ],
+        framework=Framework.TORCH,
+        request=request,
+    )

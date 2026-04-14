@@ -33,15 +33,103 @@ class RequirementsManager:
     - Also looks for system-requirements.txt for system packages (e.g. ffmpeg)
     """
 
-    # JAX test infra imports flax/transformers at module level; purging them
-    # from sys.modules would break isinstance checks between old class objects
-    # held by module-level variables (e.g. nnx.Module) and freshly loaded ones.
+    # JAX test infra imports flax at module level; purging it from sys.modules
+    # would break isinstance checks between old class objects held by
+    # module-level variables (e.g. nnx.Module) and freshly loaded ones.
     # Entries must be import names (e.g. "PIL", not "Pillow"), since they are
     # compared against resolved import names in _purge_stale_modules.
-    _JAX_PURGE_SKIP = frozenset({"flax", "transformers"})
+    _JAX_PURGE_SKIP = frozenset({"flax"})
 
     # Top-level directory names in RECORD that are not importable packages.
     _RECORD_SKIP = frozenset({"__pycache__", "bin", "share"})
+
+    # Golden snapshot of the pip environment captured once per session.
+    # Each forked child inherits this from the parent process.  At the
+    # start of __enter__, the current on-disk state is compared against
+    # the golden snapshot; if they differ (e.g. a previous child was
+    # OOM-killed before __exit__ could roll back), the environment is
+    # restored before proceeding.
+    _golden_freeze: Optional[Dict[str, str]] = None
+
+    @classmethod
+    def capture_golden_state(cls) -> None:
+        """Capture the clean pip environment in memory.  Called once per session.
+
+        Guarded so that forked children (pytest-forked) do not re-capture:
+        with --forked, session fixtures re-run inside each child process.
+        Without this guard the child would overwrite the inherited golden
+        freeze with the (possibly dirty) on-disk state.
+        """
+        if cls._golden_freeze is not None:
+            return
+        cls._golden_freeze = cls._pip_freeze()
+        _dbg(
+            f"[Requirements] Golden freeze captured: "
+            f"{len(cls._golden_freeze)} packages"
+        )
+
+    @classmethod
+    def _restore_environment(cls) -> None:
+        """Restore the pip environment to the golden state held in memory."""
+        if cls._golden_freeze is None:
+            _dbg("[Requirements] No golden freeze captured; cannot heal")
+            return
+
+        _dbg("[Requirements] Restoring environment from golden freeze")
+
+        current_freeze = cls._pip_freeze()
+
+        # Packages not in the golden state — must be removed
+        to_uninstall = sorted(
+            set(current_freeze.keys()) - set(cls._golden_freeze.keys())
+        )
+
+        # Packages whose version changed or that went missing
+        to_restore = []
+        for name, line in cls._golden_freeze.items():
+            if name not in current_freeze or current_freeze[name] != line:
+                to_restore.append(line)
+
+        if not to_uninstall and not to_restore:
+            _dbg("[Requirements] Environment is clean; nothing to heal")
+            return
+
+        if to_uninstall:
+            _dbg(f"[Requirements] Restoring: uninstalling {to_uninstall}")
+            try:
+                cls._pip_uninstall(to_uninstall)
+            except Exception as e:
+                warnings.warn(
+                    f"[Requirements] Restoring: uninstall failed: {e}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+
+        if to_restore:
+            _dbg(f"[Requirements] Restoring: restoring {len(to_restore)} packages")
+            # Install one-by-one so that a single unresolvable package
+            # does not block the entire restore.
+            for spec in to_restore:
+                try:
+                    cls._pip_install(tuple([spec]))
+                except Exception as e:
+                    warnings.warn(
+                        f"[Requirements] Restoring: failed to install {spec}: {e}",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+
+        _dbg("[Requirements] Environment restored")
+
+    @classmethod
+    def check_and_restore_environment(cls) -> None:
+        """Public entry point: restore pip env to golden state if dirty.
+
+        Called before every test (via a pytest fixture) so that even tests
+        without their own requirements.txt benefit from crash recovery.
+        """
+        if cls._golden_freeze is not None:
+            cls._restore_environment()
 
     def __init__(
         self, requirements_path: Optional[str], framework: Optional[str] = None
@@ -92,6 +180,13 @@ class RequirementsManager:
         )
         self._lock_file = open(lock_path, "w")
         fcntl.flock(self._lock_file, fcntl.LOCK_EX)
+
+        # Self-healing: compare the on-disk pip state against the golden
+        # snapshot captured at session start.  If they differ, a previous
+        # forked child was likely killed (e.g. OOM) before __exit__ could
+        # roll back.  Restore the clean state before proceeding.
+        if self._golden_freeze is not None:
+            self._restore_environment()
 
         # Install system requirements first (if any)
         if self.system_requirements_path:
@@ -314,14 +409,11 @@ class RequirementsManager:
         point to the old version's code.  Purging forces Python to re-import
         from the updated on-disk packages the next time they are imported.
 
-        For JAX, ``flax`` and ``transformers`` are excluded from purging because
-        the JAX test infrastructure imports them at module level during test
-        collection.  Purging them would create a mismatch between the old class
-        objects held by module-level variables (e.g. ``nnx.Module``) and the
-        freshly loaded ones, breaking ``isinstance`` checks.  Keeping them in
-        ``sys.modules`` preserves the same behaviour as before sys-module
-        purging was introduced — the old versions remain in memory and are used
-        consistently by both the tester and the model.
+        For JAX, ``flax`` is excluded from purging because the JAX test
+        infrastructure imports it at module level during test collection.
+        Purging it would create a mismatch between the old class objects held
+        by module-level variables (e.g. ``nnx.Module``) and the freshly loaded
+        ones, breaking ``isinstance`` checks.
         """
         affected_normalized: Set[str] = set()
         for name in self._newly_installed | set(self._changed_versions.keys()):

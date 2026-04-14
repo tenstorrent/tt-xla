@@ -64,6 +64,10 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+    # Use static dense experts forward to avoid graph breaks from data-dependent
+    # loops in the original experts and _grouped_mm CPU crashes.
+    if hasattr(model.config, "_experts_implementation"):
+        model.config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -174,18 +178,18 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
 
 def check_transformers_version():
     """
-    Check that transformers version is <= 4.57.1.
+    Check that transformers version is = 5.2.0.
     Raises RuntimeError if version is incompatible.
     """
     import packaging.version
 
     current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("4.57.1")
+    max_version = packaging.version.parse("5.2.0")
 
-    if current_version > max_version:
+    if current_version != max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version <= 4.57.1"
+            f"Please use version 5.2.0"
         )
 
 
@@ -213,6 +217,7 @@ def benchmark_llm_torch_xla(
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
+    decode_only: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -266,6 +271,9 @@ def benchmark_llm_torch_xla(
             f"Input sequence length must be a positive integer for llm benchmark. Got: {input_sequence_length}. "
             "Please use -isl <length> (e.g., -isl 128)"
         )
+
+    if decode_only and accuracy_testing:
+        raise ValueError("--decode-only cannot be combined with --accuracy-testing")
 
     if task != "text-generation":
         raise ValueError(
@@ -325,7 +333,7 @@ def benchmark_llm_torch_xla(
     if max_output_tokens is None:
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Get CPU result (skip in accuracy testing mode - not needed with ground truth)
+    # Run CPU prefill (used as PCC baseline, or as decode-only prefill)
     if not accuracy_testing:
         cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
         cpu_wrapper.eval()
@@ -337,7 +345,13 @@ def benchmark_llm_torch_xla(
             verbose=False,
             collect_logits=True,
         )
-        cpu_logits = cpu_output_logits[0]
+
+        if decode_only:
+            # Save post-prefill state: CPU prefill populated the KV cache and
+            # updated input_ids to the next token and cache_position to prompt_len.
+            decode_only_input_ids = input_args["input_ids"].clone()
+            decode_only_cache_position = input_args["cache_position"].clone()
+            decode_only_cache = input_args["past_key_values"]
 
     # Transfer model and inputs to device
     input_args = construct_inputs(
@@ -347,6 +361,7 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        past_key_values=decode_only_cache if decode_only else None,
     )
     input_args = transfer_to_device(input_args, device)
     model = model.to(device, dtype=torch.bfloat16)
@@ -406,19 +421,20 @@ def benchmark_llm_torch_xla(
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
-    # Warmup run
-    print("Warming up...")
-    warmup_tokens = min(MIN_STEPS, max_output_tokens)
-    _, _ = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        warmup_tokens,
-        verbose=False,
-        collect_logits=False,
-    )
+    # Warmup run (skip in decode-only mode)
+    if not decode_only:
+        print("Warming up...")
+        warmup_tokens = min(MIN_STEPS, max_output_tokens)
+        _, _ = generate_and_benchmark(
+            compiled_perf_model,
+            input_args,
+            device,
+            warmup_tokens,
+            verbose=False,
+            collect_logits=False,
+        )
 
-    tracy.signpost("warmup_complete")
+        tracy.signpost("warmup_complete")
 
     # Reconstruct inputs for the perf benchmark run
     input_args = construct_inputs(
@@ -426,10 +442,18 @@ def benchmark_llm_torch_xla(
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=input_args["past_key_values"],
+        past_key_values=(
+            input_args["past_key_values"] if not decode_only else decode_only_cache
+        ),
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
+
+    if decode_only:
+        # Reset to post-prefill decode state (single token input)
+        input_args["input_ids"] = decode_only_input_ids
+        input_args["cache_position"] = decode_only_cache_position
+
     input_args = transfer_to_device(input_args, device)
 
     # Run perf benchmark
@@ -450,37 +474,40 @@ def benchmark_llm_torch_xla(
 
     # ACCURACY BENCHMARK
     # Logits moved to CPU each step to avoid OOM.
-    accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
-    accuracy_wrapper.eval()
-    compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
+    if not decode_only:
+        accuracy_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+        accuracy_wrapper.eval()
+        compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
 
-    accuracy_steps = max_output_tokens
+        accuracy_steps = max_output_tokens
 
-    # Reconstruct inputs for accuracy run
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=input_args["past_key_values"],
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-    )
-    input_args = transfer_to_device(input_args, device)
+        # Reconstruct inputs for accuracy run
+        input_args = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            past_key_values=input_args["past_key_values"],
+            input_prompt=custom_input_prompt,
+            input_prompt_tokens=(
+                token_accuracy.input_prompt if accuracy_testing else None
+            ),
+        )
+        input_args = transfer_to_device(input_args, device)
 
-    print(
-        f"\nStarting accuracy benchmark "
-        f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
-    )
-    output_logits, _ = generate_and_benchmark(
-        compiled_accuracy,
-        input_args,
-        device,
-        accuracy_steps,
-        verbose=False,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=True,
-    )
+        print(
+            f"\nStarting accuracy benchmark "
+            f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
+        )
+        output_logits, _ = generate_and_benchmark(
+            compiled_accuracy,
+            input_args,
+            device,
+            accuracy_steps,
+            verbose=False,
+            ground_truth_tokens=ground_truth_for_benchmark,
+            collect_logits=True,
+        )
 
     # Post-processing: derive predicted tokens for accuracy testing
     if accuracy_testing:
@@ -488,7 +515,7 @@ def benchmark_llm_torch_xla(
             logits[:, -1].argmax(dim=-1)[0].item() for logits in output_logits
         ]
 
-    ttft_ns = iteration_times[0]
+    ttft_ns = iteration_times[0] if not decode_only else 0.0
     ttft_ms = ttft_ns / 1e6
 
     decode_iteration_times = iteration_times[1:]
@@ -563,10 +590,12 @@ def benchmark_llm_torch_xla(
                 },
             ]
         )
+    elif decode_only:
+        print("PCC verification skipped in decode-only mode")
     else:
         # Check PCC
         pcc_value = compute_pcc(
-            output_logits[0][0], cpu_logits[0], required_pcc=required_pcc
+            output_logits[0][0], cpu_output_logits[0][0], required_pcc=required_pcc
         )
         print("PCC verification passed with PCC={:.6f}".format(pcc_value))
 

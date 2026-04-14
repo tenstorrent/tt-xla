@@ -99,6 +99,7 @@ from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
+from .vllm_utils import determine_mesh_shape
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -235,11 +236,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
+        self.use_2d_mesh = self.tt_config.use_2d_mesh
+
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
-            mesh_shape = (num_devices, 1)
+            mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
             device_ids = np.array(range(num_devices))
-            self.mesh = xs.Mesh(device_ids, mesh_shape, ("x", "y"))
+            self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -1025,8 +1028,33 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position[1:] = -1
             page_table[1:, :] = 0
 
+        # With prefix caching, some blocks are already filled. Roll each
+        # user's page_table row so paged_fill_cache writes to suffix blocks
+        # instead of overwriting shared prefix blocks. Each user may have a
+        # different prefix length, so we roll per-row. Done outside the
+        # compiled graph to avoid shape-change recompilation.
+        offsets = (
+            self.input_batch.num_computed_tokens_cpu[:num_reqs] // self.block_size
+            if num_reqs > 0
+            else np.array([], dtype=np.int64)
+        )
+        if np.any(offsets > 0):
+            fill_page_table = page_table.clone()
+            for i in range(num_reqs):
+                if offsets[i] > 0:
+                    fill_page_table[i] = torch.roll(
+                        page_table[i], shifts=-int(offsets[i])
+                    )
+        else:
+            fill_page_table = page_table
+
         cache_position = cache_position.to(self.device)
         page_table = page_table.to(self.device)
+        fill_page_table = (
+            fill_page_table.to(self.device)
+            if fill_page_table is not page_table
+            else page_table
+        )
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1044,13 +1072,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            fill_page_table=fill_page_table,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
         # partial request, we do so for simplicity. We will ignore the sampled
         # token from the partial request.
-        # Indices at which we sample (positions of last token in the sequence).
-        logits_indices = self.query_start_loc_cpu[1 : self.max_num_reqs + 1] - 1
+        # Per-user last-token index within each padded slot.
+        logits_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32)
+        logits_indices[: len(num_scheduled_tokens_per_req)] = (
+            torch.from_numpy(num_scheduled_tokens_per_req) - 1
+        )
         logits_indices = logits_indices.to(self.device)
 
         if self.lora_config is not None:
@@ -1731,6 +1763,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
+            if self.enable_tensor_parallel:
+                xs.mark_sharding(
+                    dummy_hidden,
+                    self.mesh,
+                    (None, None if num_tokens == 1 else "batch", "model"),
+                )
             self.select_hidden_states(dummy_hidden, indices)
 
         xm.wait_device_ops()
@@ -1748,6 +1786,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.max_num_reqs, hsize), dtype=self._hidden_states_dtype
         )
         dummy_hidden = dummy_hidden.to(self.device)
+        if self.enable_tensor_parallel:
+            xs.mark_sharding(dummy_hidden, self.mesh, (None, None))
         self.compute_logits(dummy_hidden)
 
         xm.wait_device_ops()
@@ -1874,9 +1914,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self,
         num_tokens: int,
     ) -> None:
-        logger.info(
-            f"Profiling a run with num_tokens={num_tokens} to warm up the model."
-        )
+        logger.info(f"Profiling run with num_tokens={num_tokens}.")
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
@@ -2049,11 +2087,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     )
                     dtype = kv_cache_spec.dtype
 
-                    tpu_kv_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(
-                        self.device
-                    )
+                    # Allocate separate K and V cache tensors to avoid
+                    # slice/concat copies in the compiled decode graph.
+                    k_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
+                    v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
 
-                    kv_caches[layer_name] = tpu_kv_cache
+                    kv_caches[layer_name] = [k_cache, v_cache]
                 else:
                     raise NotImplementedError
 
@@ -2067,10 +2106,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.enable_tensor_parallel:
-            # Shard KV Cache
-            for cache in self.kv_caches:
-                assert cache.ndim == 5, "KV cache tensor must be 5D."
-                xs.mark_sharding(cache, self.mesh, (None, None, "x", None, None))
+            # Shard KV Cache — each entry is [k_cache, v_cache]
+            for kv_pair in self.kv_caches:
+                for cache in kv_pair:
+                    assert cache.ndim == 4, "KV cache tensor must be 4D."
+                    xs.mark_sharding(cache, self.mesh, (None, "batch", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
@@ -2096,17 +2136,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-        return hidden_states[batch_indices, indices_do_sample, :]
+        result = hidden_states[batch_indices, indices_do_sample, :]
+        if self.enable_tensor_parallel:
+            result = sharding_constraint_tensor(result, self.mesh, (None, None))
+        return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        # Replicate logits for SPMD. Hooks can't reach ParallelLMHead
-        # (quant_method.apply bypasses __call__) and all_gather is a
-        # no-op (world_size=1). Must be inside the compiled graph —
-        # external sharding_constraint between compiled functions breaks.
-        if self.enable_tensor_parallel:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -2486,8 +2523,14 @@ def copy_kv_blocks(
     ):
         return
 
-    src_device = next(iter(src_kv_caches.values())).device
-    dst_device = next(iter(dst_kv_caches.values())).device
+    src_val = next(iter(src_kv_caches.values()))
+    dst_val = next(iter(dst_kv_caches.values()))
+    src_device = (
+        src_val[0].device if isinstance(src_val, (list, tuple)) else src_val.device
+    )
+    dst_device = (
+        dst_val[0].device if isinstance(dst_val, (list, tuple)) else dst_val.device
+    )
 
     src_indices, dst_indices = _make_src_and_dst_indices(
         src_block_ids=src_block_ids,
@@ -2498,9 +2541,13 @@ def copy_kv_blocks(
 
     _copy_fn = _insert_blocks_to_tpu if direction == "h2d" else _swap_out_tpu_blocks
     for layer_name in src_kv_caches:
-        src_tensor = src_kv_caches[layer_name]
-        dst_tensor = dst_kv_caches[layer_name]
-        _copy_fn(src_tensor, dst_tensor, src_indices, dst_indices)
+        src_kv = src_kv_caches[layer_name]
+        dst_kv = dst_kv_caches[layer_name]
+        if isinstance(src_kv, (list, tuple)):
+            for src_tensor, dst_tensor in zip(src_kv, dst_kv):
+                _copy_fn(src_tensor, dst_tensor, src_indices, dst_indices)
+        else:
+            _copy_fn(src_kv, dst_kv, src_indices, dst_indices)
 
 
 def _get_padded_num_kv_cache_update_slices(

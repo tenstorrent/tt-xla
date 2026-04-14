@@ -276,14 +276,9 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
 std::vector<std::uint32_t>
 BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
                                PJRT_Buffer_Type data_type) {
-  if (num_dims == 0) {
-    // Our compiler and runtime don't support scalars so we convert them to 1D
-    // tensors.
-    if (data_type_utils::isComplexPJRTType(data_type)) {
-      // Throw error if complex tensor num_dims == 0.
-      TT_THROW("Complex tensor with num_dims == 0 is not supported.");
-    }
-    return {1};
+  if (data_type_utils::isComplexPJRTType(data_type) && num_dims == 0) {
+    // Throw error if complex tensor num_dims == 0.
+    TT_THROW("Complex tensor with num_dims == 0 is not supported.");
   }
 
   std::vector<std::uint32_t> shape;
@@ -303,11 +298,6 @@ BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
 std::vector<std::uint32_t> BufferInstance::calculateStrides(
     size_t num_dims, const std::int64_t *byte_strides, size_t num_byte_strides,
     std::uint32_t element_size) {
-  if (num_dims == 0) {
-    // Our compiler and runtime don't support scalars so we convert them to 1D
-    // tensors.
-    return {1};
-  }
 
   TT_FATAL(num_byte_strides == 0 || num_byte_strides == num_dims,
            "num_byte_strides must be 0 or equal to num_dims: "

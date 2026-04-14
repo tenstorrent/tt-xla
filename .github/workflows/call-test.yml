@@ -1,5 +1,10 @@
 name: Test (call)
 
+permissions:
+  actions: write
+  checks: write
+  contents: read
+
 on:
   workflow_call:
     inputs:
@@ -33,6 +38,11 @@ on:
         required: false
         default: false
         type: boolean
+      torchxla_build_run_id:
+        description: 'Manual torch-xla build run ID'
+        required: false
+        type: string
+        default: ''
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -168,6 +178,16 @@ jobs:
         echo "=== Installing wheel ==="
         source venv/activate
         uv pip install wheels/*.whl
+
+    - name: Install custom torch_xla from workflow run
+      if: ${{ inputs.torchxla_build_run_id != '' }}
+      shell: bash
+      run: |
+        echo "Using custom torchxla install from run ${{ inputs.torchxla_build_run_id }}"
+        gh run download ${{ inputs.torchxla_build_run_id }} --repo ${{ github.repository }}
+        source venv/activate
+        uv pip install --force-reinstall xla-torch-wheel-release/*.whl
+        uv pip show torch_xla
 
     - name: Download and setup alchemist library
       if: ${{ matrix.build.require == 'alchemist' }}
@@ -329,7 +349,7 @@ jobs:
       env:
         HF_HOME: /mnt/dockercache/huggingface
         TORCH_HOME: /mnt/dockercache/torchhub
-        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        GITHUB_TOKEN: ${{ github.token }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
       shell: bash
@@ -398,14 +418,14 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-*" --dir test_reports || echo "No reports found"
           find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \;
 
       - name: Show consolidated test report
         continue-on-error: true
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         if: success() || failure()
         with:
           report_paths: test_reports/report_*.xml

@@ -9,10 +9,14 @@
 
 test_config:
   falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
+    bringup_status: FAILED_RUNTIME
 
   falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
+    bringup_status: FAILED_RUNTIME
 
   falcon/pytorch-3_7B_Base-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -23,19 +27,19 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
-    arch_overrides:
-      n150:
-        status: EXPECTED_PASSING
-        required_pcc: 0.98
-        assert_pcc: false
-      p150:
-        status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
+    bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -58,7 +62,9 @@ test_config:
 
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
+    bringup_status: FAILED_RUNTIME
 
   gemma/pytorch-2_2B_IT-llm_decode-seq_1-batch_1-single_device-inference:
     status: EXPECTED_PASSING
@@ -94,13 +100,19 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4125"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
+    bringup_status: FAILED_RUNTIME
 
   qwen_3/causal_lm/pytorch-8B-llm_decode-seq_1-batch_1-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.

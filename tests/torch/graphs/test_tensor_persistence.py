@@ -602,8 +602,50 @@ def create_device_mesh(mesh_shape) -> Mesh:
 @pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.skip(
-    reason=failed_runtime("Segfault: https://github.com/tenstorrent/tt-xla/issues/3280")
+    reason=failed_runtime("https://github.com/tenstorrent/tt-xla/issues/4073")
 )
+def test_concurrent_sharded_buffer_instance_transfer():
+    """
+    Test scenario: Sharded input A participates in some graph, and is concurrently copied to host
+    by multiple framework threads.
+
+    This tests for race conditions in the copyToHost thread instance mutex management.
+    """
+
+    class Identity(torch.nn.Module):
+        def forward(self, A):
+            return A + 0
+
+    xr.set_device_type("TT")
+    setup_spmd()
+
+    device = torch_xla.device()
+    mesh = create_device_mesh((1, torch_xla.device_count()))
+
+    input = torch.randn(32, 32, dtype=torch.float32).to(device)
+    xs.mark_sharding(input, mesh, (None, "model"))
+
+    prog = Identity()
+    res = run_model_on_device(prog, [input])
+
+    # Create multiple threads that all copies result object
+    def copy_to_host():
+        for _ in range(1024):
+            res.cpu()
+
+    threads = []
+    num_threads = 10
+    for _ in range(num_threads):
+        thread_a = threading.Thread(target=copy_to_host)
+        threads.append(thread_a)
+        thread_a.start()
+
+    for thread in threads:
+        thread.join()
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
 def test_shared_input_across_mesh_reshape():
     """
     Test scenario: Run 2 models back to back, one on 2x4 mesh and a 1x8 mesh,
