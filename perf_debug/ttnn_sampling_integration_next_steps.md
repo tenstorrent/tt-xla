@@ -213,7 +213,9 @@ This is a tt-metal sfpi toolchain bug, not a ttnn.sampling issue. Trace mode com
 
 Cache path with the failing build: `/home/kmabee/.cache/tt-metal-cache/15296582388382065472/firmware/trisc1/`
 
-**Update:** After uplifting tt-mlir to `9b788c220`, ALL firmware builds (trisc0/1/2, ncrisc, brisc, all eriscs) crash with the same LTO ICE under tracy — even for greedy (non-sampling) paths. Clearing the firmware cache doesn't help. This is a systemic sfpi toolchain regression with the new tt-mlir version, not specific to ttnn.sampling or trace mode. Tracy profiling is blocked until the toolchain is fixed or the tt-mlir version is pinned to one that works.
+**Update:** After clearing `~/.cache/tt-metal-cache/`, ALL firmware builds crashed with LTO ICE. Root cause: sfpi toolchain was 7.32.0, tt-metal requires 7.39.0. Fixed by upgrading sfpi (`install_dependencies.sh --sfpi`). Not specific to ttnn.sampling.
+
+**Tensor::reshape experiment (Apr 14):** Attempted using `Tensor::reshape` (metadata-only view) instead of `ttnn::reshape` in the runtime. Tracy showed it's **slower** (28.1 ms/call vs 16.6 ms/call). `Tensor::reshape` on TILE-layout tensors likely triggers internal data movement. Reverted to `ttnn::reshape`.
 
 ## Branch
 

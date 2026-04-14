@@ -123,9 +123,7 @@ SINGLE_DEVICE_CONFIGS = [
 
 def _run_vllm_benchmark(config, output_file, request, max_output_tokens=None):
     if max_output_tokens is not None:
-        config = dataclasses.replace(
-            config, max_tokens=max_output_tokens, warmup_iterations=0
-        )
+        config = dataclasses.replace(config, max_tokens=max_output_tokens)
 
     display_name = "vllm_" + resolve_display_name(
         request=request, fallback=config.model
