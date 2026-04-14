@@ -182,11 +182,23 @@ Per-call SamplingOp overhead breakdown from tracy:
 
 The 16.6ms SamplingOp is dominated by runtime conversions (to_layout for 4 inputs), not the kernel itself (0.03ms). Attempted removing runtime to_layout calls but the workarounds pass doesn't reliably enforce ROW_MAJOR → kernel crashes. The workarounds need to be fixed at the compiler level.
 
+### Root cause analysis (Apr 14)
+
+The compiler workarounds pass correctly sets ROW_MAJOR for sampling inputs (confirmed via MLIR dump). The runtime `to_layout` calls are no-ops when layout is already correct. The 16.6ms SamplingOp time is from **5 device dispatches** inside the runtime:
+1. `ttnn::reshape` input_values (2D→4D) 
+2. `ttnn::reshape` input_indices (2D→4D)
+3. `ttnn::typecast` k (INT32→UINT32)
+4. `ttnn::reshape` output (4D→1D)
+5. `ttnn::typecast` output (UINT32→INT32)
+
+Each device dispatch has ~2-3ms host-device round-trip on Blackhole. The ttnn::sampling kernel itself is 0.03ms.
+
 ### Performance improvement opportunities
-1. **Fix workarounds pass for SamplingOp** — if the compiler reliably inserts to_layout, the runtime doesn't need conditional conversions → SamplingOp drops from 16.6ms to ~2ms
-2. **Eliminate batch padding at batch=32** — kernel is designed for batch=32; padding overhead disappears
-3. **Reduce topk chunks** — 2 chunks instead of 4 for OPT-125M (vocab 50K fits in 2×32K)
-4. **Pass top-k/top-p as attributes instead of tensors** — if all requests share the same values
+1. **Eliminate runtime typecast for k** — make the compiler insert INT32→UINT32 typecast in the TTNN workarounds pass so it's baked into the compiled program. This removes 1 device dispatch (~3ms).
+2. **Eliminate runtime typecast for output** — make the compiler expect UINT32 output from SamplingOp and insert UINT32→INT32 after. Removes 1 dispatch (~3ms).
+3. **Eliminate runtime reshapes** — either make the kernel accept 2D input directly, or reshape in the compiler. Removes 2 dispatches (~5ms).
+4. **Batch=32** — kernel's natural batch size. No padding needed, all tensors already aligned.
+5. **Reduce topk chunks** — 2 chunks for smaller vocabs (OPT 50K fits in 2×32K).
 
 ## Branch
 
