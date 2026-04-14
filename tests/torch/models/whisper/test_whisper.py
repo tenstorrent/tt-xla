@@ -25,7 +25,6 @@ _FAILING_VARIANTS = [
 # whisper-large-v3 and large-v3-turbo have torch_dtype=float16 in their HuggingFace configs
 # (previously float32 in transformers 4.57.1), causing a PCC drop from >0.99 to ~0.53.
 # Smaller models still have float32 in config and are unaffected.
-# See: https://github.com/tenstorrent/tt-xla/commit/58830893a81d3ff07ba38da7e49d6908952e3091
 _FLOAT16_CONFIG_VARIANTS = [
     ModelVariant.WHISPER_LARGE_V3,
     ModelVariant.WHISPER_LARGE_V3_TURBO,
