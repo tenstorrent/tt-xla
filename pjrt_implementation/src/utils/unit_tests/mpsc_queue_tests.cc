@@ -189,4 +189,72 @@ TEST(MPSCQueueUnitTests, MultiProducerSingleConsumer) {
   }
 }
 
+TEST(MPSCQueueUnitTests, ManyProducersFewItemsEach) {
+  constexpr size_t num_producers = 64;
+  constexpr size_t items_per_producer = 100;
+  constexpr size_t total_items = num_producers * items_per_producer;
+  MPSCQueue<size_t> queue(256);
+
+  // Each producer writes values encoded as: producer_id * items_per_producer +
+  // sequence. This lets us verify per-producer ordering after collection.
+  std::vector<size_t> received;
+  received.reserve(total_items);
+  std::atomic<bool> done{false};
+
+  std::vector<std::thread> producers;
+  producers.reserve(num_producers);
+  for (size_t p = 0; p < num_producers; ++p) {
+    producers.emplace_back([&queue, p]() {
+      for (size_t i = 0; i < items_per_producer; ++i) {
+        size_t val = p * items_per_producer + i;
+        while (!queue.tryPush(std::move(val))) {
+          std::this_thread::yield();
+        }
+      }
+    });
+  }
+
+  std::thread consumer([&queue, &received, &done]() {
+    while (!done.load(std::memory_order_relaxed) ||
+           received.size() < total_items) {
+      size_t value;
+      if (queue.tryPop(value)) {
+        received.push_back(value);
+      } else {
+        std::this_thread::yield();
+      }
+    }
+  });
+
+  for (auto &t : producers) {
+    t.join();
+  }
+  done.store(true, std::memory_order_relaxed);
+  consumer.join();
+
+  ASSERT_EQ(received.size(), total_items);
+
+  // Verify all items were received (no duplicates, no missing).
+  std::vector<size_t> sorted_received = received;
+  std::sort(sorted_received.begin(), sorted_received.end());
+  for (size_t i = 0; i < total_items; ++i) {
+    EXPECT_EQ(sorted_received[i], i);
+  }
+
+  // Verify per-producer ordering is preserved: extract each producer's items
+  // in the order they were received, and check they are monotonically
+  // increasing.
+  std::vector<std::vector<size_t>> per_producer(num_producers);
+  for (size_t val : received) {
+    size_t producer_id = val / items_per_producer;
+    per_producer[producer_id].push_back(val);
+  }
+  for (size_t p = 0; p < num_producers; ++p) {
+    ASSERT_EQ(per_producer[p].size(), items_per_producer);
+    for (size_t i = 1; i < per_producer[p].size(); ++i) {
+      EXPECT_GT(per_producer[p][i], per_producer[p][i - 1]);
+    }
+  }
+}
+
 } // namespace tt::pjrt::utils::tests
