@@ -1799,4 +1799,9 @@ def test_gpt_oss_120b(
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
+        weight_dtype_overrides={
+            # "model.layers.*.mlp.router.weight": "bf16",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
     )

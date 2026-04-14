@@ -28,7 +28,7 @@ _REFERENCE_DIR = str(Path(__file__).resolve().parent.parent / "reference_outputs
 _CORPUS_FILE = os.path.join(_REFERENCE_DIR, "tale-of-two-cities.txt.bz2")
 
 
-def generate_reference_outputs(total_length, output_file, model_name):
+def generate_reference_outputs(total_length, output_file, model_name, num_layers=None):
     """
     Generate reference outputs for accuracy testing using HuggingFace models.
 
@@ -39,12 +39,25 @@ def generate_reference_outputs(total_length, output_file, model_name):
                      degradation even with teacher forcing.
         output_file: Path to save .refpt file
         model_name: HuggingFace model name (e.g., 'meta-llama/Llama-3.2-1B-Instruct')
+        num_layers: Optional number of hidden layers to use. If None, uses the model's default.
     """
     device = torch.device("cpu")
     logger.info(f"Using device: {device} (CPU forced for reference generation)")
 
     # Load model and tokenizer from HuggingFace
     config = AutoConfig.from_pretrained(model_name)
+
+    if num_layers is not None:
+        config.num_hidden_layers = num_layers
+
+    # Qwen only: add rope scaling to the config, for long context support.
+    # https://huggingface.co/Qwen/Qwen2.5-7B-Instruct#processing-long-texts
+    if "Qwen" in model_name:
+        config.rope_scaling = {
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+            "type": "yarn",
+        }
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(

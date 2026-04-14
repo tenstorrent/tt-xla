@@ -286,6 +286,7 @@ def init_accuracy_testing(
     max_cache_len: int,
     tokenizer,
     hf_model_name: str = None,
+    num_layers: int = None,
 ):
     """Initialize token accuracy testing for LLM benchmarks.
 
@@ -341,6 +342,7 @@ def init_accuracy_testing(
             total_length=max_cache_len,
             output_file=output_file,
             model_name=hf_model_name,
+            num_layers=num_layers,
         )
         print(f"Reference generation complete: {output_file}")
 

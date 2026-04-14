@@ -320,6 +320,7 @@ def benchmark_llm_torch_xla(
             max_cache_len=max_cache_len,
             tokenizer=tokenizer,
             hf_model_name=hf_model_name_for_accuracy,
+            num_layers=getattr(model_loader, "num_layers", None),
         )
 
     # Construct inputs, including static cache
