@@ -150,6 +150,49 @@ Existing tests:
 | `perf_debug/ttnn_sampling_integration_plan.md` | Earlier detailed integration plan |
 | `perf_debug/test_ttnn_sampling_direct.py` | Direct ttnn.sampling() tests and benchmarks |
 
+## Status: Integration complete, correctness bug open (Apr 14)
+
+### What was done
+- Full tt-mlir pipeline: TTIR/TTNN SamplingOp, StableHLO→TTIR→TTNN conversions, flatbuffer, runtime, EmitC/EmitPy, OpModel stubs (21 files, commit `ffc4810ce` on `kmabee/apr12_vllm_demo_sampling_op_integration`)
+- tt-xla: `tt::sampling` custom op in `custom_ops.py`, sampler wiring behind `TT_USE_TTNN_SAMPLING=1`, OPT-125M benchmark tests (commit `f42bdc362` on `kmabee/vllm_perf_apr12`)
+- Runtime handles: 2D→4D reshape, ROW_MAJOR layout enforcement, UINT32↔INT32 typecast
+- Batch=1→32 padding workaround for ttnn.sampling kernel's batch=32 constraint
+
+### Performance results (functionally passing but output is garbage)
+| Config | Without ttnn.sampling | With ttnn.sampling | Greedy |
+|---|---|---|---|
+| OPT-125M b1 | 9.1 tok/s | 9.3 tok/s | 11.3 tok/s |
+| Llama-3.1-8B b1 | 10.9 tok/s | 10.7 tok/s | ~19 tok/s |
+
+### Correctness bug: garbage output
+Both OPT-125M and Llama-3.1-8B produce incoherent text with `TT_USE_TTNN_SAMPLING=1`:
+- OPT-125M: `<s> +D&&<s><s> :1 > Copy files out the process-type-<s> 3 +B and return 1 if 2: COD has left D...`
+- Llama-3.1-8B: `Keep Functions! Small & single -! Simple Function! Use One line , a little.\nFunction.\nWrite!! Function...`
+
+Token IDs are in-range (no crashes), but the sampling distribution is wrong.
+
+**Likely root cause: double temperature application.** The sampler applies `logits / temperature` (line 222 in sampler.py) before passing to `_ttnn_sampling_padded`, which then passes the `temp` tensor to `ttnn.sampling`. The kernel applies temperature again internally. This means temperature is applied twice, distorting the distribution.
+
+**Other possible causes:**
+1. Top-k value mismatch: the `k` tensor passed to ttnn.sampling is `sampling_metadata.top_k` (the user's requested top-k, e.g. 64), but the candidate set from 4x topk is already 128 tokens. If k < candidate count, ttnn.sampling further filters — but if k > candidate count, the kernel may behave unexpectedly.
+2. Top-p value interpretation: the sampler's `top_p` might be in a different range than what the kernel expects.
+3. The `seed=42` is hardcoded — might cause deterministic-but-wrong behavior vs the intended stochastic sampling.
+
+### Debugging plan
+1. **Test 1: Fix double temperature** — Pass `temp=1.0` (no-op) to ttnn.sampling since temperature is already applied to the logits. If output becomes coherent, this was the root cause.
+2. **Test 2: Verify ttnn.sampling standalone** — Feed known logits (e.g., one-hot or sharply peaked) to the custom op and verify the kernel picks the expected token.
+3. **Test 3: Compare distributions** — For a single decode step, capture the logits before and after topk, run both the existing Gumbel-max path and ttnn.sampling, compare selected token IDs.
+
+### Op count overhead analysis
+The compiled non-greedy graph has 62 non-bookkeeping TTNN ops vs 50 for greedy+topk. The 12 extra ops are: temperature divide on full 128K vocab, 6 padding ops (batch 1→32), torch.where+gt (greedy/random merge), and 6 extra typecasts. The 19 typecasts total (vs 13 in greedy) are the largest single category.
+
+### Performance improvement opportunities
+1. **Eliminate batch padding at batch=32** — kernel is designed for batch=32; padding overhead disappears
+2. **Move padding into runtime** — reduce compiled graph op count
+3. **Skip temperature in sampler** — let ttnn.sampling handle it (also fixes correctness)
+4. **Pass top-k/top-p as attributes instead of tensors** — if all requests share the same values
+
 ## Branch
 
 `kmabee/vllm_perf_apr12` based on `866d0abdd` (tt-xla Apr 12, 2026)
+tt-mlir branch: `kmabee/apr12_vllm_demo_sampling_op_integration` at commit `ffc4810ce`

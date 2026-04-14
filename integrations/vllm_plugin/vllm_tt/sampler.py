@@ -218,29 +218,15 @@ class Sampler(nn.Module):
         else:
             greedy_sampled = self.greedy_sample(logits)
 
-        # Apply temperature.
-        logits = self.apply_temperature(
-            logits, sampling_metadata.temperature, sampling_metadata.all_random
-        )
-
-        # Apply min_p.
-        if sampling_metadata.min_p is not None:
-            logits = self.apply_min_p(logits, sampling_metadata.min_p)
-
-        # Apply top_k and/or top_p using multi-core topk pre-filtering.
-        # This splits vocab into power-of-2 chunks (<= 32768) to trigger
-        # multi-core ttnn.topk (0.18ms per chunk vs 9ms single-core), then
-        # applies top-k/top-p on the small candidate set.
-        filtered_logits, candidate_indices = apply_top_k_top_p_fast(
-            logits,
-            sampling_metadata.top_k,
-            sampling_metadata.top_p,
-        )
-
         if _USE_TTNN_SAMPLING:
-            # _ttnn_sampling returns [pad_batch] int32 (padded to 32).
-            # To avoid typecast on non-32-aligned shapes, we pad greedy_sampled
-            # to the same size, do torch.where on the padded tensors, then trim.
+            # ttnn.sampling handles temperature internally (multiplies by
+            # 1/temperature), so skip apply_temperature and run topk on
+            # raw logits. This avoids double temperature application.
+            filtered_logits, candidate_indices = apply_top_k_top_p_fast(
+                logits,
+                sampling_metadata.top_k,
+                sampling_metadata.top_p,
+            )
             random_sampled_padded = self._ttnn_sampling_padded(
                 filtered_logits,
                 candidate_indices,
@@ -264,6 +250,23 @@ class Sampler(nn.Module):
             sampled_padded = sampled_padded.to(torch.int64)
             return sampled_padded[:batch].view(-1)
         else:
+            # Apply temperature.
+            logits = self.apply_temperature(
+                logits,
+                sampling_metadata.temperature,
+                sampling_metadata.all_random,
+            )
+
+            # Apply min_p.
+            if sampling_metadata.min_p is not None:
+                logits = self.apply_min_p(logits, sampling_metadata.min_p)
+
+            filtered_logits, candidate_indices = apply_top_k_top_p_fast(
+                logits,
+                sampling_metadata.top_k,
+                sampling_metadata.top_p,
+            )
+
             # Scatter filtered values back to full vocab for sampling.
             # This keeps the topk speedup for filtering while using the
             # proven full-vocab sampling path.
@@ -409,7 +412,13 @@ class Sampler(nn.Module):
                 device=values.device,
             )
 
-        temp_tensor = sampling_metadata.temperature[:batch].to(torch.bfloat16)
+        # ttnn.sampling kernel expects 1/temperature (multiplies logits by it).
+        # For greedy requests (temp ~0), use temp_recip=1.0 and k=1 (following
+        # production convention in generator.py:452).
+        raw_temp = sampling_metadata.temperature[:batch]
+        is_greedy = raw_temp < _SAMPLING_EPS
+        temp_recip = torch.where(is_greedy, torch.ones_like(raw_temp), 1.0 / raw_temp)
+        temp_tensor = temp_recip.to(torch.bfloat16)
 
         # Pad batch to 32 (required by ttnn.sampling kernel).
         if batch < pad_batch:

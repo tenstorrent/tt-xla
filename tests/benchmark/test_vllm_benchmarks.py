@@ -238,6 +238,38 @@ def test_sampling_comparison(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
 
 
+# Same configs with trace enabled
+_8B_OPT_TRACE = {**_8B_OPT, "enable_trace": True}
+
+SAMPLING_COMPARISON_TRACE_CONFIGS = [
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=1,
+            temperature=0.6,
+            repetition_penalty=1.1,
+            additional_config={**_8B_OPT_TRACE, "cpu_sampling": False},
+        ),
+        id="8b-b1-nongreedy-device-trace",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=32,
+            temperature=0.6,
+            repetition_penalty=1.1,
+            additional_config={**_8B_OPT_TRACE, "cpu_sampling": False},
+        ),
+        id="8b-b32-nongreedy-device-trace",
+    ),
+]
+
+
+@pytest.mark.parametrize("config", SAMPLING_COMPARISON_TRACE_CONFIGS)
+def test_sampling_comparison_trace(config, output_file, request):
+    _run_vllm_benchmark(config, output_file, request)
+
+
 # OPT-125M: fast pipecleaning model for sampling integration
 _OPT_BASE = dict(
     model="facebook/opt-125m", max_model_len=128, gpu_memory_utilization=0.05
