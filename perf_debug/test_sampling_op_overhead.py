@@ -129,3 +129,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    os._exit(0)  # Force exit — avoids XLA PJRT cleanup deadlock
