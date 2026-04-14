@@ -53,7 +53,7 @@ jobs:
       should_overwrite_release: ${{ inputs.should_overwrite_release }}
 
   build-and-test-release-docker-ubuntu:
-    uses: ./.github/workflows/call-build-release-docker.yml
+    uses: ./.github/workflows/call-build-and-test-release-docker.yml
     needs: [ publish-release-wheel ]
     secrets: inherit
     with:
@@ -66,7 +66,7 @@ jobs:
       distro: "ubuntu"
 
   build-and-test-release-docker-fedora:
-    uses: ./.github/workflows/call-build-release-docker.yml
+    uses: ./.github/workflows/call-build-and-test-release-docker.yml
     needs: [ publish-release-wheel ]
     secrets: inherit
     with:
