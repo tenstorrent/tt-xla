@@ -14,7 +14,7 @@ from torch._decomp import get_decompositions as get_aten_decompositions
 from torch._dynamo import register_backend
 from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
 from torch.export import ExportedProgram
-from torch.export.graph_signature import InputKind
+from torch.export.graph_signature import InputKind, OutputKind
 from torch.fx.passes.tools_common import legalize_graph
 from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
@@ -160,6 +160,19 @@ class XLAExecutor:
                 "legacy compile to avoid ReplicateShardedData flood in "
                 "experimental path.",
                 xr.global_runtime_device_count(),
+            )
+            legacy_compile_enabled = True
+
+        if (
+            not legacy_compile_enabled
+            and any(
+                spec.kind == OutputKind.USER_INPUT_MUTATION
+                for spec in self.signature.output_specs
+            )
+        ):
+            logger.info(
+                "User-input mutation outputs detected, using legacy compile to "
+                "preserve torch.compile input alias semantics."
             )
             legacy_compile_enabled = True
 
