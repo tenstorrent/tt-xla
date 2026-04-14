@@ -162,9 +162,6 @@ public:
   // Closes currently opened optimizer submesh device, if any.
   void closeOptimizerSubmesh();
 
-  // Returns the callback worker for dispatching event callbacks.
-  utils::CallbackWorker &getCallbackWorker() { return m_callback_worker; }
-
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
@@ -173,7 +170,9 @@ public:
       const std::optional<std::vector<int64_t>> &replica_device_ids);
 
 private:
-  // Worker thread that executes event callbacks asynchronously.
+  // Worker thread that executes event callbacks asynchronously to avoid
+  // GIL + device lock deadlock. Registered with EventInstance via
+  // setCallbackWorker() in the constructor/destructor.
   utils::CallbackWorker m_callback_worker;
 
   tt_pjrt_status populateDevices();

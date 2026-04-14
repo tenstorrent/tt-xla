@@ -266,6 +266,8 @@ ClientInstance::ClientInstance()
       m_parent_mesh(std::nullopt) {
   DLOG_F(LOG_DEBUG, "ClientInstance::ClientInstance");
 
+  EventInstance::setCallbackWorker(&m_callback_worker);
+
   // TODO(mrakita): Add support for multi-process environment. Process index is
   // always 0 in single-process settings.
   m_process_index = 0;
@@ -280,6 +282,7 @@ ClientInstance::ClientInstance()
 
 ClientInstance::~ClientInstance() {
   DLOG_F(LOG_DEBUG, "ClientInstance::~ClientInstance");
+  EventInstance::setCallbackWorker(nullptr);
   closeMeshDevice();
   std::remove(m_cached_system_descriptor_path.data());
   loguru::flush();

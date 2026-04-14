@@ -18,12 +18,18 @@
 #include "tracy/Tracy.hpp"
 
 // tt-xla includes
-#include "api/client_instance.h"
 #include "api/error_instance.h"
 #include "utils/assert.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
+
+utils::CallbackWorker *EventInstance::s_callback_worker = nullptr;
+
+//
+void EventInstance::setCallbackWorker(utils::CallbackWorker *worker) {
+  s_callback_worker = worker;
+}
 
 std::unique_ptr<EventInstance> EventInstance::createInstance() {
   struct make_unique_enabler : public EventInstance {};
@@ -89,19 +95,8 @@ void EventInstance::await() {
 
 void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
                             void *user_arg) {
-  // PJRT docs don't specify on which thread should the callbacks be executed.
-  // Relevant comments from the XLA implementation:
-  // - "Callback may be called on an internal system thread or the calling
-  //   thread."
-  // - "If the value is available or becomes available, this invokes the waiter
-  //   immediately. Otherwise, adds the waiter to the waiter list and calls it
-  //   when the value becomes available."
-  // - "By default the waiter callback is executed on the caller thread if async
-  //   value is already available, or on a thread that sets async value
-  //   available (emplacing a value or setting an error), which can accidentally
-  //   lead to executing a very expensive computations on a low-latency thread."
-  //
-  // We always dispatch callbacks to a dedicated thread.
+  // Callbacks are dispatched to a dedicated CallbackWorker thread to avoid
+  // GIL + device lock deadlocks.
 
   {
     std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
@@ -111,11 +106,10 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
     }
   }
 
-  ClientInstance *client = GlobalClientInstanceSingleton::getClientInstance();
-  TT_FATAL(client, "ClientInstance must exist when dispatching event "
-                    "callbacks");
-  client->getCallbackWorker().enqueue(callback_function, user_arg,
-                                      getErrorFromStatus());
+  TT_FATAL(s_callback_worker, "CallbackWorker must be set before dispatching "
+                               "event callbacks");
+  s_callback_worker->enqueue(callback_function, user_arg,
+                             getErrorFromStatus());
 }
 
 void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
@@ -128,16 +122,14 @@ void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
   std::vector<OnReadyCallback> callbacks_to_execute =
       std::move(event_instance->m_on_ready_callbacks);
 
-  // Release the lock before executing callbacks.
+  // Release the lock before dispatching callbacks.
   ready_lock.unlock();
 
-  ClientInstance *client = GlobalClientInstanceSingleton::getClientInstance();
-  TT_FATAL(client, "ClientInstance must exist when dispatching event "
-                    "callbacks");
+  TT_FATAL(s_callback_worker, "CallbackWorker must be set before dispatching "
+                               "event callbacks");
   for (OnReadyCallback &callback : callbacks_to_execute) {
-    client->getCallbackWorker().enqueue(
-        callback.callback_function, callback.user_arg,
-        *ErrorInstance::makeError(status).release());
+    s_callback_worker->enqueue(callback.callback_function, callback.user_arg,
+                               *ErrorInstance::makeError(status).release());
   }
 }
 

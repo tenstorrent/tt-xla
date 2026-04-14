@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2025 Tenstorrent AI ULC
+// SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -9,6 +9,7 @@
 // https://llvm.org/LICENSE.txt
 
 // C++ standard library headers
+#include <atomic>
 #include <chrono>
 #include <thread>
 
@@ -18,13 +19,39 @@
 // PJRT implementation headers
 #include "api/error_instance.h"
 #include "api/event_instance.h"
+#include "utils/callback_worker.h"
 #include "utils/status.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 namespace tt::pjrt::tests {
 
+// Test fixture that sets up a standalone CallbackWorker for event callback
+// dispatch, without requiring a ClientInstance (which needs hardware).
+class EventInstanceUnitTests : public ::testing::Test {
+protected:
+  void SetUp() override {
+    EventInstance::setCallbackWorker(&m_callback_worker);
+  }
+
+  void TearDown() override { EventInstance::setCallbackWorker(nullptr); }
+
+  // Spin-wait for an atomic flag with a timeout.
+  static bool waitForFlag(const std::atomic<bool> &flag,
+                          std::chrono::milliseconds timeout =
+                              std::chrono::milliseconds(500)) {
+    auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (!flag.load(std::memory_order_acquire) &&
+           std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::yield();
+    }
+    return flag.load(std::memory_order_acquire);
+  }
+
+  utils::CallbackWorker m_callback_worker;
+};
+
 // Tests successful creation of event instances.
-TEST(EventInstanceUnitTests, createInstance_successCase) {
+TEST_F(EventInstanceUnitTests, createInstance_successCase) {
   auto event = EventInstance::createInstance();
   ASSERT_NE(event, nullptr);
   EXPECT_FALSE(event->isReady());
@@ -32,7 +59,7 @@ TEST(EventInstanceUnitTests, createInstance_successCase) {
 }
 
 // Tests casting EventInstance to raw PJRT_Event pointer.
-TEST(EventInstanceUnitTests, castToPJRTEvent) {
+TEST_F(EventInstanceUnitTests, castToPJRTEvent) {
   auto event = EventInstance::createInstance();
   PJRT_Event *pjrt_event = *event;
   EXPECT_NE(pjrt_event, nullptr);
@@ -41,7 +68,7 @@ TEST(EventInstanceUnitTests, castToPJRTEvent) {
 
 // Tests "unwrapping" raw PJRT_Event pointer back to EventInstance.
 // Verifies the unwrapped instance matches the original.
-TEST(EventInstanceUnitTests, unwrapPJRTEvent) {
+TEST_F(EventInstanceUnitTests, unwrapPJRTEvent) {
   auto event = EventInstance::createInstance();
   EventInstance::markAsReadyAndCallback(event.get(), tt_pjrt_status::kSuccess);
   PJRT_Event *pjrt_event = *event;
@@ -52,7 +79,7 @@ TEST(EventInstanceUnitTests, unwrapPJRTEvent) {
 }
 
 // Tests marking an event as ready with sucess status.
-TEST(EventInstanceUnitTests, markAsReady_successStatus) {
+TEST_F(EventInstanceUnitTests, markAsReady_successStatus) {
   auto event = EventInstance::createInstance();
   EventInstance::markAsReadyAndCallback(event.get(), tt_pjrt_status::kSuccess);
   EXPECT_TRUE(event->isReady());
@@ -60,7 +87,7 @@ TEST(EventInstanceUnitTests, markAsReady_successStatus) {
 }
 
 // Tests marking an event as ready with error status.
-TEST(EventInstanceUnitTests, markAsReady_errorStatus) {
+TEST_F(EventInstanceUnitTests, markAsReady_errorStatus) {
   auto event = EventInstance::createInstance();
   EventInstance::markAsReadyAndCallback(event.get(), tt_pjrt_status::kAborted);
   EXPECT_TRUE(event->isReady());
@@ -71,14 +98,14 @@ TEST(EventInstanceUnitTests, markAsReady_errorStatus) {
 }
 
 // Tests marking an event as indestructible.
-TEST(EventInstanceUnitTests, setIndestructible) {
+TEST_F(EventInstanceUnitTests, setIndestructible) {
   auto event = EventInstance::createInstance();
   event->setIndestructible();
   EXPECT_TRUE(event->isIndestructible());
 }
 
 // Tests the PJRT API for checking whether the event is ready.
-TEST(EventInstanceUnitTests, API_PJRT_Event_IsReady) {
+TEST_F(EventInstanceUnitTests, API_PJRT_Event_IsReady) {
   auto event = EventInstance::createInstance();
 
   PJRT_Event_IsReady_Args args;
@@ -92,7 +119,7 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_IsReady) {
 }
 
 // Tests the PJRT API for getting the error code for a ready event.
-TEST(EventInstanceUnitTests, API_PJRT_Event_Error) {
+TEST_F(EventInstanceUnitTests, API_PJRT_Event_Error) {
   auto event = EventInstance::createInstance();
 
   PJRT_Event_Error_Args args;
@@ -110,7 +137,7 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Error) {
 }
 
 // Tests that PJRT API to await returns immediately for ready events.
-TEST(EventInstanceUnitTests, API_PJRT_Event_Await_ready) {
+TEST_F(EventInstanceUnitTests, API_PJRT_Event_Await_ready) {
   auto event = EventInstance::createInstance();
   EventInstance::markAsReadyAndCallback(event.get(), tt_pjrt_status::kSuccess);
 
@@ -124,7 +151,7 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Await_ready) {
 }
 
 // Tests the PJRT API to await an event that is not immediately ready.
-TEST(EventInstanceUnitTests, API_PJRT_Event_Await_notReady) {
+TEST_F(EventInstanceUnitTests, API_PJRT_Event_Await_notReady) {
   constexpr int dummy_task_duration_ms = 50;
   auto event = EventInstance::createInstance();
 
@@ -154,16 +181,17 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Await_notReady) {
 }
 
 // Tests the PJRT API to register a callback for an already ready event.
-TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_ready) {
+// Callbacks are dispatched to the worker thread, so we wait for execution.
+TEST_F(EventInstanceUnitTests, API_PJRT_Event_OnReady_ready) {
   auto event = EventInstance::createInstance();
   EventInstance::markAsReadyAndCallback(event.get(), tt_pjrt_status::kSuccess);
 
   auto callback = [](PJRT_Error *error, void *user_arg) {
-    bool *flag = reinterpret_cast<bool *>(user_arg);
-    *flag = true;
+    auto *flag = reinterpret_cast<std::atomic<bool> *>(user_arg);
+    flag->store(true, std::memory_order_release);
   };
 
-  bool callback_executed_flag = false;
+  std::atomic<bool> callback_executed_flag{false};
   PJRT_Event_OnReady_Args args;
   args.struct_size = PJRT_Event_OnReady_Args_STRUCT_SIZE;
   args.event = *event;
@@ -173,21 +201,21 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_ready) {
   PJRT_Error *error = internal::onEventOnReady(&args);
 
   ASSERT_EQ(error, nullptr);
-  EXPECT_TRUE(callback_executed_flag);
+  EXPECT_TRUE(waitForFlag(callback_executed_flag));
 }
 
 // Tests the PJRT API to register a callback for an event that
-// is not immediately ready.
-TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
+// is not immediately ready. Callbacks are dispatched to the worker thread.
+TEST_F(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
   auto event = EventInstance::createInstance();
 
   auto callback = [](PJRT_Error *error, void *user_arg) {
-    bool *flag = reinterpret_cast<bool *>(user_arg);
-    *flag = true;
+    auto *flag = reinterpret_cast<std::atomic<bool> *>(user_arg);
+    flag->store(true, std::memory_order_release);
   };
 
   PJRT_Event_OnReady_Args args;
-  bool callback_executed_flag = false;
+  std::atomic<bool> callback_executed_flag{false};
   args.struct_size = PJRT_Event_OnReady_Args_STRUCT_SIZE;
   args.event = *event;
   args.callback = callback;
@@ -195,10 +223,10 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
 
   PJRT_Error *error = internal::onEventOnReady(&args);
   ASSERT_EQ(error, nullptr);
-  EXPECT_FALSE(callback_executed_flag);
+  EXPECT_FALSE(callback_executed_flag.load(std::memory_order_acquire));
 
   EventInstance::markAsReadyAndCallback(event.get(), tt_pjrt_status::kSuccess);
-  EXPECT_TRUE(callback_executed_flag);
+  EXPECT_TRUE(waitForFlag(callback_executed_flag));
 }
 
 // Tests scenario where there are multiple awaiters waiting on an event to be
@@ -206,8 +234,14 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
 // soon as it is marked ready. Destroying the event will trigger the execution
 // of an event destructor, which should terminate the execution since there are
 // still awaiters waiting on the event.
-TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {
+TEST_F(EventInstanceUnitTests,
+       API_PJRT_Event_Test_Await_Callbacks_Combination) {
   auto test = []() {
+    // ASSERT_DEATH uses fork() — the parent's worker thread doesn't survive.
+    // Create a fresh CallbackWorker in the forked child process.
+    utils::CallbackWorker worker;
+    EventInstance::setCallbackWorker(&worker);
+
     auto event = EventInstance::createInstance().release();
 
     // Create a callback that will be called once the event is ready
@@ -246,8 +280,8 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {
     }
 
     // Spawn a "worker" thread which will wait and then mark the event
-    // as ready. This will trigger callback execution in the same
-    // thread.
+    // as ready. This will trigger callback dispatch to the callback
+    // worker thread.
     std::thread work_thread = std::thread([&]() {
       std::this_thread::sleep_for(std::chrono::seconds(1));
       std::cerr << "Worker thread marking event as ready and executing "

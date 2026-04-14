@@ -22,6 +22,7 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-xla includes
+#include "utils/callback_worker.h"
 #include "utils/status.h"
 
 namespace tt::pjrt {
@@ -74,6 +75,11 @@ public:
   // is marked as ready.
   void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
 
+  // Sets the global CallbackWorker used to dispatch event callbacks.
+  // Called by ClientInstance on construction/destruction.
+  // Done this way to make testing easier.
+  static void setCallbackWorker(utils::CallbackWorker *worker);
+
   // See comment below for `m_indestructible`.
   void setIndestructible() { m_indestructible = true; }
   bool isIndestructible() const { return m_indestructible; }
@@ -124,6 +130,10 @@ private:
   // Holds the number of awaiters (registered via `onEventAwait`) waiting on
   // this event to be ready.
   std::atomic<size_t> m_awaiters_count;
+
+  // Global callback worker for dispatching event callbacks off the calling
+  // thread. Owned by ClientInstance; set via setCallbackWorker().
+  static utils::CallbackWorker *s_callback_worker;
 };
 
 namespace internal {
