@@ -163,12 +163,9 @@ class XLAExecutor:
             )
             legacy_compile_enabled = True
 
-        if (
-            not legacy_compile_enabled
-            and any(
-                spec.kind == OutputKind.USER_INPUT_MUTATION
-                for spec in self.signature.output_specs
-            )
+        if not legacy_compile_enabled and any(
+            spec.kind == OutputKind.USER_INPUT_MUTATION
+            for spec in self.signature.output_specs
         ):
             logger.info(
                 "User-input mutation outputs detected, using legacy compile to "
