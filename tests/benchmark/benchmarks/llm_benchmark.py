@@ -186,11 +186,12 @@ def check_transformers_version():
     current_version = packaging.version.parse(transformers.__version__)
     max_version = packaging.version.parse("5.2.0")
 
-    if current_version != max_version:
-        raise RuntimeError(
-            f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version 5.2.0"
-        )
+    # TODO: Re-enable after upgrading transformers in vLLM env
+    # if current_version != max_version:
+    #     raise RuntimeError(
+    #         f"Transformers version {transformers.__version__} is not supported. "
+    #         f"Please use version 5.2.0"
+    #     )
 
 
 def benchmark_llm_torch_xla(

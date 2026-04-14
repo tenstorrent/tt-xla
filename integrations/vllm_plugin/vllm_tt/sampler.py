@@ -220,12 +220,11 @@ class Sampler(nn.Module):
                 candidate_indices,
                 sampling_metadata,
             )
+            batch = filtered_logits.shape[0]
             pad_batch = _TTNN_SAMPLING_BATCH_SIZE
-            batch = logits.shape[0]
 
             if sampling_metadata.all_random:
                 # Pure non-greedy batch: skip greedy path, argmax, torch.where.
-                # Return int32 directly — no typecast needed, .tolist() handles it.
                 return random_sampled_padded[:batch].view(-1)
 
             # Mixed batch: need greedy/random merge.
@@ -385,53 +384,54 @@ class Sampler(nn.Module):
         call on the pre-filtered candidate set (~128 tokens), avoiding the
         scatter-back to full vocab and the compiled softmax/Gumbel-max chain.
         """
-        batch = filtered_logits.shape[0]
         pad_batch = _TTNN_SAMPLING_BATCH_SIZE
+        actual_batch = filtered_logits.shape[0]
 
         # ttnn.sampling requires bf16 logits
         values = filtered_logits.to(torch.bfloat16)
         indices = candidate_indices.to(torch.int32)
 
         # Build per-request k/p/temp tensors of shape [pad_batch].
-        # Use the metadata tensors, padding to 32 with safe defaults.
+        # Metadata tensors may be smaller than pad_batch, pad them.
         if sampling_metadata.top_k is not None:
-            k_tensor = sampling_metadata.top_k[:batch].to(torch.int32)
+            k_tensor = sampling_metadata.top_k.to(torch.int32)
         else:
-            # Default: keep all candidates
             k_tensor = torch.full(
-                (batch,),
+                (actual_batch,),
                 values.shape[-1],
                 dtype=torch.int32,
                 device=values.device,
             )
 
         if sampling_metadata.top_p is not None:
-            p_tensor = sampling_metadata.top_p[:batch].to(torch.bfloat16)
+            p_tensor = sampling_metadata.top_p.to(torch.bfloat16)
         else:
             p_tensor = torch.ones(
-                batch,
+                actual_batch,
                 dtype=torch.bfloat16,
                 device=values.device,
             )
 
         # ttnn.sampling kernel expects 1/temperature (multiplies logits by it).
-        # For greedy requests (temp ~0), use temp_recip=1.0 and k=1 (following
-        # production convention in generator.py:452).
-        raw_temp = sampling_metadata.temperature[:batch]
+        raw_temp = sampling_metadata.temperature
         is_greedy = raw_temp < _SAMPLING_EPS
         temp_recip = torch.where(is_greedy, torch.ones_like(raw_temp), 1.0 / raw_temp)
         temp_tensor = temp_recip.to(torch.bfloat16)
 
-        # Pad batch to 32 (required by ttnn.sampling kernel).
-        if batch < pad_batch:
-            pad_size = pad_batch - batch
+        # Pad k/p/temp to batch=32 if needed (values/indices may already be
+        # padded by the caller via early logits padding).
+        meta_batch = k_tensor.shape[0]
+        if meta_batch < pad_batch:
+            pad_size = pad_batch - meta_batch
+            k_tensor = torch.nn.functional.pad(k_tensor, (0, pad_size), value=1)
+            p_tensor = torch.nn.functional.pad(p_tensor, (0, pad_size), value=1.0)
+            temp_tensor = torch.nn.functional.pad(temp_tensor, (0, pad_size), value=1.0)
+        if actual_batch < pad_batch:
+            pad_size = pad_batch - actual_batch
             values = torch.nn.functional.pad(
                 values, (0, 0, 0, pad_size), value=float("-inf")
             )
             indices = torch.nn.functional.pad(indices, (0, 0, 0, pad_size))
-            k_tensor = torch.nn.functional.pad(k_tensor, (0, pad_size), value=1)
-            p_tensor = torch.nn.functional.pad(p_tensor, (0, pad_size), value=1.0)
-            temp_tensor = torch.nn.functional.pad(temp_tensor, (0, pad_size), value=1.0)
 
         result = torch.ops.tt.sampling(
             values, indices, k_tensor, p_tensor, temp_tensor, seed=42

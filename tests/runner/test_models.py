@@ -80,7 +80,8 @@ def _run_model_test_impl(
     variant, ModelLoader = test_entry.variant_info
 
     # Get the model loader and model info from desired model, variant.
-    loader = ModelLoader(variant=variant)
+    num_layers = int(os.environ.get("TT_NUM_LAYERS", 0)) or None
+    loader = ModelLoader(variant=variant, num_layers=num_layers)
     model_info = ModelLoader.get_model_info(variant=variant)
     print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
