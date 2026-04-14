@@ -1,4 +1,5 @@
 ARG MLIR_TAG=latest
+ARG DOCKER_CLI_IMAGE=docker:27.5.1-cli
 
 #============================================================================
 # Base image
@@ -22,11 +23,16 @@ RUN /tmp/install-tt-triage.sh || true
 # CI image
 #============================================================================
 
+FROM ${DOCKER_CLI_IMAGE} as docker-cli
+
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-24-04:${MLIR_TAG} as ci
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only the Docker CLI so this image can talk to a mounted host daemon.
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 
 # Install requirements.txt as global Python 3.11 packages
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
