@@ -42,23 +42,15 @@ pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.co
 
 #### Step 2. Run a Model:
 
-- Navigate to the section of the [TT-Forge repo that contains TT-XLA demos](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla)
-
-- For this walkthrough, the [demo in the **TT-Forge** repo](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/jax/gpt_demo.py) is used. In the **jax** folder, in the **requirements.txt** file, you can see that **flax** and **transformers** are necessary to run the demo. Install them:
-
-   ```bash
-   pip install flax transformers
-   ```
-
-- Download the [**gpt_demo.py** file ](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/jax/gpt_demo.py ) The demo you are about to run takes a piece of text and tries to predict the next word that logically follows.
+- Download the [**mnist.py** example](https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/mnist.py) from the TT-XLA repo. This demo runs a simple CNN model on a Tenstorrent device and compares the output against a CPU reference.
 
 - Run the model:
 
    ```bash
-   python gpt_demo.py
+   python mnist.py
    ```
 
-- If all goes well you should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead.
+- If all goes well you should see the model output and a PCC (Pearson Correlation Coefficient) check confirming the TT device output matches the CPU reference.
 
 ---
 
@@ -86,36 +78,19 @@ This section walks through the installation steps for using a Docker container f
 
 #### Step 2: Running Models in Docker
 
-- Inside your running Docker container, clone the TT-Forge repo:
+- Inside your running Docker container, download the [**mnist.py** example](https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/mnist.py) from the TT-XLA repo:
 
    ```bash
-   git clone https://github.com/tenstorrent/tt-forge.git
+   wget https://raw.githubusercontent.com/tenstorrent/tt-xla/main/examples/pytorch/mnist.py
    ```
 
-- Set the path for Python:
+- Run the model:
 
    ```bash
-   export PYTHONPATH=/tt-forge:$PYTHONPATH
+   python mnist.py
    ```
 
-- Navigate into TT-Forge and run the following command:
-
-   ```bash
-   git submodule update --init --recursive
-   ```
-
-- Run a model. For this example, the **demo.py** for **opt_125m** is used. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be.  The **requirements.txt** file shows that you need to install **flax** and **transformers**:
-
-   ```bash
-   pip install flax transformers
-   ```
-
-- After completing installation, run the following:
-
-   ```bash
-   python demos/tt-xla/nlp/pytorch/opt_demo.py
-   ```
-- If all goes well, you should get an example prompt saying 'The capital of France is.' The prediction for the next term is listed, along with the probability it will occur. This is followed by a table of other likely choices.
+- If all goes well you should see the model output and a PCC (Pearson Correlation Coefficient) check confirming the TT device output matches the CPU reference.
 
 ---
 
@@ -248,6 +223,6 @@ For more information please visit [pre-commit](https://pre-commit.com/).
 
 ## Where to Go Next
 
-- Try more demos in the [TT-XLA folder in the TT-Forge repo](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla)
+- Try more examples in the [TT-XLA examples directory](https://github.com/tenstorrent/tt-xla/tree/main/examples)
 - Learn about [Improving Model Performance](./performance.md)
 - Explore [Code Generation](./getting_started_codegen.md) to convert models into standalone code
