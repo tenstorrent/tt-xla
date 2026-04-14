@@ -129,4 +129,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    sys.stdout.flush()
+    sys.stderr.flush()
     os._exit(0)  # Force exit — avoids XLA PJRT cleanup deadlock
