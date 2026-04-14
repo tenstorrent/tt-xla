@@ -61,6 +61,9 @@ def test_llm(
     weight_dtype_overrides: dict = None,
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
+    inject_custom_moe: bool = False,
+    custom_moe_cluster_axis: int = 0,
+    gpt_oss_fused_decode: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -80,6 +83,9 @@ def test_llm(
         required_pcc: Required PCC threshold
         num_layers: Number of layers to override
         accuracy_testing: Enable token accuracy testing with reference data
+        inject_custom_moe: Replace MoE blocks with tt_torch sparse_mlp adapters
+        custom_moe_cluster_axis: Mesh axis used for custom MoE dispatch/combine
+        gpt_oss_fused_decode: Enable the GPT-OSS fused decode composite path
     """
     # Set default batch size if None
     if batch_size is None:
@@ -111,6 +117,9 @@ def test_llm(
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
     required_pcc={required_pcc}
     num_layers={num_layers}
+    inject_custom_moe={inject_custom_moe}
+    custom_moe_cluster_axis={custom_moe_cluster_axis}
+    gpt_oss_fused_decode={gpt_oss_fused_decode}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
     """
     )
@@ -154,7 +163,15 @@ def test_llm(
         weight_dtype_overrides=weight_dtype_overrides,
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
+        inject_custom_moe=inject_custom_moe,
+        custom_moe_cluster_axis=custom_moe_cluster_axis,
+        gpt_oss_fused_decode=gpt_oss_fused_decode,
     )
+
+    if isinstance(results.get("config"), dict):
+        results["config"]["inject_custom_moe"] = inject_custom_moe
+        results["config"]["custom_moe_cluster_axis"] = custom_moe_cluster_axis
+        results["config"]["gpt_oss_fused_decode"] = gpt_oss_fused_decode
 
     if output_file:
         results["project"] = "tt-forge/tt-xla"
@@ -1460,6 +1477,8 @@ def test_llama_3_1_70b_tp(
 
 
 # Use 1x8 shard specs for gpt-oss-20b until https://github.com/tenstorrent/tt-xla/issues/3490 is resolved.
+# These specs match the fused decode setup: attention is TP-sharded on the model
+# axis, while expert tensors are sharded only on the expert dimension.
 def _gpt_oss_20b_mesh_config_fn(model_loader, num_devices):
     return (1, num_devices), ("batch", "model")
 
@@ -1473,6 +1492,8 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
         shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
         shard_specs[layer.self_attn.sinks] = (None,)
         shard_specs[layer.mlp.router.weight] = (None, None)
+        if getattr(layer.mlp.router, "bias", None) is not None:
+            shard_specs[layer.mlp.router.bias] = (None,)
         shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
         shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
         shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
@@ -1509,6 +1530,41 @@ def test_gpt_oss_20b_tp(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
+    )
+
+
+def test_gpt_oss_20b_tp_fused_decode(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    gpt_oss_fused_decode,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=1,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        trace_enabled=False,
+        inject_custom_moe=True,
+        custom_moe_cluster_axis=1,
+        gpt_oss_fused_decode=gpt_oss_fused_decode,
     )
 
 
