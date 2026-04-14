@@ -224,6 +224,26 @@ Cache path with the failing build: `/home/kmabee/.cache/tt-metal-cache/152965823
 - Sampling overhead = ~5.8% of total runtime, but 43% of per-token time at 12.7 tok/s
 - Biggest overall bottleneck: LoadCachedOp (27.6%) and ToDeviceOp (15.2%) — program cache and data transfer overhead
 
+### Standalone overhead breakdown (Apr 14)
+
+Isolated each layer of the sampling path using `perf_debug/test_sampling_op_overhead.py`:
+
+```
+perf_debug/sampling_overhead_logs/1_standalone.log:  standalone: 0.18 ms/call  (20 iters)
+perf_debug/sampling_overhead_logs/2_greedy.log:  greedy: 0.15 ms/call  (20 iters)
+perf_debug/sampling_overhead_logs/3_topk_only.log:  topk_only: 1.14 ms/call  (20 iters)
+perf_debug/sampling_overhead_logs/4_topk_pad.log:  topk_pad: 1.34 ms/call  (20 iters)
+perf_debug/sampling_overhead_logs/5_sampling.log:  sampling: 1.49 ms/call  (20 iters)
+```
+
+Deltas:
+- greedy → topk_only: +0.99 ms (4x chunked topk — dominant cost, 66% of total)
+- topk_only → topk_pad: +0.20 ms (padding 5 tensors to batch=32)
+- topk_pad → sampling: +0.15 ms (ttnn.sampling op itself — essentially free)
+- standalone tt.sampling: 0.18 ms (kernel + runtime reshape/typecast — matches greedy)
+
+**Total standalone overhead vs greedy: 1.34 ms.** The sampling path is near-optimal in isolation. The 26ms gap in the full 8B model (12.7 vs ~19 tok/s) is not from sampling ops — it's from other differences between greedy and non-greedy model graphs (penalties, graph shape, program dispatch overhead).
+
 ## Branch
 
 `kmabee/vllm_perf_apr12` based on `866d0abdd` (tt-xla Apr 12, 2026)
