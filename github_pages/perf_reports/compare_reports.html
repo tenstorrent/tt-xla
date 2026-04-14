@@ -160,7 +160,8 @@
         { id: "2026_03_25", path: "2026_03_25_12_13_39/tt_perf/", label: "2026-03-25 \u00b7 20B dual-axis weight-sharded" },
         { id: "2026_03_27", path: "2026_03_27_12_21_16/tt_perf/", label: "2026-03-27 \u00b7 20B model-axis + DP input-shard" },
         { id: "2026_04_07", path: "2026_04_07_07_11_39/tt_perf/", label: "2026-04-07 \u00b7 120B model-axis TP + DP" },
-        { id: "2026_04_14", path: "2026_04_14_13_25_34/tt_perf/", label: "2026-04-14 \u00b7 20B model-axis TP" },
+        { id: "2026_04_14_20b", path: "2026_04_14_13_25_34/tt_perf/", label: "2026-04-14 \u00b7 20B TP 8 + DP 4" },
+        { id: "2026_04_14_120b", path: "2026_04_14_16_30_31/tt_perf/", label: "2026-04-14 \u00b7 120B TP 8 + DP 4" },
       ];
 
       var SEGMENTS = [
@@ -217,8 +218,8 @@
 
       function syncFromUrl() {
         var params = new URLSearchParams(window.location.search);
-        runLeftSel.value = params.get("l") || "2026_03_27";
-        runRightSel.value = params.get("r") || "2026_04_14";
+        runLeftSel.value = params.get("l") || "2026_04_14_20b";
+        runRightSel.value = params.get("r") || "2026_04_14_120b";
         segSel.value = params.get("s") || SEGMENTS[0].id;
         apply();
       }
