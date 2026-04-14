@@ -2,11 +2,26 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Reproduce SamplingOp per-call overhead matching vLLM 8B decode shapes.
+"""Isolate ttnn.sampling overhead layer by layer.
+
+Each test adds one layer on top of the previous:
+  greedy     → argmax only (baseline)
+  topk_only  → 4x chunked topk, no sampling
+  topk_pad   → topk + pad to batch=32, no sampling
+  sampling   → topk + pad + ttnn.sampling (full path)
+  standalone → ttnn.sampling only, pre-shaped inputs
+
+Deltas between adjacent tests show where time goes:
+  topk_only - greedy    = topk overhead
+  topk_pad - topk_only  = padding overhead
+  sampling - topk_pad   = ttnn.sampling in compiled graph
+  standalone             = ttnn.sampling kernel + runtime overhead
 
 Usage:
   TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py all
   TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py sampling
+  TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py topk_only
+  TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py topk_pad
   TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py greedy
   TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py standalone
 """
@@ -21,6 +36,10 @@ import torch
 import torch_xla.core.xla_model as xm
 from tt_torch.custom_ops import sampling  # noqa: F401 — registers the op
 
+VOCAB = 128256
+CHUNK = 32768
+K_PER_CHUNK = 32
+
 
 def benchmark(fn, args, name, warmup=5, iters=20):
     for _ in range(warmup):
@@ -30,28 +49,88 @@ def benchmark(fn, args, name, warmup=5, iters=20):
         fn(*args)
     t1 = time.perf_counter()
     ms = (t1 - t0) / iters * 1000
-    print(f"{name}: {ms:.2f} ms/call  ({iters} iters)")
+    print(f"  {name}: {ms:.2f} ms/call  ({iters} iters)")
     return ms
 
 
-def run_sampling():
-    """4x topk + pad + ttnn.sampling (batch=1, vocab=128256)."""
+def _topk_body(logits):
+    """Shared 4x chunked topk logic."""
+    chunks = torch.split(logits, CHUNK, dim=-1)
+    all_vals, all_inds = [], []
+    for i, c in enumerate(chunks):
+        if c.shape[-1] < CHUNK:
+            c = torch.nn.functional.pad(
+                c, (0, CHUNK - c.shape[-1]), value=float("-inf")
+            )
+        v, idx = torch.topk(c, k=K_PER_CHUNK, dim=-1)
+        all_vals.append(v)
+        all_inds.append(idx + i * CHUNK)
+    vals = torch.cat(all_vals, dim=-1)
+    inds = torch.cat(all_inds, dim=-1)
+    return vals, inds
+
+
+def run_greedy():
+    """Argmax only — baseline."""
+    dev = xm.xla_device()
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def graph(logits):
+        return logits.argmax(dim=-1).view(-1)
+
+    logits = torch.randn(1, VOCAB, dtype=torch.float32).to(dev)
+    print("=== greedy: argmax (batch=1, vocab=128256) ===")
+    return benchmark(graph, (logits,), "greedy")
+
+
+def run_topk_only():
+    """4x chunked topk, return values+indices. No sampling."""
+    dev = xm.xla_device()
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def graph(logits):
+        vals, inds = _topk_body(logits)
+        return vals.to(torch.bfloat16), inds.to(torch.int32)
+
+    logits = torch.randn(1, VOCAB, dtype=torch.float32).to(dev)
+    print("=== topk_only: 4x topk (batch=1, vocab=128256) ===")
+    return benchmark(graph, (logits,), "topk_only")
+
+
+def run_topk_pad():
+    """4x topk + pad to batch=32. No sampling."""
     dev = xm.xla_device()
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def graph(logits, k_in, p_in, temp_in):
-        chunks = torch.split(logits, 32768, dim=-1)
-        all_vals, all_inds = [], []
-        for i, c in enumerate(chunks):
-            if c.shape[-1] < 32768:
-                c = torch.nn.functional.pad(
-                    c, (0, 32768 - c.shape[-1]), value=float("-inf")
-                )
-            v, idx = torch.topk(c, k=32, dim=-1)
-            all_vals.append(v)
-            all_inds.append(idx + i * 32768)
-        vals = torch.cat(all_vals, dim=-1).to(torch.bfloat16)
-        inds = torch.cat(all_inds, dim=-1).to(torch.int32)
+        vals, inds = _topk_body(logits)
+        vals = vals.to(torch.bfloat16)
+        inds = inds.to(torch.int32)
+        vals = torch.nn.functional.pad(vals, (0, 0, 0, 31), value=float("-inf"))
+        inds = torch.nn.functional.pad(inds, (0, 0, 0, 31))
+        k_in = torch.nn.functional.pad(k_in, (0, 31), value=1)
+        p_in = torch.nn.functional.pad(p_in, (0, 31), value=1.0)
+        temp_in = torch.nn.functional.pad(temp_in, (0, 31), value=1.0)
+        # Return all padded tensors to prevent dead-code elimination
+        return vals, inds, k_in, p_in, temp_in
+
+    logits = torch.randn(1, VOCAB, dtype=torch.float32).to(dev)
+    k = torch.full((1,), 32, dtype=torch.int32).to(dev)
+    p = torch.ones(1, dtype=torch.bfloat16).to(dev)
+    temp = torch.full((1,), 1.667, dtype=torch.bfloat16).to(dev)
+    print("=== topk_pad: 4x topk + pad to batch=32 ===")
+    return benchmark(graph, (logits, k, p, temp), "topk_pad")
+
+
+def run_sampling():
+    """4x topk + pad + ttnn.sampling (full path)."""
+    dev = xm.xla_device()
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def graph(logits, k_in, p_in, temp_in):
+        vals, inds = _topk_body(logits)
+        vals = vals.to(torch.bfloat16)
+        inds = inds.to(torch.int32)
         vals = torch.nn.functional.pad(vals, (0, 0, 0, 31), value=float("-inf"))
         inds = torch.nn.functional.pad(inds, (0, 0, 0, 31))
         k_in = torch.nn.functional.pad(k_in, (0, 31), value=1)
@@ -59,31 +138,16 @@ def run_sampling():
         temp_in = torch.nn.functional.pad(temp_in, (0, 31), value=1.0)
         return torch.ops.tt.sampling(vals, inds, k_in, p_in, temp_in, 42)
 
-    logits = torch.randn(1, 128256, dtype=torch.float32).to(dev)
+    logits = torch.randn(1, VOCAB, dtype=torch.float32).to(dev)
     k = torch.full((1,), 32, dtype=torch.int32).to(dev)
     p = torch.ones(1, dtype=torch.bfloat16).to(dev)
     temp = torch.full((1,), 1.667, dtype=torch.bfloat16).to(dev)
-
-    print("=== 4x topk + sampling (batch=1, vocab=128256) ===")
-    return benchmark(graph, (logits, k, p, temp), "4x topk + sampling")
-
-
-def run_greedy():
-    """Greedy argmax baseline (same vocab shape)."""
-    dev = xm.xla_device()
-
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def graph(logits):
-        return logits.argmax(dim=-1).view(-1)
-
-    logits = torch.randn(1, 128256, dtype=torch.float32).to(dev)
-
-    print("=== Greedy argmax (batch=1, vocab=128256) ===")
-    return benchmark(graph, (logits,), "greedy (argmax)")
+    print("=== sampling: 4x topk + pad + ttnn.sampling ===")
+    return benchmark(graph, (logits, k, p, temp), "sampling")
 
 
 def run_standalone():
-    """Standalone tt.sampling only (pre-shaped [32,128] inputs)."""
+    """ttnn.sampling only, pre-shaped [32,128] inputs."""
     dev = xm.xla_device()
     vals = torch.randn(32, 128, dtype=torch.bfloat16).to(dev)
     indices = torch.randint(0, 128000, (32, 128), dtype=torch.int32).to(dev)
@@ -91,34 +155,49 @@ def run_standalone():
     p = torch.ones(32, dtype=torch.bfloat16).to(dev)
     temp = torch.ones(32, dtype=torch.bfloat16).to(dev)
 
-    print("=== Standalone tt.sampling (pre-shaped, no topk) ===")
+    print("=== standalone: tt.sampling only (pre-shaped, no topk) ===")
     return benchmark(
         lambda v, i, k, p, t: (
             torch.ops.tt.sampling(v, i, k, p, t, 42),
             xm.mark_step(),
         ),
         (vals, indices, k, p, temp),
-        "tt.sampling only",
+        "standalone",
     )
 
 
 TESTS = {
-    "sampling": run_sampling,
     "greedy": run_greedy,
+    "topk_only": run_topk_only,
+    "topk_pad": run_topk_pad,
+    "sampling": run_sampling,
     "standalone": run_standalone,
 }
+
+# Order for "all" — layered from simplest to most complex
+ALL_ORDER = ["greedy", "topk_only", "topk_pad", "sampling", "standalone"]
 
 
 def main():
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
 
     if which == "all":
-        ms_s = run_sampling()
+        results = {}
+        for name in ALL_ORDER:
+            results[name] = TESTS[name]()
+            print()
+
+        print("=== Summary ===")
+        for name in ALL_ORDER:
+            print(f"  {name:15s}: {results[name]:.2f} ms")
         print()
-        ms_g = run_greedy()
-        print(f"Overhead vs greedy: {ms_s - ms_g:.2f} ms ({ms_s/ms_g:.1f}x)")
-        print()
-        run_standalone()
+        print("=== Deltas ===")
+        pairs = list(zip(ALL_ORDER, ALL_ORDER[1:]))
+        for prev, curr in pairs:
+            if curr == "standalone":
+                continue  # standalone is a different path, not additive
+            delta = results[curr] - results[prev]
+            print(f"  {prev:15s} → {curr:15s}: +{delta:.2f} ms")
     elif which in TESTS:
         TESTS[which]()
     else:
