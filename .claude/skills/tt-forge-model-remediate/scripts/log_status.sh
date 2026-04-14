@@ -15,8 +15,8 @@ RESULTS_YAML=$TT_XLA_ROOT/results.yaml
 LOCK_FILE=$TT_XLA_ROOT/.results.yaml.lock
 mkdir -p $LOGS_DIR
 
-TEST_NAME="$0"
-STATUS="$1"
+TEST_NAME="$1"
+STATUS="$2"
 SAFE_NAME=$(echo "${TEST_NAME}" | tr '/:[]\.' '_')
 DATE=$(date +%Y%m%d_%H%M%S)
 echo "$1" > $LOGS_DIR/${SAFE_NAME}_${DATE}.log
