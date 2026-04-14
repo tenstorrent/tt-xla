@@ -2329,8 +2329,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_tensor_parallel:
             # Shard KV Cache
             for cache in self.kv_caches:
-                assert cache.ndim == 5, "KV cache tensor must be 5D."
-                xs.mark_sharding(cache, self.mesh, (None, None, "batch", None, None))
+                # assert cache.ndim == 5, "KV cache tensor must be 5D."
+                if cache.ndim == 5:
+                    # Normal attention KV cache
+                    xs.mark_sharding(
+                        cache, self.mesh, (None, None, "batch", None, None)
+                    )
+                else:
+                    # MLA attention KV cache
+                    # Shape: (num_blocks, num_kv_heads, block_size, head_size)
+                    assert cache.ndim == 4, "MLA KV cache tensor must be 4D"
+                    xs.mark_sharding(cache, self.mesh, (None, "batch", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
