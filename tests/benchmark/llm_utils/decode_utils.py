@@ -11,13 +11,18 @@ generate_and_benchmark() (the timed decode loop).
 from __future__ import annotations
 
 import os
+import sys as _sys
 import time
+from pathlib import Path as _Path
 from typing import Optional
 
 import torch
 import tracy
 from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "torch" / "utils"))
+from mla_cache import MLACache
 
 
 class LLMSamplingWrapper(torch.nn.Module):
@@ -141,6 +146,47 @@ def init_static_cache(
         device=device,
     )
     return static_cache
+
+
+def init_mla_cache(
+    *,
+    config,
+    batch_size: int,
+    max_cache_len: int,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.bfloat16,
+) -> MLACache:
+    """Initialize an MLACache with pre-allocated backing tensors on the given device.
+
+    Analogous to init_static_cache + early_initialization for StaticCache.
+    Pre-initializes each MLAStaticLayer so that transfer_to_device can move
+    the tensors before any model forward pass runs.
+
+    Args:
+        config: Model config (PretrainedConfig).
+        batch_size: Batch size.
+        max_cache_len: Maximum sequence length to cache.
+        device: Device to allocate tensors on.
+        dtype: Tensor dtype.
+
+    Returns:
+        Fully initialized MLACache instance.
+    """
+    cache = MLACache(config=config, max_cache_len=max_cache_len)
+
+    text_config = config.get_text_config(decoder=True)
+    kv_lora_rank = text_config.kv_lora_rank
+    qk_rope_head_dim = text_config.qk_rope_head_dim
+
+    dummy_kv = torch.zeros((batch_size, 1, 1, kv_lora_rank), dtype=dtype, device=device)
+    dummy_pe = torch.zeros(
+        (batch_size, 1, 1, qk_rope_head_dim), dtype=dtype, device=device
+    )
+
+    for layer in cache.layers:
+        layer.lazy_initialization(dummy_kv, dummy_pe)
+
+    return cache
 
 
 def extract_topk(

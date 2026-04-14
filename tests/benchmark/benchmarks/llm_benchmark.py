@@ -6,7 +6,9 @@
 import os
 import socket
 import sys
-from typing import Optional
+import sys as _sys
+from pathlib import Path as _Path
+from typing import Optional, Union
 
 import numpy as np
 import torch
@@ -22,9 +24,11 @@ from llm_utils import (
     init_mla_cache,
     init_static_cache,
 )
-from llm_utils.mla_utils import MLAStaticLayer
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "torch" / "utils"))
 from llm_utils.decode_utils import LLMSamplingWrapper
 from loguru import logger
+from mla_cache import MLACache, MLAStaticLayer
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
@@ -85,7 +89,7 @@ def construct_inputs(
     model_config,
     batch_size: int,
     max_cache_len: int,
-    past_key_values=None,
+    past_key_values: Optional[Union[StaticCache, MLACache]] = None,
     input_prompt: str = None,
     input_prompt_tokens: Optional[torch.Tensor] = None,
     use_mla_cache: bool = False,
@@ -186,8 +190,6 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     """
     for layer in input_args["past_key_values"].layers:
         if isinstance(layer, MLAStaticLayer):
-            # MLAStaticLayer stores data in compressed_kv and k_pe (not keys/values).
-            # keys/values are aliases that must be re-pointed after transfer.
             layer.compressed_kv = layer.compressed_kv.to(device)
             layer.k_pe = layer.k_pe.to(device)
             layer.keys = layer.compressed_kv
@@ -414,7 +416,7 @@ def benchmark_llm_torch_xla(
         kv_spec = kv_cache_sharding_spec or (None, "model", None, None)
         for layer in input_args["past_key_values"].layers:
             if isinstance(layer, MLAStaticLayer):
-                xs.mark_sharding(layer.compressed_kv, mesh, ("model", None, None, None))                                                                                                                                                                                              
+                xs.mark_sharding(layer.compressed_kv, mesh, ("model", None, None, None))
                 xs.mark_sharding(layer.k_pe, mesh, ("model", None, None, None))
             else:
                 xs.mark_sharding(layer.keys, mesh, kv_spec)
