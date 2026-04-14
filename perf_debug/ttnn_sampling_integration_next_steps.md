@@ -244,6 +244,31 @@ Deltas:
 
 **Total standalone overhead vs greedy: 1.34 ms.** The sampling path is near-optimal in isolation. The 26ms gap in the full 8B model (12.7 vs ~19 tok/s) is not from sampling ops — it's from other differences between greedy and non-greedy model graphs (penalties, graph shape, program dispatch overhead).
 
+### Full model results summary (Apr 14)
+
+| Config | tok/s | Notes |
+|---|---|---|
+| Greedy (current build) | 19.0 | baseline, no sampling ops |
+| Greedy (pre-sampling build) | 20.4 | from apr12_sampling_comparison/ — 7% faster, likely tt-mlir version diff |
+| Non-greedy + ttnn.sampling, no penalty | 13.4 | temp=0.6 only |
+| Non-greedy + ttnn.sampling, with penalty | 12.7 | temp=0.6 + rep_penalty=1.1 |
+| Non-greedy + ttnn.sampling, with penalty + trace | 13.8 | trace enabled |
+
+Gap analysis (vs 19.0 greedy on current build):
+- Penalties: 0.7 tok/s (13.4 → 12.7) — small, only 12% of gap
+- Trace: +1.1 tok/s (12.7 → 13.8) — moderate
+- **Remaining unexplained gap: 5.6 tok/s (19.0 → 13.4)**
+
+The standalone overhead test shows the sampling path adds only 1.34ms over greedy. At 19 tok/s (53ms/token), adding 1.34ms would give ~18.5 tok/s — not 13.4. The 5.6 tok/s gap (~22ms/token) is 16× larger than the standalone overhead.
+
+**Root cause hypothesis:** The non-greedy sampler code changes the compiled decode graph structure (more ops, different control flow). The compiler optimizes the combined model+sampler graph differently — potentially worse memory placement, less op fusion, or different program dispatch scheduling. This affects the entire decode step, not just the sampling portion.
+
+### Next debug steps
+
+1. **Compare compiled decode graph sizes** — dump TTNN IR for greedy vs non-greedy decode and count ops. If non-greedy has significantly more ops in the model forward (not just sampler), it confirms the compiler is making different decisions.
+2. **Test greedy with dummy sampling ops** — add the topk+sampling to the greedy path but still use argmax result. If greedy slows down just from having extra ops in the graph, it's a compiler optimization issue.
+3. **Rebase tt-mlir to recover the 1.4 tok/s regression** — the greedy baseline dropped from 20.4 to 19.0 with our tt-mlir branch. Rebasing to latest main (with our sampling changes cherry-picked) might recover this.
+
 ## Branch
 
 `kmabee/vllm_perf_apr12` based on `866d0abdd` (tt-xla Apr 12, 2026)
