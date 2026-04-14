@@ -19,7 +19,9 @@ mkdir -p $LOGS_DIR
 cd $TT_XLA_ROOT
 source venv/activate
 
-export TT_RANDOM_WEIGHTS=1
+if [[ -n "$TT_COMPILE_ONLY_SYSTEM_DESC" ]]; then
+  export TT_RANDOM_WEIGHTS=1
+fi
 export TTXLA_LOGGER_LEVEL=DEBUG
 
 TEST_NAME="$@"
