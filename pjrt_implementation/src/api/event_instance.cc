@@ -67,7 +67,7 @@ bool EventInstance::isReady() {
 }
 
 PJRT_Error *EventInstance::getErrorFromStatus() {
-  return *ErrorInstance::makeError(m_status).release();
+  return reinterpret_cast<PJRT_Error *>(ErrorInstance::makeError(m_status).release());
 }
 
 static void inline logWarningOnMultipleReadyMarks() {
@@ -122,8 +122,10 @@ void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
   ready_lock.unlock();
 
   for (OnReadyCallback &callback : callbacks_to_execute) {
-    getCallbackWorker().enqueue(callback.callback_function, callback.user_arg,
-                                *ErrorInstance::makeError(status).release());
+    getCallbackWorker().enqueue(
+        callback.callback_function, callback.user_arg,
+        reinterpret_cast<PJRT_Error *>(
+            ErrorInstance::makeError(status).release()));
   }
 }
 

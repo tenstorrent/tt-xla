@@ -70,9 +70,10 @@ public:
   // Waits until the event is ready, blocking the calling thread.
   void await();
 
-  // Invokes the callback immediately on the calling thread if the event is
-  // ready, otherwise adds it to the list so it can be executed once the event
-  // is marked as ready.
+  // Dispatches the callback to the CallbackWorker thread for asynchronous
+  // execution. If the event is already ready, the callback is dispatched
+  // immediately to the worker thread. Otherwise, it is registered and
+  // dispatched to the worker thread when the event is marked as ready.
   void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
 
   // Returns the CallbackWorker used to dispatch event callbacks, creating it
