@@ -172,8 +172,10 @@ def test_{snake_name}_generation_galaxy(use_2d_mesh: bool):
 
 4. Write the edit. Show the user exactly what was added or changed.
 
-5. Remind the user of the run command:
+5. Run the test automatically using Bash. Do not suggest the command — execute it directly:
    - **single / n150 / p150**: `pytest -svv tests/integrations/vllm_plugin/generative/test_llama3_3b_generation.py::test_{snake_name}_generation -m single_device`
    - **n300-llmbox (with input)**: `pytest -svv tests/integrations/vllm_plugin/generative/test_tensor_parallel_generation.py::test_{snake_name}_generation_n300_llmbox -m llmbox`
    - **galaxy (with input)**: `pytest -svv tests/integrations/vllm_plugin/generative/test_tensor_parallel_generation.py::test_{snake_name}_generation_galaxy -m galaxy`
    - **n300-llmbox / galaxy (no input)**: `pytest -svv tests/integrations/vllm_plugin/generative/test_tensor_parallel_generation.py::test_tensor_parallel_generation_llmbox_large -m llmbox`
+
+   After running, report the full pytest output and whether the test passed or failed.
