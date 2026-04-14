@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import dataclasses
 import json
 
 import pytest
@@ -120,7 +121,10 @@ SINGLE_DEVICE_CONFIGS = [
 ]
 
 
-def _run_vllm_benchmark(config, output_file, request):
+def _run_vllm_benchmark(config, output_file, request, max_output_tokens=None):
+    if max_output_tokens is not None:
+        config = dataclasses.replace(config, max_tokens=max_output_tokens)
+
     display_name = "vllm_" + resolve_display_name(
         request=request, fallback=config.model
     )
@@ -140,8 +144,8 @@ def _run_vllm_benchmark(config, output_file, request):
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
-def test_vllm_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_benchmark(config, output_file, request, max_output_tokens):
+    _run_vllm_benchmark(config, output_file, request, max_output_tokens)
 
 
 # Sampling comparison: greedy vs non-greedy, device vs CPU, batch=1 and batch=32
@@ -182,6 +186,15 @@ SAMPLING_COMPARISON_CONFIGS = [
             additional_config={**_8B_OPT, "cpu_sampling": False},
         ),
         id="8b-b1-nongreedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=1,
+            temperature=0.6,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b1-nongreedy-nopenalty-device",
     ),
     pytest.param(
         VLLMBenchmarkConfig(
@@ -234,8 +247,8 @@ SAMPLING_COMPARISON_CONFIGS = [
 
 
 @pytest.mark.parametrize("config", SAMPLING_COMPARISON_CONFIGS)
-def test_sampling_comparison(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_sampling_comparison(config, output_file, request, max_output_tokens):
+    _run_vllm_benchmark(config, output_file, request, max_output_tokens)
 
 
 # Same configs with trace enabled
@@ -266,8 +279,8 @@ SAMPLING_COMPARISON_TRACE_CONFIGS = [
 
 
 @pytest.mark.parametrize("config", SAMPLING_COMPARISON_TRACE_CONFIGS)
-def test_sampling_comparison_trace(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_sampling_comparison_trace(config, output_file, request, max_output_tokens):
+    _run_vllm_benchmark(config, output_file, request, max_output_tokens)
 
 
 # OPT-125M: fast pipecleaning model for sampling integration
@@ -309,5 +322,5 @@ OPT_SAMPLING_CONFIGS = [
 
 
 @pytest.mark.parametrize("config", OPT_SAMPLING_CONFIGS)
-def test_opt_sampling(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_opt_sampling(config, output_file, request, max_output_tokens):
+    _run_vllm_benchmark(config, output_file, request, max_output_tokens)
