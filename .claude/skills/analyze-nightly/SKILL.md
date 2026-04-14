@@ -19,6 +19,7 @@ Create a summary of test failures or job failures, grouped by ownership area:
     - Performance benchmarks are rooted in tests/benchmark/.
 - Ownership area: Examples.
     - Examples are rooted under examples/.
+    - Test which runs examples is in tests/examples/test_examples.py.
 - Ownership area: PyTorch and JAX single-chip and multi-chip tests.
     - This is a catch-all category for tests rooted under tests/.
 Important note: "test" refers broadly to any test run, performance benchmark
@@ -32,7 +33,9 @@ Analyze the run with run-id $0 and create a summary of test failures:
   other workflow *.yml files; read other worklow *.yml files that are
   referenced from .github/workflows/schedule-nightly.yml. Some .yml files
   may be in another repository, namely github.com/tenstorrent/tt-forge. To
-  access files in other repositories, use git to clone them to /tmp/.
+  access files in other repositories, use git to clone them to /tmp/. Ensure
+  that these cloned files are deleted after you complete executing all your
+  other tasks.
 - For the run with run-id $0 fetch all job-ids by using the `gh` CLI tool.
   Run `gh run view $0 --json jobs --jq '.jobs[].url'` to fetch all job URLs,
   which have the following format, from which you can extract {job-id}:
@@ -49,7 +52,7 @@ Analyze the run with run-id $0 and create a summary of test failures:
   assert, assertion, failed, throw, failure, fatal, timeout, timed out, HTTP
   error codes from 400 and 500 range, Linux exit codes corresponding to signals
   processes can receive, etc. Don't limit yourself to only these keywords, there
-  may be others that indicate a root cause, there are just the most common ones.
+  may be others that indicate a root cause, these are just the most common ones.
 - Strategies for how to improve log crawling: (a) Always use case insensitive
   pattern matching for specific words or phrases. (b) If the logs are truncated
   or too large, download them to /tmp/ in a temporary directory. Ensure that
