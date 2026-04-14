@@ -65,21 +65,22 @@ jobs:
       caller_workflow: ${{ github.workflow }}
       distro: "ubuntu"
 
-  build-and-test-release-docker-fedora:
-    uses: ./.github/workflows/call-build-and-test-release-docker.yml
-    needs: [ publish-release-wheel ]
-    secrets: inherit
-    with:
-      wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
-      wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
-      wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
-      wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
-      xla_sha_override: ${{ inputs.xla_sha_override }}
-      caller_workflow: ${{ github.workflow }}
-      distro: "fedora"
+  # build-and-test-release-docker-fedora:
+  #   uses: ./.github/workflows/call-build-and-test-release-docker.yml
+  #   needs: [ publish-release-wheel ]
+  #   secrets: inherit
+  #   with:
+  #     wheel_release_artifact_run_id: ${{ inputs.artifact_release_run_id }}
+  #     wheel_release_artifact_name: ${{ inputs.wheel_release_artifact_name }}
+  #     wheel_release_vllm_tt_artifact_name: ${{ inputs.wheel_release_vllm_tt_artifact_name }}
+  #     wheel_version_override: ${{ needs.publish-release-wheel.outputs.release_tag }}
+  #     xla_sha_override: ${{ inputs.xla_sha_override }}
+  #     caller_workflow: ${{ github.workflow }}
+  #     distro: "fedora"
 
   publish-release:
     uses: ./.github/workflows/call-publish-release.yml
+    if: always()
     needs: [ publish-release-wheel, build-and-test-release-docker-ubuntu ]
     secrets: inherit
     with:
