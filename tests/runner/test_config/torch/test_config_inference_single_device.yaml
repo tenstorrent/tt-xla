@@ -719,6 +719,10 @@ test_config:
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference:
     status: EXPECTED_PASSING
 
+  deberta/sentence_embedding_generation/pytorch-microsoft/deberta-v3-base-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.99
+
   yolos/pytorch-single_device-inference:
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1168 https://github.com/tenstorrent/tt-xla/issues/2759
     assert_pcc: false # PCC: 0.9592 - https://github.com/tenstorrent/tt-xla/actions/runs/21091184273
