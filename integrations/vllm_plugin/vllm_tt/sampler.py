@@ -212,6 +212,11 @@ class Sampler(nn.Module):
                 sampling_metadata.repetition_penalties,
             )
 
+        # Experiment: non-greedy config but return argmax (tests compiled graph overhead)
+        _NONGREEDY_ARGMAX_ONLY = os.environ.get("TT_NONGREEDY_ARGMAX_ONLY", "") == "1"
+        if _NONGREEDY_ARGMAX_ONLY:
+            return self.greedy_sample(logits)
+
         if _GREEDY_WITH_SAMPLING_OPS:
             # Experiment: run sampling ops but return greedy result.
             # This tests whether adding sampling ops to the compiled graph
