@@ -61,6 +61,13 @@ def pytest_addoption(parser):
         help="Limit the maximum number of output tokens generated. Useful for profiling runs.",
     )
 
+    parser.addoption(
+        "--decode-only",
+        action="store_true",
+        default=False,
+        help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -85,3 +92,8 @@ def accuracy_testing(request):
 @pytest.fixture
 def max_output_tokens(request):
     return request.config.getoption("--max-output-tokens")
+
+
+@pytest.fixture
+def decode_only(request):
+    return request.config.getoption("--decode-only")

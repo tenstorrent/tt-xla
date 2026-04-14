@@ -38,6 +38,15 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         # and any other Cache subclass). Each layer exposes .keys and .values via CacheLayerMixin.
         if hasattr(cache, "layers"):
             return tuple((layer.keys, layer.values) for layer in cache.layers)
+        # Handle EncoderDecoderCache (transformers 5.x): contains self_attention_cache and
+        # cross_attention_cache as separate DynamicCache objects instead of .layers directly.
+        if hasattr(cache, "self_attention_cache") and hasattr(
+            cache, "cross_attention_cache"
+        ):
+            return (
+                TorchComparisonEvaluator._cache_to_legacy(cache.self_attention_cache),
+                TorchComparisonEvaluator._cache_to_legacy(cache.cross_attention_cache),
+            )
         return cache
 
     # @override

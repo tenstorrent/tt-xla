@@ -102,24 +102,26 @@ class Sampler(nn.Module):
         ``prompt_token_mask`` is a [batch, vocab] bool mask for prompt tokens.
         Both are pre-built on CPU and transferred to device before graph execution.
         """
-        occurred_output = output_token_counts > 0  # [batch, vocab] bool
+        # tt-xla#3464: bool tensors are promoted to bf16 by ElementTypeNormalization;
+        # keep everything in float32 to avoid mixed-dtype fusion bugs.
+        output_token_counts = output_token_counts.to(logits.dtype)
+        prompt_float = prompt_token_mask.to(logits.dtype)
 
-        # Apply in the same order as the GPU reference:
-        # repetition -> frequency -> presence.
+        # min(x,1) = x - relu(x-1) for non-negative integer x — avoids
+        # clamp(max=...) and bool comparison, both broken on TT (see count_tokens_ge).
+        occurred_float = output_token_counts - (output_token_counts - 1).clamp(min=0)
+        rep_union = occurred_float + prompt_float
+        rep_mask_float = rep_union - (rep_union - 1).clamp(min=0)
 
-        # Repetition penalty covers prompt ∪ output tokens.
-        rep_mask = occurred_output | prompt_token_mask
-        rep = repetition_penalties.unsqueeze(1)  # [batch, 1]
-        penalty_factor = torch.where(logits > 0, torch.reciprocal(rep), rep)
-        logits = torch.where(rep_mask, logits * penalty_factor, logits)
+        # Repetition penalty: positive logits divided by rep, negative multiplied.
+        rep = repetition_penalties.unsqueeze(1)
+        pos_logits = logits.clamp(min=0)
+        neg_logits = logits.clamp(max=0)
+        penalized_logits = pos_logits / rep + neg_logits * rep
+        logits = logits + rep_mask_float * (penalized_logits - logits)
 
-        # Frequency penalty: subtract penalty scaled by output occurrence count.
-        logits -= frequency_penalties.unsqueeze(1) * output_token_counts.to(
-            logits.dtype
-        )
-
-        # Presence penalty: subtract a flat penalty for each token that appeared in output.
-        logits -= presence_penalties.unsqueeze(1) * occurred_output.to(logits.dtype)
+        logits -= frequency_penalties.unsqueeze(1) * output_token_counts
+        logits -= presence_penalties.unsqueeze(1) * occurred_float
 
         return logits
 
