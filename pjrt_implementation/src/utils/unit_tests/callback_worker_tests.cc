@@ -186,7 +186,7 @@ TEST(CallbackWorkerUnitTests, DifferentThread) {
   };
 
   std::pair<std::thread::id *, std::atomic<bool> *> ctx{&callback_thread_id,
-                                                         &done};
+                                                        &done};
   worker.enqueue(callback, &ctx, nullptr);
 
   auto deadline =

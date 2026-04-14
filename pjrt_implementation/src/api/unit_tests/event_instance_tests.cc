@@ -25,9 +25,9 @@
 namespace tt::pjrt::tests {
 
 // Spin-wait for an atomic flag with a timeout.
-static bool waitForFlag(const std::atomic<bool> &flag,
-                        std::chrono::milliseconds timeout =
-                            std::chrono::milliseconds(500)) {
+static bool waitForFlag(
+    const std::atomic<bool> &flag,
+    std::chrono::milliseconds timeout = std::chrono::milliseconds(500)) {
   auto deadline = std::chrono::steady_clock::now() + timeout;
   while (!flag.load(std::memory_order_acquire) &&
          std::chrono::steady_clock::now() < deadline) {
@@ -221,8 +221,8 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
 // of an event destructor, which should terminate the execution since there are
 // still awaiters waiting on the event.
 //
-// NOTE: ASSERT_DEATH uses fork(), and the CallbackWorker thread does not
-// survive the fork. To work around this, we directly simulate what the
+// NOTE: ASSERT_DEATH uses fork(), and that interferes with our callback worker.
+// To work around this, we directly simulate what the
 // callback would do (destroy the event) on the thread that marks the event
 // as ready.
 TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {

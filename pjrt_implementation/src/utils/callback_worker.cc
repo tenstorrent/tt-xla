@@ -26,7 +26,7 @@ CallbackWorker::~CallbackWorker() {
 }
 
 void CallbackWorker::enqueue(PJRT_Event_OnReadyCallback callback_function,
-                              void *user_arg, PJRT_Error *error) {
+                             void *user_arg, PJRT_Error *error) {
   CallbackWorkItem item{callback_function, user_arg, error};
 
   while (!m_queue.tryPush(std::move(item))) {

@@ -101,8 +101,7 @@ public:
   bool isEmpty() const {
     Cell &cell = m_cells[m_read_pos & m_mask];
     size_t seq = cell.sequence.load(std::memory_order_acquire);
-    return static_cast<intptr_t>(seq) -
-               static_cast<intptr_t>(m_read_pos + 1) !=
+    return static_cast<intptr_t>(seq) - static_cast<intptr_t>(m_read_pos + 1) !=
            0;
   }
 

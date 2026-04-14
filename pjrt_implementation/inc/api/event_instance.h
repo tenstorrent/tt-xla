@@ -129,7 +129,6 @@ private:
   // Holds the number of awaiters (registered via `onEventAwait`) waiting on
   // this event to be ready.
   std::atomic<size_t> m_awaiters_count;
-
 };
 
 namespace internal {
