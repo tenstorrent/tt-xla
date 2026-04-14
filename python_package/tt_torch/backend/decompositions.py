@@ -336,6 +336,31 @@ def masked_scatter(
     return result_flat.view_as(data)
 
 
+def round_custom(input: torch.Tensor) -> torch.Tensor:
+    # Basic floor-based rounding
+    return torch.floor(input + 0.5)
+
+
+def cumsum_decomposition(
+    input: torch.Tensor, dim: int, dtype: Optional[torch.dtype] = None
+) -> torch.Tensor:
+    # For stablehlo.reduce_window
+    # Handle negative dimensions
+    if dim < 0:
+        dim += input.dim()
+
+    # Simple decomposition: If the dimension size is 1, it's just the input
+    if input.shape[dim] == 1:
+        return input.to(dtype) if dtype else input
+
+    # For hardware that struggles with reduce_window,
+    # we can decompose into a triangular matrix multiplication if the dim is small,
+    # or leave it for the backend if it's large.
+    # But often, we just return NotImplemented to let the default tracer handle it
+    # unless we want to force a specific scan pattern.
+    return NotImplemented
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -368,6 +393,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.copy.default: copy_default,
         aten.matmul.default: matmul,
         aten.dot.default: dot,
+        aten.round.default: round_custom,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -398,6 +424,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
         aten.masked_scatter.default: masked_scatter,
+        aten.cumsum.default: cumsum_decomposition,
     }
 
 
