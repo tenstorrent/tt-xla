@@ -138,9 +138,80 @@ def patch_view_of():
     _overrides.TorchFunctionOverride.__torch_function__ = _patched
 
 
+def patch_lifted_tensors():
+    """Register inline tensor constants as buffers to prevent c_lifted_tensor KeyError.
+
+    LTX2AudioVideoRotaryPosEmbed creates tensors from plain tuple attributes
+    inside forward()/prepare_video_coords(). torch.export.export lifts these
+    as c_lifted_tensor_N constants, and the XLA graph partitioner mishandles
+    shared constants across partition boundaries.
+
+    Fix: convert the tuple attributes to registered buffers in __init__ and
+    patch prepare_video_coords to use them instead of calling torch.tensor().
+    """
+    import diffusers.models.transformers.transformer_ltx2 as ltx2_module
+
+    _orig_rope_init = ltx2_module.LTX2AudioVideoRotaryPosEmbed.__init__
+
+    def _patched_rope_init(self, *args, **kwargs):
+        _orig_rope_init(self, *args, **kwargs)
+        # Register plain-tuple attributes as non-persistent buffers so
+        # torch.export treats them as buffers (b_) not lifted constants (c_).
+        if hasattr(self, 'scale_factors') and self.scale_factors is not None:
+            self.register_buffer(
+                '_scale_factors_buf',
+                torch.tensor(self.scale_factors, dtype=torch.float32),
+                persistent=False,
+            )
+        patch_size_t = getattr(self, 'patch_size_t', 1)
+        patch_size = getattr(self, 'patch_size', 1)
+        self.register_buffer(
+            '_patch_size_buf',
+            torch.tensor([patch_size_t, patch_size, patch_size], dtype=torch.int64),
+            persistent=False,
+        )
+
+    ltx2_module.LTX2AudioVideoRotaryPosEmbed.__init__ = _patched_rope_init
+
+    # Patch prepare_video_coords to use registered buffers instead of
+    # torch.tensor() on plain tuple attributes (lines 698 and 708 of original).
+    _orig_prepare = ltx2_module.LTX2AudioVideoRotaryPosEmbed.prepare_video_coords
+
+    def _patched_prepare_video_coords(self, batch_size, num_frames, height, width, device, fps=24.0):
+        # Replicate the original logic but use self._patch_size_buf and
+        # self._scale_factors_buf instead of torch.tensor(...) calls.
+        grid_f = torch.arange(start=0, end=num_frames, step=self.patch_size_t, dtype=torch.float32, device=device)
+        grid_h = torch.arange(start=0, end=height, step=self.patch_size, dtype=torch.float32, device=device)
+        grid_w = torch.arange(start=0, end=width, step=self.patch_size, dtype=torch.float32, device=device)
+        grid = torch.meshgrid(grid_f, grid_h, grid_w, indexing="ij")
+        grid = torch.stack(grid, dim=0)
+
+        # Use registered buffer instead of torch.tensor(patch_size, ...)
+        patch_size_delta = self._patch_size_buf.to(dtype=grid.dtype, device=grid.device)
+        patch_ends = grid + patch_size_delta.view(3, 1, 1, 1)
+
+        latent_coords = torch.stack([grid, patch_ends], dim=-1)
+        latent_coords = latent_coords.flatten(1, 3)
+        latent_coords = latent_coords.unsqueeze(0).repeat(batch_size, 1, 1, 1)
+
+        # Use registered buffer instead of torch.tensor(self.scale_factors, ...)
+        scale_tensor = self._scale_factors_buf.to(device=latent_coords.device)
+        broadcast_shape = [1] * latent_coords.ndim
+        broadcast_shape[1] = -1
+        pixel_coords = latent_coords * scale_tensor.view(*broadcast_shape)
+
+        pixel_coords[:, 0, ...] = (pixel_coords[:, 0, ...] + self.causal_offset - self.scale_factors[0]).clamp(min=0)
+        pixel_coords[:, 0, ...] = pixel_coords[:, 0, ...] / fps
+
+        return pixel_coords
+
+    ltx2_module.LTX2AudioVideoRotaryPosEmbed.prepare_video_coords = _patched_prepare_video_coords
+
+
 def apply_all_patches():
     """Apply all necessary patches for LTX-2 on TT hardware."""
     from conv3d_decompose import patch_conv3d_to_conv2d
     patch_conv3d_to_conv2d()
     patch_attention_processor()
     patch_view_of()
+    patch_lifted_tensors()
