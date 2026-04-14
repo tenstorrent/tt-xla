@@ -95,7 +95,7 @@ This section walks through the installation steps for using a Docker container f
 - Set the path for Python:
 
    ```bash
-   export PYTHONPATH=/tt-forge:$PYTHONPATH
+   export PYTHONPATH=$(pwd)/tt-forge:$PYTHONPATH
    ```
 
 - Navigate into TT-Forge and run the following command:
