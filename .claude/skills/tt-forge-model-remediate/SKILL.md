@@ -54,6 +54,9 @@ and log as such using script:
 
 Run the model with the run script: `scripts/run.sh $0`
 
+If the test exits normally then there is nothing to do and we're done!
+Just log the status with: `scripts/log_status.sh $0 PASS`
+
 If the test fails because of a python dependency issue please update (or create) the
 requirements.txt file that lives next to the test.
 
