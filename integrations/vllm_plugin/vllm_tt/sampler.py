@@ -206,22 +206,10 @@ class Sampler(nn.Module):
                 sampling_metadata.repetition_penalties,
             )
 
-        if _TOPK_BEFORE_ARGMAX:
-            # Experiment: measure pure 4x topk dispatch overhead on greedy path.
-            # Set TT_TOPK_BEFORE_ARGMAX=1 to enable.
-            # Run topk, scatter back to full vocab, argmax on the result.
-            # This measures topk + scatter cost (scatter is cheap for greedy/batch=1).
-            filtered, indices = apply_top_k_top_p_fast(logits, None, None)
-            topk_logits = torch.full_like(logits, float("-inf"))
-            topk_logits.scatter_(1, indices, filtered)
-            greedy_sampled = self.greedy_sample(topk_logits)
-        else:
-            greedy_sampled = self.greedy_sample(logits)
-
         if _USE_TTNN_SAMPLING:
             # ttnn.sampling handles temperature internally (multiplies by
             # 1/temperature), so skip apply_temperature and run topk on
-            # raw logits. This avoids double temperature application.
+            # raw logits.
             filtered_logits, candidate_indices = apply_top_k_top_p_fast(
                 logits,
                 sampling_metadata.top_k,
@@ -234,6 +222,14 @@ class Sampler(nn.Module):
             )
             pad_batch = _TTNN_SAMPLING_BATCH_SIZE
             batch = logits.shape[0]
+
+            if sampling_metadata.all_random:
+                # Pure non-greedy batch: skip greedy path, argmax, torch.where.
+                # Return int32 directly — no typecast needed, .tolist() handles it.
+                return random_sampled_padded[:batch].view(-1)
+
+            # Mixed batch: need greedy/random merge.
+            greedy_sampled = self.greedy_sample(logits)
             greedy_padded = torch.nn.functional.pad(
                 greedy_sampled, (0, pad_batch - batch)
             ).to(torch.int32)
@@ -245,11 +241,19 @@ class Sampler(nn.Module):
                 greedy_padded,
                 random_sampled_padded,
             )
-            # Cast to int64 at padded size (32, multiple of 32) to avoid
-            # typecast on non-aligned shapes, then trim to actual batch.
             sampled_padded = sampled_padded.to(torch.int64)
             return sampled_padded[:batch].view(-1)
+
         else:
+            # Non-ttnn path: original sampling logic.
+            if _TOPK_BEFORE_ARGMAX:
+                filtered, indices = apply_top_k_top_p_fast(logits, None, None)
+                topk_logits = torch.full_like(logits, float("-inf"))
+                topk_logits.scatter_(1, indices, filtered)
+                greedy_sampled = self.greedy_sample(topk_logits)
+            else:
+                greedy_sampled = self.greedy_sample(logits)
+
             # Apply temperature.
             logits = self.apply_temperature(
                 logits,
@@ -268,8 +272,6 @@ class Sampler(nn.Module):
             )
 
             # Scatter filtered values back to full vocab for sampling.
-            # This keeps the topk speedup for filtering while using the
-            # proven full-vocab sampling path.
             full_logits = torch.full_like(logits, float("-inf"))
             full_logits.scatter_(1, candidate_indices, filtered_logits)
 
@@ -279,12 +281,12 @@ class Sampler(nn.Module):
                 probs, sampling_metadata.generators, sampling_metadata.q_samples
             )
 
-        sampled = torch.where(
-            sampling_metadata.temperature < _SAMPLING_EPS,
-            greedy_sampled,
-            random_sampled,
-        )
-        return sampled
+            sampled = torch.where(
+                sampling_metadata.temperature < _SAMPLING_EPS,
+                greedy_sampled,
+                random_sampled,
+            )
+            return sampled
 
     def compute_logprobs(self, logits: torch.Tensor) -> torch.Tensor:
         return logits.log_softmax(dim=-1, dtype=torch.float32)

@@ -158,30 +158,16 @@ Existing tests:
 - Runtime handles: 2D→4D reshape, ROW_MAJOR layout enforcement, UINT32↔INT32 typecast
 - Batch=1→32 padding workaround for ttnn.sampling kernel's batch=32 constraint
 
-### Performance results (functionally passing but output is garbage)
+### Performance results (correctness fixed, commit `9b7bb1431`)
 | Config | Without ttnn.sampling | With ttnn.sampling | Greedy |
 |---|---|---|---|
-| OPT-125M b1 | 9.1 tok/s | 9.3 tok/s | 11.3 tok/s |
-| Llama-3.1-8B b1 | 10.9 tok/s | 10.7 tok/s | ~19 tok/s |
+| OPT-125M b1 | 9.1 tok/s | ~9 tok/s | 11.3 tok/s |
+| Llama-3.1-8B b1 | 10.9 tok/s | **12.6 tok/s** | ~19 tok/s |
 
-### Correctness bug: garbage output
-Both OPT-125M and Llama-3.1-8B produce incoherent text with `TT_USE_TTNN_SAMPLING=1`:
-- OPT-125M: `<s> +D&&<s><s> :1 > Copy files out the process-type-<s> 3 +B and return 1 if 2: COD has left D...`
-- Llama-3.1-8B: `Keep Functions! Small & single -! Simple Function! Use One line , a little.\nFunction.\nWrite!! Function...`
+### Correctness bug: FIXED
+**Root cause:** Double temperature + wrong convention. The sampler applied `logits / temperature` before topk, then passed raw `temperature` to ttnn.sampling which multiplies by it (kernel expects `1/temperature`, per tt-metal `generator.py:452`). Net effect: temperature canceled out, wrong softmax distribution.
 
-Token IDs are in-range (no crashes), but the sampling distribution is wrong.
-
-**Likely root cause: double temperature application.** The sampler applies `logits / temperature` (line 222 in sampler.py) before passing to `_ttnn_sampling_padded`, which then passes the `temp` tensor to `ttnn.sampling`. The kernel applies temperature again internally. This means temperature is applied twice, distorting the distribution.
-
-**Other possible causes:**
-1. Top-k value mismatch: the `k` tensor passed to ttnn.sampling is `sampling_metadata.top_k` (the user's requested top-k, e.g. 64), but the candidate set from 4x topk is already 128 tokens. If k < candidate count, ttnn.sampling further filters — but if k > candidate count, the kernel may behave unexpectedly.
-2. Top-p value interpretation: the sampler's `top_p` might be in a different range than what the kernel expects.
-3. The `seed=42` is hardcoded — might cause deterministic-but-wrong behavior vs the intended stochastic sampling.
-
-### Debugging plan
-1. **Test 1: Fix double temperature** — Pass `temp=1.0` (no-op) to ttnn.sampling since temperature is already applied to the logits. If output becomes coherent, this was the root cause.
-2. **Test 2: Verify ttnn.sampling standalone** — Feed known logits (e.g., one-hot or sharply peaked) to the custom op and verify the kernel picks the expected token.
-3. **Test 3: Compare distributions** — For a single decode step, capture the logits before and after topk, run both the existing Gumbel-max path and ttnn.sampling, compare selected token IDs.
+**Fix:** Skip `apply_temperature` in the sampler when using ttnn.sampling (the kernel handles it). Pass `1/temperature` as the temp parameter. For greedy (temp~0), use temp_recip=1.0 and k=1 (matching production convention). This also improved perf (10.7 → 12.6 tok/s for 8B) by eliminating the full-vocab temperature divide.
 
 ### Op count overhead analysis
 The compiled non-greedy graph has 62 non-bookkeeping TTNN ops vs 50 for greedy+topk. The 12 extra ops are: temperature divide on full 128K vocab, 6 padding ops (batch 1→32), torch.where+gt (greedy/random merge), and 6 extra typecasts. The 19 typecasts total (vs 13 in greedy) are the largest single category.
