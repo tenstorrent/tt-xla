@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import subprocess
 
 import pytest
 
@@ -43,6 +44,27 @@ def pytest_sessionstart(session):
 def restore_pip_env_if_dirty():
     """Restore pip environment before each test if a previous fork was killed."""
     RequirementsManager.check_and_restore_environment()
+
+
+@pytest.fixture(autouse=True)
+def reset_card_between_tests():
+    """Reset TT hardware card before each test when TT_RESET_CARD_BETWEEN_TESTS=1.
+
+    Enabled via qb2-model-sweep.json preset to ensure clean hardware state
+    between model tests. Runs inside each forked child process before the test.
+    """
+    if os.environ.get("TT_RESET_CARD_BETWEEN_TESTS") == "1":
+        result = subprocess.run(
+            ["tt-smi-metal", "-r"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(
+                f"WARNING: tt-smi-metal -r failed (exit {result.returncode}): {result.stderr}",
+                flush=True,
+            )
+    yield
 
 
 def _get_model_group_from_item(item):

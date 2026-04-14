@@ -53,6 +53,11 @@ on:
         required: false
         type: string
         default: ''
+      reset_card_between_tests:
+        description: 'Reset card between every model test (tt-smi-metal -r)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   actions: write
@@ -93,6 +98,7 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
+      reset_card_between_tests: ${{ inputs.reset_card_between_tests }}
 
   test-multihost-dualt3k:
     if: always() && !cancelled() && !failure() && inputs.run_multihost_dualt3k

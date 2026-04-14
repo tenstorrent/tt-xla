@@ -43,6 +43,11 @@ on:
         required: false
         type: string
         default: ''
+      reset_card_between_tests:
+        description: 'Reset card between every model test (tt-smi-metal -r)'
+        required: false
+        type: boolean
+        default: false
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -153,6 +158,11 @@ jobs:
         else
           echo "forge-models-test=false" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Set card reset env variable
+      if: ${{ inputs.reset_card_between_tests == true }}
+      shell: bash
+      run: echo "TT_RESET_CARD_BETWEEN_TESTS=1" >> $GITHUB_ENV
 
     - name: Download and install wheels
       shell: bash
