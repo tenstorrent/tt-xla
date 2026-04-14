@@ -5,8 +5,8 @@ if [ -z "$TT_XLA_ROOT" ]; then
   exit 1
 fi
 
-if [ -z "$TT_COMPILE_ONLY_SYSTEM_DESC" ]; then
-  echo "ERROR: TT_COMPILE_ONLY_SYSTEM_DESC not set. Abort"
+if [ ! -f $TT_XLA_ROOT/.env ]; then
+  echo "Env to set HF_TOKEN or TT_COMPILE_ONLY_SYSTEM_DESC doesn't exist"
   exit 1
 fi
 
@@ -15,6 +15,8 @@ export TT_METAL_CACHE="$PWD/.cache"
 export TTMLIR_VENV_DIR=$PWD/.local_venv
 LOGS_DIR=$PWD/logs
 mkdir -p $LOGS_DIR
+
+source $TT_XLA_ROOT/.env
 
 cd $TT_XLA_ROOT
 source venv/activate

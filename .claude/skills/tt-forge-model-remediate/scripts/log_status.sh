@@ -12,7 +12,7 @@ fi
 
 LOGS_DIR=$PWD/logs
 RESULTS_YAML=$TT_XLA_ROOT/results.yaml
-LOCK_FILE=$TT_XLA_ROOT/.results.yaml.lock
+LOCK_FILE=/tmp/.results.yaml.lock
 mkdir -p $LOGS_DIR
 
 TEST_NAME="$1"

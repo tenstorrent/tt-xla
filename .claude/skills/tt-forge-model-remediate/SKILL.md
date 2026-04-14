@@ -10,7 +10,6 @@ executing the test through our xla compiler infra.
 
 Before starting any work, please ensure the following environment variables are set!
 If it's not, this skill cannot be invoked.
-- TT_COMPILE_ONLY_SYSTEM_DESC
 - TT_XLA_ROOT 
 
 Do not bother exploring the project's structure, only if the run command fails
@@ -47,15 +46,14 @@ Example:
 - After: `tests/runner/test_models.py::test_all_models_torch[dreamshaper_xl/pytorch-v2.1-Turbo-DPM-SDE-tensor_parallel-inference]`
 
 If the model is too large to run in either of these configs, then we skip step 3
-and log as such using script:
-- `scripts/log_status.sh $0 MODEL_TOO_LARGE`
+and straight to step 4 to log the model is too large.
 
 ## Phase 3. Run the model & Diagnose and resolve all failures.
 
 Run the model with the run script: `scripts/run.sh $0`
 
 If the test exits normally then there is nothing to do and we're done!
-Just log the status with: `scripts/log_status.sh $0 PASS`
+Goto phase 4.
 
 If the test fails because of a python dependency issue please update (or create) the
 requirements.txt file that lives next to the test.
@@ -73,8 +71,15 @@ test.  In a loop let's:
 - Run `source scripts/activate && pre-commit run --all-files` to reformat the code.
 - Git commit the changes to checkpoint our progress with a short commit message.
   Describing the fix made for this single issue.
-- If the remediation fails after 20 attempts let's log the error and stop this
-  skill: `scripts/log_status.sh $0 MAX_FAILED_ATTEMPTS`
+- If the remediation fails after 20 attempts goto phase 4.
 - Git push (potentially with `-u origin HEAD` if the remote branch doesn't yet
   exist) all of the changes once it's done.
-- Finally, after the test passed log the status with: `scripts/log_status.sh $0 PASS`
+- Once the test is passing go to phase 4.
+
+## Phase 4. Log status
+
+Finally we want to log the status of the test:
+- If the test passed despite initial issues use: `scripts/log_status.sh $0 PASS`
+- If the remediation fails after 20 attempts let's log the error and stop this
+  skill: `scripts/log_status.sh $0 MAX_FAILED_ATTEMPTS`
+- If the model is too large to run on this target: `scripts/log_status.sh $0 MODEL_TOO_LARGE`
