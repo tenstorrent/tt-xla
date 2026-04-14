@@ -1219,7 +1219,6 @@ def test_deepseek_v3_1_full_sparse_moe():
     args = load_deepseek_config(repo_id)
     args.n_layers = args.n_dense_layers + 1
     args.max_batch_size = batch_size
-    args.max_seq_len = seq_len * 2
     print(f"[config] {args}")
 
     model = ModifiedTransformer(args)
