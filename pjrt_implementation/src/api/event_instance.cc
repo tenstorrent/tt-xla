@@ -24,11 +24,9 @@
 
 namespace tt::pjrt {
 
-utils::CallbackWorker *EventInstance::s_callback_worker = nullptr;
-
-//
-void EventInstance::setCallbackWorker(utils::CallbackWorker *worker) {
-  s_callback_worker = worker;
+utils::CallbackWorker &EventInstance::getCallbackWorker() {
+  static utils::CallbackWorker instance;
+  return instance;
 }
 
 std::unique_ptr<EventInstance> EventInstance::createInstance() {
@@ -106,10 +104,8 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
     }
   }
 
-  TT_FATAL(s_callback_worker, "CallbackWorker must be set before dispatching "
-                               "event callbacks");
-  s_callback_worker->enqueue(callback_function, user_arg,
-                             getErrorFromStatus());
+  getCallbackWorker().enqueue(callback_function, user_arg,
+                              getErrorFromStatus());
 }
 
 void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
@@ -125,11 +121,9 @@ void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
   // Release the lock before dispatching callbacks.
   ready_lock.unlock();
 
-  TT_FATAL(s_callback_worker, "CallbackWorker must be set before dispatching "
-                               "event callbacks");
   for (OnReadyCallback &callback : callbacks_to_execute) {
-    s_callback_worker->enqueue(callback.callback_function, callback.user_arg,
-                               *ErrorInstance::makeError(status).release());
+    getCallbackWorker().enqueue(callback.callback_function, callback.user_arg,
+                                *ErrorInstance::makeError(status).release());
   }
 }
 

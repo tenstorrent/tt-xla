@@ -28,7 +28,6 @@
 #include "api/device_instance.h"
 #include "api/loaded_executable_instance.h"
 #include "api/memory_instance.h"
-#include "utils/callback_worker.h"
 #include "utils/status.h"
 
 namespace tt::pjrt {
@@ -170,11 +169,6 @@ public:
       const std::optional<std::vector<int64_t>> &replica_device_ids);
 
 private:
-  // Worker thread that executes event callbacks asynchronously to avoid
-  // GIL + device lock deadlock. Registered with EventInstance via
-  // setCallbackWorker() in the constructor/destructor.
-  utils::CallbackWorker m_callback_worker;
-
   tt_pjrt_status populateDevices();
   tt_pjrt_status populateMemories();
 
