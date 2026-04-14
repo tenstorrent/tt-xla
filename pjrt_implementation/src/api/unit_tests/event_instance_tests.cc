@@ -215,14 +215,22 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
   EXPECT_TRUE(waitForFlag(callback_executed_flag));
 }
 
-// Tests that destroying an event while awaiters are still pending triggers
-// process termination. The test directly destroys the event after marking it
-// ready, before all awaiters have finished waking up.
-TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Destroy_While_Pending) {
+// Tests scenario where there are multiple awaiters waiting on an event to be
+// ready, but there is also an on-ready callback which destroys the event as
+// soon as it is marked ready. Destroying the event will trigger the execution
+// of an event destructor, which should terminate the execution since there are
+// still awaiters waiting on the event.
+//
+// NOTE: ASSERT_DEATH uses fork(), and the CallbackWorker thread does not
+// survive the fork. To work around this, we directly simulate what the
+// callback would do (destroy the event) on the thread that marks the event
+// as ready.
+TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {
   auto test = []() {
     auto event = EventInstance::createInstance().release();
 
-    // Create waiter threads which will await on event being marked as ready.
+    // Create waiter threads which will await on event being marked as
+    // ready.
     std::vector<std::thread> waiter_threads;
     constexpr size_t num_waiter_threads = 100;
     waiter_threads.reserve(num_waiter_threads);
@@ -231,17 +239,29 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Destroy_While_Pending) {
         PJRT_Event_Await_Args await_args;
         await_args.struct_size = PJRT_Event_Await_Args_STRUCT_SIZE;
         await_args.event = reinterpret_cast<PJRT_Event *>(event);
-        internal::onEventAwait(&await_args);
+        PJRT_Error *error = internal::onEventAwait(&await_args);
+        ASSERT_EQ(error, nullptr);
       });
     }
 
-    // Wait for awaiters to start, then mark ready and immediately destroy.
-    // The destroy races with awaiters still decrementing m_awaiters_count.
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    std::cerr << "Marking event as ready and destroying immediately...\n";
-    EventInstance::markAsReadyAndCallback(event, tt_pjrt_status::kSuccess);
-    delete event;
+    // Spawn a "worker" thread which will wait and then mark the event
+    // as ready. Then immediately destroy the event (simulating what the
+    // XLA on-ready callback does — which we've observed happens in XLA).
+    std::thread work_thread = std::thread([&]() {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::cerr << "Worker thread marking event as ready and executing "
+                   "callbacks...\n";
+      EventInstance::markAsReadyAndCallback(event, tt_pjrt_status::kSuccess);
 
+      PJRT_Event_Destroy_Args destroy_args = {
+          .struct_size = PJRT_Event_Destroy_Args_STRUCT_SIZE,
+          .event = reinterpret_cast<PJRT_Event *>(event),
+      };
+      internal::onEventDestroy(&destroy_args);
+    });
+
+    // Wait for all threads to finish.
+    work_thread.join();
     for (auto &thread : waiter_threads) {
       thread.join();
     }
