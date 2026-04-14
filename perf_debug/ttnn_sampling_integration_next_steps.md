@@ -185,7 +185,7 @@ The 16.6ms SamplingOp is dominated by runtime conversions (to_layout for 4 input
 ### Root cause analysis (Apr 14)
 
 The compiler workarounds pass correctly sets ROW_MAJOR for sampling inputs (confirmed via MLIR dump). The runtime `to_layout` calls are no-ops when layout is already correct. The 16.6ms SamplingOp time is from **5 device dispatches** inside the runtime:
-1. `ttnn::reshape` input_values (2D→4D) 
+1. `ttnn::reshape` input_values (2D→4D)
 2. `ttnn::reshape` input_indices (2D→4D)
 3. `ttnn::typecast` k (INT32→UINT32)
 4. `ttnn::reshape` output (4D→1D)
@@ -199,6 +199,21 @@ Each device dispatch has ~2-3ms host-device round-trip on Blackhole. The ttnn::s
 3. **Eliminate runtime reshapes** — either make the kernel accept 2D input directly, or reshape in the compiler. Removes 2 dispatches (~5ms).
 4. **Batch=32** — kernel's natural batch size. No padding needed, all tensors already aligned.
 5. **Reduce topk chunks** — 2 chunks for smaller vocabs (OPT 50K fits in 2×32K).
+
+### Trace mode: trisc1 firmware compiler ICE (Apr 14)
+
+Trace-enabled benchmarks (`enable_trace=True`) crash with a segfault in the RISC-V cross-compiler during LTO of the trisc1 firmware:
+```
+lto1: internal compiler error: Segmentation fault
+riscv-tt-elf-g++ (sfpi:7.32.0[333]) 15.1.0
+```
+Reproducer: `TT_USE_TTNN_SAMPLING=1 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison_trace[8b-b1-nongreedy-device-trace]"`
+
+This is a tt-metal sfpi toolchain bug, not a ttnn.sampling issue. Trace mode compiles different kernel programs than non-trace (for capture/replay), and the resulting firmware binary triggers an LTO ICE in GCC 15.1.0. Non-trace mode works fine.
+
+Cache path with the failing build: `/home/kmabee/.cache/tt-metal-cache/15296582388382065472/firmware/trisc1/`
+
+**Update:** After uplifting tt-mlir to `9b788c220`, ALL firmware builds (trisc0/1/2, ncrisc, brisc, all eriscs) crash with the same LTO ICE under tracy — even for greedy (non-sampling) paths. Clearing the firmware cache doesn't help. This is a systemic sfpi toolchain regression with the new tt-mlir version, not specific to ttnn.sampling or trace mode. Tracy profiling is blocked until the toolchain is fixed or the tt-mlir version is pinned to one that works.
 
 ## Branch
 
