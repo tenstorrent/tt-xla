@@ -8,12 +8,12 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
-  falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-inference:
+  falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-inference:
+  falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
@@ -26,17 +26,17 @@ test_config:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
+  qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
+  qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-inference:
+  qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
@@ -55,7 +55,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-72B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-inference:
+  gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/4004"
     bringup_status: FAILED_RUNTIME
@@ -99,17 +99,17 @@ test_config:
   llama/causal_lm/pytorch-3.3_70B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-inference:
+  qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
     bringup_status: FAILED_RUNTIME
 
-  qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-inference:
+  qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4125"
     bringup_status: FAILED_RUNTIME
 
-  qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-inference:
+  qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
@@ -219,36 +219,24 @@ test_config:
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_32-single_device-mesh_default-inference:
     required_pcc: 0.99
     status: EXPECTED_PASSING
-    markers: [nightly, large]
+    markers: [nightly]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_1-single_device-mesh_default-inference:
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
-
-      p150:
-        required_pcc: 0.99
-        status: EXPECTED_PASSING
-        markers: [nightly]
+    required_pcc: 0.99
+    status: EXPECTED_PASSING
+    markers: [nightly]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_32-single_device-mesh_default-inference:
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
-        markers: [nightly]
-      p150:
-        required_pcc: 0.99
-        status: EXPECTED_PASSING
-        markers: [nightly]
+    required_pcc: 0.99
+    status: EXPECTED_PASSING
+    markers: [nightly]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    required_pcc: 0.99
+    status: EXPECTED_PASSING
     markers: [nightly]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_32-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Out of memory" # See https://github.com/tenstorrent/tt-mlir/issues/6877
+    required_pcc: 0.99
+    status: EXPECTED_PASSING
     markers: [nightly]
