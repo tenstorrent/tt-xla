@@ -1,13 +1,18 @@
 #!/bin/bash
 
+if [ -z "$TT_XLA_ROOT" ]; then
+  echo "ERROR: TT_XLA_ROOT not set. Abort"
+  exit 1
+fi
+
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <test_name> <reason>" >&2
     exit 1
 fi
 
 LOGS_DIR=$PWD/logs
-RESULTS_YAML=$LOGS_DIR/results.yaml
-LOCK_FILE=$LOGS_DIR/.results.yaml.lock
+RESULTS_YAML=$TT_XLA_ROOT/results.yaml
+LOCK_FILE=$TT_XLA_ROOT/.results.yaml.lock
 mkdir -p $LOGS_DIR
 
 TEST_NAME="$0"
