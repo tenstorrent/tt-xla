@@ -1459,3 +1459,24 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64_mlp_bfp4(
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
     )
+
+
+def test_gpt_oss_120b(
+    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+    )
