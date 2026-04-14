@@ -218,6 +218,7 @@ def benchmark_llm_torch_xla(
     hf_model_name_for_accuracy: str = None,
     max_output_tokens=None,
     decode_only: bool = False,
+    weight_dtype_overrides: dict = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -408,13 +409,18 @@ def benchmark_llm_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
-    # Apply per-tensor weight dtype overrides from model's weight_dtype_configs JSON.
-    weight_dtype_config = model_loader.get_weight_dtype_config_path()
-    if weight_dtype_config:
-        applied = apply_weight_dtype_overrides(model, weight_dtype_config)
-        logger.info(
-            f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
-        )
+    # Apply per-tensor weight dtype overrides from explicit dict (takes priority).
+    if weight_dtype_overrides:
+        applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
+        logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
+    else:
+        # Fall back to model's weight_dtype_configs JSON (auto-discovery).
+        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        if weight_dtype_config:
+            applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+            logger.info(
+                f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+            )
     # PERFORMANCE BENCHMARK
     # No logits returned to avoid OOM.
     perf_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=False)
