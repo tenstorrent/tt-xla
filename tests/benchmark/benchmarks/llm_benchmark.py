@@ -414,9 +414,11 @@ def benchmark_llm_torch_xla(
         kv_spec = kv_cache_sharding_spec or (None, "model", None, None)
         for layer in input_args["past_key_values"].layers:
             if isinstance(layer, MLAStaticLayer):
-                continue
-            xs.mark_sharding(layer.keys, mesh, kv_spec)
-            xs.mark_sharding(layer.values, mesh, kv_spec)
+                xs.mark_sharding(layer.compressed_kv, mesh, ("model", None, None, None))                                                                                                                                                                                              
+                xs.mark_sharding(layer.k_pe, mesh, ("model", None, None, None))
+            else:
+                xs.mark_sharding(layer.keys, mesh, kv_spec)
+                xs.mark_sharding(layer.values, mesh, kv_spec)
 
         # Shard input_ids
         if input_output_sharding_spec:
