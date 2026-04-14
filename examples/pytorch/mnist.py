@@ -96,12 +96,12 @@ def test_mnist():
 
     tt_output = run_mnist()
     cpu_output = run_mnist_cpu()
-    
+
     print("TT device output:")
     print(tt_output)
     print("CPU output:")
     print(cpu_output)
-    
+
     tt_output_cpu = tt_output.cpu()
 
     tt_flat = tt_output_cpu.flatten().float()
