@@ -413,12 +413,16 @@ def benchmark_llm_torch_xla(
         # Also shard KV cache tensors created in input_args
         # This is hardcoded for all TP models, and should be moved to tt-forge-models.
         # https://github.com/tenstorrent/tt-xla/issues/4240
-        kv_spec = kv_cache_sharding_spec or (None, "model", None, None)
+        kv_spec = kv_cache_sharding_spec
         for layer in input_args["past_key_values"].layers:
             if isinstance(layer, MLAStaticLayer):
-                xs.mark_sharding(layer.compressed_kv, mesh, ("model", None, None, None))
-                xs.mark_sharding(layer.k_pe, mesh, ("model", None, None, None))
+                if kv_spec is None:
+                    kv_spec = ("model", None, None, None)
+                xs.mark_sharding(layer.compressed_kv, mesh, kv_spec)
+                xs.mark_sharding(layer.k_pe, mesh, kv_spec)
             else:
+                if kv_spec is None:
+                    kv_spec = (None, "model", None, None)
                 xs.mark_sharding(layer.keys, mesh, kv_spec)
                 xs.mark_sharding(layer.values, mesh, kv_spec)
 
