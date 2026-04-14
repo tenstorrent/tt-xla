@@ -23,8 +23,7 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   genmo/mochi-1-preview:
     bringup_status: NOT_STARTED
-  mistralai/Mixtral-8x7B-Instruct-v0.1:
-    bringup_status: NOT_STARTED
+  # mistralai/Mixtral-8x7B-Instruct-v0.1: moved to test_config_inference_tensor_parallel.yaml
   Hiperglobal Shallow uNet:
     bringup_status: NOT_STARTED
   KLA K-SegNet:

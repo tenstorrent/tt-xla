@@ -120,6 +120,19 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
+  deepseek/qwen/pytorch-7B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "OOM on 4-chip Blackhole P300 - needs bfp8 weight conversion or larger mesh"
+
+  mixtral/causal_lm/pytorch-8x7B_Instruct_v0.1-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Untested - needs n300-llmbox hardware, 87GB model, and custom MoE injection"
+    inject_custom_moe: true
+
   qwen_2_5/causal_lm/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
