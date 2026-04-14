@@ -5,5 +5,6 @@
   { "runs-on": "p150",          "name": "run_forge_models",      "dir": "./tests/runner/test_models.py::test_all_models_jax",        "test-mark": "p150 and expected_passing and push" },
   { "runs-on": "n150",          "name": "run_forge_models",      "dir": "./tests/runner/test_models.py::test_all_models_jax",        "test-mark": "n150 and expected_passing and push and large" },
   { "runs-on": "p150",          "name": "run_forge_models",      "dir": "./tests/runner/test_models.py::test_all_models_jax",        "test-mark": "p150 and expected_passing and push and large" },
-  { "runs-on": "n300-llmbox",   "name": "run_torch_multi_host",  "dir": "./tests/torch/multi_host/llmbox ./tests/torch/training/test_moe.py",    "test-mark": "(push and multi_host_cluster) or (push and training)", "require": "release", "shared-runners": "true" }
+  { "runs-on": "n300-llmbox",   "name": "run_torch_multi_host",  "dir": "./tests/torch/multi_host/llmbox",                           "test-mark": "push and multi_host_cluster", "require": "release", "shared-runners": "true" },
+  { "runs-on": "n300-llmbox",   "name": "run_torch_training",    "dir": "./tests/torch/training/test_moe.py",                        "test-mark": "push and training", "require": "release", "shared-runners": "true" }
 ]
