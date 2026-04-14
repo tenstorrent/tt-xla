@@ -5,6 +5,7 @@
 #include "utils/callback_worker.h"
 
 // c++ standard library includes
+#include <chrono>
 #include <thread>
 
 // tt-xla includes
@@ -30,8 +31,8 @@ void CallbackWorker::enqueue(PJRT_Event_OnReadyCallback callback_function,
   CallbackWorkItem item{callback_function, user_arg, error};
 
   while (!m_queue.tryPush(std::move(item))) {
-    DLOG_F(WARNING, "CallbackWorker queue is full, spinning...");
-    std::this_thread::yield();
+    DLOG_F(WARNING, "CallbackWorker queue is full, retrying after backoff...");
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
   m_work_available.release();

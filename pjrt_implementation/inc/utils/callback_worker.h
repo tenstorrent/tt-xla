@@ -50,7 +50,8 @@ public:
   CallbackWorker &operator=(const CallbackWorker &) = delete;
 
   // Enqueue a callback for asynchronous execution on the worker thread.
-  // Lock-free for producers. Spins briefly if the queue is momentarily full.
+  // Lock-free for producers. If the queue is full, this call sleeps briefly
+  // and retries until the item is successfully enqueued.
   void enqueue(PJRT_Event_OnReadyCallback callback_function, void *user_arg,
                PJRT_Error *error);
 

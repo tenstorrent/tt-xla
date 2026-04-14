@@ -7,11 +7,13 @@
 
 // c++ standard library includes
 #include <atomic>
-#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <new>
 #include <utility>
+
+// tt-xla includes
+#include "utils/assert.h"
 
 namespace tt::pjrt::utils {
 
@@ -26,14 +28,14 @@ namespace tt::pjrt::utils {
 // Producers compete via CAS on a shared write position. The single consumer
 // advances its own read position without contention.
 //
-// Capacity must be a power of 2 (enforced by assert).
+// Capacity must be a power of 2 (enforced by TT_FATAL).
 template <typename T> class MPSCQueue {
 public:
   explicit MPSCQueue(size_t capacity)
       : m_capacity(capacity), m_mask(capacity - 1),
         m_cells(std::make_unique<Cell[]>(capacity)) {
-    assert(capacity >= 2 && (capacity & (capacity - 1)) == 0 &&
-           "Capacity must be a power of 2");
+    TT_FATAL(capacity >= 2 && (capacity & (capacity - 1)) == 0,
+             "Capacity must be a power of 2 and at least 2, got {}", capacity);
 
     for (size_t i = 0; i < m_capacity; ++i) {
       m_cells[i].sequence.store(i, std::memory_order_relaxed);
