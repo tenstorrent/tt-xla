@@ -41,6 +41,11 @@ _SAMPLING_EPS = 1e-5
 _TOPK_BEFORE_ARGMAX = os.environ.get("TT_TOPK_BEFORE_ARGMAX", "") == "1"
 _USE_TTNN_SAMPLING = os.environ.get("TT_USE_TTNN_SAMPLING", "") == "1"
 _TTNN_SAMPLING_BATCH_SIZE = 32  # ttnn.sampling kernel requires batch=32
+# Experiment: run sampling ops but return greedy result. Tests whether
+# adding sampling ops to the graph degrades model forward performance.
+_GREEDY_WITH_SAMPLING_OPS = (
+    os.environ.get("TT_GREEDY_WITH_SAMPLING_OPS", "") == "1"
+)
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -205,6 +210,23 @@ class Sampler(nn.Module):
                 sampling_metadata.frequency_penalties,
                 sampling_metadata.repetition_penalties,
             )
+
+        if _GREEDY_WITH_SAMPLING_OPS:
+            # Experiment: run sampling ops but return greedy result.
+            # This tests whether adding sampling ops to the compiled graph
+            # degrades model forward performance.
+            greedy_sampled = self.greedy_sample(logits)
+            filtered_logits, candidate_indices = apply_top_k_top_p_fast(
+                logits,
+                sampling_metadata.top_k,
+                sampling_metadata.top_p,
+            )
+            _unused = self._ttnn_sampling_padded(
+                filtered_logits,
+                candidate_indices,
+                sampling_metadata,
+            )
+            return greedy_sampled
 
         if _USE_TTNN_SAMPLING:
             # ttnn.sampling handles temperature internally (multiplies by
