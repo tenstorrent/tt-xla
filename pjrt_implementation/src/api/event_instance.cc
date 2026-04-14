@@ -67,7 +67,8 @@ bool EventInstance::isReady() {
 }
 
 PJRT_Error *EventInstance::getErrorFromStatus() {
-  return reinterpret_cast<PJRT_Error *>(ErrorInstance::makeError(m_status).release());
+  return reinterpret_cast<PJRT_Error *>(
+      ErrorInstance::makeError(m_status).release());
 }
 
 static void inline logWarningOnMultipleReadyMarks() {
