@@ -1782,6 +1782,7 @@ def test_gpt_oss_120b_tp_qb2(
         # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
     )
 
+# Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
 def test_kimi_k2_tp_galaxy_2_layers(
     output_file,
     num_layers,
@@ -1791,12 +1792,11 @@ def test_kimi_k2_tp_galaxy_2_layers(
     max_output_tokens,
     decode_only,
 ):
-
-    from third_party.tt_forge_models.kimi.kimi_k2.pytorch.loader import (
+    from third_party.tt_forge_models.kimi_k2.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
-    variant = ModelVariant.KIMI_K2_INSTRUCT
+    variant = ModelVariant.KIMI_K2_INSTRUCT_MODIFIED
     test_llm_tp(
         ModelLoader,
         variant,
@@ -1808,7 +1808,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=0,
-        trace_enabled=False,  # topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
+        trace_enabled=False,
         use_mla_cache=True,
         arch="wormhole_galaxy",
         required_pcc=0.92,
