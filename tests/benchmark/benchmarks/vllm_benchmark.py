@@ -34,6 +34,8 @@ class VLLMBenchmarkConfig:
     batch_size: int = 1
     max_tokens: int = 128
     warmup_iterations: int = 1
+    temperature: float = 0.0
+    repetition_penalty: float = 1.0
 
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
@@ -168,7 +170,10 @@ def benchmark_vllm(
     """Run a vLLM benchmark and return a standardised result dict."""
     prompts = [DEFAULT_PROMPT] * config.batch_size
     sampling_params = vllm.SamplingParams(
-        max_tokens=config.max_tokens, ignore_eos=True, temperature=0.0
+        max_tokens=config.max_tokens,
+        ignore_eos=True,
+        temperature=config.temperature,
+        repetition_penalty=config.repetition_penalty,
     )
 
     llm = _create_llm(config)
@@ -181,6 +186,10 @@ def benchmark_vllm(
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
     outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+
+    # Print generated text for output inspection
+    for i, output in enumerate(outputs):
+        print(f"  [{i}] {output.prompt!r} → {output.outputs[0].text!r}")
 
     # Assert decode is consistent
     _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
@@ -238,7 +247,7 @@ def benchmark_vllm(
         custom_measurements=custom_measurements,
         optimization_level=config.additional_config.get("optimization_level", 0),
         program_cache_enabled=True,
-        trace_enabled=False,
+        trace_enabled=config.additional_config.get("enable_trace", False),
         experimental_weight_dtype=(
             "bfp_bf8"
             if config.additional_config.get(
