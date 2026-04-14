@@ -271,9 +271,43 @@ Greedy + topk + sampling ops (but returning argmax): **18.7 tok/s** vs pure gree
 
 ### Next debug steps
 
-1. **Compare compiled decode graph sizes** — dump TTNN IR for greedy vs non-greedy decode and count ops. If non-greedy has significantly more ops in the model forward (not just sampler), it confirms the compiler is making different decisions.
-2. **Test greedy with dummy sampling ops** — add the topk+sampling to the greedy path but still use argmax result. If greedy slows down just from having extra ops in the graph, it's a compiler optimization issue.
-3. **Rebase tt-mlir to recover the 1.4 tok/s regression** — the greedy baseline dropped from 20.4 to 19.0 with our tt-mlir branch. Rebasing to latest main (with our sampling changes cherry-picked) might recover this.
+The gap is NOT from sampling ops (proven by TT_GREEDY_WITH_SAMPLING_OPS experiment). Focus areas:
+
+1. **Investigate model_runner.py `all_greedy` vs `all_random` paths** — when `all_greedy=False`, the model runner generates and transfers extra sampling metadata tensors (top_k, top_p, temperature, q_samples) to device every decode step. This host-side overhead is invisible to device-only profiling.
+2. **Check if non-greedy triggers different graph compilation** — the sampler is compiled as part of the model forward graph via `torch.compile`. Greedy compiles a different graph than non-greedy. Even if the sampling ops are fast, the different graph structure may cause the compiler to make different optimization decisions for the model forward ops.
+3. **Tracy comparison** — run tracy on both greedy and non-greedy to compare host-side timing (tensor creation, metadata building, program dispatch) rather than just device ops.
+4. **Rebase tt-mlir** — greedy baseline dropped from 20.4 to 19.0 with our tt-mlir branch. Rebasing may recover this.
+
+### Reproducing experiments
+
+All experiments are gated by env vars. Commands to reproduce:
+
+```bash
+# Greedy baseline
+pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-greedy-device]"
+
+# Non-greedy with ttnn.sampling (with penalties)
+TT_USE_TTNN_SAMPLING=1 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-nongreedy-device]"
+
+# Non-greedy without penalties (isolates penalty overhead)
+TT_USE_TTNN_SAMPLING=1 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-nongreedy-nopenalty-device]"
+
+# Greedy + sampling ops (proves ops don't degrade perf)
+TT_GREEDY_WITH_SAMPLING_OPS=1 TT_USE_TTNN_SAMPLING=1 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-greedy-device]"
+
+# Standalone op overhead breakdown
+TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py all
+
+# Individual standalone tests
+TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py standalone
+TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py greedy
+TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py topk_only
+TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py topk_pad
+TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py sampling
+
+# Full overhead breakdown with logs
+bash perf_debug/run_sampling_overhead.sh
+```
 
 ## Branch
 
