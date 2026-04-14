@@ -53,15 +53,24 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        from transformers import (
+            AutoConfig,
+            AutoModelForSequenceClassification,
+            AutoTokenizer,
+        )
 
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
 
+        config = AutoConfig.from_pretrained(
+            pretrained_model_name, trust_remote_code=True
+        )
+        config.use_memory_efficient_attention = False
+
         model_kwargs = {
+            "config": config,
             "trust_remote_code": True,
-            "use_memory_efficient_attention": False,
         }
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
