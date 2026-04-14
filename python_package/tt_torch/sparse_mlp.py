@@ -802,7 +802,10 @@ class A2aSparseMLPWithSharedExperts(nn.Module):
 
     def forward(self, hidden_states):
         out, _ = self.mlp(hidden_states)
-        if self.shared_experts is not None:
+        # On CPU, _cpu_forward delegates to the original MoE module whose
+        # forward already includes shared_experts.  Only add them on device
+        # where A2aSparseMLP computes routed experts alone.
+        if self.shared_experts is not None and hidden_states.device.type != "cpu":
             out = out + self.shared_experts(hidden_states)
         return out
 
