@@ -4,6 +4,7 @@
 """
 BennyDaBall/Qwen3-4b-Z-Image-Engineer-V2.5 model loader implementation for causal language modeling.
 """
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
@@ -93,7 +94,9 @@ class ModelLoader(ForgeModel):
             tokenizer_kwargs["torch_dtype"] = dtype_override
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
+            subfolder="safetensors_format",
+            **tokenizer_kwargs,
         )
 
         return self.tokenizer
@@ -119,7 +122,9 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(pretrained_model_name)
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, subfolder="safetensors_format"
+            )
             if hasattr(config, "text_config"):
                 config.text_config.num_hidden_layers = self.num_layers
                 if hasattr(config.text_config, "layer_types"):
@@ -131,7 +136,7 @@ class ModelLoader(ForgeModel):
             model_kwargs["config"] = config
 
         model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            pretrained_model_name, subfolder="safetensors_format", **model_kwargs
         ).eval()
 
         self.config = model.config
@@ -213,6 +218,7 @@ class ModelLoader(ForgeModel):
         """
         self.config = AutoConfig.from_pretrained(
             self._variant_config.pretrained_model_name,
+            subfolder="safetensors_format",
         )
 
         return self.config
