@@ -217,6 +217,13 @@ Cache path with the failing build: `/home/kmabee/.cache/tt-metal-cache/152965823
 
 **Tensor::reshape experiment (Apr 14):** Attempted using `Tensor::reshape` (metadata-only view) instead of `ttnn::reshape` in the runtime. Tracy showed it's **slower** (28.1 ms/call vs 16.6 ms/call). `Tensor::reshape` on TILE-layout tensors likely triggers internal data movement. Reverted to `ttnn::reshape`.
 
+**Llama-3.1-8B tracy profile (Apr 14, steady-state with warmup):**
+- SamplingOp: 34ms/call (3.4% of total), 7 calls
+- TopKOp: 3.6ms/call (1.5%), 29 calls
+- PadOp: 1.1ms/call (1.0%), 63 calls
+- Sampling overhead = ~5.8% of total runtime, but 43% of per-token time at 12.7 tok/s
+- Biggest overall bottleneck: LoadCachedOp (27.6%) and ToDeviceOp (15.2%) — program cache and data transfer overhead
+
 ## Branch
 
 `kmabee/vllm_perf_apr12` based on `866d0abdd` (tt-xla Apr 12, 2026)
