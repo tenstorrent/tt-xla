@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -1376,6 +1377,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_batch,
                 self.max_num_reqs,
                 sampling_device,
+                generate_params_if_all_greedy=os.environ.get(
+                    "TT_FORCE_SAMPLING_METADATA", ""
+                )
+                == "1",
                 vocab_size=self.vocab_size,
             )
             if grammar_output is not None:

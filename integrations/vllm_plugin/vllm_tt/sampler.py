@@ -43,9 +43,10 @@ _USE_TTNN_SAMPLING = os.environ.get("TT_USE_TTNN_SAMPLING", "") == "1"
 _TTNN_SAMPLING_BATCH_SIZE = 32  # ttnn.sampling kernel requires batch=32
 # Experiment: run sampling ops but return greedy result. Tests whether
 # adding sampling ops to the graph degrades model forward performance.
-_GREEDY_WITH_SAMPLING_OPS = (
-    os.environ.get("TT_GREEDY_WITH_SAMPLING_OPS", "") == "1"
-)
+_GREEDY_WITH_SAMPLING_OPS = os.environ.get("TT_GREEDY_WITH_SAMPLING_OPS", "") == "1"
+# Experiment: force metadata tensor transfers even for greedy batches.
+# Tests whether CPU→device transfers are the bottleneck.
+FORCE_SAMPLING_METADATA = os.environ.get("TT_FORCE_SAMPLING_METADATA", "") == "1"
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
