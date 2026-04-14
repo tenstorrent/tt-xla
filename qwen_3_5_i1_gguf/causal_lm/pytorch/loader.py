@@ -4,8 +4,10 @@
 """
 Qwen 3.5 i1 GGUF model loader implementation for causal language modeling.
 """
+import os
+
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer, AutoConfig, Qwen3_5ForCausalLM
 from typing import Optional
 
 from ....base import ForgeModel
@@ -31,14 +33,12 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.QWEN_3_5_9B_I1_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/Qwen3.5-9B-i1-GGUF",
+            pretrained_model_name="Qwen/Qwen3.5-9B",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.QWEN_3_5_9B_I1_GGUF
-
-    GGUF_FILE = "Qwen3.5-9B.i1-Q4_K_M.gguf"
 
     sample_text = "What is your favorite city?"
 
@@ -62,13 +62,8 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
-
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -81,22 +76,31 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer(dtype_override=dtype_override)
 
-        model_kwargs = {}
-        if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
+        # Qwen3_5ForCausalLM requires Qwen3_5TextConfig, not the composite
+        # Qwen3_5Config. Extract text_config explicitly.
+        config = AutoConfig.from_pretrained(pretrained_model_name)
+        text_config = config.text_config
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
+            text_config.num_hidden_layers = self.num_layers
 
-        model = AutoModelForCausalLM.from_pretrained(
-            pretrained_model_name, **model_kwargs
-        ).eval()
+        if os.environ.get("TT_RANDOM_WEIGHTS"):
+            # The random_weights hook passes the composite Qwen3_5Config to the
+            # constructor which fails. Construct directly with the text config.
+            model = Qwen3_5ForCausalLM(text_config)
+            if dtype_override is not None:
+                model = model.to(dtype_override)
+        else:
+            model_kwargs = {}
+            if dtype_override is not None:
+                model_kwargs["torch_dtype"] = dtype_override
+            model_kwargs |= kwargs
+            model_kwargs["config"] = text_config
+            model = Qwen3_5ForCausalLM.from_pretrained(
+                pretrained_model_name, **model_kwargs
+            )
+
+        model.eval()
 
         self.config = model.config
         self.model = model
@@ -153,7 +157,6 @@ class ModelLoader(ForgeModel):
         return shard_specs
 
     def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
-        )
+        config = AutoConfig.from_pretrained(self._variant_config.pretrained_model_name)
+        self.config = config.text_config
         return self.config
