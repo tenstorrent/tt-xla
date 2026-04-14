@@ -28,7 +28,9 @@ These scripts are located in a subdirectory of this skill.
 
 ## Phase 1. Git pull.
 
-`git pull` to ensure you have the most up to date version of this branch.
+Ensure you have the latest changes for this branch:
+- If the current branch exists on the remote: `git pull`
+- If it does not, create one: `git push -u origin HEAD`
 
 ## Phase 2. Setup the venv.
 
