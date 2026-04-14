@@ -28,7 +28,7 @@ jobs:
       build_types: 'release,manylinux'
 
   build-and-test-release-docker:
-    uses: ./.github/workflows/call-build-release-docker.yml
+    uses: ./.github/workflows/call-build-and-test-release-docker.yml
     needs: [ build-ttxla ]
     secrets: inherit
     strategy:
