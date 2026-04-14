@@ -175,14 +175,22 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
     input_ids = inputs["input_ids"].to(device)
     token_attention_mask = inputs["attention_mask"]  # keep on CPU for additive mask
 
-    # Pre-compute causal attention mask to avoid dynamic mask generation
+    # Pre-compute combined causal + padding mask.
+    # Must match what Gemma3ForConditionalGeneration generates internally:
+    # - Causal: position q can't attend to position p > q
+    # - Padding: no position can attend to padding tokens
     causal_mask = torch.triu(
         torch.full((max_seq_len, max_seq_len), float("-inf"), dtype=torch.bfloat16), diagonal=1
-    ).unsqueeze(0).unsqueeze(0).to(device)  # [1, 1, seq, seq]
+    )
+    # Add padding mask: mask out columns where token_attention_mask is 0
+    pad_mask = (1 - token_attention_mask.to(torch.bfloat16)) * float("-inf")  # [1, seq]
+    pad_mask = pad_mask.unsqueeze(1).expand(-1, max_seq_len, -1)  # [1, seq, seq]
+    combined_mask = causal_mask.unsqueeze(0) + pad_mask  # broadcast: [1, seq, seq]
+    combined_mask = combined_mask.unsqueeze(1).to(device)  # [1, 1, seq, seq]
 
     print(f"Running text encoder on prompt: '{prompt}'...")
     with torch.no_grad():
-        enc_out = text_encoder(input_ids=input_ids, attention_mask=causal_mask,
+        enc_out = text_encoder(input_ids=input_ids, attention_mask=combined_mask,
                                output_hidden_states=True)
     torch_xla.sync(wait=True)
 
@@ -279,21 +287,21 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
 
     t_phase2 = time.time()
 
-    # Load transformer — use first 24 layers only (17.5 GiB) to fit on single device.
-    # Full 48-layer (35 GiB) needs SPMD sharding which hits ManualComputationOp limit.
-    print("Loading transformer (24/48 layers, ~17.5 GiB, replicated)...")
+    # Load transformer — use first 32 layers (~25.3 GiB) to fit on 32 GiB device with activation headroom.
+    # 36L/40L cause OOM due to activation memory. 32L leaves ~6.7 GiB for activations.
+    print("Loading transformer (32/48 layers, ~25.3 GiB, replicated)...")
     transformer = LTX2VideoTransformer3DModel.from_pretrained(
         "Lightricks/LTX-2", subfolder="transformer", torch_dtype=torch.bfloat16,
     )
     # Keep original "split" rope_type — our patched attention processor
     # uses the original apply_split_rotary_emb which preserves correctness.
 
-    # Truncate to 24 layers to fit on single device (32 GiB)
+    # Truncate to 32 layers to fit on single device with activation headroom
     import torch.nn as nn
     transformer.transformer_blocks = nn.ModuleList(
-        list(transformer.transformer_blocks)[:24]
+        list(transformer.transformer_blocks)[:32]
     )
-    transformer.config.num_layers = 24
+    transformer.config.num_layers = 32
     transformer = transformer.eval().to(device)
 
     class TransformerWrapper(torch.nn.Module):

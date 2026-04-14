@@ -1,1 +1,1 @@
-tests/torch/models/ltx_2/*.log
+*.log
