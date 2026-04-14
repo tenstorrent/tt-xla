@@ -172,10 +172,20 @@ Existing tests:
 ### Op count overhead analysis
 The compiled non-greedy graph has 62 non-bookkeeping TTNN ops vs 50 for greedy+topk. The 12 extra ops are: temperature divide on full 128K vocab, 6 padding ops (batch 1→32), torch.where+gt (greedy/random merge), and 6 extra typecasts. The 19 typecasts total (vs 13 in greedy) are the largest single category.
 
+### Tracy profiling results (OPT-125M, Apr 14)
+
+Per-call SamplingOp overhead breakdown from tracy:
+- **SamplingOp: 16.6 ms/call** (runtime: 2× reshape + 4× to_layout + 2× typecast + kernel)
+- **TopKOp: 7.2 ms/call** × 2 chunks on OPT vocab = 14.4 ms total
+- **PadOp: 1.9 ms/call** × several = ~10 ms
+- Total sampling overhead: **~45 ms/token** vs ~50 ms model forward
+
+The 16.6ms SamplingOp is dominated by runtime conversions (to_layout for 4 inputs), not the kernel itself (0.03ms). Attempted removing runtime to_layout calls but the workarounds pass doesn't reliably enforce ROW_MAJOR → kernel crashes. The workarounds need to be fixed at the compiler level.
+
 ### Performance improvement opportunities
-1. **Eliminate batch padding at batch=32** — kernel is designed for batch=32; padding overhead disappears
-2. **Move padding into runtime** — reduce compiled graph op count
-3. **Skip temperature in sampler** — let ttnn.sampling handle it (also fixes correctness)
+1. **Fix workarounds pass for SamplingOp** — if the compiler reliably inserts to_layout, the runtime doesn't need conditional conversions → SamplingOp drops from 16.6ms to ~2ms
+2. **Eliminate batch padding at batch=32** — kernel is designed for batch=32; padding overhead disappears
+3. **Reduce topk chunks** — 2 chunks instead of 4 for OPT-125M (vocab 50K fits in 2×32K)
 4. **Pass top-k/top-p as attributes instead of tensors** — if all requests share the same values
 
 ## Branch
