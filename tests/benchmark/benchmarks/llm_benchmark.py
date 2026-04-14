@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Built-in modules
 import os
 import socket
 import sys
+
+# Built-in modules
+from contextlib import contextmanager
 from typing import Optional
 
 import numpy as np
@@ -44,6 +46,37 @@ DEFAULT_INPUT_PROMPT = (
 )
 
 MODULE_EXPORT_PATH = "modules"
+
+
+@contextmanager
+def temporary_env_var(name: str, value: Optional[str]):
+    had_previous_value = name in os.environ
+    previous_value = os.environ.get(name)
+
+    if value is None:
+        os.environ.pop(name, None)
+    else:
+        os.environ[name] = value
+
+    try:
+        yield
+    finally:
+        if had_previous_value:
+            os.environ[name] = previous_value
+        else:
+            os.environ.pop(name, None)
+
+
+def _inject_custom_moe(model: torch.nn.Module, mesh: Mesh, cluster_axis: int) -> None:
+    from tt_torch.sparse_mlp import enable_sparse_mlp
+
+    mesh_shape = tuple(mesh.mesh_shape)
+    enable_sparse_mlp(
+        model,
+        mesh=mesh_shape,
+        cluster_axis=cluster_axis,
+        config=getattr(model, "config", None),
+    )
 
 
 def setup_model_and_tokenizer(
@@ -221,6 +254,9 @@ def benchmark_llm_torch_xla(
     weight_dtype_overrides: dict = None,
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
+    inject_custom_moe: bool = False,
+    custom_moe_cluster_axis: int = 0,
+    gpt_oss_fused_decode: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -248,6 +284,9 @@ def benchmark_llm_torch_xla(
         accuracy_testing: Whether to perform token accuracy testing
         model_name_for_accuracy: Model name for .refpt file lookup (required if accuracy_testing=True)
         hf_model_name_for_accuracy: Full HuggingFace model name for on-demand .refpt generation
+        inject_custom_moe: Whether to replace MoE blocks with tt_torch sparse_mlp adapters
+        custom_moe_cluster_axis: Mesh axis used for custom MoE dispatch/combine
+        gpt_oss_fused_decode: Whether GPT-OSS decode should use the fused composite path
 
     Returns:
         Benchmark result containing token generation performance metrics and model information
@@ -277,6 +316,14 @@ def benchmark_llm_torch_xla(
 
     if decode_only and accuracy_testing:
         raise ValueError("--decode-only cannot be combined with --accuracy-testing")
+
+    if gpt_oss_fused_decode and not inject_custom_moe:
+        raise ValueError("gpt_oss_fused_decode requires inject_custom_moe=True")
+
+    if custom_moe_cluster_axis not in (0, 1):
+        raise ValueError(
+            f"custom_moe_cluster_axis must be 0 or 1, got {custom_moe_cluster_axis}"
+        )
 
     if task != "text-generation":
         raise ValueError(
@@ -372,8 +419,16 @@ def benchmark_llm_torch_xla(
     # Shard model if shard spec function is provided
     mesh = None
     if is_multichip:
-        shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
+
+        if inject_custom_moe:
+            with temporary_env_var(
+                "TT_TORCH_ENABLE_GPT_OSS_COMPOSITE",
+                "1" if gpt_oss_fused_decode else "0",
+            ):
+                _inject_custom_moe(model, mesh, custom_moe_cluster_axis)
+
+        shard_specs = shard_spec_fn(model_loader, model)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)

@@ -418,6 +418,7 @@ class FusedExpertsWrapper(_SparseForwardMixin, nn.Module):
             return super().__getattr__(name)
         return getattr(self._experts, name)
 
+
 def _scatter_compact_router_scores(
     topk_indices: torch.Tensor,
     topk_scores: torch.Tensor,
@@ -478,7 +479,8 @@ def _moe_gpt_decode_fallback(
     hidden_states: torch.Tensor,
     topk_indices: torch.Tensor,
     topk_scores: torch.Tensor,
-    expert_mapping: torch.Tensor,
+    dispatch_mapping: torch.Tensor,
+    moe_gpt_mapping: torch.Tensor,
     gate_up_proj: torch.Tensor,
     gate_up_proj_bias: torch.Tensor,
     down_proj: torch.Tensor,
@@ -504,17 +506,19 @@ def _moe_gpt_decode_fallback(
             x,
             expert_indices,
             expert_scores,
-            expert_mapping,
+            dispatch_mapping,
             num_devices=num_devices,
             cluster_axis=cluster_axis,
         )
     )
 
-    expert_output = torch.ops.tt.moe_gpt(
+    # Mirror tt-metal's fused decode sequence:
+    # dispatch_metadata -> moe_gpt(metadata bundle) -> selective_reduce_combine.
+    moe_gpt_outputs = torch.ops.tt.moe_gpt(
         dispatched,
         metadata_indices,
         metadata_scores,
-        expert_mapping,
+        moe_gpt_mapping,
         gate_up_proj,
         gate_up_proj_bias,
         down_proj,
@@ -525,9 +529,10 @@ def _moe_gpt_decode_fallback(
     )
 
     combined = torch.ops.tt.selective_reduce_combine(
-        expert_output,
-        metadata_indices,
-        expert_mapping,
+        moe_gpt_outputs[4],
+        moe_gpt_outputs[1],
+        moe_gpt_outputs[2],
+        moe_gpt_outputs[0],
         num_devices=num_devices,
         cluster_axis=cluster_axis,
         num_experts_per_tok=num_experts_per_tok,
@@ -544,7 +549,8 @@ def _composite_moe_gpt_decode(
     hidden_states: torch.Tensor,
     topk_indices: torch.Tensor,
     topk_scores: torch.Tensor,
-    expert_mapping: torch.Tensor,
+    dispatch_mapping: torch.Tensor,
+    moe_gpt_mapping: torch.Tensor,
     gate_up_proj: torch.Tensor,
     gate_up_proj_bias: torch.Tensor,
     down_proj: torch.Tensor,
@@ -581,7 +587,8 @@ def _composite_moe_gpt_decode(
         hidden_states,
         topk_indices,
         topk_scores,
-        expert_mapping,
+        dispatch_mapping,
+        moe_gpt_mapping,
         gate_up_proj,
         gate_up_proj_bias,
         down_proj,
@@ -590,7 +597,8 @@ def _composite_moe_gpt_decode(
         hidden_states,
         topk_indices,
         topk_scores,
-        expert_mapping,
+        dispatch_mapping,
+        moe_gpt_mapping,
         gate_up_proj,
         gate_up_proj_bias,
         down_proj,
@@ -601,7 +609,8 @@ def _composite_moe_gpt_decode(
         hidden_states=hidden_states,
         topk_indices=topk_indices,
         topk_scores=topk_scores,
-        expert_mapping=expert_mapping,
+        dispatch_mapping=dispatch_mapping,
+        moe_gpt_mapping=moe_gpt_mapping,
         gate_up_proj=gate_up_proj,
         gate_up_proj_bias=gate_up_proj_bias,
         down_proj=down_proj,
@@ -905,6 +914,10 @@ class SparseMOEGPT(A2aSparseMLP):
         self.use_decode_composite = (
             os.environ.get("TT_TORCH_ENABLE_GPT_OSS_COMPOSITE", "0") == "1"
         )
+        # tt-metal keeps separate routing tables for dispatch and moe_gpt.
+        # They currently carry the same mapping data but participate in
+        # different stages of the fused decode flow.
+        self.register_buffer("moe_gpt_mapping", self.expert_mapping.clone())
 
     def forward(self, hidden_states):
         if (
@@ -928,7 +941,8 @@ class SparseMOEGPT(A2aSparseMLP):
             hidden_states=hidden_states,
             topk_indices=topk_indices,
             topk_scores=topk_scores,
-            expert_mapping=self.expert_mapping,
+            dispatch_mapping=self.expert_mapping,
+            moe_gpt_mapping=self.moe_gpt_mapping,
             gate_up_proj=self.experts.gate_up_proj,
             gate_up_proj_bias=self.experts.gate_up_proj_bias,
             down_proj=self.experts.down_proj,
@@ -1577,9 +1591,7 @@ def enable_sparse_mlp(
         ):
             module.experts = FusedExpertsWrapper(module.experts)
 
-        sparse_mlp_cls = (
-            SparseMOEGPT if "gptoss" in module_type_name else A2aSparseMLP
-        )
+        sparse_mlp_cls = SparseMOEGPT if "gptoss" in module_type_name else A2aSparseMLP
         sparse_mlp = sparse_mlp_cls(
             module,
             num_experts=num_experts,

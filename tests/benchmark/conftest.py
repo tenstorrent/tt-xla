@@ -68,6 +68,17 @@ def pytest_addoption(parser):
         help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
     )
 
+    parser.addoption(
+        "--gpt-oss-fused-decode",
+        action="store",
+        default="on",
+        choices=("on", "off"),
+        help=(
+            "Enable or disable the GPT-OSS fused decode composite path for benchmark "
+            "tests that opt into custom MoE injection. Default: on."
+        ),
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -97,3 +108,8 @@ def max_output_tokens(request):
 @pytest.fixture
 def decode_only(request):
     return request.config.getoption("--decode-only")
+
+
+@pytest.fixture
+def gpt_oss_fused_decode(request):
+    return request.config.getoption("--gpt-oss-fused-decode") == "on"
