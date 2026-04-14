@@ -827,6 +827,9 @@ class MLA(nn.Module):
                 ).scatter_(-1, topk_indices, 0)
                 index_mask += mask
                 scores += index_mask.unsqueeze(2)
+            else:
+                # Causal mask: (seqlen, seqlen) → (1, seqlen, 1, seqlen) for broadcast
+                scores += mask[None, :, None, :]
 
             scores = scores.softmax(dim=-1)
             x = torch.einsum("bsht,bthd->bshd", scores, v)
