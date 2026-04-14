@@ -1,5 +1,5 @@
 ARG MLIR_TAG=latest
-ARG DOCKER_CLI_IMAGE=docker:27.5.1-cli
+ARG DOCKER_CLI_IMAGE=docker:cli
 
 #============================================================================
 # Base image
