@@ -6,17 +6,18 @@ LTX-2 Dual-Stream DiT Transformer — standalone bringup script.
 
 Component: LTX2VideoTransformer3DModel
 
-Phase 1 (current): Minimal 4-layer config with random weights, replicated.
+Replicated mode: Minimal 4-layer config with random weights, single device.
   - Validates the dual-stream attention path (video + audio tokens).
   - Same dimensions as full model: video 32 heads x 128 dim, audio 32 heads x 64 dim.
 
-Phase 2 (future): Full 48-layer pretrained model with 4-way TP sharding.
-  - Requires fixing SPMD + graph break device count mismatch.
+TP mode (--tp): 2-layer config with 4-way tensor-parallel sharding (Megatron-style).
+  - Enables SPMD with Shardy, creates mesh (1, num_devices) with ("batch", "model").
+  - Shards Q/K/V column-parallel, O/down row-parallel across devices.
 
-Known workaround applied:
-  - unflatten -> view monkey-patch: same as text connectors, avoids dynamo graph break
-    in LTX2AudioVideoAttnProcessor.__call__ and apply_interleaved_rotary_emb.
-  - rope_type="interleaved": set on model config to avoid split rotary emb tracing bug.
+Known workarounds applied:
+  - unflatten -> reshape monkey-patch: avoids dynamo graph break
+  - prims::view_of -> clone: avoids XLA functionalization error
+  - lifted tensor buffers: prevents c_lifted_tensor_* KeyError
 
 Input:  video tokens [B, n_video, 128], audio tokens [B, n_audio, 128],
         video text [B, text_len, 3840], audio text [B, text_len, 3840],
@@ -24,116 +25,107 @@ Input:  video tokens [B, n_video, 128], audio tokens [B, n_audio, 128],
 Output: denoised video [B, n_video, 128], denoised audio [B, n_audio, 128]
 """
 
+import os
 import time
 
+import numpy as np
 import torch
 import torch_xla
+import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from diffusers import LTX2VideoTransformer3DModel
+from torch_xla.distributed.spmd import Mesh
 
 
-def _patch_unflatten_graph_breaks():
-    """Monkey-patch functions that use tensor.unflatten() with -1 to use view instead.
+def shard_transformer(model, mesh):
+    """Apply Megatron-style TP sharding to the dual-stream DiT transformer.
 
-    unflatten(dim, (-1, n)) causes dynamo graph breaks because -1 requires
-    dynamic shape inference. Replacing with view/reshape using explicit dims.
+    Column-parallel (Q/K/V, gate/up): weight sharded on dim 0 → ("model", None)
+    Row-parallel (O, down): weight sharded on dim 1 → (None, "model")
     """
-    import diffusers.models.transformers.transformer_ltx2 as ltx2_module
+    shard_specs = {}
 
-    # Patch 1: apply_interleaved_rotary_emb
-    def _patched_apply_interleaved_rotary_emb(x, freqs):
-        cos, sin = freqs
-        b, s = x.shape[0], x.shape[1]
-        half_c = x.shape[2] // 2
-        x_reshaped = x.reshape(b, s, half_c, 2)
-        x_real = x_reshaped[..., 0]
-        x_imag = x_reshaped[..., 1]
-        x_rotated = torch.stack([-x_imag, x_real], dim=-1).flatten(2)
-        out = (x.float() * cos + x_rotated.float() * sin).to(x.dtype)
-        return out
+    for block in model.transformer_blocks:
+        # Video self-attention: column-parallel Q/K/V, row-parallel O
+        shard_specs[block.attn1.to_q.weight] = ("model", None)
+        shard_specs[block.attn1.to_k.weight] = ("model", None)
+        shard_specs[block.attn1.to_v.weight] = ("model", None)
+        shard_specs[block.attn1.to_out[0].weight] = (None, "model")
 
-    ltx2_module.apply_interleaved_rotary_emb = _patched_apply_interleaved_rotary_emb
+        # Audio self-attention
+        shard_specs[block.audio_attn1.to_q.weight] = ("model", None)
+        shard_specs[block.audio_attn1.to_k.weight] = ("model", None)
+        shard_specs[block.audio_attn1.to_v.weight] = ("model", None)
+        shard_specs[block.audio_attn1.to_out[0].weight] = (None, "model")
 
-    # Patch 2: LTX2AudioVideoAttnProcessor.__call__
-    def _patched_processor_call(
-        self, attn, hidden_states, encoder_hidden_states=None, attention_mask=None,
-        query_rotary_emb=None, key_rotary_emb=None,
-    ):
-        batch_size, sequence_length, _ = (
-            hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
-        )
+        # Video cross-attention (text -> video)
+        shard_specs[block.attn2.to_q.weight] = ("model", None)
+        shard_specs[block.attn2.to_k.weight] = ("model", None)
+        shard_specs[block.attn2.to_v.weight] = ("model", None)
+        shard_specs[block.attn2.to_out[0].weight] = (None, "model")
 
-        if attention_mask is not None:
-            attention_mask = attn.prepare_attention_mask(attention_mask, sequence_length, batch_size)
-            attention_mask = attention_mask.reshape(batch_size, attn.heads, -1, attention_mask.shape[-1])
+        # Audio cross-attention (text -> audio)
+        shard_specs[block.audio_attn2.to_q.weight] = ("model", None)
+        shard_specs[block.audio_attn2.to_k.weight] = ("model", None)
+        shard_specs[block.audio_attn2.to_v.weight] = ("model", None)
+        shard_specs[block.audio_attn2.to_out[0].weight] = (None, "model")
 
-        if encoder_hidden_states is None:
-            encoder_hidden_states = hidden_states
+        # Cross-modal: audio-to-video
+        shard_specs[block.audio_to_video_attn.to_q.weight] = ("model", None)
+        shard_specs[block.audio_to_video_attn.to_k.weight] = ("model", None)
+        shard_specs[block.audio_to_video_attn.to_v.weight] = ("model", None)
+        shard_specs[block.audio_to_video_attn.to_out[0].weight] = (None, "model")
 
-        query = attn.to_q(hidden_states)
-        key = attn.to_k(encoder_hidden_states)
-        value = attn.to_v(encoder_hidden_states)
+        # Cross-modal: video-to-audio
+        shard_specs[block.video_to_audio_attn.to_q.weight] = ("model", None)
+        shard_specs[block.video_to_audio_attn.to_k.weight] = ("model", None)
+        shard_specs[block.video_to_audio_attn.to_v.weight] = ("model", None)
+        shard_specs[block.video_to_audio_attn.to_out[0].weight] = (None, "model")
 
-        query = attn.norm_q(query)
-        key = attn.norm_k(key)
+        # Video FFN: GELU proj (up) column-parallel, linear out (down) row-parallel
+        shard_specs[block.ff.net[0].proj.weight] = ("model", None)
+        shard_specs[block.ff.net[2].weight] = (None, "model")
 
-        if query_rotary_emb is not None:
-            query = _patched_apply_interleaved_rotary_emb(query, query_rotary_emb)
-            key = _patched_apply_interleaved_rotary_emb(
-                key, key_rotary_emb if key_rotary_emb is not None else query_rotary_emb
-            )
+        # Audio FFN
+        shard_specs[block.audio_ff.net[0].proj.weight] = ("model", None)
+        shard_specs[block.audio_ff.net[2].weight] = (None, "model")
 
-        head_dim = query.shape[-1] // attn.heads
-        query = query.reshape(batch_size, -1, attn.heads, head_dim)
-        key = key.reshape(batch_size, -1, attn.heads, head_dim)
-        value = value.reshape(batch_size, -1, attn.heads, head_dim)
-
-        query = query.transpose(1, 2)
-        key = key.transpose(1, 2)
-        value = value.transpose(1, 2)
-
-        hidden_states = torch.nn.functional.scaled_dot_product_attention(
-            query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False,
-        )
-        hidden_states = hidden_states.transpose(1, 2).flatten(2, 3)
-        hidden_states = hidden_states.to(query.dtype)
-
-        hidden_states = attn.to_out[0](hidden_states)
-        hidden_states = attn.to_out[1](hidden_states)
-        return hidden_states
-
-    ltx2_module.LTX2AudioVideoAttnProcessor.__call__ = _patched_processor_call
+    for tensor, spec in shard_specs.items():
+        xs.mark_sharding(tensor, mesh, spec)
 
 
-def run_ltx2_transformer():
+def run_ltx2_transformer(tp=False):
     xr.set_device_type("TT")
     torch_xla.set_custom_compile_options({"optimization_level": 1})
+
+    num_layers = 2 if tp else 4
+
+    mesh = None
+    if tp:
+        os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+        xr.use_spmd()
+        num_devices = xr.global_runtime_device_count()
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, (1, num_devices), ("batch", "model"))
+        print(f"TP mode: {num_devices} devices, mesh (1, {num_devices})")
+
     device = torch_xla.device()
 
-    # Patch unflatten -> reshape to avoid dynamo graph breaks
-    _patch_unflatten_graph_breaks()
+    # Apply all patches (attention, view_of, lifted tensors, conv3d)
+    from ltx2_patches import apply_all_patches
+    apply_all_patches()
 
-    # Patch TorchFunctionOverride to handle prims::view_of by cloning instead.
-    # The XLA/TT backend doesn't support functionalized view_of with alias annotations.
-    import tt_torch.torch_overrides as _overrides
-    _original_torch_function = _overrides.TorchFunctionOverride.__torch_function__
-
-    def _patched_torch_function(self, func, types, args, kwargs=None):
-        if func is torch.ops.prims.view_of.default:
-            return args[0].clone()
-        return _original_torch_function(self, func, types, args, kwargs)
-
-    _overrides.TorchFunctionOverride.__torch_function__ = _patched_torch_function
-
-
-    # Create minimal 4-layer transformer with random weights
+    # Create minimal transformer with random weights
     model = LTX2VideoTransformer3DModel(
-        num_layers=4,
+        num_layers=num_layers,
     ).to(torch.bfloat16)
     model.config.rope_type = "interleaved"  # avoid split rotary emb tracing bug
     model = model.eval()
 
     model = model.to(device)
+
+    if tp and mesh is not None:
+        shard_transformer(model, mesh)
 
     # Wrap model to clone outputs — avoids prims::view_of aliasing error
     # during functionalization. The transformer's outputs are views of internal
@@ -148,7 +140,7 @@ def run_ltx2_transformer():
             return out.sample.clone(), out.audio_sample.clone()
 
     wrapper = CloneOutputWrapper(model)
-    compiled = torch.compile(wrapper, backend="tt", fullgraph=True)
+    compiled = torch.compile(wrapper, backend="tt")
 
     # Small inputs for bringup
     num_frames, h, w = 2, 4, 4
@@ -179,7 +171,8 @@ def run_ltx2_transformer():
     )
 
     # Warm-up pass (compilation)
-    print("Transformer (4-layer DiT, minimal): warm-up pass (compilation)...")
+    mode_str = "TP" if tp else "replicated"
+    print(f"Transformer ({num_layers}-layer DiT, {mode_str}): compiling...")
     with torch.no_grad():
         video_out, audio_out = compiled(**kwargs)
     torch_xla.sync(wait=True)
@@ -187,7 +180,7 @@ def run_ltx2_transformer():
     print(f"  Audio output shape: {audio_out.shape}")
 
     # Timed pass
-    print("Transformer (4-layer DiT, minimal): timed pass...")
+    print(f"Transformer ({num_layers}-layer DiT, {mode_str}): timed pass...")
     start = time.time()
     with torch.no_grad():
         video_out, audio_out = compiled(**kwargs)
@@ -201,4 +194,8 @@ def run_ltx2_transformer():
 
 
 if __name__ == "__main__":
-    run_ltx2_transformer()
+    import argparse
+    parser = argparse.ArgumentParser(description="LTX-2 DiT Transformer bringup")
+    parser.add_argument("--tp", action="store_true", help="Enable 4-way tensor parallel sharding")
+    args = parser.parse_args()
+    run_ltx2_transformer(tp=args.tp)
