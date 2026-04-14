@@ -758,14 +758,14 @@ test_config:
     reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/3922"
-    bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8219157204385233. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3786"
 
   pi_0/pytorch-pi0_base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/3922"
-    bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING
