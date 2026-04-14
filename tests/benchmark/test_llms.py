@@ -1654,30 +1654,28 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
     Expert weights are sharded across both model and batch axes EP - 32.
     """
 
-    batch_axis = None
-
     shard_specs = {}
 
-    shard_specs[model.model.embed_tokens.weight] = (None, batch_axis)
-    shard_specs[model.model.norm.weight] = (batch_axis,)
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
     # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
     shard_specs[model.lm_head.weight] = (None, None)
 
     for layer in model.model.layers:
-        shard_specs[layer.self_attn.q_proj.weight] = ("model", batch_axis)
-        shard_specs[layer.self_attn.k_proj.weight] = ("model", batch_axis)
-        shard_specs[layer.self_attn.v_proj.weight] = ("model", batch_axis)
-        shard_specs[layer.self_attn.o_proj.weight] = (batch_axis, "model")
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
         shard_specs[layer.self_attn.sinks] = ("model",)
-        shard_specs[layer.mlp.router.weight] = (None, batch_axis)
+        shard_specs[layer.mlp.router.weight] = (None, None)
         # This is a temporary sharding spec to enable gpt oss to not get OOM on galaxy.
         # Once the MoE module is refactored, this should be changed to EP 32.
         shard_specs[layer.mlp.experts.gate_up_proj] = ("model", "batch", None)
         shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
         shard_specs[layer.mlp.experts.down_proj] = ("model", None, "batch")
         shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
-        shard_specs[layer.input_layernorm.weight] = (batch_axis,)
-        shard_specs[layer.post_attention_layernorm.weight] = (batch_axis,)
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
 
     return shard_specs
 

@@ -68,8 +68,8 @@ class LLMSamplingWrapper(torch.nn.Module):
         next_token_ids_replicated = next_token_ids
         if self.mesh and self.output_sharding_spec:
             # Create two versions of next_token_ids, sharded and replicated.
-            # The sharded version is used as input for the next decode step. Passing the replicated version as the input created a differenct graph and trigers recompilation.
-            # The replicated version is used for transfer to CPU. Using the sharded version for the transfer create a new graph with a single all gather and triggers recompilation.
+            # The sharded version is used as input for the next decode step. Passing the replicated version as the input creates a different graph and triggers recompilation.
+            # The replicated version is used for transfer to CPU. Using the sharded version for the transfer creates a new graph with a single all gather and triggers recompilation.
             replicate_spec = tuple(None for _ in self.output_sharding_spec)
             next_token_ids = sharding_constraint_tensor(
                 next_token_ids, self.mesh, self.output_sharding_spec
