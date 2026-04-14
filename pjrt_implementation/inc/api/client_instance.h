@@ -28,6 +28,7 @@
 #include "api/device_instance.h"
 #include "api/loaded_executable_instance.h"
 #include "api/memory_instance.h"
+#include "utils/callback_worker.h"
 #include "utils/status.h"
 
 namespace tt::pjrt {
@@ -161,6 +162,9 @@ public:
   // Closes currently opened optimizer submesh device, if any.
   void closeOptimizerSubmesh();
 
+  // Returns the callback worker for dispatching event callbacks.
+  utils::CallbackWorker &getCallbackWorker() { return m_callback_worker; }
+
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
@@ -169,6 +173,9 @@ public:
       const std::optional<std::vector<int64_t>> &replica_device_ids);
 
 private:
+  // Worker thread that executes event callbacks asynchronously.
+  utils::CallbackWorker m_callback_worker;
+
   tt_pjrt_status populateDevices();
   tt_pjrt_status populateMemories();
 

@@ -18,6 +18,7 @@
 #include "tracy/Tracy.hpp"
 
 // tt-xla includes
+#include "api/client_instance.h"
 #include "api/error_instance.h"
 #include "utils/assert.h"
 #include "utils/logging.h"
@@ -100,14 +101,7 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
   //   available (emplacing a value or setting an error), which can accidentally
   //   lead to executing a very expensive computations on a low-latency thread."
   //
-  // For now, to keep things simple, we will execute the callbacks on the same
-  // thread which is marking the event as ready. Or in this thread, if the
-  // event is already ready.
-  //
-  // TODO: In the future we might consider having one dedicated thread per
-  // client for executing all event callbacks. However, executing all callbacks
-  // on a single thread could lead to congestion if callbacks are slow or
-  // numerous, so a smarter solution (e.g. a thread pool) might be needed.
+  // We always dispatch callbacks to a dedicated thread.
 
   {
     std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
@@ -117,9 +111,11 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
     }
   }
 
-  // The event is already ready, so execute the callback immediately on the
-  // calling thread.
-  callback_function(getErrorFromStatus(), user_arg);
+  ClientInstance *client = GlobalClientInstanceSingleton::getClientInstance();
+  TT_FATAL(client, "ClientInstance must exist when dispatching event "
+                    "callbacks");
+  client->getCallbackWorker().enqueue(callback_function, user_arg,
+                                      getErrorFromStatus());
 }
 
 void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
@@ -135,10 +131,13 @@ void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
   // Release the lock before executing callbacks.
   ready_lock.unlock();
 
-  // Execute callbacks without holding lock (event may be destroyed in callback)
+  ClientInstance *client = GlobalClientInstanceSingleton::getClientInstance();
+  TT_FATAL(client, "ClientInstance must exist when dispatching event "
+                    "callbacks");
   for (OnReadyCallback &callback : callbacks_to_execute) {
-    callback.callback_function(*ErrorInstance::makeError(status).release(),
-                               callback.user_arg);
+    client->getCallbackWorker().enqueue(
+        callback.callback_function, callback.user_arg,
+        *ErrorInstance::makeError(status).release());
   }
 }
 

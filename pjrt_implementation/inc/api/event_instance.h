@@ -78,13 +78,13 @@ public:
   void setIndestructible() { m_indestructible = true; }
   bool isIndestructible() const { return m_indestructible; }
 
-  // Marks the given event as ready with the given status and executes all
-  // registered callbacks (on the same thread).
+  // Marks the given event as ready with the given status and dispatches all
+  // registered callbacks to the CallbackWorker thread.
   //
   // NOTE: This is a static method that takes the event instance as an argument
   // because in some cases the callback functions destroy the event instance.
   // So, to avoid any subtle bugs (or UB), we first mark the event as ready,
-  // move all callback functions from the event instance, and then execute the
+  // move all callback functions from the event instance, and then dispatch the
   // callbacks so that the event instance can be safely destroyed.
   static void markAsReadyAndCallback(EventInstance *event_instance,
                                      tt_pjrt_status status);
