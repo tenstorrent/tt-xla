@@ -54,14 +54,17 @@ def reset_card_between_tests():
     between model tests. Runs inside each forked child process before the test.
     """
     if os.environ.get("TT_RESET_CARD_BETWEEN_TESTS") == "1":
+        print("Resetting card before test (tt-smi -r)...", flush=True)
         result = subprocess.run(
-            ["tt-smi-metal", "-r"],
+            ["tt-smi", "-r"],
             capture_output=True,
             text=True,
         )
-        if result.returncode != 0:
+        if result.returncode == 0:
+            print("Card reset successful.", flush=True)
+        else:
             print(
-                f"WARNING: tt-smi-metal -r failed (exit {result.returncode}): {result.stderr}",
+                f"WARNING: tt-smi -r failed (exit {result.returncode}): {result.stderr}",
                 flush=True,
             )
     yield

@@ -162,7 +162,10 @@ jobs:
     - name: Set card reset env variable
       if: ${{ inputs.reset_card_between_tests == true }}
       shell: bash
-      run: echo "TT_RESET_CARD_BETWEEN_TESTS=1" >> $GITHUB_ENV
+      run: |
+        source venv/activate
+        uv pip install tt-smi
+        echo "TT_RESET_CARD_BETWEEN_TESTS=1" >> $GITHUB_ENV
 
     - name: Download and install wheels
       shell: bash
