@@ -49,4 +49,17 @@ tests/benchmark/reference_outputs/*.refpt
 /modules/
 
 # Tracy profiling files
+<<<<<<< Updated upstream
 /tracy_artifacts/
+=======
+.tracy_artifacts/
+*.npy
+*.ttnn
+*.mlir
+*.json
+*.txt
+*.csv
+tmp/*
+tests/benchmark/tmp/*
+*.log
+>>>>>>> Stashed changes

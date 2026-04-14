@@ -1,0 +1,59 @@
+- mesh_device_created:
+    mesh_id: 2
+    timestamp_ns: 1775562778052342398
+    devices: [24, 25, 26, 27, 3, 2, 1, 0, 28, 29, 30, 31, 7, 6, 5, 4, 20, 21, 22, 23, 15, 14, 13, 12, 16, 17, 18, 19, 11, 10, 9, 8]
+    shape: [8, 1]
+- mesh_device_initialized:
+    mesh_id: 2
+    timestamp_ns: 1775562778053394942
+- mesh_device_created:
+    mesh_id: 3
+    timestamp_ns: 1775562778282177470
+    parent_mesh_id: 2
+    devices: [24, 25, 26, 27, 3, 2, 1, 0, 28, 29, 30, 31, 7, 6, 5, 4, 20, 21, 22, 23, 15, 14, 13, 12, 16, 17, 18, 19, 11, 10, 9, 8]
+    shape: [8, 1]
+- mesh_device_initialized:
+    mesh_id: 3
+    timestamp_ns: 1775562778283192558
+- mesh_device_destroyed:
+    mesh_id: 3
+    timestamp_ns: 1775562778832999428
+- mesh_device_created:
+    mesh_id: 4
+    timestamp_ns: 1775562783415309865
+    parent_mesh_id: 2
+    devices: [24, 25, 26, 27, 3, 2, 1, 0, 28, 29, 30, 31, 7, 6, 5, 4, 20, 21, 22, 23, 15, 14, 13, 12, 16, 17, 18, 19, 11, 10, 9, 8]
+    shape: [8, 1]
+- mesh_device_initialized:
+    mesh_id: 4
+    timestamp_ns: 1775562783416499195
+- mesh_device_destroyed:
+    mesh_id: 4
+    timestamp_ns: 1775562783427306022
+- mesh_device_created:
+    mesh_id: 5
+    timestamp_ns: 1775562785730156509
+    parent_mesh_id: 2
+    devices: [24, 25, 26, 27, 3, 2, 1, 0, 28, 29, 30, 31, 7, 6, 5, 4, 20, 21, 22, 23, 15, 14, 13, 12, 16, 17, 18, 19, 11, 10, 9, 8]
+    shape: [8, 1]
+- mesh_device_initialized:
+    mesh_id: 5
+    timestamp_ns: 1775562785733622416
+- mesh_device_destroyed:
+    mesh_id: 5
+    timestamp_ns: 1775562786069053253
+- mesh_device_created:
+    mesh_id: 6
+    timestamp_ns: 1775562788417504570
+    parent_mesh_id: 2
+    devices: [24, 25, 26, 27, 3, 2, 1, 0, 28, 29, 30, 31, 7, 6, 5, 4, 20, 21, 22, 23, 15, 14, 13, 12, 16, 17, 18, 19, 11, 10, 9, 8]
+    shape: [8, 1]
+- mesh_device_initialized:
+    mesh_id: 6
+    timestamp_ns: 1775562788418595372
+- mesh_device_destroyed:
+    mesh_id: 6
+    timestamp_ns: 1775562788429445434
+- mesh_device_destroyed:
+    mesh_id: 2
+    timestamp_ns: 1775562791763327841

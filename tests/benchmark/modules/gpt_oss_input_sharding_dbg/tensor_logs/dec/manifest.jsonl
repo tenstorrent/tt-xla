@@ -1,0 +1,2 @@
+{"step": 0, "seq": 0, "module": "LLMSamplingWrapper_forward", "rel_path": "step_000/boundary.txt", "input_absmax_global": 15040.0, "output_absmax_global": 53732.0, "suspicious": false}
+{"step": 1, "seq": 0, "module": "LLMSamplingWrapper_forward", "rel_path": "step_001/boundary.txt", "input_absmax_global": 53732.0, "output_absmax_global": 169792.0, "suspicious": false}
