@@ -34,10 +34,13 @@ def _get_topk_split_params(vocab_size: int) -> tuple[int, int, int, int]:
     pad_size = padded_chunk_size - chunk_size
     return num_chunks, chunk_size, padded_chunk_size, pad_size
 
+
 import os
 
 _SAMPLING_EPS = 1e-5
 _TOPK_BEFORE_ARGMAX = os.environ.get("TT_TOPK_BEFORE_ARGMAX", "") == "1"
+_USE_TTNN_SAMPLING = os.environ.get("TT_USE_TTNN_SAMPLING", "") == "1"
+_TTNN_SAMPLING_BATCH_SIZE = 32  # ttnn.sampling kernel requires batch=32
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -234,17 +237,44 @@ class Sampler(nn.Module):
             sampling_metadata.top_p,
         )
 
-        # Scatter filtered values back to full vocab for sampling.
-        # This keeps the topk speedup for filtering while using the
-        # proven full-vocab sampling path.
-        full_logits = torch.full_like(logits, float("-inf"))
-        full_logits.scatter_(1, candidate_indices, filtered_logits)
+        if _USE_TTNN_SAMPLING:
+            # _ttnn_sampling returns [pad_batch] int32 (padded to 32).
+            # To avoid typecast on non-32-aligned shapes, we pad greedy_sampled
+            # to the same size, do torch.where on the padded tensors, then trim.
+            random_sampled_padded = self._ttnn_sampling_padded(
+                filtered_logits,
+                candidate_indices,
+                sampling_metadata,
+            )
+            pad_batch = _TTNN_SAMPLING_BATCH_SIZE
+            batch = logits.shape[0]
+            greedy_padded = torch.nn.functional.pad(
+                greedy_sampled, (0, pad_batch - batch)
+            ).to(torch.int32)
+            temp_padded = torch.nn.functional.pad(
+                sampling_metadata.temperature, (0, pad_batch - batch), value=1.0
+            )
+            sampled_padded = torch.where(
+                temp_padded < _SAMPLING_EPS,
+                greedy_padded,
+                random_sampled_padded,
+            )
+            # Cast to int64 at padded size (32, multiple of 32) to avoid
+            # typecast on non-aligned shapes, then trim to actual batch.
+            sampled_padded = sampled_padded.to(torch.int64)
+            return sampled_padded[:batch].view(-1)
+        else:
+            # Scatter filtered values back to full vocab for sampling.
+            # This keeps the topk speedup for filtering while using the
+            # proven full-vocab sampling path.
+            full_logits = torch.full_like(logits, float("-inf"))
+            full_logits.scatter_(1, candidate_indices, filtered_logits)
 
-        # Random sample on full vocab (most values are -inf).
-        probs = full_logits.softmax(dim=-1, dtype=torch.float32)
-        random_sampled = self.random_sample(
-            probs, sampling_metadata.generators, sampling_metadata.q_samples
-        )
+            # Random sample on full vocab (most values are -inf).
+            probs = full_logits.softmax(dim=-1, dtype=torch.float32)
+            random_sampled = self.random_sample(
+                probs, sampling_metadata.generators, sampling_metadata.q_samples
+            )
 
         sampled = torch.where(
             sampling_metadata.temperature < _SAMPLING_EPS,
@@ -337,6 +367,67 @@ class Sampler(nn.Module):
                 for i, generator in generators.items():
                     q[i].exponential_(generator=generator)
         return probs.div_(q).argmax(dim=-1).view(-1)
+
+    def _ttnn_sampling_padded(
+        self,
+        filtered_logits: torch.Tensor,
+        candidate_indices: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
+    ) -> torch.Tensor:
+        """Use fused ttnn.sampling kernel for non-greedy sampling.
+
+        The kernel does softmax + top-k + top-p + multinomial in one fused
+        call on the pre-filtered candidate set (~128 tokens), avoiding the
+        scatter-back to full vocab and the compiled softmax/Gumbel-max chain.
+        """
+        batch = filtered_logits.shape[0]
+        pad_batch = _TTNN_SAMPLING_BATCH_SIZE
+
+        # ttnn.sampling requires bf16 logits
+        values = filtered_logits.to(torch.bfloat16)
+        indices = candidate_indices.to(torch.int32)
+
+        # Build per-request k/p/temp tensors of shape [pad_batch].
+        # Use the metadata tensors, padding to 32 with safe defaults.
+        if sampling_metadata.top_k is not None:
+            k_tensor = sampling_metadata.top_k[:batch].to(torch.int32)
+        else:
+            # Default: keep all candidates
+            k_tensor = torch.full(
+                (batch,),
+                values.shape[-1],
+                dtype=torch.int32,
+                device=values.device,
+            )
+
+        if sampling_metadata.top_p is not None:
+            p_tensor = sampling_metadata.top_p[:batch].to(torch.bfloat16)
+        else:
+            p_tensor = torch.ones(
+                batch,
+                dtype=torch.bfloat16,
+                device=values.device,
+            )
+
+        temp_tensor = sampling_metadata.temperature[:batch].to(torch.bfloat16)
+
+        # Pad batch to 32 (required by ttnn.sampling kernel).
+        if batch < pad_batch:
+            pad_size = pad_batch - batch
+            values = torch.nn.functional.pad(
+                values, (0, 0, 0, pad_size), value=float("-inf")
+            )
+            indices = torch.nn.functional.pad(indices, (0, 0, 0, pad_size))
+            k_tensor = torch.nn.functional.pad(k_tensor, (0, pad_size), value=1)
+            p_tensor = torch.nn.functional.pad(p_tensor, (0, pad_size), value=1.0)
+            temp_tensor = torch.nn.functional.pad(temp_tensor, (0, pad_size), value=1.0)
+
+        result = torch.ops.tt.sampling(
+            values, indices, k_tensor, p_tensor, temp_tensor, seed=42
+        )
+
+        # Return full padded [32] int32 result. Caller handles trim and typecast.
+        return result.view(-1)
 
 
 def apply_top_k_top_p_fast(

@@ -146,23 +146,136 @@ def test_vllm_benchmark(config, output_file, request):
 
 # Sampling comparison: greedy vs non-greedy, device vs CPU, batch=1 and batch=32
 # Non-greedy uses temperature=0.6 + repetition_penalty=1.1 (matching demo defaults)
-_8B_BASE = dict(model="meta-llama/Llama-3.1-8B-Instruct", max_model_len=128, gpu_memory_utilization=0.05)
-_8B_OPT = dict(enable_const_eval=True, experimental_weight_dtype="bfp_bf8", optimization_level=1)
+_8B_BASE = dict(
+    model="meta-llama/Llama-3.1-8B-Instruct",
+    max_model_len=128,
+    gpu_memory_utilization=0.05,
+)
+_8B_OPT = dict(
+    enable_const_eval=True, experimental_weight_dtype="bfp_bf8", optimization_level=1
+)
 
 SAMPLING_COMPARISON_CONFIGS = [
     # Batch=1
-    pytest.param(VLLMBenchmarkConfig(**_8B_BASE, batch_size=1, additional_config={**_8B_OPT, "cpu_sampling": False}), id="8b-b1-greedy-device"),
-    pytest.param(VLLMBenchmarkConfig(**_8B_BASE, batch_size=1, additional_config={**_8B_OPT, "cpu_sampling": True}), id="8b-b1-greedy-cpu"),
-    pytest.param(VLLMBenchmarkConfig(**_8B_BASE, batch_size=1, temperature=0.6, repetition_penalty=1.1, additional_config={**_8B_OPT, "cpu_sampling": False}), id="8b-b1-nongreedy-device"),
-    pytest.param(VLLMBenchmarkConfig(**_8B_BASE, batch_size=1, temperature=0.6, repetition_penalty=1.1, additional_config={**_8B_OPT, "cpu_sampling": True}), id="8b-b1-nongreedy-cpu"),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=1,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b1-greedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=1,
+            additional_config={**_8B_OPT, "cpu_sampling": True},
+        ),
+        id="8b-b1-greedy-cpu",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=1,
+            temperature=0.6,
+            repetition_penalty=1.1,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b1-nongreedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=1,
+            temperature=0.6,
+            repetition_penalty=1.1,
+            additional_config={**_8B_OPT, "cpu_sampling": True},
+        ),
+        id="8b-b1-nongreedy-cpu",
+    ),
     # Batch=32
-    pytest.param(VLLMBenchmarkConfig(**_8B_BASE, batch_size=32, additional_config={**_8B_OPT, "cpu_sampling": False}), id="8b-b32-greedy-device"),
-    pytest.param(VLLMBenchmarkConfig(**_8B_BASE, batch_size=32, additional_config={**_8B_OPT, "cpu_sampling": True}), id="8b-b32-greedy-cpu"),
-    pytest.param(VLLMBenchmarkConfig(**_8B_BASE, batch_size=32, temperature=0.6, repetition_penalty=1.1, additional_config={**_8B_OPT, "cpu_sampling": False}), id="8b-b32-nongreedy-device"),
-    pytest.param(VLLMBenchmarkConfig(**_8B_BASE, batch_size=32, temperature=0.6, repetition_penalty=1.1, additional_config={**_8B_OPT, "cpu_sampling": True}), id="8b-b32-nongreedy-cpu"),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=32,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b32-greedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=32,
+            additional_config={**_8B_OPT, "cpu_sampling": True},
+        ),
+        id="8b-b32-greedy-cpu",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=32,
+            temperature=0.6,
+            repetition_penalty=1.1,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b32-nongreedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=32,
+            temperature=0.6,
+            repetition_penalty=1.1,
+            additional_config={**_8B_OPT, "cpu_sampling": True},
+        ),
+        id="8b-b32-nongreedy-cpu",
+    ),
 ]
 
 
 @pytest.mark.parametrize("config", SAMPLING_COMPARISON_CONFIGS)
 def test_sampling_comparison(config, output_file, request):
+    _run_vllm_benchmark(config, output_file, request)
+
+
+# OPT-125M: fast pipecleaning model for sampling integration
+_OPT_BASE = dict(
+    model="facebook/opt-125m", max_model_len=128, gpu_memory_utilization=0.05
+)
+_OPT_OPT = dict(enable_const_eval=True, optimization_level=1)
+
+OPT_SAMPLING_CONFIGS = [
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_OPT_BASE,
+            batch_size=1,
+            additional_config={**_OPT_OPT, "cpu_sampling": False},
+        ),
+        id="opt125m-b1-greedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_OPT_BASE,
+            batch_size=1,
+            temperature=0.6,
+            repetition_penalty=1.1,
+            additional_config={**_OPT_OPT, "cpu_sampling": False},
+        ),
+        id="opt125m-b1-nongreedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_OPT_BASE,
+            batch_size=1,
+            temperature=0.6,
+            repetition_penalty=1.1,
+            additional_config={**_OPT_OPT, "cpu_sampling": True},
+        ),
+        id="opt125m-b1-nongreedy-cpu",
+    ),
+]
+
+
+@pytest.mark.parametrize("config", OPT_SAMPLING_CONFIGS)
+def test_opt_sampling(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)

@@ -1381,6 +1381,54 @@ def moe_expert_token_remap_fake(
     return mapping, reduced
 
 
+@torch.library.custom_op("tt::sampling", mutates_args=[], device_types=["xla", "cpu"])
+def sampling(
+    input_values: torch.Tensor,
+    input_indices: torch.Tensor,
+    k: torch.Tensor,
+    p: torch.Tensor,
+    temp: torch.Tensor,
+    seed: int = 0,
+) -> torch.Tensor:
+    device = input_values.device
+    if device.type == "xla":
+        batch = input_values.shape[0]
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input_values, input_indices, k, p, temp],
+            "tt.sampling",
+            [(batch,)],
+            [torch.int32],
+            frontend_attributes={"seed": str(seed)},
+        )
+    elif device.type == "cpu":
+        # CPU reference: apply temperature, softmax, then sample
+        batch = input_values.shape[0]
+        logits = input_values.float()
+        temperature = temp.float().unsqueeze(-1).clamp(min=1e-6)
+        scaled = logits / temperature
+        probs = torch.softmax(scaled, dim=-1)
+        sampled_local = torch.multinomial(probs, num_samples=1).squeeze(-1)
+        sampled_global = input_indices.gather(1, sampled_local.unsqueeze(-1)).squeeze(
+            -1
+        )
+        return sampled_global.to(torch.int32)
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@sampling.register_fake
+def sampling_fake(
+    input_values: torch.Tensor,
+    input_indices: torch.Tensor,
+    k: torch.Tensor,
+    p: torch.Tensor,
+    temp: torch.Tensor,
+    seed: int = 0,
+) -> torch.Tensor:
+    batch = input_values.shape[0]
+    return torch.zeros(batch, dtype=torch.int32, device=input_values.device)
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):
