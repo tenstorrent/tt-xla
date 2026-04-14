@@ -106,9 +106,15 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
 
     xr.set_device_type("TT")
     torch_xla.set_custom_compile_options({"optimization_level": 1})
+
+    # Enable SPMD for tensor-parallel transformer
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.use_spmd()
     device = torch_xla.device()
     num_devices = xr.global_runtime_device_count()
-    print(f"Devices: {num_devices} (replicated mode, single device per model)")
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, (1, num_devices), ("batch", "model"))
+    print(f"Devices: {num_devices} ({num_devices}-way TP for transformer)")
 
     # Apply all patches (Conv3d decompose, attention reshape, view_of clone)
     apply_all_patches()
@@ -287,22 +293,27 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
 
     t_phase2 = time.time()
 
-    # Load transformer — use first 32 layers (~25.3 GiB) to fit on 32 GiB device with activation headroom.
-    # 36L/40L cause OOM due to activation memory. 32L leaves ~6.7 GiB for activations.
-    print("Loading transformer (32/48 layers, ~25.3 GiB, replicated)...")
+    # Load transformer with 4-way TP sharding.
+    # Using 24 layers due to host-side compiler memory limits during compilation.
+    # 48 layers OOMs the compiler; 24 layers compiles successfully.
+    # TODO: Re-enable 48 layers when tt-mlir compiler memory is optimized.
+    num_transformer_layers = 24
+    print(f"Loading transformer ({num_transformer_layers}/48 layers, {num_devices}-way TP)...")
     transformer = LTX2VideoTransformer3DModel.from_pretrained(
         "Lightricks/LTX-2", subfolder="transformer", torch_dtype=torch.bfloat16,
     )
-    # Keep original "split" rope_type — our patched attention processor
-    # uses the original apply_split_rotary_emb which preserves correctness.
-
-    # Truncate to 32 layers to fit on single device with activation headroom
     import torch.nn as nn
     transformer.transformer_blocks = nn.ModuleList(
-        list(transformer.transformer_blocks)[:32]
+        list(transformer.transformer_blocks)[:num_transformer_layers]
     )
-    transformer.config.num_layers = 32
+    transformer.config.num_layers = num_transformer_layers
+    # Keep original "split" rope_type — our patched attention processor
+    # uses the original apply_split_rotary_emb which preserves correctness.
     transformer = transformer.eval().to(device)
+
+    # Apply Megatron-style TP sharding to all attention + FFN weights
+    from run_ltx2_transformer import shard_transformer
+    shard_transformer(transformer, mesh)
 
     class TransformerWrapper(torch.nn.Module):
         def __init__(self, inner):
@@ -313,7 +324,7 @@ def generate(prompt, output_path, height=512, width=320, num_frames=49,
             return out.sample.clone(), out.audio_sample.clone()
 
     wrapper = TransformerWrapper(transformer)
-    transformer_compiled = torch.compile(wrapper, backend="tt", fullgraph=True)
+    transformer_compiled = torch.compile(wrapper, backend="tt")
 
     # Initialize latents
     video_latents = torch.randn(1, latent_channels, latent_f, latent_h, latent_w,

@@ -98,7 +98,7 @@ def run_ltx2_transformer(tp=False):
     xr.set_device_type("TT")
     torch_xla.set_custom_compile_options({"optimization_level": 1})
 
-    num_layers = 2 if tp else 4
+    num_layers = 48 if tp else 4
 
     mesh = None
     if tp:
