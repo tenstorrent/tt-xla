@@ -1434,14 +1434,14 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
         if use_cache:
             use_legacy_cache = not isinstance(past_key_values, Cache)
             if use_legacy_cache:
-                new_cache = DynamicCache()                                 
+                new_cache = DynamicCache()
                 if past_key_values is not None:
-                    for layer_idx, (k, v) in enumerate(past_key_values):        
-                        new_cache.update(k, v, layer_idx)                   
-                past_key_values = new_cache                                   
+                    for layer_idx, (k, v) in enumerate(past_key_values):
+                        new_cache.update(k, v, layer_idx)
+                past_key_values = new_cache
             # Only call get_seq_length() when cache_position is absent; when
             # cache_position is provided we derive position_ids and the mask
-            # directly from it, avoiding "failed to legalize operation 
+            # directly from it, avoiding "failed to legalize operation
             # 'stablehlo.reduce'" error.
             elif cache_position is None:
                 past_key_values_length = past_key_values.get_seq_length()
@@ -1450,7 +1450,9 @@ class DeepseekV3Model(DeepseekV3PreTrainedModel):
             if cache_position is not None:
                 position_ids = cache_position.unsqueeze(0)
             else:
-                device = input_ids.device if input_ids is not None else inputs_embeds.device
+                device = (
+                    input_ids.device if input_ids is not None else inputs_embeds.device
+                )
                 position_ids = torch.arange(
                     past_key_values_length,
                     seq_length + past_key_values_length,

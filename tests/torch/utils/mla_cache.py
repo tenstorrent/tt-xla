@@ -137,10 +137,17 @@ class MLAStaticLayer(CacheLayerMixin):
         device: torch.device,
     ) -> torch.Tensor:
         """Build a 4D causal attention mask of shape (batch, 1, q_len, max_cache_len)."""
-        key_idx = torch.arange(self.max_cache_len, dtype=cache_position.dtype, device=device)
+        key_idx = torch.arange(
+            self.max_cache_len, dtype=cache_position.dtype, device=device
+        )
         fill_value = torch.finfo(dtype).min
         causal = (key_idx.unsqueeze(0) > cache_position.unsqueeze(1)).to(dtype)
-        return (causal * fill_value).unsqueeze(0).unsqueeze(0).expand(batch_size, 1, -1, -1)
+        return (
+            (causal * fill_value)
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .expand(batch_size, 1, -1, -1)
+        )
 
     def get_seq_length(self) -> int:
         """Returns the sequence length of the cached states."""
