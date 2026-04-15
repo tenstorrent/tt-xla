@@ -5,6 +5,7 @@
 Mantis-8M model loader implementation for time series classification.
 """
 
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -74,7 +75,27 @@ class ModelLoader(ForgeModel):
         Returns:
             torch.nn.Module: Mantis8M model instance.
         """
-        from mantis.architecture import Mantis8M
+        import importlib
+        import site
+
+        # The local "mantis/" model directory shadows the pip-installed
+        # mantis-tsfm package.  Temporarily make site-packages the first
+        # search location so we import the correct third-party package.
+        site_dirs = site.getsitepackages()
+        saved = sys.path[:]
+        for d in reversed(site_dirs):
+            sys.path.insert(0, d)
+        try:
+            # Drop the local shadow (if cached) so importlib picks up
+            # the pip-installed package.
+            for key in list(sys.modules):
+                if key == "mantis" or key.startswith("mantis."):
+                    del sys.modules[key]
+            mantis_arch = importlib.import_module("mantis.architecture")
+        finally:
+            sys.path[:] = saved
+
+        Mantis8M = mantis_arch.Mantis8M
 
         model = Mantis8M.from_pretrained(self._variant_config.pretrained_model_name)
 
