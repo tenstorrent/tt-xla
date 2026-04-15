@@ -299,7 +299,15 @@ The 55 extra ops each have dispatch overhead (~0.3-1ms per op in the vLLM execut
 - [x] **Experiment A2**: Single topk (not 4x chunked) → **12.3 tok/s**. Even slower than 4x chunked (13.2) because single topk on 128K vocab falls back to single-core `ttnn.sort` (not multi-core `ttnn.topk` which requires power-of-2 < 65536). This is just the old sort bottleneck, not a new finding. The 4x chunked result (13.2) remains the key datapoint.
 - [x] **Experiment A3**: `logits.max(dim=-1)` in non-greedy sampler → **19.1 tok/s**. Simple reductions are fast. The slowdown is **specific to topk/sort ops**, not any operation on the 128K vocab. The 4x chunked `ttnn.topk` itself is the bottleneck — it's slow when dispatched from the vLLM sampler program but fast standalone (0.99ms).
 - [x] **Experiment A4**: Single multi-core topk on 32K chunk → **18.5 tok/s**. A single `ttnn.topk` is essentially free. The slowdown comes from the **4x chunking loop** (split+pad+4×topk+concat = ~30 extra ops). Each op adds ~0.5ms dispatch overhead → ~15ms total.
-- [ ] **Fix: reduce chunk count**. Options: (a) single topk on pre-padded 32K if vocab can be truncated, (b) 2x chunks of 64K instead of 4x 32K (requires `ttnn.topk` to support 64K — currently limited to < 65536), (c) move the chunking loop into a single fused composite op to reduce dispatch count.
+- [x] **Experiment A5**: 2x chunks of 65536 → **11.1 tok/s**. Worse — 65536 falls back to single-core `ttnn.sort`. Confirms 4x 32K is optimal given `ttnn.topk` multi-core limit (power-of-2, < 65536).
+
+**Conclusion: the 4x chunked topk loop creates ~30 compiled ops with ~0.5ms dispatch overhead each in the vLLM sampler context. This is the fundamental bottleneck.**
+
+Fix options (ranked by feasibility):
+1. **Fuse the 4x topk loop into a single tt-mlir composite op** — dispatches once instead of ~30 times. Requires tt-mlir work to define a composite that does split+pad+4×topk+concat internally.
+2. **Extend `ttnn.topk` to support ≥ 65536 inputs** — enables 2x chunks, halving the loop. Requires tt-metal kernel change.
+3. **Move topk into the model forward graph** — compile topk as part of the model forward (single large program) instead of the sampler (separate small program). May reduce per-op dispatch overhead since the ops share the same program context.
+4. **Reduce per-op dispatch overhead** — general compiler/runtime improvement to make small op dispatches faster.
 - [ ] **Experiment B**: Investigate the 25x amplification — why does topk cost 0.99ms standalone but ~25ms in the vLLM sampler compiled program? Possible causes: (a) per-op dispatch overhead scales with total program state, (b) the topk on logits from the model forward has DRAM contention, (c) the sampler compiled program has inherent dispatch latency.
 
 **Critical correction:** The earlier `TT_TOPK_BEFORE_ARGMAX` (19.1 tok/s) and `TT_GREEDY_WITH_SAMPLING_OPS` (18.7 tok/s) experiments were both **testing dead code**. When `all_greedy=True`, `model_runner.sample_from_logits` returns `torch.argmax` at line 2195 — the sampler is never called, so any topk/sampling ops in the sampler are never executed. These experiments only proved argmax is fast, not that topk is free.
