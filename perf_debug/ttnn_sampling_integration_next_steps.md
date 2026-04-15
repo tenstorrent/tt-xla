@@ -316,6 +316,21 @@ The 55 extra ops each have dispatch overhead (~0.3-1ms per op in the vLLM execut
 
 **Conclusion: the 4x chunked topk loop creates ~30 compiled ops with ~0.5ms dispatch overhead each in the vLLM sampler context. This is the fundamental bottleneck.**
 
+### ROOT CAUSE FOUND: extra input bindings inflate dispatch overhead (Apr 15)
+
+Standalone 4x topk with vs without metadata input tensors:
+- **Without metadata inputs: 1.17 ms/call**
+- **With 4 metadata inputs (temp, top_k, top_p, min_p): 6.89 ms/call**
+
+The extra input bindings cause a **6x slowdown** even though the inputs aren't consumed by the topk compute. The XLA/tt-mlir compiler generates a worse program when there are more input tensor bindings.
+
+In the vLLM sampler, the compiled program has ~10 input bindings (logits + temperature + top_k + top_p + min_p + other metadata). This inflates the dispatch overhead for every op in the program, turning the 4x topk loop from 1ms to ~25ms.
+
+**The fix: minimize input bindings in the sampler compiled program.** Either:
+- Don't pass unused metadata as graph inputs (lazy binding)
+- Pre-bake constant metadata values into the compiled program
+- Merge the sampler into the model forward graph (shared input bindings, amortized over more ops)
+
 Fix options (ranked by feasibility):
 1. **Fuse the 4x topk loop into a single tt-mlir composite op** — dispatches once instead of ~30 times. Requires tt-mlir work to define a composite that does split+pad+4×topk+concat internally.
 2. **Extend `ttnn.topk` to support ≥ 65536 inputs** — enables 2x chunks, halving the loop. Requires tt-metal kernel change.
