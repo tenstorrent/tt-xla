@@ -338,7 +338,16 @@ In the vLLM sampler, the compiled program has ~10 input bindings (logits + tempe
 
 Reducing inputs 9→6 gave no improvement. The standalone test (1.17→6.89ms) was misleading — in small graphs, input binding overhead is proportionally larger, but in the vLLM context with model forward ops, it's negligible.
 
-**Confirmed root cause:** The 4x topk loop creates ~60-70 compiled ops. Each has per-op overhead in the vLLM runtime (~0.5ms each). Single topk = 18.5 tok/s (1 topk op), 4x topk = 13.2 (4 topk + pads + adds + concats). The overhead is from the **number of ops** dispatched as part of the sampler program, not from input bindings.
+**MAJOR CORRECTION (Apr 15 tracy with --max-output-tokens 3):**
+
+Steady-state per-op times (OPT-125M, post-warmup):
+- TopKOp: **0.077 ms/call** (multi-core confirmed)
+- SamplingOp: **0.274 ms/call**
+- ConcatOp: **0.042 ms/call**
+
+Previous tracy showing 34ms/call SamplingOp was JIT compilation contamination (first call = 237ms, steady-state = 0.27ms). The sampler ops are NOT the bottleneck in steady-state.
+
+The 13.4 → 19.0 tok/s gap is NOT from sampler op dispatch overhead. The ops are fast. Investigation continues — the gap may be from the model forward graph being compiled/optimized differently when the non-greedy sampler path exists. Each has per-op overhead in the vLLM runtime (~0.5ms each). Single topk = 18.5 tok/s (1 topk op), 4x topk = 13.2 (4 topk + pads + adds + concats). The overhead is from the **number of ops** dispatched as part of the sampler program, not from input bindings.
 
 **Remaining fix options:**
 1. Fuse the 4x topk loop into a single composite tt-mlir op (1 dispatch instead of ~30)
