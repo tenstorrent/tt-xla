@@ -7,7 +7,7 @@ Utility functions for Lotus Normal G v1.1 model loading and preprocessing.
 
 import torch
 from diffusers import UNet2DConditionModel
-from transformers import CLIPTextModel, CLIPTokenizer
+from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 
 
 def load_unet(pretrained_model_name, dtype=None):
@@ -61,8 +61,11 @@ def prepare_unet_inputs(pretrained_model_name, dtype=None):
     tokenizer = CLIPTokenizer.from_pretrained(
         pretrained_model_name, subfolder="tokenizer"
     )
-    text_encoder = CLIPTextModel.from_pretrained(
+    text_config = CLIPTextConfig.from_pretrained(
         pretrained_model_name, subfolder="text_encoder"
+    )
+    text_encoder = CLIPTextModel.from_pretrained(
+        pretrained_model_name, subfolder="text_encoder", config=text_config
     )
     text_encoder.eval()
 
