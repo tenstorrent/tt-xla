@@ -70,7 +70,7 @@ class ModelLoader(ForgeModel):
         self.tokenizer = None
         self.model = None
         self.sample_text = _VARIANT_SAMPLE_TEXTS.get(
-            self._variant_name, "Saya sedang membaca buku di perpustakaan"
+            self._variant, "Saya sedang membaca buku di perpustakaan"
         )
         self.max_length = 128
 
