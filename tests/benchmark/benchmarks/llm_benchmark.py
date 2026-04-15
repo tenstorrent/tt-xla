@@ -6,8 +6,6 @@
 import os
 import socket
 import sys
-import sys as _sys
-from pathlib import Path as _Path
 from typing import Optional, Union
 
 import numpy as np
@@ -18,17 +16,15 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
 import transformers
+from infra import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
     init_accuracy_testing,
     init_mla_cache,
     init_static_cache,
 )
-
-_sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "torch" / "utils"))
 from llm_utils.decode_utils import LLMSamplingWrapper
 from loguru import logger
-from mla_cache import MLACache, MLAStaticLayer
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
@@ -282,7 +278,6 @@ def benchmark_llm_torch_xla(
     Returns:
         Benchmark result containing token generation performance metrics and model information
     """
-
     # Enforce bfloat16 only
     if data_format != "bfloat16":
         raise ValueError(
