@@ -501,6 +501,17 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
     return nullptr;
   }
 
+  // Empty tensors (e.g. shape [0]) have zero bytes and no device-side
+  // allocation, so there is nothing to copy. Return a ready event immediately
+  // to avoid calling into the runtime with null buffer pointers.
+  if (buffer->logicalTensorSize() == 0) {
+    std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(event.get(),
+                                          tt_pjrt_status::kSuccess);
+    args->event = *event.release();
+    return nullptr;
+  }
+
   return *ErrorInstance::makeError(
               buffer->copyToHost(
                   args->dst, args->dst_size,
