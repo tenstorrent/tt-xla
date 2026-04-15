@@ -84,7 +84,7 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
+        dataset = load_dataset("huggingface/cats-image", split="test")
         image1 = dataset[0]["image"]
         image2 = dataset[0]["image"]
 
