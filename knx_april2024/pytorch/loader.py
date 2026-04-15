@@ -15,6 +15,7 @@ from typing import Optional
 
 import torch
 from diffusers import StableDiffusionXLPipeline
+from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
 from ...config import (
@@ -72,9 +73,12 @@ class ModelLoader(ForgeModel):
             StableDiffusionXLPipeline: The KNX-APRIl2024 pipeline instance.
         """
         dtype = dtype_override if dtype_override is not None else torch.float32
-        checkpoint_url = f"https://huggingface.co/{self._variant_config.pretrained_model_name}/resolve/main/{CHECKPOINT_FILE}"
+        checkpoint_path = hf_hub_download(
+            repo_id=self._variant_config.pretrained_model_name,
+            filename=CHECKPOINT_FILE,
+        )
         self.pipeline = StableDiffusionXLPipeline.from_single_file(
-            checkpoint_url,
+            checkpoint_path,
             torch_dtype=dtype,
             **kwargs,
         )
