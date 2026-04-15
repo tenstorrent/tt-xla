@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.DEFENSIVE_1_0
 
-    BASE_MODEL_NAME = "meta-llama/LlamaGuard-7b"
+    BASE_MODEL_NAME = "llamas-community/LlamaGuard-7b"
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
