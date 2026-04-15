@@ -56,5 +56,3 @@ def test_composite_sdpa(request):
         framework=Framework.TORCH,
         request=request,
     )
-
-
