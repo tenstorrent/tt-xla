@@ -3,9 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 mradermacher/SAGE-MM-Qwen2.5-VL-7B-SFT_RL-GGUF model loader implementation for causal language modeling.
+
+Note: The qwen2vl GGUF architecture is not yet supported by the transformers
+GGUF loader, so we load from the HF-native checkpoint and extract the causal LM.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import (
+    Qwen2_5_VLForConditionalGeneration,
+    Qwen2ForCausalLM,
+    AutoTokenizer,
+    AutoConfig,
+)
 from typing import Optional
 
 from ....base import ForgeModel
@@ -27,18 +35,20 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """SAGE-MM-Qwen2.5-VL-7B-SFT_RL-GGUF model loader implementation for causal language modeling tasks."""
+    """SAGE-MM-Qwen2.5-VL-7B-SFT_RL-GGUF model loader implementation for causal language modeling tasks.
+
+    Note: Uses the base model (safetensors) instead of GGUF because the
+    qwen2vl GGUF architecture is not yet supported by transformers.
+    """
 
     _VARIANTS = {
         ModelVariant.SAGE_MM_QWEN2_5_VL_7B_SFT_RL_GGUF: LLMModelConfig(
-            pretrained_model_name="mradermacher/SAGE-MM-Qwen2.5-VL-7B-SFT_RL-GGUF",
+            pretrained_model_name="allenai/SAGE-MM-Qwen2.5-VL-7B-SFT_RL",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.SAGE_MM_QWEN2_5_VL_7B_SFT_RL_GGUF
-
-    GGUF_FILE = "SAGE-MM-Qwen2.5-VL-7B-SFT_RL.Q4_K_M.gguf"
 
     sample_text = "Describe the key features of a vision-language model."
 
@@ -65,7 +75,6 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -85,20 +94,21 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
 
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
-
-        model = AutoModelForCausalLM.from_pretrained(
+        # Load the full conditional generation model, then extract the causal LM
+        # because the base repo uses Qwen2_5_VLForConditionalGeneration (multimodal).
+        full_model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
+        text_config = full_model.config.text_config
+        if self.num_layers is not None:
+            text_config.num_hidden_layers = self.num_layers
+        model = Qwen2ForCausalLM(text_config)
+        model.model = full_model.model.language_model
+        model.lm_head = full_model.lm_head
+        model.eval()
 
-        self.config = model.config
+        self.config = text_config
         self.model = model
         return model
 
@@ -108,21 +118,8 @@ class ModelLoader(ForgeModel):
 
         max_length = self._variant_config.max_length
 
-        messages = [
-            {
-                "role": "user",
-                "content": self.sample_text,
-            }
-        ]
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        prompts = [text]
-
         inputs = self.tokenizer(
-            prompts,
+            [self.sample_text],
             return_tensors="pt",
             padding=True,
             truncation=True,
@@ -136,7 +133,6 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
-        )
+        config = AutoConfig.from_pretrained(self._variant_config.pretrained_model_name)
+        self.config = config.text_config
         return self.config
