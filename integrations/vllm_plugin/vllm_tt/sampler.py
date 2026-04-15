@@ -289,11 +289,13 @@ class Sampler(nn.Module):
         if _USE_TTNN_SAMPLING:
             # ttnn.sampling handles temperature internally (multiplies by
             # 1/temperature), so skip apply_temperature and run topk on
-            # raw logits.
+            # raw logits. Pass None for k/p to avoid binding unused metadata
+            # tensors as graph inputs (extra input bindings cause 6x dispatch
+            # overhead amplification — see perf_debug/ttnn_sampling_integration_next_steps.md).
             filtered_logits, candidate_indices = apply_top_k_top_p_fast(
                 logits,
-                sampling_metadata.top_k,
-                sampling_metadata.top_p,
+                None,
+                None,
             )
             random_sampled_padded = self._ttnn_sampling_padded(
                 filtered_logits,
