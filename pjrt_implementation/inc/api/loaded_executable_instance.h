@@ -84,6 +84,12 @@ public:
   // Runs execution of this loaded executable.
   virtual tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) = 0;
 
+  // Creates default-initialized output buffers with the correct shapes and
+  // types from the executable image. Used in compile-only mode and SO
+  // execution where no actual device computation occurs.
+  void createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
+                                  size_t num_devices);
+
 protected:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
