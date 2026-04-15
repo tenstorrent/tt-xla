@@ -36,8 +36,14 @@ To install a wheel and run an example model, do the following:
 
 #### Step 1. Install the Latest Wheel:
 
+Download the latest wheel with pip.
 ```bash
 pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+```
+
+Run the tt-forge-install script to install missing system dependencies.
+```
+tt-forge-install
 ```
 
 #### Step 2. Run some models:
