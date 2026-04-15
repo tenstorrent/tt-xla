@@ -15,7 +15,7 @@
 // tt-xla includes
 #include "utils/assert.h"
 
-namespace tt::pjrt::utils {
+namespace tt::pjrt::internal {
 
 // Lock-free bounded Multi-Producer Single-Consumer (MPSC) ring buffer.
 //
@@ -127,6 +127,6 @@ private:
   alignas(64) size_t m_read_pos{0};
 };
 
-} // namespace tt::pjrt::utils
+} // namespace tt::pjrt::internal
 
 #endif // TT_XLA_PJRT_IMPLEMENTATION_INC_UTILS_MPSC_QUEUE_H_

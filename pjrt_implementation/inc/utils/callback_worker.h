@@ -16,7 +16,7 @@
 // tt-xla includes
 #include "utils/mpsc_queue.h"
 
-namespace tt::pjrt::utils {
+namespace tt::pjrt {
 
 // Work item representing a single PJRT event callback to be executed
 // asynchronously on the worker thread.
@@ -59,12 +59,12 @@ private:
   // Worker thread main loop.
   void workerLoop();
 
-  MPSCQueue<CallbackWorkItem> m_queue;
+  internal::MPSCQueue<CallbackWorkItem> m_queue;
   std::thread m_worker_thread;
   std::atomic<bool> m_shutdown{false};
   std::binary_semaphore m_work_available{0};
 };
 
-} // namespace tt::pjrt::utils
+} // namespace tt::pjrt
 
 #endif // TT_XLA_PJRT_IMPLEMENTATION_INC_UTILS_CALLBACK_WORKER_H_

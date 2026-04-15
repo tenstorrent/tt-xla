@@ -11,7 +11,7 @@
 // tt-xla includes
 #include "utils/logging.h"
 
-namespace tt::pjrt::utils {
+namespace tt::pjrt {
 
 CallbackWorker::CallbackWorker(size_t queue_capacity)
     : m_queue(queue_capacity),
@@ -54,4 +54,4 @@ void CallbackWorker::workerLoop() {
   }
 }
 
-} // namespace tt::pjrt::utils
+} // namespace tt::pjrt

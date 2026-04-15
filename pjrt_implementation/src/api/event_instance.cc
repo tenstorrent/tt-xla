@@ -24,8 +24,8 @@
 
 namespace tt::pjrt {
 
-utils::CallbackWorker &EventInstance::getCallbackWorker() {
-  static utils::CallbackWorker instance;
+CallbackWorker &EventInstance::getCallbackWorker() {
+  static CallbackWorker instance;
   return instance;
 }
 

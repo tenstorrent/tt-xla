@@ -249,8 +249,8 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {
     // XLA on-ready callback does — which we've observed happens in XLA).
     std::thread work_thread = std::thread([&]() {
       std::this_thread::sleep_for(std::chrono::seconds(1));
-      std::cerr << "Worker thread marking event as ready and executing "
-                   "callbacks...\n";
+      LOG_F(INFO,
+            "Worker thread marking event as ready and executing callbacks...");
       EventInstance::markAsReadyAndCallback(event, tt_pjrt_status::kSuccess);
 
       PJRT_Event_Destroy_Args destroy_args = {

@@ -166,12 +166,6 @@ TEST(CallbackWorkerUnitTests, ShutdownDrains) {
   EXPECT_EQ(counter.load(std::memory_order_acquire), num_items);
 }
 
-// Callback that records the thread ID it runs on.
-static void recordThreadIdCallback(PJRT_Error *error, void *user_arg) {
-  auto *tid = reinterpret_cast<std::thread::id *>(user_arg);
-  *tid = std::this_thread::get_id();
-}
-
 TEST(CallbackWorkerUnitTests, DifferentThread) {
   CallbackWorker worker;
   std::thread::id callback_thread_id;
