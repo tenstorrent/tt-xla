@@ -293,11 +293,22 @@ class Sampler(nn.Module):
                 None,
                 None,
             )
-            random_sampled_padded = self._ttnn_sampling_padded(
-                filtered_logits,
-                candidate_indices,
-                sampling_metadata,
+            # Experiment: hardcode sampling params as constants to eliminate
+            # ALL metadata input bindings. Tests the ceiling performance.
+            _HARDCODE_SAMPLING_PARAMS = (
+                os.environ.get("TT_HARDCODE_SAMPLING_PARAMS", "") == "1"
             )
+            if _HARDCODE_SAMPLING_PARAMS:
+                random_sampled_padded = self._ttnn_sampling_hardcoded(
+                    filtered_logits,
+                    candidate_indices,
+                )
+            else:
+                random_sampled_padded = self._ttnn_sampling_padded(
+                    filtered_logits,
+                    candidate_indices,
+                    sampling_metadata,
+                )
             batch = filtered_logits.shape[0]
             pad_batch = _TTNN_SAMPLING_BATCH_SIZE
 
@@ -449,6 +460,36 @@ class Sampler(nn.Module):
                 for i, generator in generators.items():
                     q[i].exponential_(generator=generator)
         return probs.div_(q).argmax(dim=-1).view(-1)
+
+    def _ttnn_sampling_hardcoded(
+        self,
+        filtered_logits: torch.Tensor,
+        candidate_indices: torch.Tensor,
+    ) -> torch.Tensor:
+        """ttnn.sampling with hardcoded params — no metadata input bindings."""
+        pad_batch = _TTNN_SAMPLING_BATCH_SIZE
+        actual_batch = filtered_logits.shape[0]
+        values = filtered_logits.to(torch.bfloat16)
+        indices = candidate_indices.to(torch.int32)
+        # Hardcoded constants — not graph inputs
+        k_tensor = torch.full(
+            (pad_batch,), 32, dtype=torch.int32, device=values.device
+        )
+        p_tensor = torch.ones(pad_batch, dtype=torch.bfloat16, device=values.device)
+        # 1/0.6 = 1.667
+        temp_tensor = torch.full(
+            (pad_batch,), 1.667, dtype=torch.bfloat16, device=values.device
+        )
+        if actual_batch < pad_batch:
+            pad_size = pad_batch - actual_batch
+            values = torch.nn.functional.pad(
+                values, (0, 0, 0, pad_size), value=float("-inf")
+            )
+            indices = torch.nn.functional.pad(indices, (0, 0, 0, pad_size))
+        result = torch.ops.tt.sampling(
+            values, indices, k_tensor, p_tensor, temp_tensor, seed=42
+        )
+        return result.view(-1)
 
     def _ttnn_sampling_padded(
         self,
