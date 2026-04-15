@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import json
+import os
 import re
 
 import numpy as np
@@ -16,6 +17,7 @@ from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluat
 from infra.testers.compiler_config import CompilerConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
+from modified_model import precompute_freqs_cis
 from safetensors import safe_open
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
@@ -102,6 +104,8 @@ def load_deepseek_config(repo_id=DEEPSEEK_V3_2_REPO):
     with open(config_path) as f:
         hf_cfg = json.load(f)
 
+    rope_scaling = hf_cfg.get("rope_scaling", {})
+
     # Map HuggingFace config keys to ModelArgs field names
     return ModelArgs(
         vocab_size=hf_cfg["vocab_size"],
@@ -123,7 +127,12 @@ def load_deepseek_config(repo_id=DEEPSEEK_V3_2_REPO):
         qk_nope_head_dim=hf_cfg.get("qk_nope_head_dim", 128),
         qk_rope_head_dim=hf_cfg.get("qk_rope_head_dim", 64),
         v_head_dim=hf_cfg.get("v_head_dim", 128),
+        original_seq_len=rope_scaling.get("original_max_position_embeddings", 4096),
         rope_theta=hf_cfg.get("rope_theta", 10000.0),
+        rope_factor=rope_scaling.get("factor", 40),
+        beta_fast=rope_scaling.get("beta_fast", 32),
+        beta_slow=rope_scaling.get("beta_slow", 1),
+        mscale=rope_scaling.get("mscale", 1.0),
         index_n_heads=hf_cfg.get("index_n_heads", 0),
         index_head_dim=hf_cfg.get("index_head_dim", 128),
         index_topk=hf_cfg.get("index_topk", 2048),
@@ -192,6 +201,185 @@ def load_deepseek_weights(
     print(f"[weights] model keys not loaded: {sorted(not_loaded)}")
 
     return model
+
+
+FP8_BLOCK_SIZE = 128
+
+
+def _weight_dequant(weight, scale_inv, block_size=FP8_BLOCK_SIZE):
+    """Dequantize FP8 weight: bf16 = fp8 * weight_scale_inv (block-wise)."""
+    orig_shape = weight.shape
+    assert weight.dim() == 2
+    rows, cols = orig_shape
+
+    pad_rows = (block_size - rows % block_size) % block_size
+    pad_cols = (block_size - cols % block_size) % block_size
+    if pad_rows or pad_cols:
+        weight = torch.nn.functional.pad(weight, (0, pad_cols, 0, pad_rows))
+
+    padded_rows, padded_cols = weight.shape
+    n_br = padded_rows // block_size
+    n_bc = padded_cols // block_size
+
+    weight = (
+        weight.view(n_br, block_size, n_bc, block_size)
+        .transpose(1, 2)
+        .contiguous()
+        .view(-1, block_size * block_size)
+    )
+    weight = (
+        (weight.float() * scale_inv.view(-1, 1).float())
+        .to(torch.bfloat16)
+        .view(n_br, n_bc, block_size, block_size)
+        .transpose(1, 2)
+        .contiguous()
+        .view(padded_rows, padded_cols)
+    )
+    return weight[:rows, :cols]
+
+
+def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=1):
+    """Load and dequantize FP8 safetensors weights into a modified model.
+
+    Downloads the needed shards, dequantizes FP8 weights block-wise, renames
+    checkpoint keys to modified_model.py naming, and loads via assign=True
+    (for meta-device models).
+    """
+    index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
+    with open(index_path) as f:
+        index = json.load(f)
+
+    weight_map = index["weight_map"]
+
+    # Filter to needed layers and separate weights from scales
+    weight_keys = {}  # ckpt_key -> shard_file
+    scale_keys = {}  # weight_ckpt_key -> scale_ckpt_key
+    scale_shards = {}  # scale_ckpt_key -> shard_file
+
+    for ckpt_key, shard_file in weight_map.items():
+        layer_m = re.match(r"model\.layers\.(\d+)\.", ckpt_key)
+        if layer_m and int(layer_m.group(1)) >= n_layers:
+            continue
+        if "weight_scale_inv" in ckpt_key:
+            w_key = ckpt_key.replace(".weight_scale_inv", ".weight")
+            scale_keys[w_key] = ckpt_key
+            scale_shards[ckpt_key] = shard_file
+        else:
+            weight_keys[ckpt_key] = shard_file
+
+    all_shards = set(weight_keys.values()) | set(scale_shards.values())
+
+    raw = {}
+    for idx, shard_name in enumerate(sorted(all_shards)):
+        shard_path = hf_hub_download(repo_id, shard_name)
+        with safe_open(shard_path, framework="pt", device="cpu") as f:
+            for key in f.keys():
+                if key in weight_keys or key in scale_shards:
+                    raw[key] = f.get_tensor(key)
+        print(
+            f"  shard {idx + 1}/{len(all_shards)}: {shard_name} "
+            f"({len(raw)} tensors so far)",
+            flush=True,
+        )
+    print(f"[weights] loaded {len(raw)} raw tensors from {len(all_shards)} shards")
+
+    # Dequantize FP8 weights
+    dequantized = {}
+    n_dequant = 0
+    for ckpt_key in weight_keys:
+        tensor = raw.get(ckpt_key)
+        if tensor is None:
+            continue
+        if tensor.dtype == torch.float8_e4m3fn:
+            scale_key = scale_keys.get(ckpt_key)
+            scale_inv = raw.get(scale_key) if scale_key else None
+            if scale_inv is not None:
+                tensor = _weight_dequant(tensor, scale_inv)
+                n_dequant += 1
+            else:
+                tensor = tensor.to(torch.bfloat16)
+        dequantized[ckpt_key] = tensor
+    print(f"[weights] dequantized {n_dequant} FP8 tensors")
+
+    # Rename keys and cast to bf16
+    state_dict = {}
+    for ckpt_key, tensor in dequantized.items():
+        model_key = _rename_hf_key(ckpt_key, n_dense_layers)
+        if model_key is None:
+            continue
+        if model_key == "head.weight":
+            tensor = tensor.to(torch.float32)
+        elif tensor.dtype != torch.bfloat16:
+            tensor = tensor.to(torch.bfloat16)
+        state_dict[model_key] = tensor
+
+    missing, unexpected = model.load_state_dict(state_dict, strict=False, assign=True)
+    print(
+        f"[weights] loaded {len(state_dict)} tensors. "
+        f"Missing: {len(missing)}, Unexpected: {len(unexpected)}"
+    )
+    if missing:
+        real_missing = [
+            k
+            for k in missing
+            if not any(
+                skip in k
+                for skip in [
+                    "kv_cache",
+                    "pe_cache",
+                    "k_cache",
+                    "hadamard",
+                    "freqs_cis",
+                    "prepopulated",
+                ]
+            )
+        ]
+        if real_missing:
+            print(f"[weights] missing: {sorted(real_missing)[:20]}")
+
+
+def _fix_meta_buffers(model, args):
+    """Replace meta-device buffers with properly computed CPU tensors.
+
+    After creating the model on meta device and loading weights with assign=True,
+    non-persistent buffers (freqs_cis, hadamard_matrix, KV caches) remain on meta
+    and must be recreated on CPU.
+    """
+    import scipy.linalg
+
+    # Recompute freqs_cis (RoPE frequencies with YaRN)
+    freqs_cis_complex = precompute_freqs_cis(args)
+    model.freqs_cis = torch.view_as_real(freqs_cis_complex)
+
+    # Recompute hadamard_matrix
+    hadamard = torch.tensor(
+        scipy.linalg.hadamard(args.index_head_dim), dtype=torch.bfloat16
+    ) * (args.index_head_dim**-0.5)
+    model.hadamard_matrix = hadamard
+
+    # Fix per-layer MLA buffers (caches must be bf16 to match model dtype)
+    for layer in model.layers:
+        attn = layer.attn
+        attn.kv_cache = torch.zeros(
+            args.max_batch_size,
+            args.max_seq_len,
+            attn.kv_lora_rank,
+            dtype=torch.bfloat16,
+        )
+        attn.pe_cache = torch.zeros(
+            args.max_batch_size,
+            args.max_seq_len,
+            attn.qk_rope_head_dim,
+            dtype=torch.bfloat16,
+        )
+        attn.hadamard_matrix = hadamard
+        if attn.indexer is not None:
+            attn.indexer.k_cache = torch.zeros(
+                args.max_batch_size,
+                args.max_seq_len,
+                attn.indexer.head_dim,
+                dtype=torch.bfloat16,
+            )
 
 
 # def test_deepseek_modified_transformer_single_layer():
@@ -1217,26 +1405,34 @@ def test_deepseek_v3_1_full_sparse_moe():
 
     repo_id = DEEPSEEK_V3_1_REPO
     args = load_deepseek_config(repo_id)
-    args.n_layers = args.n_dense_layers + 1
+    args.n_layers = int(os.environ.get("DEEPSEEK_N_LAYERS", args.n_dense_layers + 1))
     args.max_batch_size = batch_size
+    # max_seq_len must be > original_seq_len (4096) to activate YaRN RoPE
+    # correction and attention mscale, matching production behavior.
+    # Use minimal value to avoid large KV cache allocations on device.
+    args.max_seq_len = args.original_seq_len + 1
     print(f"[config] {args}")
 
-    model = ModifiedTransformer(args)
-    load_deepseek_weights(
+    with torch.device("meta"):
+        model = ModifiedTransformer(args)
+    _load_modified_dequantized_weights(
         model,
         repo_id=repo_id,
         n_layers=args.n_layers,
         n_dense_layers=args.n_dense_layers,
     )
-    model = model.to(torch.bfloat16)
-    model.head = model.head.to(torch.float32)
+    _fix_meta_buffers(model, args)
+    model.eval()
 
     mesh_shape = (4, 8)
     enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
-    model.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(repo_id, trust_remote_code=True)
-    text = "The quick brown fox jumps over the lazy dog. " * 10
+    # text = "The quick brown fox jumps over the lazy dog. " * 10
+    text = (
+        "Tenstorrent is a company that builds AI accelerators. "
+        "Their chips are designed to"
+    )
     encoded = tokenizer(
         text,
         return_tensors="pt",
@@ -1322,12 +1518,10 @@ def test_deepseek_v3_1_full_sparse_moe():
         compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
     )
 
-    for k in range(5):
-        tt_tokens = tt_res.topk(k + 1, dim=-1).indices[..., k]
-        cpu_tokens = cpu_res.topk(k + 1, dim=-1).indices[..., k]
-
-        print(f"[top-{k+1}] TT  tokens: {tokenizer.decode(tt_tokens[0].tolist())}")
-        print(f"[top-{k+1}] CPU tokens: {tokenizer.decode(cpu_tokens[0].tolist())}")
+    tt_top5 = tt_res.topk(5, dim=-1).indices[0]
+    cpu_top5 = cpu_res.topk(5, dim=-1).indices[0]
+    print(f"[TT  top-5] {[tokenizer.decode([t]) for t in tt_top5.tolist()]}")
+    print(f"[CPU top-5] {[tokenizer.decode([t]) for t in cpu_top5.tolist()]}")
 
     TorchComparisonEvaluator(
         ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
