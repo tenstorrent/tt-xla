@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.LLAMA2_7B_LORA_GLUE_QQP
 
-    BASE_MODEL_NAME = "meta-llama/Llama-2-7b-hf"
+    BASE_MODEL_NAME = "NousResearch/Llama-2-7b-hf"
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
