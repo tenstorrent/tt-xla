@@ -38,3 +38,23 @@ def test_sdpa(request):
         compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
+
+
+@pytest.mark.extended
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+@pytest.mark.filecheck(["sdpa.ttnn.mlir"])
+def test_composite_sdpa(request):
+    def sdpa(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        return torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)
+
+    run_graph_test_with_random_inputs(
+        sdpa,
+        [(1, 8, 32, 64), (1, 8, 32, 64), (1, 8, 32, 64)],
+        dtype=torch.bfloat16,
+        framework=Framework.TORCH,
+        request=request,
+    )
+
+
