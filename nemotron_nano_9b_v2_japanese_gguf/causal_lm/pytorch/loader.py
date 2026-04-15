@@ -6,10 +6,84 @@ Nemotron Nano 9B v2 Japanese GGUF model loader implementation for causal languag
 
 Note: The nemotron_h architecture is not supported in GGUF format by transformers,
 so this loader uses the base safetensors model from nvidia instead.
+The nemotron_h model requires mamba-ssm (CUDA-only), so we install a pure PyTorch
+stub when the real package is unavailable.
 """
+import sys
+import types
+import importlib
+import importlib.machinery
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
+
+
+def _ensure_mamba_ssm_available():
+    """Install a pure PyTorch stub for mamba_ssm if the real package is unavailable.
+
+    The nemotron_h model requires mamba_ssm.ops.triton.layernorm_gated.rmsnorm_fn at
+    import time. The real mamba-ssm package requires CUDA to install, so in CPU-only
+    environments we provide a pure PyTorch fallback.
+    """
+    try:
+        importlib.import_module("mamba_ssm.ops.triton.layernorm_gated")
+        return
+    except (ImportError, ModuleNotFoundError):
+        pass
+
+    def _rmsnorm_fn(
+        x, weight, bias=None, z=None, eps=1e-6, group_size=None, norm_before_gate=False
+    ):
+        dtype = x.dtype
+        x = x.float()
+        if group_size is not None:
+            orig_shape = x.shape
+            x = x.view(*x.shape[:-1], -1, group_size)
+            variance = x.pow(2).mean(-1, keepdim=True)
+            x = x * torch.rsqrt(variance + eps)
+            x = x.view(orig_shape)
+        else:
+            variance = x.pow(2).mean(-1, keepdim=True)
+            x = x * torch.rsqrt(variance + eps)
+        x = x.to(dtype) * weight
+        if bias is not None:
+            x = x + bias
+        if z is not None:
+            z = torch.nn.functional.silu(z)
+            x = x * z
+        return x
+
+    # Build the module hierarchy: mamba_ssm.ops.triton.layernorm_gated
+    mamba_ssm = types.ModuleType("mamba_ssm")
+    mamba_ssm.__version__ = "0.0.0"
+    mamba_ssm.__spec__ = importlib.machinery.ModuleSpec("mamba_ssm", None)
+    mamba_ssm.ops = types.ModuleType("mamba_ssm.ops")
+    mamba_ssm.ops.triton = types.ModuleType("mamba_ssm.ops.triton")
+
+    layernorm_gated = types.ModuleType("mamba_ssm.ops.triton.layernorm_gated")
+    layernorm_gated.rmsnorm_fn = _rmsnorm_fn
+
+    selective_state = types.ModuleType("mamba_ssm.ops.triton.selective_state_update")
+    selective_state.selective_state_update = None
+
+    ssd_combined = types.ModuleType("mamba_ssm.ops.triton.ssd_combined")
+    ssd_combined.mamba_chunk_scan_combined = None
+    ssd_combined.mamba_split_conv1d_scan_combined = None
+
+    mamba_ssm.ops.triton.layernorm_gated = layernorm_gated
+    mamba_ssm.ops.triton.selective_state_update = selective_state
+    mamba_ssm.ops.triton.ssd_combined = ssd_combined
+
+    sys.modules["mamba_ssm"] = mamba_ssm
+    sys.modules["mamba_ssm.ops"] = mamba_ssm.ops
+    sys.modules["mamba_ssm.ops.triton"] = mamba_ssm.ops.triton
+    sys.modules["mamba_ssm.ops.triton.layernorm_gated"] = layernorm_gated
+    sys.modules["mamba_ssm.ops.triton.selective_state_update"] = selective_state
+    sys.modules["mamba_ssm.ops.triton.ssd_combined"] = ssd_combined
+
+
+_ensure_mamba_ssm_available()
 
 from ....base import ForgeModel
 from ....config import (
