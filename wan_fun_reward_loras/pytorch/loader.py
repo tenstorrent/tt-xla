@@ -19,7 +19,7 @@ Available variants:
 from typing import Any, Optional
 
 import torch
-from diffusers import DiffusionPipeline  # type: ignore[import]
+from diffusers import WanPipeline  # type: ignore[import]
 
 from ...base import ForgeModel
 from ...config import (
@@ -32,7 +32,7 @@ from ...config import (
     StrEnum,
 )
 
-BASE_MODEL = "Wan-AI/Wan2.2-T2V-A14B"
+BASE_MODEL = "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
 LORA_REPO = "alibaba-pai/Wan2.2-Fun-Reward-LoRAs"
 
 # LoRA weight filenames
@@ -108,7 +108,7 @@ class ModelLoader(ForgeModel):
         """
         dtype = dtype_override if dtype_override is not None else torch.float32
 
-        self.pipeline = DiffusionPipeline.from_pretrained(
+        self.pipeline = WanPipeline.from_pretrained(
             self._variant_config.pretrained_model_name,
             torch_dtype=dtype,
             **kwargs,
