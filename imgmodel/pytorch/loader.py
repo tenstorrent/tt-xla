@@ -96,8 +96,23 @@ class ModelLoader(ForgeModel):
             unet=unet,
             torch_dtype=dtype,
         )
-        return self.pipeline
+        return self.pipeline.unet
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load sample text prompts for the model."""
-        return ["A cinematic photo of an astronaut riding a horse on mars"] * batch_size
+        """Load sample UNet inputs with random tensors."""
+        dtype = dtype_override if dtype_override is not None else torch.bfloat16
+
+        unet = self.pipeline.unet
+        in_channels = unet.config.in_channels
+        cross_attention_dim = unet.config.cross_attention_dim
+
+        latents = torch.randn(batch_size, in_channels, 64, 64, dtype=dtype)
+        encoder_hidden_states = torch.randn(
+            batch_size, 77, cross_attention_dim, dtype=dtype
+        )
+
+        return {
+            "sample": latents,
+            "timestep": 0,
+            "encoder_hidden_states": encoder_hidden_states,
+        }
