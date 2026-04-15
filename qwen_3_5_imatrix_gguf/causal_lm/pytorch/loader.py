@@ -8,6 +8,40 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
+import transformers.configuration_utils as _config_utils
+import transformers.modeling_gguf_pytorch_utils as _gguf_utils
+import transformers.models.auto.tokenization_auto as _auto_tokenizer
+from transformers.modeling_gguf_pytorch_utils import (
+    load_gguf_checkpoint as _orig_load_gguf_checkpoint,
+    GGUF_SUPPORTED_ARCHITECTURES,
+)
+
+
+def _patched_load_gguf_checkpoint(gguf_path, return_tensors=False):
+    """Wrap load_gguf_checkpoint to map qwen35 architecture to qwen3.
+
+    Qwen 3.5 uses the same model architecture as Qwen 3 but the GGUF file
+    declares architecture as 'qwen35' which transformers 5.x does not yet
+    recognise. This patch adds the mapping so the checkpoint can be loaded,
+    and fixes the resulting model_type from 'qwen35' to 'qwen3'.
+    """
+    if "qwen35" not in GGUF_SUPPORTED_ARCHITECTURES:
+        GGUF_SUPPORTED_ARCHITECTURES.append("qwen35")
+        for section in _gguf_utils.GGUF_TO_TRANSFORMERS_MAPPING:
+            if "qwen3" in _gguf_utils.GGUF_TO_TRANSFORMERS_MAPPING[section]:
+                _gguf_utils.GGUF_TO_TRANSFORMERS_MAPPING[section][
+                    "qwen35"
+                ] = _gguf_utils.GGUF_TO_TRANSFORMERS_MAPPING[section]["qwen3"]
+    result = _orig_load_gguf_checkpoint(gguf_path, return_tensors=return_tensors)
+    if result.get("config", {}).get("model_type") == "qwen35":
+        result["config"]["model_type"] = "qwen3"
+    return result
+
+
+_gguf_utils.load_gguf_checkpoint = _patched_load_gguf_checkpoint
+_config_utils.load_gguf_checkpoint = _patched_load_gguf_checkpoint
+_auto_tokenizer.load_gguf_checkpoint = _patched_load_gguf_checkpoint
+
 from ....base import ForgeModel
 from ....config import (
     LLMModelConfig,
