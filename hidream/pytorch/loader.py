@@ -79,10 +79,10 @@ class ModelLoader(ForgeModel):
     LLAMA_MODEL_ID = "unsloth/Llama-3.1-8B-Instruct"
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the HiDream-I1 pipeline.
+        """Load and return the HiDream-I1 transformer.
 
         Returns:
-            HiDreamImagePipeline: The HiDream-I1 pipeline instance.
+            torch.nn.Module: The HiDream-I1 transformer instance.
         """
         dtype = dtype_override if dtype_override is not None else torch.float32
 
@@ -98,7 +98,11 @@ class ModelLoader(ForgeModel):
             tokenizer_4=tokenizer_4,
             **kwargs,
         )
-        return self.pipeline
+
+        if dtype_override is not None:
+            self.pipeline.transformer = self.pipeline.transformer.to(dtype_override)
+
+        return self.pipeline.transformer
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         """Load and return sample text prompts for the HiDream-I1 model.
