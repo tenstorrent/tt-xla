@@ -2,7 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Kandinsky 2.1 model loader implementation
+Kandinsky 2.1 UNet model loader implementation.
+
+Extracts the UNet2DConditionModel decoder from the Kandinsky 2.1 pipeline
+for direct inference testing with synthetic tensor inputs.
 """
 
 import torch
@@ -18,7 +21,7 @@ from ...config import (
     StrEnum,
 )
 from ...base import ForgeModel
-from diffusers import AutoPipelineForText2Image
+from diffusers import UNet2DConditionModel
 
 
 class ModelVariant(StrEnum):
@@ -28,7 +31,7 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """Kandinsky 2.1 model loader implementation."""
+    """Kandinsky 2.1 UNet model loader implementation."""
 
     _VARIANTS = {
         ModelVariant.V2_1: ModelConfig(
@@ -55,31 +58,46 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load and return the Kandinsky 2.1 pipeline.
+        """Load and return the Kandinsky 2.1 decoder UNet.
 
         Args:
             dtype_override: Optional torch.dtype to override the model's default dtype.
 
         Returns:
-            AutoPipelineForText2Image: The pre-trained Kandinsky 2.1 pipeline.
+            UNet2DConditionModel: The pre-trained Kandinsky 2.1 decoder UNet.
         """
         dtype = dtype_override or torch.float32
-        pipe = AutoPipelineForText2Image.from_pretrained(
-            self._variant_config.pretrained_model_name, torch_dtype=dtype, **kwargs
+        unet = UNet2DConditionModel.from_pretrained(
+            self._variant_config.pretrained_model_name,
+            subfolder="unet",
+            torch_dtype=dtype,
+            **kwargs,
         )
-        return pipe
+        return unet
 
     def load_inputs(self, dtype_override=None, batch_size=1):
-        """Load and return sample text prompts for Kandinsky 2.1.
+        """Load and return synthetic tensor inputs for the Kandinsky 2.1 UNet.
+
+        The UNet expects:
+        - sample: noised latent (batch, in_channels=4, height=64, width=64)
+        - timestep: diffusion timestep
+        - encoder_hidden_states: text encoding (batch, seq_len=77, encoder_hid_dim=1024)
+        - added_cond_kwargs: text_embeds and image_embeds (batch, cross_attn_dim=768)
 
         Args:
-            dtype_override: This parameter is ignored for this model.
-            batch_size: Optional batch size for the prompts.
+            dtype_override: Optional torch.dtype for input tensors.
+            batch_size: Batch size for the inputs.
 
         Returns:
-            list: A list of sample text prompts.
+            dict: Dictionary of input tensors for the UNet forward pass.
         """
-        prompt = [
-            "A alien cheeseburger creature eating itself, claymation",
-        ] * batch_size
-        return prompt
+        dtype = dtype_override or torch.float32
+        return {
+            "sample": torch.randn(batch_size, 4, 64, 64, dtype=dtype),
+            "timestep": torch.tensor([0]),
+            "encoder_hidden_states": torch.randn(batch_size, 77, 1024, dtype=dtype),
+            "added_cond_kwargs": {
+                "text_embeds": torch.randn(batch_size, 768, dtype=dtype),
+                "image_embeds": torch.randn(batch_size, 768, dtype=dtype),
+            },
+        }
