@@ -110,8 +110,9 @@ public:
   //
   // Compile-only mode is activated by setting TT_COMPILE_ONLY_SYSTEM_DESC to a
   // path of a .ttsys file. The system descriptor is loaded from disk instead of
-  // querying  hardware, allowing compilation targeting a different system.
-  // The mesh device is never opened and execution is not supported.
+  // querying hardware, allowing compilation targeting a different system.
+  // The mesh device is never opened and execution returns default-initialized
+  // output buffers without running on hardware.
   bool isCompileOnly() const { return m_compile_only; }
 
   // Returns the mesh device of the provided shape. If there is already opened

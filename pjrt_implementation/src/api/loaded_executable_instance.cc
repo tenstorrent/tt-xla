@@ -24,6 +24,7 @@
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/runtime.h"
+#include "tt/runtime/utils.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
@@ -32,9 +33,12 @@
 #include "api/client_instance.h"
 #include "api/device_instance.h"
 #include "api/error_instance.h"
+#include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/executable_instance.h"
+#include "api/tensor.h"
 #include "utils/assert.h"
+#include "utils/data_type_utils.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -208,6 +212,51 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
   return tt_pjrt_status::kSuccess;
 }
 
+void LoadedExecutableInstance::createDefaultOutputBuffers(
+    PJRT_Buffer **const *output_lists, size_t num_devices) {
+  ZoneScoped;
+  size_t num_outputs = m_executable_image->getNumOutputs();
+
+  for (size_t device_index = 0; device_index < num_devices; ++device_index) {
+    for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
+      std::vector<std::uint32_t> output_shape =
+          m_executable_image->getOutputShape(output_index);
+      PJRT_Buffer_Type output_type =
+          m_executable_image->getOutputTypes()[output_index];
+      ::tt::target::DataType runtime_data_type =
+          data_type_utils::convertPJRTToRuntimeDataType(output_type);
+      std::uint32_t element_size =
+          tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+
+      std::unique_ptr<BufferInstance> output_buffer =
+          BufferInstance::createOutputBufferInstance(
+              std::move(output_shape), m_addressable_devices[device_index],
+              m_addressable_devices[device_index]->getDefaultMemory(),
+              output_type, device_index);
+
+      if (!isCompileOnly()) {
+        // We create a row-major tensor. Last stride is 1, one before is the
+        // last dimension size, etc. That means the right algorithm is the
+        // exclusive right scan.
+        std::vector<std::uint32_t> strides(output_shape.size());
+        std::exclusive_scan(output_shape.rbegin(), output_shape.rend(),
+                            strides.rbegin(), std::uint32_t(1),
+                            std::multiplies<>());
+
+        tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
+            nullptr, output_shape, strides, element_size, runtime_data_type);
+
+        PjrtTensor::from_runtime_tensor({output_buffer.get()}, host_tensor);
+      }
+
+      output_buffer->markAsDataReady();
+
+      // Release ownership to the PJRT API caller
+      output_lists[device_index][output_index] = *output_buffer.release();
+    }
+  }
+}
+
 mlir::FailureOr<std::unordered_map<std::string, std::string>>
 LoadedExecutableInstance::fillStrategyMapFromSharding(
     const mlir::tt::sharding_utils::MeshSharding &meshSharding,
@@ -326,9 +375,21 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
       LoadedExecutableInstance::unwrap(args->executable);
 
   if (instance->isCompileOnly()) {
-    LOG_F(ERROR, "Early aborting execution in compile-only mode "
-                 "(TT_COMPILE_ONLY_SYSTEM_DESC is set).");
-    return *ErrorInstance::makeError(tt_pjrt_status::kInternal).release();
+    LOG_F(INFO, "Compile-only mode: returning default output buffers "
+                "(TT_COMPILE_ONLY_SYSTEM_DESC is set).");
+    instance->createDefaultOutputBuffers(args->output_lists, args->num_devices);
+
+    if (args->device_complete_events) {
+      for (int device_num = 0; device_num < args->num_devices; ++device_num) {
+        std::unique_ptr<EventInstance> device_complete_event =
+            EventInstance::createInstance();
+        EventInstance::markAsReadyAndCallback(device_complete_event.get(),
+                                              tt_pjrt_status::kSuccess);
+        args->device_complete_events[device_num] =
+            *device_complete_event.release();
+      }
+    }
+    return nullptr;
   }
 
   tt_pjrt_status status = instance->execute(args);

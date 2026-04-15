@@ -11,6 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstring>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -322,7 +323,17 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
-  TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
+
+  // In compile-only mode, output buffers have no associated tensor (no
+  // hardware to compute on). Zero-fill the host buffer and signal success.
+  if (!m_pjrt_tensor) {
+    std::memset(host_buffer, 0, host_buffer_size);
+    std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(event.get(),
+                                          tt_pjrt_status::kSuccess);
+    *out_copy_done_event = event.release();
+    return tt_pjrt_status::kSuccess;
+  }
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
