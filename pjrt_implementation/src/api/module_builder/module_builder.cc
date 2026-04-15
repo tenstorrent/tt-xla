@@ -982,7 +982,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Static counter for auto-numbering graphs when perf metrics are enabled
   static std::atomic<int> graph_counter{0};
 
-  mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+  mlir::tt::ttnn::TTIRToTTNNCommonPipelineOptions options;
 
   // Optimizer passes are not supported in distributed runtime.
   if (tt::runtime::getCurrentHostRuntime() ==
@@ -1084,11 +1084,9 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
             submesh_for_optim.handle);
   }
 
-  // TODO(dmilinkovic): Temporarily disable const-eval on CPU for Codegen
-  // backends until the pipeline restructuring on TT-MLIR side is done.
-  // https://github.com/tenstorrent/tt-mlir/issues/6927
-  if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
-      compile_options.backend == BackendRuntime::TTNNCodegenPy) {
+  // TODO(dmilinkovic): Disable const-eval on CPU for EmitC backend until
+  // CPU hoisting support is added. https://github.com/tenstorrent/tt-mlir/issues/6100
+  if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
     options.enableCPUHoistedConstEval = false;
   }
 
@@ -1097,8 +1095,10 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
   options.meshTopology = fabricConfigToMeshTopology(
       client_instance->computeFabricConfig(devices_mesh_shape));
-  mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
+
+  // Run the common TTIR-to-TTNN pipeline.
+  mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
@@ -1108,7 +1108,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   client_instance->closeOptimizerSubmesh();
 
   if (mlir::failed(mlir_result)) {
-    LOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
+    LOG_F(ERROR, "Failed to run TTIRToTTNNCommon pipeline");
     return tt_pjrt_status::kInternal;
   }
 
@@ -1321,6 +1321,21 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
     std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
+  mlir::PassManager runtime_pm(mlir_module.get()->getName());
+  mlir::tt::ttnn::TTNNCommonToRuntimePipelineOptions runtime_options;
+  mlir::tt::ttnn::createTTNNCommonToRuntimePipeline(runtime_pm,
+                                                    runtime_options);
+  enableVerboseIRPrinting(runtime_pm);
+
+  mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
+  if (mlir::failed(mlir_result)) {
+    LOG_F(ERROR, "Failed to run TTNNCommonToRuntime pipeline");
+    return {tt_pjrt_status::kInternal, nullptr};
+  }
+
+  printModule(mlir_module, compile_options.export_path, "ttnn_runtime",
+              compile_options.export_model_name);
+
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
                                                  output_shardings, flatbuffer);
