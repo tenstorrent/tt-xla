@@ -4,8 +4,12 @@
 """
 GenD CLIP L/14 model loader for deepfake detection (binary image classification).
 """
+import importlib.util
+import sys
+
 import torch
-from transformers import AutoModel, CLIPProcessor
+from huggingface_hub import hf_hub_download
+from transformers import CLIPProcessor
 from typing import Optional
 
 from ...base import ForgeModel
@@ -18,7 +22,7 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from datasets import load_dataset
+from PIL import Image
 
 
 class ModelVariant(StrEnum):
@@ -55,6 +59,23 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    @staticmethod
+    def _load_remote_module(repo_id, filename="modeling_gend.py"):
+        """Download and import the custom modeling code from the HuggingFace repo.
+
+        The GenD model uses a custom architecture not registered in transformers'
+        auto_map, so we load the modeling code directly.
+        """
+        module_name = "modeling_gend"
+        if module_name in sys.modules:
+            return sys.modules[module_name]
+        modeling_path = hf_hub_download(repo_id, filename)
+        spec = importlib.util.spec_from_file_location(module_name, modeling_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
+
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the GenD CLIP model instance.
 
@@ -66,14 +87,20 @@ class ModelLoader(ForgeModel):
         """
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        model_kwargs = {"trust_remote_code": True}
+        modeling_gend = self._load_remote_module(pretrained_model_name)
+        config = modeling_gend.GenDConfig.from_pretrained(pretrained_model_name)
+        model = modeling_gend.GenD(config)
+
+        weights_path = hf_hub_download(pretrained_model_name, "model.safetensors")
+        from safetensors.torch import load_file
+
+        state_dict = load_file(weights_path)
+        model.load_state_dict(state_dict)
+
         if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
+            model = model.to(dtype_override)
 
-        model = AutoModel.from_pretrained(pretrained_model_name, **model_kwargs)
         model.eval()
-
         return model
 
     def load_inputs(self, dtype_override=None, batch_size=1):
@@ -91,8 +118,7 @@ class ModelLoader(ForgeModel):
                 "openai/clip-vit-large-patch14"
             )
 
-        dataset = load_dataset("huggingface/cats-image")["test"]
-        image = dataset[0]["image"]
+        image = Image.new("RGB", (224, 224))
 
         inputs = self.processor(images=image, return_tensors="pt")
 
