@@ -18,7 +18,9 @@ current_key = None
 for line in lines:
     if current_key is None and not line.replace("#", "").startswith("  "):
         header.append(line)
-    elif line.replace("#", "").startswith("  ") and not line.replace("#", "").startswith("    "):
+    elif line.replace("#", "").startswith("  ") and not line.replace(
+        "#", ""
+    ).startswith("    "):
         # Level-2 key line
         current_key = line.strip().rstrip(":")
         entries[current_key] = [line]
