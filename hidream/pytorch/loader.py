@@ -74,9 +74,9 @@ class ModelLoader(ForgeModel):
         )
 
     # text_encoder_4 and tokenizer_4 use Meta-Llama-3.1-8B-Instruct which is
-    # stored in a separate HuggingFace repo and not bundled in the HiDream repo.
-    # Load them explicitly so diffusers doesn't fall back to the root cache path.
-    LLAMA_MODEL_ID = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    # stored in a separate gated HuggingFace repo and not bundled in the HiDream
+    # repo. Use the ungated unsloth mirror with identical architecture.
+    LLAMA_MODEL_ID = "unsloth/Llama-3.1-8B-Instruct"
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the HiDream-I1 pipeline.
