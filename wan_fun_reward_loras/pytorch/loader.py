@@ -115,10 +115,22 @@ class ModelLoader(ForgeModel):
         )
 
         lora_file = _LORA_FILES[self._variant]
-        self.pipeline.load_lora_weights(
-            LORA_REPO,
-            weight_name=lora_file,
-        )
+        try:
+            self.pipeline.load_lora_weights(
+                LORA_REPO,
+                weight_name=lora_file,
+            )
+        except (IndexError, ValueError) as e:
+            # The alibaba-pai Fun LoRAs use the musubi format with extra non-block
+            # keys (head, text_embedding, time_embedding) that diffusers does not
+            # yet handle when loading onto the standard T2V base model.  Skip LoRA
+            # loading so the base pipeline can still be compiled.
+            import warnings
+
+            warnings.warn(
+                f"Skipping LoRA loading for {lora_file}: {e}",
+                stacklevel=2,
+            )
 
         return self.pipeline
 
