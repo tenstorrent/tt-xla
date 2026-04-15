@@ -334,7 +334,6 @@ class TTStaticSlidingWindowLayer(StaticLayer):
         """Return constant (kv_length, kv_offset) — used by create_causal_mask."""
         return self.max_cache_len, 0
 
-    @torch.compiler.disable
     def get_seq_length(self) -> int:
         if not self.is_initialized:
             return 0

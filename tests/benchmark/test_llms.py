@@ -400,6 +400,99 @@ def test_gemma_2_2b(
     )
 
 
+def test_gemma_4_e4b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.gemma4.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_4_E4B_IT
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=1,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+    )
+
+
+def _gemma_4_31b_mesh_config_fn(model_loader, num_devices):
+    return (1, 4), ("batch", "model")
+
+
+def _gemma_4_31b_shard_spec_fn(model_loader, model):
+    text_model = model.model
+    if hasattr(text_model, "language_model"):
+        text_model = text_model.language_model
+
+    shard_specs = {}
+
+    shard_specs[text_model.embed_tokens.weight] = (None, "model")
+    shard_specs[text_model.norm.weight] = (None,)
+    shard_specs[model.lm_head.weight] = ("model", None)
+
+    for layer in text_model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        if layer.self_attn.v_proj is not None:
+            shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+
+        shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
+        shard_specs[layer.mlp.up_proj.weight] = ("model", None)
+        shard_specs[layer.mlp.down_proj.weight] = (None, "model")
+
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
+        shard_specs[layer.pre_feedforward_layernorm.weight] = (None,)
+        shard_specs[layer.post_feedforward_layernorm.weight] = (None,)
+
+    return shard_specs
+
+
+def test_gemma_4_31b_tp(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.gemma4.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_4_31B_IT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size if batch_size is not None else 1,
+        arch="qb2-blackhole",
+        max_output_tokens=max_output_tokens,
+        mesh_config_fn=_gemma_4_31b_mesh_config_fn,
+        shard_spec_fn=_gemma_4_31b_shard_spec_fn,
+        optimization_level=1,
+    )
+
+
 def test_phi1(
     output_file,
     num_layers,

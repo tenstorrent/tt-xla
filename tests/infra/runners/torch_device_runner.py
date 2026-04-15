@@ -82,6 +82,15 @@ def to_device(x, device, depth=5, moved=None):
         for attr_name in x.__dict__:
             attr_value = getattr(x, attr_name)
             setattr(x, attr_name, to_device(attr_value, device, depth - 1, moved))
+        _keys = x.__dict__.get("keys")
+        _cum = x.__dict__.get("cumulative_length")
+        if (
+            getattr(x, "is_initialized", False)
+            and isinstance(_keys, torch.Tensor)
+            and isinstance(_cum, torch.Tensor)
+            and "device" in x.__dict__
+        ):
+            x.device = _keys.device
         moved[obj_id] = x
         return x
     else:

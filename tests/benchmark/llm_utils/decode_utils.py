@@ -19,6 +19,7 @@ import tracy
 from infra import MLACache
 from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
+from tt_torch.transformers_overrides import init_static_cache_layers_mixed_head_dim
 
 
 class LLMSamplingWrapper(torch.nn.Module):
@@ -119,14 +120,25 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    text_config = config.get_text_config(decoder=True)
+    if hasattr(text_config, "head_dim") and getattr(text_config, "head_dim"):
+        head_dim = text_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = text_config.hidden_size // text_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        text_config, "num_key_value_heads", text_config.num_attention_heads
     )
+
+    # Work around a transformers StaticCache bug: it does
+    # layer_types[:-num_kv_shared_layers] which yields [] when the value
+    # is 0 (since [:-0] == [:0] == [] in Python). Temporarily bump to a
+    # large value so the slice keeps all layer types, then restore.
+    kv_shared = getattr(text_config, "num_kv_shared_layers", None)
+    if kv_shared == 0:
+        object.__setattr__(
+            text_config, "num_kv_shared_layers", -len(text_config.layer_types)
+        )
 
     static_cache = StaticCache(
         config=config,
@@ -135,13 +147,38 @@ def init_static_cache(
         device=device,
         dtype=dtype,
     )
-    static_cache.early_initialization(
-        batch_size=batch_size,
-        num_heads=num_key_value_heads,
-        head_dim=head_dim,
-        dtype=dtype,
-        device=device,
+
+    if kv_shared == 0:
+        object.__setattr__(text_config, "num_kv_shared_layers", 0)
+
+    global_hd = getattr(text_config, "global_head_dim", None)
+    local_hd = getattr(text_config, "head_dim", None)
+    mixed_head_dims = (
+        global_hd is not None and local_hd is not None and global_hd != local_hd
     )
+    if mixed_head_dims:
+        init_static_cache_layers_mixed_head_dim(
+            static_cache, text_config, batch_size, dtype, device
+        )
+    else:
+        static_cache.early_initialization(
+            batch_size=batch_size,
+            num_heads=num_key_value_heads,
+            head_dim=head_dim,
+            dtype=dtype,
+            device=device,
+        )
+
+    # Replace transformers' StaticSlidingWindowLayer with the TT-friendly
+    # variant so that sliding window caches work with torch.compile + XLA.
+    sliding_window = getattr(text_config, "sliding_window", None)
+    if sliding_window is not None:
+        from tt_torch.transformers_overrides import override_cache_sliding_window_layers
+
+        override_cache_sliding_window_layers(
+            static_cache, max_cache_len, sliding_window
+        )
+
     return static_cache
 
 
