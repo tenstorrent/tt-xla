@@ -42,14 +42,17 @@ void CallbackWorker::workerLoop() {
   for (;;) {
     m_work_available.acquire();
 
+    // There is a brief window between when the semaphore is signaled and when
+    // the pop can succeed so spinning here is the right thing to do.
+    // Still only drains one item per semaphore signal.
     CallbackWorkItem item;
-    if (m_queue.tryPop(item)) {
-      item.callback_function(item.error, item.user_arg);
+    while (!m_queue.tryPop(item)) {
+      if (m_shutdown.load(std::memory_order_acquire)) {
+        return;
+      }
+      std::this_thread::yield();
     }
-
-    if (m_shutdown.load(std::memory_order_acquire) && m_queue.isEmpty()) {
-      return;
-    }
+    item.callback_function(item.error, item.user_arg);
   }
 }
 
