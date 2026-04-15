@@ -10,61 +10,67 @@ import functools
 import torch
 from typing import Optional, TypedDict
 
-import transformers.utils
-
-# The Jet-Nemotron HuggingFace model code imports LossKwargs from
-# transformers.utils, but it does not exist in any released version of
-# transformers. Inject a stub so the dynamic module can be loaded.
-if not hasattr(transformers.utils, "LossKwargs"):
-
-    class LossKwargs(TypedDict, total=False):
-        labels: torch.Tensor | None
-        num_items_in_batch: int | None
-
-    transformers.utils.LossKwargs = LossKwargs  # type: ignore[attr-defined]
-
-# The model's custom HuggingFace code passes autotune_interval to
-# FusedRMSNormGated, but the released fla package doesn't accept it.
-# Patch the constructor to silently ignore the extra kwarg.
-from fla.modules import FusedRMSNormGated
-
-_orig_fused_rms_init = FusedRMSNormGated.__init__
-
-
-@functools.wraps(_orig_fused_rms_init)
-def _patched_fused_rms_init(self, *args, autotune_interval=None, **kwargs):
-    return _orig_fused_rms_init(self, *args, **kwargs)
-
-
-FusedRMSNormGated.__init__ = _patched_fused_rms_init  # type: ignore[method-assign]
-
-# The model's RoPE code uses rope_type='default', but transformers 5.x
-# doesn't include a 'default' entry in ROPE_INIT_FUNCTIONS.  Register one.
-from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
-
-if "default" not in ROPE_INIT_FUNCTIONS:
-
-    def _compute_default_rope_parameters(config=None, device=None, **kwargs):
-        base = config.rope_theta
-        partial_rotary_factor = getattr(config, "partial_rotary_factor", 1.0)
-        head_dim = getattr(config, "head_dim", None) or (
-            config.hidden_size // config.num_attention_heads
-        )
-        dim = int(head_dim * partial_rotary_factor)
-        inv_freq = 1.0 / (
-            base
-            ** (
-                torch.arange(0, dim, 2, dtype=torch.int64).to(
-                    device=device, dtype=torch.float
-                )
-                / dim
-            )
-        )
-        return inv_freq, 1.0
-
-    ROPE_INIT_FUNCTIONS["default"] = _compute_default_rope_parameters
-
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+
+def _apply_compatibility_patches():
+    """Apply runtime patches needed for Jet-Nemotron with transformers 5.x.
+
+    Called lazily at model load time so that optional dependencies (fla)
+    don't need to be installed at import/collection time.
+    """
+    import transformers.utils
+
+    # The Jet-Nemotron HuggingFace model code imports LossKwargs from
+    # transformers.utils, but it does not exist in transformers 5.x.
+    if not hasattr(transformers.utils, "LossKwargs"):
+
+        class LossKwargs(TypedDict, total=False):
+            labels: torch.Tensor | None
+            num_items_in_batch: int | None
+
+        transformers.utils.LossKwargs = LossKwargs  # type: ignore[attr-defined]
+
+    # The model's custom HuggingFace code passes autotune_interval to
+    # FusedRMSNormGated, but the released fla package doesn't accept it.
+    from fla.modules import FusedRMSNormGated
+
+    if not getattr(FusedRMSNormGated.__init__, "_patched", False):
+        _orig_init = FusedRMSNormGated.__init__
+
+        @functools.wraps(_orig_init)
+        def _patched_init(self, *args, autotune_interval=None, **kwargs):
+            return _orig_init(self, *args, **kwargs)
+
+        _patched_init._patched = True  # type: ignore[attr-defined]
+        FusedRMSNormGated.__init__ = _patched_init  # type: ignore[method-assign]
+
+    # The model's RoPE code uses rope_type='default', but transformers 5.x
+    # doesn't include a 'default' entry in ROPE_INIT_FUNCTIONS.
+    from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
+
+    if "default" not in ROPE_INIT_FUNCTIONS:
+
+        def _compute_default_rope_parameters(config=None, device=None, **kwargs):
+            base = config.rope_theta
+            partial_rotary_factor = getattr(config, "partial_rotary_factor", 1.0)
+            head_dim = getattr(config, "head_dim", None) or (
+                config.hidden_size // config.num_attention_heads
+            )
+            dim = int(head_dim * partial_rotary_factor)
+            inv_freq = 1.0 / (
+                base
+                ** (
+                    torch.arange(0, dim, 2, dtype=torch.int64).to(
+                        device=device, dtype=torch.float
+                    )
+                    / dim
+                )
+            )
+            return inv_freq, 1.0
+
+        ROPE_INIT_FUNCTIONS["default"] = _compute_default_rope_parameters
+
 
 from ....base import ForgeModel
 from ....config import (
@@ -141,6 +147,8 @@ class ModelLoader(ForgeModel):
         return self.tokenizer
 
     def load_model(self, *, dtype_override=None, **kwargs):
+        _apply_compatibility_patches()
+
         pretrained_model_name = self._variant_config.pretrained_model_name
 
         if self.tokenizer is None:
