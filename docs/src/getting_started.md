@@ -40,17 +40,44 @@ To install a wheel and run an example model, do the following:
 pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 ```
 
-#### Step 2. Run a Model:
+#### Step 2. Run some models:
 
-- Download the [**mnist.py** example](https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/mnist.py) from the TT-XLA repo. This demo runs a simple CNN model on a Tenstorrent device and compares the output against a CPU reference.
+Use `wget` to fetch each demo script into your current directory, and install packages with pip when noted.
 
-- Run the model:
+**MNIST (small CNN)**
 
-   ```bash
-   python mnist.py
-   ```
+The [**mnist.py**](https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/mnist.py) example runs a simple CNN on a Tenstorrent device and compares the output against a CPU reference.
 
-- If all goes well you should see the model output and a PCC (Pearson Correlation Coefficient) check confirming the TT device output matches the CPU reference.
+```bash
+wget https://raw.githubusercontent.com/tenstorrent/tt-xla/main/examples/pytorch/mnist.py
+python mnist.py
+```
+
+You should see the model output and a PCC (Pearson Correlation Coefficient) check confirming the TT device output matches the CPU reference.
+
+**Tiny Llama (Hugging Face `transformers`)**
+
+The [**tiny_llama_demo.py**](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/pytorch/tiny_llama_demo.py) example in the TT-Forge repo loads a small LLM from Hugging Face, compiles it with `torch.compile(..., backend="tt")`, and prints top-token predictions. You must download the script and install [`transformers`](https://pypi.org/project/transformers/) (and its dependencies); the wheel install in Step 1 does not include them. The first run also downloads model weights from Hugging Face over the network.
+
+```bash
+wget https://raw.githubusercontent.com/tenstorrent/tt-forge/main/demos/tt-xla/nlp/pytorch/tiny_llama_demo.py
+pip install transformers
+python tiny_llama_demo.py
+```
+
+You should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead, for example:
+```
+Prompt: `The capital of France is`
+Top prediction: `Paris`
+
+Rank   Token           Probability
+-----------------------------------
+1      'Paris'         36.9141%
+2      'located'       10.0098%
+3      'the'           8.8867%
+4      'a'             4.2480%
+5      'in'            2.5391%
+```
 
 ---
 
@@ -78,19 +105,42 @@ This section walks through the installation steps for using a Docker container f
 
 #### Step 2: Running Models in Docker
 
-- Inside your running Docker container, download the [**mnist.py** example](https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/mnist.py) from the TT-XLA repo:
+Use `wget` to fetch each demo script into your current directory, and install packages with pip when noted.
 
-   ```bash
-   wget https://raw.githubusercontent.com/tenstorrent/tt-xla/main/examples/pytorch/mnist.py
-   ```
+**MNIST (small CNN)**
 
-- Run the model:
+The [**mnist.py**](https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/mnist.py) example runs a simple CNN on a Tenstorrent device and compares the output against a CPU reference.
 
-   ```bash
-   python mnist.py
-   ```
+```bash
+wget https://raw.githubusercontent.com/tenstorrent/tt-xla/main/examples/pytorch/mnist.py
+python mnist.py
+```
 
-- If all goes well you should see the model output and a PCC (Pearson Correlation Coefficient) check confirming the TT device output matches the CPU reference.
+You should see the model output and a PCC (Pearson Correlation Coefficient) check confirming the TT device output matches the CPU reference.
+
+**Tiny Llama (Hugging Face `transformers`)**
+
+The [**tiny_llama_demo.py**](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/pytorch/tiny_llama_demo.py) example in the TT-Forge repo loads a small LLM from Hugging Face, compiles it with `torch.compile(..., backend="tt")`, and prints top-token predictions. You must download the script and install [`transformers`](https://pypi.org/project/transformers/) (and its dependencies); the slim image does not include them. The first run also downloads model weights from Hugging Face over the network.
+
+```bash
+wget https://raw.githubusercontent.com/tenstorrent/tt-forge/main/demos/tt-xla/nlp/pytorch/tiny_llama_demo.py
+pip install transformers
+python tiny_llama_demo.py
+```
+
+You should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead, for example:
+```
+Prompt: `The capital of France is`
+Top prediction: `Paris`
+
+Rank   Token           Probability
+-----------------------------------
+1      'Paris'         36.9141%
+2      'located'       10.0098%
+3      'the'           8.8867%
+4      'a'             4.2480%
+5      'in'            2.5391%
+```
 
 ---
 
