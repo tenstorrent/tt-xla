@@ -56,14 +56,51 @@ def _patch_transformers_chatglm_gguf():
         "vocab_size": "vocab_size",
     }
 
-    # 3. Register chatglm tokenizer converter (BPE-based, same as qwen2)
+    # 3. Register chatglm tokenizer converter with merge-fixing logic.
+    # ChatGLM vocabularies contain tokens with literal spaces, so the
+    # space-delimited GGUF merge strings sometimes split into 3 parts
+    # instead of the expected 2. We resolve the ambiguity by checking
+    # which split produces tokens that exist in the vocabulary.
     from transformers.integrations.ggml import (
         GGUF_TO_FAST_CONVERTERS,
         GGUFQwen2Converter,
+        GGUFTokenizerSkeleton,
     )
 
+    class GGUFChatGLMConverter(GGUFQwen2Converter):
+        def converted(self):
+            vocab = {word: i for i, word in enumerate(self.original_tokenizer.tokens)}
+            raw_merges = self.original_tokenizer.merges
+            clean_merges = []
+            for m in raw_merges:
+                if len(m) == 2:
+                    clean_merges.append(m)
+                elif len(m) == 3:
+                    # Try both possible 2-way splits
+                    left = m[0] + " " + m[1]
+                    if left in vocab:
+                        clean_merges.append((left, m[2]))
+                    elif m[0] in vocab and (m[1] + " " + m[2]) in vocab:
+                        clean_merges.append((m[0], m[1] + " " + m[2]))
+                    # else: skip unresolvable merge
+            merges = clean_merges
+
+            from transformers.convert_slow_tokenizer import Qwen2Converter
+
+            tokenizer = Qwen2Converter.converted(self, vocab, merges)
+            from tokenizers import AddedToken
+
+            tokenizer.add_special_tokens(
+                [
+                    AddedToken("<|endoftext|>", normalized=False, special=True),
+                    AddedToken("<|im_start|>", normalized=False, special=True),
+                    AddedToken("<|im_end|>", normalized=False, special=True),
+                ]
+            )
+            return tokenizer
+
     if "chatglm" not in GGUF_TO_FAST_CONVERTERS:
-        GGUF_TO_FAST_CONVERTERS["chatglm"] = GGUFQwen2Converter
+        GGUF_TO_FAST_CONVERTERS["chatglm"] = GGUFChatGLMConverter
 
     # 4. Patch load_gguf_checkpoint to remap model_type and compute partial_rotary_factor
     orig_load = gguf_utils.load_gguf_checkpoint
