@@ -6,6 +6,7 @@ GRaPE-Mini-Instruct i1 GGUF model loader implementation for image to text.
 """
 
 from transformers import (
+    Qwen3VLConfig,
     Qwen3VLForConditionalGeneration,
     AutoProcessor,
 )
@@ -83,8 +84,11 @@ class ModelLoader(ForgeModel):
             "SL-AI/GRaPE-Mini-Instruct",
         )
 
+        # Pass explicit config so random_weights AutoConfig skips GGUF parsing
+        # (qwen3vl architecture is not yet registered in transformers GGUF support)
+        config = Qwen3VLConfig()
         model = Qwen3VLForConditionalGeneration.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            pretrained_model_name, config=config, **model_kwargs
         )
         model.eval()
 
