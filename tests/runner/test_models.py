@@ -166,7 +166,9 @@ def _run_model_test_impl(
                     comparison_result = tester.test(request=request)
                 except:
                     if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC", 0):
-                        print("TT_COMPILE_ONLY_SYSTEM_DESC is set skipping execution exiting normally")
+                        print(
+                            "TT_COMPILE_ONLY_SYSTEM_DESC is set skipping execution exiting normally"
+                        )
                         pytest.exit("PASSED", returncode=0)
                     raise
 
