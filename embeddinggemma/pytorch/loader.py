@@ -4,6 +4,7 @@
 """
 EmbeddingGemma model loader implementation for text embedding generation.
 """
+
 import torch
 from transformers import AutoModel, AutoTokenizer
 from typing import Optional
@@ -31,7 +32,7 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.EMBEDDINGGEMMA_300M: ModelConfig(
-            pretrained_model_name="google/embeddinggemma-300m",
+            pretrained_model_name="unsloth/embeddinggemma-300m",
         ),
     }
 
