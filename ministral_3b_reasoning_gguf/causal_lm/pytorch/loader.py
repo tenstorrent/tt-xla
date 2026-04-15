@@ -3,9 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 unsloth Ministral 3B Reasoning GGUF model loader implementation for causal language modeling.
+
+Note: The mistral3 GGUF architecture is not yet supported by the transformers
+GGUF loader, so we load from the HF-native checkpoint and extract the causal LM.
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import (
+    AutoTokenizer,
+    AutoConfig,
+    Mistral3ForConditionalGeneration,
+    Ministral3ForCausalLM,
+)
 from typing import Optional
 
 from ....base import ForgeModel
@@ -19,6 +27,9 @@ from ....config import (
     StrEnum,
 )
 
+# The HF-native checkpoint (mistral3 GGUF arch is not supported by transformers).
+HF_MODEL_NAME = "unsloth/Ministral-3-3B-Reasoning-2512"
+
 
 class ModelVariant(StrEnum):
     """Available Ministral 3B Reasoning GGUF model variants for causal language modeling."""
@@ -31,14 +42,12 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.MINISTRAL_3B_REASONING_GGUF: LLMModelConfig(
-            pretrained_model_name="unsloth/Ministral-3-3B-Reasoning-2512-GGUF",
+            pretrained_model_name=HF_MODEL_NAME,
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.MINISTRAL_3B_REASONING_GGUF
-
-    GGUF_FILE = "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf"
 
     sample_text = (
         "What are the key differences between classical and quantum computing?"
@@ -64,13 +73,8 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        tokenizer_kwargs = {}
-        if dtype_override is not None:
-            tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
-
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self._variant_config.pretrained_model_name, **tokenizer_kwargs
+            self._variant_config.pretrained_model_name,
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -87,18 +91,19 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
 
-        if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
-
-        model = AutoModelForCausalLM.from_pretrained(
+        # Load the full conditional generation model, then extract the causal LM
+        # because the base repo uses Mistral3ForConditionalGeneration (multimodal).
+        full_model = Mistral3ForConditionalGeneration.from_pretrained(
             pretrained_model_name, **model_kwargs
-        ).eval()
+        )
+        text_config = full_model.config.text_config
+        if self.num_layers is not None:
+            text_config.num_hidden_layers = self.num_layers
+        model = Ministral3ForCausalLM(text_config)
+        model.model = full_model.model.language_model
+        model.lm_head = full_model.lm_head
+        model = model.eval()
 
         self.config = model.config
         self.model = model
@@ -156,7 +161,8 @@ class ModelLoader(ForgeModel):
         return shard_specs
 
     def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+        full_config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name,
         )
+        self.config = full_config.text_config
         return self.config
