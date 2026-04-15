@@ -4,18 +4,18 @@
 """
 FLUX.2 Klein Delight LoRA model loader implementation.
 
-Loads the FLUX.2 base pipeline and applies Delight LoRA weights
+Loads the FLUX.2 Klein base pipeline and applies Delight LoRA weights
 from linoyts/Flux2-Klein-Delight-LoRA for relighting images with
 neutral, uniform illumination.
 
 Available variants:
-- DELIGHT: Delight LoRA applied to FLUX.2
+- DELIGHT: Delight LoRA applied to FLUX.2 Klein
 """
 
 from typing import Any, Optional
 
 import torch
-from diffusers import AutoPipelineForText2Image  # type: ignore[import]
+from diffusers import Flux2KleinPipeline
 
 from ...base import ForgeModel
 from ...config import (
@@ -28,7 +28,7 @@ from ...config import (
     StrEnum,
 )
 
-BASE_MODEL = "black-forest-labs/FLUX.2-klein-base-9B"
+BASE_MODEL = "Runware/BFL-FLUX.2-klein-9B"
 LORA_REPO = "linoyts/Flux2-Klein-Delight-LoRA"
 LORA_WEIGHT_NAME = "pytorch_lora_weights.safetensors"
 
@@ -51,7 +51,7 @@ class ModelLoader(ForgeModel):
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.pipeline = None
+        self.pipeline: Optional[Flux2KleinPipeline] = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -72,17 +72,17 @@ class ModelLoader(ForgeModel):
         dtype_override: Optional[torch.dtype] = None,
         **kwargs,
     ):
-        """Load the FLUX.2 pipeline with Delight LoRA weights applied.
+        """Load the FLUX.2 Klein pipeline with Delight LoRA weights applied.
 
         Returns:
-            Pipeline with LoRA weights loaded.
+            The FLUX.2 Klein transformer model with LoRA weights merged.
         """
-        dtype = dtype_override if dtype_override is not None else torch.float32
+        dtype = dtype_override if dtype_override is not None else torch.bfloat16
 
-        self.pipeline = AutoPipelineForText2Image.from_pretrained(
+        self.pipeline = Flux2KleinPipeline.from_pretrained(
             self._variant_config.pretrained_model_name,
             torch_dtype=dtype,
-            **kwargs,
+            use_safetensors=True,
         )
 
         self.pipeline.load_lora_weights(
@@ -90,20 +90,75 @@ class ModelLoader(ForgeModel):
             weight_name=LORA_WEIGHT_NAME,
         )
 
-        return self.pipeline
+        return self.pipeline.transformer
 
-    def load_inputs(self, prompt: Optional[str] = None, **kwargs) -> Any:
-        """Prepare inputs for text-to-image generation.
+    def load_inputs(self, dtype_override=None, batch_size=1):
+        """Load sample inputs for the FLUX.2 Klein transformer.
 
         Returns:
-            dict with prompt key.
+            dict: Input tensors that can be fed to the transformer model.
         """
-        if prompt is None:
-            prompt = (
-                "Relight the image to remove all existing lighting conditions "
-                "and replace them with neutral, uniform illumination"
-            )
+        if self.pipeline is None:
+            self.load_model(dtype_override=dtype_override)
 
-        return {
-            "prompt": prompt,
+        dtype = dtype_override if dtype_override is not None else torch.bfloat16
+        config = self.pipeline.transformer.config
+
+        # Image dimensions
+        height = 128
+        width = 128
+        vae_scale_factor = 8
+        num_channels_latents = config.in_channels // 4
+
+        # Prepare latents: VAE compresses by vae_scale_factor, then pack 2x2 patches
+        height_latent = 2 * (height // (vae_scale_factor * 2))
+        width_latent = 2 * (width // (vae_scale_factor * 2))
+        h_packed = height_latent // 2
+        w_packed = width_latent // 2
+
+        # Create latent tensor (B, C, H, W) then pack to (B, H*W, C)
+        latents = torch.randn(
+            batch_size, num_channels_latents * 4, h_packed, w_packed, dtype=dtype
+        )
+
+        # Prepare latent image IDs (B, H*W, 4)
+        t = torch.arange(1)
+        h = torch.arange(h_packed)
+        w = torch.arange(w_packed)
+        l = torch.arange(1)
+        latent_ids = torch.cartesian_prod(t, h, w, l)
+        latent_ids = latent_ids.unsqueeze(0).expand(batch_size, -1, -1).to(dtype=dtype)
+
+        # Pack latents: (B, C, H, W) -> (B, H*W, C)
+        latents = latents.reshape(batch_size, num_channels_latents * 4, -1).permute(
+            0, 2, 1
+        )
+
+        # Prompt embeddings: use random tensors matching joint_attention_dim
+        max_sequence_length = 256
+        joint_attention_dim = config.joint_attention_dim
+        prompt_embeds = torch.randn(
+            batch_size, max_sequence_length, joint_attention_dim, dtype=dtype
+        )
+
+        # Text IDs (B, seq_len, 4)
+        t = torch.arange(1)
+        h = torch.arange(1)
+        w = torch.arange(1)
+        l = torch.arange(max_sequence_length)
+        text_ids = torch.cartesian_prod(t, h, w, l)
+        text_ids = text_ids.unsqueeze(0).expand(batch_size, -1, -1).to(dtype=dtype)
+
+        # Timestep
+        timestep = torch.tensor([1.0 / 1000], dtype=dtype).expand(batch_size)
+
+        inputs = {
+            "hidden_states": latents,
+            "timestep": timestep,
+            "encoder_hidden_states": prompt_embeds,
+            "txt_ids": text_ids,
+            "img_ids": latent_ids,
+            "joint_attention_kwargs": {},
         }
+
+        return inputs
