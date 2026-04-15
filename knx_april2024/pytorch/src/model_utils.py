@@ -14,6 +14,9 @@ from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
 from huggingface_hub import hf_hub_download
+from transformers import CLIPTokenizer
+
+SDXL_BASE = "stabilityai/stable-diffusion-xl-base-1.0"
 
 
 def load_pipe(repo_id, checkpoint_file):
@@ -30,6 +33,14 @@ def load_pipe(repo_id, checkpoint_file):
     pipe = StableDiffusionXLPipeline.from_single_file(
         checkpoint_path, torch_dtype=torch.float32
     )
+
+    # from_single_file may not load tokenizers; load from base SDXL model
+    if pipe.tokenizer is None:
+        pipe.tokenizer = CLIPTokenizer.from_pretrained(SDXL_BASE, subfolder="tokenizer")
+    if pipe.tokenizer_2 is None:
+        pipe.tokenizer_2 = CLIPTokenizer.from_pretrained(
+            SDXL_BASE, subfolder="tokenizer_2"
+        )
     modules = [pipe.text_encoder, pipe.unet, pipe.text_encoder_2, pipe.vae]
 
     pipe.to("cpu", dtype=torch.float32)
