@@ -38,7 +38,7 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.GPT_OSS_SWALLOW_120B_RL_V0_1_Q4_K_M_GGUF
 
-    GGUF_FILE = "GPT-OSS-Swallow-120B-RL-v0.1-Q4_K_M-00001-of-00008.gguf"
+    GGUF_FILE = "Q4_K_M/GPT-OSS-Swallow-120B-RL-v0.1-Q4_K_M-00001-of-00008.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
