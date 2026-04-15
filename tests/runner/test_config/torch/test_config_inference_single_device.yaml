@@ -1456,8 +1456,7 @@ test_config:
     status: EXPECTED_PASSING
 
   gliner/pytorch-Multi_v2.1-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
+    status: NOT_SUPPORTED_SKIP #https://github.com/tenstorrent/tt-xla/issues/4267
 
   gemma/pytorch-1.1_7B_IT-single_device-inference:
     supported_archs: ["p150"]
