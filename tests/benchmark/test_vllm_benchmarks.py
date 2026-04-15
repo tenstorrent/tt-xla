@@ -38,6 +38,7 @@ SINGLE_DEVICE_CONFIGS = [
                 "cpu_sampling": False,
                 "experimental_weight_dtype": "bfp_bf8",
                 "optimization_level": 1,
+                "enable_trace": True,
             },
         ),
         id="llama-3.1-8b-instruct",
@@ -53,6 +54,7 @@ SINGLE_DEVICE_CONFIGS = [
                 "cpu_sampling": False,
                 "experimental_weight_dtype": "bfp_bf8",
                 "optimization_level": 1,
+                "enable_trace": True,
             },
         ),
         id="llama-3.1-8b-instruct-batch32",
@@ -68,6 +70,7 @@ SINGLE_DEVICE_CONFIGS = [
                 "cpu_sampling": False,
                 "experimental_weight_dtype": "bfp_bf8",
                 "optimization_level": 1,
+                "enable_trace": True,
             },
         ),
         id="llama-3.1-8b-instruct-batch2",
@@ -83,6 +86,7 @@ SINGLE_DEVICE_CONFIGS = [
                 "cpu_sampling": False,
                 "experimental_weight_dtype": "bfp_bf8",
                 "optimization_level": 1,
+                "enable_trace": True,
             },
         ),
         id="llama-3.1-8b-instruct-batch4",
@@ -98,6 +102,7 @@ SINGLE_DEVICE_CONFIGS = [
                 "cpu_sampling": False,
                 "experimental_weight_dtype": "bfp_bf8",
                 "optimization_level": 1,
+                "enable_trace": True,
             },
         ),
         id="llama-3.1-8b-instruct-batch8",
@@ -113,6 +118,7 @@ SINGLE_DEVICE_CONFIGS = [
                 "cpu_sampling": False,
                 "experimental_weight_dtype": "bfp_bf8",
                 "optimization_level": 1,
+                "enable_trace": True,
             },
         ),
         id="llama-3.1-8b-instruct-batch16",
@@ -147,7 +153,7 @@ def test_vllm_benchmark(config, output_file, request):
 # Sampling comparison: greedy vs non-greedy, device vs CPU, batch=1 and batch=32
 # Non-greedy uses temperature=0.6 + repetition_penalty=1.1 (matching demo defaults)
 _8B_BASE = dict(model="meta-llama/Llama-3.1-8B-Instruct", max_model_len=128, gpu_memory_utilization=0.05)
-_8B_OPT = dict(enable_const_eval=True, experimental_weight_dtype="bfp_bf8", optimization_level=1)
+_8B_OPT = dict(enable_const_eval=True, experimental_weight_dtype="bfp_bf8", optimization_level=1, enable_trace=True)
 
 SAMPLING_COMPARISON_CONFIGS = [
     # Batch=1
