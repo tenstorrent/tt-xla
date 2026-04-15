@@ -1830,10 +1830,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             get_layers_from_vllm_config(self.vllm_config, MLAAttention).keys()
         )
         if mla_layer_names:
-            # Simulate num_reqs decode requests (1 token each) for shape capture
+            # Simulate num_reqs prefill requests (num_tokens each) for shape capture
             dummy_pt = np.zeros((num_reqs, num_blocks), dtype=np.int32)
-            dummy_sl = np.ones(num_reqs, dtype=np.int32)
-            dummy_scheduled = np.ones(num_reqs, dtype=np.int32)
+            dummy_sl = np.full(num_reqs, num_tokens, dtype=np.int32)
+            dummy_scheduled = np.full(num_reqs, num_tokens, dtype=np.int32)
             dummy_mla = self._build_mla_metadata(
                 num_reqs, dummy_scheduled, dummy_pt, dummy_sl
             )

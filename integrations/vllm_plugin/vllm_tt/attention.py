@@ -93,6 +93,42 @@ try:
 except ImportError:
     pass  # DeepseekScalingRotaryEmbedding not available; nothing to patch
 
+# ---------------------------------------------------------------------------
+# Monkey-patch MultiHeadLatentAttentionWrapper.forward to flatten batched
+# [B, T, H] hidden_states and [B, T] positions to flat-token format before
+# the MLA computation, then reshape the output back.
+#
+# The TT model runner provides batched 2D inputs which flow through
+# embeddings producing 3D hidden_states. vLLM's MLA code (output_shape,
+# forward_impl slicing, forward_mha expand) expects flat-token format.
+# Flattening at this boundary preserves embedding sharding (which needs
+# batched format) while giving MLA the flat format it expects.
+# ---------------------------------------------------------------------------
+try:
+    from vllm.model_executor.layers.mla import MultiHeadLatentAttentionWrapper
+
+    _orig_mla_wrapper_forward = MultiHeadLatentAttentionWrapper.forward
+
+    def _tt_mla_wrapper_forward(self, positions, hidden_states, llama_4_scaling=None):
+        orig_batch_shape = None
+        if hidden_states.dim() == 3:
+            orig_batch_shape = hidden_states.shape[:2]
+            hidden_states = hidden_states.reshape(-1, hidden_states.shape[-1])
+        if positions.dim() == 2:
+            positions = positions.reshape(-1)
+
+        result = _orig_mla_wrapper_forward(
+            self, positions, hidden_states, llama_4_scaling
+        )
+
+        if orig_batch_shape is not None:
+            result = result.view(*orig_batch_shape, -1)
+        return result
+
+    MultiHeadLatentAttentionWrapper.forward = _tt_mla_wrapper_forward
+except ImportError:
+    pass
+
 
 def _tt_concat_and_cache_mla(
     kv_c: torch.Tensor,  # [T, kv_lora_rank]
@@ -934,7 +970,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         monkey-patch handles all writes via index_put so this method is kept
         as a utility for potential future use.
         """
-        if kv_cache.numel() == 0 or kv_c.shape[0] == 0:
+        if kv_cache.dim() < 4 or kv_c.shape[0] == 0:
             return
         assert attn_metadata.decode is not None
 
@@ -976,7 +1012,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         # so this write is idempotent (same data, same slots). When TT compiler
         # support for paged_fill_cache is preferred over index_put scatter, this
         # path takes effect and the monkey-patch can be simplified.
-        if kv_c_and_k_pe_cache.numel() > 0 and attn_metadata.num_prefills > 0:
+        if kv_c_and_k_pe_cache.dim() >= 4 and attn_metadata.num_prefills > 0:
             assert attn_metadata.prefill is not None
             kv_combined_pre = torch.cat(
                 [kv_c_normed, k_pe.squeeze(1)], dim=-1
@@ -1039,6 +1075,23 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         attn_metadata: TTMLAMetadata,
         layer: AttentionLayer,
     ):
+        # During profile/dummy run the KV cache is a 1-D placeholder.
+        if kv_c_and_k_pe_cache.dim() < 4:
+            if isinstance(q, tuple):
+                ql_nope, _ = q
+            else:
+                ql_nope = q[..., : self.kv_lora_rank]
+            B, N = ql_nope.shape[:2]
+            return (
+                torch.zeros(
+                    B,
+                    N,
+                    self.kv_lora_rank,
+                    dtype=ql_nope.dtype,
+                    device=ql_nope.device,
+                ),
+                None,
+            )
         """MQA-style decode.
 
         q is a tuple (ql_nope, q_pe) provided by MLAAttention.forward_impl:
