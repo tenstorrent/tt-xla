@@ -277,6 +277,28 @@ The standalone overhead test shows the sampling path adds only 1.34ms over greed
 
 This is a **torch.compile / XLA graph optimization issue**, not a sampling op performance issue.
 
+### Compiled sampler graph comparison (Apr 15)
+
+Extracted TTNN IR for the non-greedy vs greedy sampler compiled programs:
+
+**Greedy sampler (graph 10): 3 ops** — to_layout, argmax, typecast
+**Non-greedy sampler (graph 9): 58 ops** — breakdown:
+- 17 typecast, 9 pad, 5 slice, 5 full, 4 topk, 3 to_layout, 3 add, 2 concat
+- 1 sampling, 1 where, 1 gt, 1 divide, 1 reshape
+
+The 55 extra ops each have dispatch overhead (~0.3-1ms per op in the vLLM execution context). Total: ~22ms extra per decode step, matching the observed gap.
+
+**Fix: reduce op count in the sampler graph.** Main targets:
+- 17 typecasts — many are from bf16↔f32↔int32 conversions for padding/topk
+- 9 pads — batch-1→32 padding for ttnn.sampling kernel
+- 5 slices + 5 fulls — padding infrastructure
+
+Possible approaches:
+1. Move padding to runtime (fewer compiled ops)
+2. Pre-allocate padded tensors to avoid per-step pad ops
+3. Reduce typecasts by ensuring input types match kernel requirements from the start
+4. Use a single fused composite op that does topk+pad+sampling in one dispatch
+
 ### Next debug steps
 
 The gap is NOT from sampling ops (proven by TT_GREEDY_WITH_SAMPLING_OPS experiment). Focus areas:
