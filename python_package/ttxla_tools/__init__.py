@@ -5,6 +5,7 @@
 from .logging import logger
 from .serialization import (
     enable_compile_only,
+    is_compile_only,
     parse_executable,
     save_system_descriptor_to_disk,
 )
