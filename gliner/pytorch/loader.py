@@ -77,7 +77,26 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, **kwargs):
         """Load and return the GLiNER model callable (batch_predict_entities)."""
-        from gliner import GLiNER
+        import sys
+
+        # The local llm2vec/ model directory is picked up as a Python namespace
+        # package, causing gliner's is_module_available("llm2vec") check to
+        # incorrectly succeed. Temporarily remove it from sys.path and clear
+        # any cached namespace package entries so gliner sees llm2vec as absent.
+        project_root = str(__import__("pathlib").Path(__file__).resolve().parents[2])
+        original_path = sys.path.copy()
+        sys.path = [p for p in sys.path if p != project_root]
+        cached_llm2vec = {
+            k: sys.modules.pop(k)
+            for k in list(sys.modules)
+            if k == "llm2vec" or k.startswith("llm2vec.")
+        }
+        try:
+            from gliner import GLiNER
+        finally:
+            sys.path = original_path
+            # Restore any llm2vec entries that were cached before
+            sys.modules.update(cached_llm2vec)
 
         model_name = self._variant_config.pretrained_model_name
         model = GLiNER.from_pretrained(model_name, **kwargs)
