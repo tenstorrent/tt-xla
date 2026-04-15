@@ -38,11 +38,6 @@ on:
         required: false
         default: false
         type: boolean
-      torchxla_build_run_id:
-        description: 'Manual torch-xla build run ID'
-        required: false
-        type: string
-        default: ''
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -178,16 +173,6 @@ jobs:
         echo "=== Installing wheel ==="
         source venv/activate
         uv pip install wheels/*.whl
-
-    - name: Install custom torch_xla from workflow run
-      if: ${{ inputs.torchxla_build_run_id != '' }}
-      shell: bash
-      run: |
-        echo "Using custom torchxla install from run ${{ inputs.torchxla_build_run_id }}"
-        gh run download ${{ inputs.torchxla_build_run_id }} --repo ${{ github.repository }}
-        source venv/activate
-        uv pip install --force-reinstall xla-torch-wheel-release/*.whl
-        uv pip show torch_xla
 
     - name: Download and setup alchemist library
       if: ${{ matrix.build.require == 'alchemist' }}
@@ -425,7 +410,7 @@ jobs:
 
       - name: Show consolidated test report
         continue-on-error: true
-        uses: mikepenz/action-junit-report@v6
+        uses: mikepenz/action-junit-report@v5
         if: success() || failure()
         with:
           report_paths: test_reports/report_*.xml
