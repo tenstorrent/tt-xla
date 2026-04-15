@@ -19,7 +19,7 @@ TEST_NAME="$1"
 STATUS="$2"
 SAFE_NAME=$(echo "${TEST_NAME}" | tr '/:[]\.' '_')
 DATE=$(date +%Y%m%d_%H%M%S)
-echo "$1" > $LOGS_DIR/${SAFE_NAME}_${DATE}.log
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 (
   flock -x 200
@@ -31,5 +31,6 @@ echo "$1" > $LOGS_DIR/${SAFE_NAME}_${DATE}.log
   - test_name: "${TEST_NAME}"
     status: "${STATUS}"
     date: "${DATE}"
+    branch: "${BRANCH}"
 EOF
 ) 200>"${LOCK_FILE}"
