@@ -11,18 +11,14 @@ generate_and_benchmark() (the timed decode loop).
 from __future__ import annotations
 
 import os
-import sys as _sys
 import time
-from pathlib import Path as _Path
 from typing import Optional
 
 import torch
 import tracy
+from infra import MLACache
 from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
-
-_sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "torch" / "utils"))
-from mla_cache import MLACache
 
 
 class LLMSamplingWrapper(torch.nn.Module):

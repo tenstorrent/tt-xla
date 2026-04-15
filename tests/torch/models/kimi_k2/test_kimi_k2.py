@@ -2,16 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import sys as _sys
-from pathlib import Path as _Path
-
 import numpy as np
 import pytest
 import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra import Framework, run_graph_test
+from infra import Framework, MLACache, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers import DynamicCache
@@ -30,9 +27,6 @@ from third_party.tt_forge_models.kimi_k2.pytorch.modified_modeling_deepseek impo
 )
 
 from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Attention
-
-_sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "utils"))
-from mla_cache import MLACache
 
 
 @pytest.mark.xfail(
