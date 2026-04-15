@@ -18,7 +18,6 @@ from transformers import DynamicCache
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
-
 from third_party.tt_forge_models.kimi_k2.pytorch.configuration_deepseek import (
     DeepseekV3Config,
 )
@@ -29,6 +28,7 @@ from third_party.tt_forge_models.kimi_k2.pytorch.modified_modeling_deepseek impo
     DeepseekV3ForCausalLM,
     DeepseekV3MoE,
 )
+
 from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Attention
 
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "utils"))
