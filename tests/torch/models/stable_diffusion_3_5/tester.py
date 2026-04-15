@@ -9,6 +9,7 @@ from infra import ComparisonConfig, Model, RunMode, TorchModelTester
 from third_party.tt_forge_models.stable_diffusion.pytorch import ModelLoader
 
 from .model_utils import StableDiffusion35Wrapper
+from loguru import logger
 
 
 class StableDiffusion35Tester(TorchModelTester):
@@ -26,10 +27,12 @@ class StableDiffusion35Tester(TorchModelTester):
     # @override
     def _get_model(self) -> Model:
         pipe = self._model_loader.load_model()
+        logger.info("pipe={}",pipe)
         model = pipe.transformer
         model = StableDiffusion35Wrapper(
             model, joint_attention_kwargs=None, return_dict=False
         )
+        logger.info("model={}",model)
         return model
 
     # @override

@@ -15,12 +15,13 @@ class StableDiffusion35Wrapper(torch.nn.Module):
     def forward(
         self, latent_model_input, timestep, prompt_embeds, pooled_prompt_embeds
     ):
-        noise_pred = self.model(
+        op = self.model(
             hidden_states=latent_model_input,
             timestep=timestep,
             encoder_hidden_states=prompt_embeds,
             pooled_projections=pooled_prompt_embeds,
             joint_attention_kwargs=self.joint_attention_kwargs,
             return_dict=self.return_dict,
-        )[0]
-        return noise_pred
+        # )[0]
+        )
+        return op
