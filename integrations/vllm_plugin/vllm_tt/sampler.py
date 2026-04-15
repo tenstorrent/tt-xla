@@ -242,6 +242,15 @@ class Sampler(nn.Module):
             max_val, max_idx = logits.max(dim=-1)
             return max_idx.view(-1)
 
+        # Experiment A4: single multi-core topk on first 32K chunk only
+        _NONGREEDY_ONE_CHUNK_TOPK = (
+            os.environ.get("TT_NONGREEDY_ONE_CHUNK_TOPK", "") == "1"
+        )
+        if _NONGREEDY_ONE_CHUNK_TOPK:
+            chunk = logits[:, :32768]
+            vals, inds = torch.topk(chunk, k=32, dim=-1)
+            return (vals.sum(dim=-1) * 0).to(torch.int64).view(-1)
+
         if _GREEDY_WITH_SAMPLING_OPS:
             # Experiment: run sampling ops but return greedy result.
             # This tests whether adding sampling ops to the compiled graph
