@@ -412,7 +412,82 @@ TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py sampling
 bash perf_debug/run_sampling_overhead.sh
 ```
 
+## Current State Summary (Apr 15)
+
+### What was built
+- Full tt-mlir pipeline for `ttnn.sampling` op (21 files, branch `kmabee/apr12_vllm_demo_sampling_op_integration`)
+- tt-xla custom op registration, sampler integration behind `TT_USE_TTNN_SAMPLING=1`
+- Correctness fixed (temperature bug: kernel expects 1/temperature, not raw temperature)
+- Output verified coherent on OPT-125M and Llama-3.1-8B
+
+### Performance results (Llama-3.1-8B batch=1)
+
+| Config | tok/s | Env vars |
+|---|---|---|
+| Greedy baseline | 19.0 | (none) |
+| Non-greedy argmax only | 18.6 | TT_NONGREEDY_ARGMAX_ONLY=1 |
+| Non-greedy max only | 19.1 | TT_NONGREEDY_MAX_ONLY=1 |
+| 1x topk (32K chunk) | 18.5 | TT_NONGREEDY_ONE_CHUNK_TOPK=1 |
+| **4x topk (4×32K chunks)** | **13.2** | TT_NONGREEDY_TOPK_ONLY=1 |
+| 2x topk (2×64K, sort fallback) | 11.1 | TT_NONGREEDY_2CHUNK_TOPK=1 |
+| Full ttnn.sampling (no penalties) | 13.4/13.8 | TT_USE_TTNN_SAMPLING=1 |
+| Full + penalties | 12.7 | TT_USE_TTNN_SAMPLING=1 (temp=0.6, rep=1.1) |
+| Full + penalties + trace | 13.8 | TT_USE_TTNN_SAMPLING=1, enable_trace=True |
+
+### Key findings
+
+1. **ttnn.sampling op itself is essentially free** — standalone 0.18ms, in-model steady-state 0.27ms per tracy.
+2. **4x chunked topk ops are fast in steady-state** — 0.077ms/call per tracy (multi-core confirmed). JIT compilation on first call is ~55ms but cached thereafter.
+3. **Single topk = 18.5, 4x topk = 13.2** — adding more topk chunks causes the slowdown.
+4. **Simple reductions (max, argmax) are fast** — 19.1 tok/s, no penalty.
+5. **Input binding theory DISPROVED** — IR comparison shows reducing inputs 9→6 has no effect. Standalone test was misleading (small graph amplifies input overhead).
+6. **Earlier tracy showing 34ms/call SamplingOp was JIT contamination** — steady-state is 0.27ms. The --max-output-tokens flag was needed to capture warmup + steady-state properly.
+7. **The gap (19→13) is NOT from sampler op dispatch overhead** — steady-state ops are sub-ms. The overhead source is still under investigation.
+
+### Open questions
+- Why does 1x topk = 18.5 but 4x topk = 13.2, when each topk is 0.077ms in steady-state? The 4x loop adds ~30 ops but steady-state timing shows each is fast. Something about the 4x loop graph structure causes ~25ms total overhead that doesn't show up in per-op tracy.
+- Possible: host-side overhead between model forward and sampler program dispatches scales with sampler program size. Tracy only measures device-side op time, not host dispatch latency.
+- Possible: the model forward compiled program is optimized differently when the sampler graph is larger (compiler sees larger total program).
+
+### Commands for benchmarking
+
+```bash
+# Greedy baseline
+pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-greedy-device]"
+
+# Non-greedy with ttnn.sampling
+TT_USE_TTNN_SAMPLING=1 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-nongreedy-device]"
+
+# Non-greedy without penalties
+TT_USE_TTNN_SAMPLING=1 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-nongreedy-nopenalty-device]"
+
+# Isolation experiments (use with nongreedy-nopenalty-device config):
+TT_NONGREEDY_ARGMAX_ONLY=1 TT_USE_TTNN_SAMPLING=1 pytest -svv ...  # argmax only
+TT_NONGREEDY_MAX_ONLY=1 TT_USE_TTNN_SAMPLING=1 pytest -svv ...     # max reduction
+TT_NONGREEDY_ONE_CHUNK_TOPK=1 TT_USE_TTNN_SAMPLING=1 pytest ...    # 1x topk
+TT_NONGREEDY_TOPK_ONLY=1 TT_USE_TTNN_SAMPLING=1 pytest ...         # 4x topk only
+TT_NONGREEDY_2CHUNK_TOPK=1 TT_USE_TTNN_SAMPLING=1 pytest ...       # 2x topk
+TT_HARDCODE_SAMPLING_PARAMS=1 TT_USE_TTNN_SAMPLING=1 pytest ...    # hardcoded params
+
+# Standalone overhead tests
+TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py all
+bash perf_debug/run_sampling_overhead.sh
+
+# Tracy profiling (OPT-125M, fast)
+VLLM_ENABLE_V1_MULTIPROCESSING=0 TT_USE_TTNN_SAMPLING=1 python -m tracy -p -r --sync-host-device -o tracy_output -m pytest -svv --max-output-tokens 3 "tests/benchmark/test_vllm_benchmarks.py::test_opt_sampling[opt125m-b1-nongreedy-device]"
+
+# IR dump and extraction
+TTXLA_LOGGER_LEVEL=DEBUG TT_USE_TTNN_SAMPLING=1 pytest -svv --max-output-tokens 3 "..." &> /tmp/ir_dump.log
+python3 /localdev/kmabee/scripts/extract_mlir_graphs.py --subdir /tmp/ir_output --type ttnn /tmp/ir_dump.log
+```
+
+### Next steps to close the gap
+1. **Run tracy on BOTH greedy and non-greedy** and compare host-side dispatch latency (not just device op time). The host-side program dispatch overhead may be the hidden cost.
+2. **Move topk into the model forward** compiled scope — if topk ops are inside the model forward program rather than a separate sampler program, the dispatch overhead may be amortized.
+3. **Fuse the 4x topk loop into a single composite op** in tt-mlir — reduces program op count from ~70 to ~10.
+4. **Request tt-metal to extend ttnn.topk to ≥ 65536** — enables 2x chunks instead of 4x for 128K vocab.
+
 ## Branch
 
 `kmabee/vllm_perf_apr12` based on `866d0abdd` (tt-xla Apr 12, 2026)
-tt-mlir branch: `kmabee/apr12_vllm_demo_sampling_op_integration` at commit `ffc4810ce`
+tt-mlir branch: `kmabee/apr12_vllm_demo_sampling_op_integration` at commit `7c9c730bb`
