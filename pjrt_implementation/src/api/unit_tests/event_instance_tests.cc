@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+// SPDX-FileCopyrightText: © 2025 Tenstorrent AI ULC
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -167,7 +167,6 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Await_notReady) {
 }
 
 // Tests the PJRT API to register a callback for an already ready event.
-// Callbacks are dispatched to the worker thread, so we wait for execution.
 TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_ready) {
   auto event = EventInstance::createInstance();
   EventInstance::markAsReadyAndCallback(event.get(), tt_pjrt_status::kSuccess);
@@ -191,7 +190,7 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_ready) {
 }
 
 // Tests the PJRT API to register a callback for an event that
-// is not immediately ready. Callbacks are dispatched to the worker thread.
+// is not immediately ready.
 TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
   auto event = EventInstance::createInstance();
 
@@ -209,10 +208,59 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
 
   PJRT_Error *error = internal::onEventOnReady(&args);
   ASSERT_EQ(error, nullptr);
-  EXPECT_FALSE(callback_executed_flag.load(std::memory_order_acquire));
+  EXPECT_FALSE(callback_executed_flag);
 
   EventInstance::markAsReadyAndCallback(event.get(), tt_pjrt_status::kSuccess);
   EXPECT_TRUE(waitForFlag(callback_executed_flag));
+}
+
+// Tests the happy path of the callback-destroys-event pattern: the on-ready
+// callback calls onEventDestroy, but there are no awaiters, so the event is
+// cleanly destroyed. Complements
+// API_PJRT_Event_Test_Await_Callbacks_Combination which exercises the same
+// pattern with awaiters present.
+//
+// This also verifies the fix for the original deadlock(or at least one of the
+// hypotheses for it) - callbacks previously ran synchronously while
+// m_ready_mutex was held, so onEventDestroy (which also acquires m_ready_mutex)
+// could deadlock. With the fix, callbacks are dispatched to a dedicated
+// CallbackWorker thread after the lock is released.
+TEST(EventInstanceUnitTests,
+     API_PJRT_Event_OnReady_Callback_Destroys_Event_NoAwaiters) {
+  struct CallbackArgs {
+    EventInstance *event;
+    std::atomic<bool> *callback_ran;
+  };
+
+  std::atomic<bool> callback_ran{false};
+  auto event = EventInstance::createInstance().release();
+  CallbackArgs callback_args{event, &callback_ran};
+
+  auto callback_calls_destroy = [](PJRT_Error *error, void *user_arg) {
+    auto *args = reinterpret_cast<CallbackArgs *>(user_arg);
+    // Capture the event pointer before signaling, so the test can safely
+    // return (taking CallbackArgs off the stack) while we still call destroy.
+    EventInstance *event_ptr = args->event;
+    args->callback_ran->store(true, std::memory_order_release);
+    PJRT_Event_Destroy_Args destroy_args = {
+        .struct_size = PJRT_Event_Destroy_Args_STRUCT_SIZE,
+        .event = reinterpret_cast<PJRT_Event *>(event_ptr),
+    };
+    internal::onEventDestroy(&destroy_args);
+  };
+
+  PJRT_Event_OnReady_Args args;
+  args.struct_size = PJRT_Event_OnReady_Args_STRUCT_SIZE;
+  args.event = *event;
+  args.callback = callback_calls_destroy;
+  args.user_arg = &callback_args;
+  PJRT_Error *error = internal::onEventOnReady(&args);
+  ASSERT_EQ(error, nullptr);
+
+  EventInstance::markAsReadyAndCallback(event, tt_pjrt_status::kSuccess);
+
+  // Wait for the worker thread to execute the callback.
+  EXPECT_TRUE(waitForFlag(callback_ran));
 }
 
 // Tests scenario where there are multiple awaiters waiting on an event to be
@@ -221,13 +269,34 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_OnReady_notReady) {
 // of an event destructor, which should terminate the execution since there are
 // still awaiters waiting on the event.
 //
-// NOTE: ASSERT_DEATH uses fork(), and that interferes with our callback worker.
-// To work around this, we directly simulate what the
-// callback would do (destroy the event) on the thread that marks the event
-// as ready.
+// NOTE: ASSERT_DEATH uses fork(), and that interferes with our callback worker
+// (fork() does not inherit threads, so the CallbackWorker thread does not exist
+// in the child and the callback never fires). To work around this, we also
+// destroy the event directly on the work thread, which is what causes the
+// death. The callback block below is kept to document the XLA pattern.
 TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {
   auto test = []() {
     auto event = EventInstance::createInstance().release();
+
+    // Create a callback that will be called once the event is ready
+    // and which executes event destroy API (which we've observed
+    // happens in XLA).
+    auto callback_calls_destroy = [](PJRT_Error *error, void *user_arg) {
+      PJRT_Event *event = reinterpret_cast<PJRT_Event *>(user_arg);
+      PJRT_Event_Destroy_Args destroy_args = {
+          .struct_size = PJRT_Event_Destroy_Args_STRUCT_SIZE,
+          .event = event,
+      };
+      internal::onEventDestroy(&destroy_args);
+    };
+
+    PJRT_Event_OnReady_Args args;
+    args.struct_size = PJRT_Event_OnReady_Args_STRUCT_SIZE;
+    args.event = *event;
+    args.callback = callback_calls_destroy;
+    args.user_arg = event;
+    PJRT_Error *error = internal::onEventOnReady(&args);
+    ASSERT_EQ(error, nullptr);
 
     // Create waiter threads which will await on event being marked as
     // ready.
@@ -245,12 +314,12 @@ TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {
     }
 
     // Spawn a "worker" thread which will wait and then mark the event
-    // as ready. Then immediately destroy the event (simulating what the
-    // XLA on-ready callback does — which we've observed happens in XLA).
+    // as ready. This will trigger callback execution in the same
+    // thread.
     std::thread work_thread = std::thread([&]() {
       std::this_thread::sleep_for(std::chrono::seconds(1));
-      LOG_F(INFO,
-            "Worker thread marking event as ready and executing callbacks...");
+      std::cerr << "Worker thread marking event as ready and executing "
+                   "callbacks...\n";
       EventInstance::markAsReadyAndCallback(event, tt_pjrt_status::kSuccess);
 
       PJRT_Event_Destroy_Args destroy_args = {
