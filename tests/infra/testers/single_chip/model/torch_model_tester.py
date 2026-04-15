@@ -4,6 +4,8 @@
 
 import collections
 import os
+import shutil
+import tempfile
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Set, Tuple
 
@@ -11,6 +13,7 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig
+from infra.evaluators.torch_comparison_evaluator import TorchComparisonEvaluator
 from infra.utilities import Framework, compile_torch_workload_for_tt_device
 from infra.workloads import TorchWorkload, Workload
 from tt_torch.sharding import sharding_constraint_tensor
@@ -309,6 +312,96 @@ class TorchModelTester(ModelTester):
         # Only the first result is recorded in the report properties,
         # and only want to report on the backward result
         return backward_result, forward_result
+
+    def verify_emitpy(
+        self,
+        cpu_model,
+        cpu_args: Sequence[Any],
+        cpu_kwargs: Mapping[str, Any],
+        assert_exact: bool = True,
+    ) -> None:
+        """Verify EmitPy (codegen_py) execution matches flatbuffer execution.
+
+        Uses a deep-cloned CPU model that has never been touched by torch._dynamo
+        or XLA. Both the flatbuffer reference and EmitPy runs use legacy compile
+        to completely avoid the experimental compile path and its
+        _run_cached_graph LRU issues.
+
+        When assert_exact is True (default), asserts that results match exactly.
+        On failure the assertion message includes atol, pcc, and allclose diagnostics.
+
+        Args:
+            cpu_model: Deep-cloned CPU model (never seen by dynamo/XLA).
+            cpu_args: Deep-cloned positional args for the model.
+            cpu_kwargs: Deep-cloned keyword args for the model.
+            assert_exact: If True, raise AssertionError when results differ.
+        """
+        original_options = (
+            self._compiler_config.to_torch_compile_options()
+            if self._compiler_config
+            else {}
+        )
+
+        emitpy_export_path = tempfile.mkdtemp(prefix="emitpy_test_")
+        try:
+            # Nuke all dynamo and XLA caches for a completely clean slate.
+            torch._dynamo.reset()
+            xr.clear_computation_cache()
+
+            # Build a completely fresh workload from the deep-cloned CPU model.
+            # This model object has never been seen by torch._dynamo or XLA.
+            fresh_workload = TorchWorkload(
+                model=cpu_model,
+                args=cpu_args,
+                kwargs=cpu_kwargs,
+            )
+
+            # Compile the fresh model with legacy compile to avoid _run_cached_graph.
+            self._compile_for_tt_device(
+                fresh_workload, options={"tt_legacy_compile": True}
+            )
+
+            # --- Flatbuffer reference run (legacy compile, original PJRT options) ---
+            fb_result = self._run_on_tt_device(fresh_workload)
+            fb_result = self._unpack_forward_output(fb_result)
+
+            # --- EmitPy run (same legacy-compiled workload, emitpy PJRT options) ---
+            # Clear XLA computation cache so the next execution recompiles through
+            # PJRT with the emitpy options instead of reusing the cached flatbuffer
+            # compilation.
+            xr.clear_computation_cache()
+            emitpy_options = {
+                **original_options,
+                "backend": "codegen_py",
+                "export_path": emitpy_export_path,
+                "export_tensors": "true",
+                "dry_run": "false",
+            }
+            torch_xla.set_custom_compile_options(emitpy_options)
+
+            emitpy_result = self._run_on_tt_device(fresh_workload)
+            emitpy_result = self._unpack_forward_output(emitpy_result)
+
+            # Compare EmitPy vs flatbuffer using the standard evaluator.
+            emitpy_config = ComparisonConfig(assert_on_failure=False)
+            emitpy_config.enable_all()
+            evaluator = TorchComparisonEvaluator(emitpy_config)
+            result = evaluator.evaluate(emitpy_result, fb_result)
+
+            if not result.equal and assert_exact:
+                raise AssertionError(
+                    f"EmitPy result differs from flatbuffer. "
+                    f"atol={result.atol}, pcc={result.pcc}, "
+                    f"allclose={result.allclose}"
+                )
+        finally:
+            # Restore original compile options and clear caches to avoid
+            # state leaking into subsequent tests.
+            torch_xla.set_custom_compile_options(original_options)
+            torch._dynamo.reset()
+            xr.clear_computation_cache()
+
+            shutil.rmtree(emitpy_export_path, ignore_errors=True)
 
     # @override
     def _apply_model_dtype(self) -> None:
