@@ -5,6 +5,7 @@
 GPT-BERT model loader implementation for masked language modeling.
 """
 
+import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM, AutoConfig
 from third_party.tt_forge_models.config import (
     ModelInfo,
@@ -85,7 +86,23 @@ class ModelLoader(ForgeModel):
             self.model_name, trust_remote_code=True
         )
 
-        model_kwargs = {}
+        # Pre-load config to patch torch.dtype JSON serialization bug in the
+        # custom GPT-BERT config (its to_dict doesn't convert torch.dtype to
+        # string like the standard PretrainedConfig does).
+        config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
+        original_to_dict = config.__class__.to_dict
+
+        def _patched_to_dict(self_inner):
+            output = original_to_dict(self_inner)
+            if "torch_dtype" in output and isinstance(
+                output["torch_dtype"], torch.dtype
+            ):
+                output["torch_dtype"] = str(output["torch_dtype"])
+            return output
+
+        config.__class__.to_dict = _patched_to_dict
+
+        model_kwargs = {"config": config}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
