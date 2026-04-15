@@ -18,9 +18,6 @@ from ....config import (
     StrEnum,
 )
 
-# GGUF repos do not ship processor/config files; use the base model
-BASE_MODEL = "PAPO-Galaxy/PAPO-G-H-Qwen2.5-VL-7B"
-
 
 class ModelVariant(StrEnum):
     """Available PAPO-G Qwen2.5 VL model variants for image to text."""
@@ -33,24 +30,16 @@ class ModelLoader(ForgeModel):
 
     _VARIANTS = {
         ModelVariant.PAPO_G_QWEN2_5_VL_7B: LLMModelConfig(
-            pretrained_model_name="mradermacher/PAPO-G-Qwen2.5-VL-7B-i1-GGUF",
+            pretrained_model_name="PAPO-Galaxy/PAPO-G-H-Qwen2.5-VL-7B",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.PAPO_G_QWEN2_5_VL_7B
 
-    _GGUF_FILES = {
-        ModelVariant.PAPO_G_QWEN2_5_VL_7B: "PAPO-G-Qwen2.5-VL-7B.i1-Q4_K_M.gguf",
-    }
-
     sample_image = (
         "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg"
     )
-
-    @property
-    def _gguf_file(self):
-        return self._GGUF_FILES[self._variant]
 
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
@@ -104,14 +93,13 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self._gguf_file
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(BASE_MODEL)
+            config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
-        self.processor = AutoProcessor.from_pretrained(BASE_MODEL)
+        self.processor = AutoProcessor.from_pretrained(pretrained_model_name)
 
         model = AutoModelForImageTextToText.from_pretrained(
             pretrained_model_name, **model_kwargs
@@ -153,5 +141,7 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def load_config(self):
-        self.config = AutoConfig.from_pretrained(BASE_MODEL)
+        self.config = AutoConfig.from_pretrained(
+            self._variant_config.pretrained_model_name
+        )
         return self.config
