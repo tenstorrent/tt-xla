@@ -29,6 +29,7 @@ from ...config import (
 
 
 REPO_ID = "Ktiseos-Nyx-dev/KNX-APRIl2024"
+CHECKPOINT_FILE = "IsekaiFix-April2024.safetensors"
 
 
 class ModelVariant(StrEnum):
@@ -71,10 +72,10 @@ class ModelLoader(ForgeModel):
             StableDiffusionXLPipeline: The KNX-APRIl2024 pipeline instance.
         """
         dtype = dtype_override if dtype_override is not None else torch.float32
-        self.pipeline = StableDiffusionXLPipeline.from_pretrained(
-            self._variant_config.pretrained_model_name,
+        checkpoint_url = f"https://huggingface.co/{self._variant_config.pretrained_model_name}/resolve/main/{CHECKPOINT_FILE}"
+        self.pipeline = StableDiffusionXLPipeline.from_single_file(
+            checkpoint_url,
             torch_dtype=dtype,
-            use_safetensors=True,
             **kwargs,
         )
         return self.pipeline
