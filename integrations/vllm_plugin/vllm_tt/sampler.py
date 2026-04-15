@@ -228,6 +228,14 @@ class Sampler(nn.Module):
             # Use topk output to prevent dead-code elimination, return argmax
             return (filtered_logits.sum(dim=-1) * 0).to(torch.int64).view(-1)
 
+        # Experiment A2: single topk (not 4x chunked) to test if chunking matters
+        _NONGREEDY_SINGLE_TOPK = (
+            os.environ.get("TT_NONGREEDY_SINGLE_TOPK", "") == "1"
+        )
+        if _NONGREEDY_SINGLE_TOPK:
+            vals, inds = torch.topk(logits, k=32, dim=-1)
+            return (vals.sum(dim=-1) * 0).to(torch.int64).view(-1)
+
         if _GREEDY_WITH_SAMPLING_OPS:
             # Experiment: run sampling ops but return greedy result.
             # This tests whether adding sampling ops to the compiled graph
