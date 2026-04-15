@@ -296,7 +296,10 @@ The 55 extra ops each have dispatch overhead (~0.3-1ms per op in the vLLM execut
 ### Proof checklist — does reducing ops improve tok/s?
 
 - [x] **Experiment A**: Non-greedy sampler with topk ONLY (no pad, no sampling) → **13.2 tok/s**. Topk alone causes the entire slowdown. Padding and ttnn.sampling add nothing. The 4x topk adds 0.99ms standalone but ~25ms in the vLLM sampler compiled program — a 25x amplification.
-- [ ] **Experiment B**: Non-greedy sampler with topk + sampling but NO padding (pass batch=1 directly, let runtime handle reshape/pad) — isolates padding overhead. Removes 9 pad + 5 full + 5 slice ops.
+- [ ] **Experiment A2** (running): Single topk (not 4x chunked) in non-greedy sampler — tests if chunking matters or any topk causes the slowdown.
+- [ ] **Experiment B**: Investigate the 25x amplification — why does topk cost 0.99ms standalone but ~25ms in the vLLM sampler compiled program? Possible causes: (a) per-op dispatch overhead scales with total program state, (b) the topk on logits from the model forward has DRAM contention, (c) the sampler compiled program has inherent dispatch latency.
+
+**Critical correction:** The earlier `TT_TOPK_BEFORE_ARGMAX` (19.1 tok/s) and `TT_GREEDY_WITH_SAMPLING_OPS` (18.7 tok/s) experiments were both **testing dead code**. When `all_greedy=True`, `model_runner.sample_from_logits` returns `torch.argmax` at line 2195 — the sampler is never called, so any topk/sampling ops in the sampler are never executed. These experiments only proved argmax is fast, not that topk is free.
 - [ ] **Experiment C**: Tracy comparison of sampler program dispatch — measure actual per-op timing in full model context vs standalone to see if dispatch overhead is truly higher.
 - [ ] **Experiment D**: Count actual XLA program dispatches — verify that 58 TTNN ops = 58 device dispatches (some may be fused by the compiler into fewer dispatches).
 
