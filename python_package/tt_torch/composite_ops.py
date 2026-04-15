@@ -246,12 +246,6 @@ def composite_scaled_dot_product_attention(
     if scale is not None:
         attr["scale"] = scale
 
-    if dropout_p > 0:
-        logger.warning(
-            "Dropout is not supported for composite scaled_dot_product_attention, setting dropout_p to 0"
-        )
-        dropout_p = 0
-
     builder = StableHLOCompositeBuilder(
         name="tenstorrent.scaled_dot_product_attention", attr=attr
     )
@@ -394,9 +388,19 @@ def replace_group_norm_module(
 def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
     """
     Check that SDPA inputs are bfloat16, the only dtype our composite supports.
-    If not, skip the composite and use the native implementation.
+    Also, check for dropout_p > 0, which is not supported in composite SDPA.
+    If either of these conditions are met, skip the composite and use the native implementation.
     """
-    # Check all positional args and tensor kwargs (e.g. attn_mask)
+    # Dropout is not supported in composite SDPA
+    dropout_p = node.kwargs.get("dropout_p", 0.0)
+    if dropout_p is not None and dropout_p > 0:
+        logger.debug(
+            "composite scaled_dot_product_attention does not support dropout = {dropout_p}, "
+            "skipping composite and using native implementation."
+        )
+        return False
+
+    # Check all inputs are bfloat16
     tensor_args = list(node.args) + [
         v for v in node.kwargs.values() if isinstance(v, torch.fx.Node)
     ]
