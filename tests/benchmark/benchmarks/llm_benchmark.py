@@ -62,12 +62,22 @@ def setup_model_and_tokenizer(
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
     model = model_loader.load_model(dtype_override=torch.bfloat16)
-    if hasattr(model.config, "layer_types"):
-        model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+    text_config = model.config.get_text_config(decoder=True)
+    # Override layer types to full attention to avoid sliding window masking
+    # complexity, but only when all layers share the same head dimension.
+    # Gemma4 has different head dims for sliding vs full attention layers,
+    # so the override would cause shape mismatches.
+    global_hd = getattr(text_config, "global_head_dim", None)
+    local_hd = getattr(text_config, "head_dim", None)
+    mixed_head_dims = (
+        global_hd is not None and local_hd is not None and global_hd != local_hd
+    )
+    if hasattr(text_config, "layer_types") and not mixed_head_dims:
+        text_config.layer_types = ["full_attention"] * len(text_config.layer_types)
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
-    if hasattr(model.config, "_experts_implementation"):
-        model.config._experts_implementation = "dense"
+    if hasattr(text_config, "_experts_implementation"):
+        text_config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -171,6 +181,8 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
+        if isinstance(getattr(layer, "cumulative_length", None), torch.Tensor):
+            layer.cumulative_length = layer.cumulative_length.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args
@@ -184,12 +196,12 @@ def check_transformers_version():
     import packaging.version
 
     current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("5.2.0")
+    max_version = packaging.version.parse("5.5.0")
 
     if current_version != max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version 5.2.0"
+            f"Please use version 5.5.0"
         )
 
 
@@ -565,10 +577,9 @@ def benchmark_llm_torch_xla(
     )
 
     # Extract number of layers from model config if available
+    _text_cfg = model.config.get_text_config(decoder=True)
     num_layers = (
-        model.config.num_hidden_layers
-        if hasattr(model.config, "num_hidden_layers")
-        else -1
+        _text_cfg.num_hidden_layers if hasattr(_text_cfg, "num_hidden_layers") else -1
     )
 
     print_benchmark_results(
