@@ -4,9 +4,9 @@
 """
 Boreal-Qwen-Image model loader implementation for text-to-image generation.
 
-Loads LoRA adapter weights from kudzueye/boreal-qwen-image on top of the
-Qwen/Qwen-Image base diffusion model. Four style-specific LoRA variants
-are available.
+Loads the Qwen/Qwen-Image diffusion transformer with LoRA adapter weights
+from kudzueye/boreal-qwen-image applied and merged. Returns the transformer
+component for testing.
 
 Available variants:
 - BLEND_LOW_RANK: Boreal blend style (low rank)
@@ -72,11 +72,9 @@ class ModelLoader(ForgeModel):
 
     DEFAULT_VARIANT = ModelVariant.GENERAL_DISCRETE_LOW_RANK
 
-    DEFAULT_PROMPT = "photo of a serene boreal forest landscape at golden hour"
-
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
-        self.pipeline: Optional[DiffusionPipeline] = None
+        self._transformer = None
 
     @classmethod
     def _get_model_info(cls, variant: Optional[ModelVariant] = None) -> ModelInfo:
@@ -91,41 +89,68 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_pipeline(
-        self,
-        dtype_override: Optional[torch.dtype] = None,
-    ) -> DiffusionPipeline:
-        """Load the base Qwen-Image pipeline and apply LoRA weights."""
-        dtype = dtype_override if dtype_override is not None else torch.float32
-
-        self.pipeline = DiffusionPipeline.from_pretrained(
-            BASE_MODEL_ID,
-            torch_dtype=dtype,
-        )
-
-        self.pipeline.load_lora_weights(
-            LORA_REPO_ID,
-            weight_name=_LORA_FILES[self._variant],
-        )
-
-        return self.pipeline
-
     def load_model(
         self,
         *,
         dtype_override: Optional[torch.dtype] = None,
         **kwargs,
     ):
-        """Load and return the Boreal-Qwen-Image pipeline with LoRA weights."""
-        if self.pipeline is None:
-            return self._load_pipeline(dtype_override=dtype_override)
+        """Load the Qwen-Image transformer with Boreal LoRA weights merged.
 
-        if dtype_override is not None:
-            self.pipeline = self.pipeline.to(dtype=dtype_override)
+        Returns:
+            QwenImageTransformer2DModel with LoRA weights fused.
+        """
+        dtype = dtype_override if dtype_override is not None else torch.bfloat16
 
-        return self.pipeline
+        if self._transformer is None:
+            pipe = DiffusionPipeline.from_pretrained(
+                BASE_MODEL_ID,
+                torch_dtype=dtype,
+                low_cpu_mem_usage=False,
+            )
+            pipe.load_lora_weights(
+                LORA_REPO_ID,
+                weight_name=_LORA_FILES[self._variant],
+            )
+            pipe.fuse_lora()
+            self._transformer = pipe.transformer
+            self._transformer.eval()
+            del pipe
+        elif dtype_override is not None:
+            self._transformer = self._transformer.to(dtype=dtype_override)
 
-    def load_inputs(self, prompt: Optional[str] = None) -> Dict[str, Any]:
-        """Prepare text-to-image generation inputs."""
-        prompt_value = prompt if prompt is not None else self.DEFAULT_PROMPT
-        return {"prompt": prompt_value}
+        return self._transformer
+
+    def load_inputs(self, **kwargs) -> Dict[str, Any]:
+        """Prepare sample inputs for the diffusion transformer.
+
+        Returns a dict matching QwenImageTransformer2DModel.forward() signature.
+        """
+        dtype = kwargs.get("dtype_override", torch.bfloat16)
+        batch_size = kwargs.get("batch_size", 1)
+
+        # From Qwen-Image transformer config: in_channels=64
+        img_dim = 64
+        # joint_attention_dim from config = 4096
+        text_dim = 4096
+        txt_seq_len = 32
+
+        # img_seq_len must equal frame * height * width for positional encoding
+        frame, height, width = 1, 8, 8
+        img_seq_len = frame * height * width
+
+        hidden_states = torch.randn(batch_size, img_seq_len, img_dim, dtype=dtype)
+        encoder_hidden_states = torch.randn(
+            batch_size, txt_seq_len, text_dim, dtype=dtype
+        )
+        encoder_hidden_states_mask = torch.ones(batch_size, txt_seq_len, dtype=dtype)
+        timestep = torch.tensor([500.0] * batch_size, dtype=dtype)
+        img_shapes = [(frame, height, width)] * batch_size
+
+        return {
+            "hidden_states": hidden_states,
+            "encoder_hidden_states": encoder_hidden_states,
+            "encoder_hidden_states_mask": encoder_hidden_states_mask,
+            "timestep": timestep,
+            "img_shapes": img_shapes,
+        }
