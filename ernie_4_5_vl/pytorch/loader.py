@@ -6,6 +6,7 @@ ERNIE 4.5 VL model loader implementation for multimodal image-text-to-text gener
 """
 
 import torch
+from PIL import Image
 from transformers import AutoModelForCausalLM, AutoProcessor
 from typing import Optional
 
@@ -77,6 +78,63 @@ class ModelLoader(ForgeModel):
         )
         return self.processor
 
+    @staticmethod
+    def _patch_ernie_config(pretrained_model_name):
+        """Patch upstream ERNIE 4.5 VL config bugs before model loading.
+
+        The upstream config has two bugs:
+        1. Ernie45MoeConfig.__init__ accesses kwargs["num_hidden_layers"] without
+           a default, crashing when transformers creates a default config for
+           diff-based repr logging.
+        2. Ernie4_5_VLMoEConfig.__init__ does not forward moe_use_hard_gate to
+           its parent Ernie45MoeConfig, so the parent always overwrites it with
+           False, causing MOELayer init to crash with a None gate.
+        """
+        from transformers import AutoConfig
+        from transformers.configuration_utils import PretrainedConfig
+
+        _orig_repr = PretrainedConfig.__repr__
+
+        def _safe_repr(self):
+            try:
+                return _orig_repr(self)
+            except Exception:
+                return f"{self.__class__.__name__}(...)"
+
+        PretrainedConfig.__repr__ = _safe_repr
+        try:
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name, trust_remote_code=True
+            )
+        finally:
+            PretrainedConfig.__repr__ = _orig_repr
+
+        # Patch the parent MoE config class to use safe defaults
+        parent_cls = type(config).__mro__[1]  # Ernie45MoeConfig
+        orig_init = parent_cls.__init__
+
+        def _patched_init(self, *args, **kw):
+            # Use .get() for num_hidden_layers to avoid KeyError on default init
+            if "num_hidden_layers" not in kw:
+                kw.setdefault("num_hidden_layers", 0)
+            orig_init(self, *args, **kw)
+
+        parent_cls.__init__ = _patched_init
+
+        # Patch VL config to ensure moe_use_hard_gate is True after init.
+        # The upstream config JSON has moe_use_hard_gate=null, and the parent
+        # class overwrites it with False, so we force it to True after init.
+        vl_cls = type(config)
+        orig_vl_init = vl_cls.__init__
+
+        def _patched_vl_init(self, *args, moe_use_hard_gate=True, **kw):
+            if moe_use_hard_gate is None:
+                moe_use_hard_gate = True
+            orig_vl_init(self, *args, moe_use_hard_gate=moe_use_hard_gate, **kw)
+            self.moe_use_hard_gate = moe_use_hard_gate
+
+        vl_cls.__init__ = _patched_vl_init
+
     def load_model(self, *, dtype_override=None, **kwargs):
         pretrained_model_name = self._variant_config.pretrained_model_name
 
@@ -92,6 +150,8 @@ class ModelLoader(ForgeModel):
             model_kwargs["torch_dtype"] = torch.float32
         model_kwargs |= kwargs
 
+        self._patch_ernie_config(pretrained_model_name)
+
         model = AutoModelForCausalLM.from_pretrained(
             pretrained_model_name, **model_kwargs
         )
@@ -103,6 +163,8 @@ class ModelLoader(ForgeModel):
         if self.processor is None:
             self._load_processor()
 
+        dummy_image = Image.new("RGB", (224, 224), color=(128, 128, 128))
+
         text = self.processor.apply_chat_template(
             self.messages,
             tokenize=False,
@@ -110,12 +172,10 @@ class ModelLoader(ForgeModel):
             enable_thinking=False,
         )
 
-        image_inputs, video_inputs = self.processor.process_vision_info(self.messages)
-
         inputs = self.processor(
             text=[text],
-            images=image_inputs,
-            videos=video_inputs,
+            images=[dummy_image],
+            videos=[],
             padding=True,
             return_tensors="pt",
         )
