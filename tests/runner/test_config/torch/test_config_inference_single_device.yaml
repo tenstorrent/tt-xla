@@ -1229,8 +1229,8 @@ test_config:
     status: EXPECTED_PASSING
 
   deepseek/deepseek_ocr/pytorch-Ocr-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 4786749440 B DRAM buffer across 12 banks, where each bank needs to store 398897152 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3412"
+    status: EXPECTED_PASSING
+    # reason: "Out of Memory: Not enough space to allocate 4786749440 B DRAM buffer across 12 banks, where each bank needs to store 398897152 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3412"
 
   deepseek/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
