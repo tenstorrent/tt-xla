@@ -301,6 +301,19 @@ The 55 extra ops each have dispatch overhead (~0.3-1ms per op in the vLLM execut
 - [x] **Experiment A4**: Single multi-core topk on 32K chunk → **18.5 tok/s**. A single `ttnn.topk` is essentially free. The slowdown comes from the **4x chunking loop** (split+pad+4×topk+concat = ~30 extra ops). Each op adds ~0.5ms dispatch overhead → ~15ms total.
 - [x] **Experiment A5**: 2x chunks of 65536 → **11.1 tok/s**. Worse — 65536 falls back to single-core `ttnn.sort`. Confirms 4x 32K is optimal given `ttnn.topk` multi-core limit (power-of-2, < 65536).
 
+**Complete experiment results table:**
+
+| Experiment | tok/s | Ops in sampler | Finding |
+|---|---|---|---|
+| Greedy argmax | 19.0 | 3 | baseline |
+| Non-greedy argmax (TT_NONGREEDY_ARGMAX_ONLY) | 18.6 | 3 | non-greedy path is fast |
+| Non-greedy max (TT_NONGREEDY_MAX_ONLY) | 19.1 | ~5 | simple reductions are free |
+| 1x topk 32K (TT_NONGREEDY_ONE_CHUNK_TOPK) | 18.5 | ~8 | single ttnn.topk is free |
+| **4x topk 4×32K (TT_NONGREEDY_TOPK_ONLY)** | **13.2** | **~30** | **4x loop is the bottleneck** |
+| 2x topk 2×64K (TT_NONGREEDY_2CHUNK_TOPK) | 11.1 | ~15 | sort fallback, worse |
+| Full sampling (TT_USE_TTNN_SAMPLING) | 13.4 | 58 | pad+sampling add nothing over topk |
+| Full + penalties | 12.7 | 58+ | penalties add 0.7 tok/s |
+
 **Conclusion: the 4x chunked topk loop creates ~30 compiled ops with ~0.5ms dispatch overhead each in the vLLM sampler context. This is the fundamental bottleneck.**
 
 Fix options (ranked by feasibility):
