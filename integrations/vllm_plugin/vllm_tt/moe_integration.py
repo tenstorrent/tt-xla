@@ -113,6 +113,11 @@ class FusedMoEAdapter(nn.Module):
                 device = next(fused_moe.parameters()).device
                 dtype = next(fused_moe.parameters()).dtype
 
+                # Store as attributes that A2aSparseMLP expects
+                self.intermediate_size = intermediate_size
+                self.num_experts = num_experts
+                self.hidden_dim = hidden_dim
+
                 # Create dummy tensors with the expected shapes for A2aSparseMLP
                 # These will not be used in computation, only for attribute access
                 self.gate_up_proj = nn.Parameter(
@@ -157,6 +162,84 @@ class FusedMoEAdapter(nn.Module):
                 # GPT-OSS activation parameters
                 self.alpha = 1.702
                 self.limit = 7.0
+
+                # Add attributes expected by sparse_forward
+                self.w1 = self.gate_up_proj  # Alias for compatibility
+                self.w2 = self.down_proj  # Alias for compatibility
+                self.w3 = None  # No separate up projection in fused case
+                self.w1_bias = self.gate_up_proj_bias  # Alias for compatibility
+                self.w3_bias = None  # No separate up bias in fused case
+
+            def sparse_forward(
+                self,
+                dispatched,
+                sparsity_remap,
+                activation_type,
+                alpha=1.702,
+                limit=7.0,
+                output_shape=None,
+            ):
+                """
+                Sparse forward implementation that delegates to FusedMoE.
+                This is a compatibility shim for A2aSparseMLP.
+                """
+                # Handle different tensor formats - dispatched can be 4D or 5D
+                # logger.warning(f"[ExpertsStub] Called sparse_forward with dispatched.shape={dispatched.shape}")
+
+                if dispatched.dim() == 4:
+                    # 4D format: [batch_seq, num_experts, tokens_per_expert, hidden_dim] or similar
+                    batch_seq, num_experts, tokens_per_expert, hidden_dim = (
+                        dispatched.shape
+                    )
+                    # FusedMoE expects [total_tokens, hidden_dim]
+                    reshaped_input = dispatched.view(
+                        -1, hidden_dim
+                    )  # [batch_seq * num_experts * tokens_per_expert, hidden_dim]
+                    batch_dim = batch_seq  # For compatibility with 5D case
+                elif dispatched.dim() == 5:
+                    # 5D format: [A, B, E, M, H] - original assumption
+                    batch_dim = (
+                        dispatched.shape[0] * dispatched.shape[1] * dispatched.shape[3]
+                    )
+                    hidden_dim = dispatched.shape[-1]
+                    num_experts = dispatched.shape[2]
+                    reshaped_input = dispatched.view(batch_dim, hidden_dim)
+                    batch_seq = batch_dim  # For compatibility with 4D case
+                    tokens_per_expert = 1  # Default for 5D case
+                else:
+                    raise ValueError(
+                        f"Unexpected dispatched tensor dimensions: {dispatched.shape}"
+                    )
+
+                # logger.warning(f"[ExpertsStub] Processed: batch_seq={batch_seq}, num_experts={num_experts}, hidden_dim={hidden_dim}")
+                # if dispatched.dim() == 4:
+                #   logger.warning(f"[ExpertsStub] tokens_per_expert={tokens_per_expert}")
+                # logger.warning(f"[ExpertsStub] Reshaped input: {reshaped_input.shape}")
+
+                # Create dummy router logits for FusedMoE
+                dummy_router_logits = torch.zeros(
+                    reshaped_input.shape[0],  # Use reshaped input's batch dimension
+                    num_experts,
+                    device=dispatched.device,
+                    dtype=dispatched.dtype,
+                )
+
+                # Call FusedMoE
+                fused_output = self.fused_moe(reshaped_input, dummy_router_logits)
+                # logger.warning(f"[ExpertsStub] FusedMoE output shape: {fused_output.shape}")
+
+                # Reshape output to match expected sparse_forward format
+                if dispatched.dim() == 4:
+                    # For 4D input [batch_seq, num_experts, tokens_per_expert, hidden_dim], return same format
+                    result = fused_output.view(
+                        batch_seq, num_experts, tokens_per_expert, hidden_dim
+                    )
+                elif dispatched.dim() == 5:
+                    # For 5D input, return expected [E, 1, BD*S, H] format
+                    result = fused_output.view(num_experts, 1, batch_dim, hidden_dim)
+
+                # logger.warning(f"[ExpertsStub] Returning output shape: {result.shape}")
+                return result
 
             def forward(self, hidden_states, router_indices=None, routing_weights=None):
                 # This shouldn't be called when we have router_logits available
