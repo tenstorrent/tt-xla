@@ -2231,7 +2231,7 @@ test_config:
   maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Test hangs, investigation is ongoing: https://github.com/tenstorrent/tt-xla/issues/3838"
+    reason: "TT compilation fixed via torch.compiler.disable on get_attn_mask (setitem hang). CPU inductor ref run still slow (>175s): https://github.com/tenstorrent/tt-xla/issues/3838"
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING
