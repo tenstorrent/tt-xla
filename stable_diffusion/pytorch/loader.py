@@ -111,7 +111,10 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             self.pipeline = self.pipeline.to(dtype_override)
 
-        return self.pipeline
+        # Return only the transformer component (a torch.nn.Module),
+        # not the full pipeline. The pipeline is kept in self.pipeline
+        # for use by load_inputs() preprocessing.
+        return self.pipeline.transformer
 
     def load_inputs(self, dtype_override=None):
         """Load and return sample inputs for the Stable Diffusion v3.5 model with this instance's variant settings.
