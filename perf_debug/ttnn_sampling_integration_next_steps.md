@@ -263,11 +263,19 @@ The standalone overhead test shows the sampling path adds only 1.34ms over greed
 
 **Root cause hypothesis:** The non-greedy sampler code changes the compiled decode graph structure (more ops, different control flow). The compiler optimizes the combined model+sampler graph differently — potentially worse memory placement, less op fusion, or different program dispatch scheduling. This affects the entire decode step, not just the sampling portion.
 
-### Key experiment: TT_GREEDY_WITH_SAMPLING_OPS (Apr 14)
+### Key experiments (Apr 14)
 
-Greedy + topk + sampling ops (but returning argmax): **18.7 tok/s** vs pure greedy 19.0 tok/s.
+| Experiment | tok/s | What it tests |
+|---|---|---|
+| Greedy baseline | 19.0 | Pure argmax |
+| TT_GREEDY_WITH_SAMPLING_OPS | 18.7 | **Flawed** — sampling ops were dead code (all_greedy=True → argmax fast path, sampler never called) |
+| TT_FORCE_SAMPLING_METADATA | 18.8 | Metadata CPU→device transfers — NOT the bottleneck |
+| TT_NONGREEDY_ARGMAX_ONLY | **18.6** | Non-greedy config + argmax only — proves non-greedy model_runner path is fast |
+| Non-greedy + ttnn.sampling, no penalty | **13.4** | Full topk+sampling in sampler |
 
-**The sampling ops do NOT degrade the compiled graph.** The 5.6 tok/s gap is NOT from graph structure or sampling compute. It must be from something else that differs between the greedy and non-greedy code paths in the vLLM model runner — likely the `sampling_metadata` tensor shapes, the `all_greedy` vs `all_random` flag affecting model_runner behavior, or different graph compilation triggered by the non-greedy metadata.
+**Root cause:** The torch.compile'd sampler graph (Program B, `all_greedy=False`) is ~22ms/token slower when it includes topk+sampling ops vs just argmax. The same ops add only 1.34ms in a standalone compiled graph. The compiler generates a much worse XLA program when topk+sampling are part of the sampler module's torch.compile scope.
+
+This is a **torch.compile / XLA graph optimization issue**, not a sampling op performance issue.
 
 ### Next debug steps
 
