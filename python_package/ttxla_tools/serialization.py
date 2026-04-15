@@ -166,7 +166,8 @@ def enable_compile_only(system_desc_path: str):
 
     In compile-only mode the PJRT client initializes from the provided
     descriptor instead of querying connected hardware, allowing compilation
-    for a different system. Execution is disabled.
+    for a different system. Execution returns default-initialized output
+    buffers (with uninitialized data) instead of running on hardware.
 
     Note that this must be called before any JAX or PyTorch TT device operations
     (i.e. before the PJRT client is initialized).
@@ -182,3 +183,8 @@ def enable_compile_only(system_desc_path: str):
             f"System descriptor file not found at {system_desc_path}."
         )
     os.environ["TT_COMPILE_ONLY_SYSTEM_DESC"] = system_desc_path
+
+
+def is_compile_only() -> bool:
+    """Return True if compile-only mode is active."""
+    return os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC") is not None

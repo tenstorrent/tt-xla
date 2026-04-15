@@ -42,12 +42,10 @@ def compile_only(system_desc_path: str):
     output = model(x, y)
 
     # torch_xla uses lazy execution: compilation and execution both happen here.
-    # In compile-only mode, compilation succeeds and artifacts are cached, but
-    # execution raises an error since no hardware is available.
-    try:
-        output.to("cpu")
-    except RuntimeError:
-        pass
+    # In compile-only mode, compilation succeeds and artifacts are cached.
+    # Execution returns default-initialized output buffers (with uninitialized
+    # data) instead of running on hardware.
+    output.to("cpu")
 
     parse_compiled_artifacts_from_cache_to_disk(cache_dir, "output/model")
 

@@ -58,10 +58,6 @@ private:
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index) override;
 
-  // Create default-initialized output buffers for SO execution
-  void createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
-                                  size_t num_devices);
-
 private:
   // Creates SO loaded executable instance from the executable image.
   SOLoadedExecutableInstance(

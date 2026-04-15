@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
@@ -52,6 +53,11 @@ class ComparisonConfig:
     pcc: PccConfig = field(default_factory=PccConfig)
     allclose: AllcloseConfig = field(default_factory=lambda: AllcloseConfig(False))
     assert_on_failure: bool = True  # Default to True for backwards compatibility
+
+    def __post_init__(self):
+        if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
+            self.disable_all()
+            self.assert_on_failure = False
 
     def enable_all(self) -> None:
         self.equal.enable()
