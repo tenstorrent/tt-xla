@@ -42,9 +42,8 @@ void CallbackWorker::workerLoop() {
   for (;;) {
     m_work_available.acquire();
 
-    // Drain all available items.
     CallbackWorkItem item;
-    while (m_queue.tryPop(item)) {
+    if (m_queue.tryPop(item)) {
       item.callback_function(item.error, item.user_arg);
     }
 

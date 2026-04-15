@@ -62,7 +62,7 @@ private:
   internal::MPSCQueue<CallbackWorkItem> m_queue;
   std::thread m_worker_thread;
   std::atomic<bool> m_shutdown{false};
-  std::binary_semaphore m_work_available{0};
+  std::counting_semaphore<> m_work_available{0};
 };
 
 } // namespace tt::pjrt
