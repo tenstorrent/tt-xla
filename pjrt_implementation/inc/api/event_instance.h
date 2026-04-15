@@ -78,7 +78,7 @@ public:
 
   // Returns the CallbackWorker used to dispatch event callbacks, creating it
   // lazily on first access.
-  static utils::CallbackWorker &getCallbackWorker();
+  static CallbackWorker &getCallbackWorker();
 
   // See comment below for `m_indestructible`.
   void setIndestructible() { m_indestructible = true; }

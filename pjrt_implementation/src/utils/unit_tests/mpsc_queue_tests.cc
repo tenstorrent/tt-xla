@@ -14,16 +14,16 @@
 // PJRT implementation headers
 #include "utils/mpsc_queue.h"
 
-namespace tt::pjrt::utils::tests {
+namespace tt::pjrt::tests {
 
 TEST(MPSCQueueUnitTests, Construction) {
-  MPSCQueue<int> queue(16);
+  internal::MPSCQueue<int> queue(16);
   EXPECT_EQ(queue.capacity(), 16u);
   EXPECT_TRUE(queue.isEmpty());
 }
 
 TEST(MPSCQueueUnitTests, PushPopSingle) {
-  MPSCQueue<int> queue(4);
+  internal::MPSCQueue<int> queue(4);
   EXPECT_TRUE(queue.tryPush(42));
   EXPECT_FALSE(queue.isEmpty());
 
@@ -35,7 +35,7 @@ TEST(MPSCQueueUnitTests, PushPopSingle) {
 
 TEST(MPSCQueueUnitTests, FIFOOrder) {
   constexpr size_t count = 8;
-  MPSCQueue<int> queue(count);
+  internal::MPSCQueue<int> queue(count);
 
   for (size_t i = 0; i < count; ++i) {
     int val = static_cast<int>(i);
@@ -50,7 +50,7 @@ TEST(MPSCQueueUnitTests, FIFOOrder) {
 }
 
 TEST(MPSCQueueUnitTests, FullQueue) {
-  MPSCQueue<int> queue(4);
+  internal::MPSCQueue<int> queue(4);
 
   for (int i = 0; i < 4; ++i) {
     int val = i;
@@ -63,14 +63,14 @@ TEST(MPSCQueueUnitTests, FullQueue) {
 }
 
 TEST(MPSCQueueUnitTests, EmptyQueue) {
-  MPSCQueue<int> queue(4);
+  internal::MPSCQueue<int> queue(4);
   int value = -1;
   EXPECT_FALSE(queue.tryPop(value));
   EXPECT_EQ(value, -1);
 }
 
 TEST(MPSCQueueUnitTests, WrapAround) {
-  MPSCQueue<int> queue(4);
+  internal::MPSCQueue<int> queue(4);
 
   // Push and pop many more items than the capacity to exercise wrap-around.
   for (int round = 0; round < 100; ++round) {
@@ -88,7 +88,7 @@ TEST(MPSCQueueUnitTests, WrapAround) {
 
 TEST(MPSCQueueUnitTests, SingleProducerSingleConsumer) {
   constexpr size_t num_items = 100000;
-  MPSCQueue<size_t> queue(1024);
+  internal::MPSCQueue<size_t> queue(1024);
   std::vector<size_t> received;
   received.reserve(num_items);
 
@@ -125,7 +125,7 @@ TEST(MPSCQueueUnitTests, MultiProducerSingleConsumer) {
   constexpr size_t num_producers = 4;
   constexpr size_t items_per_producer = 25000;
   constexpr size_t total_items = num_producers * items_per_producer;
-  MPSCQueue<size_t> queue(1024);
+  internal::MPSCQueue<size_t> queue(1024);
 
   // Each producer writes values encoded as: producer_id * items_per_producer +
   // sequence. This lets us verify per-producer ordering after collection.
@@ -193,7 +193,7 @@ TEST(MPSCQueueUnitTests, ManyProducersFewItemsEach) {
   constexpr size_t num_producers = 64;
   constexpr size_t items_per_producer = 100;
   constexpr size_t total_items = num_producers * items_per_producer;
-  MPSCQueue<size_t> queue(256);
+  internal::MPSCQueue<size_t> queue(256);
 
   // Each producer writes values encoded as: producer_id * items_per_producer +
   // sequence. This lets us verify per-producer ordering after collection.
@@ -257,4 +257,4 @@ TEST(MPSCQueueUnitTests, ManyProducersFewItemsEach) {
   }
 }
 
-} // namespace tt::pjrt::utils::tests
+} // namespace tt::pjrt::tests
