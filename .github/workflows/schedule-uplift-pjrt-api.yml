@@ -130,4 +130,4 @@ jobs:
             - [ ] Run the `model-test-extended.json` test matrix against this branch (needs to be run manually).
           draft: false
           delete-branch: true
-          token: ${{ github.token }}
+          token: ${{ secrets.GH_TOKEN }}
