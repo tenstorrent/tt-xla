@@ -48,7 +48,9 @@ def install_patches():
     _patch_timm()
     _patch_torchvision()
     _patch_datasets()
-    logger.info("[random-weights] All patches installed — models will use random weights")
+    logger.info(
+        "[random-weights] All patches installed — models will use random weights"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +99,19 @@ def _patch_transformers_models():
         # Disable use_cache if the caller asked for it (common for generation models)
         if "use_cache" in kwargs:
             config.use_cache = kwargs["use_cache"]
+
+        # Handle composite configs (e.g. multimodal models where AutoConfig
+        # returns a top-level config but the model class expects a sub-config
+        # like text_config). Extract the sub-config when there's a mismatch.
+        expected_config_class = getattr(cls, "config_class", None)
+        if (
+            expected_config_class is not None
+            and not isinstance(config, expected_config_class)
+            and hasattr(config, "get_text_config")
+        ):
+            text_config = config.get_text_config()
+            if isinstance(text_config, expected_config_class):
+                config = text_config
 
         # Instantiate with random weights
         model = cls(config)
@@ -202,8 +217,8 @@ def _patch_datasets():
     _original_fns["datasets.load_dataset"] = original
 
     def _fake_load_dataset(path, *args, **kwargs):
-        from PIL import Image
         import numpy as np
+        from PIL import Image
 
         logger.info(
             f"[random-weights] Generating synthetic data instead of "
@@ -212,9 +227,7 @@ def _patch_datasets():
 
         # Generate a plausible synthetic RGB image
         rng = np.random.RandomState(42)
-        fake_image = Image.fromarray(
-            rng.randint(0, 255, (224, 224, 3), dtype=np.uint8)
-        )
+        fake_image = Image.fromarray(rng.randint(0, 255, (224, 224, 3), dtype=np.uint8))
 
         class FakeDataset:
             """Minimal dataset stand-in returning synthetic images."""
