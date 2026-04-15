@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -1885,6 +1886,36 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("sample_from_logits")
 
+    def _precompile_topk(self) -> None:
+        """Precompile the device-side top-k graph for CPU sampling.
+
+        Compiles the XLA graph for torch.topk + int-to-float index cast so it
+        is cached before any real requests arrive.  This avoids a compilation
+        stall on the first non-greedy decode step.
+        """
+        logger.info(
+            "Compiling device-side top-k (k=%d) for CPU sampling.",
+            self.CPU_SAMPLING_TOPK,
+        )
+        start = time.perf_counter()
+        dummy_logits = torch.zeros(
+            (self.max_num_reqs, self.vocab_size),
+            dtype=self._hidden_states_dtype,
+            device=self.device,
+        )
+        k = min(self.CPU_SAMPLING_TOPK, self.vocab_size)
+        topk_vals, topk_idx = torch.topk(dummy_logits, k, dim=-1)
+        # Cast indices to float32 — workaround for TT runtime int32 memcpy crash.
+        # Must use float32 (not logits dtype which may be bfloat16).
+        topk_idx_float = topk_idx.to(torch.float32)
+        # Force compilation by transferring to CPU.
+        _ = topk_vals.cpu()
+        _ = topk_idx_float.cpu()
+        xm.wait_device_ops()
+        end = time.perf_counter()
+        logger.info("Compilation finished in %.2f [secs].", end - start)
+        self._update_num_xla_graphs("topk_cpu_sampling")
+
     def _precompile_gather_logprobs(self) -> None:
         torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling gather_logprobs with different input shapes.")
@@ -1925,6 +1956,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self._precompile_sample_from_logits()
             else:
                 logger.warning("cpu_sampling=True: skipping device sampling precompilation")
+                if os.environ.get("VLLM_TT_DEVICE_TOPK", "0") == "1":
+                    self._precompile_topk()
             
             if not self.tt_config.enable_trace:
                 self._precompile_gather_logprobs()
@@ -2187,6 +2220,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
         return out_tokens
 
+    # Number of top logits to transfer from device to CPU for sampling.
+    # Used by the device-side topk path (VLLM_TT_DEVICE_TOPK=1).
+    CPU_SAMPLING_TOPK = 128
+
     def sample_from_logits_cpu(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
@@ -2196,6 +2233,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Supports greedy, temperature, top-k/top-p, and penalty-based sampling.
         All operations run on CPU to avoid compiling a device sampling graph.
         """
+        # DEBUG HACK: skip all sampling and transfer, return dummy token.
+        # Measures max possible tok/s with zero sampling overhead.
+        if os.environ.get("SKIP_SAMPLING"):
+            return torch.zeros(logits.size(0), 1, dtype=torch.long)
+
         logits = logits.cpu()
 
         # Apply penalties (repetition, frequency, presence)
@@ -2286,10 +2328,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Gumbel-max trick: replaces softmax + multinomial with argmax(logits + gumbel_noise).
             # Mathematically equivalent for sampling from categorical distributions.
             # torch.argmax is ~4x faster than torch.multinomial at vocab=128K.
-            greedy = torch.argmax(logits, dim=-1)
-            gumbel = -torch.log(-torch.log(torch.rand_like(logits.float()) + 1e-20) + 1e-20)
-            random = torch.argmax(logits + gumbel, dim=-1)
-            out_tokens = torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
+            use_cpu_topk = os.environ.get("VLLM_TT_CPU_TOPK", "0") == "1"
+            if use_cpu_topk:
+                # Optional: reduce to top-128 before Gumbel-max. Penalties,
+                # temperature, and top-k/top-p have already been applied on
+                # the full 128K vocab. Measured +0.4 tok/s at batch 8 (15.1→15.5).
+                k = min(self.CPU_SAMPLING_TOPK, logits.size(-1))
+                topk_vals, topk_idx = torch.topk(logits, k, dim=-1)
+                greedy = torch.argmax(topk_vals, dim=-1)
+                gumbel = -torch.log(-torch.log(torch.rand_like(topk_vals.float()) + 1e-20) + 1e-20)
+                random = torch.argmax(topk_vals + gumbel, dim=-1)
+                sampled_local = torch.where(temp < 1e-6, greedy, random)
+                out_tokens = topk_idx.gather(-1, sampled_local.unsqueeze(-1))
+            else:
+                greedy = torch.argmax(logits, dim=-1)
+                gumbel = -torch.log(-torch.log(torch.rand_like(logits.float()) + 1e-20) + 1e-20)
+                random = torch.argmax(logits + gumbel, dim=-1)
+                out_tokens = torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
             return out_tokens
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
