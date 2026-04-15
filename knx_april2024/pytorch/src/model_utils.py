@@ -9,18 +9,21 @@ Helper functions for KNX-APRIl2024 model loading and preprocessing.
 from typing import Optional, Tuple
 
 import torch
-from diffusers import StableDiffusionXLPipeline
+from diffusers import DiffusionPipeline, StableDiffusionXLPipeline
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
     retrieve_timesteps,
 )
 from huggingface_hub import hf_hub_download
-from transformers import CLIPTokenizer
+from safetensors.torch import load_file
 
 SDXL_BASE = "stabilityai/stable-diffusion-xl-base-1.0"
 
 
 def load_pipe(repo_id, checkpoint_file):
-    """Load KNX-APRIl2024 pipeline from a single checkpoint file.
+    """Load SDXL pipeline with UNet weights from a single checkpoint file.
+
+    Loads the full SDXL base pipeline, then replaces UNet weights with
+    the fine-tuned checkpoint.
 
     Args:
         repo_id: HuggingFace repository ID
@@ -29,18 +32,22 @@ def load_pipe(repo_id, checkpoint_file):
     Returns:
         StableDiffusionXLPipeline: Loaded pipeline with components set to eval mode
     """
-    checkpoint_path = hf_hub_download(repo_id=repo_id, filename=checkpoint_file)
-    pipe = StableDiffusionXLPipeline.from_single_file(
-        checkpoint_path, torch_dtype=torch.float32
-    )
+    # Load full base SDXL pipeline (includes all components)
+    pipe = DiffusionPipeline.from_pretrained(SDXL_BASE, torch_dtype=torch.float32)
 
-    # from_single_file may not load tokenizers; load from base SDXL model
-    if pipe.tokenizer is None:
-        pipe.tokenizer = CLIPTokenizer.from_pretrained(SDXL_BASE, subfolder="tokenizer")
-    if pipe.tokenizer_2 is None:
-        pipe.tokenizer_2 = CLIPTokenizer.from_pretrained(
-            SDXL_BASE, subfolder="tokenizer_2"
-        )
+    # Load fine-tuned weights from single checkpoint
+    checkpoint_path = hf_hub_download(repo_id=repo_id, filename=checkpoint_file)
+    state_dict = load_file(checkpoint_path)
+
+    # Apply compatible weights to the UNet
+    unet_state_dict = {
+        k.replace("model.diffusion_model.", ""): v
+        for k, v in state_dict.items()
+        if k.startswith("model.diffusion_model.")
+    }
+    if unet_state_dict:
+        pipe.unet.load_state_dict(unet_state_dict, strict=False)
+
     modules = [pipe.text_encoder, pipe.unet, pipe.text_encoder_2, pipe.vae]
 
     pipe.to("cpu", dtype=torch.float32)
