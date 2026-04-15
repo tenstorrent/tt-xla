@@ -39,7 +39,6 @@ class DynamicTorchModelTester(TorchModelTester):
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
         run_phase: RunPhase = RunPhase.DEFAULT,
         test_metadata = None,
-        adapter_mode: AdapterMode = AdapterMode.NONE,
     ) -> None:
         """Initialize DynamicTorchModelTester.
 
@@ -50,7 +49,7 @@ class DynamicTorchModelTester(TorchModelTester):
             parallelism: Parallelism mode for model execution
             run_phase: Optional run phase (DEFAULT, LLM_DECODE, LLM_PREFILL)
             test_metadata: Optional ModelTestConfig with seq_len/batch_size for prefill
-            adapter_mode: Adapter to apply during training (NONE = baseline, LORA = LoRA adapters).
+            and adapter_mode for LLM tests
         """
         # Create TorchDynamicLoader instance
         self.dynamic_loader = TorchDynamicLoader(loader)
@@ -58,10 +57,8 @@ class DynamicTorchModelTester(TorchModelTester):
         self.parallelism = parallelism
         # Store phase hint for input loading
         self.run_phase = run_phase
-        # Store test metadata for seq_len/batch_size access
+        # Store test metadata for seq_len/batch_size/adapter_mode access
         self._test_metadata = test_metadata
-        # Store adapter mode before super().__init__ calls _get_model()
-        self._adapter_mode = adapter_mode
 
         super().__init__(
             comparison_config=comparison_config or ComparisonConfig(),
@@ -123,7 +120,8 @@ class DynamicTorchModelTester(TorchModelTester):
         """
         model = self.dynamic_loader.load_model()
 
-        if self._adapter_mode == AdapterMode.LORA and self._run_mode == RunMode.TRAINING:
+        adapter_mode = getattr(self._test_metadata, "adapter_mode", AdapterMode.NONE)
+        if adapter_mode == AdapterMode.LORA and self._run_mode == RunMode.TRAINING:
             model = apply_lora_adapters(model)
 
         return model

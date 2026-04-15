@@ -70,7 +70,6 @@ def _run_model_test_impl(
     captured_output_fixture,
     run_phase: RunPhase = RunPhase.DEFAULT,
     compiler_config: CompilerConfig = None,
-    adapter_mode: AdapterMode = AdapterMode.NONE,
     **kwargs,  # Extra fixtures like clear_torchxla_computation_cache
 ) -> None:
     """Core implementation for running a model test.
@@ -123,7 +122,6 @@ def _run_model_test_impl(
                         compiler_config=compiler_config,
                         parallelism=parallelism,
                         test_metadata=test_metadata,
-                        adapter_mode=adapter_mode,
                     )
                 elif framework == Framework.JAX:
                     if (
@@ -476,6 +474,7 @@ def test_llms_torch(
 
     test_metadata.batch_size = batch_size
     test_metadata.seq_len = sequence_length
+    test_metadata.adapter_mode = adapter_mode
 
     _run_model_test_impl(
         test_entry=test_entry,
@@ -487,7 +486,6 @@ def test_llms_torch(
         record_property=record_property,
         test_metadata=test_metadata,
         captured_output_fixture=captured_output_fixture,
-        adapter_mode=adapter_mode,
         clear_torchxla_computation_cache=clear_torchxla_computation_cache,
     )
 

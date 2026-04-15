@@ -123,6 +123,7 @@ class ModelTestConfig:
         # Misc arguments used in test
         self.batch_size = self._resolve("batch_size", default=None)
         self.seq_len = self._resolve("seq_len", default=None)
+        self.adapter_mode = AdapterMode.NONE
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
