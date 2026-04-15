@@ -27,6 +27,395 @@ from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
 ACTIVATION_GPT_OSS = "gpt_oss"  # clamp, sigmoid, alpha, glu
 ACTIVATION_DEEPSEEK = "deepseek"  # SiLU (swish) for gate * up
 
+# ---------------------------------------------------------------------------
+# Fused MoE kernel weight layout constants (Wormhole: 12 DRAM banks)
+# ---------------------------------------------------------------------------
+_TILE_SIZE = 32
+_NUM_DRAM_CORES = 12
+_FUSED_FULL_CORES = {0, 1, 4, 5, 8, 9}  # 8 tiles per core
+_FUSED_PAD_CORES = {2, 3, 6, 7, 10, 11}  # 7 tiles per core
+_FUSED_MAX_TILES_PER_CORE = 8
+
+
+def _tiles_for_core(ring_pos: int) -> int:
+    """Return the number of valid tiles for a core at a given ring position."""
+    return 7 if ring_pos in _FUSED_PAD_CORES else 8
+
+
+def _prepare_w0_w1_tensor(
+    torch_w0: torch.Tensor,
+    torch_w1: torch.Tensor,
+    L: int,
+    E: int,
+    K: int,
+    N: int,
+) -> torch.Tensor:
+    """Interleave, shard, and pad w0/w1 weights for the fused MoE kernel.
+
+    Takes w0 (gate) and w1 (up) weights of shape ``(L, E, K, N)`` and produces
+    a tensor of shape ``(12, L, E, 4, K, 128)`` ready for DRAM HEIGHT_SHARDED
+    placement.
+    """
+    num_cores = _NUM_DRAM_CORES
+    Nt = N // _TILE_SIZE
+
+    w0_chunks = torch_w0.view(L, E, K, Nt, _TILE_SIZE)
+    w1_chunks = torch_w1.view(L, E, K, Nt, _TILE_SIZE)
+    stacked = torch.stack([w0_chunks, w1_chunks], dim=4)
+    interleaved = stacked.view(L, E, K, Nt, 2 * _TILE_SIZE)
+    permuted = interleaved.permute(0, 1, 3, 2, 4)
+
+    each_shard = []
+    start_tile = 0
+    for ring_pos in range(num_cores):
+        num_tiles = _tiles_for_core(ring_pos)
+        shard = permuted[:, :, start_tile : start_tile + num_tiles, :, :]
+        start_tile += num_tiles
+
+        if num_tiles < _FUSED_MAX_TILES_PER_CORE:
+            pad_tiles = _FUSED_MAX_TILES_PER_CORE - num_tiles
+            padding = torch.zeros(
+                L, E, pad_tiles, K, 2 * _TILE_SIZE, dtype=torch_w0.dtype
+            )
+            shard = torch.cat([shard, padding], dim=2)
+
+        each_shard.append(shard)
+
+    reordered = torch.cat(each_shard, dim=2)
+    groups_per_core = _FUSED_MAX_TILES_PER_CORE // 2  # 4
+
+    all_groups = reordered.view(
+        L, E, num_cores, _FUSED_MAX_TILES_PER_CORE, K, 2 * _TILE_SIZE
+    )
+    all_groups = all_groups.permute(2, 0, 1, 3, 4, 5)
+
+    pair_2_tiles = all_groups.view(
+        num_cores, L, E, groups_per_core, 2, K, 2 * _TILE_SIZE
+    )
+    pair_2_tiles = pair_2_tiles.permute(0, 1, 2, 3, 5, 4, 6)
+    paired = pair_2_tiles.reshape(
+        num_cores, L, E, groups_per_core, K, 4 * _TILE_SIZE
+    )
+    return paired
+
+
+def _prepare_w0_b0_w1_b1_tensor(
+    torch_w0: torch.Tensor,
+    torch_b0: torch.Tensor,
+    torch_w1: torch.Tensor,
+    torch_b1: torch.Tensor,
+    L: int,
+    E: int,
+    K: int,
+    N: int,
+) -> torch.Tensor:
+    """Interleave, shard, and pad w0/w1 weights with bias for the fused MoE kernel.
+
+    Concatenates bias along dim 2 (K_new = K + K_b), then performs the same
+    interleave/shard/pad as ``_prepare_w0_w1_tensor``.
+    """
+    num_cores = _NUM_DRAM_CORES
+    torch_w0_b0 = torch.cat([torch_w0, torch_b0], dim=2)
+    torch_w1_b1 = torch.cat([torch_w1, torch_b1], dim=2)
+    K_new = torch_w0_b0.shape[2]
+    Nt = N // _TILE_SIZE
+
+    w0_b0_chunks = torch_w0_b0.view(L, E, K_new, Nt, _TILE_SIZE)
+    w1_b1_chunks = torch_w1_b1.view(L, E, K_new, Nt, _TILE_SIZE)
+    stacked = torch.stack([w0_b0_chunks, w1_b1_chunks], dim=4)
+    interleaved = stacked.view(L, E, K_new, Nt, 2 * _TILE_SIZE)
+    permuted = interleaved.permute(0, 1, 3, 2, 4)
+
+    each_shard = []
+    start_tile = 0
+    for ring_pos in range(num_cores):
+        num_tiles = _tiles_for_core(ring_pos)
+        shard = permuted[:, :, start_tile : start_tile + num_tiles, :, :]
+        start_tile += num_tiles
+
+        if num_tiles < _FUSED_MAX_TILES_PER_CORE:
+            pad_tiles = _FUSED_MAX_TILES_PER_CORE - num_tiles
+            padding = torch.zeros(
+                L, E, pad_tiles, K_new, 2 * _TILE_SIZE, dtype=torch_w0.dtype
+            )
+            shard = torch.cat([shard, padding], dim=2)
+
+        each_shard.append(shard)
+
+    reordered = torch.cat(each_shard, dim=2)
+    groups_per_core = _FUSED_MAX_TILES_PER_CORE // 2  # 4
+
+    all_groups = reordered.view(
+        L, E, num_cores, _FUSED_MAX_TILES_PER_CORE, K_new, 2 * _TILE_SIZE
+    )
+    all_groups = all_groups.permute(2, 0, 1, 3, 4, 5)
+
+    pair_2_tiles = all_groups.view(
+        num_cores, L, E, groups_per_core, 2, K_new, 2 * _TILE_SIZE
+    )
+    pair_2_tiles = pair_2_tiles.permute(0, 1, 2, 3, 5, 4, 6)
+    paired = pair_2_tiles.reshape(
+        num_cores, L, E, groups_per_core, K_new, 4 * _TILE_SIZE
+    )
+    return paired
+
+
+def _prepare_w2_tensor(
+    torch_w2: torch.Tensor,
+    L: int,
+    E: int,
+    N: int,
+    K: int,
+) -> torch.Tensor:
+    """Shard, pad, and reorder w2 weights for the fused MoE kernel.
+
+    Takes w2 (down) weight of shape ``(L, E, N, K)`` and produces a tensor of
+    shape ``(12, L, E, 2, N, 128)`` ready for DRAM HEIGHT_SHARDED placement.
+    """
+    num_cores = _NUM_DRAM_CORES
+    each_shard = []
+
+    start_col = 0
+    for ring_pos in range(num_cores):
+        pad_flag = 1 if ring_pos in _FUSED_PAD_CORES else 0
+
+        if pad_flag:
+            each_shard.append(
+                torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
+            )
+            start_col += 4 * _TILE_SIZE
+            each_shard.append(
+                torch_w2[:, :, :, start_col : start_col + 3 * _TILE_SIZE]
+            )
+            start_col += 3 * _TILE_SIZE
+            each_shard.append(
+                torch.zeros(L, E, N, 1 * _TILE_SIZE, dtype=torch_w2.dtype)
+            )
+        else:
+            each_shard.append(
+                torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
+            )
+            start_col += 4 * _TILE_SIZE
+            each_shard.append(
+                torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
+            )
+            start_col += 4 * _TILE_SIZE
+
+    reordered = torch.cat(each_shard, dim=-1)
+    all_groups = reordered.view(L, E, N, num_cores, 2, 4 * _TILE_SIZE)
+    all_groups = all_groups.permute(3, 0, 1, 4, 2, 5)
+
+    Nt = N // _TILE_SIZE
+    N_grouped = all_groups.view(
+        num_cores, L, E, 2, Nt, _TILE_SIZE, 4 * _TILE_SIZE
+    )
+
+    core_chunk_order = torch.tensor(list(reversed(range(num_cores)))).roll(1)
+    chunk_sizes = [_tiles_for_core(i) for i in range(num_cores)]
+    chunk_start_positions = torch.cat(
+        [
+            torch.zeros(1, dtype=torch.int32),
+            torch.cumsum(torch.tensor(chunk_sizes, dtype=torch.int32), dim=0),
+        ]
+    )
+
+    each_shard = []
+    for core_id in range(num_cores):
+        each_chunk = []
+        for chunk_id in core_chunk_order:
+            start_pos = chunk_start_positions[chunk_id]
+            end_pos = chunk_start_positions[chunk_id + 1]
+            this_chunk = N_grouped[core_id, :, :, :, start_pos:end_pos, :, :]
+            each_chunk.append(this_chunk)
+        each_shard.append(torch.cat(each_chunk, dim=3))
+        core_chunk_order = core_chunk_order.roll(1)
+
+    N_reordered = torch.stack(each_shard).view(
+        num_cores, L, E, 2, -1, 4 * _TILE_SIZE
+    )
+    return N_reordered
+
+
+def _prepare_w2_b2_tensor(
+    torch_w2: torch.Tensor,
+    torch_b2: torch.Tensor,
+    L: int,
+    E: int,
+    N: int,
+    K: int,
+) -> torch.Tensor:
+    """Shard, pad, and reorder w2 weights with bias for the fused MoE kernel.
+
+    Concatenates bias along dim 2 (N_new = N + 32), column-shards K, then
+    ring-rotates ONLY the weight tile rows. The bias tile row is appended
+    at position Nt_weight (the last tile row).
+    """
+    num_cores = _NUM_DRAM_CORES
+    torch_w2_b2 = torch.cat([torch_w2, torch_b2], dim=2)
+    N_new = N + _TILE_SIZE  # e.g., 2912
+
+    each_shard = []
+    start_col = 0
+    for ring_pos in range(num_cores):
+        pad_flag = 1 if ring_pos in _FUSED_PAD_CORES else 0
+
+        if pad_flag:
+            each_shard.append(
+                torch_w2_b2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
+            )
+            start_col += 4 * _TILE_SIZE
+            each_shard.append(
+                torch_w2_b2[:, :, :, start_col : start_col + 3 * _TILE_SIZE]
+            )
+            start_col += 3 * _TILE_SIZE
+            each_shard.append(
+                torch.zeros(L, E, N_new, 1 * _TILE_SIZE, dtype=torch_w2.dtype)
+            )
+        else:
+            each_shard.append(
+                torch_w2_b2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
+            )
+            start_col += 4 * _TILE_SIZE
+            each_shard.append(
+                torch_w2_b2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
+            )
+            start_col += 4 * _TILE_SIZE
+
+    reordered = torch.cat(each_shard, dim=-1)
+    all_groups = reordered.view(L, E, N_new, num_cores, 2, 4 * _TILE_SIZE)
+    all_groups = all_groups.permute(3, 0, 1, 4, 2, 5)
+
+    Nt_all = N_new // _TILE_SIZE
+    Nt_weight = N // _TILE_SIZE
+    N_grouped = all_groups.view(
+        num_cores, L, E, 2, Nt_all, _TILE_SIZE, 4 * _TILE_SIZE
+    )
+
+    # Split weight tile rows and bias tile row
+    N_weight = N_grouped[:, :, :, :, :Nt_weight, :, :]
+    N_bias = N_grouped[:, :, :, :, Nt_weight:, :, :]
+
+    # Ring-rotate ONLY the weight tile rows
+    core_chunk_order = torch.tensor(list(reversed(range(num_cores)))).roll(1)
+    chunk_sizes = [_tiles_for_core(i) for i in range(num_cores)]
+    chunk_start_positions = torch.cat(
+        [
+            torch.zeros(1, dtype=torch.int32),
+            torch.cumsum(torch.tensor(chunk_sizes, dtype=torch.int32), dim=0),
+        ]
+    )
+
+    each_shard = []
+    for core_id in range(num_cores):
+        each_chunk = []
+        for chunk_id in core_chunk_order:
+            start_pos = chunk_start_positions[chunk_id]
+            end_pos = chunk_start_positions[chunk_id + 1]
+            this_chunk = N_weight[core_id, :, :, :, start_pos:end_pos, :, :]
+            each_chunk.append(this_chunk)
+        # Append bias tile row (not part of rotation)
+        each_chunk.append(N_bias[core_id])
+        each_shard.append(torch.cat(each_chunk, dim=3))
+        core_chunk_order = core_chunk_order.roll(1)
+
+    N_reordered = torch.stack(each_shard).view(
+        num_cores, L, E, 2, -1, 4 * _TILE_SIZE
+    )
+    return N_reordered
+
+
+def preprocess_fused_moe_weights(
+    gate_up_proj: torch.Tensor,
+    gate_up_proj_bias: torch.Tensor,
+    down_proj: torch.Tensor,
+    down_proj_bias: torch.Tensor,
+    num_experts: int,
+    num_devices: int,
+    cluster_axis: int,
+    mesh_shape: tuple,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Preprocess MoE weights into the fused kernel layout.
+
+    Replicates the pure-PyTorch weight transformation from tt-metal's
+    ``create_fused_moe_gpt_config``: de-interleave gate/up, pad biases to
+    tile height, tile-interleave w0/w1, core-shard, and ring-rotate w2.
+
+    The output tensors are laid out so that ShardTensor2dMesh(dims=(0, 1))
+    (or equivalent XLA sharding on dims 0 and 1) distributes them correctly
+    across a (ring_devices x mesh_cols) mesh.
+
+    Args:
+        gate_up_proj: ``[num_experts, K, 2*N]`` interleaved gate+up weights.
+        gate_up_proj_bias: ``[num_experts, 2*N]`` interleaved gate+up bias.
+        down_proj: ``[num_experts, N, K]`` down projection weights.
+        down_proj_bias: ``[num_experts, K]`` down projection bias.
+        num_experts: Total number of experts.
+        num_devices: Total number of devices in mesh.
+        cluster_axis: Mesh axis for ring dispatch (0 or 1).
+        mesh_shape: Tuple ``(rows, cols)`` of mesh dimensions.
+
+    Returns:
+        ``(fused_w0_w1, fused_w2)`` — preprocessed tensors ready for sharding.
+        - fused_w0_w1: ``(ring_devices*12, mesh_cols, E_per_dev, 4, K+32, 128)``
+        - fused_w2: ``(ring_devices*12, mesh_cols, E_per_dev, 2, N+32, 128)``
+    """
+    ring_devices = mesh_shape[cluster_axis]
+    mesh_cols = num_devices // ring_devices
+    experts_per_device = num_experts // num_devices
+    experts_per_cluster = num_experts // mesh_cols
+    E = experts_per_device
+    K = gate_up_proj.shape[1]
+    N = gate_up_proj.shape[2] // 2
+    L = 1
+
+    # De-interleave gate_up_proj: [g0, u0, g1, u1, ...] -> w0 (gate), w1 (up)
+    w0_all = gate_up_proj[..., ::2].contiguous().float()  # [num_experts, K, N]
+    w1_all = gate_up_proj[..., 1::2].contiguous().float()
+
+    w2_all = down_proj.contiguous().float()  # [num_experts, N, K]
+
+    # De-interleave biases
+    b0_all = gate_up_proj_bias[..., ::2].contiguous().float()  # [num_experts, N]
+    b1_all = gate_up_proj_bias[..., 1::2].contiguous().float()
+    b2_all = down_proj_bias.contiguous().float()  # [num_experts, K]
+
+    # Pad biases to tile height (32 rows): [num_experts, N] -> [num_experts, 32, N]
+    b0_all = b0_all.unsqueeze(1)
+    b0_all = F.pad(b0_all, (0, 0, 0, _TILE_SIZE - 1), "constant", 0.0)
+    b1_all = b1_all.unsqueeze(1)
+    b1_all = F.pad(b1_all, (0, 0, 0, _TILE_SIZE - 1), "constant", 0.0)
+    b2_all = b2_all.unsqueeze(1)
+    b2_all = F.pad(b2_all, (0, 0, 0, _TILE_SIZE - 1), "constant", 0.0)
+
+    # Per-device weight preprocessing, organized as [rows, cols] for 2D mesh sharding
+    w0_w1_rows = []
+    w2_rows = []
+    for r in range(ring_devices):
+        w0_w1_cols = []
+        w2_cols = []
+        for c in range(mesh_cols):
+            start = c * experts_per_cluster + r * E
+            w0_d = w0_all[start : start + E].unsqueeze(0)  # [1, E, K, N]
+            w1_d = w1_all[start : start + E].unsqueeze(0)
+            w2_d = w2_all[start : start + E].unsqueeze(0)  # [1, E, N, K]
+            b0_d = b0_all[start : start + E].unsqueeze(0)  # [1, E, 32, N]
+            b1_d = b1_all[start : start + E].unsqueeze(0)
+            b2_d = b2_all[start : start + E].unsqueeze(0)  # [1, E, 32, K]
+
+            w0_w1_cols.append(
+                _prepare_w0_b0_w1_b1_tensor(w0_d, b0_d, w1_d, b1_d, L, E, K, N)
+            )
+            w2_cols.append(
+                _prepare_w2_b2_tensor(w2_d, b2_d, L, E, N, K)
+            )
+        w0_w1_rows.append(torch.cat(w0_w1_cols, dim=1))  # cat cols on dim 1
+        w2_rows.append(torch.cat(w2_cols, dim=1))
+
+    fused_w0_w1 = torch.cat(w0_w1_rows, dim=0)  # cat rows on dim 0
+    fused_w2 = torch.cat(w2_rows, dim=0)
+
+    return fused_w0_w1, fused_w2
+
 
 def _topk_to_sparse_scores(topk_weights, topk_indices, num_experts):
     """Convert topk scores [BS, K] to sparse scores [BS, E].
@@ -492,6 +881,8 @@ def _moe_gpt_decode_fallback(
     intermediate_size: int,
     alpha: float,
     limit: float,
+    fused_w0_w1: Optional[torch.Tensor] = None,
+    fused_w2: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Decode-only GPT-OSS decomposition expressed with SHLO custom ops."""
     batch_size, seq_len, hidden_size = hidden_states.shape
@@ -562,6 +953,8 @@ def _composite_moe_gpt_decode(
     intermediate_size: int,
     alpha: float,
     limit: float,
+    fused_w0_w1: Optional[torch.Tensor] = None,
+    fused_w2: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Wrap GPT-OSS decode expert flow into one composite.
@@ -569,7 +962,13 @@ def _composite_moe_gpt_decode(
     TT-MLIR can legalize this composite to a placeholder TTIR op, while the
     embedded StableHLO decomposition exposes the GPT-OSS custom calls used for
     sharding propagation.
+
+    When ``fused_w0_w1`` and ``fused_w2`` are provided they are included as
+    additional composite inputs so that tt-MLIR can consume the already-
+    preprocessed fused kernel weight layout directly, avoiding a runtime
+    transformation.
     """
+    has_fused = fused_w0_w1 is not None and fused_w2 is not None
     builder = StableHLOCompositeBuilder(
         name="tenstorrent.moe_gpt_decode",
         attr={
@@ -580,10 +979,11 @@ def _composite_moe_gpt_decode(
             "intermediate_size": intermediate_size,
             "alpha": alpha,
             "limit": limit,
+            "has_fused_weights": has_fused,
         },
     )
 
-    (
+    inputs = [
         hidden_states,
         topk_indices,
         topk_scores,
@@ -593,17 +993,38 @@ def _composite_moe_gpt_decode(
         gate_up_proj_bias,
         down_proj,
         down_proj_bias,
-    ) = builder.mark_inputs(
-        hidden_states,
-        topk_indices,
-        topk_scores,
-        dispatch_mapping,
-        moe_gpt_mapping,
-        gate_up_proj,
-        gate_up_proj_bias,
-        down_proj,
-        down_proj_bias,
-    )
+    ]
+    if has_fused:
+        inputs.extend([fused_w0_w1, fused_w2])
+
+    marked = builder.mark_inputs(*inputs)
+
+    if has_fused:
+        (
+            hidden_states,
+            topk_indices,
+            topk_scores,
+            dispatch_mapping,
+            moe_gpt_mapping,
+            gate_up_proj,
+            gate_up_proj_bias,
+            down_proj,
+            down_proj_bias,
+            fused_w0_w1,
+            fused_w2,
+        ) = marked
+    else:
+        (
+            hidden_states,
+            topk_indices,
+            topk_scores,
+            dispatch_mapping,
+            moe_gpt_mapping,
+            gate_up_proj,
+            gate_up_proj_bias,
+            down_proj,
+            down_proj_bias,
+        ) = marked
 
     output = _moe_gpt_decode_fallback(
         hidden_states=hidden_states,
@@ -907,9 +1328,13 @@ class SparseMOEGPT(A2aSparseMLP):
     TT_TORCH_ENABLE_GPT_OSS_COMPOSITE=1 switches decode (S=1) execution to the
     composite path so the new SHLO/TTIR plumbing can be exercised without
     changing the module replacement logic.
+
+    When composite mode is enabled, expert weights are also preprocessed into
+    the fused MoE kernel layout (tile-interleaved, core-sharded) matching
+    tt-metal's ``_prepare_w0_b0_w1_b1_tensor`` / ``_prepare_w2_b2_tensor``.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, mesh_shape: Optional[tuple] = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.use_decode_composite = (
             os.environ.get("TT_TORCH_ENABLE_GPT_OSS_COMPOSITE", "0") == "1"
@@ -918,6 +1343,29 @@ class SparseMOEGPT(A2aSparseMLP):
         # They currently carry the same mapping data but participate in
         # different stages of the fused decode flow.
         self.register_buffer("moe_gpt_mapping", self.expert_mapping.clone())
+
+        # Preprocess weights into fused kernel layout when composite mode is on.
+        self._has_fused_weights = False
+        if self.use_decode_composite and mesh_shape is not None:
+            gate_up = self.experts.gate_up_proj
+            gate_up_bias = self.experts.gate_up_proj_bias
+            down = self.experts.down_proj
+            down_bias = self.experts.down_proj_bias
+
+            fused_w0_w1, fused_w2 = preprocess_fused_moe_weights(
+                gate_up_proj=gate_up.data,
+                gate_up_proj_bias=gate_up_bias.data,
+                down_proj=down.data,
+                down_proj_bias=down_bias.data,
+                num_experts=self.num_experts,
+                num_devices=self.num_devices,
+                cluster_axis=self.cluster_axis,
+                mesh_shape=mesh_shape,
+            )
+
+            self.fused_w0_w1 = nn.Parameter(fused_w0_w1)
+            self.fused_w2 = nn.Parameter(fused_w2)
+            self._has_fused_weights = True
 
     def forward(self, hidden_states):
         if (
@@ -937,7 +1385,9 @@ class SparseMOEGPT(A2aSparseMLP):
             self.num_experts,
         )
 
-        output = _composite_moe_gpt_decode(
+        # Build keyword args for the composite; include preprocessed fused
+        # weights when available so tt-MLIR can consume them directly.
+        composite_kwargs = dict(
             hidden_states=hidden_states,
             topk_indices=topk_indices,
             topk_scores=topk_scores,
@@ -955,6 +1405,11 @@ class SparseMOEGPT(A2aSparseMLP):
             alpha=self.alpha,
             limit=self.limit,
         )
+        if self._has_fused_weights:
+            composite_kwargs["fused_w0_w1"] = self.fused_w0_w1
+            composite_kwargs["fused_w2"] = self.fused_w2
+
+        output = _composite_moe_gpt_decode(**composite_kwargs)
 
         router_scores = _scatter_compact_router_scores(
             topk_indices.view(batch_size * seq_len, self.num_experts_per_tok),
@@ -1592,6 +2047,9 @@ def enable_sparse_mlp(
             module.experts = FusedExpertsWrapper(module.experts)
 
         sparse_mlp_cls = SparseMOEGPT if "gptoss" in module_type_name else A2aSparseMLP
+        extra_kwargs = {}
+        if sparse_mlp_cls is SparseMOEGPT:
+            extra_kwargs["mesh_shape"] = mesh
         sparse_mlp = sparse_mlp_cls(
             module,
             num_experts=num_experts,
@@ -1601,6 +2059,7 @@ def enable_sparse_mlp(
             config=config,
             dispatch_devices=dispatch_devices,
             cpu_forward_module=module,
+            **extra_kwargs,
         )
 
         setattr(parent, name, sparse_mlp)
@@ -1646,7 +2105,8 @@ def get_moe_shard_specs(
     shard_specs = original_spec_fn(model)
     for layer in model.model.layers:
         if isinstance(layer.mlp, A2aSparseMLP):
-            experts = layer.mlp.experts
+            mlp = layer.mlp
+            experts = mlp.experts
             compound = (mesh_names[0], mesh_names[1])
 
             if hasattr(experts, "gate_up_proj"):
@@ -1666,5 +2126,17 @@ def get_moe_shard_specs(
             shard_specs[experts.down_proj] = (compound, None, None)
             if experts.down_proj_bias is not None:
                 shard_specs[experts.down_proj_bias] = (compound, None)
+
+            # Fused kernel weight sharding: dim 0 = cluster_axis, dim 1 = other axis
+            if isinstance(mlp, SparseMOEGPT) and mlp._has_fused_weights:
+                cluster_axis = mlp.cluster_axis
+                fused_dim0 = mesh_names[cluster_axis]
+                fused_dim1 = mesh_names[1 - cluster_axis]
+                shard_specs[mlp.fused_w0_w1] = (
+                    fused_dim0, fused_dim1, None, None, None, None
+                )
+                shard_specs[mlp.fused_w2] = (
+                    fused_dim0, fused_dim1, None, None, None, None
+                )
 
     return shard_specs
