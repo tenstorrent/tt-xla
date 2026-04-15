@@ -1,0 +1,49 @@
+2026-04-15 04:19:15.238 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/bin/python3
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.13.0', 'jaxtyping': '0.3.9', 'metadata': '3.1.1', 'json-report': '1.5.0', 'split': '0.11.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.13.0, jaxtyping-0.3.9, metadata-3.1.1, json-report-1.5.0, split-0.11.0, forked-1.6.0
+collecting ... 2026-04-15 04:19:23.700 | WARNING  | tests.runner.utils.dynamic_loader:discover_loader_paths:451 - Workaround to exclude model: suryaocr from discovery. Issue #1166
+2026-04-15 04:19:26.033 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov11/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/tools/utils.py)
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+2026-04-15 04:20:02.082 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov10/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-04-15 04:20:02.660 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov5/pytorch/loader.py: No module named 'pkg_resources'
+2026-04-15 04:20:02.755 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov12/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-04-15 04:20:06.920 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov8/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-04-15 04:20:07.476 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/sentencizer/pytorch/loader.py: cannot import name 'is_remote_url' from 'transformers.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/utils/__init__.py)
+2026-04-15 04:20:09.038 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/beit/image_classification/jax/loader.py: cannot import name 'FlaxBeitForImageClassification' from 'transformers' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-04-15 04:20:09.068 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/bert/masked_lm/jax/loader.py: cannot import name 'FlaxBertForMaskedLM' from 'transformers' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-04-15 04:20:09.131 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/mt5/nlp_summarization/jax/loader.py: No module named 'transformers.models.mt5.modeling_flax_mt5'
+2026-04-15 04:20:09.157 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/bart/causal_lm/jax/loader.py: cannot import name 'FlaxBartForCausalLM' from 'transformers' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-04-15 04:20:09.174 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/albert/masked_lm/jax/loader.py: cannot import name 'FlaxAlbertForMaskedLM' from 'transformers' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-04-15 04:20:09.186 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/t5/summarization/jax/loader.py: No module named 'transformers.models.t5.modeling_flax_t5'
+2026-04-15 04:20:09.200 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/longt5/text_classification/jax/loader.py: No module named 'transformers.models.longt5.modeling_flax_longt5'
+collected 1 item
+
+tests/runner/test_models.py::test_all_models_jax[alexnet_claude/image_classification/jax-Custom_1x8-tensor_parallel-inference] Running tests/runner/test_models.py::test_all_models_jax[alexnet_claude/image_classification/jax-Custom_1x8-tensor_parallel-inference] - jax_AlexNet_Custom_1x8_cv_image_cls_custom
+WARNING:2026-04-15 04:20:11,966:jax._src.xla_bridge:893: Platform 'tt' is experimental and not all JAX functionality may be correctly supported!
+WARNING:jax._src.xla_bridge:Platform 'tt' is experimental and not all JAX functionality may be correctly supported!
+PASSED
+
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/runner/test_models.py::test_all_models_jax[alexnet_claude/image_classification/jax-Custom_1x8-tensor_parallel-inference]
+  /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/runner/test_models.py::test_all_models_jax[alexnet_claude/image_classification/jax-Custom_1x8-tensor_parallel-inference]
+  /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================== 1 passed, 4 warnings in 76.92s (0:01:16) ===================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

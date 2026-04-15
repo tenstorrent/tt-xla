@@ -1,0 +1,760 @@
+2026-04-15 05:35:32.794 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/bin/python3
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.13.0', 'jaxtyping': '0.3.9', 'metadata': '3.1.1', 'json-report': '1.5.0', 'split': '0.11.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.13.0, jaxtyping-0.3.9, metadata-3.1.1, json-report-1.5.0, split-0.11.0, forked-1.6.0
+collecting ... 2026-04-15 05:35:40.439 | WARNING  | tests.runner.utils.dynamic_loader:discover_loader_paths:451 - Workaround to exclude model: suryaocr from discovery. Issue #1166
+2026-04-15 05:35:42.605 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov11/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/tools/utils.py)
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+2026-04-15 05:36:14.199 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov10/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-04-15 05:36:14.487 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov5/pytorch/loader.py: No module named 'pkg_resources'
+2026-04-15 05:36:14.576 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov12/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-04-15 05:36:18.419 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/yolov8/pytorch/loader.py: cannot import name 'yolo_postprocess' from 'tt_forge_models.tools.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/tools/utils.py)
+2026-04-15 05:36:18.938 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/sentencizer/pytorch/loader.py: cannot import name 'is_remote_url' from 'transformers.utils' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/utils/__init__.py)
+2026-04-15 05:36:20.196 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/beit/image_classification/jax/loader.py: cannot import name 'FlaxBeitForImageClassification' from 'transformers' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-04-15 05:36:20.205 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/bert/masked_lm/jax/loader.py: cannot import name 'FlaxBertForMaskedLM' from 'transformers' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-04-15 05:36:20.253 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/mt5/nlp_summarization/jax/loader.py: No module named 'transformers.models.mt5.modeling_flax_mt5'
+2026-04-15 05:36:20.281 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/bart/causal_lm/jax/loader.py: cannot import name 'FlaxBartForCausalLM' from 'transformers' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-04-15 05:36:20.298 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/albert/masked_lm/jax/loader.py: cannot import name 'FlaxAlbertForMaskedLM' from 'transformers' (/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/transformers/__init__.py)
+2026-04-15 05:36:20.315 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/t5/summarization/jax/loader.py: No module named 'transformers.models.t5.modeling_flax_t5'
+2026-04-15 05:36:20.327 | WARNING  | tests.runner.utils.dynamic_loader:get_model_variants:263 - Cannot import path: /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/longt5/text_classification/jax/loader.py: No module named 'transformers.models.longt5.modeling_flax_longt5'
+collected 1 item
+
+tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference] Running tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference] - jax_Llama_1B_Tiny_nlp_causal_lm_easydel
+Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
+Collecting git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a (from -r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Cloning https://github.com/erfanzar/EasyDeL.git (to revision 77ced9d2f2ab6a3d705936d26112eb97d9f9e64a) to /tmp/pip-req-build-gxctse35
+  Running command git clone --filter=blob:none --quiet https://github.com/erfanzar/EasyDeL.git /tmp/pip-req-build-gxctse35
+  Running command git rev-parse -q --verify 'sha^77ced9d2f2ab6a3d705936d26112eb97d9f9e64a'
+  Running command git fetch -q https://github.com/erfanzar/EasyDeL.git 77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
+  Running command git checkout -q 77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
+  Resolved https://github.com/erfanzar/EasyDeL.git to commit 77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting eformer==0.0.62 (from -r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached eformer-0.0.62-py3-none-any.whl.metadata (6.2 kB)
+Collecting transformers==4.57.1 (from -r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4))
+  Using cached transformers-4.57.1-py3-none-any.whl.metadata (43 kB)
+Requirement already satisfied: jax>=0.7.0 in ./venv/lib/python3.12/site-packages (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.7.1)
+Requirement already satisfied: jaxlib>=0.7.0 in ./venv/lib/python3.12/site-packages (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.7.1)
+Collecting ray==2.34.0 (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached ray-2.34.0-cp312-cp312-manylinux2014_x86_64.whl.metadata (13 kB)
+Requirement already satisfied: einops~=0.8.0 in ./venv/lib/python3.12/site-packages (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.8.2)
+Collecting flax==0.11.0 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached flax-0.11.0-py3-none-any.whl.metadata (11 kB)
+Requirement already satisfied: optax>=0.2.2 in ./venv/lib/python3.12/site-packages (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.2.8)
+Collecting triton~=3.2.0 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached https://download-r2.pytorch.org/whl/triton-3.2.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (1.4 kB)
+Requirement already satisfied: jaxtyping~=0.3.2 in ./venv/lib/python3.12/site-packages (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.3.9)
+Requirement already satisfied: tqdm in ./venv/lib/python3.12/site-packages (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (4.67.3)
+Collecting fastapi>=0.115.2 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached fastapi-0.135.3-py3-none-any.whl.metadata (28 kB)
+Collecting wandb>=0.18.5 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached wandb-0.26.0-py3-none-manylinux_2_28_x86_64.whl.metadata (11 kB)
+Collecting uvloop==0.21.0 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached uvloop-0.21.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.9 kB)
+Collecting uvicorn>=0.32.0 (from uvicorn[standard]>=0.32.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached uvicorn-0.44.0-py3-none-any.whl.metadata (6.7 kB)
+Requirement already satisfied: jinja2>=3.1.5 in ./venv/lib/python3.12/site-packages (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.1.6)
+Collecting grain~=0.2.11 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached grain-0.2.16-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (16 kB)
+Requirement already satisfied: datasets>=3.6.0 in ./venv/lib/python3.12/site-packages (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (4.5.0)
+Collecting gcsfs<2026,>=2024.2 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached gcsfs-2025.12.0-py3-none-any.whl.metadata (2.1 kB)
+Collecting zstandard>=0.23.0 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached zstandard-0.25.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (3.3 kB)
+Collecting msgspec~=0.19.0 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached msgspec-0.19.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.9 kB)
+Collecting partial-json-parser>=0.2.1.1.post6 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached partial_json_parser-0.2.1.1.post7-py3-none-any.whl.metadata (6.1 kB)
+Collecting google-api-python-client>=2.179.0 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached google_api_python_client-2.194.0-py3-none-any.whl.metadata (7.0 kB)
+Collecting cryptography>=45.0.6 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+Collecting chex (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached chex-0.1.91-py3-none-any.whl.metadata (18 kB)
+Requirement already satisfied: ml-collections==1.1.0 in ./venv/lib/python3.12/site-packages (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3)) (1.1.0)
+Collecting plum-dispatch==2.3.2 (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached plum_dispatch-2.3.2-py3-none-any.whl.metadata (4.4 kB)
+Collecting mergedeep~=1.3.4 (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached mergedeep-1.3.4-py3-none-any.whl.metadata (4.3 kB)
+Collecting tblib~=3.0.0 (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached tblib-3.0.0-py3-none-any.whl.metadata (25 kB)
+Collecting pyyaml~=6.0.2 (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.4 kB)
+Collecting contextlib2~=21.6.0 (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached contextlib2-21.6.0-py2.py3-none-any.whl.metadata (4.1 kB)
+Requirement already satisfied: safetensors>=0.6.2 in ./venv/lib/python3.12/site-packages (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3)) (0.7.0)
+Requirement already satisfied: psutil>=7.0.0 in ./venv/lib/python3.12/site-packages (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3)) (7.2.2)
+Collecting google-cloud-storage>=3.3.0 (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached google_cloud_storage-3.10.1-py3-none-any.whl.metadata (15 kB)
+Requirement already satisfied: tensorstore>=0.1.76 in ./venv/lib/python3.12/site-packages (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3)) (0.1.82)
+Collecting braceexpand>=0.1.7 (from eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached braceexpand-0.1.7-py2.py3-none-any.whl.metadata (3.0 kB)
+Requirement already satisfied: filelock in ./venv/lib/python3.12/site-packages (from transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (3.25.2)
+Collecting huggingface-hub<1.0,>=0.34.0 (from transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4))
+  Using cached huggingface_hub-0.36.2-py3-none-any.whl.metadata (15 kB)
+Requirement already satisfied: numpy>=1.17 in ./venv/lib/python3.12/site-packages (from transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (2.1.2)
+Requirement already satisfied: packaging>=20.0 in ./venv/lib/python3.12/site-packages (from transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (26.0)
+Requirement already satisfied: regex!=2019.12.17 in ./venv/lib/python3.12/site-packages (from transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (2026.4.4)
+Requirement already satisfied: requests in ./venv/lib/python3.12/site-packages (from transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (2.33.1)
+Requirement already satisfied: tokenizers<=0.23.0,>=0.22.0 in ./venv/lib/python3.12/site-packages (from transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (0.22.2)
+Requirement already satisfied: msgpack in ./venv/lib/python3.12/site-packages (from flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.1.2)
+Requirement already satisfied: orbax-checkpoint in ./venv/lib/python3.12/site-packages (from flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.11.34)
+Requirement already satisfied: rich>=11.1 in ./venv/lib/python3.12/site-packages (from flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (15.0.0)
+Requirement already satisfied: typing_extensions>=4.2 in ./venv/lib/python3.12/site-packages (from flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (4.15.0)
+Requirement already satisfied: treescope>=0.1.7 in ./venv/lib/python3.12/site-packages (from flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.1.10)
+Requirement already satisfied: absl-py in ./venv/lib/python3.12/site-packages (from ml-collections==1.1.0->eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3)) (2.4.0)
+Collecting beartype>=0.16.2 (from plum-dispatch==2.3.2->eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached beartype-0.22.9-py3-none-any.whl.metadata (37 kB)
+Requirement already satisfied: click>=7.0 in ./venv/lib/python3.12/site-packages (from ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (8.3.1)
+Collecting jsonschema (from ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached jsonschema-4.26.0-py3-none-any.whl.metadata (7.6 kB)
+Requirement already satisfied: protobuf!=3.19.5,>=3.15.3 in ./venv/lib/python3.12/site-packages (from ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (7.34.1)
+Requirement already satisfied: aiosignal in ./venv/lib/python3.12/site-packages (from ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.4.0)
+Requirement already satisfied: frozenlist in ./venv/lib/python3.12/site-packages (from ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.8.0)
+Requirement already satisfied: aiohttp>=3.7 in ./venv/lib/python3.12/site-packages (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.13.5)
+Collecting aiohttp-cors (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached aiohttp_cors-0.8.1-py3-none-any.whl.metadata (20 kB)
+Collecting colorful (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached colorful-0.5.8-py2.py3-none-any.whl.metadata (17 kB)
+Collecting py-spy>=0.2.0 (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached py_spy-0.4.1-py2.py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.whl.metadata (510 bytes)
+Collecting opencensus (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached opencensus-0.11.4-py2.py3-none-any.whl.metadata (12 kB)
+Requirement already satisfied: pydantic!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.*,!=2.4.*,<3 in ./venv/lib/python3.12/site-packages (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2.12.5)
+Collecting prometheus-client>=0.7.1 (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached prometheus_client-0.25.0-py3-none-any.whl.metadata (2.1 kB)
+Collecting smart-open (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached smart_open-7.6.0-py3-none-any.whl.metadata (25 kB)
+Requirement already satisfied: virtualenv!=20.21.1,>=20.0.24 in ./venv/lib/python3.12/site-packages (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (21.2.1)
+Requirement already satisfied: grpcio>=1.42.0 in ./venv/lib/python3.12/site-packages (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.80.0)
+Collecting memray (from ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached memray-1.19.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (20 kB)
+Requirement already satisfied: decorator>4.1.2 in ./venv/lib/python3.12/site-packages (from gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (5.2.1)
+Collecting fsspec==2025.12.0 (from gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached fsspec-2025.12.0-py3-none-any.whl.metadata (10 kB)
+Collecting google-auth>=1.2 (from gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached google_auth-2.49.2-py3-none-any.whl.metadata (6.2 kB)
+Collecting google-auth-oauthlib (from gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached google_auth_oauthlib-1.3.1-py3-none-any.whl.metadata (2.6 kB)
+Collecting google-cloud-storage-control (from gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached google_cloud_storage_control-1.11.0-py3-none-any.whl.metadata (10.0 kB)
+Collecting array-record>=0.8.1 (from grain~=0.2.11->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached array_record-0.8.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (1.1 kB)
+Collecting cloudpickle (from grain~=0.2.11->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached cloudpickle-3.1.2-py3-none-any.whl.metadata (7.1 kB)
+Requirement already satisfied: etils[epath,epy] in ./venv/lib/python3.12/site-packages (from grain~=0.2.11->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.14.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.1.3 in ./venv/lib/python3.12/site-packages (from huggingface-hub<1.0,>=0.34.0->transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (1.4.3)
+Requirement already satisfied: wadler-lindig>=0.1.3 in ./venv/lib/python3.12/site-packages (from jaxtyping~=0.3.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.1.7)
+Requirement already satisfied: annotated-types>=0.6.0 in ./venv/lib/python3.12/site-packages (from pydantic!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.*,!=2.4.*,<3->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.7.0)
+Requirement already satisfied: pydantic-core==2.41.5 in ./venv/lib/python3.12/site-packages (from pydantic!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.*,!=2.4.*,<3->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2.41.5)
+Requirement already satisfied: typing-inspection>=0.4.2 in ./venv/lib/python3.12/site-packages (from pydantic!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.*,!=2.4.*,<3->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.4.2)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in ./venv/lib/python3.12/site-packages (from aiohttp>=3.7->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2.6.1)
+Requirement already satisfied: attrs>=17.3.0 in ./venv/lib/python3.12/site-packages (from aiohttp>=3.7->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (26.1.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in ./venv/lib/python3.12/site-packages (from aiohttp>=3.7->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (6.7.1)
+Requirement already satisfied: propcache>=0.2.0 in ./venv/lib/python3.12/site-packages (from aiohttp>=3.7->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.4.1)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in ./venv/lib/python3.12/site-packages (from aiohttp>=3.7->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.23.0)
+Requirement already satisfied: idna>=2.0 in ./venv/lib/python3.12/site-packages (from yarl<2.0,>=1.17.0->aiohttp>=3.7->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.11)
+Requirement already satisfied: cffi>=2.0.0 in ./venv/lib/python3.12/site-packages (from cryptography>=45.0.6->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2.0.0)
+Requirement already satisfied: pycparser in ./venv/lib/python3.12/site-packages (from cffi>=2.0.0->cryptography>=45.0.6->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.0)
+Requirement already satisfied: pyarrow>=21.0.0 in ./venv/lib/python3.12/site-packages (from datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (23.0.1)
+Requirement already satisfied: dill<0.4.1,>=0.3.0 in ./venv/lib/python3.12/site-packages (from datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.4.0)
+Requirement already satisfied: pandas in ./venv/lib/python3.12/site-packages (from datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.0.0)
+Requirement already satisfied: httpx<1.0.0 in ./venv/lib/python3.12/site-packages (from datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.28.1)
+Requirement already satisfied: xxhash in ./venv/lib/python3.12/site-packages (from datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.6.0)
+Requirement already satisfied: multiprocess<0.70.19 in ./venv/lib/python3.12/site-packages (from datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.70.18)
+INFO: pip is looking at multiple versions of datasets to determine which version is compatible with other requirements. This could take a while.
+Collecting datasets>=3.6.0 (from easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached datasets-4.8.4-py3-none-any.whl.metadata (19 kB)
+Requirement already satisfied: anyio in ./venv/lib/python3.12/site-packages (from httpx<1.0.0->datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (4.13.0)
+Requirement already satisfied: certifi in ./venv/lib/python3.12/site-packages (from httpx<1.0.0->datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2026.2.25)
+Requirement already satisfied: httpcore==1.* in ./venv/lib/python3.12/site-packages (from httpx<1.0.0->datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.0.9)
+Requirement already satisfied: h11>=0.16 in ./venv/lib/python3.12/site-packages (from httpcore==1.*->httpx<1.0.0->datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.16.0)
+Collecting starlette>=0.46.0 (from fastapi>=0.115.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached starlette-1.0.0-py3-none-any.whl.metadata (6.3 kB)
+Requirement already satisfied: annotated-doc>=0.0.2 in ./venv/lib/python3.12/site-packages (from fastapi>=0.115.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.0.4)
+Collecting httplib2<1.0.0,>=0.19.0 (from google-api-python-client>=2.179.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached httplib2-0.31.2-py3-none-any.whl.metadata (2.2 kB)
+Collecting google-auth-httplib2<1.0.0,>=0.2.0 (from google-api-python-client>=2.179.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached google_auth_httplib2-0.3.1-py3-none-any.whl.metadata (3.0 kB)
+Collecting google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5 (from google-api-python-client>=2.179.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached google_api_core-2.30.3-py3-none-any.whl.metadata (3.1 kB)
+Collecting uritemplate<5,>=3.0.1 (from google-api-python-client>=2.179.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached uritemplate-4.2.0-py3-none-any.whl.metadata (2.6 kB)
+Collecting googleapis-common-protos<2.0.0,>=1.63.2 (from google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5->google-api-python-client>=2.179.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached googleapis_common_protos-1.74.0-py3-none-any.whl.metadata (9.2 kB)
+Collecting proto-plus<2.0.0,>=1.22.3 (from google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5->google-api-python-client>=2.179.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached proto_plus-1.27.2-py3-none-any.whl.metadata (2.2 kB)
+Collecting pyasn1-modules>=0.2.1 (from google-auth>=1.2->gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached pyasn1_modules-0.4.2-py3-none-any.whl.metadata (3.5 kB)
+Requirement already satisfied: pyparsing<4,>=3.1 in ./venv/lib/python3.12/site-packages (from httplib2<1.0.0,>=0.19.0->google-api-python-client>=2.179.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.3.2)
+Requirement already satisfied: charset_normalizer<4,>=2 in ./venv/lib/python3.12/site-packages (from requests->transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (3.4.7)
+Requirement already satisfied: urllib3<3,>=1.26 in ./venv/lib/python3.12/site-packages (from requests->transformers==4.57.1->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 4)) (2.6.3)
+Collecting google-cloud-core<3.0.0,>=2.4.2 (from google-cloud-storage>=3.3.0->eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached google_cloud_core-2.5.1-py3-none-any.whl.metadata (2.8 kB)
+Collecting google-resumable-media<3.0.0,>=2.7.2 (from google-cloud-storage>=3.3.0->eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached google_resumable_media-2.8.2-py3-none-any.whl.metadata (2.2 kB)
+Collecting google-crc32c<2.0.0,>=1.1.3 (from google-cloud-storage>=3.3.0->eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached google_crc32c-1.8.0-cp312-cp312-manylinux1_x86_64.manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_5_x86_64.whl.metadata (1.7 kB)
+Requirement already satisfied: ml_dtypes>=0.5.0 in ./venv/lib/python3.12/site-packages (from jax>=0.7.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.5.4)
+Requirement already satisfied: opt_einsum in ./venv/lib/python3.12/site-packages (from jax>=0.7.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.4.0)
+Requirement already satisfied: scipy>=1.12 in ./venv/lib/python3.12/site-packages (from jax>=0.7.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.17.1)
+Requirement already satisfied: MarkupSafe>=2.0 in ./venv/lib/python3.12/site-packages (from jinja2>=3.1.5->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.0.3)
+Collecting pyasn1<0.7.0,>=0.6.1 (from pyasn1-modules>=0.2.1->google-auth>=1.2->gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached pyasn1-0.6.3-py3-none-any.whl.metadata (8.4 kB)
+Requirement already satisfied: markdown-it-py>=2.2.0 in ./venv/lib/python3.12/site-packages (from rich>=11.1->flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (4.0.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in ./venv/lib/python3.12/site-packages (from rich>=11.1->flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2.20.0)
+Requirement already satisfied: mdurl~=0.1 in ./venv/lib/python3.12/site-packages (from markdown-it-py>=2.2.0->rich>=11.1->flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.1.2)
+Collecting httptools>=0.6.3 (from uvicorn[standard]>=0.32.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached httptools-0.7.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (3.5 kB)
+Requirement already satisfied: python-dotenv>=0.13 in ./venv/lib/python3.12/site-packages (from uvicorn[standard]>=0.32.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.2.2)
+Collecting watchfiles>=0.20 (from uvicorn[standard]>=0.32.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached watchfiles-1.1.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.9 kB)
+Collecting websockets>=10.4 (from uvicorn[standard]>=0.32.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached websockets-16.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (6.8 kB)
+Requirement already satisfied: distlib<1,>=0.3.7 in ./venv/lib/python3.12/site-packages (from virtualenv!=20.21.1,>=20.0.24->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.4.0)
+Requirement already satisfied: platformdirs<5,>=3.9.1 in ./venv/lib/python3.12/site-packages (from virtualenv!=20.21.1,>=20.0.24->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (4.9.6)
+Requirement already satisfied: python-discovery>=1 in ./venv/lib/python3.12/site-packages (from virtualenv!=20.21.1,>=20.0.24->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.2.2)
+Requirement already satisfied: gitpython!=3.1.29,>=1.0.0 in ./venv/lib/python3.12/site-packages (from wandb>=0.18.5->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.1.46)
+Collecting sentry-sdk>=2.0.0 (from wandb>=0.18.5->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached sentry_sdk-2.58.0-py2.py3-none-any.whl.metadata (10 kB)
+Requirement already satisfied: gitdb<5,>=4.0.1 in ./venv/lib/python3.12/site-packages (from gitpython!=3.1.29,>=1.0.0->wandb>=0.18.5->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (4.0.12)
+Requirement already satisfied: smmap<6,>=3.0.1 in ./venv/lib/python3.12/site-packages (from gitdb<5,>=4.0.1->gitpython!=3.1.29,>=1.0.0->wandb>=0.18.5->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (5.0.3)
+Collecting toolz>=1.0.0 (from chex->eformer==0.0.62->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 3))
+  Using cached toolz-1.1.0-py3-none-any.whl.metadata (5.1 kB)
+Requirement already satisfied: zipp in ./venv/lib/python3.12/site-packages (from etils[epath,epy]->grain~=0.2.11->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.23.0)
+Collecting requests-oauthlib>=0.7.0 (from google-auth-oauthlib->gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached requests_oauthlib-2.0.0-py2.py3-none-any.whl.metadata (11 kB)
+Collecting oauthlib>=3.0.0 (from requests-oauthlib>=0.7.0->google-auth-oauthlib->gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached oauthlib-3.3.1-py3-none-any.whl.metadata (7.9 kB)
+Collecting grpc-google-iam-v1<1.0.0,>=0.14.0 (from google-cloud-storage-control->gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached grpc_google_iam_v1-0.14.4-py3-none-any.whl.metadata (9.1 kB)
+Collecting grpcio-status<2.0.0,>=1.33.2 (from google-api-core[grpc]<3.0.0,>=2.11.0->google-cloud-storage-control->gcsfs<2026,>=2024.2->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached grpcio_status-1.80.0-py3-none-any.whl.metadata (1.3 kB)
+Collecting protobuf!=3.19.5,>=3.15.3 (from ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached protobuf-6.33.6-cp39-abi3-manylinux2014_x86_64.whl.metadata (593 bytes)
+Collecting jsonschema-specifications>=2023.03.6 (from jsonschema->ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached jsonschema_specifications-2025.9.1-py3-none-any.whl.metadata (2.9 kB)
+Collecting referencing>=0.28.4 (from jsonschema->ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached referencing-0.37.0-py3-none-any.whl.metadata (2.8 kB)
+Collecting rpds-py>=0.25.0 (from jsonschema->ray==2.34.0->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached rpds_py-0.30.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.1 kB)
+Requirement already satisfied: textual>=0.41.0 in ./venv/lib/python3.12/site-packages (from memray->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (8.2.3)
+Requirement already satisfied: mdit-py-plugins in ./venv/lib/python3.12/site-packages (from textual>=0.41.0->memray->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (0.5.0)
+Requirement already satisfied: linkify-it-py<3,>=1 in ./venv/lib/python3.12/site-packages (from markdown-it-py[linkify]>=2.1.0->textual>=0.41.0->memray->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2.1.0)
+Requirement already satisfied: uc-micro-py in ./venv/lib/python3.12/site-packages (from linkify-it-py<3,>=1->markdown-it-py[linkify]>=2.1.0->textual>=0.41.0->memray->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2.0.0)
+Collecting opencensus-context>=0.1.3 (from opencensus->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached opencensus_context-0.1.3-py2.py3-none-any.whl.metadata (3.3 kB)
+Requirement already satisfied: six~=1.16 in ./venv/lib/python3.12/site-packages (from opencensus->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (1.17.0)
+Requirement already satisfied: aiofiles in ./venv/lib/python3.12/site-packages (from orbax-checkpoint->flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (25.1.0)
+Requirement already satisfied: humanize in ./venv/lib/python3.12/site-packages (from orbax-checkpoint->flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (4.15.0)
+Requirement already satisfied: simplejson>=3.16.0 in ./venv/lib/python3.12/site-packages (from orbax-checkpoint->flax==0.11.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (3.20.2)
+Requirement already satisfied: python-dateutil>=2.8.2 in ./venv/lib/python3.12/site-packages (from pandas->datasets>=3.6.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1)) (2.9.0.post0)
+Collecting wrapt (from smart-open->ray[default]==2.34.0->easydel==0.1.5.dev22->-r /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/third_party/tt_forge_models/llama_claude/causal_lm/jax/requirements.txt (line 1))
+  Using cached wrapt-2.1.2-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (7.4 kB)
+Using cached eformer-0.0.62-py3-none-any.whl (243 kB)
+Using cached transformers-4.57.1-py3-none-any.whl (12.0 MB)
+Using cached flax-0.11.0-py3-none-any.whl (455 kB)
+Using cached plum_dispatch-2.3.2-py3-none-any.whl (37 kB)
+Using cached ray-2.34.0-cp312-cp312-manylinux2014_x86_64.whl (65.1 MB)
+Using cached uvloop-0.21.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (4.7 MB)
+Using cached contextlib2-21.6.0-py2.py3-none-any.whl (13 kB)
+Using cached gcsfs-2025.12.0-py3-none-any.whl (41 kB)
+Using cached fsspec-2025.12.0-py3-none-any.whl (201 kB)
+Using cached grain-0.2.16-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (582 kB)
+Using cached huggingface_hub-0.36.2-py3-none-any.whl (566 kB)
+Using cached mergedeep-1.3.4-py3-none-any.whl (6.4 kB)
+Using cached msgspec-0.19.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (213 kB)
+Using cached pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (807 kB)
+Using cached tblib-3.0.0-py3-none-any.whl (12 kB)
+Using cached https://download-r2.pytorch.org/whl/triton-3.2.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (166.7 MB)
+Using cached array_record-0.8.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.0 MB)
+Using cached beartype-0.22.9-py3-none-any.whl (1.3 MB)
+Using cached braceexpand-0.1.7-py2.py3-none-any.whl (5.9 kB)
+Using cached cryptography-46.0.7-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+Using cached datasets-4.8.4-py3-none-any.whl (526 kB)
+Using cached fastapi-0.135.3-py3-none-any.whl (117 kB)
+Using cached google_api_python_client-2.194.0-py3-none-any.whl (15.0 MB)
+Using cached google_api_core-2.30.3-py3-none-any.whl (173 kB)
+Using cached google_auth-2.49.2-py3-none-any.whl (240 kB)
+Using cached google_auth_httplib2-0.3.1-py3-none-any.whl (9.5 kB)
+Using cached googleapis_common_protos-1.74.0-py3-none-any.whl (300 kB)
+Using cached httplib2-0.31.2-py3-none-any.whl (91 kB)
+Using cached proto_plus-1.27.2-py3-none-any.whl (50 kB)
+Using cached uritemplate-4.2.0-py3-none-any.whl (11 kB)
+Using cached google_cloud_storage-3.10.1-py3-none-any.whl (324 kB)
+Using cached google_cloud_core-2.5.1-py3-none-any.whl (29 kB)
+Using cached google_crc32c-1.8.0-cp312-cp312-manylinux1_x86_64.manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_5_x86_64.whl (33 kB)
+Using cached google_resumable_media-2.8.2-py3-none-any.whl (81 kB)
+Using cached partial_json_parser-0.2.1.1.post7-py3-none-any.whl (10 kB)
+Using cached prometheus_client-0.25.0-py3-none-any.whl (64 kB)
+Using cached py_spy-0.4.1-py2.py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.whl (2.8 MB)
+Using cached pyasn1_modules-0.4.2-py3-none-any.whl (181 kB)
+Using cached pyasn1-0.6.3-py3-none-any.whl (83 kB)
+Using cached starlette-1.0.0-py3-none-any.whl (72 kB)
+Using cached uvicorn-0.44.0-py3-none-any.whl (69 kB)
+Using cached httptools-0.7.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (517 kB)
+Using cached wandb-0.26.0-py3-none-manylinux_2_28_x86_64.whl (27.2 MB)
+Using cached sentry_sdk-2.58.0-py2.py3-none-any.whl (460 kB)
+Using cached watchfiles-1.1.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (456 kB)
+Using cached websockets-16.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (184 kB)
+Using cached zstandard-0.25.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.5 MB)
+Using cached aiohttp_cors-0.8.1-py3-none-any.whl (25 kB)
+Using cached chex-0.1.91-py3-none-any.whl (100 kB)
+Using cached toolz-1.1.0-py3-none-any.whl (58 kB)
+Using cached cloudpickle-3.1.2-py3-none-any.whl (22 kB)
+Using cached colorful-0.5.8-py2.py3-none-any.whl (201 kB)
+Using cached google_auth_oauthlib-1.3.1-py3-none-any.whl (19 kB)
+Using cached requests_oauthlib-2.0.0-py2.py3-none-any.whl (24 kB)
+Using cached oauthlib-3.3.1-py3-none-any.whl (160 kB)
+Using cached google_cloud_storage_control-1.11.0-py3-none-any.whl (89 kB)
+Using cached grpc_google_iam_v1-0.14.4-py3-none-any.whl (32 kB)
+Using cached grpcio_status-1.80.0-py3-none-any.whl (14 kB)
+Using cached protobuf-6.33.6-cp39-abi3-manylinux2014_x86_64.whl (323 kB)
+Using cached jsonschema-4.26.0-py3-none-any.whl (90 kB)
+Using cached jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+Using cached referencing-0.37.0-py3-none-any.whl (26 kB)
+Using cached rpds_py-0.30.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (394 kB)
+Using cached memray-1.19.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (10.0 MB)
+Using cached opencensus-0.11.4-py2.py3-none-any.whl (128 kB)
+Using cached opencensus_context-0.1.3-py2.py3-none-any.whl (5.1 kB)
+Using cached smart_open-7.6.0-py3-none-any.whl (64 kB)
+Using cached wrapt-2.1.2-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (121 kB)
+Building wheels for collected packages: easydel
+  Building wheel for easydel (pyproject.toml): started
+  Building wheel for easydel (pyproject.toml): finished with status 'done'
+  Created wheel for easydel: filename=easydel-0.1.5.dev22-py3-none-any.whl size=1673141 sha256=79f4756a819c58ea34b7b666c062acdc03bb25ff9b75f9a91d59c1c138bbb097
+  Stored in directory: /proj_sw/user_dev/ctr-akannan/.cache/pip/wheels/31/87/98/7dcba23fa51d33b1b2d60ce2ba1febb609161156537e569278
+Successfully built easydel
+Installing collected packages: triton, py-spy, opencensus-context, colorful, braceexpand, zstandard, wrapt, websockets, uvloop, uvicorn, uritemplate, toolz, tblib, sentry-sdk, rpds-py, pyyaml, pyasn1, protobuf, prometheus-client, partial-json-parser, oauthlib, msgspec, mergedeep, httptools, httplib2, google-crc32c, fsspec, contextlib2, cloudpickle, beartype, watchfiles, starlette, smart-open, requests-oauthlib, referencing, pyasn1-modules, proto-plus, huggingface-hub, googleapis-common-protos, google-resumable-media, cryptography, wandb, plum-dispatch, jsonschema-specifications, grpcio-status, google-auth, fastapi, array-record, aiohttp-cors, transformers, memray, jsonschema, grpc-google-iam-v1, grain, google-auth-oauthlib, google-auth-httplib2, google-api-core, datasets, chex, ray, opencensus, google-cloud-core, google-api-python-client, flax, google-cloud-storage-control, google-cloud-storage, gcsfs, eformer, easydel
+  Attempting uninstall: uvloop
+    Found existing installation: uvloop 0.22.1
+    Uninstalling uvloop-0.22.1:
+      Successfully uninstalled uvloop-0.22.1
+  Attempting uninstall: pyyaml
+    Found existing installation: PyYAML 6.0.1
+    Uninstalling PyYAML-6.0.1:
+      Successfully uninstalled PyYAML-6.0.1
+  Attempting uninstall: protobuf
+    Found existing installation: protobuf 7.34.1
+    Uninstalling protobuf-7.34.1:
+      Successfully uninstalled protobuf-7.34.1
+  Attempting uninstall: fsspec
+    Found existing installation: fsspec 2025.10.0
+    Uninstalling fsspec-2025.10.0:
+      Successfully uninstalled fsspec-2025.10.0
+  Attempting uninstall: huggingface-hub
+    Found existing installation: huggingface_hub 1.10.1
+    Uninstalling huggingface_hub-1.10.1:
+      Successfully uninstalled huggingface_hub-1.10.1
+  Attempting uninstall: transformers
+    Found existing installation: transformers 5.2.0
+    Uninstalling transformers-5.2.0:
+      Successfully uninstalled transformers-5.2.0
+  Attempting uninstall: datasets
+    Found existing installation: datasets 4.5.0
+    Uninstalling datasets-4.5.0:
+      Successfully uninstalled datasets-4.5.0
+  Attempting uninstall: flax
+    Found existing installation: flax 0.10.4
+    Uninstalling flax-0.10.4:
+      Successfully uninstalled flax-0.10.4
+
+Successfully installed aiohttp-cors-0.8.1 array-record-0.8.3 beartype-0.22.9 braceexpand-0.1.7 chex-0.1.91 cloudpickle-3.1.2 colorful-0.5.8 contextlib2-21.6.0 cryptography-46.0.7 datasets-4.8.4 easydel-0.1.5.dev22 eformer-0.0.62 fastapi-0.135.3 flax-0.11.0 fsspec-2025.12.0 gcsfs-2025.12.0 google-api-core-2.30.3 google-api-python-client-2.194.0 google-auth-2.49.2 google-auth-httplib2-0.3.1 google-auth-oauthlib-1.3.1 google-cloud-core-2.5.1 google-cloud-storage-3.10.1 google-cloud-storage-control-1.11.0 google-crc32c-1.8.0 google-resumable-media-2.8.2 googleapis-common-protos-1.74.0 grain-0.2.16 grpc-google-iam-v1-0.14.4 grpcio-status-1.80.0 httplib2-0.31.2 httptools-0.7.1 huggingface-hub-0.36.2 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 memray-1.19.3 mergedeep-1.3.4 msgspec-0.19.0 oauthlib-3.3.1 opencensus-0.11.4 opencensus-context-0.1.3 partial-json-parser-0.2.1.1.post7 plum-dispatch-2.3.2 prometheus-client-0.25.0 proto-plus-1.27.2 protobuf-6.33.6 py-spy-0.4.1 pyasn1-0.6.3 pyasn1-modules-0.4.2 pyyaml-6.0.3 ray-2.34.0 referencing-0.37.0 requests-oauthlib-2.0.0 rpds-py-0.30.0 sentry-sdk-2.58.0 smart-open-7.6.0 starlette-1.0.0 tblib-3.0.0 toolz-1.1.0 transformers-4.57.1 triton-3.2.0 uritemplate-4.2.0 uvicorn-0.44.0 uvloop-0.21.0 wandb-0.26.0 watchfiles-1.1.1 websockets-16.0 wrapt-2.1.2 zstandard-0.25.0
+WARNING:2026-04-15 05:39:01,853:jax._src.xla_bridge:893: Platform 'tt' is experimental and not all JAX functionality may be correctly supported!
+WARNING:jax._src.xla_bridge:Platform 'tt' is experimental and not all JAX functionality may be correctly supported!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+Converting Model:   0%|          | 0/201 [00:00<?, ?it/s]Converting Model:   0%|          | 1/201 [00:00<00:38,  5.23it/s]Converting Model:   3%|▎         | 6/201 [00:00<00:09, 20.49it/s]Converting Model:   4%|▍         | 9/201 [00:00<00:09, 19.43it/s]Converting Model:   8%|▊         | 16/201 [00:00<00:06, 28.92it/s]Converting Model:  12%|█▏        | 24/201 [00:00<00:04, 36.29it/s]Converting Model:  14%|█▍        | 28/201 [00:00<00:04, 34.91it/s]Converting Model:  17%|█▋        | 34/201 [00:01<00:04, 35.83it/s]Converting Model:  21%|██        | 42/201 [00:01<00:03, 40.39it/s]Converting Model:  23%|██▎       | 47/201 [00:01<00:03, 38.80it/s]Converting Model:  26%|██▌       | 52/201 [00:01<00:03, 37.29it/s]Converting Model:  29%|██▉       | 59/201 [00:01<00:03, 44.63it/s]Converting Model:  32%|███▏      | 64/201 [00:01<00:03, 37.52it/s]Converting Model:  35%|███▍      | 70/201 [00:02<00:03, 37.51it/s]Converting Model:  38%|███▊      | 77/201 [00:02<00:02, 44.50it/s]Converting Model:  41%|████      | 82/201 [00:02<00:03, 37.70it/s]Converting Model:  44%|████▍     | 88/201 [00:02<00:03, 37.64it/s]Converting Model:  48%|████▊     | 96/201 [00:02<00:02, 41.38it/s]Converting Model:  50%|█████     | 101/201 [00:02<00:02, 39.52it/s]Converting Model:  53%|█████▎    | 106/201 [00:02<00:02, 38.10it/s]Converting Model:  57%|█████▋    | 114/201 [00:03<00:02, 41.66it/s]Converting Model:  59%|█████▉    | 119/201 [00:03<00:02, 39.77it/s]Converting Model:  62%|██████▏   | 124/201 [00:03<00:02, 38.21it/s]Converting Model:  66%|██████▌   | 132/201 [00:03<00:01, 41.83it/s]Converting Model:  68%|██████▊   | 137/201 [00:03<00:01, 39.83it/s]Converting Model:  71%|███████   | 142/201 [00:03<00:01, 38.15it/s]Converting Model:  75%|███████▍  | 150/201 [00:03<00:01, 41.83it/s]Converting Model:  77%|███████▋  | 155/201 [00:04<00:01, 39.89it/s]Converting Model:  80%|███████▉  | 160/201 [00:04<00:01, 38.34it/s]Converting Model:  84%|████████▎ | 168/201 [00:04<00:00, 41.93it/s]Converting Model:  86%|████████▌ | 173/201 [00:04<00:00, 39.93it/s]Converting Model:  89%|████████▊ | 178/201 [00:04<00:00, 38.13it/s]Converting Model:  93%|█████████▎| 186/201 [00:04<00:00, 41.78it/s]Converting Model:  95%|█████████▌| 191/201 [00:05<00:00, 39.83it/s]Converting Model:  98%|█████████▊| 196/201 [00:05<00:00, 38.26it/s]Converting Model: 100%|██████████| 201/201 [00:05<00:00, 23.41it/s]Converting Model: 100%|██████████| 201/201 [00:05<00:00, 35.92it/s]
+TensorFlow and JAX classes are deprecated and will be removed in Transformers v5. We recommend migrating to PyTorch classes or pinning your version of Transformers.
+TensorFlow and JAX classes are deprecated and will be removed in Transformers v5. We recommend migrating to PyTorch classes or pinning your version of Transformers.
+loc("jit(forward_pass_method)/reshape"(callsite("LlamaAttention.__call__"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/easydel/modules/llama/modeling_llama.py":235:21 to :49) at callsite("LlamaDecoderLayer.__call__"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/easydel/modules/llama/modeling_llama.py":364:23 to 376:9) at callsite("LlamaModel.__call__"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/easydel/modules/llama/modeling_llama.py":543:28 to 554:13) at callsite("LlamaForCausalLM.__call__"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/easydel/modules/llama/modeling_llama.py":691:18 to 702:9) at callsite("JaxModelTester._initialize_workload.<locals>.forward_pass_method"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/infra/testers/single_chip/model/jax_model_tester.py":121:23 to :39) at callsite("Workload.execute"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/infra/workloads/workload.py":71:19 to :70) at callsite("JaxMultichipWorkload.execute"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/infra/workloads/jax_workload.py":96:23 to :40) at callsite("JaxDeviceRunner.run_on_multichip_device"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/infra/runners/jax_device_runner.py":96:19 to :45) at callsite("DynamicJaxMultiChipModelTester._run_on_multichip_device"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/runner/testers/jax/dynamic_jax_multichip_model_tester.py":246:15 to :77) at "DynamicJaxMultiChipModelTester._run_on_tt_device"("/proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/runner/testers/jax/dynamic_jax_multichip_model_tester.py":241:15 to :79)))))))))))): error: Could not apply propagated tensor shardings to tensor dimensions
+error: Could not update shapes based on their tensor sharding attributes
+2026-04-15 05:39:42.999 (  41.150s) [        83432140]      module_builder.cc:839    ERR| Failed to run stablehlo pipeline
+Found existing installation: aiohttp-cors 0.8.1
+Uninstalling aiohttp-cors-0.8.1:
+  Successfully uninstalled aiohttp-cors-0.8.1
+Found existing installation: array_record 0.8.3
+Uninstalling array_record-0.8.3:
+  Successfully uninstalled array_record-0.8.3
+Found existing installation: beartype 0.22.9
+Uninstalling beartype-0.22.9:
+  Successfully uninstalled beartype-0.22.9
+Found existing installation: braceexpand 0.1.7
+Uninstalling braceexpand-0.1.7:
+  Successfully uninstalled braceexpand-0.1.7
+Found existing installation: chex 0.1.91
+Uninstalling chex-0.1.91:
+  Successfully uninstalled chex-0.1.91
+Found existing installation: cloudpickle 3.1.2
+Uninstalling cloudpickle-3.1.2:
+  Successfully uninstalled cloudpickle-3.1.2
+Found existing installation: colorful 0.5.8
+Uninstalling colorful-0.5.8:
+  Successfully uninstalled colorful-0.5.8
+Found existing installation: contextlib2 21.6.0
+Uninstalling contextlib2-21.6.0:
+  Successfully uninstalled contextlib2-21.6.0
+Found existing installation: cryptography 46.0.7
+Uninstalling cryptography-46.0.7:
+  Successfully uninstalled cryptography-46.0.7
+Found existing installation: easydel 0.1.5.dev22
+Uninstalling easydel-0.1.5.dev22:
+  Successfully uninstalled easydel-0.1.5.dev22
+Found existing installation: eformer 0.0.62
+Uninstalling eformer-0.0.62:
+  Successfully uninstalled eformer-0.0.62
+Found existing installation: fastapi 0.135.3
+Uninstalling fastapi-0.135.3:
+  Successfully uninstalled fastapi-0.135.3
+Found existing installation: gcsfs 2025.12.0
+Uninstalling gcsfs-2025.12.0:
+  Successfully uninstalled gcsfs-2025.12.0
+Found existing installation: google-api-core 2.30.3
+Uninstalling google-api-core-2.30.3:
+  Successfully uninstalled google-api-core-2.30.3
+Found existing installation: google-api-python-client 2.194.0
+Uninstalling google-api-python-client-2.194.0:
+  Successfully uninstalled google-api-python-client-2.194.0
+Found existing installation: google-auth 2.49.2
+Uninstalling google-auth-2.49.2:
+  Successfully uninstalled google-auth-2.49.2
+Found existing installation: google-auth-httplib2 0.3.1
+Uninstalling google-auth-httplib2-0.3.1:
+  Successfully uninstalled google-auth-httplib2-0.3.1
+Found existing installation: google-auth-oauthlib 1.3.1
+Uninstalling google-auth-oauthlib-1.3.1:
+  Successfully uninstalled google-auth-oauthlib-1.3.1
+Found existing installation: google-cloud-core 2.5.1
+Uninstalling google-cloud-core-2.5.1:
+  Successfully uninstalled google-cloud-core-2.5.1
+Found existing installation: google-cloud-storage 3.10.1
+Uninstalling google-cloud-storage-3.10.1:
+  Successfully uninstalled google-cloud-storage-3.10.1
+Found existing installation: google-cloud-storage-control 1.11.0
+Uninstalling google-cloud-storage-control-1.11.0:
+  Successfully uninstalled google-cloud-storage-control-1.11.0
+Found existing installation: google-crc32c 1.8.0
+Uninstalling google-crc32c-1.8.0:
+  Successfully uninstalled google-crc32c-1.8.0
+Found existing installation: google-resumable-media 2.8.2
+Uninstalling google-resumable-media-2.8.2:
+  Successfully uninstalled google-resumable-media-2.8.2
+Found existing installation: googleapis-common-protos 1.74.0
+Uninstalling googleapis-common-protos-1.74.0:
+  Successfully uninstalled googleapis-common-protos-1.74.0
+Found existing installation: grain 0.2.16
+Uninstalling grain-0.2.16:
+  Successfully uninstalled grain-0.2.16
+Found existing installation: grpc-google-iam-v1 0.14.4
+Uninstalling grpc-google-iam-v1-0.14.4:
+  Successfully uninstalled grpc-google-iam-v1-0.14.4
+Found existing installation: grpcio-status 1.80.0
+Uninstalling grpcio-status-1.80.0:
+  Successfully uninstalled grpcio-status-1.80.0
+Found existing installation: httplib2 0.31.2
+Uninstalling httplib2-0.31.2:
+  Successfully uninstalled httplib2-0.31.2
+Found existing installation: httptools 0.7.1
+Uninstalling httptools-0.7.1:
+  Successfully uninstalled httptools-0.7.1
+Found existing installation: jsonschema 4.26.0
+Uninstalling jsonschema-4.26.0:
+  Successfully uninstalled jsonschema-4.26.0
+Found existing installation: jsonschema-specifications 2025.9.1
+Uninstalling jsonschema-specifications-2025.9.1:
+  Successfully uninstalled jsonschema-specifications-2025.9.1
+Found existing installation: memray 1.19.3
+Uninstalling memray-1.19.3:
+  Successfully uninstalled memray-1.19.3
+Found existing installation: mergedeep 1.3.4
+Uninstalling mergedeep-1.3.4:
+  Successfully uninstalled mergedeep-1.3.4
+Found existing installation: msgspec 0.19.0
+Uninstalling msgspec-0.19.0:
+  Successfully uninstalled msgspec-0.19.0
+Found existing installation: oauthlib 3.3.1
+Uninstalling oauthlib-3.3.1:
+  Successfully uninstalled oauthlib-3.3.1
+Found existing installation: opencensus 0.11.4
+Uninstalling opencensus-0.11.4:
+  Successfully uninstalled opencensus-0.11.4
+Found existing installation: opencensus-context 0.1.3
+Uninstalling opencensus-context-0.1.3:
+  Successfully uninstalled opencensus-context-0.1.3
+Found existing installation: partial-json-parser 0.2.1.1.post7
+Uninstalling partial-json-parser-0.2.1.1.post7:
+  Successfully uninstalled partial-json-parser-0.2.1.1.post7
+Found existing installation: plum-dispatch 2.3.2
+Uninstalling plum-dispatch-2.3.2:
+  Successfully uninstalled plum-dispatch-2.3.2
+Found existing installation: prometheus_client 0.25.0
+Uninstalling prometheus_client-0.25.0:
+  Successfully uninstalled prometheus_client-0.25.0
+Found existing installation: proto-plus 1.27.2
+Uninstalling proto-plus-1.27.2:
+  Successfully uninstalled proto-plus-1.27.2
+Found existing installation: py-spy 0.4.1
+Uninstalling py-spy-0.4.1:
+  Successfully uninstalled py-spy-0.4.1
+Found existing installation: pyasn1 0.6.3
+Uninstalling pyasn1-0.6.3:
+  Successfully uninstalled pyasn1-0.6.3
+Found existing installation: pyasn1_modules 0.4.2
+Uninstalling pyasn1_modules-0.4.2:
+  Successfully uninstalled pyasn1_modules-0.4.2
+Found existing installation: ray 2.34.0
+Uninstalling ray-2.34.0:
+  Successfully uninstalled ray-2.34.0
+Found existing installation: referencing 0.37.0
+Uninstalling referencing-0.37.0:
+  Successfully uninstalled referencing-0.37.0
+Found existing installation: requests-oauthlib 2.0.0
+Uninstalling requests-oauthlib-2.0.0:
+  Successfully uninstalled requests-oauthlib-2.0.0
+Found existing installation: rpds-py 0.30.0
+Uninstalling rpds-py-0.30.0:
+  Successfully uninstalled rpds-py-0.30.0
+Found existing installation: sentry-sdk 2.58.0
+Uninstalling sentry-sdk-2.58.0:
+  Successfully uninstalled sentry-sdk-2.58.0
+Found existing installation: smart_open 7.6.0
+Uninstalling smart_open-7.6.0:
+  Successfully uninstalled smart_open-7.6.0
+Found existing installation: starlette 1.0.0
+Uninstalling starlette-1.0.0:
+  Successfully uninstalled starlette-1.0.0
+Found existing installation: tblib 3.0.0
+Uninstalling tblib-3.0.0:
+  Successfully uninstalled tblib-3.0.0
+Found existing installation: toolz 1.1.0
+Uninstalling toolz-1.1.0:
+  Successfully uninstalled toolz-1.1.0
+Found existing installation: triton 3.2.0
+Uninstalling triton-3.2.0:
+  Successfully uninstalled triton-3.2.0
+Found existing installation: uritemplate 4.2.0
+Uninstalling uritemplate-4.2.0:
+  Successfully uninstalled uritemplate-4.2.0
+Found existing installation: uvicorn 0.44.0
+Uninstalling uvicorn-0.44.0:
+  Successfully uninstalled uvicorn-0.44.0
+Found existing installation: wandb 0.26.0
+Uninstalling wandb-0.26.0:
+  Successfully uninstalled wandb-0.26.0
+Found existing installation: watchfiles 1.1.1
+Uninstalling watchfiles-1.1.1:
+  Successfully uninstalled watchfiles-1.1.1
+Found existing installation: websockets 16.0
+Uninstalling websockets-16.0:
+  Successfully uninstalled websockets-16.0
+Found existing installation: wrapt 2.1.2
+Uninstalling wrapt-2.1.2:
+  Successfully uninstalled wrapt-2.1.2
+Found existing installation: zstandard 0.25.0
+Uninstalling zstandard-0.25.0:
+  Successfully uninstalled zstandard-0.25.0
+Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
+Collecting datasets==4.5.0 (from -r /tmp/tt_xla_restore_uogf0olp.txt (line 1))
+  Using cached datasets-4.5.0-py3-none-any.whl.metadata (19 kB)
+Collecting flax==0.10.4 (from -r /tmp/tt_xla_restore_uogf0olp.txt (line 2))
+  Using cached flax-0.10.4-py3-none-any.whl.metadata (11 kB)
+Collecting fsspec==2025.10.0 (from -r /tmp/tt_xla_restore_uogf0olp.txt (line 3))
+  Using cached fsspec-2025.10.0-py3-none-any.whl.metadata (10 kB)
+Collecting huggingface_hub==1.10.1 (from -r /tmp/tt_xla_restore_uogf0olp.txt (line 4))
+  Using cached huggingface_hub-1.10.1-py3-none-any.whl.metadata (14 kB)
+Collecting protobuf==7.34.1 (from -r /tmp/tt_xla_restore_uogf0olp.txt (line 5))
+  Using cached protobuf-7.34.1-cp310-abi3-manylinux2014_x86_64.whl.metadata (595 bytes)
+Collecting PyYAML==6.0.1 (from -r /tmp/tt_xla_restore_uogf0olp.txt (line 6))
+  Using cached PyYAML-6.0.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+Collecting transformers==5.2.0 (from -r /tmp/tt_xla_restore_uogf0olp.txt (line 7))
+  Using cached transformers-5.2.0-py3-none-any.whl.metadata (32 kB)
+Collecting uvloop==0.22.1 (from -r /tmp/tt_xla_restore_uogf0olp.txt (line 8))
+  Using cached uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (4.9 kB)
+Requirement already satisfied: filelock in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (3.25.2)
+Requirement already satisfied: numpy>=1.17 in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (2.1.2)
+Requirement already satisfied: pyarrow>=21.0.0 in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (23.0.1)
+Requirement already satisfied: dill<0.4.1,>=0.3.0 in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (0.4.0)
+Requirement already satisfied: pandas in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (3.0.0)
+Requirement already satisfied: requests>=2.32.2 in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (2.33.1)
+Requirement already satisfied: httpx<1.0.0 in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (0.28.1)
+Requirement already satisfied: tqdm>=4.66.3 in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (4.67.3)
+Requirement already satisfied: xxhash in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (3.6.0)
+Requirement already satisfied: multiprocess<0.70.19 in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (0.70.18)
+Requirement already satisfied: packaging in ./venv/lib/python3.12/site-packages (from datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (26.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.4.3 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.10.1->-r /tmp/tt_xla_restore_uogf0olp.txt (line 4)) (1.4.3)
+Requirement already satisfied: typer in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.10.1->-r /tmp/tt_xla_restore_uogf0olp.txt (line 4)) (0.24.1)
+Requirement already satisfied: typing-extensions>=4.1.0 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.10.1->-r /tmp/tt_xla_restore_uogf0olp.txt (line 4)) (4.15.0)
+Requirement already satisfied: jax>=0.4.27 in ./venv/lib/python3.12/site-packages (from flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (0.7.1)
+Requirement already satisfied: msgpack in ./venv/lib/python3.12/site-packages (from flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (1.1.2)
+Requirement already satisfied: optax in ./venv/lib/python3.12/site-packages (from flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (0.2.8)
+Requirement already satisfied: orbax-checkpoint in ./venv/lib/python3.12/site-packages (from flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (0.11.34)
+Requirement already satisfied: tensorstore in ./venv/lib/python3.12/site-packages (from flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (0.1.82)
+Requirement already satisfied: rich>=11.1 in ./venv/lib/python3.12/site-packages (from flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (15.0.0)
+Requirement already satisfied: treescope>=0.1.7 in ./venv/lib/python3.12/site-packages (from flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (0.1.10)
+Requirement already satisfied: regex!=2019.12.17 in ./venv/lib/python3.12/site-packages (from transformers==5.2.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 7)) (2026.4.4)
+Requirement already satisfied: tokenizers<=0.23.0,>=0.22.0 in ./venv/lib/python3.12/site-packages (from transformers==5.2.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 7)) (0.22.2)
+Requirement already satisfied: typer-slim in ./venv/lib/python3.12/site-packages (from transformers==5.2.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 7)) (0.24.0)
+Requirement already satisfied: safetensors>=0.4.3 in ./venv/lib/python3.12/site-packages (from transformers==5.2.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 7)) (0.7.0)
+Requirement already satisfied: aiohttp!=4.0.0a0,!=4.0.0a1 in ./venv/lib/python3.12/site-packages (from fsspec[http]<=2025.10.0,>=2023.1.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (3.13.5)
+Requirement already satisfied: anyio in ./venv/lib/python3.12/site-packages (from httpx<1.0.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (4.13.0)
+Requirement already satisfied: certifi in ./venv/lib/python3.12/site-packages (from httpx<1.0.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (2026.2.25)
+Requirement already satisfied: httpcore==1.* in ./venv/lib/python3.12/site-packages (from httpx<1.0.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (1.0.9)
+Requirement already satisfied: idna in ./venv/lib/python3.12/site-packages (from httpx<1.0.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (3.11)
+Requirement already satisfied: h11>=0.16 in ./venv/lib/python3.12/site-packages (from httpcore==1.*->httpx<1.0.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (0.16.0)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in ./venv/lib/python3.12/site-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.10.0,>=2023.1.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (2.6.1)
+Requirement already satisfied: aiosignal>=1.4.0 in ./venv/lib/python3.12/site-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.10.0,>=2023.1.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (1.4.0)
+Requirement already satisfied: attrs>=17.3.0 in ./venv/lib/python3.12/site-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.10.0,>=2023.1.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (26.1.0)
+Requirement already satisfied: frozenlist>=1.1.1 in ./venv/lib/python3.12/site-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.10.0,>=2023.1.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (1.8.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in ./venv/lib/python3.12/site-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.10.0,>=2023.1.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (6.7.1)
+Requirement already satisfied: propcache>=0.2.0 in ./venv/lib/python3.12/site-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.10.0,>=2023.1.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (0.4.1)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in ./venv/lib/python3.12/site-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2025.10.0,>=2023.1.0->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (1.23.0)
+Requirement already satisfied: jaxlib<=0.7.1,>=0.7.1 in ./venv/lib/python3.12/site-packages (from jax>=0.4.27->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (0.7.1)
+Requirement already satisfied: ml_dtypes>=0.5.0 in ./venv/lib/python3.12/site-packages (from jax>=0.4.27->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (0.5.4)
+Requirement already satisfied: opt_einsum in ./venv/lib/python3.12/site-packages (from jax>=0.4.27->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (3.4.0)
+Requirement already satisfied: scipy>=1.12 in ./venv/lib/python3.12/site-packages (from jax>=0.4.27->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (1.17.1)
+Requirement already satisfied: charset_normalizer<4,>=2 in ./venv/lib/python3.12/site-packages (from requests>=2.32.2->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (3.4.7)
+Requirement already satisfied: urllib3<3,>=1.26 in ./venv/lib/python3.12/site-packages (from requests>=2.32.2->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (2.6.3)
+Requirement already satisfied: markdown-it-py>=2.2.0 in ./venv/lib/python3.12/site-packages (from rich>=11.1->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (4.0.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in ./venv/lib/python3.12/site-packages (from rich>=11.1->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (2.20.0)
+Requirement already satisfied: mdurl~=0.1 in ./venv/lib/python3.12/site-packages (from markdown-it-py>=2.2.0->rich>=11.1->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (0.1.2)
+Requirement already satisfied: absl-py>=0.7.1 in ./venv/lib/python3.12/site-packages (from optax->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (2.4.0)
+Requirement already satisfied: etils[epath,epy] in ./venv/lib/python3.12/site-packages (from orbax-checkpoint->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (1.14.0)
+Requirement already satisfied: aiofiles in ./venv/lib/python3.12/site-packages (from orbax-checkpoint->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (25.1.0)
+Requirement already satisfied: humanize in ./venv/lib/python3.12/site-packages (from orbax-checkpoint->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (4.15.0)
+Requirement already satisfied: simplejson>=3.16.0 in ./venv/lib/python3.12/site-packages (from orbax-checkpoint->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (3.20.2)
+Requirement already satisfied: psutil in ./venv/lib/python3.12/site-packages (from orbax-checkpoint->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (7.2.2)
+Requirement already satisfied: zipp in ./venv/lib/python3.12/site-packages (from etils[epath,epy]->orbax-checkpoint->flax==0.10.4->-r /tmp/tt_xla_restore_uogf0olp.txt (line 2)) (3.23.0)
+Requirement already satisfied: python-dateutil>=2.8.2 in ./venv/lib/python3.12/site-packages (from pandas->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (2.9.0.post0)
+Requirement already satisfied: six>=1.5 in ./venv/lib/python3.12/site-packages (from python-dateutil>=2.8.2->pandas->datasets==4.5.0->-r /tmp/tt_xla_restore_uogf0olp.txt (line 1)) (1.17.0)
+Requirement already satisfied: click>=8.2.1 in ./venv/lib/python3.12/site-packages (from typer->huggingface_hub==1.10.1->-r /tmp/tt_xla_restore_uogf0olp.txt (line 4)) (8.3.1)
+Requirement already satisfied: shellingham>=1.3.0 in ./venv/lib/python3.12/site-packages (from typer->huggingface_hub==1.10.1->-r /tmp/tt_xla_restore_uogf0olp.txt (line 4)) (1.5.4)
+Requirement already satisfied: annotated-doc>=0.0.2 in ./venv/lib/python3.12/site-packages (from typer->huggingface_hub==1.10.1->-r /tmp/tt_xla_restore_uogf0olp.txt (line 4)) (0.0.4)
+Using cached datasets-4.5.0-py3-none-any.whl (515 kB)
+Using cached fsspec-2025.10.0-py3-none-any.whl (200 kB)
+Using cached huggingface_hub-1.10.1-py3-none-any.whl (642 kB)
+Using cached flax-0.10.4-py3-none-any.whl (451 kB)
+Using cached protobuf-7.34.1-cp310-abi3-manylinux2014_x86_64.whl (324 kB)
+Using cached PyYAML-6.0.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (724 kB)
+Using cached transformers-5.2.0-py3-none-any.whl (10.4 MB)
+Using cached uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (4.4 MB)
+Installing collected packages: uvloop, PyYAML, protobuf, fsspec, huggingface_hub, flax, datasets, transformers
+  Attempting uninstall: uvloop
+    Found existing installation: uvloop 0.21.0
+    Uninstalling uvloop-0.21.0:
+      Successfully uninstalled uvloop-0.21.0
+  Attempting uninstall: PyYAML
+    Found existing installation: PyYAML 6.0.3
+    Uninstalling PyYAML-6.0.3:
+      Successfully uninstalled PyYAML-6.0.3
+  Attempting uninstall: protobuf
+    Found existing installation: protobuf 6.33.6
+    Uninstalling protobuf-6.33.6:
+      Successfully uninstalled protobuf-6.33.6
+  Attempting uninstall: fsspec
+    Found existing installation: fsspec 2025.12.0
+    Uninstalling fsspec-2025.12.0:
+      Successfully uninstalled fsspec-2025.12.0
+  Attempting uninstall: huggingface_hub
+    Found existing installation: huggingface_hub 0.36.2
+    Uninstalling huggingface_hub-0.36.2:
+      Successfully uninstalled huggingface_hub-0.36.2
+  Attempting uninstall: flax
+    Found existing installation: flax 0.11.0
+    Uninstalling flax-0.11.0:
+      Successfully uninstalled flax-0.11.0
+  Attempting uninstall: datasets
+    Found existing installation: datasets 4.8.4
+    Uninstalling datasets-4.8.4:
+      Successfully uninstalled datasets-4.8.4
+  Attempting uninstall: transformers
+    Found existing installation: transformers 4.57.1
+    Uninstalling transformers-4.57.1:
+      Successfully uninstalled transformers-4.57.1
+
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+pjrt-plugin-tt 0.1.260411+dev.866d0abdd requires pyyaml==6.0.3, but you have pyyaml 6.0.1 which is incompatible.
+Successfully installed PyYAML-6.0.1 datasets-4.5.0 flax-0.10.4 fsspec-2025.10.0 huggingface_hub-1.10.1 protobuf-7.34.1 transformers-5.2.0 uvloop-0.22.1
+FAILED
+
+=================================== FAILURES ===================================
+_ test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference] _
+tests/runner/test_models.py:351: in test_all_models_jax
+    _run_model_test_impl(
+tests/runner/test_models.py:163: in _run_model_test_impl
+    comparison_result = tester.test(request=request)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:156: in test
+    return self._test_inference(request=request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/runner/testers/jax/dynamic_jax_multichip_model_tester.py:147: in _test_inference
+    tt_res = self._run_on_tt_device()
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+tests/runner/testers/jax/dynamic_jax_multichip_model_tester.py:241: in _run_on_tt_device
+    return self._run_on_multichip_device(self.tt_device_multichip_workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/runner/testers/jax/dynamic_jax_multichip_model_tester.py:246: in _run_on_multichip_device
+    return self._device_runner.run_on_multichip_device(compiled_workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/jax_device_runner.py:96: in run_on_multichip_device
+    return sharded_workload.execute()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/workloads/jax_workload.py:96: in execute
+    return super().execute()
+           ^^^^^^^^^^^^^^^^^
+tests/infra/workloads/workload.py:71: in execute
+    return self.compiled_executable(*self.args, **self.kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   jaxlib._jax.XlaRuntimeError: INTERNAL: Error code: 13
+E   --------------------
+E   For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
+------------------------------ Captured log call -------------------------------
+WARNING  jax._src.xla_bridge:xla_bridge.py:893 Platform 'tt' is experimental and not all JAX functionality may be correctly supported!
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference]
+  /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/flax/nnx/statelib.py:380: DeprecationWarning: `flax.nnx.State` will be deprecated and be replaced by the built-in Python dict. Please use the equivalent `nnx.split_state` instead.
+    warnings.warn(
+
+tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference]
+  /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/flax/nnx/statelib.py:418: DeprecationWarning: `flax.nnx.State` will be deprecated and be replaced by the built-in Python dict. Please use the equivalent `nnx.merge_state` instead.
+    warnings.warn(
+
+tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference]
+tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference]
+  /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/venv/lib/python3.12/site-packages/jax/_src/linear_util.py:397: DeprecationWarning: Passing arguments 'a', 'a_min' or 'a_max' to jax.numpy.clip is deprecated. Please use 'arr', 'min' or 'max' respectively instead.
+    ans = _fun(*args, **kwargs)
+
+tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference]
+  /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/infra/utilities/failing_reasons/utils.py:230: PytestDeprecationWarning: A private pytest class or function was used.
+    long_repr = ExceptionInfo(exc_info).getrepr(style="long")
+
+tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference]
+  /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference]
+  /proj_sw/user_dev/akannan/13_apr_bug/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/runner/test_models.py::test_all_models_jax[llama_claude/causal_lm/jax-1B_Tiny-tensor_parallel-inference] - jaxlib._jax.XlaRuntimeError: INTERNAL: Error code: 13
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
+================== 1 failed, 9 warnings in 376.73s (0:06:16) ===================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
