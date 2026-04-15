@@ -8,28 +8,32 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
 
-import transformers.configuration_utils as _config_utils
-import transformers.modeling_gguf_pytorch_utils as _gguf_utils
-import transformers.models.auto.tokenization_auto as _auto_tokenizer
-from transformers.modeling_gguf_pytorch_utils import (
-    load_gguf_checkpoint as _orig_load_gguf_checkpoint,
+from transformers.integrations.ggml import (
+    convert_gguf_tokenizer as _orig_convert_gguf_tokenizer,
 )
+import transformers.tokenization_utils_tokenizers as _fast_tokenizer_mod
 
 
-def _patched_load_gguf_checkpoint(gguf_path, return_tensors=False):
-    """Wrap load_gguf_checkpoint to inject bos_token for llama-based GGUF models."""
-    result = _orig_load_gguf_checkpoint(gguf_path, return_tensors=return_tensors)
-    config = result.get("config", {})
-    if config.get("model_type") == "llama" and config.get("bos_token_id") is not None:
-        tc = result.setdefault("tokenizer_config", {})
-        if "bos_token" not in tc:
-            tc["bos_token"] = "<s>"
-    return result
+def _patched_convert_gguf_tokenizer(architecture, tokenizer_dict):
+    """Fix bos/eos token swap bug in GGUFLlamaConverter.tokenizer()."""
+    fast_tokenizer, additional_kwargs = _orig_convert_gguf_tokenizer(
+        architecture, tokenizer_dict
+    )
+    # GGUFLlamaConverter has bos_token/eos_token swapped in additional_kwargs
+    # and uses bos_token_id for both bos and eos token lookups.
+    # Fix: swap them back and remove None entries to let defaults apply.
+    bos = additional_kwargs.get("bos_token")
+    eos = additional_kwargs.get("eos_token")
+    additional_kwargs["bos_token"] = eos
+    additional_kwargs["eos_token"] = bos
+    # Remove None values so tokenizer defaults are used instead
+    for key in list(additional_kwargs):
+        if additional_kwargs[key] is None:
+            del additional_kwargs[key]
+    return fast_tokenizer, additional_kwargs
 
 
-_gguf_utils.load_gguf_checkpoint = _patched_load_gguf_checkpoint
-_config_utils.load_gguf_checkpoint = _patched_load_gguf_checkpoint
-_auto_tokenizer.load_gguf_checkpoint = _patched_load_gguf_checkpoint
+_fast_tokenizer_mod.convert_gguf_tokenizer = _patched_convert_gguf_tokenizer
 
 from ....base import ForgeModel
 from ....config import (
