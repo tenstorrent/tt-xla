@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 import sys as _sys
 from pathlib import Path as _Path
 
@@ -16,18 +15,20 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers import DynamicCache
-from tt_torch.sparse_mlp import create_a2a_from_deepseek_v3_moe, enable_sparse_mlp
+from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
-
-from .configuration_deepseek import DeepseekV3Config
-from .modeling_deepseek import (
+from third_party.tt_forge_models.kimi_k2.pytorch.configuration_deepseek import (
+    DeepseekV3Config,
+)
+from third_party.tt_forge_models.kimi_k2.pytorch.loader import ModelLoader
+from third_party.tt_forge_models.kimi_k2.pytorch.modified_modeling_deepseek import (
     DeepseekV3Attention,
     DeepseekV3DecoderLayer,
     DeepseekV3ForCausalLM,
-    DeepseekV3Model,
     DeepseekV3MoE,
 )
+
 from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Attention
 
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "utils"))
@@ -42,12 +43,8 @@ from mla_cache import MLACache
 def test_kimi_k2_single_layer():
     xr.set_device_type("TT")
 
-    # Load full Kimi K2 config from JSON file
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
-
-    # Override for single layer testing
-    config.num_hidden_layers = 1
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=1)
     config.use_cache = False
 
     model = DeepseekV3ForCausalLM(config)
@@ -75,9 +72,8 @@ def test_kimi_k2_attention_prefill():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    # Load full Kimi K2 config from JSON file
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=1)
 
     attention = DeepseekV3Attention(config, layer_idx=0)
     attention = attention.to(torch.bfloat16)
@@ -153,9 +149,8 @@ def test_kimi_k2_attention_decode():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
-    config.num_hidden_layers = 1
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=1)
 
     attention = DeepseekV3Attention(config, layer_idx=0)
     attention = attention.to(torch.bfloat16)
@@ -239,11 +234,9 @@ def test_kimi_k2_layer():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    # Load full Kimi K2 config from JSON file
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=1)
     config._attn_implementation = "eager"
-    config.num_hidden_layers = 1
 
     layer = DeepseekV3DecoderLayer(config, layer_idx=0)
     layer = layer.to(torch.bfloat16)
@@ -339,11 +332,9 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    # Load full Kimi K2 config from JSON file
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=2)
     config._attn_implementation = "eager"
-    config.num_hidden_layers = 2
 
     layer = DeepseekV3DecoderLayer(config, layer_idx=1)
     layer = layer.eval().to(torch.bfloat16)
