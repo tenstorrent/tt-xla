@@ -60,9 +60,9 @@ class ModelLoader(ForgeModel):
 
     def _load_tokenizer(self, dtype_override=None):
         """Load tokenizer for the current variant."""
-        from transformers import MT5Tokenizer
+        from transformers import AutoTokenizer
 
-        self._tokenizer = MT5Tokenizer.from_pretrained(self._model_name)
+        self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
 
         return self._tokenizer
 
