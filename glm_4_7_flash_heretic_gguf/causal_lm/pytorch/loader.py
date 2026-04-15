@@ -29,18 +29,20 @@ class ModelVariant(StrEnum):
 
 
 class ModelLoader(ForgeModel):
-    """GLM-4.7-Flash-heretic GGUF model loader for causal language modeling."""
+    """GLM-4.7-Flash-heretic GGUF model loader for causal language modeling.
+
+    Note: Uses the base model (safetensors) instead of GGUF because the
+    deepseek2 GGUF architecture is not yet supported by transformers.
+    """
 
     _VARIANTS = {
         ModelVariant.GLM_4_7_FLASH_HERETIC_GGUF: LLMModelConfig(
-            pretrained_model_name="bartowski/jtl11_GLM-4.7-Flash-heretic-GGUF",
+            pretrained_model_name="jtl11/GLM-4.7-Flash-heretic",
             max_length=128,
         ),
     }
 
     DEFAULT_VARIANT = ModelVariant.GLM_4_7_FLASH_HERETIC_GGUF
-
-    GGUF_FILE = "jtl11_GLM-4.7-Flash-heretic-Q4_K_M.gguf"
 
     sample_text = "Give me a short introduction to large language models."
 
@@ -67,7 +69,6 @@ class ModelLoader(ForgeModel):
         tokenizer_kwargs = {}
         if dtype_override is not None:
             tokenizer_kwargs["torch_dtype"] = dtype_override
-        tokenizer_kwargs["gguf_file"] = self.GGUF_FILE
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self._variant_config.pretrained_model_name, **tokenizer_kwargs
@@ -87,12 +88,9 @@ class ModelLoader(ForgeModel):
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.GGUF_FILE
 
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
-            )
+            config = AutoConfig.from_pretrained(pretrained_model_name)
             config.num_hidden_layers = self.num_layers
             model_kwargs["config"] = config
 
@@ -163,6 +161,6 @@ class ModelLoader(ForgeModel):
 
     def load_config(self):
         self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
+            self._variant_config.pretrained_model_name
         )
         return self.config
