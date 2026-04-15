@@ -82,16 +82,19 @@ def _patch_transformers_models():
             f"{pretrained_model_name_or_path}, using random init via {cls.__name__}"
         )
 
-        # Extract config-relevant kwargs, drop weight-loading ones
-        config_kwargs = {}
-        for key in ("trust_remote_code", "revision", "token", "gguf_file"):
-            if key in kwargs:
-                config_kwargs[key] = kwargs[key]
+        # Use caller-provided config if available, otherwise download it
+        config = kwargs.get("config", None)
+        if config is None:
+            # Extract config-relevant kwargs, drop weight-loading ones
+            config_kwargs = {}
+            for key in ("trust_remote_code", "revision", "token", "gguf_file"):
+                if key in kwargs:
+                    config_kwargs[key] = kwargs[key]
 
-        # Download just the config (tiny JSON, no weights)
-        config = AutoConfig.from_pretrained(
-            pretrained_model_name_or_path, **config_kwargs
-        )
+            # Download just the config (tiny JSON, no weights)
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name_or_path, **config_kwargs
+            )
 
         # Carry over kwargs that affect model construction
         torch_dtype = kwargs.get("torch_dtype", None)
