@@ -2229,9 +2229,8 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Test hangs, investigation is ongoing: https://github.com/tenstorrent/tt-xla/issues/3838"
+    status: EXPECTED_PASSING
+    assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3838
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING
