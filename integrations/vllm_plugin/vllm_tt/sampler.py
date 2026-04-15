@@ -236,6 +236,12 @@ class Sampler(nn.Module):
             vals, inds = torch.topk(logits, k=32, dim=-1)
             return (vals.sum(dim=-1) * 0).to(torch.int64).view(-1)
 
+        # Experiment A3: simple max reduction — tests if any full-vocab op is slow
+        _NONGREEDY_MAX_ONLY = os.environ.get("TT_NONGREEDY_MAX_ONLY", "") == "1"
+        if _NONGREEDY_MAX_ONLY:
+            max_val, max_idx = logits.max(dim=-1)
+            return max_idx.view(-1)
+
         if _GREEDY_WITH_SAMPLING_OPS:
             # Experiment: run sampling ops but return greedy result.
             # This tests whether adding sampling ops to the compiled graph
