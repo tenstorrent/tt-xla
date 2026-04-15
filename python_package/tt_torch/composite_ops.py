@@ -168,6 +168,45 @@ def composite_group_norm(
     return output
 
 
+def composite_grid_sample(
+    input: Tensor,
+    grid: Tensor,
+    mode: str = "bilinear",
+    padding_mode: str = "zeros",
+    align_corners: Optional[bool] = None,
+) -> Tensor:
+    """
+    Creates composite grid_sample operation for torch xla using StableHLOCompositeBuilder.
+    Operation name is tenstorrent.grid_sample for MLIR to handle it.
+
+    Without this composite, F.grid_sample decomposes to stablehlo.gather with massive
+    index tensors (e.g. [1,256,7,25281,4] i64 = 1.35 GiB) that exceed DRAM capacity.
+    The composite preserves the grid_sample semantic so tt-mlir can lower it directly
+    to ttnn.grid_sample, which handles the operation natively without index tensors.
+
+    Args:
+        input: Input feature map (N, C, H_in, W_in)
+        grid: Sampling grid (N, H_out, W_out, 2) with values in [-1, 1]
+        mode: Interpolation mode ("bilinear" or "nearest")
+        padding_mode: Padding mode for out-of-bound grid values
+        align_corners: Whether to align corner pixels
+
+    Returns:
+        Sampled tensor (N, C, H_out, W_out)
+    """
+    attr = {"mode": mode, "padding_mode": padding_mode}
+    if align_corners is not None:
+        attr["align_corners"] = align_corners
+
+    builder = StableHLOCompositeBuilder(name="tenstorrent.grid_sample", attr=attr)
+
+    input, grid = builder.mark_inputs(input, grid)
+    output = torch.nn.functional.grid_sample(input, grid, mode, padding_mode, align_corners)
+    output = builder.mark_outputs(output)
+
+    return output
+
+
 def composite_topk(
     input: Tensor,
     k: int,
@@ -356,6 +395,7 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
+    torch.nn.functional.grid_sample: composite_grid_sample,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
     # torch.nn.functional.group_norm: composite_group_norm,
     torch.topk: {

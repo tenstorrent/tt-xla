@@ -365,7 +365,10 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
         aten.addmm,
         aten.squeeze.dims,
         # decompositions for miscellaneous ops that are not handled in torch-mlir but have available decompositions
-        aten.grid_sampler_2d,
+        # NOTE: aten.grid_sampler_2d removed — the default decomposition lowers to
+        # stablehlo.gather with massive index tensors that exceed DRAM capacity.
+        # grid_sample is now wrapped as a tenstorrent.grid_sample composite in
+        # composite_ops.py so tt-mlir can lower it to ttnn.grid_sample directly.
         aten._adaptive_avg_pool2d,
         aten.full,
         aten._log_softmax,
