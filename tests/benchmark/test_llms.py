@@ -1765,7 +1765,7 @@ def test_gpt_oss_120b_tp_qb2(
         batch_size=batch_size if batch_size is not None else 8,
         arch="qb2-blackhole",
         optimization_level=1,
-        trace_enabled=False,
+        trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
         weight_dtype_overrides={
             "default": "bfp_bf8",
