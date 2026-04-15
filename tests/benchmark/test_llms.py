@@ -1804,7 +1804,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         output_file,
         num_layers=2,
         request=request,
-        accuracy_testing=False,  # accuracy_testing=True saw jump in PCC from 0.92 to 1.00 after rebase - investigate?
+        accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
