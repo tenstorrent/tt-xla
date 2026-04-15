@@ -75,6 +75,7 @@ class ModelLoader(ForgeModel):
         self.pipeline = StableDiffusionPipeline.from_single_file(
             gguf_path,
             torch_dtype=dtype,
+            ignore_mismatched_sizes=True,
             **kwargs,
         )
         return self.pipeline
