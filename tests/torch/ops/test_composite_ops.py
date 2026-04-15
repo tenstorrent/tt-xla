@@ -109,7 +109,9 @@ def test_patched_rms_norm_functional_single_device(
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(reason="Skipping test, issue: https://github.com/tenstorrent/tt-xla/issues/4256")
+@pytest.mark.skip(
+    reason="Skipping test, issue: https://github.com/tenstorrent/tt-xla/issues/4256"
+)
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize(
@@ -141,9 +143,9 @@ def test_patched_rms_norm_functional_batch_parallel(
 
     def get_shard_spec(args, kwargs):
         shard_specs = {}
-        shard_specs[args[0]] = ("batch", None, None) # input tensor
+        shard_specs[args[0]] = ("batch", None, None)  # input tensor
         if args[1] is not None:
-            shard_specs[args[1]] = (None,) # weight
+            shard_specs[args[1]] = (None,)  # weight
         return shard_specs
 
     run_graph_test(
