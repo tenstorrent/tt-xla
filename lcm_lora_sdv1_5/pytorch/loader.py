@@ -9,7 +9,7 @@ from latent-consistency/lcm-lora-sdv1-5 for fast 2-8 step text-to-image
 generation using Latent Consistency Models.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 from diffusers import AutoPipelineForText2Image, LCMScheduler  # type: ignore[import]
@@ -63,7 +63,7 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override: Optional[torch.dtype] = None, **kwargs):
-        """Load the SD v1.5 pipeline with LCM-LoRA weights applied."""
+        """Load the SD v1.5 pipeline with LCM-LoRA weights and return the UNet."""
         dtype = dtype_override if dtype_override is not None else torch.float32
 
         self.pipeline = AutoPipelineForText2Image.from_pretrained(
@@ -80,17 +80,51 @@ class ModelLoader(ForgeModel):
         self.pipeline.load_lora_weights(LORA_REPO)
         self.pipeline.fuse_lora()
 
-        return self.pipeline
+        return self.pipeline.unet
 
-    def load_inputs(self, prompt: Optional[str] = None, **kwargs):
-        """Prepare inputs for text-to-image generation."""
-        if prompt is None:
-            prompt = (
-                "Self-portrait oil painting, a beautiful cyborg with golden hair, 8k"
-            )
+    def load_inputs(self, dtype_override=None, **kwargs):
+        """Prepare preprocessed tensor inputs for the UNet."""
+        if self.pipeline is None:
+            self.load_model(dtype_override=dtype_override)
 
-        return {
-            "prompt": prompt,
-            "num_inference_steps": 4,
-            "guidance_scale": 0,
-        }
+        dtype = self.pipeline.unet.dtype
+
+        prompt = (
+            "Self-portrait oil painting, a beautiful cyborg with golden hair, 8k"
+        )
+
+        # Encode text prompt into embeddings
+        text_inputs = self.pipeline.tokenizer(
+            prompt,
+            padding="max_length",
+            max_length=self.pipeline.tokenizer.model_max_length,
+            truncation=True,
+            return_tensors="pt",
+        )
+        with torch.no_grad():
+            encoder_hidden_states = self.pipeline.text_encoder(
+                text_inputs.input_ids
+            )[0].to(dtype)
+
+        # Create latent noise input and timestep
+        in_channels = self.pipeline.unet.config.in_channels
+        sample_size = self.pipeline.unet.config.sample_size
+        latent_sample = torch.randn(
+            1, in_channels, sample_size, sample_size, dtype=dtype
+        )
+        timestep = torch.tensor([1.0], dtype=dtype)
+
+        if dtype_override:
+            latent_sample = latent_sample.to(dtype_override)
+            timestep = timestep.to(dtype_override)
+            encoder_hidden_states = encoder_hidden_states.to(dtype_override)
+
+        return [latent_sample, timestep, encoder_hidden_states]
+
+    def unpack_forward_output(self, fwd_output: Any) -> torch.Tensor:
+        """Unpack UNet output tuple to the sample tensor."""
+        if isinstance(fwd_output, tuple):
+            return fwd_output[0]
+        if hasattr(fwd_output, "sample"):
+            return fwd_output.sample
+        return fwd_output
