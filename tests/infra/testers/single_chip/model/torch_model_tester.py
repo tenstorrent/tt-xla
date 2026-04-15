@@ -363,7 +363,6 @@ class TorchModelTester(ModelTester):
 
             # --- Flatbuffer reference run (legacy compile, original PJRT options) ---
             fb_result = self._run_on_tt_device(fresh_workload)
-            fb_result = self._unpack_forward_output(fb_result)
 
             # --- EmitPy run (same legacy-compiled workload, emitpy PJRT options) ---
             # Clear XLA computation cache so the next execution recompiles through
@@ -380,7 +379,6 @@ class TorchModelTester(ModelTester):
             torch_xla.set_custom_compile_options(emitpy_options)
 
             emitpy_result = self._run_on_tt_device(fresh_workload)
-            emitpy_result = self._unpack_forward_output(emitpy_result)
 
             # Compare EmitPy vs flatbuffer using the standard evaluator.
             emitpy_config = ComparisonConfig(assert_on_failure=False)
