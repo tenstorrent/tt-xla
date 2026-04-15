@@ -254,14 +254,6 @@ class ModelLoader(ForgeModel):
         if self._needs_remote_code():
             model_kwargs["trust_remote_code"] = True
 
-        # GPTQ variants need device_map="cpu" for CPU-based loading
-        if self._variant in (ModelVariant.QWEN_3_5_397B_A17B_GPTQ_INT4,):
-            model_kwargs["device_map"] = "cpu"
-
-        # AutoRound int4 variants need device_map="cpu" for CPU-based loading
-        if self._variant == ModelVariant.QWEN_3_5_35B_A3B_INT4_AUTOROUND:
-            model_kwargs["device_map"] = "cpu"
-
         if self.num_layers is not None:
             config = AutoConfig.from_pretrained(pretrained_model_name)
             if hasattr(config, "text_config"):
@@ -357,16 +349,14 @@ class ModelLoader(ForgeModel):
 
     def _needs_remote_code(self):
         """Check if the current variant requires trust_remote_code for custom architecture."""
-        return self._variant in (ModelVariant.QWEN_3_5_397B_A17B_GPTQ_INT4,)
+        return False
 
     def _is_moe_variant(self):
         """Check if the current variant is a Mixture of Experts model."""
         return self._variant in (
             ModelVariant.QWEN_3_5_35B_A3B,
             ModelVariant.QWEN_3_5_35B_A3B_BASE,
-            ModelVariant.QWEN_3_5_35B_A3B_BASE_UNSLOTH,
             ModelVariant.QWEN_3_5_35B_A3B_FP8,
-            ModelVariant.QWEN_3_5_122B_A10B,
             ModelVariant.QWEN_3_5_122B_A10B_MXFP4,
             ModelVariant.QWEN_3_5_397B_A17B_GGUF,
         )
