@@ -251,6 +251,24 @@ class Sampler(nn.Module):
             vals, inds = torch.topk(chunk, k=32, dim=-1)
             return (vals.sum(dim=-1) * 0).to(torch.int64).view(-1)
 
+        # Experiment A5: 2x chunks of 64K instead of 4x 32K
+        _NONGREEDY_2CHUNK_TOPK = (
+            os.environ.get("TT_NONGREEDY_2CHUNK_TOPK", "") == "1"
+        )
+        if _NONGREEDY_2CHUNK_TOPK:
+            chunks = torch.split(logits, 65536, dim=-1)
+            all_vals, all_inds = [], []
+            for i, c in enumerate(chunks):
+                if c.shape[-1] < 65536:
+                    c = torch.nn.functional.pad(
+                        c, (0, 65536 - c.shape[-1]), value=float("-inf")
+                    )
+                v, idx = torch.topk(c, k=32, dim=-1)
+                all_vals.append(v)
+                all_inds.append(idx + i * 65536)
+            vals = torch.cat(all_vals, dim=-1)
+            return (vals.sum(dim=-1) * 0).to(torch.int64).view(-1)
+
         if _GREEDY_WITH_SAMPLING_OPS:
             # Experiment: run sampling ops but return greedy result.
             # This tests whether adding sampling ops to the compiled graph
