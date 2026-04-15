@@ -4,15 +4,13 @@
 """
 KoboldCpp imgmodel GGUF model loader implementation for text-to-image generation.
 
-Loads quantized Stable Diffusion models in GGUF format from the
-koboldcpp/imgmodel repository on Hugging Face.
+Loads the GGUF-quantized UNet from koboldcpp/imgmodel and builds a
+text-to-image pipeline using the base Stable Diffusion v1.5 model.
 """
 
 from typing import Optional
 
 import torch
-from diffusers import StableDiffusionPipeline
-from huggingface_hub import hf_hub_download
 
 from ...base import ForgeModel
 from ...config import (
@@ -26,12 +24,18 @@ from ...config import (
 )
 
 REPO_ID = "koboldcpp/imgmodel"
+BASE_PIPELINE = "stable-diffusion-v1-5/stable-diffusion-v1-5"
 
 
 class ModelVariant(StrEnum):
     """Available koboldcpp imgmodel variants."""
 
     FTUNED_Q4_0 = "Ftuned_Q4_0"
+
+
+_GGUF_FILES = {
+    ModelVariant.FTUNED_Q4_0: "imgmodel_ftuned_q4_0.gguf",
+}
 
 
 class ModelLoader(ForgeModel):
@@ -44,10 +48,6 @@ class ModelLoader(ForgeModel):
     }
 
     DEFAULT_VARIANT = ModelVariant.FTUNED_Q4_0
-
-    _GGUF_FILES = {
-        ModelVariant.FTUNED_Q4_0: "imgmodel_ftuned_q4_0.gguf",
-    }
 
     def __init__(self, variant: Optional[ModelVariant] = None):
         super().__init__(variant)
@@ -67,16 +67,34 @@ class ModelLoader(ForgeModel):
         )
 
     def load_model(self, *, dtype_override=None, **kwargs):
-        """Load the GGUF Stable Diffusion model from koboldcpp/imgmodel."""
-        gguf_filename = self._GGUF_FILES[self._variant]
-        gguf_path = hf_hub_download(REPO_ID, filename=gguf_filename)
+        """Load the GGUF-quantized UNet and build the SD pipeline.
+
+        Uses diffusers GGUFQuantizationConfig to load the quantized UNet,
+        then constructs the StableDiffusionPipeline with the base model's
+        other components (CLIP text encoder, VAE, scheduler).
+        """
+        from diffusers import (
+            GGUFQuantizationConfig,
+            StableDiffusionPipeline,
+            UNet2DConditionModel,
+        )
+        from huggingface_hub import hf_hub_download
 
         dtype = dtype_override if dtype_override is not None else torch.float32
-        self.pipeline = StableDiffusionPipeline.from_single_file(
+        gguf_filename = _GGUF_FILES[self._variant]
+        gguf_path = hf_hub_download(REPO_ID, filename=gguf_filename)
+
+        quantization_config = GGUFQuantizationConfig(compute_dtype=dtype)
+        unet = UNet2DConditionModel.from_single_file(
             gguf_path,
+            quantization_config=quantization_config,
             torch_dtype=dtype,
-            ignore_mismatched_sizes=True,
-            **kwargs,
+        )
+
+        self.pipeline = StableDiffusionPipeline.from_pretrained(
+            BASE_PIPELINE,
+            unet=unet,
+            torch_dtype=dtype,
         )
         return self.pipeline
 
