@@ -472,9 +472,7 @@ class Sampler(nn.Module):
         values = filtered_logits.to(torch.bfloat16)
         indices = candidate_indices.to(torch.int32)
         # Hardcoded constants — not graph inputs
-        k_tensor = torch.full(
-            (pad_batch,), 32, dtype=torch.int32, device=values.device
-        )
+        k_tensor = torch.full((pad_batch,), 32, dtype=torch.int32, device=values.device)
         p_tensor = torch.ones(pad_batch, dtype=torch.bfloat16, device=values.device)
         # 1/0.6 = 1.667
         temp_tensor = torch.full(
