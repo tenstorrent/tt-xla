@@ -326,10 +326,15 @@ The extra input bindings cause a **6x slowdown** even though the inputs aren't c
 
 In the vLLM sampler, the compiled program has ~10 input bindings (logits + temperature + top_k + top_p + min_p + other metadata). This inflates the dispatch overhead for every op in the program, turning the 4x topk loop from 1ms to ~25ms.
 
-**The fix: minimize input bindings in the sampler compiled program.** Either:
-- Don't pass unused metadata as graph inputs (lazy binding)
-- Pre-bake constant metadata values into the compiled program
-- Merge the sampler into the model forward graph (shared input bindings, amortized over more ops)
+**Update:** Hardcoding all params (TT_HARDCODE_SAMPLING_PARAMS) → 13.7 tok/s, same as 13.8. Input bindings are NOT the primary cause in the real model. The standalone test difference (1.17→6.89ms) was misleading — in the full model with ~2000 forward ops, the input binding effect is negligible.
+
+**Revised root cause:** The 4x topk loop creates ~30 compiled ops. Each has per-op overhead in the vLLM runtime (~0.5ms each). Single topk = 18.5 tok/s (1 topk op), 4x topk = 13.2 (4 topk + pads + adds + concats). The overhead is from the **number of ops** dispatched as part of the sampler program, not from input bindings.
+
+**Remaining fix options:**
+1. Fuse the 4x topk loop into a single composite tt-mlir op (1 dispatch instead of ~30)
+2. Extend ttnn.topk to support ≥ 65536 (enables 2x chunks, halving ops)
+3. Move topk into the model forward torch.compile scope (ops amortized in larger program)
+4. Implement a custom StableHLO-level topk that handles 128K vocab directly
 
 Fix options (ranked by feasibility):
 1. **Fuse the 4x topk loop into a single tt-mlir composite op** — dispatches once instead of ~30 times. Requires tt-mlir work to define a composite that does split+pad+4×topk+concat internally.
