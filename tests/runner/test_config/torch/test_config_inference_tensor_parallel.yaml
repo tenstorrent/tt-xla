@@ -255,3 +255,8 @@ test_config:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+
+  llama/llama_4/pytorch-Llama-4-Scout-17B-16E-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
