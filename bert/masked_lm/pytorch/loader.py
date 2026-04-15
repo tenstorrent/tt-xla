@@ -5,7 +5,7 @@
 BERT model loader implementation for masked language modeling.
 """
 
-from transformers import BertForMaskedLM, BertTokenizer, AutoConfig, AutoTokenizer
+from transformers import BertForMaskedLM, BertTokenizer, AutoConfig
 from third_party.tt_forge_models.config import (
     ModelInfo,
     ModelGroup,
@@ -151,10 +151,7 @@ class ModelLoader(ForgeModel):
         """
 
         # Initialize tokenizer
-        if self._variant == ModelVariant.TOHOKU_NLP_BERT_BASE_JAPANESE_CHAR_V2:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        else:
-            self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
+        self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
 
         # Load pre-trained model from HuggingFace
         model_kwargs = {}
