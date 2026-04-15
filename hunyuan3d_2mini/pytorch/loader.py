@@ -35,7 +35,12 @@ HUNYUAN3D_REPO_PATH = "/tmp/hunyuan3d2_repo"
 
 
 def _ensure_hunyuan3d_importable():
-    """Ensure the Hunyuan3D-2 repo is cloned and importable."""
+    """Ensure the Hunyuan3D-2 repo is cloned and importable.
+
+    Registers only the package hierarchy needed for the DiT denoiser
+    (hy3dgen.shapegen.models.denoisers) without triggering the top-level
+    shapegen __init__.py which pulls in heavy dependencies like trimesh.
+    """
     if "hy3dgen" not in sys.modules:
         if not os.path.isdir(HUNYUAN3D_REPO_PATH):
             import subprocess
@@ -51,9 +56,22 @@ def _ensure_hunyuan3d_importable():
             )
 
         sys.path.insert(0, HUNYUAN3D_REPO_PATH)
-        hy3dgen_mod = types.ModuleType("hy3dgen")
-        sys.modules["hy3dgen"] = hy3dgen_mod
-        hy3dgen_mod.__path__ = [os.path.join(HUNYUAN3D_REPO_PATH, "hy3dgen")]
+        base = os.path.join(HUNYUAN3D_REPO_PATH, "hy3dgen")
+
+        # Register stub packages to avoid running __init__.py files that
+        # import heavy/unnecessary dependencies (trimesh, pymeshlab, etc.).
+        for name, subpath in [
+            ("hy3dgen", ""),
+            ("hy3dgen.shapegen", "shapegen"),
+            ("hy3dgen.shapegen.models", os.path.join("shapegen", "models")),
+            (
+                "hy3dgen.shapegen.models.denoisers",
+                os.path.join("shapegen", "models", "denoisers"),
+            ),
+        ]:
+            mod = types.ModuleType(name)
+            mod.__path__ = [os.path.join(base, subpath)]
+            sys.modules[name] = mod
 
 
 class ModelVariant(StrEnum):
@@ -102,7 +120,7 @@ class ModelLoader(ForgeModel):
             torch.nn.Module: The DiT flow-matching backbone.
         """
         _ensure_hunyuan3d_importable()
-        from hy3dgen.shapegen.models.denoisers import Hunyuan3DDiT
+        from hy3dgen.shapegen.models.denoisers.hunyuan3ddit import Hunyuan3DDiT
 
         repo_id = self._variant_config.pretrained_model_name
 
