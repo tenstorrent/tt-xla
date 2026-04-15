@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
+import os
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -15,6 +16,7 @@ from torch.library import impl
 
 # from torch_xla._internal.jax_workarounds import requires_jax
 from torch_xla.experimental.custom_kernel import XLA_LIB
+from tt_torch.sharding import sharding_constraint_tensor
 from vllm.config import VllmConfig
 from vllm.utils.math_utils import cdiv, next_power_of_2
 from vllm.v1.attention.backend import (
@@ -45,6 +47,38 @@ TPU_STR_DTYPE_TO_TORCH_DTYPE = {
 }
 
 torch._dynamo.config.reorderable_logging_functions.add(print)
+
+
+@torch.compiler.disable
+def _dump_tensors_to_file(query_tensor, key_tensor, value_tensor, sink_tensor, logger):
+    """Dump tensors to files - excluded from torch.compile"""
+    try:
+        import os
+
+        dump_dir = "/localdev/mmanzoor/compiler/tt-xla/tensor_dumps"
+        os.makedirs(dump_dir, exist_ok=True)
+
+        # Move to CPU and save
+        query_cpu = query_tensor.detach().cpu()
+        key_cpu = key_tensor.detach().cpu()
+        value_cpu = value_tensor.detach().cpu()
+        sink_cpu = sink_tensor.detach().cpu() if sink_tensor is not None else None
+
+        torch.save(query_cpu, os.path.join(dump_dir, "query_tensor.pt"))
+        torch.save(key_cpu, os.path.join(dump_dir, "key_tensor.pt"))
+        torch.save(value_cpu, os.path.join(dump_dir, "value_tensor.pt"))
+        if sink_cpu is not None:
+            torch.save(sink_cpu, os.path.join(dump_dir, "sink_tensor.pt"))
+
+        logger.info(f"Tensors saved to {dump_dir}")
+        logger.info(
+            f"query: {query_cpu.shape}, key: {key_cpu.shape}, value: {value_cpu.shape}"
+        )
+        if sink_cpu is not None:
+            logger.info(f"sink: {sink_cpu.shape}")
+
+    except Exception as e:
+        logger.error(f"Failed to dump tensors: {e}")
 
 
 class TTAttentionMetadataBuilder:
@@ -259,16 +293,22 @@ class TTAttentionBackendImpl(AttentionImpl):
         if sinks is None:
             return None
 
-        # Handle sinks: if sinks is 1D then convert it to 2D with second dim as 1
-        if sinks.dim() == 1:
-            sinks = sinks.unsqueeze(-1)
+        if not sinks.device.type == "xla":
+            sinks = sinks.to("xla")
+        xs.mark_sharding(sinks, mesh, ("batch",))
+        sinks = (
+            sinks / self.scale
+        )  # Scale the sinks by the same factor as attention scores
+
+        # Handle sinks: if sinks is 1D then convert it to [1, num_heads, 1, 1]
+        # if sinks.dim() == 1:
+        #  sinks = sinks.view(1, -1, 1, 1)  # [1, num_heads, 1, 1]
 
         # Shard the sinks if mesh is available
-        if mesh is not None:
-            # Move to XLA device and mark for sharding
-            if not sinks.device.type == "xla":
-                sinks = sinks.to("xla")
-            xs.mark_sharding(sinks, mesh, ("batch", None))
+        # if False and mesh is not None:
+        # Move to XLA device and mark for sharding
+        #  sinks = sharding_constraint_tensor(sinks, mesh, (None, "batch", None, None))
+        # xs.mark_sharding(sinks, mesh, (None, "batch", None, None))
 
         return sinks
 
@@ -304,6 +344,12 @@ class TTAttentionBackendImpl(AttentionImpl):
             value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
             output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
+        # query_cpu = sharding_constraint_tensor(query, attn_metadata.mesh, (None, None, None))
+        # key_cpu = key.to("cpu")
+        # value_cpu = value.to("cpu")
+        # logger.info(f"query: {query.shape} -- {query}")
+        # logger.info(f"key: {key.shape} -- {key}")
+        # logger.info(f"value: {value.shape} -- {value}")
 
         # Prepare inputs and metadata
         inputs = self._prepare_inputs(query, key, value, attn_metadata)
@@ -324,7 +370,9 @@ class TTAttentionBackendImpl(AttentionImpl):
             output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
 
         # Finalize output shape to match original input
-        return self._finalize_output(output, inputs)
+        result = self._finalize_output(output, inputs)
+        # logger.info(f"output: {result.to('cpu')}")
+        return result
 
     def _prepare_inputs(
         self,
@@ -543,6 +591,10 @@ class TTAttentionBackendImpl(AttentionImpl):
         key_for_sdpa = inputs.key.transpose(-3, -2)
         value_for_sdpa = inputs.value.transpose(-3, -2)
         sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
+        sink = sink.view(1, -1, 1, 1)
+
+        # Dump tensors to files (excluded from compilation)
+        # _dump_tensors_to_file(query_for_sdpa, key_for_sdpa, value_for_sdpa, sink, logger)
 
         output = torch.ops.tt.scaled_dot_product_attention(
             query_for_sdpa,
@@ -551,6 +603,8 @@ class TTAttentionBackendImpl(AttentionImpl):
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
             attention_sink=sink,
+            scale=self.scale,
+            sliding_window_size=self.sliding_window,
         ).transpose(
             -3, -2
         )  # Back to [users, tokens, num_heads, head_size]
@@ -563,8 +617,6 @@ class TTAttentionBackendImpl(AttentionImpl):
         """Compute attention for decode phase (paged)."""
         k_cache = kv_cache[0]
         v_cache = kv_cache[1]
-        # logger.info(f"query shape: {inputs.query.shape}, k_cache shape: {k_cache.shape}, v_cache shape: {v_cache.shape}")
-        # logger.info(f"sink_shape: {self.sinks.shape if self.sinks is not None else None}")
 
         # Adjust for decode kernel expecting query as [1, num_users, num_heads, head]
         # Current query: [users, query_num_tokens, num_heads, head_size]
@@ -573,8 +625,7 @@ class TTAttentionBackendImpl(AttentionImpl):
 
         # Use sink from self.sinks, prepared with mesh from metadata
         sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
-
-        # logger.info(f"Running decode attention with query shape {query_for_decode.shape}, k_cache shape {k_cache.shape}, v_cache shape {v_cache.shape}, page_table shape {attn_metadata.page_table.shape if attn_metadata.page_table is not None else None}, cache_position shape {attn_metadata.cache_position.shape if attn_metadata.cache_position is not None else None}, sink shape {sink.shape if sink is not None else None}")
+        sink = sink.unsqueeze(-1)
 
         out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
             query_for_decode,

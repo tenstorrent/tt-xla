@@ -47,6 +47,7 @@ class Sampler(nn.Module):
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
     ) -> SamplerOutput:
+        # logger.info(f"Sampler forward called with logits shape: {logits.shape} and sampling_metadata: {sampling_metadata}")
         # Use float32 for the logits.
         logits = logits.to(torch.float32)
         # Sample the next token.
