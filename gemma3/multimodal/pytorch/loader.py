@@ -146,7 +146,6 @@ class ModelLoader(ForgeModel):
             model_kwargs["device_map"] = "cpu"
 
         is_mlx = "mlx-community" in pretrained_model_name
-        is_awq = self._variant == ModelVariant.GEMMA_3_27B_IT_AWQ_INT4
         if is_mlx:
             model_kwargs["ignore_mismatched_sizes"] = True
 
