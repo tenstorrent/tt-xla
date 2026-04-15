@@ -18,7 +18,7 @@ Available variants:
 - WAN22_T2V_A14B_LIGHTNING: Full pipeline
 """
 
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 import torch
 from diffusers import AutoencoderKLWan, WanPipeline  # type: ignore[import]
@@ -46,6 +46,13 @@ LATENT_CHANNELS = 16
 LATENT_HEIGHT = 8
 LATENT_WIDTH = 8
 LATENT_DEPTH = 2  # temporal latent frames
+
+# Small test dimensions for transformer inputs
+# Must be divisible by patch_size (1, 2, 2)
+TRANSFORMER_NUM_FRAMES = 2
+TRANSFORMER_HEIGHT = 4
+TRANSFORMER_WIDTH = 4
+TRANSFORMER_TEXT_SEQ_LEN = 8
 
 
 class ModelVariant(StrEnum):
@@ -122,10 +129,10 @@ class ModelLoader(ForgeModel):
         return self.pipeline
 
     def load_model(self, *, dtype_override: Optional[torch.dtype] = None, **kwargs):
-        """Load and return the Wan pipeline or VAE component.
+        """Load and return the Wan transformer or VAE component.
 
         Returns:
-            WanPipeline or AutoencoderKLWan depending on subfolder.
+            WanTransformer3DModel or AutoencoderKLWan depending on subfolder.
         """
         if self._subfolder == "vae":
             dtype = dtype_override if dtype_override is not None else torch.float32
@@ -137,16 +144,38 @@ class ModelLoader(ForgeModel):
 
         dtype = dtype_override if dtype_override is not None else torch.bfloat16
         if self.pipeline is None:
-            return self._load_pipeline(dtype)
+            self._load_pipeline(dtype)
         if dtype_override is not None:
             self.pipeline = self.pipeline.to(dtype=dtype_override)
-        return self.pipeline
+        return self.pipeline.transformer
+
+    def _load_transformer_inputs(self, dtype: torch.dtype) -> Dict[str, Any]:
+        """Prepare inputs for the WanTransformer3DModel forward pass."""
+        config = self.pipeline.transformer.config
+        return {
+            "hidden_states": torch.randn(
+                1,
+                config.in_channels,
+                TRANSFORMER_NUM_FRAMES,
+                TRANSFORMER_HEIGHT,
+                TRANSFORMER_WIDTH,
+                dtype=dtype,
+            ),
+            "encoder_hidden_states": torch.randn(
+                1,
+                TRANSFORMER_TEXT_SEQ_LEN,
+                config.text_dim,
+                dtype=dtype,
+            ),
+            "timestep": torch.tensor([500], dtype=torch.long),
+            "return_dict": False,
+        }
 
     def load_inputs(self, prompt: Optional[str] = None, **kwargs) -> Any:
         """Prepare inputs for the model or component.
 
         For VAE subfolder, pass vae_type="decoder" or vae_type="encoder".
-        For full pipeline, returns a prompt dict.
+        For transformer (default), returns tensor inputs for the forward pass.
         """
         if self._subfolder == "vae":
             dtype = kwargs.get("dtype_override", torch.float32)
@@ -173,5 +202,5 @@ class ModelLoader(ForgeModel):
                     f"Unknown vae_type: {vae_type}. Expected 'decoder' or 'encoder'."
                 )
 
-        prompt_value = prompt if prompt is not None else self.DEFAULT_PROMPT
-        return {"prompt": prompt_value}
+        dtype = kwargs.get("dtype_override", torch.bfloat16)
+        return self._load_transformer_inputs(dtype)
