@@ -193,4 +193,45 @@ TEST(CallbackWorkerUnitTests, DifferentThread) {
   EXPECT_NE(callback_thread_id, std::this_thread::get_id());
 }
 
+// Context for a self-re-enqueuing callback chain. Each callback fires the next
+// one until the desired depth is reached, at which point it signals completion.
+struct ReEnqueueContext {
+  CallbackWorker *worker = nullptr;
+  std::atomic<int> invocation_count{0};
+  std::atomic<bool> done{false};
+  static constexpr int kChainLength = 5;
+};
+
+static void reEnqueueCallback(PJRT_Error *error, void *user_arg) {
+  auto *ctx = reinterpret_cast<ReEnqueueContext *>(user_arg);
+  int count = ctx->invocation_count.fetch_add(1, std::memory_order_relaxed) + 1;
+  if (count < ReEnqueueContext::kChainLength) {
+    ctx->worker->enqueue(reEnqueueCallback, ctx, nullptr);
+  } else {
+    ctx->done.store(true, std::memory_order_release);
+  }
+}
+
+// Verify that a callback can safely enqueue new callbacks on the same worker
+// (the worker thread acts as a producer for itself). The full chain of
+// re-enqueued callbacks must all execute, and in order.
+// I don't expect this to happen in practice, but it is a valid use case.
+TEST(CallbackWorkerUnitTests, CallbackReEnqueues) {
+  CallbackWorker worker;
+  ReEnqueueContext ctx;
+  ctx.worker = &worker;
+
+  worker.enqueue(reEnqueueCallback, &ctx, nullptr);
+
+  auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+  while (!ctx.done.load(std::memory_order_acquire) &&
+         std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+  ASSERT_TRUE(ctx.done.load(std::memory_order_acquire));
+  EXPECT_EQ(ctx.invocation_count.load(std::memory_order_acquire),
+            ReEnqueueContext::kChainLength);
+}
+
 } // namespace tt::pjrt::utils::tests
