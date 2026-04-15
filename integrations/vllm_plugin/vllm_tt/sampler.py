@@ -217,6 +217,17 @@ class Sampler(nn.Module):
         if _NONGREEDY_ARGMAX_ONLY:
             return self.greedy_sample(logits)
 
+        # Experiment A: topk only, no pad, no sampling — return argmax of topk values
+        _NONGREEDY_TOPK_ONLY = os.environ.get("TT_NONGREEDY_TOPK_ONLY", "") == "1"
+        if _NONGREEDY_TOPK_ONLY:
+            filtered_logits, candidate_indices = apply_top_k_top_p_fast(
+                logits,
+                sampling_metadata.top_k,
+                sampling_metadata.top_p,
+            )
+            # Use topk output to prevent dead-code elimination, return argmax
+            return (filtered_logits.sum(dim=-1) * 0).to(torch.int64).view(-1)
+
         if _GREEDY_WITH_SAMPLING_OPS:
             # Experiment: run sampling ops but return greedy result.
             # This tests whether adding sampling ops to the compiled graph

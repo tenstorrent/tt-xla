@@ -293,7 +293,14 @@ The 55 extra ops each have dispatch overhead (~0.3-1ms per op in the vLLM execut
 - 9 pads — batch-1→32 padding for ttnn.sampling kernel
 - 5 slices + 5 fulls — padding infrastructure
 
-Possible approaches:
+### Proof checklist — does reducing ops improve tok/s?
+
+- [ ] **Experiment A**: Non-greedy sampler with topk ONLY (no pad, no sampling) — isolates topk cost in the compiled sampler context. If ~17 tok/s, topk ops are cheap. If ~13 tok/s, topk alone causes the slowdown.
+- [ ] **Experiment B**: Non-greedy sampler with topk + sampling but NO padding (pass batch=1 directly, let runtime handle reshape/pad) — isolates padding overhead. Removes 9 pad + 5 full + 5 slice ops.
+- [ ] **Experiment C**: Tracy comparison of sampler program dispatch — measure actual per-op timing in full model context vs standalone to see if dispatch overhead is truly higher.
+- [ ] **Experiment D**: Count actual XLA program dispatches — verify that 58 TTNN ops = 58 device dispatches (some may be fused by the compiler into fewer dispatches).
+
+Possible fix approaches:
 1. Move padding to runtime (fewer compiled ops)
 2. Pre-allocate padded tensors to avoid per-step pad ops
 3. Reduce typecasts by ensuring input types match kernel requirements from the start
