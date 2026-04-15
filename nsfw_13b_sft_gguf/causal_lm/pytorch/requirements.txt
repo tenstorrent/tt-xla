@@ -1,1 +1,2 @@
 gguf>=0.10.0
+transformers_stream_generator

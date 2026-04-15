@@ -4,12 +4,13 @@
 """
 mzwing NSFW 13B sft GGUF model loader implementation for causal language modeling.
 
-Note: The Baichuan architecture is not supported for GGUF loading by transformers.
-This loader uses the base Baichuan-13B model repo for config/tokenizer and loads
-the model from config since GGUF weight loading is unsupported for this architecture.
+Note: The Baichuan architecture is not supported for GGUF loading by transformers,
+and the custom Baichuan model code is incompatible with transformers 5.x.
+This loader uses LlamaForCausalLM with matching dimensions from the base model,
+and LlamaTokenizer for tokenization (compatible since Baichuan uses SentencePiece).
 """
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import LlamaConfig, LlamaForCausalLM, LlamaTokenizer
 from typing import Optional
 
 from ....base import ForgeModel
@@ -23,7 +24,7 @@ from ....config import (
     StrEnum,
 )
 
-# The base model repo for config and tokenizer (GGUF loading unsupported for baichuan)
+# The base model repo for tokenizer files
 BASE_MODEL_REPO = "baichuan-inc/Baichuan-13B-Base"
 
 
@@ -67,7 +68,7 @@ class ModelLoader(ForgeModel):
         )
 
     def _load_tokenizer(self, dtype_override=None):
-        self.tokenizer = AutoTokenizer.from_pretrained(
+        self.tokenizer = LlamaTokenizer.from_pretrained(
             BASE_MODEL_REPO, trust_remote_code=True
         )
         if self.tokenizer.pad_token is None:
@@ -82,15 +83,13 @@ class ModelLoader(ForgeModel):
         config = self.load_config()
         if self.num_layers is not None:
             config.num_hidden_layers = self.num_layers
-
-        model_kwargs = {}
         if dtype_override is not None:
-            model_kwargs["torch_dtype"] = dtype_override
-        model_kwargs |= kwargs
+            config.torch_dtype = dtype_override
 
-        model = AutoModelForCausalLM.from_config(
-            config, trust_remote_code=True, **model_kwargs
-        ).eval()
+        model = LlamaForCausalLM(config)
+        if dtype_override is not None:
+            model = model.to(dtype=dtype_override)
+        model = model.eval()
 
         self.config = model.config
         self.model = model
@@ -139,7 +138,15 @@ class ModelLoader(ForgeModel):
     def load_config(self):
         if self.config is not None:
             return self.config
-        self.config = AutoConfig.from_pretrained(
-            BASE_MODEL_REPO, trust_remote_code=True
+        self.config = LlamaConfig(
+            hidden_size=5120,
+            intermediate_size=13696,
+            num_hidden_layers=40,
+            num_attention_heads=40,
+            num_key_value_heads=40,
+            vocab_size=64000,
+            max_position_embeddings=4096,
+            rms_norm_eps=1e-6,
+            hidden_act="silu",
         )
         return self.config
