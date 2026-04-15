@@ -1769,3 +1769,42 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
     )
+
+
+def test_gpt_oss_120b_tp_dp_galaxy_fused_decode_batch_size_128(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    gpt_oss_fused_decode,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=128,
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        mesh_config_fn=_galaxy_mesh_config_fn,
+        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", "model", None, None),
+        trace_enabled=True,
+        inject_custom_moe=True,
+        custom_moe_cluster_axis=0,
+        gpt_oss_fused_decode=gpt_oss_fused_decode,
+    )
