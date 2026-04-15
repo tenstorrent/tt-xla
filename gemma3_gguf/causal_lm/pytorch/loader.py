@@ -51,6 +51,7 @@ class ModelLoader(ForgeModel):
     _GGUF_FILES = {
         ModelVariant.GEMMA_3_1B_IT_GGUF: "gemma-3-1b-it-Q4_K_M.gguf",
         ModelVariant.GEMMA_3_4B_IT_GGUF: "gemma-3-4b-it-Q4_K_M.gguf",
+        ModelVariant.UNSLOTH_GEMMA_3_4B_IT_GGUF: "gemma-3-4b-it-Q4_K_M.gguf",
     }
 
     @property
