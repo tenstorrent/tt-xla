@@ -3,9 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 GLM-OCR GGUF model loader implementation for image-to-text tasks.
+
+The GGUF checkpoint only contains the text backbone (glm4 architecture).
+We load the vision config from the base (non-GGUF) model and combine
+them into a full GlmOcrConfig, following the same pattern as Gemma3 GGUF.
 """
+import importlib.metadata
+
 import torch
-from transformers import AutoProcessor, AutoModelForImageTextToText, AutoConfig
+from transformers import (
+    AutoProcessor,
+    AutoModelForImageTextToText,
+    AutoConfig,
+    GlmOcrConfig,
+)
 from typing import Optional
 
 from ....base import ForgeModel
@@ -18,6 +29,17 @@ from ....config import (
     Framework,
     StrEnum,
 )
+
+
+def _refresh_gguf_detection():
+    """Refresh transformers' gguf package detection if the package was installed after import."""
+    from transformers.utils import import_utils
+
+    if "gguf" not in import_utils.PACKAGE_DISTRIBUTION_MAPPING:
+        import_utils.PACKAGE_DISTRIBUTION_MAPPING = (
+            importlib.metadata.packages_distributions()
+        )
+        import_utils.is_gguf_available.cache_clear()
 
 
 class ModelVariant(StrEnum):
@@ -39,6 +61,8 @@ class ModelLoader(ForgeModel):
 
     GGUF_FILE = "GLM-OCR-Q8_0.gguf"
 
+    _BASE_PROCESSOR_MODEL = "zai-org/GLM-OCR"
+
     def __init__(
         self, variant: Optional[ModelVariant] = None, num_layers: Optional[int] = None
     ):
@@ -58,23 +82,24 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
-    def _load_processor(self, dtype_override=None):
-        kwargs = {}
-        if dtype_override is not None:
-            kwargs["torch_dtype"] = dtype_override
-        kwargs["gguf_file"] = self.GGUF_FILE
-
-        self.processor = AutoProcessor.from_pretrained(
-            self._variant_config.pretrained_model_name, **kwargs
+    def _build_full_config(self):
+        """Build a full GlmOcrConfig by wrapping the GGUF text config with a vision config."""
+        _refresh_gguf_detection()
+        pretrained_model_name = self._variant_config.pretrained_model_name
+        text_config = AutoConfig.from_pretrained(
+            pretrained_model_name, gguf_file=self.GGUF_FILE
+        )
+        base_config = AutoConfig.from_pretrained(self._BASE_PROCESSOR_MODEL)
+        return GlmOcrConfig(
+            text_config=text_config.to_dict(),
+            vision_config=base_config.vision_config.to_dict(),
         )
 
-        return self.processor
-
     def load_model(self, *, dtype_override=None, **kwargs):
+        _refresh_gguf_detection()
         pretrained_model_name = self._variant_config.pretrained_model_name
 
-        if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+        self.processor = AutoProcessor.from_pretrained(self._BASE_PROCESSOR_MODEL)
 
         model_kwargs = {}
         if dtype_override is not None:
@@ -82,12 +107,10 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
         model_kwargs["gguf_file"] = self.GGUF_FILE
 
+        config = self._build_full_config()
         if self.num_layers is not None:
-            config = AutoConfig.from_pretrained(
-                pretrained_model_name, gguf_file=self.GGUF_FILE
-            )
-            config.num_hidden_layers = self.num_layers
-            model_kwargs["config"] = config
+            config.text_config.num_hidden_layers = self.num_layers
+        model_kwargs["config"] = config
 
         model = AutoModelForImageTextToText.from_pretrained(
             pretrained_model_name, **model_kwargs
@@ -98,7 +121,7 @@ class ModelLoader(ForgeModel):
 
     def load_inputs(self, dtype_override=None, batch_size=1):
         if self.processor is None:
-            self._load_processor(dtype_override=dtype_override)
+            self.processor = AutoProcessor.from_pretrained(self._BASE_PROCESSOR_MODEL)
 
         messages = [
             {
@@ -125,7 +148,5 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.GGUF_FILE
-        )
+        self.config = self._build_full_config()
         return self.config
