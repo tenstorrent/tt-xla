@@ -18,6 +18,7 @@ from typing import Optional
 
 import torch
 from diffusers import HiDreamImagePipeline
+from transformers import LlamaForCausalLM, PreTrainedTokenizerFast
 
 from ...base import ForgeModel
 from ...config import (
@@ -72,6 +73,11 @@ class ModelLoader(ForgeModel):
             framework=Framework.TORCH,
         )
 
+    # text_encoder_4 and tokenizer_4 use Meta-Llama-3.1-8B-Instruct which is
+    # stored in a separate HuggingFace repo and not bundled in the HiDream repo.
+    # Load them explicitly so diffusers doesn't fall back to the root cache path.
+    LLAMA_MODEL_ID = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the HiDream-I1 pipeline.
 
@@ -79,9 +85,17 @@ class ModelLoader(ForgeModel):
             HiDreamImagePipeline: The HiDream-I1 pipeline instance.
         """
         dtype = dtype_override if dtype_override is not None else torch.float32
+
+        text_encoder_4 = LlamaForCausalLM.from_pretrained(
+            self.LLAMA_MODEL_ID, torch_dtype=dtype
+        )
+        tokenizer_4 = PreTrainedTokenizerFast.from_pretrained(self.LLAMA_MODEL_ID)
+
         self.pipeline = HiDreamImagePipeline.from_pretrained(
             self._variant_config.pretrained_model_name,
             torch_dtype=dtype,
+            text_encoder_4=text_encoder_4,
+            tokenizer_4=tokenizer_4,
             **kwargs,
         )
         return self.pipeline
