@@ -236,6 +236,8 @@ def _patch_datasets():
                 self._data = [{"image": fake_image}]
 
             def __getitem__(self, idx):
+                if isinstance(idx, str):
+                    return self
                 return self._data[idx % len(self._data)]
 
             def __len__(self):
