@@ -141,9 +141,10 @@ TEST(CallbackWorkerUnitTests, ConcurrentProducers) {
     t.join();
   }
 
-  // Wait for all callbacks to execute.
+  // Wait for all callbacks to execute. Coverage builds are significantly slower
+  // due to instrumentation overhead, so use a generous timeout.
   auto deadline =
-      std::chrono::steady_clock::now() + std::chrono::milliseconds(2000);
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(10000);
   while (counter.load(std::memory_order_acquire) < total &&
          std::chrono::steady_clock::now() < deadline) {
     std::this_thread::yield();
