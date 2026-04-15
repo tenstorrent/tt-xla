@@ -8,7 +8,6 @@ from setuptools import setup
 version_tag = os.environ.get("VERSION_TAG")
 if not version_tag:
     raise RuntimeError("VERSION_TAG environment variable must be set")
-version_tag = "1.1.0.dev20260414002029"
 
 setup(
     name="tt-forge",

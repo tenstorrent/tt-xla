@@ -7,7 +7,7 @@ set -e
 
 if [ $# -ne 3 ]; then
     echo "Error: Exactly 3 arguments are required."
-    echo "Usage: $0 <project> <docker-commit-tag> <disto>"
+    echo "Usage: $0 <project> <docker-commit-tag> <distro>"
     exit 1
 fi
 
