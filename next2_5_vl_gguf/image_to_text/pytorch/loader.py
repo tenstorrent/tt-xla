@@ -75,16 +75,16 @@ class ModelLoader(ForgeModel):
 
     def load_model(self, *, dtype_override=None, **kwargs):
         """Load and return the Next2.5 VL GGUF model instance."""
-        pretrained_model_name = self._variant_config.pretrained_model_name
-
         model_kwargs = {}
         if dtype_override is not None:
             model_kwargs["torch_dtype"] = dtype_override
         model_kwargs |= kwargs
-        model_kwargs["gguf_file"] = self.gguf_file
 
+        # Load from the canonical (non-GGUF) repo so that the full config
+        # (including vision_config) is available.  The GGUF file only carries a
+        # text-only config which is insufficient for the VL model.
         model = Qwen3VLForConditionalGeneration.from_pretrained(
-            pretrained_model_name, **model_kwargs
+            self._PROCESSOR_NAME, **model_kwargs
         ).eval()
 
         self.config = model.config
@@ -122,7 +122,5 @@ class ModelLoader(ForgeModel):
         return inputs
 
     def load_config(self):
-        self.config = AutoConfig.from_pretrained(
-            self._variant_config.pretrained_model_name, gguf_file=self.gguf_file
-        )
+        self.config = AutoConfig.from_pretrained(self._PROCESSOR_NAME)
         return self.config
