@@ -82,6 +82,11 @@ class ModelLoader(ForgeModel):
         model_kwargs |= kwargs
         model_kwargs["gguf_file"] = gguf_file
 
+        # Pre-load config from the base Whisper model so that random-weights
+        # mode does not need to download/parse the GGUF file just for config.
+        config = WhisperConfig.from_pretrained("openai/whisper-large-v3")
+        model_kwargs["config"] = config
+
         self.processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
 
         model = WhisperForConditionalGeneration.from_pretrained(
