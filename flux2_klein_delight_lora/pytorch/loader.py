@@ -28,7 +28,7 @@ from ...config import (
     StrEnum,
 )
 
-BASE_MODEL = "black-forest-labs/FLUX.2"
+BASE_MODEL = "black-forest-labs/FLUX.2-klein-base-9B"
 LORA_REPO = "linoyts/Flux2-Klein-Delight-LoRA"
 LORA_WEIGHT_NAME = "pytorch_lora_weights.safetensors"
 
