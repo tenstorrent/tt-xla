@@ -25,7 +25,6 @@ from ...config import (
     Framework,
     StrEnum,
 )
-from ...tools.utils import get_file
 
 
 class ModelVariant(StrEnum):
@@ -105,13 +104,13 @@ class ModelLoader(ForgeModel):
 
         model_config = WhisperConfig.from_pretrained("openai/whisper-large-v3")
 
-        weights_pth = get_file("test_files/pytorch/whisper/1272-128104-0000.pt")
-        sample = torch.load(weights_pth, weights_only=False)
-        sample_audio = sample["audio"]["array"]
         model_param = next(self.model.parameters())
         device, dtype = model_param.device, dtype_override or model_param.dtype
 
+        # Generate synthetic audio waveform (1 second at 16kHz)
         sampling_rate = 16000
+        sample_audio = torch.randn(sampling_rate).numpy()
+
         processor = self.processor(
             sample_audio, return_tensors="pt", sampling_rate=sampling_rate
         )
