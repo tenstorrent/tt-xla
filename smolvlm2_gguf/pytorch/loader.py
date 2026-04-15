@@ -122,12 +122,14 @@ class ModelLoader(ForgeModel):
             }
         ]
 
-        inputs = self.processor.apply_chat_template(
+        text = self.processor.apply_chat_template(
             messages,
-            images=[image],
             add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
+            tokenize=False,
+        )
+        inputs = self.processor(
+            text=text,
+            images=[image],
             return_tensors="pt",
         )
 
