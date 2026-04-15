@@ -624,6 +624,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 generator.manual_seed(sampling_params.seed)
             else:
                 generator = None
+            logger.info(f"request_size: {len(new_req_data.prompt_token_ids)}")
 
             self.requests[req_id] = CachedRequestState(
                 req_id=req_id,
@@ -1351,20 +1352,38 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     inputs_embeds=inputs_embeds,
                 )
             logger.info(f"hidden_states shape: {hidden_states.shape}")
+            logger.info(f"hidden_states: {hidden_states.to('cpu')[0, :, :]}")
+            hidden_states = sharding_constraint_tensor(
+                hidden_states, self.mesh, (None, None, None)
+            )
+            logger.info(
+                f"hidden_states after sharding_constraint_tensor: {hidden_states.shape} -- {hidden_states.to('cpu')[0, :, :]}"
+            )
+            logger.info(
+                f"logits_indices: {logits_indices.shape} -- {logits_indices.to('cpu')}"
+            )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
             # [max_num_reqs, padded_seq_len, H] tensor to CPU.
             if self.num_prompt_logprobs:
+                logger.info(
+                    f"Extracting hidden states for prompt logprobs for requests "
+                )
                 for i in range(start_index, end_index):
                     req_id = self.input_batch.req_ids[i]
                     if req_id in self.num_prompt_logprobs:
                         local_idx = i - start_index
                         prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
+            logger.info("Selecting hidden states for logits computation")
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
+            logger.info(
+                f"selected hidden_states shape: {hidden_states.shape} -- {hidden_states.to('cpu')[0, :]}"
+            )
             logits = self.compute_logits(hidden_states)
+            logger.info(f"logits shape: {logits.shape} -- {logits.to('cpu')[0, :]}")
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
@@ -1383,8 +1402,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits = self.structured_decode(
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
+            logger.info(
+                f"post-processed logits shape: {logits.shape} -- {logits.to('cpu')[0, :]}"
+            )
+            logger.info(f"tpu_sampling_metadata: {tpu_sampling_metadata}")
 
             selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
+            logger.info(
+                f"selected_token_ids shape: {selected_token_ids.shape} -- {selected_token_ids.to('cpu')}"
+            )
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -2235,8 +2261,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
-        if self.enable_tensor_parallel:
-            result = sharding_constraint_tensor(result, self.mesh, (None, None))
+        # if self.enable_tensor_parallel:
+        #   result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)

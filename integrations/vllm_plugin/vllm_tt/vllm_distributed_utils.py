@@ -24,6 +24,7 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
 )
 
 from .logger import tt_init_logger
+from .moe_integration import VllmA2aSparseMLP
 
 logger = tt_init_logger(__name__)
 
@@ -265,6 +266,26 @@ def partition_vocab_parallel_embedding(
     return layer
 
 
+def partition_vllm_a2a_sparse_mlp(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    logger.info(f"Partitioning VllmA2aSparseMLP: {layer}")
+    assert isinstance(layer, VllmA2aSparseMLP)
+    logger.debug("Applied parallel sharding to %s", layer)
+    logger.info(f"layer: {layer}")
+    logger.info(f"layer.core_mlp: {layer.core_mlp}")
+    logger.info(f"layer.core_mlp.experts: {layer.core_mlp.experts}")
+    # logger.info(f"layer.core_mlp.experts.weights: {layer.core_mlp.experts.weights}")
+    logger.info(f"Sharding expert dimensions across mesh {mesh}")
+    # Shard expert dimension (first dim) across 'model' axis
+    xs.mark_sharding(layer.core_mlp.experts.gate_up_proj, mesh, ("model", None, None))
+    xs.mark_sharding(layer.core_mlp.experts.gate_up_proj_bias, mesh, ("model", None))
+    xs.mark_sharding(layer.core_mlp.experts.down_proj, mesh, ("model", None, None))
+    xs.mark_sharding(layer.core_mlp.experts.down_proj_bias, mesh, ("model", None))
+
+    return layer
+
+
 MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
     [
         ("MergedColumnParallelLinear", partition_merged_column_parallel_linear),
@@ -273,6 +294,7 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
+        ("VllmA2aSparseMLP", partition_vllm_a2a_sparse_mlp),
     ]
 )
 

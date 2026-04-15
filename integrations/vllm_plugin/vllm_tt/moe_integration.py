@@ -34,6 +34,9 @@ class FusedMoEAdapter(nn.Module):
     def __init__(self, fused_moe: FusedMoE):
         super().__init__()
         self.fused_moe = fused_moe
+        logger.warning(
+            f"Initializing FusedMoEAdapter for {type(fused_moe)} with logical_num_experts={fused_moe.logical_num_experts}, top_k={fused_moe.top_k}"
+        )
 
         # Create minimal router interface
         self.router = self._create_router_stub()
@@ -50,10 +53,23 @@ class FusedMoEAdapter(nn.Module):
                 self.fused_moe = fused_moe
 
             def forward(self, hidden_states):
+                # logger.warning(f"[RouterStub] Called with hidden_states.shape={hidden_states.shape}")
                 # A2aSparseMLP checks if hidden_states.device.type == "cpu" for CPU fallback
                 # Since we want to delegate to FusedMoE, we'll create outputs that work
                 # but let A2aSparseMLP handle the device logic
-                batch_size, seq_len, _ = hidden_states.shape
+
+                # Handle both 2D and 3D input shapes
+                if hidden_states.dim() == 3:
+                    batch_size, seq_len, _ = hidden_states.shape
+                    batch_seq = batch_size * seq_len
+                elif hidden_states.dim() == 2:
+                    batch_seq, _ = hidden_states.shape
+                else:
+                    raise ValueError(
+                        f"Expected 2D or 3D hidden_states, got {hidden_states.dim()}D with shape {hidden_states.shape}"
+                    )
+                # logger.warning(f"RouterStub: batch_seq={batch_seq}")
+
                 num_experts = self.fused_moe.logical_num_experts
                 top_k = self.fused_moe.top_k
                 device = hidden_states.device
@@ -61,18 +77,22 @@ class FusedMoEAdapter(nn.Module):
 
                 # Create router outputs on the same device as input
                 scores = (
-                    torch.ones(
-                        batch_size * seq_len, num_experts, device=device, dtype=dtype
-                    )
+                    torch.ones(batch_seq, num_experts, device=device, dtype=dtype)
                     / num_experts
                 )
                 indices = (
                     torch.arange(top_k, device=device, dtype=torch.long)
                     .unsqueeze(0)
-                    .expand(batch_size * seq_len, -1)
+                    .expand(batch_seq, -1)
                 )
 
-                return scores, indices
+                # Create router_logits from scores (A2aSparseMLP expects 3 values: logits, scores, indices)
+                router_logits = torch.log(
+                    scores + 1e-8
+                )  # Add epsilon for numerical stability
+
+                # logger.warning(f"[RouterStub] Returning router_logits.shape={router_logits.shape}, scores.shape={scores.shape}, indices.shape={indices.shape}")
+                return router_logits, scores, indices
 
         return RouterStub(self.fused_moe)
 
@@ -115,6 +135,25 @@ class FusedMoEAdapter(nn.Module):
                     )
                 )
 
+                # Add bias attributes that A2aSparseMLP expects to access
+                self.gate_up_proj_bias = nn.Parameter(
+                    torch.zeros(
+                        num_experts,
+                        intermediate_size * 2,
+                        device=device,
+                        dtype=dtype,
+                    )
+                )
+
+                self.down_proj_bias = nn.Parameter(
+                    torch.zeros(
+                        num_experts,
+                        hidden_dim,
+                        device=device,
+                        dtype=dtype,
+                    )
+                )
+
                 # GPT-OSS activation parameters
                 self.alpha = 1.702
                 self.limit = 7.0
@@ -123,11 +162,23 @@ class FusedMoEAdapter(nn.Module):
                 # This shouldn't be called when we have router_logits available
                 # as A2aSparseMLP will bypass this and call fused_moe directly
                 # But if it is called, create dummy router_logits for FusedMoE
-                batch_size, seq_len, hidden_dim = hidden_states.shape
+                # logger.warning(f"[ExpertsStub] Called with hidden_states.shape={hidden_states.shape}, router_indices.shape={router_indices.shape if router_indices is not None else None}, routing_weights.shape={routing_weights.shape if routing_weights is not None else None}")
+
+                # Handle both 2D and 3D input shapes
+                if hidden_states.dim() == 3:
+                    batch_size, seq_len, hidden_dim = hidden_states.shape
+                    batch_seq = batch_size * seq_len
+                elif hidden_states.dim() == 2:
+                    batch_seq, hidden_dim = hidden_states.shape
+                else:
+                    raise ValueError(
+                        f"Expected 2D or 3D hidden_states, got {hidden_states.dim()}D with shape {hidden_states.shape}"
+                    )
+
                 num_experts = self.fused_moe.logical_num_experts
 
                 dummy_router_logits = torch.zeros(
-                    batch_size * seq_len,
+                    batch_seq,
                     num_experts,
                     device=hidden_states.device,
                     dtype=hidden_states.dtype,
@@ -223,6 +274,8 @@ class VllmA2aSparseMLP(nn.Module):
 
         # Call core MLP directly - ensure we get clean tensor output
         try:
+            # logger.warning(f"MLP: {hidden_states.shape}, router_logits: {router_logits.shape if router_logits is not None else None}")
+            # logger.warning(f"self.core_mlp: {self.core_mlp}")
             result = self.core_mlp(hidden_states)
         except Exception as e:
             # Fallback to CPU if TT operations fail
@@ -352,15 +405,13 @@ def replace_fusedmoe_with_sparse_mlp(
     """
     mesh_rows, mesh_cols = mesh_shape
     num_devices = mesh_rows * mesh_cols
-    dispatch_devices = mesh_rows if cluster_axis == 0 else mesh_cols
+    dispatch_devices = mesh_shape[cluster_axis]
 
     replacements = {}
 
     def find_and_replace_moe(module, name_prefix=""):
-        logger.warning(
-            f"Searching for FusedMoE in module: {name_prefix} ({type(module)})"
-        )
-        logger.warning(
+        logger.info(f"Searching for FusedMoE in module: {name_prefix} ({type(module)})")
+        logger.info(
             f"Children of {name_prefix}: {[name for name, _ in module.named_children()]}"
         )
 
@@ -368,7 +419,7 @@ def replace_fusedmoe_with_sparse_mlp(
             full_name = f"{name_prefix}.{name}" if name_prefix else name
 
             if isinstance(child, FusedMoE):
-                logger.warning(f"Replacing FusedMoE at {full_name} with A2aSparseMLP")
+                logger.info(f"Replacing FusedMoE at {full_name} with A2aSparseMLP")
 
                 # Create adapter to make FusedMoE compatible with A2aSparseMLP
                 adapted_moe = FusedMoEAdapter(child)
@@ -377,6 +428,7 @@ def replace_fusedmoe_with_sparse_mlp(
                 num_experts = child.logical_num_experts
                 num_experts_per_tok = child.top_k
                 config = getattr(child, "config", None)
+                # logger.warning(f"Original FusedMoE config for {full_name}: num_experts={num_experts}, num_experts_per_tok={num_experts_per_tok}, config={config}")
 
                 # Create vLLM-compatible A2aSparseMLP replacement
                 sparse_mlp = create_vllm_a2a_sparse_mlp(
@@ -415,7 +467,7 @@ def replace_fusedmoe_with_sparse_mlp(
             parent = getattr(parent, part)
 
         setattr(parent, parts[-1], new_module)
-        logger.warning(f"Successfully replaced {full_name}")
+        logger.info(f"Successfully replaced {full_name}")
 
     if len(replacements) > 0:
         logger.warning(
