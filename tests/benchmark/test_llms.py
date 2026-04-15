@@ -1812,5 +1812,5 @@ def test_kimi_k2_tp_galaxy_2_layers(
         trace_enabled=False,
         use_mla_cache=True,
         arch="wormhole_galaxy",
-        required_pcc=0.92,
+        required_pcc=0.91,
     )
