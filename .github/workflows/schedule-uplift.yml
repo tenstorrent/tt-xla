@@ -91,7 +91,7 @@ jobs:
           body: "This PR uplifts the ${{ env.TT_MLIR_SUBMODULE_PATH }} to the ${{ env.LATEST_TT_MLIR_VERSION }}"
           labels: uplift-mlir
           delete-branch: true
-          token: ${{ github.token }}
+          token: ${{ secrets.GH_TOKEN }}
 
       - name: Approve Pull Request
         if: ${{ steps.create-pr.outputs.pull-request-number }}

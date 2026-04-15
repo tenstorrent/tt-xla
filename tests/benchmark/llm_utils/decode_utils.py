@@ -17,10 +17,11 @@ from typing import Optional
 import torch
 import tracy
 from transformers.cache_utils import StaticCache
+from tt_torch.sharding import sharding_constraint_tensor
 
 
 class LLMSamplingWrapper(torch.nn.Module):
-    """Wraps an LLM to perform sampling (token selection, cache positionupdate) on device.
+    """Wraps an LLM to perform sampling (token selection, cache position update) on device.
 
     By keeping token selection and cache_position increment inside the compiled
     graph, intermediate tensors stay on device between decode steps, eliminating
@@ -31,6 +32,10 @@ class LLMSamplingWrapper(torch.nn.Module):
         read_logits_fn: Function to extract logits from model output.
         return_logits: If True, forward() returns (next_token_ids, next_cache_position, logits).
             If False, returns (next_token_ids, next_cache_position) only.
+        mesh: Optional SPMD mesh for sharding constraints.
+        output_sharding_spec: Optional sharding spec for output token ids.
+            When both mesh and output_sharding_spec are provided, applies a
+            sharding constraint on next_token_ids and produces a replicated copy.
     """
 
     def __init__(
@@ -38,11 +43,15 @@ class LLMSamplingWrapper(torch.nn.Module):
         model: torch.nn.Module,
         read_logits_fn,
         return_logits: bool = True,
+        mesh=None,
+        output_sharding_spec=None,
     ):
         super().__init__()
         self.model = model
         self.read_logits_fn = read_logits_fn
         self.return_logits = return_logits
+        self.mesh = mesh
+        self.output_sharding_spec = output_sharding_spec
 
     def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
         output = self.model(
@@ -52,12 +61,38 @@ class LLMSamplingWrapper(torch.nn.Module):
             use_cache=use_cache,
         )
         logits = self.read_logits_fn(output)
-        last_token_logits = logits[:, -1]
-        next_token_ids = last_token_logits.argmax(dim=-1, keepdim=True)
+        # Only take logits for last token in prefill.
+        # This is a noop for decode.
+        logits_last = logits[:, -1]
+        next_token_ids = logits_last.argmax(dim=-1, keepdim=True)
+        next_token_ids_replicated = next_token_ids
+        if self.mesh and self.output_sharding_spec:
+            # Create two versions of next_token_ids, sharded and replicated.
+            # The sharded version is used as input for the next decode step. Passing the replicated version as the input creates a different graph and triggers recompilation.
+            # The replicated version is used for transfer to CPU. Using the sharded version for the transfer creates a new graph with a single all gather and triggers recompilation.
+            replicate_spec = tuple(None for _ in self.output_sharding_spec)
+            next_token_ids = sharding_constraint_tensor(
+                next_token_ids, self.mesh, self.output_sharding_spec
+            )
+            next_token_ids_replicated = sharding_constraint_tensor(
+                next_token_ids, self.mesh, replicate_spec
+            )
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
-            return next_token_ids, next_cache_position, last_token_logits
-        return next_token_ids, next_cache_position
+            logits_out = logits_last
+            if self.mesh and self.output_sharding_spec:
+                # Ensure logits are replicated for transfer to CPU.
+                replicate_spec = tuple(None for _ in self.output_sharding_spec)
+                logits_out = sharding_constraint_tensor(
+                    logits_last, self.mesh, replicate_spec
+                )
+            return (
+                next_token_ids,
+                next_token_ids_replicated,
+                next_cache_position,
+                logits_out,
+            )
+        return next_token_ids, next_token_ids_replicated, next_cache_position
 
 
 def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> None:
@@ -208,10 +243,15 @@ def generate_and_benchmark(
             output = model(**input_args)
 
             if collect_logits:
-                next_token_ids, next_cache_position, logits = output
+                (
+                    next_token_ids,
+                    next_token_ids_replicated,
+                    next_cache_position,
+                    logits,
+                ) = output
                 output_logits.append(logits.to("cpu"))
             else:
-                next_token_ids, next_cache_position = output
+                next_token_ids, next_token_ids_replicated, next_cache_position = output
 
             if ground_truth_tokens is not None:
                 input_args["input_ids"] = gt_cpu[step].to(device)
@@ -221,9 +261,7 @@ def generate_and_benchmark(
             input_args["cache_position"] = next_cache_position
 
             if tokenizer:
-                decoded = tokenizer.batch_decode(
-                    next_token_ids.to("cpu").view(batch_size, -1)
-                )
+                decoded = tokenizer.batch_decode(next_token_ids_replicated.to("cpu"))
                 for i in range(batch_size):
                     generated_texts[i] += decoded[i]
 

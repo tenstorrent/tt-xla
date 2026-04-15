@@ -1085,9 +1085,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         padded_num_reqs = _get_padded_num_reqs_with_upper_limit(
             num_reqs, self.max_num_reqs
         )
-        # Indices at which we sample (positions of last token in the sequence).
-        # Padded to avoid recompiling when `num_reqs` varies.
-        logits_indices = self.query_start_loc_cpu[1 : padded_num_reqs + 1] - 1
+        # Per-user last-token index within each padded slot.
+        logits_indices = torch.zeros(padded_num_reqs, dtype=torch.int32)
+        logits_indices[: len(num_scheduled_tokens_per_req)] = (
+            torch.from_numpy(num_scheduled_tokens_per_req) - 1
+        )
         logits_indices = logits_indices.to(self.device)
 
         if self.lora_config is not None:
