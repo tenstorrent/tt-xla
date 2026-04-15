@@ -66,6 +66,7 @@ def test_kimi_k2_single_layer():
         output.to("cpu")
 
 
+@pytest.mark.kimi_k2
 @pytest.mark.nightly
 @pytest.mark.llmbox
 def test_kimi_k2_attention_prefill():
@@ -143,6 +144,7 @@ def test_kimi_k2_attention_prefill():
     )
 
 
+@pytest.mark.kimi_k2
 @pytest.mark.nightly
 @pytest.mark.llmbox
 def test_kimi_k2_attention_decode():
@@ -228,6 +230,7 @@ def test_kimi_k2_attention_decode():
     )
 
 
+@pytest.mark.kimi_k2
 @pytest.mark.nightly
 @pytest.mark.llmbox
 def test_kimi_k2_layer():
@@ -324,6 +327,7 @@ def test_kimi_k2_layer():
     )
 
 
+@pytest.mark.kimi_k2
 @pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [32])
@@ -436,6 +440,7 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
     )
 
 
+@pytest.mark.kimi_k2
 @pytest.mark.nightly
 def test_kimi_k2_mla_cache():
     """
