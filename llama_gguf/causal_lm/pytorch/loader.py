@@ -4,9 +4,17 @@
 """
 Llama GGUF model loader implementation for causal language modeling.
 """
+import importlib.metadata
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Optional
+
+import transformers.utils.import_utils as _tx_import_utils
+
+_tx_import_utils.PACKAGE_DISTRIBUTION_MAPPING = (
+    importlib.metadata.packages_distributions()
+)
 
 from ....base import ForgeModel
 from ....config import (
