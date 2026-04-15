@@ -229,9 +229,7 @@ class Sampler(nn.Module):
             return (filtered_logits.sum(dim=-1) * 0).to(torch.int64).view(-1)
 
         # Experiment A2: single topk (not 4x chunked) to test if chunking matters
-        _NONGREEDY_SINGLE_TOPK = (
-            os.environ.get("TT_NONGREEDY_SINGLE_TOPK", "") == "1"
-        )
+        _NONGREEDY_SINGLE_TOPK = os.environ.get("TT_NONGREEDY_SINGLE_TOPK", "") == "1"
         if _NONGREEDY_SINGLE_TOPK:
             vals, inds = torch.topk(logits, k=32, dim=-1)
             return (vals.sum(dim=-1) * 0).to(torch.int64).view(-1)
@@ -252,9 +250,7 @@ class Sampler(nn.Module):
             return (vals.sum(dim=-1) * 0).to(torch.int64).view(-1)
 
         # Experiment A5: 2x chunks of 64K instead of 4x 32K
-        _NONGREEDY_2CHUNK_TOPK = (
-            os.environ.get("TT_NONGREEDY_2CHUNK_TOPK", "") == "1"
-        )
+        _NONGREEDY_2CHUNK_TOPK = os.environ.get("TT_NONGREEDY_2CHUNK_TOPK", "") == "1"
         if _NONGREEDY_2CHUNK_TOPK:
             chunks = torch.split(logits, 65536, dim=-1)
             all_vals, all_inds = [], []
