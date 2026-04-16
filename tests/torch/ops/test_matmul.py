@@ -58,18 +58,15 @@ def test_matmul_rhs_as_param(lhs_outer, rhs_outer, inner, weight_dtype):
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.parametrize("math_fidelity", ["hifi2", "hifi4", "ttnn_default"])
-@pytest.mark.parametrize("fp32_dest_acc_en", [True, False])
-def test_matmul_mf_fp32_acc(math_fidelity, fp32_dest_acc_en):
+@pytest.mark.parametrize("accuracy_mode", ["accuracy", "performance"])
+def test_matmul_accuracy_mode(accuracy_mode):
     dtype = torch.bfloat16
     inner_dim = 64
     rhs_outer_dim = 64
     lhs_outer_dim = 64
 
     matmul = Matmul(inner_dim, rhs_outer_dim, dtype=dtype)
-    compiler_config = CompilerConfig(
-        math_fidelity=math_fidelity, fp32_dest_acc_en=fp32_dest_acc_en
-    )
+    compiler_config = CompilerConfig(accuracy_mode=accuracy_mode)
 
     run_op_test_with_random_inputs(
         matmul,

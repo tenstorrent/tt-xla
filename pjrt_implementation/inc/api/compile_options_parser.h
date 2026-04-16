@@ -77,13 +77,13 @@ public:
       const google::protobuf::UnknownFieldSet &device_assign_fields,
       std::set<int64_t> &out_device_ids);
 
-  // Parse math_fidelity string and convert to OptionalMathFidelity enum.
-  // Returns kSuccess and sets out_math_fidelity if parsing succeeds.
-  // Returns kInvalidArgument if the string is not a valid math_fidelity value.
-  // Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default"
+  // Parse accuracy_mode string and convert to AccuracyMode enum.
+  // Returns kSuccess and sets out_accuracy_mode if parsing succeeds.
+  // Returns kInvalidArgument if the string is not a valid accuracy_mode value.
+  // Valid values: "accuracy", "performance"
   static tt_pjrt_status
-  parseMathFidelity(const std::string &math_fidelity_str,
-                    mlir::tt::ttnn::OptionalMathFidelity &out_math_fidelity);
+  parseAccuracyMode(const std::string &accuracy_mode_str,
+                    mlir::tt::ttnn::AccuracyMode &out_accuracy_mode);
 };
 
 } // namespace tt::pjrt

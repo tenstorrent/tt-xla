@@ -1006,19 +1006,15 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     return tt_pjrt_status::kUnimplemented;
   }
 
-  // Set compute kernel config options if provided
-  if (compile_options.math_fidelity.has_value()) {
-    mlir::tt::ttnn::OptionalMathFidelity math_fidelity;
-    tt_pjrt_status status = CompileOptionsParser::parseMathFidelity(
-        compile_options.math_fidelity.value(), math_fidelity);
+  // Set accuracy mode if provided
+  if (compile_options.accuracy_mode.has_value()) {
+    mlir::tt::ttnn::AccuracyMode accuracy_mode;
+    tt_pjrt_status status = CompileOptionsParser::parseAccuracyMode(
+        compile_options.accuracy_mode.value(), accuracy_mode);
     if (!tt_pjrt_status_is_ok(status)) {
       return status;
     }
-    options.computeCfgMathFidelity = math_fidelity;
-  }
-
-  if (compile_options.fp32_dest_acc_en.has_value()) {
-    options.computeCfgFp32DestAccEn = compile_options.fp32_dest_acc_en.value();
+    options.accuracyMode = accuracy_mode;
   }
 
   options.enableFusingConv2dWithMultiplyPattern =

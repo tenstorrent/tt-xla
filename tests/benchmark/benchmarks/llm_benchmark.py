@@ -212,7 +212,7 @@ def benchmark_llm_torch_xla(
     shard_spec_fn,
     arch,
     required_pcc,
-    fp32_dest_acc_en=None,
+    accuracy_mode=None,
     accuracy_testing: bool = False,
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
@@ -413,8 +413,8 @@ def benchmark_llm_torch_xla(
         "experimental_weight_dtype": experimental_weight_dtype,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
     }
-    if fp32_dest_acc_en is not None:
-        options["fp32_dest_acc_en"] = fp32_dest_acc_en
+    if accuracy_mode is not None:
+        options["accuracy_mode"] = accuracy_mode
 
     torch_xla.set_custom_compile_options(options)
 

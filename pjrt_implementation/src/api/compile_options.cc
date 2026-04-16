@@ -21,11 +21,8 @@ CompileOptions CompileOptions::parse(
   options.experimental_weight_dtype =
       internal::parseStringOption(compile_options, "experimental_weight_dtype")
           .value_or(options.experimental_weight_dtype);
-  options.math_fidelity =
-      internal::parseStringOption(compile_options, "math_fidelity");
-
-  options.fp32_dest_acc_en =
-      internal::parseBoolOption(compile_options, "fp32_dest_acc_en");
+  options.accuracy_mode =
+      internal::parseStringOption(compile_options, "accuracy_mode");
   options.experimental_enable_fusing_conv2d_with_multiply_pattern =
       internal::parseBoolOption(
           compile_options,

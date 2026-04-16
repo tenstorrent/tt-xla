@@ -1461,7 +1461,7 @@ test_config:
   gemma/pytorch-1.1_7B_IT-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    assert_pcc: false # ComputeConfig accuracy_mode - https://github.com/tenstorrent/tt-xla/issues/2861
 
   stable_diffusion_xl/pytorch-Base_1.0-single_device-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
@@ -1589,7 +1589,7 @@ test_config:
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    assert_pcc: false # ComputeConfig accuracy_mode - https://github.com/tenstorrent/tt-xla/issues/2861
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -2416,7 +2416,7 @@ test_config:
   mistral/pytorch-Nemo_INSTRUCT_2407-single_device-inference:
     supported_archs: ["p150"] # 12B param model
     status: EXPECTED_PASSING
-    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    assert_pcc: false # ComputeConfig accuracy_mode - https://github.com/tenstorrent/tt-xla/issues/2861
 
   monodle/pytorch-Dla34-single_device-inference:
     status: EXPECTED_PASSING

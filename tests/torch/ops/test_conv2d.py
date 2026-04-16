@@ -54,9 +54,8 @@ def test_conv2d(
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.parametrize("math_fidelity", ["hifi2", "hifi4", "ttnn_default"])
-@pytest.mark.parametrize("fp32_dest_acc_en", [True, False])
-def test_conv2d_mf_fp32_acc(math_fidelity, fp32_dest_acc_en):
+@pytest.mark.parametrize("accuracy_mode", ["accuracy", "performance"])
+def test_conv2d_accuracy_mode(accuracy_mode):
     class Conv(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -75,9 +74,7 @@ def test_conv2d_mf_fp32_acc(math_fidelity, fp32_dest_acc_en):
         def forward(self, x):
             return self.conv(x)
 
-    compiler_config = CompilerConfig(
-        math_fidelity=math_fidelity, fp32_dest_acc_en=fp32_dest_acc_en
-    )
+    compiler_config = CompilerConfig(accuracy_mode=accuracy_mode)
     run_op_test_with_random_inputs(
         Conv(),
         [(1, 64, 224, 224)],

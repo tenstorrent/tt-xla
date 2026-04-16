@@ -31,18 +31,13 @@ class CompilerConfig:
     # Valid values: "", "bfp_bf8", "bfp_bf4". Empty string disables.
     experimental_weight_dtype: str = ""
 
-    # Override math fidelity for all ttnn operations exposing compute kernel
-    # config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
-    # "ttnn_default" - means that we don't override math_fidelity in comiler,
-    # and let ttnn choose math_fidelity for each operation based on its own logic.
-    # If math_fidelity not set (None), the default behavior from MLIR is used. Currently,
-    # MLIR default is HiFi4 for all operations.
-    math_fidelity: Optional[str] = None
-
-    # Override fp32 destination accumulation for all ttnn operations exposing
-    # compute kernel config. If None, the default behavior from MLIR is used.
-    # Currently, MLIR default is true for all operations.
-    fp32_dest_acc_en: Optional[bool] = None
+    # Controls accuracy vs performance trade-off for compute operations.
+    # "accuracy": Maximum accuracy (HiFi4 math, fp32 accumulation, approx modes
+    #             disabled on operations like SDPA decode).
+    # "performance": Use TTNN per-op defaults (optimized for speed).
+    # None: Use optimization level defaults
+    #       (opt_level=0: accuracy, opt_level>=1: performance).
+    accuracy_mode: Optional[str] = None
 
     # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
     # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
@@ -84,11 +79,8 @@ class CompilerConfig:
         if self.experimental_weight_dtype:
             options["experimental_weight_dtype"] = self.experimental_weight_dtype
 
-        if self.math_fidelity is not None:
-            options["math_fidelity"] = self.math_fidelity
-
-        if self.fp32_dest_acc_en is not None:
-            options["fp32_dest_acc_en"] = "true" if self.fp32_dest_acc_en else "false"
+        if self.accuracy_mode is not None:
+            options["accuracy_mode"] = self.accuracy_mode
 
         if self.experimental_enable_fusing_conv2d_with_multiply_pattern:
             options["experimental_enable_fusing_conv2d_with_multiply_pattern"] = "true"
