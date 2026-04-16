@@ -122,7 +122,13 @@ class DynamicTorchModelTester(TorchModelTester):
 
         adapter_mode = getattr(self._test_metadata, "adapter_mode", AdapterMode.NONE)
         if adapter_mode == AdapterMode.LORA and self._run_mode == RunMode.TRAINING:
-            model = apply_lora_adapters(model)
+            model = apply_lora_adapters(
+                model,
+                r=self._test_metadata.lora_r,
+                lora_alpha=self._test_metadata.lora_alpha,
+                target_modules=self._test_metadata.lora_target_modules,
+                dropout=self._test_metadata.lora_dropout,
+            )
 
         return model
 

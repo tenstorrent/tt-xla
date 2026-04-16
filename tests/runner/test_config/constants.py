@@ -34,6 +34,11 @@ ALLOWED_FIELDS = {
     "enable_weight_bfp8_conversion",
     # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
     "inject_custom_moe",
+    # LoRA adapter configuration (only meaningful when adapter_mode=LORA)
+    "lora_r",
+    "lora_alpha",
+    "lora_target_modules",
+    "lora_dropout",
 }
 
 # Single source of truth for the placeholders YAML filename

@@ -124,6 +124,10 @@ class ModelTestConfig:
         self.batch_size = self._resolve("batch_size", default=None)
         self.seq_len = self._resolve("seq_len", default=None)
         self.adapter_mode = AdapterMode.NONE
+        self.lora_r = self._resolve("lora_r", default=8)
+        self.lora_alpha = self._resolve("lora_alpha", default=16.0)
+        self.lora_target_modules = self._resolve("lora_target_modules", default=None)
+        self.lora_dropout = self._resolve("lora_dropout", default=0.0)
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
