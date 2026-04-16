@@ -1782,6 +1782,7 @@ def test_gpt_oss_120b_tp_qb2(
         # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
     )
 
+
 # Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
 def test_kimi_k2_tp_galaxy_2_layers(
     output_file,
