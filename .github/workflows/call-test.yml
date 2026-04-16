@@ -199,6 +199,16 @@ jobs:
         source venv/activate
         uv pip install wheels/*.whl
 
+    - name: Install custom torch_xla from workflow run
+      if: ${{ inputs.torchxla_build_run_id != '' }}
+      shell: bash
+      run: |
+        echo "Using custom torchxla install from run ${{ inputs.torchxla_build_run_id }}"
+        gh run download ${{ inputs.torchxla_build_run_id }} --repo ${{ github.repository }}
+        source venv/activate
+        uv pip install --force-reinstall xla-torch-wheel-release/*.whl
+        uv pip show torch_xla
+
     - name: Download and setup alchemist library
       if: ${{ matrix.build.require == 'alchemist' }}
       shell: bash
