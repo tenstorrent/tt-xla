@@ -6,9 +6,10 @@
 Z-Image-Turbo demo — generate 512×512 images from text prompts.
 
 Hardware: 4× Blackhole P150, tensor-parallel across (1,4) mesh.
-Models:   text encoder + transformer on TTNN; VAE decoder on CPU.
+Models:   text encoder + transformer + VAE decoder all on TTNN.
 Speed:    ~1.1 s/step after Metal Trace capture on first step of first prompt.
           All subsequent steps and prompts replay the trace.
+          VAE consteval runs on first decode (~330 s); subsequent decodes ~1.4 s.
 
 Single prompt:
     python generate.py "a misty mountain lake at dawn"
@@ -32,7 +33,6 @@ import time
 
 import torch
 import ttnn
-from diffusers import AutoencoderKL
 from diffusers.image_processor import VaeImageProcessor
 from diffusers.schedulers import FlowMatchEulerDiscreteScheduler
 from transformers import AutoTokenizer
@@ -40,6 +40,7 @@ from transformers import AutoTokenizer
 _HERE   = os.path.dirname(os.path.abspath(__file__))
 _TE_DIR = os.path.join(_HERE, "text_encoder")
 _TR_DIR = os.path.join(_HERE, "transformer")
+_VAE_DIR = os.path.join(_HERE, "vae")
 
 MODEL_ID        = "Tongyi-MAI/Z-Image-Turbo"
 CAP_TOKENS      = 32    # caption tokens (baked into compiled model)
@@ -63,6 +64,11 @@ _load_module("consteval", os.path.join(_TR_DIR, "consteval.py"))
 _tr_model_pt   = _load_module("tr_model_pt",   os.path.join(_TR_DIR, "model_pt.py"))
 _te_model_ttnn = _load_module("te_model_ttnn", os.path.join(_TE_DIR, "model_ttnn.py"))
 _tr_model_ttnn = _load_module("tr_model_ttnn", os.path.join(_TR_DIR, "model_ttnn.py"))
+# VAE modules (overwrite transformer's "consteval" in sys.modules — safe, transformer already loaded)
+_load_module("consteval", os.path.join(_VAE_DIR, "consteval.py"))
+_load_module("params",    os.path.join(_VAE_DIR, "params.py"))
+_vae_model_pt   = _load_module("vae_model_pt",   os.path.join(_VAE_DIR, "model_pt.py"))
+_vae_model_ttnn = _load_module("vae_model_ttnn", os.path.join(_VAE_DIR, "model_ttnn.py"))
 
 TextEncoderTTNN       = _te_model_ttnn.TextEncoderTTNN
 ZImageTransformerTTNN = _tr_model_ttnn.ZImageTransformerTTNN
@@ -94,6 +100,41 @@ def _tt_to_torch(tt_tensor, mesh_device):
     return host[:host.shape[0] // 4].float()
 
 
+# ── TTNN VAE decoder ───────────────────────────────────────────────────────────
+
+class VAEDecoderTTNN:
+    """TTNN VAE decoder — weights loaded from HuggingFace, processed once at init.
+
+    Uses the refactored vae_opt1/ model (PCC=0.9987, ~1.4 s/decode).
+    Consteval runs during __init__; all decode() calls are fast.
+    """
+
+    _SCALING_FACTOR = 0.3611
+    _SHIFT_FACTOR   = 0.1159
+
+    def __init__(self, mesh_device):
+        self.mesh_device = mesh_device
+        pt = _vae_model_pt.VaeDecoderPT()
+        self._model = _vae_model_ttnn.VaeDecoderTTNN(mesh_device, pt.state_dict)
+        del pt
+
+    def decode(self, raw_latents):
+        """Decode raw (pre-scaling) latents → [1, 3, 512, 512] float32 CPU tensor."""
+        z = (raw_latents.float() / self._SCALING_FACTOR) + self._SHIFT_FACTOR
+        z_tt = ttnn.from_torch(
+            z.bfloat16(), dtype=ttnn.DataType.BFLOAT16,
+            layout=ttnn.Layout.ROW_MAJOR, device=self.mesh_device,
+            memory_config=DRAM_RM,
+            mesh_mapper=ttnn.ReplicateTensorToMesh(self.mesh_device),
+        )
+        outputs = self._model.forward(z_tt)
+        out = ttnn.to_torch(
+            ttnn.from_device(outputs[0]),
+            mesh_composer=ttnn.ConcatMeshToTensor(self.mesh_device, dim=0),
+        )
+        return out[:out.shape[0] // 4].float()
+
+
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 
 def _compute_mu(h=IMG_LATENT_H, w=IMG_LATENT_W,
@@ -118,28 +159,29 @@ class Models:
     """Loaded models, shared across all prompts in a run."""
 
     def __init__(self):
-        print("[1/4] Loading CPU components ...")
+        print("[1/5] Loading CPU components ...")
         self.tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, subfolder="tokenizer")
-        self.vae = AutoencoderKL.from_pretrained(MODEL_ID, subfolder="vae", torch_dtype=torch.float32)
-        self.vae.eval()
         self.vae_processor = VaeImageProcessor(vae_scale_factor=16)
         self.scheduler_template = FlowMatchEulerDiscreteScheduler.from_pretrained(
             MODEL_ID, subfolder="scheduler"
         )
         self.scheduler_template.sigma_min = 0.0
 
-        print("[2/4] Opening TTNN (1,4) mesh device ...")
+        print("[2/5] Opening TTNN (1,4) mesh device ...")
         _utils.DeviceGetter.trace_region_size = 50_000_000  # required for Metal Trace
         self.mesh_device = _utils.DeviceGetter.get_device((1, 4))
 
-        print("[3/4] Building text encoder ...")
+        print("[3/5] Building text encoder ...")
         self.te = TextEncoderTTNN(self.mesh_device)
 
-        print("[4/4] Building transformer ...")
+        print("[4/5] Building transformer ...")
         tr_pt = _tr_model_pt.load_model()
         _tr_model_pt.pad_heads(tr_pt)
         self.tr = ZImageTransformerTTNN(self.mesh_device, tr_pt)
         del tr_pt
+
+        print("[5/5] Loading TTNN VAE decoder (weights from HuggingFace) ...")
+        self.vae_tt = VAEDecoderTTNN(self.mesh_device)
         print()
 
     def encode_prompt(self, prompt):
@@ -162,10 +204,8 @@ class Models:
         return cap_cpu.unsqueeze(0)  # [1, 32, 2560] on CPU
 
     def decode_latents(self, latents):
-        """VAE decode on CPU → PIL image."""
-        with torch.no_grad():
-            latents_vae  = (latents / self.vae.config.scaling_factor) + self.vae.config.shift_factor
-            image_tensor = self.vae.decode(latents_vae, return_dict=False)[0]
+        """VAE decode on TTNN → PIL image."""
+        image_tensor = self.vae_tt.decode(latents)
         return self.vae_processor.postprocess(image_tensor, output_type="pil")[0]
 
 
