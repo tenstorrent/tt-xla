@@ -22,6 +22,7 @@ XFAIL_DIRS: dict[str, str] = {
 # Specific files with known issues - tests will be marked as xfail with the given reason
 XFAIL_FILES: dict[str, str] = {
     "pytorch/gpt_oss_20b.py": "Gpt-oss example requires llmbox or galaxy",
+    "pytorch/gpt_oss_120b_qb2.py": "This Gpt-oss 120b example requires blackhole quietbox 2",
     "jax/codegen/cpp/resnet.py": "FlaxResNetModel removed in transformers 5.x",
     "jax/codegen/python/resnet.py": "FlaxResNetModel removed in transformers 5.x",
 }
