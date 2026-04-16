@@ -1,3 +1,4 @@
 [
-    { "runs-on": "multi-host-bh-lb-2x", "name": "multihost tests",  "dir": "./tests/torch/multi_host/experimental",  "multihost": true, "topology": "dual_bh_loudbox_1x16" }
+    { "runs-on": "multi-host-bh-lb-2x",  "topology": "dual_bh_loudbox_1x16", "name": "multihost tests on dual bh loudbox 1x16",  "dir": "./tests/torch/multi_host/experimental",  "multihost": true },
+    { "runs-on": "multi-host-t3000", "topology": "dual_t3k", "name": "multihost tests on dual t3k",  "dir": "./tests/torch/multi_host/experimental",  "multihost": true  }
 ]
