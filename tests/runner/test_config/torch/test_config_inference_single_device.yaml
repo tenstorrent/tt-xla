@@ -117,7 +117,6 @@ test_config:
 
   falcon/pytorch-3_1B_Base-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push]
 
   falcon/pytorch-3_3B_Base-single_device-inference:
     status: EXPECTED_PASSING
@@ -378,7 +377,6 @@ test_config:
 
   mobilenetv1/pytorch-Mobilenet_v1-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push, nightly]
 
   mobilenetv2/pytorch-Mobilenet_v2-single_device-inference:
     status: EXPECTED_PASSING
@@ -495,7 +493,6 @@ test_config:
       - concatenate_heads.ttnn.mlir
       # - split_query_key_value_and_split_heads.ttnn.mlir # now only appears with optimization level 1
       - layer_norm.ttnn.mlir
-    markers: [push, nightly]
 
   vit/pytorch-Large-single_device-inference:
     status: EXPECTED_PASSING
@@ -918,7 +915,6 @@ test_config:
   qwen_2_5/causal_lm/pytorch-1.5B_Instruct-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    markers: [push]
 
   retinanet/pytorch-ResNet18_Backbone_with_FPN-single_device-inference:
     assert_pcc: false
@@ -973,7 +969,6 @@ test_config:
 
   llama/causal_lm/pytorch-3.2_1B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push]
 
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -1509,7 +1504,6 @@ test_config:
 
   phi3/causal_lm/pytorch-Mini_4K_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push]
 
   phi3/token_cls/pytorch-Mini_128K_Instruct-single_device-inference:
     status: EXPECTED_PASSING
