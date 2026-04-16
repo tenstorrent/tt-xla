@@ -50,13 +50,13 @@ class XlaMergedColumnParallelLinear(nn.Module):
     def _shard_weight(self, mesh: "xs.Mesh"):
         for i in range(self.num_outputs):
             self.weights[i] = Parameter(self.weights[i].to("xla"), requires_grad=False)
-            xs.mark_sharding(self.weights[i], mesh, ("batch", "model"))
+            xs.mark_sharding(self.weights[i], mesh, ("model", None))
 
             if self.biases[i] is not None:
                 self.biases[i] = Parameter(
                     self.biases[i].to("xla"), requires_grad=False
                 )
-                xs.mark_sharding(self.biases[i], mesh, ("batch",))
+                xs.mark_sharding(self.biases[i], mesh, ("model",))
 
     def _load_weights_from_merged_column_parallel_linear(
         self, merged_column_parallel_linear: nn.Module
@@ -143,19 +143,19 @@ class XlaQKVParallelLinear(nn.Module):
         self.q_weight = Parameter(self.q_weight.to("xla"), requires_grad=False)
         self.k_weight = Parameter(self.k_weight.to("xla"), requires_grad=False)
         self.v_weight = Parameter(self.v_weight.to("xla"), requires_grad=False)
-        xs.mark_sharding(self.q_weight, mesh, ("batch", "model"))
-        xs.mark_sharding(self.k_weight, mesh, ("batch", "model"))
-        xs.mark_sharding(self.v_weight, mesh, ("batch", "model"))
+        xs.mark_sharding(self.q_weight, mesh, ("model", None))
+        xs.mark_sharding(self.k_weight, mesh, ("model", None))
+        xs.mark_sharding(self.v_weight, mesh, ("model", None))
         if self.q_bias is not None:
             assert (
                 self.k_bias is not None and self.v_bias is not None
             ), "QKVParallelLinear should have q, k, and v biases together."
             self.q_bias = Parameter(self.q_bias.to("xla"), requires_grad=False)
-            xs.mark_sharding(self.q_bias, mesh, ("batch",))
+            xs.mark_sharding(self.q_bias, mesh, ("model",))
             self.k_bias = Parameter(self.k_bias.to("xla"), requires_grad=False)
-            xs.mark_sharding(self.k_bias, mesh, ("batch",))
+            xs.mark_sharding(self.k_bias, mesh, ("model",))
             self.v_bias = Parameter(self.v_bias.to("xla"), requires_grad=False)
-            xs.mark_sharding(self.v_bias, mesh, ("batch",))
+            xs.mark_sharding(self.v_bias, mesh, ("model",))
 
     def _load_weights_from_qkv_linear(self, qkv_linear: nn.Module):
         q_proj_size, k_proj_size, _ = qkv_linear.output_sizes
@@ -241,7 +241,7 @@ def partition_column_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
     layer.weight = Parameter(layer.weight.to("xla"), requires_grad=False)
-    xs.mark_sharding(layer.weight, mesh, ("batch", None))
+    xs.mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -251,7 +251,7 @@ def partition_row_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, RowParallelLinear)
     layer.weight = Parameter(layer.weight.to("xla"), requires_grad=False)
-    xs.mark_sharding(layer.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(layer.weight, mesh, (None, "model"))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -261,7 +261,7 @@ def partition_parallel_lm_head(
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, ("batch", None))
+    xs.mark_sharding(layer.weight, mesh, (None, None))
     return layer
 
 
@@ -270,7 +270,7 @@ def partition_vocab_parallel_embedding(
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, (None, "batch"))
+    xs.mark_sharding(layer.weight, mesh, (None, None))
     # Apply sharding constraint to the output of the layer.
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)

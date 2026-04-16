@@ -69,6 +69,10 @@ class TTConfig:
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
+    # Toggle the tt-mlir permute+matmul fusion optimization. Mirrors the PJRT
+    # compile option; defaults to True to match the PJRT default.
+    experimental_enable_permute_matmul_fusion: bool = True
+
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
 
@@ -89,6 +93,7 @@ class TTConfig:
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
+            "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
         }
 
 

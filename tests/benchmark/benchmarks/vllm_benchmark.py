@@ -26,9 +26,19 @@ class VLLMBenchmarkConfig:
     model: str = "facebook/opt-125m"
     max_model_len: int = 128
     gpu_memory_utilization: float = 0.002
+    # Explicit override. None -> derived as batch_size * max_model_len.
+    # Needed for models whose per-item multimodal token budget is larger than
+    # batch_size * max_model_len (e.g. Gemma-4 video: 2496).
+    max_num_batched_tokens: Optional[int] = None
 
     # TT compile options passed directly to vLLM's additional_config (TTConfig).
     additional_config: Dict[str, Any] = field(default_factory=dict)
+
+    # Device metadata overrides for the benchmark result schema. When unset,
+    # falls back to derivation from enable_tensor_parallel.
+    arch: Optional[str] = None
+    device_count: Optional[int] = None
+    mesh_shape: Optional[Tuple[int, int]] = None
 
     # Benchmark params
     batch_size: int = 1
@@ -43,11 +53,16 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
     # See issue: https://github.com/tenstorrent/tt-xla/issues/3610
     additional_config.setdefault("cpu_sampling", True)
 
+    max_num_batched_tokens = (
+        config.max_num_batched_tokens
+        if config.max_num_batched_tokens is not None
+        else config.batch_size * config.max_model_len
+    )
     llm_args: Dict[str, Any] = {
         "model": config.model,
         "max_model_len": config.max_model_len,
         "max_num_seqs": config.batch_size,
-        "max_num_batched_tokens": config.batch_size * config.max_model_len,
+        "max_num_batched_tokens": max_num_batched_tokens,
         "gpu_memory_utilization": config.gpu_memory_utilization,
         "disable_log_stats": False,
         "additional_config": additional_config,
@@ -118,11 +133,19 @@ def _get_device_info(
     Derive device info from config.
 
     This is a workaround as these info are needed for the benchmark schema, but
-    vLLM abstracts the device layer. Mesh shape follows the plugin convention (num_devices, 1).
+    vLLM abstracts the device layer. Explicit overrides on the config win;
+    otherwise fall back to defaults keyed on enable_tensor_parallel.
 
     Returns:
         (arch, device_count, mesh_shape)
     """
+    if (
+        config.arch is not None
+        and config.device_count is not None
+        and config.mesh_shape is not None
+    ):
+        return config.arch, config.device_count, config.mesh_shape
+
     if config.additional_config.get("enable_tensor_parallel", False):
         return "wormhole_llmbox", 8, (8, 1)
     return "wormhole", 1, None

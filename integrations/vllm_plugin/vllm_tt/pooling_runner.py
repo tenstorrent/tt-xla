@@ -519,10 +519,20 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._original_num_layers = None
         self._target_num_layers = None
         target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
+        hf_config = vllm_config.model_config.hf_config
+        # Multimodal models (e.g. Gemma 4) nest num_hidden_layers under text_config
+        if hasattr(hf_config, "num_hidden_layers"):
+            original_num_layers = hf_config.num_hidden_layers
+        elif hasattr(hf_config, "text_config"):
+            original_num_layers = hf_config.text_config.num_hidden_layers
+        else:
+            original_num_layers = 0
 
         if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
+            if hasattr(hf_config, "num_hidden_layers"):
+                hf_config.num_hidden_layers = target_num_layers
+            elif hasattr(hf_config, "text_config"):
+                hf_config.text_config.num_hidden_layers = target_num_layers
             logger.info(
                 f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
             )

@@ -163,12 +163,9 @@ class XLAExecutor:
             )
             legacy_compile_enabled = True
 
-        if (
-            not legacy_compile_enabled
-            and any(
-                spec.kind == OutputKind.USER_INPUT_MUTATION
-                for spec in self.signature.output_specs
-            )
+        if not legacy_compile_enabled and any(
+            spec.kind == OutputKind.USER_INPUT_MUTATION
+            for spec in self.signature.output_specs
         ):
             logger.info(
                 "User-input mutation outputs detected, using legacy compile to "
@@ -182,6 +179,25 @@ class XLAExecutor:
         self.params_and_consts = None
         self.compiled_graph = None
         self._lifted_graph_prepared = False
+
+        # Pre-compute names of mutated buffers (e.g., KV-cache).
+        # In the legacy compile path, the FX graph mutates module buffers
+        # in-place via copy_ ops, but they are NOT included in the graph's
+        # return value. We must sync them explicitly to avoid duplicating
+        # the backbone computation in a separate XLA graph.
+        self._mutated_buffer_names = []
+        if self.legacy_compile_enabled:
+            for spec in self.signature.output_specs:
+                if spec.kind == OutputKind.BUFFER_MUTATION:
+                    self._mutated_buffer_names.append(spec.target)
+                elif spec.kind == OutputKind.USER_INPUT_MUTATION:
+                    self._mutated_buffer_names.append(spec.target)
+            if self._mutated_buffer_names:
+                logger.info(
+                    "Will sync {} mutated buffers alongside outputs "
+                    "to prevent graph duplication.",
+                    len(self._mutated_buffer_names),
+                )
 
     # Extract the param and consts from the exported program.
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
@@ -298,12 +314,15 @@ class XLAExecutor:
                 output = interp.run(*args)
         else:
             output = self.module(*args)
-        # Sync only the output tensors (including mutation outputs like KV
-        # cache updates). A global torch_xla.sync() would execute ALL pending
-        # XLA operations, including orphaned ReplicateShardedData ops created
-        # by torch.export.export() for every sharded parameter, causing DRAM
-        # OOM on large multi-chip models.
+        # Sync output tensors AND mutated buffers (e.g., KV-cache).
+        # The FX graph mutates buffers in-place via copy_ ops as side effects,
+        # but they are NOT part of the return value. Without syncing them here,
+        # their lazy ops form a separate XLA graph that re-computes the entire
+        # backbone.
         output_tensors = [o for o in output if isinstance(o, torch.Tensor)]
+        if self._mutated_buffer_names:
+            for buf in self.module.buffers():
+                output_tensors.append(buf)
         devices = self.devices
         if not devices and output_tensors:
             devices = list({t.device.type for t in output_tensors})
