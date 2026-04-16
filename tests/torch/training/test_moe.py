@@ -18,7 +18,6 @@ from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
 )
 from third_party.tt_forge_models.gpt_oss.pytorch.overrides import (
     build_deinterleaved_shard_specs,
-    override_gpt_oss_modules,
 )
 
 
@@ -28,9 +27,7 @@ from third_party.tt_forge_models.gpt_oss.pytorch.overrides import (
 def test_gpt_oss_moe_multichip_backward():
 
     model_loader = GptOssModelLoader(GptOssModelVariant.GPT_OSS_20B)
-    model = model_loader.load_model()
-
-    override_gpt_oss_modules(model)
+    model = model_loader.load_model(patch_modules=True)
 
     enable_spmd()
     xr.set_device_type("TT")
