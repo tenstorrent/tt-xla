@@ -57,7 +57,7 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
       internal::onLoadedExecutableGetExecutable;
   api->PJRT_LoadedExecutable_AddressableDevices =
       internal::onLoadedExecutableAddressableDevices;
-  api->PJRT_LoadedExecutable_GetDeviceAssignment =                                                                                                              
+  api->PJRT_LoadedExecutable_GetDeviceAssignment =
       internal::onLoadedExecutableGetDeviceAssignment;
   api->PJRT_LoadedExecutable_Delete = internal::onLoadedExecutableDelete;
   api->PJRT_LoadedExecutable_IsDeleted = internal::onLoadedExecutableIsDeleted;
@@ -299,14 +299,14 @@ PJRT_Error *onLoadedExecutableAddressableDevices(
 }
 
 PJRT_Error *onLoadedExecutableGetDeviceAssignment(
-    PJRT_LoadedExecutable_GetDeviceAssignment_Args *args) {                                                                                                   
+    PJRT_LoadedExecutable_GetDeviceAssignment_Args *args) {
 
-      args->serialized_bytes_size = 0;                                                                                                                            
+  args->serialized_bytes_size = 0;
   args->serialized_device_assignment = nullptr;
-  args->serialized_device_assignment_deleter =                                                                                                                
+  args->serialized_device_assignment_deleter =
       +[](PJRT_DeviceAssignmentSerialized *) {};
-  return nullptr;                                                                                                                                             
-} 
+  return nullptr;
+}
 
 PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args) {
   ZoneScoped;
