@@ -83,6 +83,13 @@ def _run_model_test_impl(
     loader = ModelLoader(variant=variant)
     model_info = ModelLoader.get_model_info(variant=variant)
     print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
+    print(f"[DEBUG] loader_path={loader_path}", flush=True)
+    print(f"[DEBUG] ModelLoader.__module__={ModelLoader.__module__}", flush=True)
+    try:
+        import inspect
+        print(f"[DEBUG] load_config source={inspect.getfile(ModelLoader)}", flush=True)
+    except TypeError:
+        print(f"[DEBUG] load_config source=<built-in class>", flush=True)
 
     # Ensure per-model requirements are installed, and roll back after the test
     models_root = MODELS_ROOT_TORCH if framework == Framework.TORCH else MODELS_ROOT_JAX
