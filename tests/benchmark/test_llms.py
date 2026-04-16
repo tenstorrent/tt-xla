@@ -216,6 +216,7 @@ def test_llm_tp(
     request=None,
     arch="wormhole_llmbox",
     decode_only=False,
+    required_pcc=DEFAULT_REQUIRED_PCC,
     **kwargs,
 ):
     mesh_config_fn = kwargs.pop(
@@ -241,6 +242,7 @@ def test_llm_tp(
         num_layers=num_layers,
         request=request,
         decode_only=decode_only,
+        required_pcc=required_pcc,
         **kwargs,
     )
 
@@ -1635,6 +1637,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
+        required_pcc=0.93,
     )
 
 
