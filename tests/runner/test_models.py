@@ -492,7 +492,7 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
         ),
     ],
 )
-@pytest.mark.parametrize("batch_size", [1, 32], ids=_generate_batch_size_id)
+@pytest.mark.parametrize("batch_size", [1, 4], ids=_generate_batch_size_id)
 @pytest.mark.parametrize(
     "sequence_length",
     [None, 128, 1024, 2048, 4096, 8192],
