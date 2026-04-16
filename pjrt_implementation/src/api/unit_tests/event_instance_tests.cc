@@ -263,74 +263,56 @@ TEST(EventInstanceUnitTests,
   EXPECT_TRUE(waitForFlag(callback_ran));
 }
 
-// Tests scenario where there are multiple awaiters waiting on an event to be
-// ready, but there is also an on-ready callback which destroys the event as
-// soon as it is marked ready. Destroying the event will trigger the execution
-// of an event destructor, which should terminate the execution since there are
-// still awaiters waiting on the event.
+// Tests that destroying an event while awaiters are still blocked triggers
+// std::terminate(). This is the safety net in EventInstance's destructor: if a
+// caller destroys an event with outstanding awaiters, the process crashes
+// rather than leaving them waiting on a destroyed condition variable.
 //
-// NOTE: ASSERT_DEATH uses fork(), and that interferes with our callback worker
-// (fork() does not inherit threads, so the CallbackWorker thread does not exist
-// in the child and the callback never fires). To work around this, we also
-// destroy the event directly on the work thread, which is what causes the
-// death. The callback block below is kept to document the XLA pattern.
-TEST(EventInstanceUnitTests, API_PJRT_Event_Test_Await_Callbacks_Combination) {
+// The callback-destroys-event pattern (which is how XLA triggers this in
+// practice) is already covered by
+// API_PJRT_Event_OnReady_Callback_Destroys_Event_NoAwaiters. Here we focus
+// purely on the awaiters-still-present invariant.
+//
+// To make the test deterministic we never mark the event as ready, so awaiters
+// remain permanently blocked on the condition variable and m_awaiters_count is
+// guaranteed > 0 when the destructor runs.
+TEST(EventInstanceUnitTests, API_PJRT_Event_Destroy_With_Active_Awaiters) {
   auto test = []() {
     auto event = EventInstance::createInstance().release();
 
-    // Create a callback that will be called once the event is ready
-    // and which executes event destroy API (which we've observed
-    // happens in XLA).
-    auto callback_calls_destroy = [](PJRT_Error *error, void *user_arg) {
-      PJRT_Event *event = reinterpret_cast<PJRT_Event *>(user_arg);
-      PJRT_Event_Destroy_Args destroy_args = {
-          .struct_size = PJRT_Event_Destroy_Args_STRUCT_SIZE,
-          .event = event,
-      };
-      internal::onEventDestroy(&destroy_args);
-    };
+    constexpr size_t num_waiter_threads = 4;
+    std::atomic<size_t> threads_entered{0};
 
-    PJRT_Event_OnReady_Args args;
-    args.struct_size = PJRT_Event_OnReady_Args_STRUCT_SIZE;
-    args.event = *event;
-    args.callback = callback_calls_destroy;
-    args.user_arg = event;
-    PJRT_Error *error = internal::onEventOnReady(&args);
-    ASSERT_EQ(error, nullptr);
-
-    // Create waiter threads which will await on event being marked as
-    // ready.
     std::vector<std::thread> waiter_threads;
-    constexpr size_t num_waiter_threads = 100;
     waiter_threads.reserve(num_waiter_threads);
-    for (size_t thread_id = 0; thread_id < num_waiter_threads; ++thread_id) {
-      waiter_threads.emplace_back([=] {
+    for (size_t i = 0; i < num_waiter_threads; ++i) {
+      waiter_threads.emplace_back([&, event] {
+        threads_entered.fetch_add(1, std::memory_order_release);
         PJRT_Event_Await_Args await_args;
         await_args.struct_size = PJRT_Event_Await_Args_STRUCT_SIZE;
         await_args.event = reinterpret_cast<PJRT_Event *>(event);
-        PJRT_Error *error = internal::onEventAwait(&await_args);
-        ASSERT_EQ(error, nullptr);
+        internal::onEventAwait(&await_args);
       });
     }
 
-    // Spawn a "worker" thread which will wait and then mark the event
-    // as ready. This will trigger callback execution in the same
-    // thread.
-    std::thread work_thread = std::thread([&]() {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-      std::cerr << "Worker thread marking event as ready and executing "
-                   "callbacks...\n";
-      EventInstance::markAsReadyAndCallback(event, tt_pjrt_status::kSuccess);
+    // Wait until all waiter threads have started.
+    while (threads_entered.load(std::memory_order_acquire) <
+           num_waiter_threads) {
+      std::this_thread::yield();
+    }
+    // Give the threads time to enter await() and block on the condition
+    // variable.
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-      PJRT_Event_Destroy_Args destroy_args = {
-          .struct_size = PJRT_Event_Destroy_Args_STRUCT_SIZE,
-          .event = reinterpret_cast<PJRT_Event *>(event),
-      };
-      internal::onEventDestroy(&destroy_args);
-    });
+    // Destroy the event while awaiters are still blocked. The destructor
+    // should detect m_awaiters_count > 0 and call std::terminate().
+    PJRT_Event_Destroy_Args destroy_args = {
+        .struct_size = PJRT_Event_Destroy_Args_STRUCT_SIZE,
+        .event = reinterpret_cast<PJRT_Event *>(event),
+    };
+    internal::onEventDestroy(&destroy_args);
 
-    // Wait for all threads to finish.
-    work_thread.join();
+    // Unreachable — std::terminate() is called in the destructor.
     for (auto &thread : waiter_threads) {
       thread.join();
     }
