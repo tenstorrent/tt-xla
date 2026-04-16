@@ -1590,11 +1590,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 replace_modules(model)
                 from .moe_integration import count_moe_layers, override_moe_for_tt
 
-                # Count MoE layers before override
-                fusedmoe_before, sparse_mlp_before = count_moe_layers(model)
-                logger.info(
-                    f"Before MLP override: FusedMoE={fusedmoe_before}, A2aSparseMLP={sparse_mlp_before}"
-                )
+                # Count MLPBlock layers before override
+                mlpblock_before = count_moe_layers(model)
+                logger.info(f"Before MLP override: MLPBlock={mlpblock_before}")
                 logger.info(f"Compiled model: \n{model}")
 
                 # Replace vLLM FusedMoE with TT A2aSparseMLP
@@ -1613,16 +1611,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     try:
                         model = override_moe_for_tt(
                             model=model,
-                            vllm_config=self.vllm_config,
-                            mesh_shape=mesh_shape,
+                            mesh=mesh_shape,
                             cluster_axis=cluster_axis,
+                            config=self.model_config,
                         )
 
-                        # Count MoE layers after override
-                        fusedmoe_after, sparse_mlp_after = count_moe_layers(model)
-                        logger.info(
-                            f"After MLP override: FusedMoE={fusedmoe_after}, A2aSparseMLP={sparse_mlp_after}"
-                        )
+                        # Count MLPBlock layers after override
+                        mlpblock_after = count_moe_layers(model)
+                        logger.info(f"After MLP override: MLPBlock={mlpblock_after}")
                     except Exception as e:
                         logger.warning(f"MoE override failed with error: {e}")
                         logger.warning(

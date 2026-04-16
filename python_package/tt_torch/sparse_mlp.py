@@ -136,6 +136,22 @@ def _sparse_expert_forward(
         is_input_a_sparse=False,
         is_input_b_sparse=True,
     )
+    print(
+        f"Sparse expert forward: dispatched={dispatched.shape}, sparsity_remap={sparsity_remap.shape}",
+        flush=True,
+    )
+    print(
+        f"experts: {experts}, has w1: {hasattr(experts, 'w1')}, has w2: {hasattr(experts, 'w2')}, has w3: {hasattr(experts, 'w3')}",
+        flush=True,
+    )
+    # print(f"experts.w1: {experts.w1}", flush=True)
+    # print(f"experts.w2: {experts.w2}", flush=True)
+    print(f"experts.w1 shape: {w1.shape}", flush=True)
+    print(f"experts.w2 shape: {w2.shape}", flush=True)
+    print(f"w1_out shape: {w1_out.shape}", flush=True)
+    print(
+        f"experts.w3 shape: {getattr(experts, 'w3', None).shape if hasattr(experts, 'w3') else None}"
+    )
     if experts.w1_bias is not None:
         w1_out = w1_out + experts.w1_bias.view(1, 1, E, 1, -1)
 
@@ -373,6 +389,268 @@ def build_expert_mapping(num_experts, num_devices, mesh_shape=None):
             device_id = i // experts_per_device
         mapping[0, 0, i, device_id] = 1
     return mapping
+
+
+# class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
+class FusedMoEWrapper(SparseMLP, nn.Module):
+    """Wraps vLLM's FusedMoE to work with A2aSparseMLP.
+
+    Extracts internal weight matrices from FusedMoE's quant_method and exposes them
+    as separate gate_proj, up_proj, down_proj attributes for sparse operations.
+    """
+
+    def __init__(self, fused_moe):
+        super().__init__()
+        self._fused_moe = fused_moe
+
+        # Extract weights from FusedMoE's quant_method
+        print(f"[FusedMoEWrapper] Initializing wrapper for {type(fused_moe)}")
+        self._extract_weights()
+        print(
+            f"[FusedMoEWrapper] After extraction: gate_up_proj={getattr(self, 'gate_up_proj', None) is not None}, down_proj={getattr(self, 'down_proj', None) is not None}"
+        )
+
+        # Extract intermediate_size from FusedMoE attributes
+        print(
+            f"[FusedMoEWrapper] Extracting intermediate_size from FusedMoE {hasattr(fused_moe, 'intermediate_size')} or {hasattr(fused_moe, 'intermediate_size_per_partition')}"
+        )
+        if hasattr(fused_moe, "intermediate_size_per_partition"):
+            self.intermediate_size = fused_moe.intermediate_size_per_partition
+        elif hasattr(fused_moe, "intermediate_size"):
+            self.intermediate_size = fused_moe.intermediate_size
+        else:
+            # Default fallback if we can't determine it
+            self.intermediate_size = 2880  # Common size for MoE models
+        print(f"[FusedMoEWrapper] Set intermediate_size: {self.intermediate_size}")
+
+    def _extract_weights(self):
+        """Extract weight matrices from FusedMoE's internal structure."""
+        # Set defaults
+        self.gate_up_proj = None
+        self.down_proj = None
+        self.gate_up_proj_bias = None
+        self.down_proj_bias = None
+
+        try:
+            # Access FusedMoE's quant_method which holds the actual weights
+            quant_method = self._fused_moe.quant_method
+            print(f"FusedMoE quant_method type: {type(quant_method)}")
+            print(
+                f"quant_method attributes: {[attr for attr in dir(quant_method) if not attr.startswith('_')]}"
+            )
+
+            # Handle TTMxfp4MoEMethod specifically
+            if hasattr(quant_method, "w13_weight"):
+                print(f"[FusedMoEWrapper] Found TTMxfp4MoEMethod with w13_weight")
+                self.gate_up_proj = quant_method.w13_weight
+                print(
+                    f"[FusedMoEWrapper] Found w13_weight (gate_up_proj): {self.gate_up_proj.shape}"
+                )
+                if hasattr(quant_method, "w13_bias"):
+                    self.gate_up_proj_bias = quant_method.w13_bias
+            elif hasattr(quant_method, "gate_up_weight"):
+                self.gate_up_proj = quant_method.gate_up_weight
+                print(
+                    f"[FusedMoEWrapper] Found gate_up_weight: {self.gate_up_proj.shape}"
+                )
+
+            if hasattr(quant_method, "w2_weight"):
+                print(f"[FusedMoEWrapper] Found TTMxfp4MoEMethod with w2_weight")
+                self.down_proj = quant_method.w2_weight
+                print(
+                    f"[FusedMoEWrapper] Found w2_weight (down_proj): {self.down_proj.shape}"
+                )
+                if hasattr(quant_method, "w2_bias"):
+                    self.down_proj_bias = quant_method.w2_bias
+            elif hasattr(quant_method, "down_weight"):
+                self.down_proj = quant_method.down_weight
+                print(f"[FusedMoEWrapper] Found down_weight: {self.down_proj.shape}")
+
+            # If direct attribute access fails, try named_parameters fallback for other methods
+            if self.gate_up_proj is None or self.down_proj is None:
+                if hasattr(quant_method, "named_parameters"):
+                    print("Trying named_parameters fallback...")
+                    all_params = dict(quant_method.named_parameters())
+                    print(f"Available parameters: {list(all_params.keys())}")
+
+                    for name, param in all_params.items():
+                        if "w13_weight" in name or "gate_up_proj" in name:
+                            self.gate_up_proj = param
+                            print(f"Found gate_up_proj: {name} {param.shape}")
+                        elif "w2_weight" in name or "down_proj" in name:
+                            self.down_proj = param
+                            print(f"Found down_proj: {name} {param.shape}")
+                else:
+                    print("No named_parameters method available, trying fallback...")
+                    self._fallback_weight_extraction()
+
+        except Exception as e:
+            print(f"[FusedMoEWrapper] Failed to extract weights from FusedMoE: {e}")
+            print(
+                f"[FusedMoEWrapper] This is expected for TTMxfp4MoEMethod - dense fallback will be used"
+            )
+            # Mark all weights as unavailable to force dense fallback
+            self.gate_up_proj = None
+            self.down_proj = None
+            self.gate_up_proj_bias = None
+            self.down_proj_bias = None
+
+    def _fallback_weight_extraction(self):
+        """Fallback weight extraction from FusedMoE named_parameters."""
+        try:
+            # Try to get weights directly from the module
+            all_params = dict(self._fused_moe.named_parameters())
+            print(
+                f"[FusedMoEWrapper] Fallback extraction with {len(all_params)} parameters:"
+            )
+            for name, param in all_params.items():
+                print(f"[FusedMoEWrapper]  - {name}: {param.shape}")
+
+            # Common weight names to check
+            weight_patterns = {
+                "gate_up": ["w13_weight", "gate_up_proj", "gate_up.weight"],
+                "gate_up_bias": ["w13_bias", "gate_up_proj_bias", "gate_up.bias"],
+                "down": ["w2_weight", "down_proj", "down.weight"],
+                "down_bias": ["w2_bias", "down_proj_bias", "down.bias"],
+                "gate": ["w1_weight", "gate_proj", "gate.weight"],
+                "up": ["w3_weight", "up_proj", "up.weight"],
+            }
+
+            found = {}
+            for param_name, param in all_params.items():
+                for weight_type, patterns in weight_patterns.items():
+                    if param_name in patterns:
+                        found[weight_type] = param
+                        print(
+                            f"[FusedMoEWrapper] Found {weight_type}: {param_name} {param.shape}"
+                        )
+                        break
+
+            # Set up the weights based on what we found
+            if "gate_up" in found:
+                self.gate_up_proj = found["gate_up"]
+                print(f"[FusedMoEWrapper] Set gate_up_proj: {self.gate_up_proj.shape}")
+                print(
+                    f"[FusedMoEWrapper] Found gate_up_proj directly: {self.gate_up_proj}"
+                )
+            elif "gate" in found and "up" in found:
+                self.gate_up_proj = nn.Parameter(
+                    torch.cat([found["gate"], found["up"]], dim=-1)
+                )
+                print(
+                    f"[FusedMoEWrapper] Set gate_up_proj from cat: {self.gate_up_proj.shape}"
+                )
+            else:
+                self.gate_up_proj = None
+                print(f"[FusedMoEWrapper] No gate_up_proj found")
+
+            if "gate_up_bias" in found:
+                self.gate_up_proj_bias = found["gate_up_bias"]
+                print(
+                    f"[FusedMoEWrapper] Set gate_up_proj_bias: {self.gate_up_proj_bias.shape}"
+                )
+
+            self.down_proj = found.get("down", None)
+            if self.down_proj is not None:
+                print(f"[FusedMoEWrapper] Set down_proj: {self.down_proj.shape}")
+            else:
+                print(f"[FusedMoEWrapper] No down_proj found")
+
+            if "down_bias" in found:
+                self.down_proj_bias = found["down_bias"]
+                print(
+                    f"[FusedMoEWrapper] Set down_proj_bias: {self.down_proj_bias.shape}"
+                )
+
+        except Exception as e:
+            print(f"Fallback weight extraction failed: {e}")
+            self.gate_up_proj = None
+            self.down_proj = None
+            self.gate_up_proj_bias = None
+            self.down_proj_bias = None
+
+    def forward(self, *args, **kwargs):
+        """Delegate to original FusedMoE forward for dense computation."""
+        print(f"[FusedMoEWrapper] Using dense forward via original FusedMoE")
+        return self._fused_moe(*args, **kwargs)
+
+    def __getattr__(self, name):
+        """Delegate attribute access to original FusedMoE."""
+        if name.startswith("_") or name in (
+            "intermediate_size",
+            "training",
+            "gate_up_proj",
+            "down_proj",
+            "gate_up_proj_bias",
+            "down_proj_bias",
+        ):
+            return super().__getattr__(name)
+        return getattr(self._fused_moe, name)
+
+    def sparse_forward(
+        self,
+        dispatched,
+        sparsity_remap,
+        activation_type,
+        alpha=1.702,
+        limit=7.0,
+        output_shape=None,
+    ):
+        """
+        Sparse forward using extracted weights.
+        """
+        if self.gate_up_proj is None or self.down_proj is None:
+            # Weights not available, raise to force dense fallback
+            raise NotImplementedError(
+                "FusedMoE sparse_forward: weights not extracted - use dense_matmul=True"
+            )
+
+        # Use the sparse implementation with extracted weights
+        return super().sparse_forward(
+            dispatched, sparsity_remap, activation_type, alpha, limit, output_shape
+        )
+
+    @property
+    def w1(self):
+        return self.gate_up_proj
+        # For FusedMoE, weights may not be directly accessible
+        if hasattr(self._fused_moe, "gate_up_proj"):
+            return self._fused_moe.gate_up_proj
+        elif hasattr(self._fused_moe, "w1"):
+            return self._fused_moe.w1
+        else:
+            # Return None to indicate weights not accessible
+            return None
+
+    @property
+    def w1_bias(self):
+        return self.gate_up_proj_bias
+        return getattr(self._fused_moe, "gate_up_proj_bias", None)
+
+    @property
+    def w2(self):
+        return self.down_proj
+        if hasattr(self._fused_moe, "down_proj"):
+            return self._fused_moe.down_proj
+        elif hasattr(self._fused_moe, "w2"):
+            return self._fused_moe.w2
+        else:
+            return None
+
+    @property
+    def w2_bias(self):
+        return self.down_proj_bias
+        return getattr(self._fused_moe, "down_proj_bias", None)
+
+    @property
+    def w3(self):
+        # For FusedMoE, w3 is typically None (fused with w1)
+        return None
+
+    @property
+    def w3_bias(self):
+        # For FusedMoE, w3 is typically None (fused with w1)
+        return None
 
 
 class FusedExpertsWrapper(_SparseForwardMixin, nn.Module):
@@ -1023,29 +1301,56 @@ def _is_moe_mlp(module: nn.Module) -> bool:
 def _get_moe_config(module: nn.Module) -> Optional[tuple]:
     """Extract MoE configuration from a module."""
     try:
+        print(f"Attempting to extract MoE config from module {module}")
         num_experts = None
         # Try to get from experts
         if hasattr(module, "experts"):
             experts = module.experts
             num_experts = getattr(experts, "num_experts", None)
+            if num_experts is None:
+                num_experts = getattr(experts, "global_num_experts", None)
+            print(f"Extracted num_experts from experts: {num_experts}")
+            print(f"hasattr(experts, 'gate_proj'): {hasattr(experts, 'gate_proj')}")
+            print(
+                f"hasattr(experts, 'gate_up_proj'): {hasattr(experts, 'gate_up_proj')}"
+            )
+            print(
+                f"gate_up_proj shape: {hasattr(experts, 'w13_weight') and experts.w13_weight.shape if hasattr(experts, 'w13_weight') else 'N/A'}"
+            )
+            print(
+                f"check-1: {hasattr(experts, 'w13_weight')} -- {hasattr(experts, '.w13_weigth')}"
+            )
             if num_experts is None and hasattr(experts, "gate_proj"):
                 num_experts = experts.gate_proj.shape[0]
             elif num_experts is None and hasattr(experts, "gate_up_proj"):
                 num_experts = experts.gate_up_proj.shape[0]
 
+        print(f"Extracted num_experts: {num_experts}")
+        print(f"Attempting to extract num_experts_per_tok from router/gate")
+        print(f"hasattr(module, 'router'): {hasattr(module, 'router')}")
+        print(f"expert.topk: {hasattr(experts, 'top_k')}")
         # Try to get num_experts_per_tok from router
         if hasattr(module, "router"):
             router = module.router
             num_experts_per_tok = getattr(router, "top_k", None)
-            if num_experts_per_tok is None:
+            if hasattr(experts, "top_k"):
+                print(
+                    f"Extracting num_experts_per_tok from experts.top_k: {experts.top_k}"
+                )
+                num_experts_per_tok = experts.top_k
+            elif num_experts_per_tok is None:
                 num_experts_per_tok = getattr(router, "num_experts_per_tok", 2)
         else:
             num_experts_per_tok = 2  # Default
 
         if num_experts is not None:
+            print(
+                f"Successfully extracted MoE config: num_experts={num_experts}, num_experts_per_tok={num_experts_per_tok}"
+            )
             return (num_experts, num_experts_per_tok)
     except Exception:
         pass
+    sys.exit(0)
 
     return None
 
@@ -1116,14 +1421,32 @@ def enable_sparse_mlp(
 
         num_experts, num_experts_per_tok = moe_config
 
-        # Wrap fused experts (e.g. GptOssExperts) with FusedExpertsWrapper
+        # Wrap fused experts (e.g. GptOssExperts or FusedMoE) with appropriate wrapper
         # so they have sparse_forward() like StackedExperts
+        print(f'hasattr(module, "experts")={hasattr(module, "experts")}')
+        print(
+            f'hasattr(module.experts, "gate_up_proj")={hasattr(module.experts, "gate_up_proj")}'
+        )
+        print(
+            f'hasattr(module.experts, "sparse_forward")={hasattr(module.experts, "sparse_forward")}'
+        )
+        print(f"type(module.experts).__name__={type(module.experts).__name__}")
         if (
             hasattr(module, "experts")
             and hasattr(module.experts, "gate_up_proj")
             and not hasattr(module.experts, "sparse_forward")
         ):
+            print(f"Applying FusedExpertsWrapper to {name} with gate_up_proj")
             module.experts = FusedExpertsWrapper(module.experts)
+        elif (
+            hasattr(module, "experts")
+            and type(module.experts).__name__ == "FusedMoE"
+            and not hasattr(module.experts, "sparse_forward")
+        ):
+            print(f"Applying FusedMoEWrapper to {name} with FusedMoE experts")
+            # Handle vLLM's FusedMoE specifically
+            module.experts = FusedMoEWrapper(module.experts)
+            print(f"Wrapped FusedMoE experts for {name}")
 
         sparse_mlp = A2aSparseMLP(
             module,

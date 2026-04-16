@@ -16,9 +16,11 @@ from tt_torch.sparse_mlp import (
     ACTIVATION_GPT_OSS,
     A2aSparseMLP,
     A2aSparseMLPWithSharedExperts,
+    enable_sparse_mlp,
 )
 from vllm.logger import init_logger
 from vllm.model_executor.layers.fused_moe.layer import FusedMoE
+from vllm.model_executor.models.gpt_oss import MLPBlock
 
 logger = init_logger(__name__)
 
@@ -586,22 +588,53 @@ def get_activation_type_from_config(config) -> str:
 
 def override_moe_for_tt(
     model: nn.Module,
-    vllm_config,
-    mesh_shape: tuple = (4, 2),
+    mesh: tuple,
     cluster_axis: int = 0,
+    config: Optional[object] = None,
+    verbose: bool = True,
 ) -> nn.Module:
     """
-    Main override function to replace vLLM FusedMoE with TT A2aSparseMLP.
+    Replace MLPBlock layers in model with A2aSparseMLP using enable_sparse_mlp.
 
     Args:
-        model: The vLLM model
-        vllm_config: vLLM configuration object
-        mesh_shape: TT mesh configuration
-        cluster_axis: Dispatch axis for all-to-all operations
+        model: The model containing MLPBlock layers to replace
+        mesh: Mesh shape tuple (e.g., (2, 4))
+        cluster_axis: Axis for clustering (0 or 1)
+        config: Model configuration object
+        verbose: Whether to log replacement details
 
     Returns:
-        Model with MoE layers replaced
+        Modified model with MLPBlock -> A2aSparseMLP replacements
     """
+    if verbose:
+        initial_count = count_moe_layers(model)
+        logger.warning(f"Found {initial_count} MLPBlock layers to replace")
+
+        # Debug: Print MLPBlock locations and structure
+        for name, module in model.named_modules():
+            if isinstance(module, MLPBlock):
+                logger.warning(f"MLPBlock found at: {name}")
+                logger.warning(f"  - router type: {type(module.router)}")
+                if hasattr(module, "experts"):
+                    logger.warning(f"  - experts type: {type(module.experts)}")
+                else:
+                    logger.warning(f"  - no experts attribute")
+                logger.warning(f"  - hasattr router: {hasattr(module, 'router')}")
+                logger.warning(f"  - hasattr experts: {hasattr(module, 'experts')}")
+
+    logger.warning("Calling enable_sparse_mlp...")
+    model = enable_sparse_mlp(
+        model=model,
+        mesh=mesh,
+        cluster_axis=cluster_axis,
+        target_classes=[MLPBlock],  # Specifically target MLPBlock
+        verbose=verbose,
+        config=config,
+    )
+    logger.warning("enable_sparse_mlp completed")
+
+    return model
+
     logger.warning(
         f"Starting MoE override for TT with mesh_shape={mesh_shape}, cluster_axis={cluster_axis}"
     )
@@ -631,7 +664,16 @@ def override_moe_for_tt(
     return model
 
 
-def count_moe_layers(model: nn.Module) -> tuple[int, int]:
+def count_moe_layers(model: nn.Module) -> int:
+    """Count the number of MLPBlock layers in the model."""
+    count = 0
+    for name, module in model.named_modules():
+        if isinstance(module, MLPBlock):
+            count += 1
+    return count
+
+
+def count_moe_layers_old(model: nn.Module) -> tuple[int, int]:
     """
     Count FusedMoE and A2aSparseMLP layers in the model.
 
