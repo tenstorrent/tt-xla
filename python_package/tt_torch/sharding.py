@@ -19,6 +19,42 @@ import torch
 _MESH_IDX_PREFIX = "mesh_idx_"
 
 
+def _normalize_partition_spec_for_rank(partition_spec, tensor_rank: int) -> tuple:
+    """Normalize a partition spec to match the runtime tensor rank.
+
+    If the spec is shorter than the tensor rank, leading replicated dimensions
+    are added. If the spec is longer, only leading replicated dimensions may be
+    dropped. This lets callers describe a logical 3D tensor and still reuse the
+    same sharding intent when the tensor is temporarily flattened to 2D.
+    """
+    normalized_partition_spec = tuple(partition_spec)
+
+    if tensor_rank == 0:
+        if any(axis is not None for axis in normalized_partition_spec):
+            raise ValueError(
+                "Cannot drop non-replicated leading sharding dims "
+                f"{normalized_partition_spec} to match tensor rank 0"
+            )
+        return ()
+
+    rank_diff = tensor_rank - len(normalized_partition_spec)
+
+    if rank_diff == 0:
+        return normalized_partition_spec
+
+    if rank_diff > 0:
+        return (None,) * rank_diff + normalized_partition_spec
+
+    leading_dims_to_drop = normalized_partition_spec[:-rank_diff]
+    if any(axis is not None for axis in leading_dims_to_drop):
+        raise ValueError(
+            "Cannot drop non-replicated leading sharding dims "
+            f"{leading_dims_to_drop} to match tensor rank {tensor_rank}"
+        )
+
+    return normalized_partition_spec[-tensor_rank:]
+
+
 def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str:
     """
     Convert a partition_spec to an sdy.sharding string.
@@ -134,10 +170,17 @@ def sharding_constraint_hook(module, mesh, partition_spec):
     if not hasattr(mesh, "axis_names"):
         raise ValueError("mesh must have 'axis_names' attribute")
 
-    # Convert to sdy.sharding string at hook creation time
-    sdy_sharding = _partition_spec_to_sdy_sharding(mesh, partition_spec)
-
     def hook(mod, input, output):
+        if not isinstance(output, torch.Tensor):
+            raise TypeError(
+                "sharding_constraint_hook expects a Tensor output, got "
+                f"{type(output).__name__}"
+            )
+
+        normalized_partition_spec = _normalize_partition_spec_for_rank(
+            partition_spec, output.ndim
+        )
+        sdy_sharding = _partition_spec_to_sdy_sharding(mesh, normalized_partition_spec)
         return torch.ops.tt.sharding_constraint(output, sdy_sharding)
 
     return hook
@@ -187,7 +230,11 @@ def sharding_constraint_tensor(input, mesh, partition_spec, unreduced=None):
     if not hasattr(mesh, "axis_names"):
         raise ValueError("mesh must have 'axis_names' attribute")
 
-    # Convert to sdy.sharding string
-    sdy_sharding = _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced)
+    normalized_partition_spec = _normalize_partition_spec_for_rank(
+        partition_spec, input.ndim
+    )
+    sdy_sharding = _partition_spec_to_sdy_sharding(
+        mesh, normalized_partition_spec, unreduced
+    )
 
     return torch.ops.tt.sharding_constraint(input, sdy_sharding)
