@@ -254,19 +254,6 @@ jobs:
       run: |
         DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
 
-        echo "=== Container topology diagnostics ==="
-        echo "Outer container hostname: $(hostname)"
-        echo "Outer container PID 1 cgroup: $(cat /proc/1/cgroup 2>/dev/null | head -5)"
-        echo "github.workspace (used for -v mount): ${{ github.workspace }}"
-        echo "Docker socket: $(ls -la /var/run/docker.sock 2>/dev/null || echo 'not found')"
-        echo "Docker info (server):"
-        docker info --format '{{.OperatingSystem}} | Storage: {{.Driver}} | Root: {{.DockerRootDir}}' 2>/dev/null || echo "docker info failed"
-        echo "Host mount mapping: ${{ github.workspace }} -> ${{ steps.strings.outputs.work-dir }} (inside sibling container)"
-        echo "Venv bin/activate VIRTUAL_ENV will be:"
-        grep -o 'VIRTUAL_ENV="[^"]*"' ${{ github.workspace }}/venv/bin/activate 2>/dev/null || echo "  (venv not yet created)"
-        echo "=== End container topology diagnostics ==="
-
-        echo "Launching multihost controller container with image: $DOCKER_IMAGE"
         docker run --pull=never --rm -d \
           --name ubuntu-host-mapped \
           --privileged --pid=host --network=host \
@@ -283,13 +270,6 @@ jobs:
           -v ${{ github.workspace }}:${{ steps.strings.outputs.work-dir }} \
           -w ${{ steps.strings.outputs.work-dir }} \
           "$DOCKER_IMAGE" sleep infinity
-        echo "Controller container started"
-        echo "=== SSH agent check in controller container ==="
-        docker exec \
-          -e SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
-          ubuntu-host-mapped \
-          ssh-add -l || echo "WARNING: ssh-add -l failed (agent not reachable or no keys loaded)"
-        echo "=== End SSH agent check ==="
 
     - name: Start multihost worker containers via mpirun
       if: ${{ matrix.build.multihost }}
@@ -557,71 +537,7 @@ jobs:
             export TT_METAL_LOGGER_LEVEL=DEBUG
             export TT_METAL_LOGGER_TYPES=Fabric,Always
 
-            # Verify venv activation resolved the mount-point path correctly
-            echo "=== Venv diagnostics (sibling container) ==="
-            echo "Container hostname: $(hostname)"
-            echo "Container ID: $(cat /proc/self/cgroup 2>/dev/null | grep -o "[0-9a-f]\{64\}" | head -1 || echo unknown)"
-            echo "VIRTUAL_ENV=$VIRTUAL_ENV"
-            echo "TTMLIR_VENV_DIR=$TTMLIR_VENV_DIR"
-            echo "python resolves to: $(which python 2>/dev/null || echo NOT FOUND)"
-            python --version
-            echo "sys.prefix: $(python -c "import sys; print(sys.prefix)")"
-            echo "click location: $(python -c "import click; print(click.__file__)" 2>/dev/null || echo "click NOT FOUND")"
-            python -m pip show pjrt-plugin-tt 2>/dev/null | grep -E "^(Name|Version|Location)" || echo "WARNING: pjrt-plugin-tt not found in venv"
-            echo "=== End venv diagnostics ==="
-
-            # Set multihost distributed environment variables
             TOPOLOGY="${{ matrix.build.topology }}"
-            echo "=== Setting up multihost topology: $TOPOLOGY ==="
-
-            # Use explicit python3 path from venv
-            PYTHON=${{ steps.strings.outputs.work-dir }}/venv/bin/python3
-
-            # Diagnostics: show python environment
-            echo "=== Python environment diagnostics ==="
-            echo "Current directory: $(pwd)"
-            echo "Workspace contents:"
-            ls -la ${{ steps.strings.outputs.work-dir }} | head -20
-            echo ""
-            echo "Venv directory check:"
-            ls -la ${{ steps.strings.outputs.work-dir }}/venv || echo "venv directory not found!"
-            ls -la ${{ steps.strings.outputs.work-dir }}/venv/bin || echo "venv/bin not found!"
-            echo ""
-            which python || echo "python not found"
-            which python3 || echo "python3 not found"
-            echo "PYTHON variable: $PYTHON"
-            test -f $PYTHON && echo "$PYTHON exists" || echo "$PYTHON NOT FOUND!"
-            $PYTHON --version || echo "Failed to run $PYTHON"
-            echo ""
-            echo "System pip freeze (from /usr/bin/python3):"
-            /usr/bin/python3 -m pip freeze | head -20
-            echo ""
-            echo "Venv pip freeze (from $PYTHON):"
-            $PYTHON -m pip freeze | head -20 || echo "Failed to get venv pip freeze"
-            echo ""
-            echo "Checking pjrt_plugin_tt in venv:"
-            $PYTHON -m pip show pjrt-plugin-tt || echo "WARNING: pjrt-plugin-tt not found in venv"
-            echo ""
-            echo "=== Rank binding config diagnostics ==="
-            PJRT_DIR=${{ steps.strings.outputs.work-dir }}/venv/lib/python3.12/site-packages/pjrt_plugin_tt
-            echo "PJRT plugin directory: $PJRT_DIR"
-            ls -la $PJRT_DIR || echo "PJRT_DIR not found"
-            echo ""
-            echo "tt-metal directory:"
-            ls -la $PJRT_DIR/tt-metal || echo "tt-metal dir not found"
-            echo ""
-            echo "tests/tt_metal/distributed directory:"
-            ls -la $PJRT_DIR/tt-metal/tests/tt_metal/distributed || echo "distributed dir not found"
-            echo ""
-            echo "config directory contents:"
-            ls -la $PJRT_DIR/tt-metal/tests/tt_metal/distributed/config || echo "config dir not found"
-            echo ""
-            echo "Looking for rank_bindings files:"
-            find $PJRT_DIR -name "*rank_binding*" 2>/dev/null || echo "No rank_binding files found"
-            echo "=== End rank binding diagnostics ==="
-            echo ""
-            echo "=== End diagnostics ==="
-            echo ""
 
             # Call topology script to set distributed env vars
             # The topology script auto-discovers TT_PJRT_PLUGIN_DIR from pjrt_plugin_tt package
@@ -634,7 +550,6 @@ jobs:
 
             export TT_DISTRIBUTED_TCP_IFACE=enp194s0f0np0
 
-            echo "Running multihost tests with topology filter: $TOPOLOGY"
             python -m pytest -sv \
               --log-memory --durations=0 \
               ./tests/torch/multi_host/experimental \
