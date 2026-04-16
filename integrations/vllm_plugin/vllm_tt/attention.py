@@ -215,6 +215,8 @@ class TTAttentionBackendImpl(AttentionImpl):
         self.scale = float(scale)
         self.num_kv_heads = num_kv_heads
         self.sliding_window = sliding_window
+        # Keep the TT backend constructor aligned with upstream vLLM even when
+        # softcap handling is not enabled locally.
         self.logits_soft_cap = logits_soft_cap
         self.kv_sharing_target_layer_name = kv_sharing_target_layer_name
 
@@ -284,7 +286,13 @@ class TTAttentionBackendImpl(AttentionImpl):
 
         # kv_cache is [k_cache, v_cache] after init, but a scalar placeholder
         # during profiling — isinstance distinguishes the two cases.
-        if isinstance(kv_cache, (list, tuple)) and kv_cache[0].numel() > 0:
+        # Skip cache update when sharing KV cache with another layer — the
+        # target layer already wrote to the shared cache.
+        if (
+            isinstance(kv_cache, (list, tuple))
+            and kv_cache[0].numel() > 0
+            and self.kv_sharing_target_layer_name is None
+        ):
             self._handle_paged_attention(inputs, kv_cache, attn_metadata)
 
         # Compute attention based on mode:
@@ -293,7 +301,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         # - is_prefill=False: Paged decode attention (generative models only)
         if inputs.is_prefill:
             assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
-            output = self._compute_full_attention(inputs, attn_metadata)
+            # Pass kv_cache so shared-KV layers can gather K/V from the target
+            # layer's paged cache (see ``_compute_full_attention`` docstring).
+            output = self._compute_full_attention(inputs, kv_cache, attn_metadata)
         else:
             output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
 
@@ -502,7 +512,10 @@ class TTAttentionBackendImpl(AttentionImpl):
         kv_cache[1].copy_(v_cache)
 
     def _compute_full_attention(
-        self, inputs, attn_metadata: TTMetadata
+        self,
+        inputs,
+        kv_cache,
+        attn_metadata: TTMetadata,
     ) -> torch.Tensor:
         """Compute full attention using scaled dot-product attention (non-paged).
 
@@ -511,28 +524,118 @@ class TTAttentionBackendImpl(AttentionImpl):
            prompt tokens before decode iterations begin.
         2. Pooling models: For the entire attention computation, as these models
            process all tokens in a single pass without a decode phase or KV cache.
+
+        Sliding-window attention (e.g. Gemma4's hybrid layers): if
+        ``self.sliding_window`` is set, the TT SDPA op receives a
+        ``sliding_window_size`` frontend attribute so the kernel restricts
+        attention to the last ``sliding_window`` keys. This is the prefill-side
+        mask; for decode the KV cache is already sized by vLLM's
+        ``SlidingWindowSpec`` so only in-window tokens are present.
+
+        Cross-layer KV sharing (Gemma4 last 18 layers): when
+        ``self.kv_sharing_target_layer_name`` is set, vLLM aliases this layer's
+        ``kv_cache`` to the target layer's paged cache (see
+        ``model_runner.py`` — ``kv_caches[layer_name] =
+        kv_caches[target_layer_name]``). The target layer is executed earlier
+        in the forward pass and has already written its K/V into that cache
+        via ``paged_fill_cache``. We therefore gather the dense K/V tensors
+        from the paged cache and feed them to the SDPA instead of using
+        ``inputs.key`` / ``inputs.value`` (which hold self-projected K/V that
+        must be discarded per the Gemma4 spec).
         """
-        # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
-        query_for_sdpa = inputs.query.transpose(-3, -2)
-        key_for_sdpa = inputs.key.transpose(-3, -2)
-        value_for_sdpa = inputs.value.transpose(-3, -2)
+        shared_kv_mode = (
+            self.kv_sharing_target_layer_name is not None
+            and isinstance(kv_cache, (list, tuple))
+            and len(kv_cache) >= 2
+            and kv_cache[0].numel() > 0
+        )
+
+        if shared_kv_mode:
+            # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]
+            # from the target layer's paged cache (kv_cache is already the
+            # target's tensor via vLLM's alias).
+            key_for_sdpa = self._gather_paged_to_dense(
+                kv_cache[0], attn_metadata.page_table, inputs.kv_num_tokens
+            )
+            value_for_sdpa = self._gather_paged_to_dense(
+                kv_cache[1], attn_metadata.page_table, inputs.kv_num_tokens
+            )
+            # SDPA expects [users, num_heads, tokens, head]. The gather helper
+            # already returns that layout, only Q needs the transpose.
+            query_for_sdpa = inputs.query.transpose(-3, -2)
+        else:
+            # scaled_dot_product_attention expects [B, N_heads, N_tokens, H]
+            query_for_sdpa = inputs.query.transpose(-3, -2)
+            key_for_sdpa = inputs.key.transpose(-3, -2)
+            value_for_sdpa = inputs.value.transpose(-3, -2)
+
+        sdpa_kwargs = {
+            "is_causal": attn_metadata.is_causal,
+            "attn_mask": attn_metadata.attn_mask,
+            "scale": self.scale,
+        }
+        if self.sliding_window is not None:
+            sdpa_kwargs["sliding_window_size"] = self.sliding_window
 
         output = torch.ops.tt.scaled_dot_product_attention(
             query_for_sdpa,
             key_for_sdpa,
             value_for_sdpa,
-            is_causal=attn_metadata.is_causal,
-            attn_mask=attn_metadata.attn_mask,
+            **sdpa_kwargs,
         ).transpose(
             -3, -2
         )  # Back to [users, tokens, num_heads, head_size]
 
         return output
 
+    def _gather_paged_to_dense(
+        self,
+        cache: torch.Tensor,
+        page_table: torch.Tensor,
+        num_tokens: int,
+    ) -> torch.Tensor:
+        """Gather a dense K/V tensor from a paged cache buffer.
+
+        Paged layout is ``[num_blocks, num_kv_heads, block_size, head_size]``
+        as declared by ``TTAttentionBackend.get_kv_cache_shape``. The
+        ``page_table`` gives the block ids per user. We index the blocks,
+        re-order dims so the token axis is flattened across blocks, and trim
+        to the logical prompt length so downstream SDPA sees a dense tensor
+        matching the self-K/V path's shape.
+        """
+        num_blocks_per_user = page_table.shape[1]
+        num_kv_heads = cache.shape[1]
+        block_size = cache.shape[2]
+        head_size = cache.shape[3]
+        users = page_table.shape[0]
+
+        flat_indices = page_table.reshape(-1)
+        gathered = torch.index_select(cache, 0, flat_indices)
+        # [users * num_blocks_per_user, num_kv_heads, block_size, head_size]
+        gathered = gathered.view(
+            users, num_blocks_per_user, num_kv_heads, block_size, head_size
+        )
+        # [users, num_kv_heads, num_blocks_per_user, block_size, head_size]
+        gathered = gathered.permute(0, 2, 1, 3, 4).contiguous()
+        # [users, num_kv_heads, num_blocks_per_user * block_size, head_size]
+        gathered = gathered.reshape(users, num_kv_heads, -1, head_size)
+        # Trim padding past the logical prompt length so downstream SDPA sees
+        # the same kv_num_tokens as the self-K/V path would produce.
+        return gathered[:, :, :num_tokens, :]
+
     def _compute_decode_attention(
         self, inputs, kv_cache: list[torch.Tensor], attn_metadata: TTMetadata
     ) -> torch.Tensor:
-        """Compute attention for decode phase (paged)."""
+        """Compute attention for decode phase (paged).
+
+        Note on sliding-window layers (Gemma4 hybrid): the paged decode op
+        does not currently accept a ``sliding_window_size`` attribute, but
+        vLLM allocates such layers' KV cache via ``SlidingWindowSpec`` sized
+        to ``sliding_window`` blocks and evicts older pages from the
+        per-sequence ``page_table``. The cache therefore only exposes
+        in-window tokens to the kernel, which is sufficient for correctness
+        during decode.
+        """
         k_cache = kv_cache[0]
         v_cache = kv_cache[1]
 
@@ -540,6 +643,13 @@ class TTAttentionBackendImpl(AttentionImpl):
         # Current query: [users, query_num_tokens, num_heads, head_size]
         # In decode, query_num_tokens == 1 is normal
         query_for_decode = inputs.query.transpose(0, 1)
+
+        decode_kwargs = {
+            "cur_pos_tensor": attn_metadata.cache_position,
+            "is_causal": attn_metadata.is_causal,
+            "attn_mask": attn_metadata.attn_mask,
+            "attention_sink": self.sinks,
+        }
 
         out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
             query_for_decode,
@@ -550,6 +660,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
             attention_sink=self.sinks,
+            scale=self.scale,
         )
         # out: [query_num_tokens, users, num_heads, head_size]
         out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]

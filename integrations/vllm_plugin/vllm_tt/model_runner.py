@@ -70,6 +70,7 @@ from vllm.v1.kv_cache_interface import (
     KVCacheSpec,
     MLAAttentionSpec,
     SlidingWindowSpec,
+    UniformTypeKVCacheSpecs,
 )
 from vllm.v1.outputs import (
     EMPTY_MODEL_RUNNER_OUTPUT,
@@ -133,6 +134,14 @@ def add_kv_sharing_layers_to_kv_cache_groups(
 
         if runner_only_attn_layers is not None:
             runner_only_attn_layers.add(layer_name)
+
+
+def _get_layer_kv_cache_spec(
+    kv_cache_spec: KVCacheSpec, layer_name: str
+) -> KVCacheSpec:
+    if isinstance(kv_cache_spec, UniformTypeKVCacheSpecs):
+        return kv_cache_spec.kv_cache_specs[layer_name]
+    return kv_cache_spec
 
 
 if TYPE_CHECKING:
@@ -233,8 +242,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         cache_config = self.cache_config
         scheduler_config = self.scheduler_config
         parallel_config = self.parallel_config
+        hf_config = getattr(model_config, "hf_config", None)
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
+        # Gemma4's PLE path expects a flat token stream. Keep the runner's
+        # batched buffers, but flatten only at the model call boundary.
+        self.use_flat_model_io = getattr(hf_config, "model_type", None) == "gemma4"
+        # Gemma4's input embedding / PLE setup should stay in one compiled
+        # backbone graph. The default torch.compile(fullgraph=False) allows
+        # Dynamo to emit multiple TT graphs inside a single model forward.
+        # self.use_fullgraph_model_compile = self.use_flat_model_io
 
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
@@ -450,14 +467,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.tt_config.cpu_sampling:
             self.sample_from_logits_func = self.sample_from_logits_cpu
-        elif not self.enable_tensor_parallel:
-            self.sample_from_logits_func = torch.compile(
-                self.sample_from_logits,
-                backend="tt",
-                fullgraph=True,
-                dynamic=False,
-            )
         else:
+            # sample_from_logits is already @torch.compile decorated
             self.sample_from_logits_func = self.sample_from_logits
 
         # For passing scheduler_output between successive
@@ -469,10 +480,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._original_num_layers = None
         self._target_num_layers = None
         target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
+        hf_config = vllm_config.model_config.hf_config
+        # Multimodal models (e.g. Gemma 4) nest num_hidden_layers under text_config
+        if hasattr(hf_config, "num_hidden_layers"):
+            original_num_layers = hf_config.num_hidden_layers
+        elif hasattr(hf_config, "text_config"):
+            original_num_layers = hf_config.text_config.num_hidden_layers
+        else:
+            original_num_layers = 0
 
         if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
+            if hasattr(hf_config, "num_hidden_layers"):
+                hf_config.num_hidden_layers = target_num_layers
+            elif hasattr(hf_config, "text_config"):
+                hf_config.text_config.num_hidden_layers = target_num_layers
             logger.info(
                 f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
             )
@@ -1275,6 +1296,48 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # then the embedding layer is not included in the CUDA graph.
             return input_ids, None
 
+    def _prepare_model_call_tensors(
+        self,
+        input_ids: torch.Tensor | None,
+        positions: torch.Tensor,
+        inputs_embeds: torch.Tensor | None,
+    ) -> tuple[
+        torch.Tensor | None,
+        torch.Tensor,
+        torch.Tensor | None,
+        Optional[torch.Size],
+    ]:
+        if not self.use_flat_model_io:
+            return input_ids, positions, inputs_embeds, None
+
+        restore_shape: Optional[torch.Size] = None
+
+        if input_ids is not None and input_ids.ndim > 1:
+            restore_shape = input_ids.shape
+            input_ids = input_ids.reshape(-1)
+
+        if inputs_embeds is not None and inputs_embeds.ndim > 2:
+            if restore_shape is None:
+                restore_shape = torch.Size(inputs_embeds.shape[:-1])
+            inputs_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
+
+        if positions.ndim > 1:
+            if restore_shape is None:
+                restore_shape = positions.shape
+            positions = positions.reshape(-1)
+
+        return input_ids, positions, inputs_embeds, restore_shape
+
+    def _restore_model_hidden_states(
+        self,
+        hidden_states: torch.Tensor,
+        restore_shape: Optional[torch.Size],
+    ) -> torch.Tensor:
+        if restore_shape is None or hidden_states.ndim != 2:
+            return hidden_states
+
+        return hidden_states.reshape(*restore_shape, hidden_states.shape[-1])
+
     @torch.no_grad()
     def execute_model(
         self,
@@ -1339,6 +1402,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
+            (
+                model_input_ids,
+                model_positions,
+                model_inputs_embeds,
+                hidden_state_shape,
+            ) = self._prepare_model_call_tensors(
+                input_ids, self.position_ids, inputs_embeds
+            )
             torch_xla.sync(wait=False)
             # Run the decoder
             with (
@@ -1352,10 +1423,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ) as kv_connector_output,
             ):
                 hidden_states = self.model(
-                    input_ids=input_ids,
-                    positions=self.position_ids,
-                    inputs_embeds=inputs_embeds,
+                    input_ids=model_input_ids,
+                    positions=model_positions,
+                    inputs_embeds=model_inputs_embeds,
                 )
+            hidden_states = self._restore_model_hidden_states(
+                hidden_states, hidden_state_shape
+            )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1370,6 +1444,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
+
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
@@ -1389,7 +1464,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
+            selected_token_ids = self.sample_from_logits_func(
+                logits, tpu_sampling_metadata
+            )
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -1597,18 +1674,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
-        if self.supports_mm_inputs:
-            input_ids = None
-            inputs_embeds = torch.zeros(
-                (num_tokens, self.inputs_embeds_size),
-                dtype=self.dtype,
-                device=self.device,
-            )
-        else:
-            input_ids = torch.zeros(
-                (self.max_num_reqs, num_tokens), dtype=torch.int32
-            ).to(self.device)
-            inputs_embeds = None
+        # Create input_ids the same way inference does — always start with
+        # token ids so that _get_model_inputs runs embed_input_ids for
+        # multimodal models, keeping the XLA graph structure identical to the
+        # real execution path.
+        input_ids = torch.zeros((self.max_num_reqs, num_tokens), dtype=torch.int32).to(
+            self.device
+        )
 
         position_ids = torch.zeros(
             (self.max_num_reqs, num_tokens), dtype=torch.int32
@@ -1637,9 +1709,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ),
             set_forward_context(per_layer_attn_metadata, self.vllm_config, 0),
         ):
-            out = self.model(
-                input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
+            # Mirror the inference path in sample_tokens exactly:
+            #   _get_model_inputs → _prepare_model_call_tensors → sync → model
+            # The sync position matters: it materialises the reshape ops
+            # from _prepare_model_call_tensors so that the model receives
+            # 1-D tensors, matching the graph structure of real inference.
+            input_ids, inputs_embeds = self._get_model_inputs(
+                input_ids, mm_embed_inputs=None
             )
+            (
+                model_input_ids,
+                model_positions,
+                model_inputs_embeds,
+                hidden_state_shape,
+            ) = self._prepare_model_call_tensors(input_ids, position_ids, inputs_embeds)
+            torch_xla.sync(wait=False)
+            out = self.model(
+                input_ids=model_input_ids,
+                positions=model_positions,
+                inputs_embeds=model_inputs_embeds,
+            )
+            out = self._restore_model_hidden_states(out, hidden_state_shape)
 
         self._hidden_states_dtype = out.dtype
 
@@ -1748,14 +1838,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # token count. Without this, torch_xla accumulates all lazy ops into
             # one graph, merging prefill (num_tokens>1) and decode (num_tokens=1)
             # paths which causes issues with in-place cache ops.
-            torch_xla.sync(wait=False)
+            torch_xla.sync()
             if self.most_model_len is not None:
                 self._dummy_run(
                     num_tokens,
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
-                torch_xla.sync(wait=False)
+                torch_xla.sync()
+
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("model backbone")
@@ -1927,6 +2018,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             self._precompile_mm_encoder()
+            # Ensure all pending lazy ops from MM encoder are fully compiled
+            # and executed before backbone compilation. sync(wait=False) in
+            # _precompile_mm_encoder may leave pending ops that get merged
+            # into the backbone graph, causing unexpected extra compilations.
+            logger.info("Flushing pending XLA ops before backbone compilation.")
+            torch_xla.sync()
+            logger.info("Flush complete, starting backbone compilation.")
             self._precompile_backbone()
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
@@ -2007,15 +2105,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._dummy_run(
             num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
         )
+        torch_xla.sync()
         if self.most_model_len is not None:
             self._dummy_run(
                 num_tokens,
                 self.num_reqs_most_model_len,
                 self.num_blocks_per_most_len_req,
             )
-
         torch_xla.sync(wait=False)
-        xm.wait_device_ops()
+        # xm.wait_device_ops()
         self.encoder_cache.clear()
         gc.collect()
         logger.info(f"Profiling run with num_tokens={num_tokens} finished.")
@@ -2089,8 +2187,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         kv_caches: dict[str, torch.Tensor] = {}
         for kv_cache_group in kv_cache_config.kv_cache_groups:
-            kv_cache_spec = kv_cache_group.kv_cache_spec
             for layer_name in kv_cache_group.layer_names:
+                kv_cache_spec = _get_layer_kv_cache_spec(
+                    kv_cache_group.kv_cache_spec, layer_name
+                )
                 tensor_size = kv_cache_sizes[layer_name]
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa

@@ -173,8 +173,79 @@ class RMSNormFusionProvider(FusionProvider):
             hidden_states, normalized_shape=weight.shape, weight=weight, eps=eps
         )
 
+    @staticmethod
+    def pattern_pow_variant(
+        hidden_states: Tensor, weight: Tensor, eps: float
+    ) -> Tensor:
+        """
+        Gemma4 variant: uses torch.pow(x, -0.5) instead of torch.rsqrt(x),
+        adds eps inline with mean, and multiplies normed * weight (not weight
+        * normed). Cast via .float() and .type_as() instead of .to(dtype).
+
+        Matches Gemma4RMSNorm._norm + forward:
+            hidden_fp32 = hidden_states.float()
+            mean_squared = hidden_fp32.pow(2).mean(-1, keepdim=True) + self.eps
+            normed = hidden_fp32 * torch.pow(mean_squared, -0.5)
+            normed_output = normed * self.weight.float()
+            return normed_output.type_as(hidden_states)
+
+        Note: this pattern is defensive coverage. The TorchFunctionOverride in
+        tt_torch.torch_overrides already rewrites torch.pow(x, -0.5) ->
+        torch.rsqrt(x) at function-call level, but that rewrite can be
+        bypassed when Dynamo disables TorchFunctionMode during tracing, so we
+        still match the pow-variant graph shape here.
+        """
+        hidden_fp32 = hidden_states.float()
+        mean_squared = hidden_fp32.pow(2).mean(-1, keepdim=True)
+        mean_squared_eps = mean_squared.add(eps)
+        inv_rms = torch.pow(mean_squared_eps, -0.5)
+        hidden_normalized = hidden_fp32.mul(inv_rms)
+        weight_fp32 = weight.float()
+        result = hidden_normalized.mul(weight_fp32)
+        return result.type_as(hidden_states)
+
+    @staticmethod
+    def replacement_pow_variant(
+        hidden_states: Tensor, weight: Tensor, eps: float
+    ) -> Tensor:
+        """Replacement for the pow variant — no dtype param (pattern uses type_as)."""
+        return torch.nn.functional.rms_norm(
+            hidden_states, normalized_shape=weight.shape, weight=weight, eps=eps
+        )
+
+    @staticmethod
+    def pattern_pow_no_weight(hidden_states: Tensor, eps: float) -> Tensor:
+        """
+        Gemma4 variant without weight (Gemma4RMSNorm has_weight=False, used by
+        v_norm):
+            hidden_fp32 = hidden_states.float()
+            mean_squared = hidden_fp32.pow(2).mean(-1, keepdim=True) + self.eps
+            normed = hidden_fp32 * torch.pow(mean_squared, -0.5)
+            return normed.type_as(hidden_states)
+
+        Note: vLLM's RMSNorm (vllm.model_executor.layers.layernorm) always
+        multiplies by a weight tensor of ones even when has_weight=False, so
+        this no-weight variant only materialises on the HF Transformers path.
+        """
+        hidden_fp32 = hidden_states.float()
+        mean_squared = hidden_fp32.pow(2).mean(-1, keepdim=True)
+        mean_squared_eps = mean_squared.add(eps)
+        inv_rms = torch.pow(mean_squared_eps, -0.5)
+        hidden_normalized = hidden_fp32.mul(inv_rms)
+        return hidden_normalized.type_as(hidden_states)
+
+    @staticmethod
+    def replacement_pow_no_weight(hidden_states: Tensor, eps: float) -> Tensor:
+        """Replacement for no-weight pow variant."""
+        normalized_shape = [hidden_states.shape[-1]]
+        return torch.nn.functional.rms_norm(
+            hidden_states, normalized_shape=normalized_shape, weight=None, eps=eps
+        )
+
     def get_patterns(self) -> List[tuple]:
         return [
             (self.pattern, self.replacement),
             (self.pattern_cast_after_mul, self.replacement),
+            (self.pattern_pow_variant, self.replacement_pow_variant),
+            (self.pattern_pow_no_weight, self.replacement_pow_no_weight),
         ]
