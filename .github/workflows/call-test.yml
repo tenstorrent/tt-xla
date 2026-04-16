@@ -233,7 +233,20 @@ jobs:
 
     - name: Install Docker CLI
       if: ${{ matrix.build.multihost }}
-      run: curl -fsSL https://get.docker.com | sh
+      run: |
+        # Switch apt sources away from archive.ubuntu.com / security.ubuntu.com
+        # to mirror.math.princeton.edu for improved reliability/throughput.
+        sudo sed -i \
+          -e 's|http://archive.ubuntu.com/ubuntu|http://mirror.math.princeton.edu/pub/ubuntu|g' \
+          -e 's|http://security.ubuntu.com/ubuntu|http://mirror.math.princeton.edu/pub/ubuntu|g' \
+          /etc/apt/sources.list
+        if [ -d /etc/apt/sources.list.d ]; then
+          sudo find /etc/apt/sources.list.d -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i \
+            -e 's|http://archive.ubuntu.com/ubuntu|http://mirror.math.princeton.edu/pub/ubuntu|g' \
+            -e 's|http://security.ubuntu.com/ubuntu|http://mirror.math.princeton.edu/pub/ubuntu|g' \
+            {} +
+        fi
+        curl -fsSL https://get.docker.com | sh
 
     - name: Start multihost controller container
       if: ${{ matrix.build.multihost }}
@@ -618,7 +631,7 @@ jobs:
             echo "Environment variables being set:"
             echo "$TOPOLOGY_EXPORTS"
             eval "$TOPOLOGY_EXPORTS"
-            
+
             export TT_DISTRIBUTED_TCP_IFACE=enp194s0f0np0
 
             echo "Running multihost tests with topology filter: $TOPOLOGY"
