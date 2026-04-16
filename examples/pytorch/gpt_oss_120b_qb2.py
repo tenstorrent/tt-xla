@@ -36,7 +36,11 @@ DEFAULT_PROMPT = "Explain quantum mechanics."
 # GPT-OSS 120B Generation Loop Example
 # --------------------------------
 def gpt_oss_120b(
-    interactive: bool = False, sparse_moe: bool = False, batch_size: int = 8
+    interactive: bool = False,
+    sparse_moe: bool = False,
+    batch_size: int = 8,
+    verbose: bool = False,
+    perf_metrics: bool = False,
 ):
 
     # Set up config variables.
@@ -50,14 +54,16 @@ def gpt_oss_120b(
     mesh, mesh_shape = create_device_mesh()
 
     # Instantiate model and tokenizer
-    print("Setting up model and tokenizer...")
-    model, tokenizer = setup_model_and_tokenizer(model_name)
+    if verbose:
+        print("Setting up model and tokenizer...")
+    model, tokenizer = setup_model_and_tokenizer(model_name, verbose=verbose)
 
     # Optionally replace MoE MLP layers with sparse implementation.
     # cluster_axis=1 means dispatch/combine along the "model" axis (axis 1 in the
     # (batch, model) mesh), which is correct for QB2's (1,4) and llmbox's (2,4) meshes.
     if sparse_moe:
-        print("Enabling sparse MoE implementation...")
+        if verbose:
+            print("Enabling sparse MoE implementation...")
         enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=1)
 
     while True:
@@ -73,7 +79,8 @@ def gpt_oss_120b(
             user_prompt = [DEFAULT_PROMPT] * batch_size
 
         # Construct inputs, including static cache
-        print("Constructing inputs...")
+        if verbose:
+            print("Constructing inputs...")
         input_args, formatted_prompts = construct_inputs(
             user_prompt, tokenizer, model.config, batch_size, max_cache_len, sparse_moe
         )
@@ -82,21 +89,19 @@ def gpt_oss_120b(
         max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
         # Transfer model and inputs to device
-        print("Moving model and inputs to device...")
+        if verbose:
+            print("Moving model and inputs to device...")
         model, input_args = transfer_to_device(model, input_args, device)
 
         # Mark sharding on inputs and model internals
         mark_sharding_on_inputs_and_model(model, input_args, mesh, sparse_moe)
 
         # Compile model (lazy — actual XLA/TT-MLIR compilation happens on first forward pass)
-        t0 = time.perf_counter()
         compiled_model = torch.compile(model, backend="tt")
-        print(
-            f"torch.compile() wrapper: {time.perf_counter() - t0:.3f}s (lazy, first forward triggers actual compile)"
-        )
 
         # Run generation loop until EOS token generated or max tokens reached
-        print("Begin generation...")
+        if verbose:
+            print("Begin generation...")
         run_generate(
             compiled_model,
             input_args,
@@ -106,6 +111,8 @@ def gpt_oss_120b(
             max_tokens_to_generate,
             formatted_prompts,
             interactive,
+            verbose=verbose,
+            perf_metrics=perf_metrics,
         )
 
         if not interactive:
@@ -174,6 +181,7 @@ def create_device_mesh() -> tuple[Mesh, tuple]:
 
 def setup_model_and_tokenizer(
     model_name: str,
+    verbose: bool = False,
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
     """
     Instantiate model and tokenizer with MXFP4 quantization.
@@ -211,7 +219,8 @@ def setup_model_and_tokenizer(
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
     )
-    print(f"Applied weight overrides: {applied}")
+    if verbose:
+        print(f"Applied {len(applied)} weight dtype overrides")
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
@@ -438,6 +447,8 @@ def run_generate(
     max_tokens_to_generate: int = 128,
     formatted_prompts: List[str] = [""],
     is_interactive: bool = False,
+    verbose: bool = False,
+    perf_metrics: bool = False,
 ):
     """
     Run the generation loop.
@@ -463,12 +474,12 @@ def run_generate(
     # GPT-OSS uses <|channel|>name<|message|>content<|end|> format.
     # We only print the "final" channel; skip "analysis" and "commentary".
     _END_TOKENS = {"<|end|>", "<|return|>"}
-    stream_state = "seek_channel"  # seek_channel | seek_message | printing
+    stream_state = "seek_channel"  # seek_channel | seek_message | printing | done
     channel_name_buf = ""
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
-            if step == 0:
+            if step == 0 and verbose:
                 print("Compiling and running prefill...", flush=True)
 
             step_start = time.perf_counter()
@@ -481,9 +492,10 @@ def run_generate(
 
             if step == 0:
                 compile_time_prefill = step_elapsed
-                print(
-                    f"Prefill done ({compile_time_prefill:.1f}s). Compiling decode..."
-                )
+                if verbose:
+                    print(
+                        f"Prefill done ({compile_time_prefill:.1f}s). Compiling decode..."
+                    )
             elif step == 1:
                 compile_time_decode = step_elapsed
             else:
@@ -513,7 +525,8 @@ def run_generate(
                         channel_name_buf += tok
                 elif stream_state == "printing":
                     if tok in _END_TOKENS:
-                        stream_state = "seek_channel"
+                        stream_state = "done"
+                        print()  # newline after response
                     else:
                         print(tok, end="", flush=True)
 
@@ -531,21 +544,29 @@ def run_generate(
             input_args["cache_position"] = host_cache_pos.to(device)
 
     # Print performance summary
-    if is_interactive:
-        print()  # newline after streamed response if EOS not hit
-    print()
-    print("=" * 50)
-    print("PERFORMANCE SUMMARY")
-    print(f"  Prefill (incl. compile):      {compile_time_prefill:.2f}s")
-    print(f"  First decode (incl. compile): {compile_time_decode:.2f}s")
-    if decode_times:
-        avg_decode = sum(decode_times) / len(decode_times)
-        print(f"  Steady-state decode steps:    {len(decode_times)}")
-        print(f"  Avg decode latency:           {avg_decode * 1000:.1f}ms")
-        print(f"  Throughput (all users):       {num_users / avg_decode:.1f} tokens/s")
-        print(f"  Throughput (per user):        {1 / avg_decode:.1f} tokens/s")
-    print("=" * 50)
-    if is_interactive:
+    if is_interactive and stream_state != "done":
+        if stream_state == "printing":
+            print()  # newline after incomplete response
+        else:
+            print(
+                "\nGPT: [No response generated — model did not produce a 'final' channel]"
+            )
+    if perf_metrics:
+        print()
+        print("=" * 50)
+        print("PERFORMANCE SUMMARY")
+        print(f"  Prefill (incl. compile):      {compile_time_prefill:.2f}s")
+        print(f"  First decode (incl. compile): {compile_time_decode:.2f}s")
+        if decode_times:
+            avg_decode = sum(decode_times) / len(decode_times)
+            print(f"  Steady-state decode steps:    {len(decode_times)}")
+            print(f"  Avg decode latency:           {avg_decode * 1000:.1f}ms")
+            print(
+                f"  Throughput (all users):       {num_users / avg_decode:.1f} tokens/s"
+            )
+            print(f"  Throughput (per user):        {1 / avg_decode:.1f} tokens/s")
+        print("=" * 50)
+    if is_interactive and verbose:
         print("\n--- RAW TOKEN STREAM (user 0, unfiltered) ---")
         print("".join(output_tokens[0]))
         print("--- END RAW TOKEN STREAM ---")
@@ -587,6 +608,18 @@ if __name__ == "__main__":
             "sparse MoE requires batch_size * num_devices_along_dispact_axis (4) to be a multiple of 32."
         ),
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Print detailed signpost messages, compilation status, and raw token stream",
+    )
+    parser.add_argument(
+        "--perf-metrics",
+        action="store_true",
+        default=False,
+        help="Print performance summary (prefill/decode latency, throughput) after each generation",
+    )
     args = parser.parse_args()
 
     if args.batch_size <= 0:
@@ -607,4 +640,6 @@ if __name__ == "__main__":
         interactive=args.interactive,
         sparse_moe=args.sparse_moe,
         batch_size=args.batch_size,
+        verbose=args.verbose,
+        perf_metrics=args.perf_metrics,
     )
