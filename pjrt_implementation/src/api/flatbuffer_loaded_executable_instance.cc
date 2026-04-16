@@ -79,7 +79,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
       log_stream << "[i=" << i;
       if (buf) {
         log_stream << " ptr=" << buf
-                   << " data_ptr=" << buf->runtimeTensor().data
+                   << " borrowed_host_base=" << buf->borrowedHostBasePointer()
                    << " shape=(";
         const std::string shape = buf->toShapeStr();
         log_stream << shape;
