@@ -102,12 +102,10 @@ class ModelLoader(ForgeModel):
                 _diffusers_import_utils._gguf_available = True
 
         from diffusers import (
-            AutoencoderKLWan,
             GGUFQuantizationConfig,
             WanImageToVideoPipeline,
             WanTransformer3DModel,
         )
-        from transformers import CLIPVisionModel
 
         compute_dtype = dtype_override if dtype_override is not None else torch.bfloat16
 
@@ -120,22 +118,9 @@ class ModelLoader(ForgeModel):
             torch_dtype=compute_dtype,
         )
 
-        image_encoder = CLIPVisionModel.from_pretrained(
-            BASE_PIPELINE,
-            subfolder="image_encoder",
-            torch_dtype=torch.float32,
-        )
-        vae = AutoencoderKLWan.from_pretrained(
-            BASE_PIPELINE,
-            subfolder="vae",
-            torch_dtype=torch.float32,
-        )
-
         self.pipeline = WanImageToVideoPipeline.from_pretrained(
             BASE_PIPELINE,
             transformer=transformer,
-            vae=vae,
-            image_encoder=image_encoder,
             torch_dtype=compute_dtype,
         )
 
