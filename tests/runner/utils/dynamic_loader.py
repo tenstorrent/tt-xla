@@ -81,7 +81,7 @@ class DynamicLoader:
         """
         # if hasattr(self.loader, "get_mesh_config"):
         #     return self.loader.get_mesh_config(num_devices)
-        
+
         return (1, 16), ("model", "batch")
         return None, None
 
