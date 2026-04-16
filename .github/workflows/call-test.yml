@@ -183,7 +183,7 @@ jobs:
         gh run download ${{ steps.strings.outputs.artifact_run_id }} \
           --repo ${{ github.repository }} \
           --dir wheels \
-          --pattern "${{ steps.strings.outputs.wheel_artifact_name }}*"
+          --name ${{ steps.strings.outputs.wheel_artifact_name }}
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
@@ -198,7 +198,7 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-        uv pip install wheels/*/*.whl
+        uv pip install wheels/*.whl
 
     - name: Install custom torch_xla from workflow run
       if: ${{ inputs.torchxla_build_run_id != '' }}
@@ -467,7 +467,7 @@ jobs:
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
-        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} 2>&1 | tee collected_tests.txt
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} |& tee collected_tests.txt
 
         # Check if any collected tests have notimeout marker
         NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
