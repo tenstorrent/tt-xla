@@ -105,16 +105,19 @@ def _patch_transformers_models():
 
         # Handle composite configs (e.g. multimodal models where AutoConfig
         # returns a top-level config but the model class expects a sub-config
-        # like text_config). Extract the sub-config when there's a mismatch.
+        # like text_config or vision_config). Extract the sub-config when
+        # there's a mismatch.
         expected_config_class = getattr(cls, "config_class", None)
-        if (
-            expected_config_class is not None
-            and not isinstance(config, expected_config_class)
-            and hasattr(config, "get_text_config")
+        if expected_config_class is not None and not isinstance(
+            config, expected_config_class
         ):
-            text_config = config.get_text_config()
-            if isinstance(text_config, expected_config_class):
-                config = text_config
+            for sub_attr in ("text_config", "vision_config"):
+                sub_config = getattr(config, sub_attr, None)
+                if sub_config is not None and isinstance(
+                    sub_config, expected_config_class
+                ):
+                    config = sub_config
+                    break
 
         # Instantiate with random weights
         model = cls(config)
