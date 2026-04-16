@@ -54,6 +54,10 @@ on:
           description: 'Git SHA of commit in tenstorrent/tt-mlir'
           required: false
           type: string
+      forge_models_override:
+          description: 'Git SHA of commit (or branch name) in tenstorrent/tt-forge-models'
+          required: false
+          type: string
       torchxla_build_run_id:
         description: 'Manual torch-xla build run ID'
         required: false
@@ -117,3 +121,4 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
+      forge_models_override: ${{ inputs.forge_models_override }}
