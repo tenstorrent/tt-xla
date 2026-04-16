@@ -162,15 +162,7 @@ def _run_model_test_impl(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
 
-                try:
-                    comparison_result = tester.test(request=request)
-                except:
-                    if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC", 0):
-                        print(
-                            "TT_COMPILE_ONLY_SYSTEM_DESC is set skipping execution exiting normally"
-                        )
-                        pytest.exit("PASSED", returncode=0)
-                    raise
+                comparison_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
