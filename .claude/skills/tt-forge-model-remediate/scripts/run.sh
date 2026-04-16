@@ -26,4 +26,4 @@ export TTXLA_LOGGER_LEVEL=DEBUG
 
 TEST_NAME="$@"
 set -x
-pytest "${TEST_NAME}" -v
+pytest "${TEST_NAME}" -svv
