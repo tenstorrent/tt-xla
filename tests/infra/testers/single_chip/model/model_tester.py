@@ -8,7 +8,7 @@ import os
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
@@ -150,17 +150,26 @@ class ModelTester(BaseTester, ABC):
         """
         return "__call__"
 
-    def test(self, request=None) -> Tuple[ComparisonResult, ...] | None:
-        """Tests the model depending on test type with which tester was configured."""
+    def test(self, request=None) -> Tuple[Tuple[ComparisonResult, ...] | None, Any]:
+        """Tests the model depending on test type with which tester was configured.
+
+        Returns a tuple of (comparison_results, tt_result) where tt_result is
+        the raw TT device output for inference tests (None for training).
+        """
         if self._run_mode == RunMode.INFERENCE:
             return self._test_inference(request=request)
         else:
-            return self._test_training()
+            return self._test_training(), None
 
-    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...] | None:
+    def _test_inference(
+        self, request=None
+    ) -> Tuple[Tuple[ComparisonResult, ...] | None, Any]:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
+
+        Returns a tuple of (comparison_results, tt_result) where tt_result is the raw
+        TT device output tensor.
         """
         cpu_res = self._run_on_cpu(self._workload)
 
@@ -179,8 +188,8 @@ class ModelTester(BaseTester, ABC):
             self._custom_comparator(
                 tt_res, cpu_res, self._workload.args, self._workload.kwargs
             )
-            return None
-        return (self._compare(tt_res, cpu_res),)
+            return None, tt_res
+        return (self._compare(tt_res, cpu_res),), tt_res
 
     def _test_e2e_perf(self) -> dict[str, float]:
         warmup_iters_count = 3
