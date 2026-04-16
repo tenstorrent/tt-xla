@@ -215,6 +215,7 @@ jobs:
       with:
         name: ${{ steps.dump-stablehlo.outputs.artifact_name }}
         path: ${{ steps.strings.outputs.perf_report_path }}/stablehlo/
+        if-no-files-found: ignore
 
     - name: Dump ttir to report
       id: dump-ttir
@@ -247,6 +248,7 @@ jobs:
       with:
         name: ${{ steps.dump-ttir.outputs.artifact_name }}
         path: ${{ steps.strings.outputs.perf_report_path }}/ttir/
+        if-no-files-found: ignore
 
     - name: Dump ttnn to report
       id: dump-ttnn
@@ -279,6 +281,7 @@ jobs:
       with:
         name: ${{ steps.dump-ttnn.outputs.artifact_name }}
         path: ${{ steps.strings.outputs.perf_report_path }}/ttnn/
+        if-no-files-found: ignore
 
     # Device Performance Collection
     - name: Find tt-mlir workflow run
@@ -379,7 +382,6 @@ jobs:
       with:
         name: device-perf-${{ steps.strings.outputs.job_id }}
         path: ${{ steps.strings.outputs.perf_report_path }}/device_perf/
-        compression-level: 0
         if-no-files-found: warn
 
     - name: Add config fields to perf report
@@ -410,6 +412,7 @@ jobs:
       with:
         name: perf-reports-${{ steps.strings.outputs.job_id }}
         path: ${{ steps.strings.outputs.perf_report_path }}
+        if-no-files-found: ignore
 
     # Perf Regression Check
     - name: Set perf query strings

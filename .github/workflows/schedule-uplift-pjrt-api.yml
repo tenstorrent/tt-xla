@@ -104,7 +104,7 @@ jobs:
 
       - name: Create PR
         if: steps.compare-versions.outputs.needs_uplift == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         id: create-pr
         with:
           branch: pjrt-api-uplift
