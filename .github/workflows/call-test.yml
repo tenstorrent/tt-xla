@@ -152,10 +152,21 @@ jobs:
       env:
         JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
       run: |
-        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
-        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
+        # Use $GITHUB_WORKSPACE (the in-container path where GHA mounts the workspace)
+        # as the canonical work-dir instead of $(pwd). This path is also where Python's
+        # venv bakes VIRTUAL_ENV during `source venv/activate`, so sibling containers
+        # launched later will use the same absolute path and the venv relocation check
+        # in venv/activate will succeed.  Using $(pwd) here is fragile because:
+        #   - On self-hosted runners where host and container paths differ,
+        #     ${{ github.workspace }} (host path) and $(pwd) (container path) can end
+        #     up being different strings even though they point to the same files.
+        #   - The sibling container needs the mount destination/workdir to equal the
+        #     venv's baked path, not an alternative symlink/host path.
+        WORK_DIR="$GITHUB_WORKSPACE"
+        echo "work-dir=$WORK_DIR" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=$WORK_DIR/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
-        echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
+        echo "perf_report_dir=$WORK_DIR/benchmark_reports" >> "$GITHUB_OUTPUT"
         # Override wheel_build to release if matrix.build.require is 'release' or 'alchemist'
         if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" ]]; then
           echo "wheel_build=release" >> "$GITHUB_OUTPUT"
@@ -244,13 +255,16 @@ jobs:
         echo "=== Container topology diagnostics ==="
         echo "Outer container hostname: $(hostname)"
         echo "Outer container PID 1 cgroup: $(cat /proc/1/cgroup 2>/dev/null | head -5)"
-        echo "github.workspace (used for -v mount): ${{ github.workspace }}"
+        echo "github.workspace (host path used for -v mount source): ${{ github.workspace }}"
+        echo "GITHUB_WORKSPACE env (in-container path): $GITHUB_WORKSPACE"
+        echo "work-dir (sibling mount dest + -w): ${{ steps.strings.outputs.work-dir }}"
+        echo "Current shell pwd in outer: $(pwd)"
         echo "Docker socket: $(ls -la /var/run/docker.sock 2>/dev/null || echo 'not found')"
         echo "Docker info (server):"
         docker info --format '{{.OperatingSystem}} | Storage: {{.Driver}} | Root: {{.DockerRootDir}}' 2>/dev/null || echo "docker info failed"
         echo "Host mount mapping: ${{ github.workspace }} -> ${{ steps.strings.outputs.work-dir }} (inside sibling container)"
         echo "Venv bin/activate VIRTUAL_ENV will be:"
-        grep -o 'VIRTUAL_ENV="[^"]*"' ${{ github.workspace }}/venv/bin/activate 2>/dev/null || echo "  (venv not yet created)"
+        grep -o 'VIRTUAL_ENV="[^"]*"' ${{ steps.strings.outputs.work-dir }}/venv/bin/activate 2>/dev/null || echo "  (venv not yet created)"
         echo "=== End container topology diagnostics ==="
 
         echo "Launching multihost controller container with image: $DOCKER_IMAGE"
@@ -618,7 +632,7 @@ jobs:
             echo "Environment variables being set:"
             echo "$TOPOLOGY_EXPORTS"
             eval "$TOPOLOGY_EXPORTS"
-            
+
             export TT_DISTRIBUTED_TCP_IFACE=enp194s0f0np0
 
             echo "Running multihost tests with topology filter: $TOPOLOGY"
