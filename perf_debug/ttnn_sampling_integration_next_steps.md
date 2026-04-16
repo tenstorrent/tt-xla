@@ -412,7 +412,7 @@ TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py sampling
 bash perf_debug/run_sampling_overhead.sh
 ```
 
-## Current State Summary (Apr 15)
+## Current State Summary (Apr 15, updated)
 
 ### What was built
 - Full tt-mlir pipeline for `ttnn.sampling` op (21 files, branch `kmabee/apr12_vllm_demo_sampling_op_integration`)
@@ -424,7 +424,8 @@ bash perf_debug/run_sampling_overhead.sh
 
 | Config | tok/s | Env vars |
 |---|---|---|
-| Greedy baseline | 19.0 | (none) |
+| Greedy baseline (device) | 19.0 | (none) |
+| Greedy baseline (CPU) | 15.9 | cpu_sampling=True |
 | Non-greedy argmax only | 18.6 | TT_NONGREEDY_ARGMAX_ONLY=1 |
 | Non-greedy max only | 19.1 | TT_NONGREEDY_MAX_ONLY=1 |
 | 1x topk (32K chunk) | 18.5 | TT_NONGREEDY_ONE_CHUNK_TOPK=1 |
@@ -433,61 +434,243 @@ bash perf_debug/run_sampling_overhead.sh
 | Full ttnn.sampling (no penalties) | 13.4/13.8 | TT_USE_TTNN_SAMPLING=1 |
 | Full + penalties | 12.7 | TT_USE_TTNN_SAMPLING=1 (temp=0.6, rep=1.1) |
 | Full + penalties + trace | 13.8 | TT_USE_TTNN_SAMPLING=1, enable_trace=True |
+| **CPU non-greedy sampling** | **14.3** | cpu_sampling=True |
+| Split topk (2 programs) | 12.1 | TT_SPLIT_TOPK=1 TT_USE_TTNN_SAMPLING=1 |
+| bf16 fast path | 13.1 | TT_BF16_SAMPLING=1 TT_USE_TTNN_SAMPLING=1 |
 
-### Key findings
+### ROOT CAUSE CONFIRMED: Per-op dispatch overhead (Apr 15)
 
-1. **ttnn.sampling op itself is essentially free** — standalone 0.18ms, in-model steady-state 0.27ms per tracy.
-2. **4x chunked topk ops are fast in steady-state** — 0.077ms/call per tracy (multi-core confirmed). JIT compilation on first call is ~55ms but cached thereafter.
-3. **Single topk = 18.5, 4x topk = 13.2** — adding more topk chunks causes the slowdown.
-4. **Simple reductions (max, argmax) are fast** — 19.1 tok/s, no penalty.
-5. **Input binding theory DISPROVED** — IR comparison shows reducing inputs 9→6 has no effect. Standalone test was misleading (small graph amplifies input overhead).
-6. **Earlier tracy showing 34ms/call SamplingOp was JIT contamination** — steady-state is 0.27ms. The --max-output-tokens flag was needed to capture warmup + steady-state properly.
-7. **The gap (19→13) is NOT from sampler op dispatch overhead** — steady-state ops are sub-ms. The overhead source is still under investigation.
+**The sampler compiled graph has 50 dispatched TTNN ops.** Each op incurs ~0.5ms host-side dispatch overhead. Total: ~25ms/token, explaining the full gap from greedy (3 ops, ~1.5ms) to non-greedy (50 ops, ~25ms).
 
-### Open questions
-- Why does 1x topk = 18.5 but 4x topk = 13.2, when each topk is 0.077ms in steady-state? The 4x loop adds ~30 ops but steady-state timing shows each is fast. Something about the 4x loop graph structure causes ~25ms total overhead that doesn't show up in per-op tracy.
-- Possible: host-side overhead between model forward and sampler program dispatches scales with sampler program size. Tracy only measures device-side op time, not host dispatch latency.
-- Possible: the model forward compiled program is optimized differently when the sampler graph is larger (compiler sees larger total program).
+IR analysis of the non-greedy sampler graph (graph 9):
+| Op type | Count | Notes |
+|---|---|---|
+| typecast | 17 | Mostly bf16↔f32↔ui16 for topk I/O |
+| pad | 6 | Vocab alignment + batch-1→32 for sampling |
+| slice_static | 5 | Chunk extraction from padded logits |
+| full | 5 | Constant tensors (offsets, epsilon, 1.0) |
+| topk | 4 | Multi-core, 32K chunk each |
+| to_layout | 3 | Layout conversions for sampling inputs |
+| add | 3 | Index offset per chunk |
+| concat | 2 | Merge values + indices |
+| where | 1 | Greedy/random merge |
+| sampling | 1 | ttnn.sampling kernel |
+| reshape | 1 | |
+| gt | 1 | Temperature comparison |
+| divide | 1 | 1/temperature |
+| **Total** | **50** | **~25ms at ~0.5ms/op** |
+
+**Device-side execution is fast** (all ops sub-ms per tracy). The overhead is entirely **host-side dispatch latency** — the C++ runtime dispatching each TTNN op through the tt-metal API. Tracy only measures device-side execution, which is why earlier profiling didn't show the overhead.
+
+### Approaches tested and results (Apr 15)
+
+**1. Split topk into separate compiled program (TT_SPLIT_TOPK=1): 12.1 tok/s — WORSE**
+- Hypothesis: smaller programs would have less per-op overhead.
+- Result: the extra inter-program dispatch (~5ms) outweighed any savings.
+- Each torch.compile program has its own dispatch overhead.
+
+**2. Batched topk via reshape (TT_BATCHED_TOPK=1): 15.0 tok/s — broken output**
+- Reshape [1, 131072] → [4, 32768] + single topk call.
+- Compiled correctly in isolation (verified). But produced garbage (`!!!!!`) in the full sampler graph.
+- IR analysis: the compiler decomposed the reshape+topk back into 4 separate slice+topk calls — same ops as the loop.
+- The 15.0 tok/s was an artifact of broken computation (some ops short-circuited).
+
+**3. bf16 fast path (TT_BF16_SAMPLING=1): 13.1 tok/s — no improvement**
+- Skip `logits.to(float32)` to eliminate bf16→f32→bf16 round-trips.
+- The compiler still inserts typecasts (topk requires bf16 input, outputs uint16).
+- Net effect: same number of ops, slightly worse precision.
+
+**4. CPU sampling (cpu_sampling=True): 14.3 tok/s — better than compiled!**
+- `logits.cpu()` + CPU topk/multinomial.
+- Faster than 50-op compiled path because CPU has negligible per-op overhead.
+- Gap to greedy (15.9 CPU greedy): ~7ms from CPU sampling compute.
+- Gap to device greedy (19.0): ~10ms from XLA sync + data transfer.
+
+**5. Eager TTNN sampling (TT_EAGER_SAMPLING=1): CRASHED**
+- Attempted to call ttnn.topk + ttnn.sampling as eager Python ops.
+- `ttnn.open_device(0)` conflicts with PJRT-managed device.
+- `ttnn.GetDefaultDevice()` returns None (PJRT doesn't set TTNN default).
+- Cannot share device between PJRT and TTNN Python bindings.
+
+### Key insight: why CPU is faster than device for sampling
+
+The CPU sampling path (14.3 tok/s) beats the compiled device path (13.4 tok/s) because:
+- CPU has negligible per-op overhead (function calls are ~100ns)
+- Device has ~0.5ms per-op dispatch overhead (host→device→host round-trip)
+- 50 ops × 0.5ms = 25ms device overhead
+- CPU topk + multinomial on 128K vocab = ~7ms total
+- 7ms < 25ms, so CPU wins
+
+But CPU still loses to device greedy (19.0 vs 15.9 = 3.1 tok/s gap) because `logits.cpu()` forces an XLA sync that breaks pipeline overlap between the model forward and sampling.
+
+### Why this can't be fixed at the Python/sampler level
+
+**The root cause is in the tt-xla runtime, not the sampler code.** The runtime dispatches each TTNN op in a compiled program sequentially via the tt-metal C++ API. Each dispatch involves:
+1. Host prepares op arguments
+2. Host sends command to device
+3. Device executes (fast, sub-ms)
+4. Host waits for completion
+5. Host prepares next op
+
+Steps 1-2 and 4-5 take ~0.3-0.5ms per op. With 50 ops, this accumulates to ~25ms.
+
+No amount of Python restructuring can change this. The compiler generates 50 TTNN ops because:
+- ttnn.topk requires bf16 input (4 typecasts from f32)
+- ttnn.topk outputs uint16 indices (4 typecasts to int32)
+- ttnn.topk values come as bf16 (4 typecasts to f32 for downstream ops)
+- ttnn.sampling requires batch=32 padding (6 pad ops)
+- 4 chunk splits, 4 topk calls, 3 offset adds, 2 concats
+
+### What WILL fix it: fused composite ops in tt-mlir
+
+The fix requires tt-mlir changes to reduce the number of dispatched TTNN ops from ~50 to ~5:
+
+**Option A: `tt::topk_sample` fused custom op** (recommended, highest impact)
+- Register new custom op that takes (logits, temperature, top_k, top_p)
+- Runtime does internally: split vocab → 4x ttnn.topk → merge → ttnn.sampling
+- Result: **1 dispatch** instead of ~50. Expected: ~18+ tok/s.
+- Implementation: ~20 files across tt-mlir (similar to ttnn.sampling integration)
+
+**Option B: Enhanced topk composite for large vocabs**
+- When torch.topk is called with input dim > 32768, the tt-mlir composite lowering should internally split+chunk+merge.
+- Result: 1 topk dispatch instead of 4x (slice + typecast + topk + typecast) = saves ~20 ops.
+- This benefits ALL topk usage, not just sampling.
+
+**Option C: Reduce per-op dispatch overhead in tt-xla runtime**
+- Investigate asynchronous dispatch, op batching, or reducing host-side setup per op.
+- Most general fix but most complex. Affects all compiled programs.
+
+**Option D: Extend ttnn.topk to support > 32768 input** — INVESTIGATED, NOT VIABLE as host-side chunking.
+- Implemented Approach C (chunked topk with host-side merge) in tt-metal submodule. Correctness passes for 65536, 98304, 100000, 128256 dims.
+- Performance: 49ms → 37ms for 128K (25% better than sort), but still 7.5x slower than 5ms baseline for 32K.
+- **Bottleneck: host round-trips.** cpu(), to_vector(), HostBuffer construction, to_layout(TILE), to_device() per chunk dominate. Device-side multi-core topk on each 32K chunk is fast; the host glue is slow.
+- C++ chunked path (37ms) is SLOWER than existing Python-level 4x chunking (~15ms from compiled ops). Host data transfer overhead > compiled op dispatch overhead.
+- **What would work:** on-device two-level merge in a single program factory — chunk+merge entirely on-device without host round-trips. Requires modifying `topk_multi_core_program_factory` to orchestrate a two-level bitonic merge in a single kernel launch. Significantly more invasive but the only path to ~5ms for 128K.
+- **Useful side-finding:** TopKCoreConfig uint16→uint32 fix prevents silent overflow for dims >65535. Worth submitting as standalone bug fix to tt-metal.
+
+### `tt::topk_sample` fused custom op — IMPLEMENTED, DEVICE STATE CORRUPTION BLOCKER (Apr 15-16)
+
+Full implementation complete across ~20 files (same pattern as tt::sampling). Builds cleanly. The compiled IR is correct and minimal (3 ops: 2 to_layout + 1 topk_sample). The runtime does 4x chunked topk + merge internally.
+
+**Standalone test: PASSES.** 20ms steady-state, correct global vocab indices, repeated calls work.
+```
+TT_TOPK_SAMPLE=1 python3 perf_debug/test_topk_sample_compile.py
+→ First call: 0.51s, Steady-state: 20.0ms, PASSED
+```
+
+**vLLM integration: HANGS during decode.** The runtime's ~25 internal TTNN op allocations corrupt the DRAM address space that the program executor's pre-allocated tensor buffers expect. When the program executor continues to subsequent compiled ops after our runtime returns, it reads/writes to corrupted DRAM.
+
+**Debugging timeline:**
+1. Initial run: hang appeared to be in compilation → isolated to runtime (stack trace showed `TransferFromDevice` block)
+2. Standalone compile test: passes → confirmed compiler is fine
+3. `ttnn::sampling` from within runtime: hangs → split to return only topk indices
+4. Phase-by-phase isolation: Phase 1 (topk) works, Phase 2 (merge) works, Phase 3 (sampling) hangs
+5. Skipped sampling, returned dummy: works → confirmed sampling kernel interaction
+6. Removed sampling from runtime, let compiled graph handle it: precompilation passes, decode hangs
+7. Added explicit `ttnn::deallocate` on all intermediates: partially helped (precompilation passed further) but decode still hangs
+8. `TT_RUNTIME_SYNC_AFTER_OP=1`: still hangs → NOT an async dispatch issue
+9. Skipped logprobs precompilation: precompilation completes, first decode step hangs
+
+**Root cause:** Calling ~25 TTNN device ops (slice, pad, topk, typecast, add, concat, gather) from within a single runtime dispatch allocates intermediate device tensors that corrupt the DRAM layout expected by the program executor's compiled tensor pool. The TTNN APIs manage their own memory allocations, which conflict with the program executor's pre-allocated output buffers. Even with explicit `ttnn::deallocate` on all intermediates and device `Synchronize`, the DRAM allocator state is not restored to what the program executor expects.
+
+**This is a fundamental architectural limitation:** the tt-mlir runtime doesn't support calling raw TTNN APIs from within a custom op dispatch because the TTNN allocator and the program executor's tensor pool use the same DRAM address space without coordination.
+
+**Possible fixes:**
+- Implement the fused topk as a **tt-metal program factory** (single kernel launch, no intermediate TTNN API calls) — avoids the allocator conflict entirely
+- Add runtime support for **sub-allocations** within custom op dispatches — the program executor would reserve a DRAM region for the custom op's temporaries
+- Reduce per-op dispatch overhead (Option 1 in the issue update) — makes the original 50-op approach fast enough
+
+### Recommended path forward (updated Apr 16)
+
+**Priority 1: Reduce per-op dispatch overhead in the program executor.** This is the root cause fix. Each of the 50 compiled TTNN ops costs ~0.5ms in host-side dispatch — far more than GPU kernel launches (~10μs). Profile the dispatch path to identify what's in that 0.5ms (flatbuffer deserialization? tensor pool lookups? L1 allocation? synchronization?). If reduced to ~0.1ms, the existing 50-op sampler would add ~5ms instead of ~25ms → ~17+ tok/s. Benefits ALL compiled programs, not just sampling. Keeps the sampler as pure Python torch ops.
+
+**Priority 2: On-device two-level topk merge in tt-metal.** A single program factory that does chunk+merge entirely on-device without host round-trips or intermediate TTNN API calls. The only path to ~5ms topk on 128K vocab. Requires modifying `topk_multi_core_program_factory` to orchestrate a two-level bitonic merge in a single kernel launch. Significantly more invasive but avoids both the dispatch overhead and the DRAM allocator corruption.
+
+**The `tt::topk_sample` fused custom op approach (calling TTNN APIs from runtime) is NOT viable** with the current tt-mlir runtime architecture. The implementation is complete and correct but blocked by DRAM allocator conflicts between the custom op's internal TTNN calls and the program executor's tensor pool.
 
 ### Commands for benchmarking
 
 ```bash
-# Greedy baseline
+# Greedy baseline (device)
 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-greedy-device]"
 
-# Non-greedy with ttnn.sampling
-TT_USE_TTNN_SAMPLING=1 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-nongreedy-device]"
+# Greedy baseline (CPU)
+pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-greedy-cpu]"
 
-# Non-greedy without penalties
+# Non-greedy with ttnn.sampling (no penalties)
 TT_USE_TTNN_SAMPLING=1 pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-nongreedy-nopenalty-device]"
+
+# Non-greedy CPU sampling
+pytest -svv "tests/benchmark/test_vllm_benchmarks.py::test_sampling_comparison[8b-b1-nongreedy-cpu]"
 
 # Isolation experiments (use with nongreedy-nopenalty-device config):
 TT_NONGREEDY_ARGMAX_ONLY=1 TT_USE_TTNN_SAMPLING=1 pytest -svv ...  # argmax only
 TT_NONGREEDY_MAX_ONLY=1 TT_USE_TTNN_SAMPLING=1 pytest -svv ...     # max reduction
 TT_NONGREEDY_ONE_CHUNK_TOPK=1 TT_USE_TTNN_SAMPLING=1 pytest ...    # 1x topk
 TT_NONGREEDY_TOPK_ONLY=1 TT_USE_TTNN_SAMPLING=1 pytest ...         # 4x topk only
-TT_NONGREEDY_2CHUNK_TOPK=1 TT_USE_TTNN_SAMPLING=1 pytest ...       # 2x topk
-TT_HARDCODE_SAMPLING_PARAMS=1 TT_USE_TTNN_SAMPLING=1 pytest ...    # hardcoded params
+
+# Split topk (DISPROVED — slower due to inter-program overhead)
+TT_SPLIT_TOPK=1 TT_USE_TTNN_SAMPLING=1 pytest -svv ...
+
+# bf16 fast path (DISPROVED — compiler still inserts typecasts)
+TT_BF16_SAMPLING=1 TT_USE_TTNN_SAMPLING=1 pytest -svv ...
 
 # Standalone overhead tests
 TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py all
 bash perf_debug/run_sampling_overhead.sh
-
-# Tracy profiling (OPT-125M, fast)
-VLLM_ENABLE_V1_MULTIPROCESSING=0 TT_USE_TTNN_SAMPLING=1 python -m tracy -p -r --sync-host-device -o tracy_output -m pytest -svv --max-output-tokens 3 "tests/benchmark/test_vllm_benchmarks.py::test_opt_sampling[opt125m-b1-nongreedy-device]"
 
 # IR dump and extraction
 TTXLA_LOGGER_LEVEL=DEBUG TT_USE_TTNN_SAMPLING=1 pytest -svv --max-output-tokens 3 "..." &> /tmp/ir_dump.log
 python3 /localdev/kmabee/scripts/extract_mlir_graphs.py --subdir /tmp/ir_output --type ttnn /tmp/ir_dump.log
 ```
 
-### Next steps to close the gap
-1. **Run tracy on BOTH greedy and non-greedy** and compare host-side dispatch latency (not just device op time). The host-side program dispatch overhead may be the hidden cost.
-2. **Move topk into the model forward** compiled scope — if topk ops are inside the model forward program rather than a separate sampler program, the dispatch overhead may be amortized.
-3. **Fuse the 4x topk loop into a single composite op** in tt-mlir — reduces program op count from ~70 to ~10.
-4. **Request tt-metal to extend ttnn.topk to ≥ 65536** — enables 2x chunks instead of 4x for 128K vocab.
+## Implementation: Runtime Chunked TopK (Option B)
 
-## Branch
+The highest-impact fix is to add vocab-chunking logic inside the tt-mlir topk runtime. When `torch.topk(logits, k=32)` is called on [1, 128256], the compiler generates a single `ttnn.topk` op. The runtime detects the large dimension and internally splits into multi-core-friendly chunks.
 
-`kmabee/vllm_perf_apr12` based on `866d0abdd` (tt-xla Apr 12, 2026)
-tt-mlir branch: `kmabee/apr12_vllm_demo_sampling_op_integration` at commit `7c9c730bb`
+### Changes required
+
+**1. tt-mlir runtime** (`runtime/lib/ttnn/operations/reduction/topk.cpp`):
+
+Add `chunkedTopk()` that:
+- Splits input along last dim into chunks of ≤ 32768
+- Pads each chunk to next power-of-2
+- Calls `ttnn::topk(chunk, k)` on each
+- Adds per-chunk index offsets
+- Concatenates results → `[batch, numChunks * k]`
+- Runs final `ttnn::topk(merged, k)` to reduce back to `[batch, k]`
+- Uses `ttnn::gather` to map local indices back to global vocab indices
+
+The `run()` function checks `shouldChunkTopk()` (last dim > 32768) and dispatches to `chunkedTopk()` instead of the direct `::ttnn::topk()` call.
+
+Key APIs: `ttnn::slice`, `ttnn::pad`, `ttnn::topk`, `ttnn::typecast`, `ttnn::concat`, `ttnn::gather`, `ttnn::full`, `ttnn::add`.
+
+**2. tt-xla sampler** (`integrations/vllm_plugin/vllm_tt/sampler.py`):
+
+Replace `apply_top_k_top_p_fast()` (4x Python loop) with:
+```python
+vals, inds = torch.topk(logits, k=_TOPK_K_PER_CHUNK, dim=-1)
+```
+
+This compiles to 1 TTNN topk op instead of ~20 ops (4 slices + 4 pads + 4 topk + 4 adds + 2 concats + typecasts).
+
+**3. Estimated improvement**:
+- Current sampler: ~50 ops, ~25ms overhead → 13.4 tok/s
+- With runtime chunking: ~10 ops (1 topk + typecasts + sampling), ~5ms overhead → ~17-18 tok/s
+- Target: 19.0 tok/s (greedy)
+
+**4. Build/test**: requires tt-mlir rebuild. The runtime change is in the tt-mlir submodule (branch `kmabee/apr12_vllm_demo_sampling_op_integration`). After committing the runtime change, update `TT_MLIR_VERSION` hash in `third_party/CMakeLists.txt`.
+
+**Already prepared**: `TT_RUNTIME_TOPK=1` env var in `sampler.py` enables the single-topk path for testing once the runtime is built.
+
+## Branches
+
+**tt-xla:** `kmabee/vllm_perf_apr12` based on `866d0abdd` (Apr 12, 2026)
+
+**tt-mlir (SamplingOp):** `kmabee/apr12_vllm_demo_sampling_op_integration` at `7c9c730bb`
+- Full ttnn.sampling integration (21 files, working in production)
+
+**tt-mlir (TopKSampleOp):** `kmabee/apr12_vllm_demo_sampling_op_integration_TopKSampleOp_integration` at `4bd11c845`
+- Full TopKSampleOp integration (18 files on top of SamplingOp branch)
+- Works standalone (20ms), blocked in vLLM by DRAM allocator conflict
+- Preserved as reference for future runtime architecture improvements

@@ -1398,6 +1398,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 selected_token_ids = self.sample_from_logits_cpu(
                     logits, tpu_sampling_metadata
                 )
+            elif self._eager_sampling and not tpu_sampling_metadata.all_greedy:
+                if not hasattr(self, "_logged_eager_sampling"):
+                    logger.warning("Using EAGER TTNN sampling path")
+                    self._logged_eager_sampling = True
+                selected_token_ids = self.sample_from_logits_eager_ttnn(
+                    logits, tpu_sampling_metadata
+                )
+            elif self._split_topk and not tpu_sampling_metadata.all_greedy:
+                if not hasattr(self, "_logged_split_topk"):
+                    logger.warning("Using SPLIT TOPK sampling path")
+                    self._logged_split_topk = True
+                values, indices = self.topk_prefilter(logits)
+                selected_token_ids = self.sample_from_candidates(
+                    values, indices, tpu_sampling_metadata
+                )
             else:
                 if not hasattr(self, "_logged_device_sampling"):
                     logger.warning("Using DEVICE sampling path")
@@ -1599,6 +1614,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
+        self._split_topk = (
+            os.environ.get("TT_SPLIT_TOPK", "") == "1"
+            and os.environ.get("TT_USE_TTNN_SAMPLING", "") == "1"
+        )
+        if self._split_topk:
+            logger.warning("TT_SPLIT_TOPK=1: topk runs as separate compiled program")
+        self._eager_sampling = os.environ.get("TT_EAGER_SAMPLING", "") == "1"
+        if self._eager_sampling:
+            logger.warning(
+                "TT_EAGER_SAMPLING=1: sampling via eager TTNN ops (bypasses torch.compile)"
+            )
         logger.info(f"Compiled model: \n{self.model}")
 
     def reload_weights(self) -> None:
@@ -1894,6 +1920,51 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("sample_from_logits")
 
+    def _precompile_split_topk(self) -> None:
+        """Precompile topk_prefilter and sample_from_candidates programs."""
+        from .sampler import _TOPK_K_PER_CHUNK, _get_topk_split_params
+
+        torch._dynamo.config.dynamic_shapes = False
+        logger.info("Compiling split topk programs.")
+        start = time.perf_counter()
+
+        num_chunks = _get_topk_split_params(self.vocab_size)[0]
+        candidate_dim = num_chunks * _TOPK_K_PER_CHUNK
+
+        # Precompile topk_prefilter
+        dummy_logits = torch.zeros(
+            (self.max_num_reqs, self.vocab_size),
+            dtype=self._hidden_states_dtype,
+        ).to(self.device)
+        self.topk_prefilter(dummy_logits)
+
+        # Precompile sample_from_candidates
+        dummy_values = torch.zeros(
+            (self.max_num_reqs, candidate_dim),
+            dtype=torch.float32,
+        ).to(self.device)
+        dummy_indices = torch.zeros(
+            (self.max_num_reqs, candidate_dim),
+            dtype=torch.int64,
+        ).to(self.device)
+        sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+            self.input_batch,
+            self.max_num_reqs,
+            self.device,
+            generate_params_if_all_greedy=True,
+            vocab_size=self.vocab_size,
+        )
+        sampling_metadata.all_greedy = False
+        # Precompile for all_random=True (pure non-greedy batch, most common).
+        # Mixed batch (all_random=False) will be lazily compiled if needed.
+        sampling_metadata.all_random = True
+        self.sample_from_candidates(dummy_values, dummy_indices, sampling_metadata)
+
+        xm.wait_device_ops()
+        end = time.perf_counter()
+        logger.info("Split topk compilation finished in %.2f [secs].", end - start)
+        self._update_num_xla_graphs("split_topk")
+
     def _precompile_gather_logprobs(self) -> None:
         torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling gather_logprobs with different input shapes.")
@@ -1932,12 +2003,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._precompile_structured_decoding()
             if not self.tt_config.cpu_sampling:
                 self._precompile_sample_from_logits()
+                if self._split_topk:
+                    self._precompile_split_topk()
             else:
                 logger.warning(
                     "cpu_sampling=True: skipping device sampling precompilation"
                 )
             if not self.tt_config.enable_trace:
-                self._precompile_gather_logprobs()
+                if self._eager_sampling or (
+                    os.environ.get("TT_TOPK_SAMPLE", "") == "1"
+                ):
+                    logger.warning(
+                        "Skipping logprobs precompilation (incompatible with "
+                        "TT_TOPK_SAMPLE/TT_EAGER_SAMPLING)"
+                    )
+                else:
+                    self._precompile_gather_logprobs()
 
     def profile_run(
         self,
@@ -2196,6 +2277,153 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
         return out_tokens
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def topk_prefilter(self, logits: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """4x chunked topk as a separate small compiled program.
+
+        When TT_SPLIT_TOPK=1, this runs as its own XLA program instead of
+        being part of the larger sampler program. Standalone benchmarks show
+        4x topk takes 1.34ms in a small program vs ~22ms in the sampler.
+        """
+        from .sampler import apply_top_k_top_p_fast
+
+        logits = logits.to(torch.float32)
+        values, indices = apply_top_k_top_p_fast(logits, None, None)
+        return values, indices
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def sample_from_candidates(
+        self,
+        filtered_logits: torch.Tensor,
+        candidate_indices: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
+    ) -> torch.Tensor:
+        """Sample from pre-filtered topk candidates (split-topk path).
+
+        Small compiled program: just ttnn.sampling + greedy merge.
+        """
+        out_tokens = self.sampler.sample_from_candidates(
+            filtered_logits, candidate_indices, sampling_metadata
+        ).unsqueeze(-1)
+        return out_tokens
+
+    def sample_from_logits_eager_ttnn(
+        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
+    ) -> torch.Tensor:
+        """Sample via eager TTNN ops, bypassing torch.compile.
+
+        Materializes logits from XLA, runs 4x chunked topk + ttnn.sampling
+        as eager TTNN device calls (~1.5ms total), returns result as a CPU
+        tensor. Avoids the ~22ms per-op dispatch overhead of compiled graphs.
+        """
+        import ttnn
+
+        # Materialize logits from XLA to CPU.
+        logits_cpu = logits.cpu().to(torch.float32)
+
+        if sampling_metadata.all_greedy:
+            return torch.argmax(logits_cpu, dim=-1, keepdim=True)
+
+        batch, vocab_size = logits_cpu.shape
+
+        # Get existing TT device (already opened by PJRT runtime).
+        if not hasattr(self, "_ttnn_device"):
+            self._ttnn_device = ttnn.GetDefaultDevice()
+            if self._ttnn_device is None:
+                self._ttnn_device = ttnn.open_device(0)
+        device = self._ttnn_device
+
+        # Move logits to TT device.
+        logits_tt = ttnn.from_torch(
+            logits_cpu.to(torch.bfloat16),
+            layout=ttnn.TILE_LAYOUT,
+            device=device,
+        )
+
+        # 4x chunked topk via ttnn.topk (multi-core).
+        from .sampler import _TOPK_K_PER_CHUNK, _get_topk_split_params
+
+        num_chunks, chunk_size, padded_chunk_size, _ = _get_topk_split_params(
+            vocab_size
+        )
+        total_padded = num_chunks * padded_chunk_size
+
+        # Pad to align with chunk boundaries.
+        if vocab_size < total_padded:
+            logits_pad_cpu = torch.nn.functional.pad(
+                logits_cpu.to(torch.bfloat16),
+                (0, total_padded - vocab_size),
+                value=float("-inf"),
+            )
+        else:
+            logits_pad_cpu = logits_cpu.to(torch.bfloat16)
+
+        all_vals = []
+        all_inds = []
+        for i in range(num_chunks):
+            start = i * padded_chunk_size
+            end = start + padded_chunk_size
+            chunk_cpu = logits_pad_cpu[:, start:end]
+            chunk_tt = ttnn.from_torch(
+                chunk_cpu, layout=ttnn.TILE_LAYOUT, device=device
+            )
+            vals_tt, inds_tt = ttnn.topk(chunk_tt, _TOPK_K_PER_CHUNK)
+            vals_cpu = ttnn.to_torch(vals_tt).to(torch.float32)
+            inds_cpu = ttnn.to_torch(inds_tt).to(torch.int64)
+            all_vals.append(vals_cpu)
+            all_inds.append(inds_cpu + start)
+
+        cand_vals = torch.cat(all_vals, dim=-1)  # [batch, num_chunks * k]
+        cand_inds = torch.cat(all_inds, dim=-1)
+
+        # Prepare ttnn.sampling inputs.
+        pad_batch = 32
+        cand_k = cand_vals.shape[-1]
+
+        # Temperature: 1/temperature for ttnn.sampling.
+        temp_cpu = sampling_metadata.temperature.cpu().to(torch.float32)
+        is_greedy = temp_cpu < 1e-5
+        temp_recip = torch.where(is_greedy, torch.ones_like(temp_cpu), 1.0 / temp_cpu)
+
+        # Pad batch to 32.
+        if batch < pad_batch:
+            ps = pad_batch - batch
+            cand_vals = torch.nn.functional.pad(
+                cand_vals, (0, 0, 0, ps), value=float("-inf")
+            )
+            cand_inds = torch.nn.functional.pad(cand_inds, (0, 0, 0, ps))
+            temp_recip = torch.nn.functional.pad(temp_recip, (0, ps), value=1.0)
+
+        k_tensor = torch.full((pad_batch,), cand_k, dtype=torch.int32)
+        p_tensor = torch.ones(pad_batch, dtype=torch.bfloat16)
+        temp_tensor = temp_recip.to(torch.bfloat16)
+
+        vals_tt = ttnn.from_torch(
+            cand_vals.to(torch.bfloat16), layout=ttnn.TILE_LAYOUT, device=device
+        )
+        inds_tt = ttnn.from_torch(
+            cand_inds.to(torch.int32), layout=ttnn.ROW_MAJOR_LAYOUT, device=device
+        )
+        k_tt = ttnn.from_torch(k_tensor, layout=ttnn.ROW_MAJOR_LAYOUT, device=device)
+        p_tt = ttnn.from_torch(p_tensor, layout=ttnn.ROW_MAJOR_LAYOUT, device=device)
+        temp_tt = ttnn.from_torch(
+            temp_tensor, layout=ttnn.ROW_MAJOR_LAYOUT, device=device
+        )
+
+        result_tt = ttnn.sampling(vals_tt, inds_tt, k_tt, p_tt, temp_tt)
+        result_cpu = ttnn.to_torch(result_tt).to(torch.int64)
+
+        # Extract actual batch results.
+        result = result_cpu[:batch].view(-1)
+
+        # Mix greedy/random if needed.
+        if not sampling_metadata.all_random:
+            greedy = torch.argmax(logits_cpu, dim=-1)
+            temp_raw = sampling_metadata.temperature.cpu()
+            result = torch.where(temp_raw < 1e-5, greedy, result)
+
+        return result.unsqueeze(-1)
 
     def sample_from_logits_cpu(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata

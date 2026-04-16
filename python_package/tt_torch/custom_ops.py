@@ -1429,6 +1429,50 @@ def sampling_fake(
     return torch.zeros(batch, dtype=torch.int32, device=input_values.device)
 
 
+@torch.library.custom_op(
+    "tt::topk_sample", mutates_args=[], device_types=["xla", "cpu"]
+)
+def topk_sample(
+    logits: torch.Tensor,
+    temperature: torch.Tensor,
+    seed: int = 0,
+) -> torch.Tensor:
+    """Fused chunked topk: takes full-vocab logits, returns top-32 global indices.
+
+    The runtime internally splits the vocab into multi-core-friendly chunks,
+    runs per-chunk topk, merges candidates via final topk, and returns the
+    top-k global vocab indices. All in a single dispatch — avoids ~20 ops
+    of compiled topk chunking overhead.
+
+    Returns [32] int32 global token indices (top-32 candidates, batch=1 padded to 32).
+    The caller uses tt::sampling separately on these candidates.
+    """
+    device = logits.device
+    if device.type == "xla":
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [logits, temperature],
+            "tt.topk_sample",
+            [(32,)],
+            [torch.int32],
+            frontend_attributes={"seed": str(seed)},
+        )
+    elif device.type == "cpu":
+        # CPU reference: return top-32 global indices for first batch element.
+        vals, inds = torch.topk(logits[0].float(), k=32)
+        return inds.to(torch.int32)
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@topk_sample.register_fake
+def topk_sample_fake(
+    logits: torch.Tensor,
+    temperature: torch.Tensor,
+    seed: int = 0,
+) -> torch.Tensor:
+    return torch.zeros(32, dtype=torch.int32, device=logits.device)
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):

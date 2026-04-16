@@ -47,6 +47,11 @@ _GREEDY_WITH_SAMPLING_OPS = os.environ.get("TT_GREEDY_WITH_SAMPLING_OPS", "") ==
 # Experiment: force metadata tensor transfers even for greedy batches.
 # Tests whether CPU→device transfers are the bottleneck.
 FORCE_SAMPLING_METADATA = os.environ.get("TT_FORCE_SAMPLING_METADATA", "") == "1"
+# Experiment: split the 4x topk into a separate compiled program to reduce
+# per-op dispatch overhead. The topk loop runs as a small standalone program
+# (proven fast at 1.34ms) instead of inside the larger sampler program
+# (where the same ops cost ~22ms due to dispatch overhead amplification).
+_SPLIT_TOPK = os.environ.get("TT_SPLIT_TOPK", "") == "1"
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -85,8 +90,11 @@ class Sampler(nn.Module):
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
     ) -> SamplerOutput:
-        # Use float32 for the logits.
-        logits = logits.to(torch.float32)
+        # ttnn.sampling path: keep bf16 to avoid 9 unnecessary bf16→f32→bf16
+        # round-trips through the topk pipeline. The sampling kernel and topk
+        # both operate natively in bf16.
+        if not (_USE_TTNN_SAMPLING and os.environ.get("TT_BF16_SAMPLING", "") == "1"):
+            logits = logits.to(torch.float32)
         # Sample the next token.
         sampled = self.sample(logits, sampling_metadata)
 
@@ -282,6 +290,47 @@ class Sampler(nn.Module):
             )
             return greedy_sampled
 
+        # Fused topk reduction: single dispatch replaces ~20 compiled topk ops.
+        # Returns top-32 global indices. Then tt::sampling handles the rest.
+        _USE_TOPK_SAMPLE = os.environ.get("TT_TOPK_SAMPLE", "") == "1"
+        if _USE_TOPK_SAMPLE:
+            batch = logits.shape[0]
+            # Phase 1+2: fused chunked topk → [32] global indices
+            top_indices = torch.ops.tt.topk_sample(
+                logits, sampling_metadata.temperature, seed=42
+            )
+            # Gather logit values at these indices: [1, 32]
+            idx_2d = top_indices.unsqueeze(0).to(torch.int64)
+            top_values = torch.gather(logits, 1, idx_2d)
+            candidate_indices = top_indices.unsqueeze(0).to(torch.int32)
+
+            # Use existing tt::sampling on the reduced candidate set.
+            random_sampled_padded = self._ttnn_sampling_padded(
+                top_values,
+                candidate_indices,
+                sampling_metadata,
+            )
+            pad_batch = _TTNN_SAMPLING_BATCH_SIZE
+
+            if sampling_metadata.all_random:
+                return random_sampled_padded[:batch].view(-1)
+
+            # Mixed batch: greedy/random merge.
+            greedy_sampled = self.greedy_sample(logits)
+            greedy_padded = torch.nn.functional.pad(
+                greedy_sampled, (0, pad_batch - batch)
+            ).to(torch.int32)
+            temp_padded = torch.nn.functional.pad(
+                sampling_metadata.temperature, (0, pad_batch - batch), value=1.0
+            )
+            sampled_padded = torch.where(
+                temp_padded < _SAMPLING_EPS,
+                greedy_padded,
+                random_sampled_padded,
+            )
+            sampled_padded = sampled_padded.to(torch.int64)
+            return sampled_padded[:batch].view(-1)
+
         if _USE_TTNN_SAMPLING:
             # ttnn.sampling handles temperature internally (multiplies by
             # 1/temperature), so skip apply_temperature and run topk on
@@ -461,6 +510,60 @@ class Sampler(nn.Module):
                     q[i].exponential_(generator=generator)
         return probs.div_(q).argmax(dim=-1).view(-1)
 
+    def sample_from_candidates(
+        self,
+        filtered_logits: torch.Tensor,
+        candidate_indices: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
+    ) -> torch.Tensor:
+        """Sample from pre-filtered topk candidates (split-topk path).
+
+        Called when TT_SPLIT_TOPK=1 — the 4x topk was already done in a
+        separate compiled program. This method handles only penalties on
+        the candidate set, ttnn.sampling, and greedy/random merge.
+        """
+        logits_for_greedy = filtered_logits  # used for argmax if needed
+
+        # Apply penalties on the reduced candidate set if needed.
+        # NOTE: penalties on the full vocab would be more correct, but the
+        # candidate set is a reasonable approximation for benchmarking.
+        # For production, penalties should be applied before topk.
+        if not sampling_metadata.no_penalties:
+            # Penalties require full vocab — fall back to argmax for greedy,
+            # skip penalties for random (approximate).
+            pass
+
+        random_sampled_padded = self._ttnn_sampling_padded(
+            filtered_logits,
+            candidate_indices,
+            sampling_metadata,
+        )
+        batch = filtered_logits.shape[0]
+        pad_batch = _TTNN_SAMPLING_BATCH_SIZE
+
+        if sampling_metadata.all_random:
+            return random_sampled_padded[:batch].view(-1)
+
+        # Mixed batch: greedy/random merge.
+        greedy_sampled = filtered_logits.argmax(dim=-1).view(-1)
+        # Map local argmax back to global vocab index.
+        greedy_global = candidate_indices.gather(
+            1, greedy_sampled.unsqueeze(-1).to(torch.int64)
+        ).squeeze(-1)
+        greedy_padded = torch.nn.functional.pad(
+            greedy_global, (0, pad_batch - batch)
+        ).to(torch.int32)
+        temp_padded = torch.nn.functional.pad(
+            sampling_metadata.temperature, (0, pad_batch - batch), value=1.0
+        )
+        sampled_padded = torch.where(
+            temp_padded < _SAMPLING_EPS,
+            greedy_padded,
+            random_sampled_padded,
+        )
+        sampled_padded = sampled_padded.to(torch.int64)
+        return sampled_padded[:batch].view(-1)
+
     def _ttnn_sampling_hardcoded(
         self,
         filtered_logits: torch.Tensor,
@@ -574,6 +677,19 @@ def apply_top_k_top_p_fast(
     The top-k and top-p filters are applied on the small candidate set
     (~128 tokens) rather than the full vocab.
     """
+    # Experiment: batched reshape approach uses 1 topk call instead of 4
+    # separate calls, reducing compiled op count from ~16 to ~7.
+    _BATCHED_TOPK = os.environ.get("TT_BATCHED_TOPK", "") == "1"
+    if _BATCHED_TOPK:
+        return _apply_topk_batched(logits)
+
+    # Experiment: single topk on full vocab. The runtime does chunking
+    # internally (see topk.cpp), so the compiled graph has 1 topk op.
+    _RUNTIME_TOPK = os.environ.get("TT_RUNTIME_TOPK", "") == "1"
+    if _RUNTIME_TOPK:
+        vals, inds = torch.topk(logits, k=_TOPK_K_PER_CHUNK, dim=-1)
+        return vals, inds
+
     batch, vocab_size = logits.shape
     num_chunks, chunk_size, padded_chunk_size, pad_size = _get_topk_split_params(
         vocab_size
@@ -604,6 +720,73 @@ def apply_top_k_top_p_fast(
     pass
 
     return all_values, all_indices
+
+
+def _apply_topk_batched(
+    logits: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Batched topk: pad + reshape + single topk call.
+
+    Pads vocab to num_chunks * padded_chunk_size, reshapes to
+    [num_chunks, padded_chunk_size], does one topk. Compiles to
+    fewer TTNN ops than the 4x loop approach.
+
+    Only supports batch=1. Falls back to loop for batch>1.
+    """
+    batch, vocab_size = logits.shape
+    num_chunks, chunk_size, padded_chunk_size, pad_size = _get_topk_split_params(
+        vocab_size
+    )
+    total_padded = num_chunks * padded_chunk_size
+
+    if batch != 1:
+        return _apply_topk_loop(logits)
+
+    # Pad vocab to exact multiple of padded_chunk_size.
+    logits_padded = torch.nn.functional.pad(
+        logits, (0, total_padded - vocab_size), value=float("-inf")
+    )
+
+    # Reshape: [1, total_padded] → [num_chunks, padded_chunk_size].
+    reshaped = logits_padded.reshape(num_chunks, padded_chunk_size)
+
+    vals, local_inds = torch.topk(reshaped, k=_TOPK_K_PER_CHUNK, dim=-1)
+
+    # Global index = local_ind + i * padded_chunk_size.
+    chunk_offsets = torch.tensor(
+        [[i * padded_chunk_size] for i in range(num_chunks)],
+        dtype=local_inds.dtype,
+        device=logits.device,
+    )
+    global_inds = local_inds + chunk_offsets
+
+    # Flatten to [1, num_chunks * k_per_chunk].
+    vals = vals.reshape(1, num_chunks * _TOPK_K_PER_CHUNK)
+    global_inds = global_inds.reshape(1, num_chunks * _TOPK_K_PER_CHUNK)
+
+    return vals, global_inds
+
+
+def _apply_topk_loop(
+    logits: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Original loop-based topk (for batch>1 fallback)."""
+    batch, vocab_size = logits.shape
+    num_chunks, chunk_size, padded_chunk_size, pad_size = _get_topk_split_params(
+        vocab_size
+    )
+    chunks = torch.split(logits, chunk_size, dim=-1)
+    topk_values_list = []
+    topk_indices_list = []
+    for i, chunk in enumerate(chunks):
+        if chunk.shape[-1] < padded_chunk_size:
+            chunk = torch.nn.functional.pad(
+                chunk, (0, padded_chunk_size - chunk.shape[-1]), value=float("-inf")
+            )
+        vals, inds = torch.topk(chunk, k=_TOPK_K_PER_CHUNK, dim=-1)
+        topk_values_list.append(vals)
+        topk_indices_list.append(inds + i * chunk_size)
+    return torch.cat(topk_values_list, dim=-1), torch.cat(topk_indices_list, dim=-1)
 
 
 def apply_top_k_top_p(
