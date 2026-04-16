@@ -72,7 +72,6 @@
   // (if at all).
   _STUB(PJRT_Executable_GetCostAnalysis);
   _STUB(PJRT_Executable_ParameterMemoryKinds);
-  _STUB(PJRT_LoadedExecutable_GetDeviceAssignment);
 
   // This is not required to be implemented by all platforms. It should return
   // memory stats that allow callers to estimate device memory usage when
