@@ -8,18 +8,12 @@ Pytest configuration for unified multi-host tests with explicit topology paramet
 Tests explicitly specify which topologies they support using pytest.mark.parametrize.
 The mesh shape is automatically determined based on the device count.
 
-NOTE: Topology configuration (environment variables) is now set in CI via
-scripts/multihost_topology.py before pytest runs. The configure_topology fixture
-has been removed to avoid environment setup during pytest collection.
+NOTE: TT_DISTRIBUTED_* (and related) environment variables are set by CI / the test
+harness (e.g. eval $(python scripts/multihost_topology.py ...)) before pytest runs,
+not by pytest fixtures during collection.
 """
 
-from pathlib import Path
-
 import pytest
-import torch_xla.runtime as xr
-
-# Import the topology configurations
-from tests.torch.multi_host.conftest import TOPOLOGIES
 
 
 def get_mesh_shape_for_device_count(num_devices: int) -> tuple[int, int]:
@@ -82,6 +76,8 @@ def mesh_shape(topology):
 
     num_devices = topology_device_counts.get(topology)
     if num_devices is None:
-        raise ValueError(f"Unknown topology '{topology}'. Known topologies: {list(topology_device_counts.keys())}")
+        raise ValueError(
+            f"Unknown topology '{topology}'. Known topologies: {list(topology_device_counts.keys())}"
+        )
 
     return get_mesh_shape_for_device_count(num_devices)
