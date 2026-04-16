@@ -412,7 +412,7 @@ def benchmark_llm_torch_xla(
         for layer in input_args["past_key_values"].layers:
             if isinstance(layer, MLAStaticLayer):
                 if kv_spec is None:
-                    kv_spec = ("model", None, None, None)
+                    kv_spec = ("batch", None, None, None)
                 xs.mark_sharding(layer.compressed_kv, mesh, kv_spec)
                 xs.mark_sharding(layer.k_pe, mesh, kv_spec)
             else:
