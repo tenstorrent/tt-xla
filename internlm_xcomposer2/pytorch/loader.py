@@ -7,7 +7,7 @@ InternLM-XComposer2 model loader implementation for multimodal visual question a
 
 import torch
 from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from typing import Optional
 
 from ...tools.utils import get_file
@@ -71,7 +71,14 @@ class ModelLoader(ForgeModel):
         if self.tokenizer is None:
             self._load_tokenizer()
 
+        config = AutoConfig.from_pretrained(
+            pretrained_model_name, trust_remote_code=True
+        )
+        if not hasattr(config, "max_length"):
+            config.max_length = 8192
+
         model_kwargs = {
+            "config": config,
             "trust_remote_code": True,
             "attn_implementation": "eager",
         }
