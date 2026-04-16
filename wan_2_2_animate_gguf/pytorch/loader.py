@@ -93,6 +93,14 @@ class ModelLoader(ForgeModel):
         then constructs the full WanImageToVideoPipeline with the base model's
         VAE and image encoder in float32 for numerical stability.
         """
+        import diffusers.utils.import_utils as _diffusers_import_utils
+
+        if not _diffusers_import_utils._gguf_available:
+            import importlib.util
+
+            if importlib.util.find_spec("gguf") is not None:
+                _diffusers_import_utils._gguf_available = True
+
         from diffusers import (
             AutoencoderKLWan,
             GGUFQuantizationConfig,
