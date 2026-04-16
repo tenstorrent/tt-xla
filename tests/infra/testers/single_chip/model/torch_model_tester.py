@@ -318,14 +318,17 @@ class TorchModelTester(ModelTester):
         cpu_model,
         cpu_args: Sequence[Any],
         cpu_kwargs: Mapping[str, Any],
+        fb_reference,
         assert_exact: bool = True,
     ) -> None:
         """Verify EmitPy (codegen_py) execution matches flatbuffer execution.
 
         Uses a deep-cloned CPU model that has never been touched by torch._dynamo
-        or XLA. Both the flatbuffer reference and EmitPy runs use legacy compile
-        to completely avoid the experimental compile path and its
-        _run_cached_graph LRU issues.
+        or XLA for the EmitPy run, since dynamo caching would otherwise silently
+        reuse the already-compiled (non-EmitPy) executable.
+
+        The flatbuffer reference result is provided by the caller from the original
+        test execution, avoiding a redundant device run.
 
         When assert_exact is True (default), asserts that results match exactly.
         On failure the assertion message includes atol, pcc, and allclose diagnostics.
@@ -334,6 +337,7 @@ class TorchModelTester(ModelTester):
             cpu_model: Deep-cloned CPU model (never seen by dynamo/XLA).
             cpu_args: Deep-cloned positional args for the model.
             cpu_kwargs: Deep-cloned keyword args for the model.
+            fb_reference: Flatbuffer reference result from the original test execution.
             assert_exact: If True, raise AssertionError when results differ.
         """
         original_options = (
@@ -349,26 +353,23 @@ class TorchModelTester(ModelTester):
             xr.clear_computation_cache()
 
             # Build a completely fresh workload from the deep-cloned CPU model.
-            # This model object has never been seen by torch._dynamo or XLA.
+            # This model object has never been seen by torch._dynamo or XLA,
+            # which is critical: dynamo caching ignores compile options, so a
+            # model already seen by dynamo would silently skip EmitPy compilation.
             fresh_workload = TorchWorkload(
                 model=cpu_model,
                 args=cpu_args,
                 kwargs=cpu_kwargs,
             )
 
+            cpu_result = self._run_on_cpu(fresh_workload)
+
             # Compile the fresh model with legacy compile to avoid _run_cached_graph.
             self._compile_for_tt_device(
                 fresh_workload, options={"tt_legacy_compile": True}
             )
 
-            # --- Flatbuffer reference run (legacy compile, original PJRT options) ---
-            fb_result = self._run_on_tt_device(fresh_workload)
-
-            # --- EmitPy run (same legacy-compiled workload, emitpy PJRT options) ---
-            # Clear XLA computation cache so the next execution recompiles through
-            # PJRT with the emitpy options instead of reusing the cached flatbuffer
-            # compilation.
-            xr.clear_computation_cache()
+            # --- EmitPy run (legacy-compiled workload, emitpy PJRT options) ---
             emitpy_options = {
                 **original_options,
                 "backend": "codegen_py",
@@ -384,7 +385,7 @@ class TorchModelTester(ModelTester):
             emitpy_config = ComparisonConfig(assert_on_failure=False)
             emitpy_config.enable_all()
             evaluator = TorchComparisonEvaluator(emitpy_config)
-            result = evaluator.evaluate(emitpy_result, fb_result)
+            result = evaluator.evaluate(emitpy_result, fb_reference)
 
             if not result.equal and assert_exact:
                 raise AssertionError(

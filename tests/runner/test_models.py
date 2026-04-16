@@ -183,7 +183,7 @@ def _run_model_test_impl(
                     cpu_args_copy = copy.deepcopy(list(tester._workload.args))
                     cpu_kwargs_copy = copy.deepcopy(dict(tester._workload.kwargs))
 
-                comparison_result = tester.test(request=request)
+                comparison_result, tt_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
@@ -203,6 +203,7 @@ def _run_model_test_impl(
                         cpu_model_copy,
                         cpu_args_copy,
                         cpu_kwargs_copy,
+                        fb_reference=tt_result,
                         assert_exact=test_metadata.emitpy_assert_exact,
                     )
 
