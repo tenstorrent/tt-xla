@@ -13,7 +13,7 @@ Standalone topology lookup for multi-host distributed tests.
 import argparse
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict
 
@@ -68,6 +68,11 @@ class MultihostConfiguration:
             "cnx1" for aus galaxies
             "enp10s0f1np1" for quietboxes
             Leave empty to use the runtime default.
+
+        extra_env_vars: Additional environment variables to export verbatim for this
+            topology. Useful for topology-specific runtime flags that are not part of
+            the generic TT_DISTRIBUTED_* set. For example, the dual_t3k topology sets
+            TT_RUNTIME_USING_DUALT3K=1 so the PJRT plugin takes the dual-T3K code path.
     """
 
     rank_binding: str
@@ -76,6 +81,7 @@ class MultihostConfiguration:
     hosts_list: str = ""
     remote_script_name: str = "remote_docker.sh"
     hosts_file: str = ""
+    extra_env_vars: Dict[str, str] = field(default_factory=dict)
 
 
 # Predefined topology configurations
@@ -102,6 +108,7 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         rank_binding="dual_t3k",
         controller_host_name="f10cs03",
         hosts_file="/etc/mpirun/hostfile",
+        extra_env_vars={"TT_RUNTIME_USING_DUALT3K": "1"},
     ),
     "dual_bh_loudbox_1x16": MultihostConfiguration(
         rank_binding="dual_bh_loudbox_1x16",
@@ -216,6 +223,10 @@ def get_env_vars(topology: str, script_dir: Path) -> Dict[str, str]:
         env_vars["TT_DISTRIBUTED_PLM_RSH_AGENT"] = str(
             script_dir.resolve() / topo.remote_script_name
         )
+
+    # Topology-specific extras (e.g. TT_RUNTIME_USING_DUALT3K for dual_t3k).
+    # Applied last so callers could override via the returned dict if needed.
+    env_vars.update(topo.extra_env_vars)
 
     return env_vars
 
