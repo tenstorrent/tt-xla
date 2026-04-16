@@ -5,23 +5,15 @@
 import argparse
 import os
 import time
-from typing import Any, List, Optional
+from typing import List
 
 import numpy as np
 import torch
 import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-import transformers
-from loguru import logger
 from torch_xla.distributed.spmd import Mesh
-from transformers import (
-    AutoConfig,
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    PreTrainedTokenizer,
-)
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
@@ -32,9 +24,6 @@ from tt_torch.weight_dtype import apply_weight_dtype_overrides
 DEFAULT_PROMPT = "Explain quantum mechanics."
 
 
-# --------------------------------
-# GPT-OSS 120B Generation Loop Example
-# --------------------------------
 def gpt_oss_120b(
     interactive: bool = False,
     sparse_moe: bool = False,
@@ -43,24 +32,18 @@ def gpt_oss_120b(
     perf_metrics: bool = False,
 ):
 
-    # Set up config variables.
     max_cache_len: int = 256
     model_name: str = "openai/gpt-oss-120b"
 
     setup_spmd()
 
-    # Connect the device and create an xla mesh.
     device: torch.device = torch_xla.device()
     mesh, mesh_shape = create_device_mesh()
 
-    # Instantiate model and tokenizer
     if verbose:
         print("Setting up model and tokenizer...")
     model, tokenizer = setup_model_and_tokenizer(model_name, verbose=verbose)
 
-    # Optionally replace MoE MLP layers with sparse implementation.
-    # cluster_axis=1 means dispatch/combine along the "model" axis (axis 1 in the
-    # (batch, model) mesh), which is correct for QB2's (1,4) and llmbox's (2,4) meshes.
     if sparse_moe:
         if verbose:
             print("Enabling sparse MoE implementation...")
@@ -73,33 +56,25 @@ def gpt_oss_120b(
                 break
             if not user_input:
                 user_input = DEFAULT_PROMPT
-            # Pad to batch_size — hardware pipeline requires a full batch
             user_prompt = [user_input] * batch_size
         else:
             user_prompt = [DEFAULT_PROMPT] * batch_size
 
-        # Construct inputs, including static cache
         if verbose:
             print("Constructing inputs...")
         input_args, formatted_prompts = construct_inputs(
             user_prompt, tokenizer, model.config, batch_size, max_cache_len, sparse_moe
         )
 
-        # Limit maximum generation count to fit within preallocated static cache
         max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
 
-        # Transfer model and inputs to device
         if verbose:
             print("Moving model and inputs to device...")
         model, input_args = transfer_to_device(model, input_args, device)
 
-        # Mark sharding on inputs and model internals
         mark_sharding_on_inputs_and_model(model, input_args, mesh, sparse_moe)
-
-        # Compile model (lazy — actual XLA/TT-MLIR compilation happens on first forward pass)
         compiled_model = torch.compile(model, backend="tt")
 
-        # Run generation loop until EOS token generated or max tokens reached
         if verbose:
             print("Begin generation...")
         run_generate(
@@ -120,27 +95,13 @@ def gpt_oss_120b(
 
 
 def setup_spmd():
-    """
-    Initializes SPMD mode in torch_xla.
-    """
-
+    """Initializes SPMD mode, compilation options, and persistent cache."""
     print("Setting up XLA environment...")
 
-    # Converts the StableHLO emitted by torch-xla to the Shardy dialect
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-
-    # Initialize SPMD
     xr.use_spmd()
-
-    # NOTE: experimental_weight_dtype bfp_bf8 is disabled — global bfp8 causes
-    # the prefill forward pass to hang on QB2 during execution. Expert weights
-    # are still overridden to bfp4 per-tensor in setup_model_and_tokenizer.
-    # Re-enable once QB2 bfp8 execution is validated.
     torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp_bf8"})
 
-    # Persistent compilation cache — avoids recompiling on every run.
-    # The cache is keyed on graph hash so it auto-invalidates when the model or
-    # input shapes change. First run populates it; subsequent runs load from disk.
     cache_dir = os.path.expanduser("~/.cache/tt_xla/gpt_oss_120b")
     xr.initialize_cache(cache_dir)
     cache_files = list(os.scandir(cache_dir)) if os.path.isdir(cache_dir) else []
@@ -148,18 +109,11 @@ def setup_spmd():
         f"WARM ({len(cache_files)} entries)" if cache_files else "COLD (will compile)"
     )
     print(f"Compilation cache: {cache_dir} [{cache_status}]")
-
     print("XLA environment configured.")
 
 
 def create_device_mesh() -> tuple[Mesh, tuple]:
-    """
-    Create device mesh for tensor parallelism.
-    Mesh shapes follow loader.py get_mesh_config().
-
-    Returns:
-        Tuple of (Mesh object, mesh_shape tuple) for SPMD operations
-    """
+    """Create device mesh for tensor parallelism."""
     num_devices = xr.global_runtime_device_count()
 
     if num_devices == 32:  # Galaxy
@@ -183,24 +137,11 @@ def setup_model_and_tokenizer(
     model_name: str,
     verbose: bool = False,
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
-    """
-    Instantiate model and tokenizer with MXFP4 quantization.
-
-    Args:
-        model_name: HuggingFace model name
-
-    Returns:
-        Tuple of (model, tokenizer)
-    """
+    """Instantiate model and tokenizer with MXFP4 quantization and mixed precision."""
     quantization_config = Mxfp4Config(dequantize=True)
-    # from transformers import AutoConfig
-
-    # config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
-    # config.num_hidden_layers = 1
 
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name,
-        # config=config,
         quantization_config=quantization_config,
         dtype=torch.bfloat16,
         low_cpu_mem_usage=True,
@@ -209,8 +150,6 @@ def setup_model_and_tokenizer(
     )
     model = model.eval()
 
-    # Override expert weight matrices to BFP4 to save memory on QB2.
-    # All other weights stay at BFP8 (set globally via experimental_weight_dtype).
     applied = apply_weight_dtype_overrides(
         model,
         {
@@ -236,22 +175,7 @@ def construct_inputs(
     max_cache_len: int,
     sparse_moe: bool = False,
 ) -> tuple[dict, List[str]]:
-    """
-    Construct inputs including static cache.
-
-    Args:
-        input_prompt: Input text prompt(s) - can be a single string or list of strings
-        tokenizer: Tokenizer instance
-        model_config: Model configuration
-        batch_size: Batch size
-        max_cache_len: Maximum cache length
-        sparse_moe: Whether sparse MoE is enabled; pads seq_len to multiple of 32
-
-    Returns:
-        Tuple of (input_args dictionary, formatted_prompts list)
-    """
-
-    # Apply chat template to format prompts
+    """Construct tokenized inputs with static KV cache for generation."""
     formatted_prompts = []
     for prompt in input_prompt:
         messages = [{"role": "user", "content": prompt}]
@@ -265,11 +189,7 @@ def construct_inputs(
     ]
     actual_max = max(prompt_lengths)
 
-    # Always pad to a fixed length so every prefill run hits the same cached graph.
-    # XLA keys the compilation cache on tensor shapes — variable seq_len means a new
-    # compile on every prompt. Must NOT be a multiple of 32 — sparse MoE has two
-    # dispatch paths (split_seq when seq_len%32==0, split_bd otherwise) and only
-    # split_bd is validated on QB2. 100 tokens fits typical chat prompts.
+    # Fixed pad length ensures all prefills hit the same cached compilation graph.
     PREFILL_PAD_LEN = 96
     if actual_max > PREFILL_PAD_LEN:
         raise ValueError(
@@ -287,11 +207,7 @@ def construct_inputs(
         return_attention_mask=True,
     )
 
-    # Disable sliding window cache to avoid torch.compile recompilations.
     cache_config = disable_sliding_window_attention(model_config)
-
-    # Static cache should be initialized on CPU and separately transferred to device
-    # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
     static_cache: StaticCache = StaticCache(
         config=cache_config,
         max_batch_size=batch_size,
@@ -311,8 +227,6 @@ def construct_inputs(
 
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
-    # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
-    # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
     prompt_len = inputs.input_ids.shape[1]
     full_attention_mask = torch.ones(
         (batch_size, max_cache_len), dtype=inputs.attention_mask.dtype
@@ -335,30 +249,7 @@ def construct_inputs(
 def disable_sliding_window_attention(
     config: PretrainedConfig,
 ) -> PretrainedConfig:
-    """
-    Override all layer types to 'full_attention' to disable sliding window cache.
-
-    GPT-OSS originally has layers alternating between "sliding_attention" and
-    "full_attention". When StaticCache is initialized with sliding attention layers,
-    it creates StaticSlidingWindowLayer instances that use conditional logic and
-    Python Int (which torch.compile treats as constants). This triggers expensive
-    recompilation for every token generated.
-
-    This function offers a hacky workaround. Because this program stops token
-    generation once the cache is full, StaticSlidingWindowLayer would be essentially
-    functionally equivalent to StaticLayer. Hence by forcing all layers to be
-    "full_attention" before passing the config to create the StaticCache, we can
-    ensure the cache only has simple StaticLayer and avoid recompilation.
-
-    See https://github.com/tenstorrent/tt-xla/issues/3186 for progress on properly
-    running sliding window attention.
-
-    Args:
-        config: Model configuration with layer_types attribute
-
-    Returns:
-        Config modified to have all layers set to "full_attention"
-    """
+    """Force all layers to full_attention to avoid sliding window recompilation."""
     config.layer_types = ["full_attention"] * config.num_hidden_layers
     return config
 
@@ -366,17 +257,7 @@ def disable_sliding_window_attention(
 def transfer_to_device(
     model: torch.nn.Module, input_args: dict, device: torch.device
 ) -> tuple[torch.nn.Module, dict]:
-    """
-    Transfer model and inputs to device.
-
-    Args:
-        model: Model instance
-        input_args: Input arguments dictionary
-        device: Target device
-
-    Returns:
-        Tuple of (model, input_args) on device
-    """
+    """Transfer model and inputs to device."""
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
@@ -392,41 +273,22 @@ def transfer_to_device(
 def mark_sharding_on_inputs_and_model(
     model: torch.nn.Module, input_args: dict, mesh: Mesh, sparse_moe: bool = False
 ):
-    """
-    Mark sharding on inputs and model internals.
-    Shard specs mirror loader.py load_shard_spec() for QB2's (1,4) mesh.
-
-    On QB2 the batch mesh axis has only 1 device, so sharding along it is a no-op.
-    We therefore replicate embed_tokens, norm, lm_head, biases, and layernorm weights
-    and only shard along the "model" axis (4 devices). This matches the loader.
-
-    Args:
-        model: Model instance
-        input_args: Input arguments dictionary
-        mesh: Device mesh for SPMD operations
-        sparse_moe: Whether sparse MoE is enabled
-    """
-
+    """Mark SPMD sharding on model weights and KV cache for tensor parallelism."""
     for layer in input_args["past_key_values"].layers:
         xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
         xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
 
-    # Replicated — batch axis is size-1 on QB2, sharding here wastes metadata
     xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, None))
     xs.mark_sharding(model.model.norm.weight, mesh, (None,))
-    # lm_head: replicated (commented out in loader for QB2)
 
     for layer in model.model.layers:
         xs.mark_sharding(layer.self_attn.q_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.k_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.v_proj.weight, mesh, ("model", None))
         xs.mark_sharding(layer.self_attn.o_proj.weight, mesh, (None, "model"))
-        # biases: small enough to replicate
         xs.mark_sharding(layer.self_attn.sinks, mesh, (None,))
 
         if sparse_moe and isinstance(layer.mlp, A2aSparseMLP):
-            # sparse MoE needs full expert set on all devices — shard E dim across both axes
-            # to match get_moe_shard_specs() in the runner
             expert_e_shard = (("batch", "model"), None, None)
             expert_e_bias_shard = (("batch", "model"), None)
         else:
@@ -450,19 +312,7 @@ def run_generate(
     verbose: bool = False,
     perf_metrics: bool = False,
 ):
-    """
-    Run the generation loop.
-
-    Args:
-        compiled_model: Compiled model instance
-        input_args: Input arguments dictionary
-        tokenizer: Tokenizer instance
-        device: Device
-        mesh: Device mesh for SPMD operations (optional)
-        max_tokens_to_generate: Maximum number of tokens to generate
-        formatted_prompts: Formatted prompts with chat template applied
-        is_interactive: Whether running in interactive mode
-    """
+    """Run the autoregressive generation loop with optional interactive streaming."""
     num_users = input_args["input_ids"].shape[0]
     output_tokens: List[List[str]] = [[] for _ in range(num_users)]
 
@@ -470,11 +320,10 @@ def run_generate(
     compile_time_decode = 0.0
     decode_times: List[float] = []
 
-    # Channel filter state for interactive mode.
-    # GPT-OSS uses <|channel|>name<|message|>content<|end|> format.
-    # We only print the "final" channel; skip "analysis" and "commentary".
+    # GPT-OSS output uses <|channel|>name<|message|>content<|end|> format.
+    # Only the "final" channel is printed; "analysis" and "commentary" are skipped.
     _END_TOKENS = {"<|end|>", "<|return|>"}
-    stream_state = "seek_channel"  # seek_channel | seek_message | printing | done
+    stream_state = "seek_channel"
     channel_name_buf = ""
 
     with torch.no_grad():
@@ -484,7 +333,6 @@ def run_generate(
 
             step_start = time.perf_counter()
 
-            # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")
 
@@ -530,20 +378,17 @@ def run_generate(
                     else:
                         print(tok, end="", flush=True)
 
-            # Check for EOS token and early exit
             if torch.all(next_token_id == tokenizer.eos_token_id):
                 if is_interactive:
                     print()  # newline after streamed response
                 break
 
-            # Update inputs for next iteration
             input_args["input_ids"] = next_token_id.unsqueeze(-1).to(device)
 
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
 
-    # Print performance summary
     if is_interactive and stream_state != "done":
         if stream_state == "printing":
             print()  # newline after incomplete response
@@ -633,7 +478,6 @@ if __name__ == "__main__":
             "Sparse MoE requires batch_size * device_on_axis (4) to be a multiple of 32."
         )
 
-    # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
 
     gpt_oss_120b(
