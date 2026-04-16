@@ -1029,11 +1029,20 @@ class Gate(nn.Module):
                 group_scores = scores.amax(dim=-1)
             else:
                 group_scores = scores.topk(2, dim=-1)[0].sum(dim=-1)
-            indices = group_scores.topk(self.topk_groups, dim=-1)[1]
-            mask = scores.new_ones(x.size(0), self.n_groups, dtype=bool).scatter_(
-                1, indices, False
+            group_indices = group_scores.topk(self.topk_groups, dim=-1)[1]
+            # Use one_hot + any instead of scatter_ to avoid SPMD partitioning
+            # bug where scatter indices are not adjusted after all_gather.
+            group_range = torch.arange(
+                self.n_groups, device=scores.device, dtype=group_indices.dtype
             )
-            scores = scores.masked_fill_(mask.unsqueeze(-1), float("-inf")).flatten(1)
+            selected_groups = (group_indices.unsqueeze(-1) == group_range).any(
+                dim=1
+            )  # [BS, n_groups]
+            scores = torch.where(
+                selected_groups.unsqueeze(-1).expand_as(scores),
+                scores,
+                torch.tensor(float("-inf"), dtype=scores.dtype, device=scores.device),
+            ).flatten(1)
         indices = scores.topk(self.topk, dim=-1)[1]
         weights = original_scores.gather(1, indices)
         if self.score_func == "sigmoid":
