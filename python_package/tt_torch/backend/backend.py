@@ -178,20 +178,6 @@ class XLAExecutor:
         return total_args
 
     def _call_experimental_compile(self, *args):
-        # Move any CPU tensors in args to XLA. Some model attributes (e.g.
-        # detection grid tensors in YOLOP) are not registered buffers, so
-        # AOTAutograd lifts them as graph inputs but they remain on CPU.
-        # Passing CPU tensors to extract_compiled_graph causes graph breaks.
-        moved_args = []
-        for arg in args:
-            if isinstance(arg, torch.Tensor) and arg.device.type != "xla":
-                logger.warning(
-                    f"Found an argument on non-XLA device: {arg}. "
-                    "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
-                )
-                arg = arg.to(torch.device("xla"))
-            moved_args.append(arg)
-        args = tuple(moved_args)
         if self.compiled_graph is None:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
@@ -221,6 +207,21 @@ class XLAExecutor:
         return self.compiled_graph(*full_args)
 
     def __call__(self, *args):
+        # Move any CPU tensors in args to XLA. Some model attributes (e.g.
+        # detection grid tensors in YOLOP) are not registered buffers, so
+        # AOTAutograd lifts them as graph inputs but they remain on CPU.
+        # Passing CPU tensors to extract_compiled_graph causes graph breaks.
+        moved_args = []
+        for arg in args:
+            if isinstance(arg, torch.Tensor) and arg.device.type != "xla":
+                logger.warning(
+                    f"Found an argument on non-XLA device: {arg}. "
+                    "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
+                )
+                arg = arg.to(torch.device("xla"))
+            moved_args.append(arg)
+        args = tuple(moved_args)
+
         if not self.legacy_compile_enabled:
             return self._call_experimental_compile(*args)
 
