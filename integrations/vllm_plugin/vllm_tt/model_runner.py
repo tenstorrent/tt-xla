@@ -1365,8 +1365,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
-            if not hasattr(self, '_logged_sampling_device'):
-                logger.warning("Sampling on %s (cpu_sampling=%s)", sampling_device, self.tt_config.cpu_sampling)
+            if not hasattr(self, "_logged_sampling_device"):
+                logger.warning(
+                    "Sampling on %s (cpu_sampling=%s)",
+                    sampling_device,
+                    self.tt_config.cpu_sampling,
+                )
                 self._logged_sampling_device = True
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -1390,7 +1394,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits, tpu_sampling_metadata
                 )
             else:
-                if not hasattr(self, '_logged_device_sampling'):
+                if not hasattr(self, "_logged_device_sampling"):
                     logger.warning("Using DEVICE sampling path")
                     self._logged_device_sampling = True
                 selected_token_ids = self.sample_from_logits(
@@ -1924,7 +1928,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if not self.tt_config.cpu_sampling:
                 self._precompile_sample_from_logits()
             else:
-                logger.warning("cpu_sampling=True: skipping device sampling precompilation")
+                logger.warning(
+                    "cpu_sampling=True: skipping device sampling precompilation"
+                )
             if not self.tt_config.enable_trace:
                 self._precompile_gather_logprobs()
 
@@ -2206,7 +2212,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             penalty_factor = torch.where(logits > 0, torch.reciprocal(rep_pen), rep_pen)
             logits = torch.where(rep_mask, logits * penalty_factor, logits)
             freq_pen = sampling_metadata.frequency_penalties.cpu().unsqueeze(1)
-            logits -= freq_pen * sampling_metadata.output_token_counts.cpu().to(logits.dtype)
+            logits -= freq_pen * sampling_metadata.output_token_counts.cpu().to(
+                logits.dtype
+            )
             pres_pen = sampling_metadata.presence_penalties.cpu().unsqueeze(1)
             logits -= pres_pen * occurred_output.to(logits.dtype)
 
@@ -2227,7 +2235,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 k = int(top_k[i].item())
                 if k > 0 and k < logits.size(1):
                     topk_vals, _ = torch.topk(logits[i], k)
-                    logits[i][logits[i] < topk_vals[-1]] = float('-inf')
+                    logits[i][logits[i] < topk_vals[-1]] = float("-inf")
 
         # Apply top-p
         if sampling_metadata.top_p is not None:
@@ -2235,10 +2243,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for i in range(logits.size(0)):
                 p = float(top_p[i].item())
                 if p < 1.0:
-                    sorted_logits, sorted_indices = torch.sort(logits[i], descending=True)
-                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                    sorted_logits, sorted_indices = torch.sort(
+                        logits[i], descending=True
+                    )
+                    cumulative_probs = torch.cumsum(
+                        torch.softmax(sorted_logits, dim=-1), dim=-1
+                    )
                     mask = cumulative_probs - torch.softmax(sorted_logits, dim=-1) >= p
-                    sorted_logits[mask] = float('-inf')
+                    sorted_logits[mask] = float("-inf")
                     logits[i] = sorted_logits.scatter(0, sorted_indices, sorted_logits)
 
         # Sample from distribution
