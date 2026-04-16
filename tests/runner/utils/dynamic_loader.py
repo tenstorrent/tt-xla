@@ -79,10 +79,8 @@ class DynamicLoader:
             Tuple of (mesh_shape, mesh_names) if loader implements get_mesh_config,
             (None, None) otherwise
         """
-        # if hasattr(self.loader, "get_mesh_config"):
-        #     return self.loader.get_mesh_config(num_devices)
-
-        return (1, 16), ("model", "batch")
+        if hasattr(self.loader, "get_mesh_config"):
+            return self.loader.get_mesh_config(num_devices)
         return None, None
 
     def has_mesh_support(self) -> bool:
@@ -234,13 +232,8 @@ class DynamicLoader:
         mod = importlib.util.module_from_spec(spec)
         mod.__package__ = package_name
 
-        # Register under the dash-prefixed key to avoid conflicts with any installed
-        # tt_forge_models package, and also under the spec's canonical name so that
-        # Python's inspect.getfile() can resolve classes defined in this module
-        # (inspect looks up object.__module__ in sys.modules; if missing it raises
-        # TypeError: "is a built-in class").
+        # Add the module to sys.modules to support relative imports
         sys.modules[module_path] = mod
-        sys.modules[spec.name] = mod
         spec.loader.exec_module(mod)
 
         return mod.ModelLoader
