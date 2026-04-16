@@ -13,8 +13,6 @@ fi
 export XDG_CACHE_HOME="$PWD/.cache"
 export TT_METAL_CACHE="$PWD/.cache"
 export TTMLIR_VENV_DIR=$PWD/.local_venv
-LOGS_DIR=$PWD/logs
-mkdir -p $LOGS_DIR
 
 source $TT_XLA_ROOT/.env
 
@@ -27,7 +25,5 @@ fi
 export TTXLA_LOGGER_LEVEL=DEBUG
 
 TEST_NAME="$@"
-SAFE_NAME=$(echo "${TEST_NAME}" | tr '/:[]\.' '_')
-DATE=$(date +%Y%m%d_%H%M%S)
 set -x
 pytest "${TEST_NAME}" -v

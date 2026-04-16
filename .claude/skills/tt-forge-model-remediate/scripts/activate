@@ -8,7 +8,6 @@ fi
 export XDG_CACHE_HOME="$PWD/.cache"
 export TT_METAL_CACHE="$PWD/.cache"
 export TTMLIR_VENV_DIR=$PWD/.local_venv
-export TT_RANDOM_WEIGHTS=1
 
 cd $TT_XLA_ROOT
 source venv/activate
