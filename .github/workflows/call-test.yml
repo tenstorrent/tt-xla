@@ -549,8 +549,6 @@ jobs:
             echo "$TOPOLOGY_EXPORTS"
             eval "$TOPOLOGY_EXPORTS"
 
-            export TT_DISTRIBUTED_TCP_IFACE=enp194s0f0np0
-
             python -m pytest -sv \
               --log-memory --durations=0 \
               ./tests/torch/multi_host/experimental \
