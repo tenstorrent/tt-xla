@@ -11,9 +11,8 @@ name: Multi-host Test - Dual T3K (call)
 #   4. Runs pytest inside the controller container
 #
 # Environment variables for distributed execution (TT_DISTRIBUTED_*) are set
-# by directly invoking tests/torch/multi_host/topology.py before pytest runs.
-# This avoids relying on conftest.py fixtures, which are only loaded when tests
-# live under tests/torch/multi_host/.
+# automatically by the configure_topology pytest fixture in the test's conftest,
+# using the "dual_t3k" topology from tests/torch/multi_host/conftest.py.
 
 on:
   workflow_call:
@@ -40,7 +39,6 @@ env:
   GH_TOKEN: ${{ github.token }}
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
   TT_XLA_CI: 1
-  IN_CONTAINER_WORKSPACE: /__w/tt-xla/tt-xla
 
 jobs:
   run-multihost-tests:
@@ -133,8 +131,8 @@ jobs:
             fi
 
             DOCKER_CMD="$DOCKER_CMD \
-              -v ${{ github.workspace }}:${{ env.IN_CONTAINER_WORKSPACE }} \
-              -w ${{ env.IN_CONTAINER_WORKSPACE }} \
+              -v ${{ github.workspace }}:/workspace \
+              -w /workspace \
               ${{ inputs.docker_image }} \
               sleep infinity"
 
@@ -150,7 +148,7 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped chmod +x \
-          ${{ env.IN_CONTAINER_WORKSPACE }}/tests/torch/multi_host/experimental/remote_docker.sh
+          /workspace/tests/torch/multi_host/experimental/remote_docker.sh
         echo "remote_docker.sh is executable"
 
     - name: Download wheel artifact in controller container because dualt3k baremetal doesn't have gh
@@ -163,17 +161,17 @@ jobs:
             echo "Downloading from run: ${{ inputs.artifact_release_run_id }} name: ${{ steps.strings.outputs.wheel_artifact_name }}"
             gh run download ${{ inputs.artifact_release_run_id }} \
               --repo ${{ github.repository }} \
-              --dir ${{ env.IN_CONTAINER_WORKSPACE }}/wheels \
+              --dir /workspace/wheels \
               --name ${{ steps.strings.outputs.wheel_artifact_name }}
             echo "Downloaded wheel files:"
-            ls -la ${{ env.IN_CONTAINER_WORKSPACE }}/wheels
+            ls -la /workspace/wheels
           '
 
     - name: Install wheel in controller container
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
-          cd ${{ env.IN_CONTAINER_WORKSPACE }}
+          cd /workspace
           source venv/activate
 
           WHEEL_PATH=$(find wheels -name "*.whl" | head -n 1)
@@ -192,23 +190,19 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
-          cd ${{ env.IN_CONTAINER_WORKSPACE }}
+          cd /workspace
           source venv/activate
 
           export TTXLA_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_LEVEL=DEBUG
           export TT_METAL_LOGGER_TYPES=Fabric,Always
-          # export TT_RUNTIME_USING_DUALT3K=1
+          export TT_RUNTIME_USING_DUALT3K=1
 
-          echo "--- setting up multihost topology env ---"
-          TOPO_EXPORTS=$(python scripts/multihost_topology.py \
-            --topology dual_t3k \
-            --script-dir tests/torch/multi_host/experimental) \
-            || { echo "topology setup failed: $TOPO_EXPORTS" >&2; exit 1; }
-          echo "$TOPO_EXPORTS"
-          eval "$TOPO_EXPORTS"
-
-          pytest -svv tests/runner/test_models.py::test_all_models_torch[gpt_oss/pytorch-20B-tensor_parallel-inference]
+          pytest -svv \
+            tests/torch/multi_host/experimental/test_multihost_basic.py \
+            -k "dual_t3k" \
+            --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
+            2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
         '
 
     - name: Upload Test Log
@@ -230,9 +224,9 @@ jobs:
       shell: bash
       run: |
         docker run --rm \
-          -v "${{ github.workspace }}:${{ env.IN_CONTAINER_WORKSPACE }}" \
+          -v "${{ github.workspace }}:/workspace" \
           ${{ inputs.docker_image }} \
-          chown -R "$(id -u):$(id -g)" ${{ env.IN_CONTAINER_WORKSPACE }} || true
+          chown -R "$(id -u):$(id -g)" /workspace || true
         echo "Workspace ownership restored"
 
     - name: Cleanup
