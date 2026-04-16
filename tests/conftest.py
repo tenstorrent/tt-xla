@@ -693,7 +693,7 @@ class TeeCapture:
             self._stdout_tee.start()
             self._stderr_tee.start()
             self._started = True
-        except OSError:
+        except (OSError, AttributeError):
             self._started = False
 
     def stop(self):

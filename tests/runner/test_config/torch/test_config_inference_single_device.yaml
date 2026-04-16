@@ -2142,8 +2142,9 @@ test_config:
     markers: [large]
 
   detr/segmentation/pytorch-ResNet50_Backbone_Panoptic-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
   panoptic_segmentation/pytorch-ResNet101_Backbone_3x_COCO-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2169,7 +2170,7 @@ test_config:
     status: EXPECTED_PASSING
 
   detr/object_detection/pytorch-ResNet50_Backbone-single_device-inference:
-    assert_pcc: false
+    # assert_pcc: false
     status: EXPECTED_PASSING
 
   sentencizer/pytorch-Xlm_Roberta_Base-single_device-inference:
