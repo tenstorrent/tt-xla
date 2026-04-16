@@ -359,6 +359,8 @@ def preprocess_fused_moe_weights(
         - fused_w0_w1: ``(ring_devices*12, mesh_cols, E_per_dev, 4, K+32, 128)``
         - fused_w2: ``(ring_devices*12, mesh_cols, E_per_dev, 2, N+32, 128)``
     """
+    import gc
+
     ring_devices = mesh_shape[cluster_axis]
     mesh_cols = num_devices // ring_devices
     experts_per_device = num_experts // num_devices
@@ -367,25 +369,29 @@ def preprocess_fused_moe_weights(
     K = gate_up_proj.shape[1]
     N = gate_up_proj.shape[2] // 2
     L = 1
+    dtype = gate_up_proj.dtype
 
     # De-interleave gate_up_proj: [g0, u0, g1, u1, ...] -> w0 (gate), w1 (up)
-    w0_all = gate_up_proj[..., ::2].contiguous().float()  # [num_experts, K, N]
-    w1_all = gate_up_proj[..., 1::2].contiguous().float()
+    w0_all = gate_up_proj[..., ::2].contiguous()  # [num_experts, K, N]
+    w1_all = gate_up_proj[..., 1::2].contiguous()
+    del gate_up_proj
 
-    w2_all = down_proj.contiguous().float()  # [num_experts, N, K]
+    w2_all = down_proj.contiguous()  # [num_experts, N, K]
+    del down_proj
 
     # De-interleave biases
-    b0_all = gate_up_proj_bias[..., ::2].contiguous().float()  # [num_experts, N]
-    b1_all = gate_up_proj_bias[..., 1::2].contiguous().float()
-    b2_all = down_proj_bias.contiguous().float()  # [num_experts, K]
+    b0_all = gate_up_proj_bias[..., ::2].contiguous()  # [num_experts, N]
+    b1_all = gate_up_proj_bias[..., 1::2].contiguous()
+    del gate_up_proj_bias
+    b2_all = down_proj_bias.contiguous()  # [num_experts, K]
+    del down_proj_bias
 
     # Pad biases to tile height (32 rows): [num_experts, N] -> [num_experts, 32, N]
-    b0_all = b0_all.unsqueeze(1)
-    b0_all = F.pad(b0_all, (0, 0, 0, _TILE_SIZE - 1), "constant", 0.0)
-    b1_all = b1_all.unsqueeze(1)
-    b1_all = F.pad(b1_all, (0, 0, 0, _TILE_SIZE - 1), "constant", 0.0)
-    b2_all = b2_all.unsqueeze(1)
-    b2_all = F.pad(b2_all, (0, 0, 0, _TILE_SIZE - 1), "constant", 0.0)
+    b0_all = F.pad(b0_all.unsqueeze(1), (0, 0, 0, _TILE_SIZE - 1))
+    b1_all = F.pad(b1_all.unsqueeze(1), (0, 0, 0, _TILE_SIZE - 1))
+    b2_all = F.pad(b2_all.unsqueeze(1), (0, 0, 0, _TILE_SIZE - 1))
+
+    gc.collect()
 
     # Per-device weight preprocessing, organized as [rows, cols] for 2D mesh sharding
     w0_w1_rows = []
@@ -411,10 +417,14 @@ def preprocess_fused_moe_weights(
         w0_w1_rows.append(torch.cat(w0_w1_cols, dim=1))  # cat cols on dim 1
         w2_rows.append(torch.cat(w2_cols, dim=1))
 
+    del w0_all, w1_all, w2_all, b0_all, b1_all, b2_all
+    gc.collect()
+
     fused_w0_w1 = torch.cat(w0_w1_rows, dim=0)  # cat rows on dim 0
     fused_w2 = torch.cat(w2_rows, dim=0)
+    del w0_w1_rows, w2_rows
 
-    return fused_w0_w1, fused_w2
+    return fused_w0_w1.to(dtype), fused_w2.to(dtype)
 
 
 def _topk_to_sparse_scores(topk_weights, topk_indices, num_experts):
@@ -884,19 +894,19 @@ def _moe_gpt_decode_fallback(
     fused_w0_w1: Optional[torch.Tensor] = None,
     fused_w2: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    """Decode-only GPT-OSS decomposition expressed with SHLO custom ops."""
-    batch_size, seq_len, hidden_size = hidden_states.shape
-    assert seq_len == 1, f"Expected GPT-OSS decode input, got seq_len={seq_len}"
+    """Decode-only GPT-OSS decomposition expressed with SHLO custom ops.
 
-    x = hidden_states.view(batch_size, 1, seq_len, hidden_size)
-    expert_indices = topk_indices.view(batch_size, 1, seq_len, num_experts_per_tok)
-    expert_scores = topk_scores.view(batch_size, 1, seq_len, num_experts_per_tok)
+    Expects 4D inputs: hidden_states [B, 1, S, H], topk_indices/scores [B, 1, S, K].
+    The 3D→4D reshape is done by the caller (outside the composite boundary)
+    so that batch sharding propagates cleanly without inserting CCL ops.
+    """
+    batch_size = hidden_states.shape[0]
 
     dispatched, metadata_indices, metadata_scores = (
         torch.ops.tt.all_to_all_dispatch_metadata(
-            x,
-            expert_indices,
-            expert_scores,
+            hidden_states,
+            topk_indices,
+            topk_scores,
             dispatch_mapping,
             num_devices=num_devices,
             cluster_axis=cluster_axis,
@@ -930,10 +940,7 @@ def _moe_gpt_decode_fallback(
         output_shard_dim=2,
     )
 
-    topk_weights = topk_scores.view(batch_size, num_experts_per_tok)
-    topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)
-    output = (combined.squeeze(1) * topk_weights).sum(dim=0)
-    return output.unsqueeze(1)
+    return combined
 
 
 def _composite_moe_gpt_decode(
@@ -1324,39 +1331,35 @@ class SparseMOEGPT(A2aSparseMLP):
     """
     GPT-OSS-specific MoE wrapper.
 
-    By default this reuses the existing A2A sparse path directly. Setting
-    TT_TORCH_ENABLE_GPT_OSS_COMPOSITE=1 switches decode (S=1) execution to the
-    composite path so the new SHLO/TTIR plumbing can be exercised without
-    changing the module replacement logic.
-
-    When composite mode is enabled, expert weights are also preprocessed into
-    the fused MoE kernel layout (tile-interleaved, core-sharded) matching
-    tt-metal's ``_prepare_w0_b0_w1_b1_tensor`` / ``_prepare_w2_b2_tensor``.
+    By default this reuses the existing A2A sparse path directly. When
+    ``fused_decode=True`` (propagated from ``enable_sparse_mlp``), decode
+    (S=1) execution uses the composite path and expert weights are
+    preprocessed into the fused MoE kernel layout.
     """
 
-    def __init__(self, *args, mesh_shape: Optional[tuple] = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        fused_decode: bool = False,
+        preprocess_fused_weights: bool = False,
+        mesh_shape: Optional[tuple] = None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
-        self.use_decode_composite = (
-            os.environ.get("TT_TORCH_ENABLE_GPT_OSS_COMPOSITE", "0") == "1"
-        )
+        self.use_decode_composite = fused_decode
         # tt-metal keeps separate routing tables for dispatch and moe_gpt.
         # They currently carry the same mapping data but participate in
         # different stages of the fused decode flow.
         self.register_buffer("moe_gpt_mapping", self.expert_mapping.clone())
 
-        # Preprocess weights into fused kernel layout when composite mode is on.
+        # Preprocess weights into fused kernel layout when explicitly requested.
         self._has_fused_weights = False
-        if self.use_decode_composite and mesh_shape is not None:
-            gate_up = self.experts.gate_up_proj
-            gate_up_bias = self.experts.gate_up_proj_bias
-            down = self.experts.down_proj
-            down_bias = self.experts.down_proj_bias
-
+        if preprocess_fused_weights and mesh_shape is not None:
             fused_w0_w1, fused_w2 = preprocess_fused_moe_weights(
-                gate_up_proj=gate_up.data,
-                gate_up_proj_bias=gate_up_bias.data,
-                down_proj=down.data,
-                down_proj_bias=down_bias.data,
+                gate_up_proj=self.experts.gate_up_proj.data,
+                gate_up_proj_bias=self.experts.gate_up_proj_bias.data,
+                down_proj=self.experts.down_proj.data,
+                down_proj_bias=self.experts.down_proj_bias.data,
                 num_experts=self.num_experts,
                 num_devices=self.num_devices,
                 cluster_axis=self.cluster_axis,
@@ -1375,7 +1378,7 @@ class SparseMOEGPT(A2aSparseMLP):
         ):
             return super().forward(hidden_states)
 
-        batch_size, seq_len, _ = hidden_states.shape
+        batch_size, seq_len, hidden_size = hidden_states.shape
         router_bias = getattr(self.router, "bias", None)
         topk_indices, topk_scores = _composite_topk_router_gpt(
             hidden_states,
@@ -1385,12 +1388,22 @@ class SparseMOEGPT(A2aSparseMLP):
             self.num_experts,
         )
 
+        # Reshape to 4D BEFORE entering the composite so the batch
+        # sharding is already applied and no CCL ops leak inside.
+        hidden_4d = hidden_states.view(batch_size, 1, seq_len, hidden_size)
+        indices_4d = topk_indices.view(
+            batch_size, 1, seq_len, self.num_experts_per_tok
+        )
+        scores_4d = topk_scores.view(
+            batch_size, 1, seq_len, self.num_experts_per_tok
+        )
+
         # Build keyword args for the composite; include preprocessed fused
         # weights when available so tt-MLIR can consume them directly.
         composite_kwargs = dict(
-            hidden_states=hidden_states,
-            topk_indices=topk_indices,
-            topk_scores=topk_scores,
+            hidden_states=hidden_4d,
+            topk_indices=indices_4d,
+            topk_scores=scores_4d,
             dispatch_mapping=self.expert_mapping,
             moe_gpt_mapping=self.moe_gpt_mapping,
             gate_up_proj=self.experts.gate_up_proj,
@@ -1409,7 +1422,16 @@ class SparseMOEGPT(A2aSparseMLP):
             composite_kwargs["fused_w0_w1"] = self.fused_w0_w1
             composite_kwargs["fused_w2"] = self.fused_w2
 
-        output = _composite_moe_gpt_decode(**composite_kwargs)
+        # Composite returns combined [K, S, B, H] from selective_reduce_combine.
+        # Weighted sum with topk_scores is done outside the composite so that
+        # topk_scores (batch-sharded) is not pulled into the composite where
+        # dispatch needs it replicated — avoids arg identity conflict in reoutline.
+        combined = _composite_moe_gpt_decode(**composite_kwargs)
+
+        topk_weights = topk_scores.view(batch_size, self.num_experts_per_tok)
+        topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)
+        output = (combined.squeeze(1) * topk_weights).sum(dim=0)
+        output = output.unsqueeze(1)
 
         router_scores = _scatter_compact_router_scores(
             topk_indices.view(batch_size * seq_len, self.num_experts_per_tok),
@@ -1977,9 +1999,18 @@ def enable_sparse_mlp(
     target_classes: Optional[List[Type]] = None,
     verbose: bool = False,
     config: Optional[object] = None,
+    fused_decode: bool = False,
+    preprocess_fused_weights: bool = False,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
+
+    Args:
+        fused_decode: When True, GPT-OSS layers use the fused decode composite
+            path.
+        preprocess_fused_weights: When True, expert weights are preprocessed
+            into the fused MoE kernel layout (tile-interleaved, core-sharded)
+            matching tt-metal's weight preparation.
     """
     replaced_count = 0
 
@@ -2049,6 +2080,8 @@ def enable_sparse_mlp(
         sparse_mlp_cls = SparseMOEGPT if "gptoss" in module_type_name else A2aSparseMLP
         extra_kwargs = {}
         if sparse_mlp_cls is SparseMOEGPT:
+            extra_kwargs["fused_decode"] = fused_decode
+            extra_kwargs["preprocess_fused_weights"] = preprocess_fused_weights
             extra_kwargs["mesh_shape"] = mesh
         sparse_mlp = sparse_mlp_cls(
             module,

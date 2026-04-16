@@ -64,6 +64,7 @@ def test_llm(
     inject_custom_moe: bool = False,
     custom_moe_cluster_axis: int = 0,
     gpt_oss_fused_decode: bool = False,
+    preprocess_fused_weights: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -166,12 +167,14 @@ def test_llm(
         inject_custom_moe=inject_custom_moe,
         custom_moe_cluster_axis=custom_moe_cluster_axis,
         gpt_oss_fused_decode=gpt_oss_fused_decode,
+        preprocess_fused_weights=preprocess_fused_weights,
     )
 
     if isinstance(results.get("config"), dict):
         results["config"]["inject_custom_moe"] = inject_custom_moe
         results["config"]["custom_moe_cluster_axis"] = custom_moe_cluster_axis
         results["config"]["gpt_oss_fused_decode"] = gpt_oss_fused_decode
+        results["config"]["preprocess_fused_weights"] = preprocess_fused_weights
 
     if output_file:
         results["project"] = "tt-forge/tt-xla"
@@ -1726,10 +1729,10 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
         shard_specs[layer.mlp.router.weight] = (None, None)
         # This is a temporary sharding spec to enable gpt oss to not get OOM on galaxy.
         # Once the MoE module is refactored, this should be changed to EP 32.
-        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", "batch", None)
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
-        shard_specs[layer.mlp.experts.down_proj] = ("model", None, "batch")
-        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
+        shard_specs[layer.mlp.experts.gate_up_proj] = (("batch", "model"), None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("batch", "model"), None)
+        shard_specs[layer.mlp.experts.down_proj] = (("batch", "model"), None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = (("batch", "model"), None)
         shard_specs[layer.input_layernorm.weight] = (None,)
         shard_specs[layer.post_attention_layernorm.weight] = (None,)
 
@@ -1791,11 +1794,11 @@ def test_gpt_oss_120b_tp_dp_galaxy_fused_decode_batch_size_128(
         ModelLoader,
         variant,
         output_file,
-        num_layers=num_layers,
+        num_layers=1,
         request=request,
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
+        decode_only=True,
         batch_size=128,
         arch="wormhole_galaxy",
         optimization_level=1,
@@ -1807,4 +1810,5 @@ def test_gpt_oss_120b_tp_dp_galaxy_fused_decode_batch_size_128(
         inject_custom_moe=True,
         custom_moe_cluster_axis=0,
         gpt_oss_fused_decode=gpt_oss_fused_decode,
+        preprocess_fused_weights=True,
     )

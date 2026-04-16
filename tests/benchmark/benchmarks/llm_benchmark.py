@@ -67,7 +67,13 @@ def temporary_env_var(name: str, value: Optional[str]):
             os.environ.pop(name, None)
 
 
-def _inject_custom_moe(model: torch.nn.Module, mesh: Mesh, cluster_axis: int) -> None:
+def _inject_custom_moe(
+    model: torch.nn.Module,
+    mesh: Mesh,
+    cluster_axis: int,
+    fused_decode: bool = False,
+    preprocess_fused_weights: bool = False,
+) -> None:
     from tt_torch.sparse_mlp import enable_sparse_mlp
 
     mesh_shape = tuple(mesh.mesh_shape)
@@ -76,6 +82,8 @@ def _inject_custom_moe(model: torch.nn.Module, mesh: Mesh, cluster_axis: int) ->
         mesh=mesh_shape,
         cluster_axis=cluster_axis,
         config=getattr(model, "config", None),
+        fused_decode=fused_decode,
+        preprocess_fused_weights=preprocess_fused_weights,
     )
 
 
@@ -257,6 +265,7 @@ def benchmark_llm_torch_xla(
     inject_custom_moe: bool = False,
     custom_moe_cluster_axis: int = 0,
     gpt_oss_fused_decode: bool = False,
+    preprocess_fused_weights: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -287,6 +296,7 @@ def benchmark_llm_torch_xla(
         inject_custom_moe: Whether to replace MoE blocks with tt_torch sparse_mlp adapters
         custom_moe_cluster_axis: Mesh axis used for custom MoE dispatch/combine
         gpt_oss_fused_decode: Whether GPT-OSS decode should use the fused composite path
+        preprocess_fused_weights: Whether to preprocess expert weights into fused kernel layout
 
     Returns:
         Benchmark result containing token generation performance metrics and model information
@@ -413,21 +423,26 @@ def benchmark_llm_torch_xla(
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         past_key_values=decode_only_cache if decode_only else None,
     )
-    input_args = transfer_to_device(input_args, device)
-    model = model.to(device, dtype=torch.bfloat16)
-
-    # Shard model if shard spec function is provided
+    # Inject custom MoE before transferring to device so weight
+    # preprocessing runs on CPU tensors.
     mesh = None
     if is_multichip:
         mesh = get_mesh(model_loader, mesh_config_fn)
 
         if inject_custom_moe:
-            with temporary_env_var(
-                "TT_TORCH_ENABLE_GPT_OSS_COMPOSITE",
-                "1" if gpt_oss_fused_decode else "0",
-            ):
-                _inject_custom_moe(model, mesh, custom_moe_cluster_axis)
+            _inject_custom_moe(
+                model,
+                mesh,
+                custom_moe_cluster_axis,
+                fused_decode=gpt_oss_fused_decode,
+                preprocess_fused_weights=preprocess_fused_weights,
+            )
 
+    input_args = transfer_to_device(input_args, device)
+    model = model.to(device, dtype=torch.bfloat16)
+
+    # Shard model if shard spec function is provided
+    if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
