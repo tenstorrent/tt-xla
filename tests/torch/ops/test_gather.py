@@ -1,12 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import numpy as np
 import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.testers.compiler_config import CompilerConfig
 from torch import nn
+from torch_xla.distributed.spmd import Mesh
 
 
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
@@ -25,6 +27,17 @@ def test_gather_indices(batch_size, seq_len):
             gathered_x = torch.gather(x, 1, index)
             return gathered_x
 
+    # Setup mesh
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (2, 4)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(gather_module, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = ("batch", None, None)
+        return shard_specs
+
     kv_lora_rank = 512
     index_topk = 16
     x = torch.randn(batch_size, seq_len, kv_lora_rank, dtype=torch.bfloat16)
@@ -40,5 +53,7 @@ def test_gather_indices(batch_size, seq_len):
         gather_indices,
         [x],
         framework=Framework.TORCH,
-        compiler_config=CompilerConfig(enable_const_eval_on_cpu=False),
+        shard_spec_fn=get_shard_spec,
+        mesh=mesh,
+        # compiler_config=CompilerConfig(enable_const_eval_on_cpu=False),
     )
