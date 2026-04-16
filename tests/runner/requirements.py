@@ -186,12 +186,18 @@ class RequirementsManager:
             rel = os.path.relpath(loader_dir, models_root)
 
             candidate_roots = []
-            override_root = os.environ.get("TT_FORGE_MODELS_ROOT")
-            if override_root:
-                candidate_roots.append(override_root)
+            # TTMLIR_VENV_DIR is set to <worktree>/.local_venv *before*
+            # .env is sourced and is never overridden by it, making
+            # os.path.dirname(TTMLIR_VENV_DIR) the most reliable proxy for
+            # the current worktree root.  Check it first so that a stale
+            # TT_FORGE_MODELS_ROOT in .env (pointing at a different worktree)
+            # does not shadow the correct requirements file.
             venv_dir = os.environ.get("TTMLIR_VENV_DIR")
             if venv_dir:
                 candidate_roots.append(os.path.dirname(venv_dir))
+            override_root = os.environ.get("TT_FORGE_MODELS_ROOT")
+            if override_root:
+                candidate_roots.append(override_root)
 
             for root in candidate_roots:
                 if not os.path.isdir(root):
