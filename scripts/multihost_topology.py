@@ -140,6 +140,7 @@ def get_distributed_worker_path() -> str:
     if not pjrt_plugin_dir:
         try:
             from pjrt_plugin_tt import setup_tt_pjrt_plugin_dir
+
             setup_tt_pjrt_plugin_dir()
             pjrt_plugin_dir = os.environ.get("TT_PJRT_PLUGIN_DIR")
         except ImportError:
@@ -223,8 +224,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
             "Print shell export statements for a given distributed topology. "
-            "Intended to be eval'd in CI bash steps: "
-            "eval $(python -m tests.torch.multi_host.topology --topology dual_t3k)"
+            "Intended to be eval'd in CI bash steps, e.g. "
+            "eval $(python scripts/multihost_topology.py --topology dual_t3k "
+            "--script-dir tests/torch/multi_host/experimental)"
         )
     )
     parser.add_argument(

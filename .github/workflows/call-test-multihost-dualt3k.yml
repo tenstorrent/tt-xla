@@ -10,9 +10,8 @@ name: Multi-host Test - Dual T3K (call)
 #   3. Installs the wheel artifact inside the controller container
 #   4. Runs pytest inside the controller container
 #
-# Environment variables for distributed execution (TT_DISTRIBUTED_*) are set
-# automatically by the configure_topology pytest fixture in the test's conftest,
-# using the "dual_t3k" topology from tests/torch/multi_host/conftest.py.
+# Distributed-related env is provided by the runner/container; this job sets
+# dual-t3k-specific variables (e.g. TT_RUNTIME_USING_DUALT3K) before pytest.
 
 on:
   workflow_call:
