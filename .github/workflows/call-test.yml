@@ -433,11 +433,12 @@ jobs:
             --splitting-algorithm least_duration"
         fi
 
+        # Use -m '...' not -m "..." so BASE_PYTEST_CMD does not nest double quotes inside FULL_PYTEST_CMD="...".
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
-          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -m '${MARKS}' ${{ matrix.build.args }} \
           -k "$(printf '%q' '${{ matrix.build.contains }}')" \
           $PYTEST_SPLITS"
 

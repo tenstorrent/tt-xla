@@ -30,7 +30,6 @@ on:
           - 'fusion-tests.json'
           - 'basic-multihost-test.json'
           - 'Custom'
-        default: 'basic-test.json'
       test_suite_custom:
         description: 'Custom test suite json'
         required: false

@@ -115,7 +115,7 @@ jobs:
           echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT
 
   test:
-    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
+    if: always() && !cancelled() && inputs.preset != 'tt_forge_models'
     uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla, generate-test-config ]
     secrets: inherit
