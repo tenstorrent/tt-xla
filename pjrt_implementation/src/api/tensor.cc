@@ -182,7 +182,7 @@ tt::runtime::Tensor PjrtTensor::rt_tensor_from_strategy(
     const std::unordered_map<std::string, std::string> &strategy,
     const std::vector<std::uint32_t> &mesh_shape) {
 
-  if (strategy.at("strategy") == "identity") {
+  if (strategy.at("strategy") == "identity" || strategy.at("strategy") == "replicate") {
     return shards.front()->runtimeTensor();
   }
 
