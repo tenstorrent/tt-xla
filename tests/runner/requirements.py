@@ -161,10 +161,24 @@ class RequirementsManager:
 
     @staticmethod
     def for_loader(
-        loader_path: str, framework: Optional[str] = None
+        loader_path: str,
+        framework: Optional[str] = None,
+        models_root: Optional[str] = None,
     ) -> "RequirementsManager":
         loader_dir = os.path.dirname(os.path.abspath(loader_path))
         req_path = os.path.join(loader_dir, "requirements.txt")
+
+        # If TT_FORGE_MODELS_ROOT is set, prefer requirements from the override
+        # root (e.g. a writable git worktree) over the discovered path, matching
+        # the behaviour of import_model_loader in dynamic_loader.py.
+        override_root = os.environ.get("TT_FORGE_MODELS_ROOT")
+        if override_root and os.path.isdir(override_root) and models_root:
+            rel = os.path.relpath(loader_dir, models_root)
+            override_dir = os.path.join(override_root, rel)
+            override_req = os.path.join(override_dir, "requirements.txt")
+            if os.path.isfile(override_req):
+                req_path = override_req
+
         return RequirementsManager(req_path, framework=framework)
 
     def __enter__(self) -> "RequirementsManager":

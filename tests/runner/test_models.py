@@ -85,7 +85,10 @@ def _run_model_test_impl(
     print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
     # Ensure per-model requirements are installed, and roll back after the test
-    with RequirementsManager.for_loader(loader_path, framework=str(framework)):
+    models_root = MODELS_ROOT_TORCH if framework == Framework.TORCH else MODELS_ROOT_JAX
+    with RequirementsManager.for_loader(
+        loader_path, framework=str(framework), models_root=models_root
+    ):
 
         ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
