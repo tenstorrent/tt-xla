@@ -168,16 +168,38 @@ class RequirementsManager:
         loader_dir = os.path.dirname(os.path.abspath(loader_path))
         req_path = os.path.join(loader_dir, "requirements.txt")
 
-        # If TT_FORGE_MODELS_ROOT is set, prefer requirements from the override
-        # root (e.g. a writable git worktree) over the discovered path, matching
-        # the behaviour of import_model_loader in dynamic_loader.py.
-        override_root = os.environ.get("TT_FORGE_MODELS_ROOT")
-        if override_root and os.path.isdir(override_root) and models_root:
+        # When running from a git worktree, prefer requirements from the
+        # worktree root over the read-only discovered path.  Two env vars may
+        # identify the worktree:
+        #
+        #  1. TT_FORGE_MODELS_ROOT – set explicitly to the worktree root.
+        #  2. TTMLIR_VENV_DIR – set to <worktree_root>/.local_venv by run.sh
+        #     *before* .env is sourced, so it is never overridden by .env.
+        #     os.path.dirname(TTMLIR_VENV_DIR) is therefore a reliable proxy
+        #     for the current worktree root even when TT_FORGE_MODELS_ROOT has
+        #     been clobbered by a stale .env pointing at a different worktree.
+        #
+        # We try TT_FORGE_MODELS_ROOT first; if that does not yield a file we
+        # fall back to TTMLIR_VENV_DIR.  Both use the same relative-path logic
+        # as import_model_loader in dynamic_loader.py.
+        if models_root:
             rel = os.path.relpath(loader_dir, models_root)
-            override_dir = os.path.join(override_root, rel)
-            override_req = os.path.join(override_dir, "requirements.txt")
-            if os.path.isfile(override_req):
-                req_path = override_req
+
+            candidate_roots = []
+            override_root = os.environ.get("TT_FORGE_MODELS_ROOT")
+            if override_root:
+                candidate_roots.append(override_root)
+            venv_dir = os.environ.get("TTMLIR_VENV_DIR")
+            if venv_dir:
+                candidate_roots.append(os.path.dirname(venv_dir))
+
+            for root in candidate_roots:
+                if not os.path.isdir(root):
+                    continue
+                candidate_req = os.path.join(root, rel, "requirements.txt")
+                if os.path.isfile(candidate_req):
+                    req_path = candidate_req
+                    break
 
         return RequirementsManager(req_path, framework=framework)
 
