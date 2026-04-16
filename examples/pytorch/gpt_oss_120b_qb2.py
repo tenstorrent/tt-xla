@@ -129,7 +129,7 @@ def setup_spmd():
     # the prefill forward pass to hang on QB2 during execution. Expert weights
     # are still overridden to bfp4 per-tensor in setup_model_and_tokenizer.
     # Re-enable once QB2 bfp8 execution is validated.
-    # torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp_bf8"})
+    torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp_bf8"})
 
     # Persistent compilation cache — avoids recompiling on every run.
     # The cache is keyed on graph hash so it auto-invalidates when the model or
@@ -545,6 +545,10 @@ def run_generate(
         print(f"  Throughput (all users):       {num_users / avg_decode:.1f} tokens/s")
         print(f"  Throughput (per user):        {1 / avg_decode:.1f} tokens/s")
     print("=" * 50)
+    if is_interactive:
+        print("\n--- RAW TOKEN STREAM (user 0, unfiltered) ---")
+        print("".join(output_tokens[0]))
+        print("--- END RAW TOKEN STREAM ---")
     if not is_interactive:
         for i in range(num_users):
             print(f"=" * 80)
