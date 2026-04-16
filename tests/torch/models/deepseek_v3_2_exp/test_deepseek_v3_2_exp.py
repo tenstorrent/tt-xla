@@ -4,6 +4,7 @@
 import json
 import os
 import re
+import time
 
 import numpy as np
 import pytest
@@ -382,6 +383,7 @@ def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=
 
     all_shards = set(weight_keys.values()) | set(scale_shards.values())
 
+    t_shard_start = time.perf_counter()
     raw = {}
     for idx, shard_name in enumerate(sorted(all_shards)):
         shard_path = hf_hub_download(repo_id, shard_name)
@@ -394,9 +396,16 @@ def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=
             f"({len(raw)} tensors so far)",
             flush=True,
         )
+    t_shard_end = time.perf_counter()
     print(f"[weights] loaded {len(raw)} raw tensors from {len(all_shards)} shards")
+    print(
+        f"[timing] shard read (hf_hub_download + safe_open): "
+        f"{t_shard_end - t_shard_start:.1f}s",
+        flush=True,
+    )
 
     # Dequantize FP8 weights
+    t_dequant_start = time.perf_counter()
     dequantized = {}
     n_dequant = 0
     for ckpt_key in weight_keys:
@@ -412,9 +421,15 @@ def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=
             else:
                 tensor = tensor.to(torch.bfloat16)
         dequantized[ckpt_key] = tensor
+    t_dequant_end = time.perf_counter()
     print(f"[weights] dequantized {n_dequant} FP8 tensors")
+    print(
+        f"[timing] FP8 dequantize: {t_dequant_end - t_dequant_start:.1f}s",
+        flush=True,
+    )
 
     # Rename keys and cast to bf16
+    t_rename_start = time.perf_counter()
     state_dict = {}
     for ckpt_key, tensor in dequantized.items():
         model_key = _rename_hf_key(ckpt_key, n_dense_layers)
@@ -425,11 +440,22 @@ def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=
         elif tensor.dtype != torch.bfloat16:
             tensor = tensor.to(torch.bfloat16)
         state_dict[model_key] = tensor
+    t_rename_end = time.perf_counter()
+    print(
+        f"[timing] rename keys + build state_dict: {t_rename_end - t_rename_start:.1f}s",
+        flush=True,
+    )
 
+    t_load_start = time.perf_counter()
     missing, unexpected = model.load_state_dict(state_dict, strict=False, assign=True)
+    t_load_end = time.perf_counter()
     print(
         f"[weights] loaded {len(state_dict)} tensors. "
         f"Missing: {len(missing)}, Unexpected: {len(unexpected)}"
+    )
+    print(
+        f"[timing] load_state_dict: {t_load_end - t_load_start:.1f}s",
+        flush=True,
     )
     if missing:
         real_missing = [
@@ -1623,6 +1649,8 @@ def _align_model_to_bf16(model):
 @pytest.mark.llmbox
 def test_deepseek_v3_1_full_sparse_moe():
     """Test full DeepseekV3.1 Transformer with A2aSparseMLP on (4,8) mesh — real input."""
+    t_start = time.perf_counter()
+
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
@@ -1641,20 +1669,37 @@ def test_deepseek_v3_1_full_sparse_moe():
     args.max_seq_len = args.original_seq_len + 1
     print(f"[config] {args}")
 
+    t0 = time.perf_counter()
+    print(f"[timing] config + init: {t0 - t_start:.1f}s", flush=True)
+
     with torch.device("meta"):
         model = ModifiedTransformer(args)
+
+    t1 = time.perf_counter()
+    print(f"[timing] model construction (meta): {t1 - t0:.1f}s", flush=True)
+
     _load_modified_dequantized_weights(
         model,
         repo_id=repo_id,
         n_layers=args.n_layers,
         n_dense_layers=args.n_dense_layers,
     )
+
+    t2 = time.perf_counter()
+    print(f"[timing] weight load + dequant: {t2 - t1:.1f}s", flush=True)
+
     _fix_meta_buffers(model, args)
     _align_model_to_bf16(model)
     model.eval()
 
+    t3 = time.perf_counter()
+    print(f"[timing] fix_meta + align_bf16 + eval: {t3 - t2:.1f}s", flush=True)
+
     mesh_shape = (4, 8)
     enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+
+    t4 = time.perf_counter()
+    print(f"[timing] enable_sparse_mlp: {t4 - t3:.1f}s", flush=True)
 
     tokenizer = AutoTokenizer.from_pretrained(repo_id, trust_remote_code=True)
     # text = "The quick brown fox jumps over the lazy dog. " * 10

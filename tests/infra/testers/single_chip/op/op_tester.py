@@ -67,21 +67,59 @@ class OpTester(BaseTester):
         Returns:
             A tuple of (tt_res, cpu_res).
         """
+        from infra.connectors import DeviceType
+
+        t0 = time.perf_counter()
+
         cpu_workload = workload
         if self._framework == Framework.JAX:
             compile_jax_workload_for_cpu(cpu_workload)
         else:
             compile_torch_workload_for_cpu(cpu_workload)
+
+        t1 = time.perf_counter()
+        print(f"[timing] CPU compile: {t1 - t0:.1f}s", flush=True)
+
         cpu_res = self._device_runner.run_on_cpu(cpu_workload)
+
+        t2 = time.perf_counter()
+        print(f"[timing] CPU forward: {t2 - t1:.1f}s", flush=True)
 
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
-        tt_res = self._device_runner.run_on_tt_device(tt_workload)
+
+        t3 = time.perf_counter()
+        print(f"[timing] TT compile (torch.compile): {t3 - t2:.1f}s", flush=True)
+
+        device = self._device_runner._device_connector.connect_device(DeviceType.TT, 0)
+
+        t4 = time.perf_counter()
+        print(f"[timing] TT connect_device: {t4 - t3:.1f}s", flush=True)
+
+        device_workload = self._device_runner._put_on_device(tt_workload, device=device)
+
+        t5 = time.perf_counter()
+        print(
+            f"[timing] TT put_on_device (model.to + sharding): {t5 - t4:.1f}s",
+            flush=True,
+        )
+
+        tt_res = self._device_runner._run_on_device(device_workload, device)
+
+        t6 = time.perf_counter()
+        print(
+            f"[timing] TT execute (trace+compile+run): {t6 - t5:.1f}s",
+            flush=True,
+        )
 
         if self._custom_comparator is not None:
             self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
         else:
             self._evaluator.evaluate(tt_res, cpu_res)
+
+        t7 = time.perf_counter()
+        print(f"[timing] comparison: {t7 - t6:.1f}s", flush=True)
+        print(f"[timing] run_graph_test total: {t7 - t0:.1f}s", flush=True)
 
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
