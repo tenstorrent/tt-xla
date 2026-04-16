@@ -68,6 +68,21 @@ def pytest_addoption(parser):
         help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
     )
 
+    parser.addoption(
+        "--layer-index",
+        action="store",
+        default=None,
+        type=int,
+        help="Specific layer index to isolate (0-based). Loads a 1-layer model with weights from this layer.",
+    )
+
+    parser.addoption(
+        "--deinterleave",
+        action="store_true",
+        default=False,
+        help="De-interleave gate_up_proj into separate gate_proj and up_proj for better quantization.",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -97,3 +112,13 @@ def max_output_tokens(request):
 @pytest.fixture
 def decode_only(request):
     return request.config.getoption("--decode-only")
+
+
+@pytest.fixture
+def layer_index(request):
+    return request.config.getoption("--layer-index")
+
+
+@pytest.fixture
+def deinterleave(request):
+    return request.config.getoption("--deinterleave")

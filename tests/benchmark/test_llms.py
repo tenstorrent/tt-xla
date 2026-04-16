@@ -54,6 +54,8 @@ def test_llm(
     required_pcc=DEFAULT_REQUIRED_PCC,
     fp32_dest_acc_en=None,
     num_layers=None,
+    layer_index=None,
+    deinterleave=False,
     request=None,
     accuracy_testing: bool = False,
     max_output_tokens=None,
@@ -79,14 +81,21 @@ def test_llm(
         read_logits_fn: Function to extract logits from model output
         required_pcc: Required PCC threshold
         num_layers: Number of layers to override
+        layer_index: Specific layer index to isolate (0-based)
+        deinterleave: De-interleave gate_up_proj into separate gate_proj and up_proj
         accuracy_testing: Enable token accuracy testing with reference data
     """
     # Set default batch size if None
     if batch_size is None:
         batch_size = DEFAULT_BATCH_SIZE
 
+    loader_kwargs = {}
+    if layer_index is not None:
+        loader_kwargs["layer_index"] = layer_index
+    if deinterleave:
+        loader_kwargs["deinterleave"] = True
     model_loader = create_model_loader(
-        ModelLoaderModule, num_layers=num_layers, variant=variant
+        ModelLoaderModule, num_layers=num_layers, variant=variant, **loader_kwargs
     )
     if num_layers is not None and model_loader is None:
         pytest.fail(
@@ -1782,7 +1791,14 @@ def test_gpt_oss_120b_tp_qb2(
 
 
 def test_gpt_oss_120b(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens
+    output_file,
+    num_layers,
+    layer_index,
+    deinterleave,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1795,12 +1811,14 @@ def test_gpt_oss_120b(
         variant=variant,
         output_file=output_file,
         num_layers=num_layers,
+        layer_index=layer_index,
+        deinterleave=deinterleave,
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         weight_dtype_overrides={
-            # "model.layers.*.mlp.router.weight": "bf16",
+            "model.layers.*.mlp.router.weight": "bf16",
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
