@@ -242,12 +242,18 @@ void BufferInstance::copyFromHost(
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
 
-    runtime_tensor = tt::runtime::createOwnedHostTensor(
-        host_buffer, shape, strides, element_size, runtime_data_type);
+    // runtime_tensor = tt::runtime::createOwnedHostTensor(
+    //     host_buffer, shape, strides, element_size, runtime_data_type);
 
-    // Memory is copied, we don't need host buffer anymore.
-    EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
-                                          tt_pjrt_status::kSuccess);
+    // // Memory is copied, we don't need host buffer anymore.
+    // EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+    //                                       tt_pjrt_status::kSuccess);
+    m_borrowed_host_base_ptr = host_buffer;
+
+    runtime_tensor = tt::runtime::createBorrowedHostTensorOnController(const_cast<void *>(host_buffer), shape, strides, element_size, runtime_data_type);
+    m_done_with_host_buffer_event = done_with_host_buffer_event.get();
+    m_done_with_host_buffer_event->setIndestructible();
+    
   }
   // Otherwise when input host buffer has other semantic we are allowed to alias
   // it, so we can create borrowed host which doesn't copy any data and instead

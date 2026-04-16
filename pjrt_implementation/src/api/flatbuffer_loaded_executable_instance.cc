@@ -106,10 +106,52 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     LOG_F(INFO, "%s", log_stream.str().c_str());
   }
 
-          
+         
   if (mlir::failed(strategy)) {
     LOG_F(ERROR, "Failed to fill strategy map from sharding");
     return std::nullopt;
+  }
+
+  // Group arg buffers by their borrowed host base pointer. Buffers that do
+  // not borrow host memory (i.e. own their host tensor) are skipped.
+  std::unordered_map<const void *, std::vector<BufferInstance *>>
+      borrowed_host_base_ptr_to_buffers;
+  borrowed_host_base_ptr_to_buffers.reserve(arg_buffers.size());
+
+  for (BufferInstance *buf : arg_buffers) {
+    if (buf == nullptr) {
+      continue;
+    }
+    const void *host_base = buf->borrowedHostBasePointer();
+    if (host_base != nullptr) {
+      borrowed_host_base_ptr_to_buffers[host_base].push_back(buf);
+    }
+  }
+
+  // map population
+  {
+    std::ostringstream log_stream;
+    log_stream << "borrowed_host_base_ptr_to_buffers for arg_index="
+               << arg_index << " (entries=" << borrowed_host_base_ptr_to_buffers.size()
+               << "): ";
+    size_t entry_idx = 0;
+    for (const auto &[host_base, buffers] : borrowed_host_base_ptr_to_buffers) {
+      log_stream << "{host_base=" << host_base
+                 << " count=" << buffers.size() << " buffers=[";
+      for (size_t i = 0; i < buffers.size(); ++i) {
+        const BufferInstance *b = buffers[i];
+        log_stream << "(uid=" << b->getUID() << " ptr=" << b
+                   << " shape=(" << b->toShapeStr() << "))";
+        if (i + 1 < buffers.size()) {
+          log_stream << ", ";
+        }
+      }
+      log_stream << "]}";
+      if (++entry_idx < borrowed_host_base_ptr_to_buffers.size()) {
+        log_stream << ", ";
+      }
+    }
+    LOG_F(INFO, "%s", log_stream.str().c_str());
   }
 
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
