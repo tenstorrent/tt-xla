@@ -7,6 +7,7 @@
 
 // tracy includes
 #include "tracy/Tracy.hpp"
+#include "tt/runtime/runtime.h"
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -153,9 +154,49 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     }
     LOG_F(INFO, "%s", log_stream.str().c_str());
   }
+  
+  for (const auto &[host_base, buffers] : borrowed_host_base_ptr_to_buffers) {
+    if (buffers.empty()) {
+      continue;
+    }
 
+    // Use the first buffer's existing (borrowed) runtime tensor to recover the
+    // shape/stride/itemsize/dtype metadata needed to materialize an owned
+    // host copy. All buffers that share this host_base are expected to have
+    // identical TensorDesc since they alias the same client host array.
+    const tt::runtime::TensorDesc desc =
+        tt::runtime::getTensorDesc(buffers.front()->runtimeTensor());
+
+    // First buffer gets a newly-allocated owned host tensor that actually
+    // copies the bytes from the client's host_base pointer. Subsequent
+    // buffers in the group get unsafe-borrowed tensors aliasing that owned
+    // tensor, so we only hold one copy of the data on the worker side.
+    tt::runtime::Tensor owned_tensor =
+        tt::runtime::createOwnedHostTensor(host_base, desc);
+
+    for (size_t i = 0; i < buffers.size(); ++i) {
+      BufferInstance *buffer = buffers[i];
+
+      tt::runtime::Tensor worker_runtime_tensor =
+          (i == 0) ? owned_tensor
+                   : tt::runtime::createUnsafeBorrowedHostTensor(owned_tensor);
+
+      // Inplace replacement: rebuilds the BufferInstance's PjrtTensor around
+      // the new runtime tensor and updates m_pjrt_tensor via setPjrtTensor.
+      // This releases the old (borrowed-from-client) runtime tensor.
+      PjrtTensor::from_runtime_tensor({buffer},
+                                      std::move(worker_runtime_tensor));
+    }
+  }
+
+
+  
+  // from runtime tensor will create a multidevice host tensor from shards here, if necessary (strategy != identity)
+  // at this point, we should swap out the shards with the new worker local tensors
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
+
+  
 
   tensor.ensure_layout(runtime_device, expected_layout);
 
