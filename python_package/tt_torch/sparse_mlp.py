@@ -391,8 +391,8 @@ def build_expert_mapping(num_experts, num_devices, mesh_shape=None):
     return mapping
 
 
-# class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
-class FusedMoEWrapper(SparseMLP, nn.Module):
+class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
+    # class FusedMoEWrapper(SparseMLP, nn.Module):
     """Wraps vLLM's FusedMoE to work with A2aSparseMLP.
 
     Extracts internal weight matrices from FusedMoE's quant_method and exposes them
