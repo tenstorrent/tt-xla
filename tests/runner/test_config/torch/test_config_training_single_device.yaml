@@ -2253,15 +2253,7 @@ test_config:
     status: UNSPECIFIED
     markers: [dummy]
     supported_archs: [p150]
-  gemma/pytorch-1.1_2B_IT-single_device-training:
-    status: UNSPECIFIED
-    markers: [dummy]
-    supported_archs: [p150]
   gemma/pytorch-1.1_7B_IT-single_device-training:
-    status: UNSPECIFIED
-    markers: [dummy]
-    supported_archs: [p150]
-  gemma/pytorch-2_2B_IT-single_device-training:
     status: UNSPECIFIED
     markers: [dummy]
     supported_archs: [p150]
@@ -2322,10 +2314,6 @@ test_config:
     markers: [dummy]
     supported_archs: [p150]
   clip/pytorch-Large_Patch14_336-single_device-training:
-    status: UNSPECIFIED
-    markers: [dummy]
-    supported_archs: [p150]
-  qwen_3/causal_lm/pytorch-1_7B-single_device-training:
     status: UNSPECIFIED
     markers: [dummy]
     supported_archs: [p150]
