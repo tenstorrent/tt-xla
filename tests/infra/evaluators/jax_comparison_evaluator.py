@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import warnings
+
 import jax
 import jax.numpy as jnp
 from infra.runners import run_on_cpu
@@ -61,8 +63,19 @@ class JaxComparisonEvaluator(ComparisonEvaluator):
     # @override
     @run_on_cpu(Framework.JAX)
     def _compare_pcc(
-        self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+        self,
+        device_output: PyTree,
+        golden_output: PyTree,
+        pcc_config: PccConfig,
+        pcc_mask: PyTree | None = None,
     ) -> float:
+
+        # TODO: Once https://github.com/tenstorrent/tt-xla/issues/3641 is fixed, add support for pcc_mask, as done in TorchComparisonEvaluator.
+        if pcc_mask is not None:
+            warnings.warn(
+                "pcc_mask was provided to JaxComparisonEvaluator but will be ignored.",
+            )
+
         def compute_pcc(x: jax.Array, y: jax.Array):
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.

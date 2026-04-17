@@ -48,6 +48,11 @@ on:
         required: false
         type: boolean
         default: false
+      forge_models_override:
+        description: 'Git SHA of commit (or branch name) in tenstorrent/tt-forge-models'
+        required: false
+        type: string
+        default: ''
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -123,6 +128,20 @@ jobs:
           tests/
           venv/
           examples/
+
+    - name: Override tt_forge_models ref
+      if: ${{ inputs.forge_models_override != '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Resolve short SHAs/refs via GitHub API, fall back to raw input
+        REF="${{ inputs.forge_models_override }}"
+        RESOLVED=$(gh api repos/tenstorrent/tt-forge-models/commits/$REF --jq .sha 2>/dev/null || echo "$REF")
+        cd third_party/tt_forge_models
+        git fetch --depth=1 origin $RESOLVED
+        git checkout FETCH_HEAD
+        echo "tt_forge_models checked out at $(git rev-parse HEAD)"
 
     - name: Fetch job id
       id: fetch-job-id
@@ -269,8 +288,6 @@ jobs:
       run: |
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
-        # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
-        # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
         PYTEST_FORKED=""
         for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
@@ -324,7 +341,7 @@ jobs:
     # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
-      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 && inputs.forge_models_override == '' }}
       shell: bash
       run: |
         source venv/activate
@@ -402,6 +419,7 @@ jobs:
       with:
         name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: pytest.log
+        if-no-files-found: ignore
 
     - name: Upload Test Report
       uses: actions/upload-artifact@v6
@@ -409,6 +427,7 @@ jobs:
       with:
         name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
+        if-no-files-found: ignore
 
     # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
     - name: Upload Benchmark Report

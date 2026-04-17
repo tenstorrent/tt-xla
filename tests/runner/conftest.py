@@ -195,6 +195,10 @@ def pytest_collection_modifyitems(config, items):
             # Add "red" marker for RED models to enable filtering like: -m red
             if model_group == ModelGroup.RED:
                 item.add_marker(pytest.mark.red)
+            elif model_group == ModelGroup.GENERALITY:
+                item.add_marker(pytest.mark.generality)
+            elif model_group == ModelGroup.VULCAN:
+                item.add_marker(pytest.mark.vulcan)
 
             # Apply schedule markers if not already specified in config
             has_schedule_marker = any(

@@ -84,8 +84,13 @@ def test_kimi_k2_attention_prefill():
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, max_cache_len).bool().tril(), float("-inf")
     )
 
     num_devices = xr.global_runtime_device_count()
@@ -157,8 +162,13 @@ def test_kimi_k2_attention_decode():
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, max_cache_len).bool().tril(), float("-inf")
     )
 
     num_devices = xr.global_runtime_device_count()
@@ -240,8 +250,13 @@ def test_kimi_k2_layer():
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, max_cache_len).bool().tril(), float("-inf")
     )
     cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
     num_devices = xr.global_runtime_device_count()

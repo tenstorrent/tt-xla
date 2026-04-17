@@ -38,6 +38,10 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      forge_models_override:
+        description: 'Git SHA of commit (or branch name) in tenstorrent/tt-forge-models'
+        required: false
+        type: string
       manylinux_build:
         description: 'Build and use manylinux wheel'
         required: false
@@ -99,6 +103,7 @@ jobs:
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
       reset_card_between_tests: ${{ inputs.reset_card_between_tests }}
+      forge_models_override: ${{ inputs.forge_models_override }}
 
   test-multihost-dualt3k:
     if: always() && !cancelled() && !failure() && inputs.run_multihost_dualt3k
