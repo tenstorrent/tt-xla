@@ -327,6 +327,8 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
   // In compile-only mode, output buffers have no associated tensor (no
   // hardware to compute on). Zero-fill the host buffer and signal success.
   if (!m_pjrt_tensor) {
+    TT_FATAL(m_device->getClient()->isCompileOnly(),
+             "Copy from buffer without an associated tensor.");
     std::memset(host_buffer, 0, host_buffer_size);
     std::unique_ptr<EventInstance> event = EventInstance::createInstance();
     EventInstance::markAsReadyAndCallback(event.get(),

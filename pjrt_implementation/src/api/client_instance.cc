@@ -378,7 +378,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
     std::unique_ptr<DeviceInstance> device_instance =
         DeviceInstance::createInstance(
-            global_device_id, is_addressable, local_device_id,
+            this, global_device_id, is_addressable, local_device_id,
             m_system_descriptor->chip_descs()->Get(i)->arch());
 
     m_devices_raw.push_back(device_instance.get());
