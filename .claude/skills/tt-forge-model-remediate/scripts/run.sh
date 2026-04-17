@@ -12,6 +12,7 @@ fi
 
 export XDG_CACHE_HOME="$PWD/.cache"
 export TT_METAL_CACHE="$PWD/.cache"
+export HF_HOME="$PWD/.cache/huggingface"
 export TTMLIR_VENV_DIR=$PWD/.local_venv
 
 source $TT_XLA_ROOT/.env

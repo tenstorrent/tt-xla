@@ -1,7 +1,6 @@
 ---
 name: tt-forge-model-remediate
 description: Remediate a tt-forge-model pytest in a compile-only environment.
-model: Opus
 allowed-tools: Bash, Read, Grep, Edit, Task
 ---
 
