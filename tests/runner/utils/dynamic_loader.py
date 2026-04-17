@@ -162,6 +162,12 @@ class DynamicLoader:
         Returns:
             Path to the models root directory
         """
+        # Allow an env var override so tests can pick up a writable worktree
+        # copy of tt_forge_models instead of the main read-only submodule.
+        override = os.environ.get("TT_FORGE_MODELS_ROOT")
+        if override and os.path.isdir(override):
+            return override
+
         module_name = "third_party.tt_forge_models"
         spec = importlib.util.find_spec(module_name)
         if spec:
@@ -191,6 +197,17 @@ class DynamicLoader:
         # Add the models root to sys.path so relative imports work
         if models_root not in sys.path:
             sys.path.insert(0, models_root)
+
+        # Register tt_forge_models as a namespace package rooted at models_root.
+        # When TT_FORGE_MODELS_ROOT points at a worktree, the directory name is
+        # not "tt_forge_models", so relative imports like "from ....base import
+        # ForgeModel" in loaders would otherwise fail to resolve.
+        if "tt_forge_models" not in sys.modules:
+            import types
+
+            pkg = types.ModuleType("tt_forge_models")
+            pkg.__path__ = [models_root]
+            sys.modules["tt_forge_models"] = pkg
 
         return models_root
 
