@@ -39,7 +39,7 @@ class DynamicTorchModelTester(TorchModelTester):
         compiler_config: CompilerConfig = None,
         parallelism: Parallelism = Parallelism.SINGLE_DEVICE,
         run_phase: RunPhase = RunPhase.DEFAULT,
-        test_metadata = None,
+        test_metadata=None,
     ) -> None:
         """Initialize DynamicTorchModelTester.
 

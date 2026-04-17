@@ -28,6 +28,7 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 from tests.runner.test_config.constants import (
+    ADAPTER_MODES_LLM,
     ALLOWED_ARCHES,
     ALLOWED_FIELDS,
     FRAMEWORKS,
@@ -41,7 +42,6 @@ from tests.runner.test_config.constants import (
     RUN_MODES_LLM,
     RUN_MODES_STANDARD,
     TORCH_EXCLUDED_MODEL_DIRS,
-    ADAPTER_MODES_LLM,
 )
 
 
