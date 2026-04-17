@@ -8,135 +8,135 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
-  falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  falcon/pytorch-3_7B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  falcon/pytorch-3_7B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  falcon/pytorch-3_10B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  falcon/pytorch-3_10B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-14B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-14B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-32B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-32B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  qwen_2_5/causal_lm/pytorch-72B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-72B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/4004"
     bringup_status: FAILED_RUNTIME
 
-  gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
     bringup_status: FAILED_RUNTIME
 
-  gemma/pytorch-2_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  gemma/pytorch-2_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
 
-  gemma/pytorch-2_9B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  gemma/pytorch-2_9B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  gemma/pytorch-2_27B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  gemma/pytorch-2_27B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-3.1_70B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.1_70B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  llama/causal_lm/pytorch-3.1_70B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.1_70B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  llama/causal_lm/pytorch-3.1_405B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.1_405B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  llama/causal_lm/pytorch-3.2_1B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
 
-  llama/causal_lm/pytorch-3.2_3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-3.3_70B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.3_70B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
     bringup_status: FAILED_RUNTIME
 
-  qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4125"
     bringup_status: FAILED_RUNTIME
 
-  qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
     bringup_status: FAILED_RUNTIME
 
-  qwen_3/causal_lm/pytorch-8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_3/causal_lm/pytorch-8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  qwen_3/causal_lm/pytorch-14B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_3/causal_lm/pytorch-14B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
 
-  qwen_3/causal_lm/pytorch-32B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_3/causal_lm/pytorch-32B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  qwen_3/causal_lm/pytorch-30B_A3b-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_3/causal_lm/pytorch-30B_A3b-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
-  llama/causal_lm/pytorch-3.2_3B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_3B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
     required_pcc: 0.97
 
-  llama/causal_lm/pytorch-Tinyllama_v1.1-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-Tinyllama_v1.1-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
 
-  qwen_2_5/causal_lm/pytorch-7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -144,7 +144,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
 
-  qwen_2_5/causal_lm/pytorch-7B_Instruct_1M-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-7B_Instruct_1M-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -152,23 +152,23 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
 
-  qwen_2_5/causal_lm/pytorch-14B_Instruct_1M-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  qwen_2_5/causal_lm/pytorch-14B_Instruct_1M-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-3.0_8B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.0_8B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-3.0_8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.0_8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-3.1_8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.1_8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
-  llama/causal_lm/pytorch-Huggyllama_7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-Huggyllama_7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -176,7 +176,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "Too large for single chip"
 
-  falcon/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference-no_adapter:
+  falcon/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -185,7 +185,7 @@ test_config:
         reason: "Too large for single chip"
 
   # Llama 3.2 1B Prefill tests with different seq_len and batch_size
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_1-single_device-mesh_default-inference:
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
@@ -196,31 +196,31 @@ test_config:
       - matmul_with_activation_silu.ttnn.mlir
       - softmax.ttnn.mlir # SDPA fusion is not enabled without the optimizer, so we only check for softmax
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_4-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_4-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_1024-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_1024-batch_1-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_1024-batch_4-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_1024-batch_4-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_1-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_4-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_4-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     markers: [nightly]
@@ -231,7 +231,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "DRAM OOM"
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_1-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     markers: [nightly]
@@ -242,14 +242,14 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "DRAM OOM"
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_4-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_4096-batch_4-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     markers: [nightly]
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_1-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_1-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     markers: [nightly]
@@ -260,7 +260,7 @@ test_config:
         status: NOT_SUPPORTED_SKIP
         reason: "DRAM OOM"
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_4-single_device-mesh_default-inference-no_adapter:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_8192-batch_4-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     status: NOT_SUPPORTED_SKIP

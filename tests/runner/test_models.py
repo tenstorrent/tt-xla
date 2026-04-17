@@ -26,7 +26,6 @@ from tests.infra.utilities.types import Framework
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.torch import PLACEHOLDER_MODELS
 from tests.runner.test_utils import (
-    AdapterMode,
     ModelTestConfig,
     ModelTestStatus,
     RunPhase,
@@ -448,13 +447,6 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
 @pytest.mark.no_auto_properties
 @pytest.mark.llm
 @pytest.mark.parametrize(
-    "adapter_mode",
-    [
-        pytest.param(AdapterMode.NONE, id="no_adapter", marks=pytest.mark.no_adapter),
-        pytest.param(AdapterMode.LORA, id="lora", marks=pytest.mark.lora),
-    ],
-)
-@pytest.mark.parametrize(
     "run_mode",
     [
         pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
@@ -519,8 +511,6 @@ def test_llms_torch(
     sharding_config,
     mesh_shape,
     run_mode,
-    adapter_mode,
-    parallelism,
     record_property,
     test_metadata,
     request,
@@ -538,10 +528,6 @@ def test_llms_torch(
     )
     if invalid_combo_reason is not None:
         pytest.skip(invalid_combo_reason)
-
-    # Adapters are only meaningful for training; skip for inference.
-    if adapter_mode != AdapterMode.NONE and run_mode == RunMode.INFERENCE:
-        pytest.skip("Adapter tests only run in training mode")
 
     if run_phase == RunPhase.LLM_DECODE:
         # Decode tests don't parametrize on sequence length (default is seq_len = 1).
@@ -593,7 +579,6 @@ def test_llms_torch(
 
     test_metadata.batch_size = effective_batch_size
     test_metadata.seq_len = sequence_length
-    test_metadata.adapter_mode = adapter_mode
 
     # Propagate sharding configuration into test_metadata for downstream consumers
     if sharding_config.shard_strategy is not None:

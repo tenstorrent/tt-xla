@@ -17,10 +17,9 @@ from infra.utilities.torch_multichip_utils import get_mesh
 from loguru import logger
 from tt_torch.sparse_mlp import enable_sparse_mlp, get_moe_shard_specs
 
-from tests.runner.test_utils import AdapterMode, RunPhase
+from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.tools.lora import apply_lora_adapters
 
 
 class DynamicTorchModelTester(TorchModelTester):
@@ -50,7 +49,6 @@ class DynamicTorchModelTester(TorchModelTester):
             parallelism: Parallelism mode for model execution
             run_phase: Optional run phase (DEFAULT, LLM_DECODE, LLM_PREFILL)
             test_metadata: Optional ModelTestConfig with seq_len/batch_size for prefill
-            and adapter_mode for LLM tests
         """
         # Create TorchDynamicLoader instance
         self.dynamic_loader = TorchDynamicLoader(loader)
@@ -58,7 +56,7 @@ class DynamicTorchModelTester(TorchModelTester):
         self.parallelism = parallelism
         # Store phase hint for input loading
         self.run_phase = run_phase
-        # Store test metadata for seq_len/batch_size/adapter_mode access
+        # Store test metadata for seq_len/batch_size access
         self._test_metadata = test_metadata
 
         super().__init__(
@@ -113,25 +111,10 @@ class DynamicTorchModelTester(TorchModelTester):
     def _get_model(self):
         """Get model instance from the dynamic loader.
 
-        For LLM tests in training mode, adapters may be applied depending on
-        adapter_mode (e.g. LORA reduces memory via low-rank matrices).
-
         Returns:
             Model instance loaded from the loader
         """
-        model = self.dynamic_loader.load_model()
-
-        adapter_mode = getattr(self._test_metadata, "adapter_mode", AdapterMode.NONE)
-        if adapter_mode == AdapterMode.LORA and self._run_mode == RunMode.TRAINING:
-            model = apply_lora_adapters(
-                model,
-                r=self._test_metadata.lora_r,
-                lora_alpha=self._test_metadata.lora_alpha,
-                target_modules=self._test_metadata.lora_target_modules,
-                dropout=self._test_metadata.lora_dropout,
-            )
-
-        return model
+        return self.dynamic_loader.load_model()
 
     def _get_input_activations(self):
         """Get input activations from the dynamic loader.
