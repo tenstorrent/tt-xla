@@ -118,6 +118,7 @@ class TTPlatform(Platform):
         cls,
         selected_backend: "AttentionBackendEnum",
         attn_selector_config: "AttentionSelectorConfig",
+        num_heads: int | None = None,
     ) -> str:
         if attn_selector_config.use_sparse:
             raise NotImplementedError(
@@ -261,6 +262,11 @@ class TTPlatform(Platform):
             )
 
     @classmethod
+    def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> None:
+        # TT backend requires a block size divisible by 32 for optimal performance.
+        return 32
+
+    @classmethod
     def is_pin_memory_available(cls):
         logger.warning("Pin memory is not supported on TT.")
         return False
@@ -274,7 +280,7 @@ class TTPlatform(Platform):
         cls,
         prompt: "PromptType",
         params: "ParamsType",
-        processed_inputs: "ProcessorInputs",
+        # processed_inputs: "ProcessorInputs",
     ) -> None:
         pass
 

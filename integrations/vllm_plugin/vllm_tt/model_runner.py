@@ -19,11 +19,13 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
 from tt_torch.sharding import sharding_constraint_tensor
+from tt_torch.utils import torch_dynamo_jax_compatibility
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
     VllmConfig,
     get_layers_from_vllm_config,
+    set_current_vllm_config,
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
@@ -57,7 +59,7 @@ from vllm.multimodal.utils import group_mm_kwargs_by_modality
 from vllm.sampling_params import SamplingType
 from vllm.sequence import IntermediateTensors
 from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
-from vllm.utils.math_utils import cdiv, prev_power_of_2
+from vllm.utils.math_utils import cdiv
 from vllm.utils.platform_utils import is_pin_memory_available
 from vllm.v1.attention.backend import AttentionType
 from vllm.v1.kv_cache_interface import (
@@ -99,7 +101,7 @@ from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
-from .vllm_utils import determine_mesh_shape
+from .vllm_utils import determine_mesh_shape, prev_power_of_2
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -1548,9 +1550,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # Temporarily replace the method
                     model_loader.get_all_weights = filtered_get_all_weights
 
-                model = model_loader.load_model(
-                    vllm_config=self.vllm_config, model_config=self.model_config
-                ).eval()
+                with set_current_vllm_config(self.vllm_config):
+                    model = model_loader.load_model(
+                        vllm_config=self.vllm_config, model_config=self.model_config
+                    ).eval()
                 replace_modules(model)
                 model = model.to(self.device)
 
@@ -1621,6 +1624,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         }
 
         with (
+            torch_dynamo_jax_compatibility(),
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([num_tokens], dtype=np.int32)
             ),
@@ -1769,7 +1773,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.mesh,
                     (None, None if num_tokens == 1 else "batch", "model"),
                 )
-            self.select_hidden_states(dummy_hidden, indices)
+
+            with torch_dynamo_jax_compatibility():
+                self.select_hidden_states(dummy_hidden, indices)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -1788,7 +1794,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         dummy_hidden = dummy_hidden.to(self.device)
         if self.enable_tensor_parallel:
             xs.mark_sharding(dummy_hidden, self.mesh, (None, None))
-        self.compute_logits(dummy_hidden)
+
+        with torch_dynamo_jax_compatibility():
+            self.compute_logits(dummy_hidden)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -1817,12 +1825,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # mark_dynamic because some operations in structured_decode require
         # them to be static.
         bitmasks = self.structured_decode_bitmasks.to(self.device)
-        self.structured_decode(
-            dummy_require_struct_decoding,
-            dummy_grammar_bitmask,
-            dummy_logits,
-            bitmasks,
-        )
+        with torch_dynamo_jax_compatibility():
+            self.structured_decode(
+                dummy_require_struct_decoding,
+                dummy_grammar_bitmask,
+                dummy_logits,
+                bitmasks,
+            )
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -1854,8 +1863,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 vocab_size=self.vocab_size,
             )
             sampling_metadata.all_greedy = all_greedy
-            with self.maybe_select_dummy_loras(
-                self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
+            with (
+                torch_dynamo_jax_compatibility(),
+                self.maybe_select_dummy_loras(
+                    self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
+                ),
             ):
                 self.sample_from_logits(dummy_logits, sampling_metadata)
 
@@ -1885,8 +1897,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         dummy_tokens = torch.zeros((self.max_num_reqs, 1), dtype=torch.int64).to(
             self.device
         )
-        with self.maybe_select_dummy_loras(
-            self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
+        with (
+            torch_dynamo_jax_compatibility(),
+            self.maybe_select_dummy_loras(
+                self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
+            ),
         ):
             self.gather_logprobs(dummy_logits, dummy_tokens)
 
