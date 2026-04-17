@@ -19,6 +19,10 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.utils.quantization_config import Mxfp4Config
 from tt_torch.sparse_mlp import A2aSparseMLP, enable_sparse_mlp
+from tt_torch.transformers_overrides import (
+    override_cache_sliding_window_layers,
+    override_gpt_oss_sliding_window_causal_mask,
+)
 from tt_torch.weight_dtype import apply_weight_dtype_overrides
 
 DEFAULT_PROMPT = "Explain quantum mechanics."
@@ -51,7 +55,7 @@ def gpt_oss_120b(
 
     while True:
         if interactive:
-            user_input = input("\nYou: ").strip()
+            user_input = input("\nEnter your prompt or quit() to exit: ").strip()
             if user_input.lower() in ("quit()", "exit", "quit"):
                 break
             if not user_input:
@@ -149,6 +153,7 @@ def setup_model_and_tokenizer(
         attn_implementation="eager",
     )
     model = model.eval()
+    override_gpt_oss_sliding_window_causal_mask()
 
     applied = apply_weight_dtype_overrides(
         model,
@@ -207,7 +212,7 @@ def construct_inputs(
         return_attention_mask=True,
     )
 
-    cache_config = disable_sliding_window_attention(model_config)
+    cache_config = model_config
     static_cache: StaticCache = StaticCache(
         config=cache_config,
         max_batch_size=batch_size,
@@ -224,6 +229,8 @@ def construct_inputs(
         dtype=torch.bfloat16,
         device="cpu",
     )
+    sliding_window = getattr(cache_config, "sliding_window", max_cache_len)
+    override_cache_sliding_window_layers(static_cache, max_cache_len, sliding_window)
 
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
 
@@ -244,14 +251,6 @@ def construct_inputs(
     print(f"Prompt tokens: {inputs.input_ids.shape[1]} (batch {batch_size})")
 
     return input_args, formatted_prompts
-
-
-def disable_sliding_window_attention(
-    config: PretrainedConfig,
-) -> PretrainedConfig:
-    """Force all layers to full_attention to avoid sliding window recompilation."""
-    config.layer_types = ["full_attention"] * config.num_hidden_layers
-    return config
 
 
 def transfer_to_device(
@@ -411,7 +410,7 @@ def run_generate(
             )
             print(f"  Throughput (per user):        {1 / avg_decode:.1f} tokens/s")
         print("=" * 50)
-    if is_interactive and verbose:
+    if verbose:
         print("\n--- RAW TOKEN STREAM (user 0, unfiltered) ---")
         print("".join(output_tokens[0]))
         print("--- END RAW TOKEN STREAM ---")
